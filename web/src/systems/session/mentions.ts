@@ -9,9 +9,10 @@ export {
   SESSION_FILE_SEARCH_LIMIT,
 } from "./lib/session-file-search-options";
 export {
-  pushSessionMentionRecent,
   readSessionMentionRecents,
   sessionMentionRecentsKey,
+  withSessionMentionRecent,
+  writeSessionMentionRecents,
   SESSION_MENTION_RECENTS_LIMIT,
   type SessionMentionRecent,
 } from "./lib/session-mention-recents";

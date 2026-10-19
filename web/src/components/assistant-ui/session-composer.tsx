@@ -18,6 +18,7 @@ import type { SessionPromptCapability } from "@/systems/session/lib/session-prom
 import { commandItemPresentation } from "./session-command-menu-model";
 import { SessionComposerDirectiveChip } from "./session-composer-chip";
 import { SessionComposerMentionMenu } from "./session-composer-mention-menu";
+import { MENTION_DIRECTIVE_TYPE } from "./session-mention-model";
 import {
   SessionComposerCommandMenu,
   type SessionComposerCommandCatalog,
@@ -182,6 +183,7 @@ function SessionComposerEditor() {
           workspaceId={mentionWorkspaceId}
           sessionId={meta.sessionId}
           trigger={meta.canPrompt ? state.mentionTrigger : null}
+          recents={state.mentionRecents}
         />
       ) : null}
       <SessionComposerDropRoot disabled={!meta.canPrompt || !meta.attachments}>
@@ -224,6 +226,10 @@ function SessionComposerInput() {
       directiveChip={SessionComposerDirectiveChip}
       directivePluginProps={{
         onDirectiveSelect: item => {
+          if (item.type === MENTION_DIRECTIVE_TYPE) {
+            actions.recordMentionPick(item);
+            return;
+          }
           const token = commandItemPresentation(item).token;
           if (!meta.onCommandAction?.(token)) return;
           actions.recordPendingCommandAction(token, state.composerText);

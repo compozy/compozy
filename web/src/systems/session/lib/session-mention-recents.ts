@@ -43,20 +43,25 @@ export function readSessionMentionRecents(workspaceId: string): SessionMentionRe
   }
 }
 
-/** Moves `recent` to the front, dedupes by path, caps at 8, and persists. */
-export function pushSessionMentionRecent(
-  workspaceId: string,
+/** Moves `recent` to the front, dedupes by path, and caps at 8. */
+export function withSessionMentionRecent(
+  recents: readonly SessionMentionRecent[],
   recent: SessionMentionRecent
 ): SessionMentionRecent[] {
-  const next = [
-    recent,
-    ...readSessionMentionRecents(workspaceId).filter(existing => existing.path !== recent.path),
-  ].slice(0, SESSION_MENTION_RECENTS_LIMIT);
-  if (typeof window === "undefined" || workspaceId === "") return next;
+  return [recent, ...recents.filter(existing => existing.path !== recent.path)].slice(
+    0,
+    SESSION_MENTION_RECENTS_LIMIT
+  );
+}
+
+export function writeSessionMentionRecents(
+  workspaceId: string,
+  recents: readonly SessionMentionRecent[]
+): void {
+  if (typeof window === "undefined" || workspaceId === "") return;
   try {
-    window.localStorage.setItem(sessionMentionRecentsKey(workspaceId), JSON.stringify(next));
+    window.localStorage.setItem(sessionMentionRecentsKey(workspaceId), JSON.stringify(recents));
   } catch {
     // Best-effort convenience; quota or private-mode errors leave recents unchanged.
   }
-  return next;
 }

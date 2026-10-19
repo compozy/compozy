@@ -90,8 +90,13 @@ export function useSessionComposerController({
   const commandFormatter = createSessionCommandFormatter(
     commandCatalog ?? { standaloneSections: [], inlineSkills: [] }
   );
-  const { mentionTrigger, observeMentionTrigger, dismissMentionTrigger } =
-    useSessionMentionTrigger();
+  const {
+    mentionTrigger,
+    mentionRecents,
+    observeMentionTrigger,
+    dismissMentionTrigger,
+    recordMentionPick,
+  } = useSessionMentionTrigger();
   const stagedQuote = useSessionTerminalQuote(sessionId);
   const transportDisconnected = isSessionTransportDisconnected(useSessionTransportState());
   const trimmedComposerText = composerText.trim();
@@ -178,6 +183,7 @@ export function useSessionComposerController({
       enterHint,
       feedback: visibleFeedback,
       hasStagedQuote: Boolean(stagedQuote),
+      mentionRecents,
       mentionTrigger,
       queueFull,
       runtimeRunning,
@@ -197,6 +203,7 @@ export function useSessionComposerController({
       },
       dismissMentionTrigger,
       observeMentionTrigger,
+      recordMentionPick,
       setCommandScope,
       setComposerInputElement,
     },

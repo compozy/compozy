@@ -4,13 +4,11 @@ import {
   unstable_useTriggerPopoverScopeContext as useTriggerPopoverScopeContext,
 } from "@assistant-ui/react";
 import { File, Folder, MessagesSquare } from "lucide-react";
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 
 import { formatRelativeTime } from "@compozy/ui";
 
 import {
-  pushSessionMentionRecent,
-  readSessionMentionRecents,
   useSessionFileSearch,
   useSessionMentionSessions,
   type SessionMentionRecent,
@@ -181,19 +179,16 @@ function MentionMenuBody({
   );
 }
 
-function MentionDirectiveBehavior({
-  onInserted,
-}: {
-  onInserted: (item: Unstable_TriggerItem) => void;
-}) {
+/**
+ * Inserts the picked target as a chip. Picks reach the composer's directive
+ * select handler, which records file and folder recents.
+ */
+function MentionDirectiveBehavior() {
   const { close } = useTriggerPopoverScopeContext();
   return (
     <ComposerPrimitive.Unstable_TriggerPopover.Directive
       formatter={mentionDirectiveFormatter}
-      onInserted={item => {
-        onInserted(item);
-        close();
-      }}
+      onInserted={close}
     />
   );
 }
@@ -211,17 +206,17 @@ export function SessionComposerMentionMenu({
   workspaceId,
   sessionId,
   trigger,
+  recents,
 }: {
   workspaceId: string;
   sessionId: string;
   /** The live, undismissed `@` occurrence; `null` keeps the picker closed. */
   trigger: SessionMentionTrigger | null;
+  /** This workspace's recent file/folder mentions, shown first for a bare `@`. */
+  recents: readonly SessionMentionRecent[];
 }) {
   const active = trigger !== null && workspaceId !== "";
   const query = trigger?.query ?? "";
-  const [recents, setRecents] = useState<readonly SessionMentionRecent[]>(() =>
-    readSessionMentionRecents(workspaceId)
-  );
   const files = useSessionFileSearch({ workspaceId, sessionId, query, enabled: active });
   const sessions = useSessionMentionSessions({ workspaceId, sessionId, query, enabled: active });
   const model = buildMentionMenuModel({ query, files, sessions, recents });
@@ -234,13 +229,6 @@ export function SessionComposerMentionMenu({
       }
     : undefined;
 
-  const rememberPick = (item: Unstable_TriggerItem) => {
-    const kind = item.metadata?.kind;
-    const target = item.metadata?.target;
-    if ((kind !== "file" && kind !== "folder") || typeof target !== "string") return;
-    setRecents(pushSessionMentionRecent(workspaceId, { path: target, kind }));
-  };
-
   return (
     <ComposerPrimitive.Unstable_TriggerPopover
       char={MENTION_TRIGGER_CHARACTER}
@@ -250,7 +238,7 @@ export function SessionComposerMentionMenu({
       data-testid="composer-mention-menu"
       className={TRIGGER_MENU_POPOVER_CLASS}
     >
-      <MentionDirectiveBehavior onInserted={rememberPick} />
+      <MentionDirectiveBehavior />
       <MentionMenuBody model={model} query={query} visible={active} />
     </ComposerPrimitive.Unstable_TriggerPopover>
   );
