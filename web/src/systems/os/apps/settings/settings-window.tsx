@@ -8,7 +8,7 @@ import { useDesktop } from "../../hooks/use-desktop";
 import { SettingsWindowNav } from "./settings-window-nav";
 import { useProfileFlowIntent } from "./use-profile-flow-intent";
 import { useSettingsNavigation } from "./use-settings-navigation";
-import { SETTINGS_SECTIONS } from "@/systems/settings";
+import { retiredSettingsSectionReplacement, SETTINGS_SECTIONS } from "@/systems/settings";
 import { useDaemonConnectionStatus } from "@/systems/status";
 
 export interface SettingsSectionPageProps {
@@ -30,10 +30,6 @@ const SECTION_LOADERS = {
   terminal: () =>
     import("@/routes/_app/settings/-terminal-settings-page").then(m => ({
       default: m.TerminalSettingsPage,
-    })),
-  defaults: () =>
-    import("@/routes/_app/settings/-defaults-settings-page").then(m => ({
-      default: m.DefaultsSettingsPage,
     })),
   appearance: () =>
     import("./appearance-settings-pane").then(m => ({
@@ -123,7 +119,8 @@ const SECTION_PAGES = Object.fromEntries(
 ) as Record<MappedSectionSlug, LazyExoticComponent<SectionComponent>>;
 
 function sectionSlugFromPathname(pathname: string): MappedSectionSlug {
-  const segment = pathname.split("/")[2] ?? "";
+  const raw = pathname.split("/")[2] ?? "";
+  const segment = retiredSettingsSectionReplacement(raw) ?? raw;
   return segment in SECTION_PAGES
     ? (segment as MappedSectionSlug)
     : (SETTINGS_SECTIONS[0].slug as MappedSectionSlug);

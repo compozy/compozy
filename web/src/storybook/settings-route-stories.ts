@@ -103,8 +103,8 @@ export const settingsRouteStories = [
     system: "settings",
     routePath: "/settings/defaults",
     storybookPath: "/settings/defaults",
-    title: "systems/settings/routes/SettingsDefaults",
-    storyName: "Default",
+    title: "systems/settings/routes/SettingsGeneral",
+    storyName: "RetiredDefaultsRedirect",
   },
   {
     system: "settings",

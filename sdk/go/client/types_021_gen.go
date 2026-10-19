@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// TaskBlockResponse is a daemon API value.
+type TaskBlockResponse struct {
+	Block TaskBlockPayload `json:"block"`
+}
+
+// TaskBlocksResponse is a daemon API value.
+type TaskBlocksResponse struct {
+	Blocks []TaskBlockPayload `json:"blocks"`
+}
+
+// TaskCatalogFacetsPayload is a daemon API value.
+type TaskCatalogFacetsPayload struct {
+	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
+	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
+}
+
 // TaskCatalogItemPayload is a daemon API value.
 type TaskCatalogItemPayload struct {
 	ID                   string                 `json:"id"`

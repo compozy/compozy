@@ -30,6 +30,10 @@ type SettingsGeneralConfigPayload struct {
 type SettingsDefaultsPayload struct {
 	Agent    string `json:"agent"`
 	Provider string `json:"provider,omitempty"`
+	// Model and ReasoningEffort refine Provider for sessions that do not pick a
+	// runtime; both require Provider. Omitted means the provider's own default.
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
 type SettingsLimitsPayload struct {

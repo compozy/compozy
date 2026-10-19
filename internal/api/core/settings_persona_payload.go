@@ -9,13 +9,19 @@ import (
 
 func settingsDefaultsPayload(value compozyconfig.DefaultsConfig) contract.SettingsDefaultsPayload {
 	return contract.SettingsDefaultsPayload{
-		Agent: strings.TrimSpace(value.Agent), Provider: strings.TrimSpace(value.Provider),
+		Agent:           strings.TrimSpace(value.Agent),
+		Provider:        strings.TrimSpace(value.Provider),
+		Model:           strings.TrimSpace(value.Model),
+		ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
 	}
 }
 
 func defaultsConfigFromPayload(payload contract.SettingsDefaultsPayload) (compozyconfig.DefaultsConfig, error) {
 	value := compozyconfig.DefaultsConfig{
-		Agent: strings.TrimSpace(payload.Agent), Provider: strings.TrimSpace(payload.Provider),
+		Agent:           strings.TrimSpace(payload.Agent),
+		Provider:        strings.TrimSpace(payload.Provider),
+		Model:           strings.TrimSpace(payload.Model),
+		ReasoningEffort: strings.TrimSpace(payload.ReasoningEffort),
 	}
 	if err := value.Validate(); err != nil {
 		return compozyconfig.DefaultsConfig{}, NewSettingsValidationError(err)

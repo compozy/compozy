@@ -13,7 +13,6 @@ import {
   Store,
   Terminal,
   UsersRound,
-  UserRoundCog,
   Webhook,
   Wrench,
   Zap,
@@ -38,7 +37,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     label: "General",
     icon: SlidersHorizontal,
     group: "workspace",
-    keywords: "defaults permissions session timeout update version runtime socket",
+    keywords:
+      "defaults session defaults new sessions profile agent provider model reasoning effort smooth streaming permissions session timeout update version runtime socket",
   },
   {
     slug: "terminal",
@@ -47,13 +47,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     group: "workspace",
     keywords:
       "terminal shell scrollback recording retention detached ttl subscribers daemon workspace default_shell",
-  },
-  {
-    slug: "defaults",
-    label: "Defaults",
-    icon: UserRoundCog,
-    group: "workspace",
-    keywords: "profile agent provider defaults new sessions",
   },
   {
     slug: "appearance",

@@ -196,7 +196,18 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 		dst.Agent = *o.Agent
 	}
 	if o.Provider != nil {
+		if CanonicalProviderName(*o.Provider) != CanonicalProviderName(dst.Provider) {
+			// The inherited model and reasoning were chosen for the provider this
+			// layer replaces; keeping them would run that model on another provider.
+			dst.Model, dst.ReasoningEffort = "", ""
+		}
 		dst.Provider = *o.Provider
+	}
+	if o.Model != nil {
+		dst.Model = *o.Model
+	}
+	if o.ReasoningEffort != nil {
+		dst.ReasoningEffort = *o.ReasoningEffort
 	}
 }
 

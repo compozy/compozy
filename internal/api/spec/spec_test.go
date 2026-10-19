@@ -3442,6 +3442,28 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	promptProperties := promptBody["schema"].(map[string]any)["properties"].(map[string]any)
 	steerProperties := steerBody["schema"].(map[string]any)["properties"].(map[string]any)
 	steerProperties["attachments"] = promptProperties["attachments"]
+
+	// #814: optional additive session-runtime defaults; no required/type/removal change.
+	persona := paths["/api/settings/persona"].(map[string]any)
+	personaConfigs := []map[string]any{
+		persona["get"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any),
+		persona["patch"].(map[string]any)["requestBody"].(map[string]any),
+		persona["patch"].(map[string]any)["responses"].(map[string]any)["200"].(map[string]any),
+	}
+	for _, body := range personaConfigs {
+		schema := body["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		config, ok := schema["properties"].(map[string]any)["config"].(map[string]any)
+		if !ok {
+			continue
+		}
+		configProperties := config["properties"].(map[string]any)
+		for _, field := range []string{"model", "reasoning_effort"} {
+			if _, exists := configProperties[field]; exists {
+				t.Fatalf("approved persona schema addition: %s already exists in the historical baseline", field)
+			}
+			configProperties[field] = map[string]any{"type": "string"}
+		}
+	}
 }
 
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {

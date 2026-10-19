@@ -53,6 +53,7 @@ import {
   useSettingsGeneral,
   useSettingsHooksExtensions,
   useSettingsObservability,
+  useSettingsPersona,
   useSettingsProviders,
   useSettingsSkills,
   useSettingsUpdate,
@@ -93,6 +94,7 @@ const adapterMocks = vi.hoisted(() => ({
   getSettingsGeneral: vi.fn(),
   getSettingsHooksExtensions: vi.fn(),
   getSettingsObservability: vi.fn(),
+  getSettingsPersona: vi.fn(),
   getSettingsSkills: vi.fn(),
   getSettingsUpdate: vi.fn(),
   getSkill: vi.fn(),
@@ -167,6 +169,7 @@ vi.mock("@/systems/settings/adapters/settings-api", async importOriginal => ({
   getSettingsGeneral: adapterMocks.getSettingsGeneral,
   getSettingsHooksExtensions: adapterMocks.getSettingsHooksExtensions,
   getSettingsObservability: adapterMocks.getSettingsObservability,
+  getSettingsPersona: adapterMocks.getSettingsPersona,
   getSettingsSkills: adapterMocks.getSettingsSkills,
   getSettingsUpdate: adapterMocks.getSettingsUpdate,
   listSettingsApplyRecords: adapterMocks.listSettingsApplyRecords,
@@ -665,18 +668,22 @@ const cases: PreloadCase[] = [
     requests: [adapterMocks.fetchWorkspaces, adapterMocks.getLoopRun, adapterMocks.getLoop],
   },
   {
-    name: "general settings → general/update/apply-record options",
+    name: "general settings → general/session-defaults/update/apply-record options",
     load: queryClient => invokeLoader(SettingsGeneralRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
         useWorkspaces();
         useSettingsGeneral();
+        useSettingsPersona({ scope: "user" });
+        useSettingsProviders();
         useSettingsUpdate();
         useSettingsApplyRecords({ limit: 8 });
       }),
     requests: [
       adapterMocks.fetchWorkspaces,
       adapterMocks.getSettingsGeneral,
+      adapterMocks.getSettingsPersona,
+      adapterMocks.listSettingsProviders,
       adapterMocks.getSettingsUpdate,
       adapterMocks.listSettingsApplyRecords,
     ],
@@ -763,6 +770,7 @@ describe("route query preloading", () => {
     });
     adapterMocks.listSettingsMCPServers.mockResolvedValue({ mcp_servers: [] });
     adapterMocks.getSettingsGeneral.mockResolvedValue({ config: {} });
+    adapterMocks.getSettingsPersona.mockResolvedValue({ config: { agent: "general" } });
     adapterMocks.getSettingsUpdate.mockResolvedValue({ status: "idle" });
     adapterMocks.listSettingsApplyRecords.mockResolvedValue({ records: [] });
     adapterMocks.listSettingsProviders.mockResolvedValue({ providers: [] });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { retiredSettingsSectionReplacement } from "../section-paths";
 import {
   filterSettingsSections,
   findSettingsSection,
@@ -13,7 +14,6 @@ describe("settings sections metadata", () => {
     expect(SETTINGS_SECTIONS.map(section => section.slug)).toEqual([
       "general",
       "terminal",
-      "defaults",
       "appearance",
       "layouts",
       "profiles",
@@ -61,5 +61,26 @@ describe("settings sections metadata", () => {
     expect(filterSettingsSections("terminal").map(section => section.slug)).toContain("terminal");
     expect(filterSettingsSections("scrollback").map(section => section.slug)).toEqual(["terminal"]);
     expect(filterSettingsSections("recording").map(section => section.slug)).toEqual(["terminal"]);
+  });
+
+  it("Should land every session-defaults search on General", () => {
+    // Invariant: the retired Defaults page's search terms now find General.
+    for (const query of [
+      "defaults",
+      "agent",
+      "provider",
+      "model",
+      "reasoning",
+      "smooth streaming",
+    ]) {
+      expect(filterSettingsSections(query).map(section => section.slug)).toContain("general");
+    }
+    expect(findSettingsSection("defaults")).toBeUndefined();
+  });
+
+  it("Should resolve the retired Defaults slug to General and nothing else", () => {
+    expect(retiredSettingsSectionReplacement("defaults")).toBe("general");
+    expect(retiredSettingsSectionReplacement("general")).toBeNull();
+    expect(retiredSettingsSectionReplacement("toString")).toBeNull();
   });
 });

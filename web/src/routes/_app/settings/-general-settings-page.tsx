@@ -13,7 +13,9 @@ import {
   SettingsPageFrame,
   SettingsPageState,
   SettingsSaveBar,
+  combineSettingsSaveSources,
   useSettingsSaveBarState,
+  useSettingsSessionDefaults,
   useSettingsTopbar,
 } from "@/systems/settings";
 import { DEFAULT_SESSION_BUSY_INPUT_MODE, type SessionBusyInputMode } from "@/systems/session";
@@ -32,6 +34,7 @@ import {
 } from "@compozy/ui";
 
 import { MemoryReportRow, RedactionSection } from "./-general-daemon-sections";
+import { SessionDefaultsGroup } from "./-general-session-defaults";
 import { generalUpdateNeedsAttention } from "./-general-update-attention";
 import { GeneralUpdateSection } from "./-general-update-section";
 
@@ -309,26 +312,33 @@ function GeneralApplyRecordsSheet({
 
 export function GeneralSettingsPage() {
   const page = useSettingsGeneralPage();
+  const sessionDefaults = useSettingsSessionDefaults();
   useSettingsTopbar();
   const [applyRecordsOpen, setApplyRecordsOpen] = useState(false);
+  // One save bar for machine settings (user scope) and the profile's session defaults.
+  const save = combineSettingsSaveSources([page, sessionDefaults.persona]);
   const saveBarState = useSettingsSaveBarState({
-    isDirty: page.isDirty,
+    isDirty: save.isDirty,
     isInvalid: false,
-    isSaving: page.isSaving,
-    error: page.saveError,
-    warnings: page.warnings,
+    isSaving: save.isSaving,
+    error: save.error,
+    warnings: save.warnings,
     lastAppliedLabel: page.lastAppliedLabel,
   });
 
-  if (page.isLoading) {
+  if (page.isLoading || sessionDefaults.isLoading) {
     return <SettingsPageState slug="general" state="loading" />;
   }
 
-  if (page.error || !page.envelope || !page.draft) {
+  const loadError = page.error ?? sessionDefaults.error;
+  if (loadError || !page.envelope || !page.draft || sessionDefaults.persona.draft === null) {
     return (
       <SettingsPageState
-        error={page.error}
-        onRetry={page.handleRetry}
+        error={loadError}
+        onRetry={() => {
+          page.handleRetry();
+          sessionDefaults.retry();
+        }}
         slug="general"
         state="error"
       />
@@ -345,7 +355,7 @@ export function GeneralSettingsPage() {
       isLoading={update.isLoading}
     />
   );
-  // Updates lead the page only when there is something to act on.
+  // Updates lead the machine settings only when there is something to act on.
   const updatesFirst = generalUpdateNeedsAttention(update);
 
   return (
@@ -357,12 +367,18 @@ export function GeneralSettingsPage() {
         <SettingsSaveBar
           slug="general"
           state={saveBarState}
-          onSave={page.handleSave}
-          onReset={page.handleReset}
+          onSave={save.onSave}
+          onReset={save.onReset}
         />
       }
       slug="general"
     >
+      <SessionDefaultsGroup
+        disabled={save.isSaving}
+        persona={sessionDefaults.persona}
+        runtime={sessionDefaults.runtime}
+      />
+
       {updatesFirst ? updateSection : null}
 
       <SettingsGroup data-testid="settings-page-general-permissions" title="Permissions">

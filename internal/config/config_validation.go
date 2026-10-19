@@ -98,10 +98,14 @@ func (c *Config) validateProviders() error {
 	return nil
 }
 
-// Validate ensures the default agent setting is present and valid.
+// Validate ensures the default agent setting is present and valid, and that
+// the session runtime defaults refine a configured provider.
 func (c DefaultsConfig) Validate() error {
 	if strings.TrimSpace(c.Agent) == "" {
 		return ValidationError{Path: configDefaultsAgentPath, Message: "is required"}
 	}
-	return validateAgentNameAtPath(c.Agent, configDefaultsAgentPath)
+	if err := validateAgentNameAtPath(c.Agent, configDefaultsAgentPath); err != nil {
+		return err
+	}
+	return c.validateSessionRuntime()
 }

@@ -2615,6 +2615,136 @@ func TestInspectProfileLayerFilesReportsOrphansWithoutApplyingThem(t *testing.T)
 	}
 }
 
+func TestLoadSessionRuntimeDefaultsStayWithTheirProvider(t *testing.T) {
+	t.Parallel()
+
+	const userDefaults = `
+[defaults]
+agent = "general"
+provider = "codex"
+model = "gpt-5.6-terra"
+reasoning_effort = "high"
+`
+	for _, testCase := range []struct {
+		name          string
+		profile       string
+		workspace     string
+		wantProvider  string
+		wantModel     string
+		wantReasoning string
+	}{
+		{
+			name:          "Should load the saved session runtime from the user layer",
+			wantProvider:  "codex",
+			wantModel:     "gpt-5.6-terra",
+			wantReasoning: "high",
+		},
+		{
+			name:          "Should inherit the saved model when a layer repeats the provider",
+			workspace:     "[defaults]\nprovider = \"codex\"\n",
+			wantProvider:  "codex",
+			wantModel:     "gpt-5.6-terra",
+			wantReasoning: "high",
+		},
+		{
+			name:         "Should drop the inherited model when a profile switches provider",
+			profile:      "[defaults]\nprovider = \"claude\"\n",
+			wantProvider: "claude",
+		},
+		{
+			name:          "Should apply the profile's own model for its provider",
+			profile:       "[defaults]\nprovider = \"claude\"\nmodel = \"claude-opus-5\"\nreasoning_effort = \"max\"\n",
+			workspace:     "[defaults]\nprovider = \"claude\"\n",
+			wantProvider:  "claude",
+			wantModel:     "claude-opus-5",
+			wantReasoning: "max",
+		},
+		{
+			name:          "Should refine only the model when a layer leaves the provider alone",
+			workspace:     "[defaults]\nmodel = \"gpt-5.6-luna\"\n",
+			wantProvider:  "codex",
+			wantModel:     "gpt-5.6-luna",
+			wantReasoning: "high",
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			workspaceRoot := t.TempDir()
+			writeFile(t, homePaths.ConfigFile, userDefaults)
+			options := []LoadOption{WithWorkspaceRoot(workspaceRoot), withoutDotEnv()}
+			if testCase.profile != "" {
+				writeFile(t, profileConfigFile(homePaths, "work"), testCase.profile)
+				options = append(options, WithProfile("work"))
+			}
+			if testCase.workspace != "" {
+				writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), testCase.workspace)
+			}
+
+			cfg, err := LoadForHome(homePaths, options...)
+			if err != nil {
+				t.Fatalf("LoadForHome() error = %v", err)
+			}
+			got := cfg.Defaults
+			if got.Provider != testCase.wantProvider || got.Model != testCase.wantModel ||
+				got.ReasoningEffort != testCase.wantReasoning {
+				t.Fatalf("Defaults = %s/%s/%s, want %s/%s/%s",
+					got.Provider, got.Model, got.ReasoningEffort,
+					testCase.wantProvider, testCase.wantModel, testCase.wantReasoning)
+			}
+		})
+	}
+}
+
+func TestDefaultsConfigValidateSessionRuntime(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name     string
+		defaults DefaultsConfig
+		wantPath string
+	}{
+		{
+			name:     "Should require a provider for the saved model",
+			defaults: DefaultsConfig{Agent: "general", Model: "gpt-5.6-terra"},
+			wantPath: configDefaultsModelPath,
+		},
+		{
+			name:     "Should require a provider for the saved reasoning",
+			defaults: DefaultsConfig{Agent: "general", ReasoningEffort: "high"},
+			wantPath: configDefaultsReasoningEffortPath,
+		},
+		{
+			name:     "Should reject a malformed reasoning effort",
+			defaults: DefaultsConfig{Agent: "general", Provider: "codex", ReasoningEffort: "very high"},
+			wantPath: configDefaultsReasoningEffortPath,
+		},
+		{
+			name:     "Should accept a provider-bound model and reasoning",
+			defaults: DefaultsConfig{Agent: "general", Provider: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "high"},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := testCase.defaults.Validate()
+			if testCase.wantPath == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), testCase.wantPath) {
+				t.Fatalf("Validate() error = %v, want %s", err, testCase.wantPath)
+			}
+		})
+	}
+}
+
 func writeFile(t *testing.T, path string, contents string) {
 	t.Helper()
 

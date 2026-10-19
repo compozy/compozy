@@ -13672,7 +13672,9 @@ export interface components {
     };
     SettingsDefaultsPayload: {
       agent: string;
+      model?: string;
       provider?: string;
+      reasoning_effort?: string;
     };
     SettingsExtensionDevPayload: {
       watch_interval: string;

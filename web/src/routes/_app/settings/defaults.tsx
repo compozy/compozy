@@ -1,15 +1,21 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { createOsRouteSync } from "@/systems/os";
-import type { TopbarRouteContext } from "@/types/topbar";
+import { settingsSectionPath } from "@/systems/settings";
 
+/**
+ * Session defaults moved to General (#814). The retired route stays so old
+ * links, window routes and persisted layouts land there instead of 404ing.
+ * Remove in v0.5.0 with the retired-slug table.
+ */
 export const Route = createFileRoute("/_app/settings/defaults")({
-  beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { crumb: { label: "Defaults" } },
-  }),
-  loader: async ({ context }) => {
-    const { preloadSettingsDefaultsRoute } = await import("../-settings-preload");
-    await preloadSettingsDefaultsRoute(context.queryClient);
-  },
-  component: createOsRouteSync("settings"),
+  beforeLoad: redirectRetiredDefaultsSection,
+  component: RetiredDefaultsRedirect,
 });
+
+function redirectRetiredDefaultsSection() {
+  throw redirect({ to: settingsSectionPath("general"), replace: true });
+}
+
+function RetiredDefaultsRedirect() {
+  return null;
+}

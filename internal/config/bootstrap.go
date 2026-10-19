@@ -80,8 +80,15 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 		); err != nil {
 			return err
 		}
-		if err := editor.SetValue([]string{bootstrapDefaultsKey, bootstrapProviderKey}, selectedProvider); err != nil {
+		if err := editor.SetValue(defaultsProviderPath, selectedProvider); err != nil {
 			return err
+		}
+		// Install chooses the model through the provider default below, so a
+		// session default left from an earlier choice must not override it.
+		for _, path := range [][]string{defaultsModelPath, defaultsReasoningEffortPath} {
+			if err := editor.Delete(path); err != nil {
+				return err
+			}
 		}
 		if err := editor.SetValue(
 			[]string{bootstrapPermissionsKey, bootstrapModeKey},

@@ -196,6 +196,8 @@ type OverlayEditor struct {
 }
 
 // SetValue updates or creates one scalar or array value at the provided path.
+// Changing defaults.provider also removes the document's provider-bound
+// defaults.model and defaults.reasoning_effort.
 func (e *OverlayEditor) SetValue(path []string, value any) error {
 	cleanPath, err := normalizeMutationPath(path)
 	if err != nil {
@@ -205,6 +207,9 @@ func (e *OverlayEditor) SetValue(path []string, value any) error {
 	normalized, err := normalizeTOMLValue(value)
 	if err != nil {
 		return fmt.Errorf("config: set TOML value %q: %w", strings.Join(cleanPath, "."), err)
+	}
+	if err := e.dropStaleDefaultsRuntime(cleanPath, normalized); err != nil {
+		return err
 	}
 
 	updated, err := setValueInOverlayDocument(e.content, cleanPath, normalized)
@@ -271,7 +276,7 @@ func (e *OverlayEditor) Delete(path []string) error {
 		return err
 	}
 	e.content = updated
-	return nil
+	return e.dropStaleDefaultsRuntime(cleanPath, "")
 }
 
 // DeleteArrayTableItem removes one named entry from an array-of-tables.

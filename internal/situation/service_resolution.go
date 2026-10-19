@@ -76,8 +76,14 @@ func (s *Service) resolveAgent(
 	}
 
 	if workspaceSnapshot != nil {
-		provider := firstTrimmed(providerOverride, agent.Provider, workspaceSnapshot.Config.Defaults.Provider)
+		defaults := workspaceSnapshot.Config.Defaults
+		provider := firstTrimmed(providerOverride, agent.Provider, defaults.Provider)
 		model := strings.TrimSpace(agent.Model)
+		if model == "" && strings.TrimSpace(agent.Provider) == "" &&
+			compozyconfig.CanonicalProviderName(provider) == compozyconfig.CanonicalProviderName(defaults.Provider) {
+			// defaults.model belongs to defaults.provider only, as in session resolution.
+			model = strings.TrimSpace(defaults.Model)
+		}
 		if provider != "" && model == "" {
 			if providerConfig, err := workspaceSnapshot.Config.ResolveProvider(provider); err == nil {
 				model = strings.TrimSpace(providerConfig.Models.Default)

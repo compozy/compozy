@@ -178,8 +178,10 @@ type SettingsDaemonRuntimePayload struct {
 
 // SettingsDefaultsPayload is a daemon API value.
 type SettingsDefaultsPayload struct {
-	Agent    string `json:"agent"`
-	Provider string `json:"provider,omitempty"`
+	Agent           string `json:"agent"`
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
 // SettingsExtensionDevPayload is a daemon API value.
@@ -426,24 +428,4 @@ type SettingsMCPAuthConfigViewPayload struct {
 // SettingsMCPAuthExchangeRequest is a daemon API value.
 type SettingsMCPAuthExchangeRequest struct {
 	RedirectURL string `json:"redirect_url"`
-}
-
-// SettingsMCPAuthStatusPayload is a daemon API value.
-type SettingsMCPAuthStatusPayload struct {
-	ServerName   string     `json:"server_name"`
-	Owner        string     `json:"owner"`
-	Scope        string     `json:"scope"`
-	WorkspaceID  string     `json:"workspace_id,omitempty"`
-	Profile      string     `json:"profile,omitempty"`
-	Status       string     `json:"status"`
-	RemoteURL    string     `json:"remote_url,omitempty"`
-	AuthType     string     `json:"auth_type,omitempty"`
-	ClientID     string     `json:"client_id,omitempty"`
-	Issuer       string     `json:"issuer,omitempty"`
-	Scopes       []string   `json:"scopes,omitempty"`
-	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
-	UpdatedAt    *time.Time `json:"updated_at,omitempty"`
-	Refreshable  bool       `json:"refreshable"`
-	TokenPresent bool       `json:"token_present"`
-	Diagnostic   string     `json:"diagnostic,omitempty"`
 }

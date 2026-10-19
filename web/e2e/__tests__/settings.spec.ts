@@ -57,7 +57,6 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     .toEqual([
       "General",
       "Terminal",
-      "Defaults",
       "Appearance",
       "Layouts",
       "Profiles",

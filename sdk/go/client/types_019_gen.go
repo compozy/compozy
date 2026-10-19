@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// SettingsSkillSourceRootPayload is a daemon API value.
+type SettingsSkillSourceRootPayload struct {
+	RootID        string                                  `json:"root_id"`
+	Path          string                                  `json:"path"`
+	Exists        bool                                    `json:"exists"`
+	Readable      bool                                    `json:"readable"`
+	ScannedCount  *int                                    `json:"scanned_count,omitzero"`
+	SkillCount    *int                                    `json:"skill_count,omitzero"`
+	Truncated     bool                                    `json:"truncated"`
+	SkippedLinks  []SettingsSkillSourceSkippedLinkPayload `json:"skipped_links"`
+	Collisions    []SettingsSkillSourceCollisionPayload   `json:"collisions"`
+	Verification  SettingsSkillSourceVerificationPayload  `json:"verification"`
+	NativeReaders []string                                `json:"native_readers"`
+}
+
+// SettingsSkillSourceSkippedLinkPayload is a daemon API value.
+type SettingsSkillSourceSkippedLinkPayload struct {
+	Path   string `json:"path"`
+	Reason string `json:"reason"`
+}
+
+// SettingsSkillSourceVerificationPayload is a daemon API value.
+type SettingsSkillSourceVerificationPayload struct {
+	Blocked int `json:"blocked"`
+	Warned  int `json:"warned"`
+}
+
 // SettingsSkillsConfigPayload is a daemon API value.
 type SettingsSkillsConfigPayload struct {
 	Enabled                 bool     `json:"enabled"`
@@ -419,22 +446,4 @@ type SkillExposurePayload struct {
 	Target string              `json:"target"`
 	Path   string              `json:"path"`
 	Status SkillExposureStatus `json:"status"`
-}
-
-// SkillExposureRequest is a daemon API value.
-type SkillExposureRequest struct {
-	Targets     []string `json:"targets"`
-	WorkspaceID string   `json:"workspace_id,omitempty"`
-}
-
-// SkillExposureStatus is a daemon API value.
-type SkillExposureStatus string
-
-// SkillExposureTargetResultPayload is a daemon API value.
-type SkillExposureTargetResultPayload struct {
-	Target       string                     `json:"target"`
-	OK           bool                       `json:"ok"`
-	Exposure     *SkillExposurePayload      `json:"exposure,omitzero"`
-	Error        *SkillExposureErrorPayload `json:"error,omitzero"`
-	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitzero"`
 }

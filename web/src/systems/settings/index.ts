@@ -21,7 +21,10 @@ export {
   SETTINGS_SECTION_SLUGS,
   settingsSectionPath,
 } from "./lib/sections";
-export { DEFAULT_SETTINGS_SECTION_SLUG } from "./lib/section-paths";
+export {
+  DEFAULT_SETTINGS_SECTION_SLUG,
+  retiredSettingsSectionReplacement,
+} from "./lib/section-paths";
 export {
   readTerminalSettings,
   terminalSettingsInvalidKeyMessage,
@@ -381,6 +384,16 @@ export { useSettingsPage } from "./hooks/use-settings-page";
 export { useSettingsRestart } from "./hooks/use-settings-restart";
 export { useSettingsRolesPage } from "./hooks/use-settings-roles-page";
 export { useSettingsPersonaPage } from "./hooks/use-settings-persona-page";
+export {
+  useSettingsRuntimeCatalog,
+  type SettingsRuntimeCatalog,
+} from "./hooks/use-settings-runtime-catalog";
+export { useSettingsSessionDefaults } from "./hooks/use-settings-session-defaults";
+export {
+  combineSettingsSaveSources,
+  personaConfigWithRuntime,
+  sessionDefaultsRuntimeValue,
+} from "./lib/session-defaults";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";

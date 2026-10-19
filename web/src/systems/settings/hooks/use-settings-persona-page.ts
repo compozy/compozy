@@ -17,7 +17,7 @@ function profileFilterKey(filter: SettingsPersonaFilter): string {
 
 export function useSettingsPersonaPage() {
   const profile = useProfileReadScope();
-  const page = useSettingsPage({ currentSlug: "defaults" });
+  const page = useSettingsPage({ currentSlug: "general" });
   const filter = settingsPersonaFilterForProfile(profile.destination);
   const filterKey = profileFilterKey(filter);
   const query = useQuery(settingsPersonaOptions(filter));

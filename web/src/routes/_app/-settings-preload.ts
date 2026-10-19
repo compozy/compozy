@@ -26,6 +26,10 @@ export async function preloadSettingsGeneralRoute(queryClient: QueryClient): Pro
     resolveActiveWorkspaceId(queryClient),
     settleRouteQueries([
       queryClient.ensureQueryData(settingsGeneralOptions()),
+      queryClient.ensureQueryData(
+        settingsPersonaOptions(settingsPersonaFilterForProfile(readActingProfile(queryClient)))
+      ),
+      queryClient.ensureQueryData(settingsProvidersListOptions()),
       queryClient.ensureQueryData(settingsUpdateOptions()),
       queryClient.ensureQueryData(settingsApplyRecordsOptions({ limit: 8 })),
     ]),
@@ -34,16 +38,6 @@ export async function preloadSettingsGeneralRoute(queryClient: QueryClient): Pro
 
 export function preloadSettingsProvidersRoute(queryClient: QueryClient): Promise<void> {
   return settleRouteQueries([queryClient.ensureQueryData(settingsProvidersListOptions())]);
-}
-
-export function preloadSettingsDefaultsRoute(queryClient: QueryClient): Promise<void> {
-  const profileName = readActingProfile(queryClient);
-  return settleRouteQueries([
-    queryClient.ensureQueryData(
-      settingsPersonaOptions(settingsPersonaFilterForProfile(profileName))
-    ),
-    queryClient.ensureQueryData(settingsProvidersListOptions()),
-  ]);
 }
 
 export function preloadSettingsSkillsRoute(queryClient: QueryClient): Promise<void> {

@@ -6933,7 +6933,9 @@ export type SettingsDaemonRuntimePayload = {
 
 export type SettingsDefaultsPayload = {
   agent: string;
+  model?: string;
   provider?: string;
+  reasoning_effort?: string;
 };
 
 export type SettingsExtensionDevPayload = {

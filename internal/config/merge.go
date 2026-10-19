@@ -35,8 +35,10 @@ type httpOverlay struct {
 }
 
 type defaultsOverlay struct {
-	Agent    *string `toml:"agent"`
-	Provider *string `toml:"provider"`
+	Agent           *string `toml:"agent"`
+	Provider        *string `toml:"provider"`
+	Model           *string `toml:"model"`
+	ReasoningEffort *string `toml:"reasoning_effort"`
 }
 
 type agentsOverlay struct {

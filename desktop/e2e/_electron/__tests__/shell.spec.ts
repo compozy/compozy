@@ -918,7 +918,6 @@ test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and
     ).toHaveText([
       "General",
       "Terminal",
-      "Defaults",
       "Appearance",
       "Layouts",
       "Profiles",

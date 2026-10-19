@@ -180,6 +180,8 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"http.port":                                       configSetInt,
 	"defaults.agent":                                  configSetString,
 	configDefaultsProviderPath:                        configSetString,
+	"defaults.model":                                  configSetString,
+	"defaults.reasoning_effort":                       configSetString,
 	"limits.max_concurrent_agents":                    configSetInt,
 	"session.limits.timeout":                          configSetDuration,
 	"session.supervision.activity_heartbeat_interval": configSetDuration,

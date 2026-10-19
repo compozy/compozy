@@ -61,6 +61,16 @@ export const Default: Story = {
 };
 
 /**
+ * The retired Defaults route: old links and persisted windows land on General,
+ * whose first group now holds the session defaults.
+ */
+export const RetiredDefaultsRedirect: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/defaults"),
+  render: () => <StorybookWorkspaceSetup />,
+};
+
+/**
  * Runtime memory reporting disabled -- the daemon interval is 0s, so the general
  * page renders the disabled sampling value for the field.
  */

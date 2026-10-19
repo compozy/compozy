@@ -56,6 +56,8 @@ var (
 		appUpdateCheckIntervalPath:                                 ConfigValueDuration,
 		toolSurfaceDefaultsAgentPath:                               ConfigValueString,
 		"defaults.provider":                                        ConfigValueString,
+		configDefaultsModelPath:                                    ConfigValueString,
+		configDefaultsReasoningEffortPath:                          ConfigValueString,
 		"agents.soul.enabled":                                      ConfigValueBool,
 		toolSurfaceAgentsSoulMaxBodyBytesPath:                      ConfigValueInt64,
 		toolSurfaceAgentsSoulContextProjectionBytesPath:            ConfigValueInt64,
