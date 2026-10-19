@@ -137,28 +137,31 @@ async function cleanup(): Promise<void> {
   cleanupPromise = (async () => {
     bootstrapAbort.abort();
     const errors: Error[] = [];
-    const attempt = async (step: () => void | Promise<void>): Promise<void> => {
+    const attempt = async (name: string, step: () => void | Promise<void>): Promise<void> => {
+      logger.info("desktop shutdown step started", { step: name });
       try {
         await step();
+        logger.info("desktop shutdown step completed", { step: name });
       } catch (error) {
+        logger.error("desktop shutdown step failed", error, { step: name });
         errors.push(error instanceof Error ? error : new Error(String(error)));
       }
     };
     try {
-      await attempt(async () => {
+      await attempt("bootstrap", async () => {
         await bootstrapFlow;
       });
-      await attempt(async () => await product?.flushState());
-      await attempt(() => productBridge?.unregister());
-      await attempt(() => operationWatcher?.stop());
-      await attempt(() => updateConsumer?.stop());
-      await attempt(() => runtimeMonitor?.stop());
-      await attempt(async () => {
+      await attempt("window state", async () => await product?.flushState());
+      await attempt("product bridge", () => productBridge?.unregister());
+      await attempt("operation watcher", () => operationWatcher?.stop());
+      await attempt("update consumer", () => updateConsumer?.stop());
+      await attempt("runtime monitor", () => runtimeMonitor?.stop());
+      await attempt("control server", async () => {
         if (controlServer) await controlServer.close();
       });
-      await attempt(async () => await deleteControlToken(paths.appToken));
-      await attempt(async () => await publisher?.markCleanShutdown());
-      await attempt(async () => await logger.flush());
+      await attempt("control token", async () => await deleteControlToken(paths.appToken));
+      await attempt("clean marker", async () => await publisher?.markCleanShutdown());
+      await attempt("logs", async () => await logger.flush());
       if (errors.length === 1) throw errors[0];
       if (errors.length > 1) throw new AggregateError(errors, "Desktop cleanup failed.");
     } finally {
