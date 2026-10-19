@@ -336,6 +336,8 @@ describe("SubagentComposerControl (issue #766)", () => {
     const trigger = screen.getByRole("button", { name: "Subagents, none yet" });
     expect(trigger).toHaveAttribute("data-state", "idle");
     expect(trigger).not.toHaveTextContent(/\d/);
+    // Icon-only, it is the composer's square icon tool (#826).
+    expect(trigger).toHaveAttribute("data-size", "tool-icon");
     await user.click(trigger);
     expect(await screen.findByText("Nothing delegated yet.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Subagents" })).toBeInTheDocument();
@@ -349,6 +351,8 @@ describe("SubagentComposerControl (issue #766)", () => {
     const trigger = screen.getByRole("button", { name: "Subagents, 3 running, 1 needs you" });
     expect(trigger).toHaveAttribute("data-state", "attention");
     expect(trigger).toHaveTextContent("3");
+    // The live count widens it into the padded tool pill at the same height (#826).
+    expect(trigger).toHaveAttribute("data-size", "tool");
     expect(trigger.querySelector('[data-slot="status-dot"]')).toHaveAttribute(
       "data-tone",
       "accent"

@@ -5284,8 +5284,9 @@ describe("SessionThread composer running semantics", () => {
 
     expect(await screen.findByTestId("composer-send-button")).toBeInTheDocument();
     expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument();
-    // Idle: the quiet ⏎ hint reads "send".
+    // Idle: the screen-reader ⏎ hint reads "send".
     expect(screen.getByTestId("composer-enter-hint")).toHaveTextContent(/send/);
+    expect(screen.getByTestId("composer-enter-hint")).toHaveClass("sr-only");
 
     rerender({ isSessionRunning: true, allowBusyInput: true, onQueuePrompt: vi.fn() });
 
@@ -5299,6 +5300,8 @@ describe("SessionThread composer running semantics", () => {
     expect(hint).toHaveTextContent(/steer/);
     expect(hint).toHaveTextContent(/queue/);
     expect(hint).not.toHaveTextContent(/send/);
+    // The busy row shows no shortcut badges: the hint stays for assistive tech only (#826).
+    expect(hint).toHaveClass("sr-only");
   });
 
   // Invariant: sending while disconnected fails now and keeps the draft (US-018.AC-3):

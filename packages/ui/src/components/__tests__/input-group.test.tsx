@@ -1,7 +1,13 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupTextarea } from "../input-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+  InputGroupTextarea,
+} from "../input-group";
 
 describe("InputGroup", () => {
   it("Should place inline-start addon before the input without clipping", () => {
@@ -51,5 +57,28 @@ describe("InputGroup", () => {
     );
     fireEvent.mouseDown(screen.getByTestId("tools"));
     expect(document.activeElement).toBe(screen.getByRole("textbox", { name: "Message" }));
+  });
+
+  // Invariant: composer icon-only tools are the 28 px icon-button square and tool
+  // pills share that height, so every control in the row lands on one edge (#826).
+  it("Should size composer icon-only tools to the icon-button square and pills to its height", () => {
+    render(
+      <InputGroup variant="composer">
+        <InputGroupTextarea aria-label="Message" />
+        <InputGroupAddon align="block-end">
+          <InputGroupButton size="tool-icon" aria-label="Attach files">
+            <svg aria-hidden="true" />
+          </InputGroupButton>
+          <InputGroupButton size="tool">Agent</InputGroupButton>
+        </InputGroupAddon>
+      </InputGroup>
+    );
+    const icon = screen.getByRole("button", { name: "Attach files" });
+    expect(icon).toHaveAttribute("data-size", "tool-icon");
+    expect(icon.className).toContain("size-button-icon-default!");
+    expect(icon.className).not.toMatch(/(^|\s)px-/);
+    const pill = screen.getByRole("button", { name: "Agent" });
+    expect(pill).toHaveAttribute("data-size", "tool");
+    expect(pill.className).toContain("h-(--size-button-icon-default)!");
   });
 });

@@ -1,0 +1,79 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { HttpResponse } from "msw";
+
+import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { storybookMswParameters } from "@/storybook/msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+import { SessionChatRuntimeProvider } from "@/systems/session/components/session-chat-runtime-provider";
+import { SubagentComposerControl } from "@/systems/session/components/subagents/subagent-composer-control";
+import { primarySessionFixture } from "@/systems/session/mocks";
+
+import { baseArgs, composerToolbarArgs } from "./session-thread-story-runtime";
+import { mixedStreamingTranscript, transcriptPayload } from "./session-thread-story-transcripts";
+
+const storyWorkspaceId = primarySessionFixture.workspace_id ?? "ws_alpha";
+
+/**
+ * The session composer's control row (issue #826). Every control is 28 px tall:
+ * icon-only tools are the `InputGroupButton` `tool-icon` square, tools with a
+ * label or count are the padded `tool` pill, 4 px apart inside the tool and
+ * action groups, which wrap in narrow windows.
+ */
+const meta: Meta<typeof SessionThread> = {
+  title: "systems/session/components/assistant-ui/SessionThread/ComposerToolbar",
+  component: SessionThread,
+  parameters: {
+    layout: "fullscreen",
+    ...storybookMswParameters({
+      session: [
+        compozyApiMock.get("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", () =>
+          HttpResponse.json(transcriptPayload(mixedStreamingTranscript))
+        ),
+      ],
+    }),
+  },
+  decorators: [
+    Story => (
+      <SessionChatRuntimeProvider
+        sessionId={primarySessionFixture.id}
+        workspaceId={storyWorkspaceId}
+      >
+        <div className="flex h-[640px] w-full flex-col bg-background border border-line">
+          <Story />
+        </div>
+      </SessionChatRuntimeProvider>
+    ),
+  ],
+};
+
+export default meta;
+
+type Story = StoryObj<typeof meta>;
+
+/** Idle — model picker, folder, context ring, subagents and attach, then the send disc. */
+export const Idle: Story = {
+  args: { ...baseArgs, ...composerToolbarArgs },
+};
+
+/**
+ * Turn running — the live subagents count widens its tool into a pill, and
+ * Queue, Steer, Interrupt and Stop share the 28 px row with no visible shortcut
+ * badges (the Enter hint stays for screen readers).
+ */
+export const Busy: Story = {
+  args: {
+    ...baseArgs,
+    ...composerToolbarArgs,
+    subagentControl: (
+      <SubagentComposerControl
+        subagents={[]}
+        counts={{ live: 2, total: 3, failed: 0, attention: 0 }}
+      />
+    ),
+    isSessionRunning: true,
+    allowBusyInput: true,
+    onQueuePrompt: () => undefined,
+    onInterruptPrompt: () => undefined,
+    onSteerPrompt: () => undefined,
+  },
+};

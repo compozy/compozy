@@ -14,9 +14,9 @@ import { AgentCommandList } from "./agent-command-list";
 import { formatCategoryLabel } from "../lib/agent-category";
 import type { AgentPayload } from "../types";
 
-/** Chromeless pill sized to its content, matching the composer model picker's 28px geometry. */
+/** Chromeless pill sized to its content, matching the composer model picker's 28px `tool` pill geometry. */
 const COMPOSER_TRIGGER_CLASS =
-  "group h-(--size-button-icon-default) w-auto max-w-full justify-start gap-1.5 rounded-pill border-0 bg-transparent px-2 text-fg-2 shadow-none hover:bg-transparent hover:text-fg focus-visible:shadow-focus-ring [&>svg]:size-3.5";
+  "group h-(--size-button-icon-default) w-auto max-w-full justify-start gap-1.5 rounded-pill border-0 bg-transparent px-2.5 text-fg-2 shadow-none hover:bg-transparent hover:text-fg focus-visible:shadow-focus-ring [&>svg]:size-3.5";
 
 export interface AgentCommandSelectProps {
   agents: AgentPayload[];

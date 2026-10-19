@@ -99,7 +99,7 @@ const meta: Meta<typeof QueueStoryHost> = {
     docs: {
       description: {
         component:
-          "The strip fuses onto the composer top: a header with the count and the only Clear all, one 32px row per entry (mono position, owner attribution for another actor, one-line preview, Steer / edit / remove), a dispatching head row (“Sending…”, verbs absent), the client-local unconfirmed row with Retry, the full header at cap (Queue button and ⌘⏎ queue hint absent), and the inline clear confirmation. Every button runs the production handler against the story's MSW queue.",
+          "The strip fuses onto the composer top: a header with the count and the only Clear all, one 32px row per entry (mono position, owner attribution for another actor, one-line preview, Steer / edit / remove), a dispatching head row (“Sending…”, verbs absent), the client-local unconfirmed row with Retry, the full header at cap (Queue button and the screen-reader ⌘⏎ queue hint absent), and the inline clear confirmation. Every button runs the production handler against the story's MSW queue.",
       },
     },
   },
