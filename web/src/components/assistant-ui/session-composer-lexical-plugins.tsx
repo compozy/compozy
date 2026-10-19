@@ -266,14 +266,17 @@ export function SessionCommandScopePlugin({
  * Publishes the live `@` occurrence before the caret (or `null`) so the
  * mention picker searches what the operator is typing, and lets Esc dismiss
  * that occurrence — above the library's handlers, so the `@` stays closed
- * while typing continues after it (US-004.AC-1). Lexical drops key commands
+ * while typing continues after it and when the caret returns to it
+ * (US-004.AC-1). The full text travels with each report so a dismissal
+ * follows its `@` across edits elsewhere. Lexical drops key commands
  * during IME composition, so composition always wins (US-004.EC-1).
  */
 export function SessionMentionTriggerPlugin({
   onTrigger,
   onEscape,
 }: {
-  onTrigger: (trigger: SessionMentionTrigger | null) => void;
+  /** `text` is the full composer text when the editor selection could be read. */
+  onTrigger: (trigger: SessionMentionTrigger | null, text?: string) => void;
   /** Returns true when an open picker consumed the key. */
   onEscape: () => boolean;
 }) {
@@ -290,7 +293,11 @@ export function SessionMentionTriggerPlugin({
           return;
         }
         const snapshot = readCursorSnapshot(selection);
-        publish(snapshot ? detectMentionTrigger(snapshot.text, snapshot.cursor) : null);
+        if (!snapshot) {
+          publish(null);
+          return;
+        }
+        publish(detectMentionTrigger(snapshot.text, snapshot.cursor), snapshot.text);
       });
     });
     const unregisterEscape = editor.registerCommand(

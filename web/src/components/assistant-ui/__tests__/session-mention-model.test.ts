@@ -20,7 +20,11 @@ import {
   sessionMentionItem,
   type MentionMenuSources,
 } from "../session-mention-model";
-import { activeMentionTrigger, sessionMentionTriggerLogic } from "../session-mention-trigger-store";
+import {
+  activeMentionTrigger,
+  remapDismissedOffsets,
+  sessionMentionTriggerLogic,
+} from "../session-mention-trigger-store";
 
 const EMPTY_CATALOG = { standaloneSections: [], inlineSkills: [] };
 
@@ -242,21 +246,47 @@ describe("sessionMentionDirectives", () => {
 });
 
 describe("mention trigger store", () => {
-  it("Should keep a dismissed occurrence closed until its token ends", () => {
+  // Invariant (US-004.AC-1/2, VC-10): a dismissal belongs to its `@` and lasts
+  // as long as that `@` exists — typing after it, leaving and returning with
+  // the caret, and edits elsewhere never reopen it; a new `@` opens.
+  it("Should keep a dismissed occurrence closed until that @ itself changes", () => {
     const store = sessionMentionTriggerLogic.createStore({ workspaceId: "" });
     const active = () => activeMentionTrigger(store.getSnapshot().context);
+    const observe = (text: string, cursor: number) =>
+      store.trigger.observed({ trigger: detectMentionTrigger(text, cursor), text });
 
-    store.trigger.observed({ trigger: { offset: 4, query: "Ov" } });
+    observe("The @Ov", 7);
     expect(active()).toEqual({ offset: 4, query: "Ov" });
     store.trigger.dismissed();
     expect(active()).toBeNull();
-    store.trigger.observed({ trigger: { offset: 4, query: "Override" } });
+
+    // Typing after the dismissed `@` keeps it closed.
+    observe("The @Override", 13);
     expect(active()).toBeNull();
-    store.trigger.observed({ trigger: { offset: 14, query: "" } });
-    expect(active()).toEqual({ offset: 14, query: "" });
-    store.trigger.observed({ trigger: null });
-    store.trigger.observed({ trigger: { offset: 4, query: "" } });
-    expect(active()).toEqual({ offset: 4, query: "" });
+    // The caret leaves the token and comes back into it.
+    observe("The @Override annotation", 24);
+    expect(active()).toBeNull();
+    observe("The @Override annotation", 13);
+    expect(active()).toBeNull();
+    // A new `@` after whitespace opens the picker.
+    observe("The @Override annotation @", 26);
+    expect(active()).toEqual({ offset: 25, query: "" });
+    // Text inserted before the dismissed `@` moves it; it stays closed.
+    observe("See The @Override annotation @", 17);
+    expect(active()).toBeNull();
+    // Deleting that `@` ends the dismissal: a freshly typed `@` there opens.
+    observe("See The Override annotation @", 8);
+    observe("See The @Override annotation @", 17);
+    expect(active()).toEqual({ offset: 8, query: "Override" });
+  });
+
+  it("Should carry dismissed offsets across an edit by its common prefix and suffix", () => {
+    expect(remapDismissedOffsets([4], "The @Ov", "The @Override")).toEqual([4]);
+    expect(remapDismissedOffsets([4], "The @Ov", "See The @Ov")).toEqual([8]);
+    expect(remapDismissedOffsets([4], "The @Ov", "The Ov")).toEqual([]);
+    expect(remapDismissedOffsets([0, 3], "@a @b", "")).toEqual([]);
+    const unchanged = [3];
+    expect(remapDismissedOffsets(unchanged, "ab @c", "ab @c")).toBe(unchanged);
   });
 
   it("Should persist picks as newest-first recents per workspace", () => {
