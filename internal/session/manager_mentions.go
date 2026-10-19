@@ -25,6 +25,8 @@ type MentionReferences struct {
 	Text     string
 	Form     MentionReferenceForm
 	Sessions int // referenced sessions still available and rendered
+	// SessionIDs lists the rendered sessions in block order; it feeds the delivery manifest.
+	SessionIDs []string
 }
 
 // MentionReferenceRenderer renders the session-references text block for one dispatch.

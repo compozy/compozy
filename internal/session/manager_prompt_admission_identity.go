@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/session/inputqueue"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -95,6 +96,10 @@ func (m *Manager) newPromptAdmissionRequest(
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, err
 	}
+	mentionsJSON, err := inputqueue.EncodeMentions(req.mentions)
+	if err != nil {
+		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: encode admitted mentions: %w", err)
+	}
 	admissionID, err := store.NewID("pad")
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission id: %w", err)
@@ -118,6 +123,8 @@ func (m *Manager) newPromptAdmissionRequest(
 		AuthoredText:             req.authoredMessage,
 		Runtime:                  storeRuntimeSelection(req.runtime),
 		SkillInvocations:         append([]commandpkg.Invocation(nil), req.skillInvocations...),
+		MentionsJSON:             mentionsJSON,
+		HumanIngress:             req.humanIngress,
 		Attachments:              storeAttachments(req.attachments),
 		TurnID:                   req.turnID,
 		EventID:                  eventID,
@@ -227,6 +234,12 @@ func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPrompt
 	req.idempotencyKey = admission.IdempotencyKey
 	req.runtime = runtimeSelectionFromStore(admission.Runtime)
 	req.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	mentions, err := inputqueue.DecodeMentions(admission.MentionsJSON)
+	if err != nil {
+		return req, fmt.Errorf("session: restore admitted mentions: %w", err)
+	}
+	req.mentions = mentions
+	req.humanIngress = admission.HumanIngress
 	req.attachments = attachmentMetaFromStore(admission.Attachments)
 	return req, nil
 }
