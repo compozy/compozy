@@ -84,10 +84,11 @@ func TestSearchSessionFilesHandler(t *testing.T) {
 	})
 
 	for _, test := range []struct {
-		name       string
-		path       string
-		wantStatus int
-		wantCode   string
+		name        string
+		path        string
+		wantStatus  int
+		wantCode    string
+		wantMessage string
 	}{
 		{
 			name:       "reject a zero limit",
@@ -126,16 +127,18 @@ func TestSearchSessionFilesHandler(t *testing.T) {
 			wantCode:   "session_not_found",
 		},
 		{
-			name:       "report a removed working directory as unavailable",
-			path:       "/api/workspaces/workspace/sessions/sess-gone/files",
-			wantStatus: http.StatusConflict,
-			wantCode:   "session_directory_unavailable",
+			name:        "report a removed working directory as unavailable",
+			path:        "/api/workspaces/workspace/sessions/sess-gone/files",
+			wantStatus:  http.StatusConflict,
+			wantCode:    "session_directory_unavailable",
+			wantMessage: "session working directory no longer exists",
 		},
 		{
-			name:       "report a missing bound worktree as unavailable",
-			path:       "/api/workspaces/workspace/sessions/sess-missing-worktree/files",
-			wantStatus: http.StatusConflict,
-			wantCode:   "session_directory_unavailable",
+			name:        "report a missing bound worktree as unavailable",
+			path:        "/api/workspaces/workspace/sessions/sess-missing-worktree/files",
+			wantStatus:  http.StatusConflict,
+			wantCode:    "session_directory_unavailable",
+			wantMessage: "session working directory no longer exists",
 		},
 	} {
 		t.Run("Should "+test.name, func(t *testing.T) {
@@ -148,6 +151,9 @@ func TestSearchSessionFilesHandler(t *testing.T) {
 			testutil.DecodeJSONResponse(t, response, &payload)
 			if payload.Code != test.wantCode || payload.Error == "" {
 				t.Fatalf("error payload = %#v, want code %q with a message", payload, test.wantCode)
+			}
+			if test.wantMessage != "" && payload.Error != test.wantMessage {
+				t.Fatalf("error message = %q, want %q without any path", payload.Error, test.wantMessage)
 			}
 		})
 	}
