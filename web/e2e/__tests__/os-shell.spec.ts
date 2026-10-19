@@ -9,6 +9,7 @@ import type { Browser, Locator, Page } from "@playwright/test";
 import type { BrowserRuntime, WorkspacePayload } from "../fixtures/runtime";
 import {
   appWindow,
+  closeAppWindow,
   destinationPalette,
   menubarCommandItem,
   openAppWindow as openDockApp,
@@ -836,6 +837,66 @@ test("E2E-006: visible session windows stream without focus and catch up after r
   await expect(restoredPrimary.getByTestId("chat-view")).toContainText(
     "Primary stream event arrived while the window was minimized."
   );
+});
+
+test("Issue 843: each session window owns its sessions rail across ⌘B, reload, and close", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  await expect(appPage.getByRole("button", { name: /^Desktop 1 of 1:/ })).toBeEnabled();
+  const left = await createNamedSession(runtime, workspace.id, "Left rail owner");
+  const right = await createNamedSession(runtime, workspace.id, "Right rail owner");
+  const leftWindowID = await openSessionWindowInAuthority(runtime, workspace.id, left);
+  const rightWindowID = await openSessionWindowInAuthority(runtime, workspace.id, right);
+  await moveWindowToNormalizedRect(runtime, workspace.id, leftWindowID, {
+    x: 0.01,
+    y: 0.02,
+    width: 0.48,
+    height: 0.78,
+  });
+  await moveWindowToNormalizedRect(runtime, workspace.id, rightWindowID, {
+    x: 0.51,
+    y: 0.02,
+    width: 0.48,
+    height: 0.78,
+  });
+  const leftWindow = sessionWindow(appPage, left.id);
+  const rightWindow = sessionWindow(appPage, right.id);
+  const leftRail = leftWindow.getByTestId("session-sidebar");
+  const rightRail = rightWindow.getByTestId("session-sidebar");
+  await expect(leftRail).toBeVisible();
+  await expect(rightRail).toBeVisible();
+
+  // ⌘B toggles the focused window's rail only.
+  await focusWindow(appPage, leftWindow);
+  await expect(windowFrame(leftWindow)).toHaveAttribute("data-focused", "");
+  await appPage.keyboard.press("ControlOrMeta+B");
+  await expect(leftRail).toBeHidden();
+  await expect(rightRail).toBeVisible();
+
+  // The in-window toggle is just as local.
+  const rightToggle = rightWindow.getByTestId("session-sidebar-toggle");
+  await rightToggle.click();
+  await expect(rightRail).toBeHidden();
+  await rightToggle.click();
+  await expect(rightRail).toBeVisible();
+  await expect(leftRail).toBeHidden();
+
+  // A reload restores each window's own rail.
+  await appPage.reload({ waitUntil: "domcontentloaded" });
+  await expect(rightRail).toBeVisible();
+  await expect(leftWindow).toBeVisible();
+  await expect(leftRail).toBeHidden();
+
+  // Closing a window drops its persisted rail state; the survivor keeps its own.
+  await closeAppWindow(appPage, leftWindow);
+  await rightToggle.click();
+  await expect(rightRail).toBeHidden();
+  await expect
+    .poll(() => persistedSessionRailScopes(appPage))
+    .toEqual(expect.arrayContaining([rightWindowID]));
+  expect(await persistedSessionRailScopes(appPage)).not.toContain(leftWindowID);
 });
 
 test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", async ({
@@ -3551,6 +3612,16 @@ async function dragWindowBy(page: Page, win: ReturnType<Page["locator"]>, dx: nu
   await page.mouse.down();
   await page.mouse.move(x + dx, y + dy, { steps: 6 });
   await page.mouse.up();
+}
+
+/** Window scopes holding sessions-rail state in the persisted per-window store. */
+async function persistedSessionRailScopes(page: Page): Promise<string[]> {
+  return await page.evaluate(() => {
+    const raw = window.localStorage.getItem("compozy:session:sidebar:v1");
+    if (raw === null) return [];
+    const parsed = JSON.parse(raw) as { context?: { byScope?: Record<string, unknown> } };
+    return Object.keys(parsed.context?.byScope ?? {});
+  });
 }
 
 async function focusWindow(page: Page, win: ReturnType<Page["locator"]>) {

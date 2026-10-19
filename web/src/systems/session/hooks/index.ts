@@ -72,7 +72,7 @@ export {
   type UseSessionInspectorStateResult,
 } from "./use-session-inspector-state";
 export {
-  toggleSessionSidebar,
+  pruneSessionSidebarScopes,
   useSessionSidebarState,
   type UseSessionSidebarStateResult,
 } from "./use-session-sidebar-state";

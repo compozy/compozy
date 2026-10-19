@@ -105,3 +105,5 @@ the root's provider renders one line while a Codex child under a Claude root kee
 long agent name truncates before "Needs attention" and the chip/toggle stay whole.
 
 QA impact 2026-10-19 (#825): a just-created session now lands in an existing Session window on the landing desktop (focused, else empty-state, else most recently focused; pinned and other-desktop windows skipped) instead of opening another window. The window choice is owned by ET-web-new-session-reuses-session-window; replay this scenario's create step with a Session window already open.
+
+QA impact 2026-10-19 (issue #843): the open preference and per-thread collapse are now stored per session window (`compozy:session:sidebar:v1`, schema 3, `byScope`) instead of once for every window; a new window starts from the last-used state. Re-walk the reload step with two windows; see ET-web-session-sidebar-per-window.
