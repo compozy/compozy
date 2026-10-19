@@ -19,6 +19,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/compozy/compozy/internal/workspacefiles"
 	"github.com/gin-gonic/gin"
 )
 
@@ -351,6 +352,10 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	}
 	if cfg.StreamDone == nil {
 		cfg.StreamDone = make(chan struct{})
+	}
+	if cfg.SessionFiles == nil {
+		// Without an injected runner the index serves the bounded directory walk only.
+		cfg.SessionFiles = workspacefiles.New(nil, workspacefiles.WithLogger(logger))
 	}
 	return baseHandlerDefaults{
 		logger:                      logger,

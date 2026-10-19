@@ -31700,10 +31700,6 @@ export type SearchSessionFilesErrors = {
    * Internal server error
    */
   500: ErrorPayload;
-  /**
-   * Service unavailable - dependent service missing
-   */
-  503: ErrorPayload;
 };
 
 export type SearchSessionFilesError = SearchSessionFilesErrors[keyof SearchSessionFilesErrors];

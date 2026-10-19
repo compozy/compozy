@@ -23,7 +23,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Canonical suite: IT-005 searchSessionFiles over HTTP and UDS with the real git-backed index.
+// Canonical suite: IT-005 searchSessionFiles transport parity over HTTP and UDS with the real
+// git-backed index. Handler status mapping is owned by internal/api/core/session_files_test.go and
+// the worktree-bound session journey by internal/daemon/session_files_integration_test.go.
 func TestSearchSessionFilesHTTPUDSTransportParityIT005(t *testing.T) {
 	t.Parallel()
 
@@ -37,11 +39,9 @@ func TestSearchSessionFilesHTTPUDSTransportParityIT005(t *testing.T) {
 		infos: map[string]*session.Info{
 			"sess-wt":      {ID: "sess-wt", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID},
 			"sess-gone":    {ID: "sess-gone", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID},
-			"sess-missing": {ID: "sess-missing", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID},
 			"sess-foreign": {ID: "sess-foreign", WorkspaceID: "ws-other", ProfileID: store.DefaultProfileID},
 		},
 		dirs: map[string]string{"sess-wt": worktreeRoot, "sess-gone": removedDir},
-		errs: map[string]error{"sess-missing": worktree.ErrMissing},
 	}
 	index := workspacefiles.New(runner)
 	httpRouter := newSessionFilesParityHTTPRouter(t, sessions, index)
@@ -104,38 +104,14 @@ func TestSearchSessionFilesHTTPUDSTransportParityIT005(t *testing.T) {
 			wantCode:   "invalid_request",
 		},
 		{
-			name:       "reject a limit above the maximum",
-			path:       "/api/workspaces/ws-public/sessions/sess-wt/files?limit=201",
-			wantStatus: http.StatusBadRequest,
-			wantCode:   "invalid_request",
-		},
-		{
-			name:       "reject a non-integer limit",
-			path:       "/api/workspaces/ws-public/sessions/sess-wt/files?limit=many",
-			wantStatus: http.StatusBadRequest,
-			wantCode:   "invalid_request",
-		},
-		{
 			name:       "hide a session of another workspace",
 			path:       "/api/workspaces/ws-public/sessions/sess-foreign/files",
 			wantStatus: http.StatusNotFound,
 			wantCode:   "session_not_found",
 		},
 		{
-			name:       "report an unknown session as not found",
-			path:       "/api/workspaces/ws-public/sessions/sess-unknown/files",
-			wantStatus: http.StatusNotFound,
-			wantCode:   "session_not_found",
-		},
-		{
 			name:       "report a removed working directory as unavailable",
 			path:       "/api/workspaces/ws-public/sessions/sess-gone/files",
-			wantStatus: http.StatusConflict,
-			wantCode:   "session_directory_unavailable",
-		},
-		{
-			name:       "report a missing bound worktree as unavailable",
-			path:       "/api/workspaces/ws-public/sessions/sess-missing/files",
 			wantStatus: http.StatusConflict,
 			wantCode:   "session_directory_unavailable",
 		},
@@ -160,7 +136,6 @@ type sessionFilesSessionManager struct {
 	testutil.StubSessionManager
 	infos map[string]*session.Info
 	dirs  map[string]string
-	errs  map[string]error
 }
 
 func (m sessionFilesSessionManager) Status(_ context.Context, id string) (*session.Info, error) {
@@ -172,13 +147,8 @@ func (m sessionFilesSessionManager) Status(_ context.Context, id string) (*sessi
 }
 
 func (m sessionFilesSessionManager) WorkingDir(_ context.Context, id string) (string, error) {
-	if err, ok := m.errs[id]; ok {
-		return "", err
-	}
 	return m.dirs[id], nil
 }
-
-var _ core.SessionWorkingDirResolver = sessionFilesSessionManager{}
 
 func newSessionFilesGitRepo(t *testing.T, runner *worktree.RealGitRunner) string {
 	t.Helper()

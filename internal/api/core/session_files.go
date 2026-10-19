@@ -18,10 +18,9 @@ const (
 	defaultSessionFilesLimit = 50
 	maxSessionFilesLimit     = 200
 
-	sessionFilesInvalidRequestCode    = "invalid_request"
-	sessionFilesSessionNotFoundCode   = "session_not_found"
-	sessionDirectoryUnavailableCode   = "session_directory_unavailable"
-	sessionFilesSearchUnavailableText = "api: session file search is not configured"
+	sessionFilesInvalidRequestCode  = "invalid_request"
+	sessionFilesSessionNotFoundCode = "session_not_found"
+	sessionDirectoryUnavailableCode = "session_directory_unavailable"
 )
 
 // SessionFileSearcher ranks files and folders under one directory root.
@@ -29,18 +28,8 @@ type SessionFileSearcher interface {
 	Search(ctx context.Context, root string, query string, limit int) (workspacefiles.Result, error)
 }
 
-// SessionWorkingDirResolver resolves the directory a session's agent runs in.
-type SessionWorkingDirResolver interface {
-	WorkingDir(ctx context.Context, sessionID string) (string, error)
-}
-
 // SearchSessionFiles lists ranked files and folders under one session's working directory.
 func (h *BaseHandlers) SearchSessionFiles(c *gin.Context) {
-	resolver, ok := h.Sessions.(SessionWorkingDirResolver)
-	if !ok || h.SessionFiles == nil {
-		h.respondError(c, http.StatusServiceUnavailable, errors.New(sessionFilesSearchUnavailableText))
-		return
-	}
 	scope, ok := h.resolveWorkspaceScope(c)
 	if !ok {
 		return
@@ -71,7 +60,7 @@ func (h *BaseHandlers) SearchSessionFiles(c *gin.Context) {
 		return
 	}
 	ctx := c.Request.Context()
-	root, err := resolver.WorkingDir(ctx, sessionID)
+	root, err := h.Sessions.WorkingDir(ctx, sessionID)
 	if err != nil {
 		h.respondSessionFilesRootError(c, StatusForSessionError(err), err)
 		return

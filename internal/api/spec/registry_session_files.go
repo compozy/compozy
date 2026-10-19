@@ -26,11 +26,6 @@ func searchSessionFilesOperationSpec() OperationSpec {
 				Description: "Session working directory no longer exists",
 				Body:        contract.ErrorPayload{},
 			},
-			{
-				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
-				Body:        contract.ErrorPayload{},
-			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

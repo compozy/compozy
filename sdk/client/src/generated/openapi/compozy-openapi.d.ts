@@ -45063,15 +45063,6 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Service unavailable - dependent service missing */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
     };
   };
   forkSession: {
