@@ -25,22 +25,15 @@ type StreamingGitRunner interface {
 	) (stderr []byte, err error)
 }
 
-// gitFiles returns tracked and untracked-not-ignored files, minus deleted ones,
-// relative to root.
+// gitFiles returns tracked and untracked-not-ignored files relative to root.
+// Deleted tracked files are dropped by the per-path Lstat in classifyListed.
 func (idx *index) gitFiles(ctx context.Context, root string) ([]string, bool, error) {
 	gitCtx, cancel := context.WithTimeout(ctx, idx.gitTimeout)
 	defer cancel()
-	deleted := make(map[string]struct{})
-	if _, err := idx.listGit(gitCtx, root, func(name string) bool {
-		deleted[name] = struct{}{}
-		return true
-	}, "ls-files", "--deleted", "-z"); err != nil {
-		return nil, false, err
-	}
 	collector := fileCollector{
+		expired: ctx.Err,
 		root:    root,
 		limit:   idx.maxFiles,
-		deleted: deleted,
 		seen:    make(map[string]struct{}),
 		files:   make([]string, 0, 1024),
 	}
@@ -53,20 +46,25 @@ func (idx *index) gitFiles(ctx context.Context, root string) ([]string, bool, er
 	return collector.files, partial || collector.truncated, nil
 }
 
-// fileCollector accepts listed paths up to limit, dropping deleted, duplicate,
-// and non-indexable ones, and classifying symlinks by their target.
+// fileCollector accepts listed paths up to limit, dropping missing, duplicate,
+// and non-indexable ones, and classifying symlinks by their target. It stops
+// with truncation once the build deadline passes.
 type fileCollector struct {
+	expired   func() error // reports the build deadline
 	root      string
 	limit     int
-	deleted   map[string]struct{}
 	seen      map[string]struct{}
 	files     []string
 	truncated bool
 }
 
-// add returns false once a path beyond the cap arrives.
+// add returns false once a path beyond the cap arrives or the build deadline passes.
 func (c *fileCollector) add(name string) bool {
-	if _, gone := c.deleted[name]; gone || !indexablePath(name) {
+	if c.expired() != nil {
+		c.truncated = true
+		return false
+	}
+	if !indexablePath(name) {
 		return true
 	}
 	if _, dup := c.seen[name]; dup {

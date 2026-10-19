@@ -292,7 +292,9 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		runner := &fakeGitRunner{files: files}
 
 		idx := New(runner)
-		result, err := idx.Search(t.Context(), t.TempDir(), "", DefaultMaxFiles+10)
+		root := t.TempDir()
+		createListedFiles(t, root, files)
+		result, err := idx.Search(t.Context(), root, "", DefaultMaxFiles+10)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
@@ -444,7 +446,9 @@ func TestIndexSearchStreamingGit(t *testing.T) {
 			t.Fatalf("listing = %d bytes, want more than 1 MiB", runner.listingBytes)
 		}
 
-		result, err := New(runner).Search(t.Context(), t.TempDir(), runner.files[len(runner.files)-1], 5)
+		root := t.TempDir()
+		createListedFiles(t, root, runner.files)
+		result, err := New(runner).Search(t.Context(), root, runner.files[len(runner.files)-1], 5)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
@@ -464,7 +468,9 @@ func TestIndexSearchStreamingGit(t *testing.T) {
 		t.Parallel()
 		runner := newFakeStreamingRunner(6_000)
 
-		result, err := New(runner, WithMaxFiles(100)).Search(t.Context(), t.TempDir(), "", 200)
+		root := t.TempDir()
+		createListedFiles(t, root, runner.files)
+		result, err := New(runner, WithMaxFiles(100)).Search(t.Context(), root, "", 200)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
@@ -510,9 +516,6 @@ func (f *fakeStreamingRunner) RunStreaming(
 	onStdout func([]byte),
 	args ...string,
 ) ([]byte, error) {
-	if slices.Contains(args, "--deleted") {
-		return nil, nil
-	}
 	var listing strings.Builder
 	for _, file := range f.files {
 		listing.WriteString(file)
@@ -541,9 +544,6 @@ type fakeGitRunner struct {
 }
 
 func (f *fakeGitRunner) Run(ctx context.Context, _ string, args ...string) ([]byte, []byte, error) {
-	if slices.Contains(args, "--deleted") {
-		return nil, nil, nil
-	}
 	f.listCalls.Add(1)
 	if f.release != nil {
 		<-f.release
@@ -625,6 +625,21 @@ func initGitRepo(t *testing.T, runner GitRunner, files map[string]string) string
 		}
 	}
 	return root
+}
+
+// createListedFiles creates the empty files a fake git listing names, because listed
+// paths that do not exist are dropped as deleted.
+func createListedFiles(t *testing.T, root string, files []string) {
+	t.Helper()
+	for _, name := range files {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", name, err)
+		}
+		if err := os.WriteFile(path, nil, 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
 }
 
 func writeFiles(t *testing.T, root string, files map[string]string) {

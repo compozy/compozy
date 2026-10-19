@@ -23,6 +23,10 @@ const (
 	DefaultCacheTTL = 15 * time.Second
 	// DefaultGitTimeout bounds the git subprocesses of one index build.
 	DefaultGitTimeout = 5 * time.Second
+	// DefaultBuildTimeout bounds one whole shared index build, git and walk fallback included.
+	DefaultBuildTimeout = 10 * time.Second
+	// DefaultMaxWalkEntries caps the directory entries (files and folders) one walk visits.
+	DefaultMaxWalkEntries = 4 * DefaultMaxFiles
 )
 
 // ErrInvalidRoot reports a blank search root.
@@ -101,6 +105,24 @@ func WithGitTimeout(timeout time.Duration) Option {
 	}
 }
 
+// WithBuildTimeout overrides the deadline of one shared build.
+func WithBuildTimeout(timeout time.Duration) Option {
+	return func(idx *index) {
+		if timeout > 0 {
+			idx.buildTimeout = timeout
+		}
+	}
+}
+
+// WithMaxWalkEntries overrides how many directory entries one walk may visit.
+func WithMaxWalkEntries(limit int) Option {
+	return func(idx *index) {
+		if limit > 0 {
+			idx.maxWalkEntries = limit
+		}
+	}
+}
+
 // WithLogger overrides the index logger.
 func WithLogger(logger *slog.Logger) Option {
 	return func(idx *index) {
@@ -111,12 +133,14 @@ func WithLogger(logger *slog.Logger) Option {
 }
 
 type index struct {
-	git        GitRunner
-	now        func() time.Time
-	maxFiles   int
-	cacheTTL   time.Duration
-	gitTimeout time.Duration
-	logger     *slog.Logger
+	git            GitRunner
+	now            func() time.Time
+	maxFiles       int
+	maxWalkEntries int
+	cacheTTL       time.Duration
+	gitTimeout     time.Duration
+	buildTimeout   time.Duration
+	logger         *slog.Logger
 
 	mu    sync.Mutex
 	roots map[string]*rootIndex
@@ -136,13 +160,15 @@ type rootIndex struct {
 // New returns an index that lists git roots through git.
 func New(git GitRunner, opts ...Option) Index {
 	idx := &index{
-		git:        git,
-		now:        time.Now,
-		maxFiles:   DefaultMaxFiles,
-		cacheTTL:   DefaultCacheTTL,
-		gitTimeout: DefaultGitTimeout,
-		logger:     slog.Default(),
-		roots:      make(map[string]*rootIndex),
+		git:            git,
+		now:            time.Now,
+		maxFiles:       DefaultMaxFiles,
+		maxWalkEntries: DefaultMaxWalkEntries,
+		cacheTTL:       DefaultCacheTTL,
+		gitTimeout:     DefaultGitTimeout,
+		buildTimeout:   DefaultBuildTimeout,
+		logger:         slog.Default(),
+		roots:          make(map[string]*rootIndex),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -181,9 +207,14 @@ func (idx *index) snapshotFor(ctx context.Context, root string) (*snapshot, erro
 	idx.mu.Unlock()
 
 	if !ok {
-		// The first caller owns the build. It ignores the caller's cancellation so
-		// waiters are never failed by it; git and the walk are bounded on their own.
-		idx.build(context.WithoutCancel(ctx), root, current)
+		// The build outlives the caller that started it: every caller, the first
+		// included, only waits for it, so any of them can stop waiting on its own
+		// cancellation while the build finishes for the others under its own deadline.
+		buildCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), idx.buildTimeout)
+		go func() {
+			defer cancel()
+			idx.build(buildCtx, root, current)
+		}()
 	}
 	select {
 	case <-current.done:
