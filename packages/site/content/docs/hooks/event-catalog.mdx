@@ -85,7 +85,10 @@ or rolls back recovery.
 
 `input.pre_submit` patches can replace `message`, append or replace `context_blocks`, or deny the
 submission. Its `attachments` field exposes only read-only `id`, `name`, `mime`, `bytes`, and `kind`
-metadata; file contents never enter the hook payload or patch. `prompt.post_assemble` patches can replace `prompt`, adjust `context_blocks`, or deny
+metadata; file contents never enter the hook payload or patch. Its read-only `mentions` field
+(`InputMentionMetadata`: `kind`, `token`, `target`, `label`, `start`, `end`) lists the
+[mentions](/docs/sessions/mentions) CompozyOS verified; after a `message` rewrite only mentions whose
+exact token is still present survive, and a patch cannot add one. `prompt.post_assemble` patches can replace `prompt`, adjust `context_blocks`, or deny
 the assembled prompt.
 
 ## Event Persistence Events
