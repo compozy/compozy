@@ -255,7 +255,11 @@ func TestInputPreSubmitMentions(t *testing.T) {
 		}
 		// The transcript displays the authored text, so offsets must keep pointing at its token.
 		if stored[0].Start != 0 || stored[0].End != len("@a.go") {
-			t.Fatalf("persisted a.go offsets = [%d,%d), want [0,5) in the authored text", stored[0].Start, stored[0].End)
+			t.Fatalf(
+				"persisted a.go offsets = [%d,%d), want [0,5) in the authored text",
+				stored[0].Start,
+				stored[0].End,
+			)
 		}
 	})
 }
