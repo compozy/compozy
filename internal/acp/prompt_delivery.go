@@ -19,6 +19,7 @@ func (p *AgentProcess) promptDeliveryManifest(
 		SentAt:   timeNowUTC(),
 		Estimate: TextEstimateMethod,
 		Spans:    make([]DeliveredSpan, 0),
+		Mentions: deliveredMentions(req),
 	}
 	if startup {
 		p.systemPromptMu.Lock()

@@ -20,7 +20,10 @@ import {
 
 import { useSteerProvenance } from "@/systems/session/hooks/use-steer-provenance";
 
-import { sessionSkillInvocationDirectives } from "./session-directive-registry";
+import {
+  sessionMentionDirectives,
+  sessionSkillInvocationDirectives,
+} from "./session-directive-registry";
 import { SessionUserSteerMeta } from "./session-user-steer-meta";
 import { SessionDirectiveText } from "./session-directive-text";
 import { MessageActions } from "./message-actions";
@@ -32,11 +35,16 @@ function SessionTextPart({
   text,
   status,
   directives,
-}: TextMessagePartProps & { directives: ReturnType<typeof sessionSkillInvocationDirectives> }) {
+  mentions,
+}: TextMessagePartProps & {
+  directives: ReturnType<typeof sessionSkillInvocationDirectives>;
+  mentions: ReturnType<typeof sessionMentionDirectives>;
+}) {
   return (
     <SessionDirectiveText
       text={text}
       directives={directives}
+      mentions={mentions}
       streaming={status?.type === "running"}
     />
   );
@@ -96,11 +104,12 @@ export function UserMessageBubble({
 export function UserMessageParts() {
   const metadata = useAuiState(state => state.message.metadata);
   const directives = sessionSkillInvocationDirectives(metadata);
+  const mentions = sessionMentionDirectives(metadata);
   return (
     <MessagePrimitive.Parts>
       {({ part }) => {
         if (part.type === "text") {
-          return <SessionTextPart {...part} directives={directives} />;
+          return <SessionTextPart {...part} directives={directives} mentions={mentions} />;
         }
         if (part.type === "data") {
           if (part.name === SESSION_ATTACHMENT_PART_NAME && isSessionAttachmentRef(part.data)) {

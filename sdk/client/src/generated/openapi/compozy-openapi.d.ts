@@ -5316,6 +5316,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/files": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search files and folders under a session's working directory */
+    get: operations["searchSessionFiles"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/fork": {
     parameters: {
       query?: never;
@@ -13009,6 +13026,16 @@ export interface components {
       reason_code?: string;
       summary?: string;
     };
+    SessionFileEntryPayload: {
+      /** @enum {string} */
+      kind: "file" | "folder";
+      name: string;
+      path: string;
+    };
+    SessionFilesResponse: {
+      entries: components["schemas"]["SessionFileEntryPayload"][];
+      truncated: boolean;
+    };
     SessionFolderPayload: {
       /** Format: date-time */
       created_at: string;
@@ -13086,6 +13113,14 @@ export interface components {
       inputs: components["schemas"]["SessionInputPayload"][];
       queue?: components["schemas"]["SessionQueueSummaryPayload"] | null;
     };
+    SessionInputMentionPayload: {
+      end: number;
+      kind: string;
+      label: string;
+      start: number;
+      target: string;
+      token: string;
+    };
     SessionInputPayload: {
       attachments?: components["schemas"]["PromptAttachmentRef"][];
       delivery: string;
@@ -13093,6 +13128,7 @@ export interface components {
       enqueued_at: string;
       id: string;
       idempotency_key?: string;
+      mentions?: components["schemas"]["SessionInputMentionPayload"][];
       message_id?: string;
       mode: string;
       origin?: components["schemas"]["PromptOriginMeta"] | null;
@@ -44954,6 +44990,81 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  searchSessionFiles: {
+    parameters: {
+      query?: {
+        /** @description Search text; empty returns the shallowest entries */
+        q?: string;
+        /** @description Maximum entries returned (1-200, default 50) */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionFilesResponse"];
+        };
+      };
+      /** @description Invalid limit */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session working directory no longer exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
         headers: {
           [name: string]: unknown;
         };

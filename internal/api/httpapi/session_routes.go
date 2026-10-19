@@ -24,6 +24,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("/:session_id/goal", handlers.GetSessionGoal)
 	workspaceSessions.POST("/:session_id/goal", handlers.MutateSessionGoal)
 	workspaceSessions.GET("/:session_id/commands", handlers.GetSessionCommands)
+	registerSessionFileRoutes(workspaceSessions, handlers)
 	workspaceSessions.POST("/:session_id/soul/refresh", handlers.RefreshSessionSoul)
 	workspaceSessions.GET("/:session_id/health", handlers.GetSessionHealth)
 	workspaceSessions.POST("/:session_id/wait", handlers.SessionWait)
@@ -36,9 +37,6 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
 	workspaceSessions.POST("/:session_id/move", handlers.MoveSession)
 	workspaceSessions.POST("/:session_id/attach", handlers.AttachSession)
-	workspaceSessions.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
-	workspaceSessions.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)
-	workspaceSessions.DELETE("/:session_id/attachments/:attachment_id", handlers.DeleteSessionAttachment)
 	workspaceSessions.POST("/:session_id/worktree-fork", handlers.ForkSessionToWorktree)
 	workspaceSessions.POST("/:session_id/repair", handlers.RepairSession)
 	workspaceSessions.POST("/:session_id/compact", handlers.CompactSession)
@@ -85,4 +83,11 @@ func registerSessionLayoutRoutes(api gin.IRouter, handlers *Handlers) {
 	order := api.Group("/workspaces/:workspace_id/session-order")
 	order.PUT("/folders", handlers.ReorderSessionFolders)
 	order.PUT("/sessions", handlers.ReorderSessions)
+}
+
+func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
+	workspaceSessions.GET("/:session_id/files", handlers.SearchSessionFiles)
+	workspaceSessions.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
+	workspaceSessions.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)
+	workspaceSessions.DELETE("/:session_id/attachments/:attachment_id", handlers.DeleteSessionAttachment)
 }

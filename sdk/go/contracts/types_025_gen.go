@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type TriggerResult struct {
+	Matched int   `json:"matched"`
+	Runs    []Run `json:"runs,omitempty"`
+}
+
 type TurnContext struct {
 	TurnID string `json:"turn_id,omitempty"`
 }
@@ -230,14 +235,3 @@ type WindowManagerLayoutAppliedPayload struct {
 }
 
 type WindowManagerObservationPatch struct{}
-
-type WindowManagerStackActivatedPayload struct {
-	Event       HookEvent            `json:"event"`
-	Timestamp   time.Time            `json:"timestamp"`
-	WorkspaceID string               `json:"workspace_id"`
-	Revision    uint64               `json:"revision"`
-	CommandID   string               `json:"command_id"`
-	Changes     WindowManagerChanges `json:"changes"`
-	Actor       WindowManagerActor   `json:"actor"`
-	Origin      string               `json:"origin,omitempty"`
-}

@@ -2752,6 +2752,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "searchSessionFiles": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.searchSessionFiles({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SearchSessionFiles(ctx, client.SearchSessionFilesParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "searchSessionTools": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.searchSessionTools({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.SearchSessionTools(ctx, client.SearchSessionToolsParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.ToolSearchRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",

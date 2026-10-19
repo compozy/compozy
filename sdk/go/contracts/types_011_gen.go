@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+type Job struct {
+	ID          string          `json:"id"`
+	ProfileID   string          `json:"profile_id"`
+	Scope       Scope           `json:"scope"`
+	Name        string          `json:"name"`
+	TargetKind  TargetKind      `json:"target_kind"`
+	AgentName   string          `json:"agent_name"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Prompt      string          `json:"prompt"`
+	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
+	Task        *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
+	Enabled     bool            `json:"enabled"`
+	Retry       RetryConfig     `json:"retry"`
+	FireLimit   FireLimitConfig `json:"fire_limit"`
+	Source      JobSource       `json:"source"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
 type JobSource string
 
 type JobTaskConfig struct {
@@ -379,12 +399,4 @@ type MessageDeltaPayload struct {
 	DeltaType      string          `json:"delta_type,omitempty"`
 	Text           string          `json:"text,omitempty"`
 	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MessageEndPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
 }

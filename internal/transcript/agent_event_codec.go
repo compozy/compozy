@@ -94,6 +94,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Origin:            event.PromptOrigin(),
 		AvailableCommands: event.AvailableCommandSet().Values(),
 		SkillInvocations:  event.SkillInvocations(),
+		Mentions:          event.Mentions(),
 		Attachments:       event.Attachments(),
 		Delivery:          event.DeliveryManifest(),
 		Usage:             event.Usage,
@@ -202,6 +203,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 	}
 	event = event.WithAttachments(decoded.Attachments)
 	event = event.WithSkillInvocations(decoded.SkillInvocations)
+	event = event.WithMentions(decoded.Mentions)
 	event = event.WithPromptRuntime(decoded.PromptRuntime)
 	if messageID := strings.TrimSpace(decoded.MessageID); messageID != "" {
 		event = event.WithMessageID(messageID)

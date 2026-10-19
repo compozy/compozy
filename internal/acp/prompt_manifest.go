@@ -25,6 +25,8 @@ type DeliveryManifest struct {
 	SentAt   time.Time       `json:"sent_at"`
 	Estimate string          `json:"estimate"`
 	Spans    []DeliveredSpan `json:"spans"`
+	// Mentions counts the mention blocks of this prompt; nil when it carried none.
+	Mentions *DeliveredMentions `json:"mentions,omitzero"`
 }
 
 // StartupManifest describes disjoint sections of the bound startup prompt.
@@ -77,5 +79,9 @@ func cloneDeliveryManifest(manifest *DeliveryManifest) *DeliveryManifest {
 	}
 	cloned := *manifest
 	cloned.Spans = CloneStartupManifest(StartupManifest{Spans: manifest.Spans}).Spans
+	if manifest.Mentions != nil {
+		mentions := *manifest.Mentions
+		cloned.Mentions = &mentions
+	}
 	return &cloned
 }
