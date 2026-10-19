@@ -1,3 +1,5 @@
+import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
+
 import { MessagesSquare } from "lucide-react";
 
 import { Empty } from "@compozy/ui";
@@ -25,6 +27,7 @@ import { SessionListFolder } from "./session-list-folder";
 import { SessionListThread, type SessionThreadRootLayout } from "./session-list-thread";
 
 export interface SessionListSectionsProps {
+  ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   sections: Sections;
   layout: SessionListLayout;
   dnd?: SessionListDnd;
@@ -38,7 +41,7 @@ export interface SessionListSectionsProps {
   onToggleThread: (sessionId: string) => void;
   onToggleFolder: (folderId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
-  onNewSessionInFolder: (folderId: string) => void;
+  onNewSessionInFolder?: (folderId: string) => void;
   onFolderDialog: (state: SessionFolderDialogState) => void;
   selection: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
@@ -54,6 +57,7 @@ export interface SessionListSectionsProps {
  */
 export function SessionListSections({
   sections,
+  ownerOf,
   layout,
   dnd,
   orderable,
@@ -106,6 +110,8 @@ export function SessionListSections({
       <SessionListThread
         key={thread.session.id}
         session={thread.session}
+        owner={ownerOf?.(thread.session)}
+        ownerOf={ownerOf}
         childSessions={thread.childSessions}
         currentSessionId={currentSessionId}
         collapsed={collapsedThreads.has(thread.session.id)}
@@ -135,7 +141,7 @@ export function SessionListSections({
             count={countThreadSessions(section.threads)}
             expanded={filtering || !collapsedFolders.has(folder.id)}
             onToggle={() => onToggleFolder(folder.id)}
-            onNewSession={() => onNewSessionInFolder(folder.id)}
+            onNewSession={onNewSessionInFolder ? () => onNewSessionInFolder(folder.id) : undefined}
             onRename={() => onFolderDialog({ kind: "rename", folder })}
             onDelete={() => onFolderDialog({ kind: "delete", folder })}
             onMoveUp={folderIds.length > 1 ? moveFolder(folder, -1) : undefined}

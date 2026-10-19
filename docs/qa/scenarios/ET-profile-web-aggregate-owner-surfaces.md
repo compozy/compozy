@@ -67,3 +67,6 @@ cache. Wait for the remembered Global selection before preloading profile-specif
 creation still targets marketing while listings remain all-profiles. A failed selection read blocks
 those preloads instead of falling back to default. The canonical route-preloading integration suite
 owns scope, destination, failure and cache-reuse assertions.
+
+
+Issue #832 extension verified on 2026-10-19: focused E2E-032 proves owner-grouped folders, cross-profile drop rejection, owner-bound rename and reload persistence. Real Codex QA proves runtime/agent metadata for root and child rows, including never-bound, idle-released and stopped/unbound after daemon restart. Ordering and collapsed-folder navigation are covered by the owning unit suites. Evidence and exact scope: [issue #832 report](../reports/2026-10-19-issue-832-session-list.md).

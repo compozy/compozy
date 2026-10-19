@@ -3879,6 +3879,7 @@ export interface SessionRuntimePayload {
   selected?: PromptRuntimeSelectionPayload;
   selection_revision: number;
   effective?: RuntimeSelectionPayload;
+  last_known?: RuntimeSelectionPayload;
   acp_session_id?: string;
   acp_caps?: ACPCapsPayload;
 }

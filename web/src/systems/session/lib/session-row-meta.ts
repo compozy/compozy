@@ -1,7 +1,4 @@
-// The session row's meta line model: what the line says, what a child inherits
-// from its thread root, and the words that name the row to assistive tech.
-
-import type { ProfileOwner } from "@/systems/profiles";
+// The session row metadata and accessible description.
 
 import type { sessionBadgeSignal } from "./session-badge";
 import { maskedAttentionNote } from "./session-pending-interactions";
@@ -10,8 +7,6 @@ import type { SessionPayload } from "../types";
 import { SUBAGENT_OF_DELETED_SESSION } from "./session-subagent-summary";
 
 export interface RowMeta {
-  /** Same agent, provider, and model as the thread root: the child drops its who line. */
-  inherits: boolean;
   /** The meta line has something of its own to show. */
   visible: boolean;
   /** Attention words that never truncate. */
@@ -26,26 +21,15 @@ export interface RowMeta {
 
 export function rowMeta({
   session,
-  parent,
-  owner,
   runtime,
   signal,
   orphanedSubagent,
 }: {
   session: SessionPayload;
-  parent: SessionPayload | undefined;
-  owner: ProfileOwner | undefined;
   runtime: { label: string } | null;
   signal: ReturnType<typeof sessionBadgeSignal>;
   orphanedSubagent: boolean;
 }): RowMeta {
-  const inherits =
-    parent !== undefined &&
-    owner === undefined &&
-    parent.agent_name === session.agent_name &&
-    (parent.runtime?.effective?.provider ?? null) ===
-      (session.runtime?.effective?.provider ?? null) &&
-    (parent.runtime?.effective?.model ?? null) === (session.runtime?.effective?.model ?? null);
   const attention: string[] = [];
   // The mark carries the state; the word speaks up whenever the glyph is shared.
   if (signal.speaks) attention.push(signal.displayLabel);
@@ -60,8 +44,7 @@ export function rowMeta({
     .filter(Boolean)
     .join(" ");
   return {
-    inherits,
-    visible: !inherits || attention.length > 0 || notes.length > 0,
+    visible: true,
     attention,
     reason,
     notes,

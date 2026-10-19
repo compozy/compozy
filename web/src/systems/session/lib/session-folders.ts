@@ -96,10 +96,24 @@ export interface VisibleSessionOrderOptions {
   }>;
   /** The workspace list's folders once loaded; without them the list renders flat. */
   folders?: readonly SessionFolderPayload[];
+  profileFolderGroups?: ReadonlyArray<{
+    owner: { id: string };
+    folders?: readonly SessionFolderPayload[];
+  }>;
   collapsedFolderIds?: ReadonlySet<string>;
   archived?: boolean;
   /** A search is narrowing the list, which opens every folder holding a match. */
   filtering?: boolean;
+}
+
+/** Independent profile/catalog snapshots must never drop an unmatched root. */
+export function canGroupSessionThreads(
+  threads: readonly SessionThreadModel[],
+  groups: VisibleSessionOrderOptions["profileFolderGroups"]
+): boolean {
+  if (!groups?.length) return false;
+  const owners = new Set(groups.map(group => group.owner.id));
+  return threads.every(thread => owners.has(thread.session.profile_id ?? ""));
 }
 
 /**
@@ -120,16 +134,31 @@ export function visibleSessionOrder(
 
   const threads = buildSessionListThreads(sessions, "");
   const filtering = options.filtering ?? false;
-  const visibleThreads = options.folders
-    ? sectionsVisibleThreads(
-        buildSessionListSections(threads, options.folders, {
-          filtering,
-          archived: options.archived ?? false,
-        }),
-        options.collapsedFolderIds ?? new Set(),
-        filtering
+  const inFolders = (
+    owned: readonly SessionThreadModel[],
+    folders?: readonly SessionFolderPayload[]
+  ) =>
+    folders
+      ? sectionsVisibleThreads(
+          buildSessionListSections(owned, folders, {
+            filtering,
+            archived: options.archived ?? false,
+          }),
+          options.collapsedFolderIds ?? new Set(),
+          filtering
+        )
+      : owned;
+  const groups = canGroupSessionThreads(threads, options.profileFolderGroups)
+    ? options.profileFolderGroups
+    : undefined;
+  const visibleThreads = groups?.length
+    ? groups.flatMap(group =>
+        inFolders(
+          threads.filter(thread => thread.session.profile_id === group.owner.id),
+          group.folders
+        )
       )
-    : threads;
+    : inFolders(threads, options.folders);
   const byId = new Map(sessions.map(session => [session.id, session]));
   return threadVisibleOrder(visibleThreads, options.collapsedThreadIds).flatMap(id => {
     const session = byId.get(id);

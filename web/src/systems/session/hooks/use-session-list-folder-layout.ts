@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import {
   buildSessionListSections,
+  canGroupSessionThreads,
   sectionsVisibleThreads,
   type SessionListSections,
 } from "../lib/session-folders";
@@ -49,6 +50,9 @@ export function useSessionListFolderLayout(
     manual: view.sort === "manual",
     reorderable: orderable,
   });
+  const groups = canGroupSessionThreads(threads, view.profileFolderGroups)
+    ? view.profileFolderGroups
+    : undefined;
   const [dialog, setDialog] = useState<SessionFolderDialogState>(null);
   return {
     layout,
@@ -60,7 +64,21 @@ export function useSessionListFolderLayout(
     /** Threads on screen in order; bulk selection and range picks follow it. */
     visibleThreads: sections
       ? sectionsVisibleThreads(sections, collapsedFolders, filtering)
-      : threads,
+      : groups?.length
+        ? groups.flatMap(group => {
+            const owned = threads.filter(thread => thread.session.profile_id === group.owner.id);
+            return group.folders
+              ? sectionsVisibleThreads(
+                  buildSessionListSections(owned, group.folders, {
+                    filtering,
+                    archived: view.archived,
+                  }),
+                  collapsedFolders,
+                  filtering
+                )
+              : owned;
+          })
+        : threads,
     dnd,
     dialog,
     setDialog,

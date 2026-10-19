@@ -1072,6 +1072,108 @@ test.describe("Profiles", () => {
     });
   });
 
+  test.describe("Session folder ownership", () => {
+    test.use({ runtimeOptions: {} });
+    // Invariant: aggregate folders retain owner-scoped membership and mutations across reload.
+    // Owner: browser/daemon composition; canonical suite: Profiles.
+    test("E2E-032: aggregate session folders preserve ownership and runtime metadata", async ({
+      appPage,
+      runtime,
+    }, testInfo) => {
+      await ensureProjectWorkspace(appPage, runtime);
+      await completeOnboardingIfPrompted(appPage);
+      const workspaceId = await activeWorkspaceId(runtime);
+      await createProfile(runtime, "folder-owner", "#22c55e", "folder");
+      const records = [];
+      for (const profile of ["default", "folder-owner"]) {
+        const { folder } = await runtime.requestJSON<{
+          folder: { id: string; profile_id: string };
+        }>(`/api/workspaces/${workspaceId}/session-folders?profile=${profile}`, {
+          method: "POST",
+          body: JSON.stringify({ name: `${profile} work` }),
+        });
+        const agent = "general";
+        const { session } = await runtime.requestJSON<{ session: { id: string } }>(
+          `/api/sessions?profile=${profile}`,
+          {
+            method: "POST",
+            body: JSON.stringify({
+              workspace: workspaceId,
+              agent_name: agent,
+              folder_id: folder.id,
+            }),
+          }
+        );
+        records.push({ profile, folder, session });
+      }
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      const ui = profilesOperatorSelectors(appPage);
+      const single = await openSessionsCatalog(appPage);
+      await expect(
+        single.getByTestId(`os-sessions-modal-folder-${records[0]!.folder.id}`)
+      ).toBeVisible();
+      await expect(
+        single.getByTestId(`os-sessions-modal-folder-${records[1]!.folder.id}`)
+      ).toHaveCount(0);
+      await appPage.screenshot({ path: testInfo.outputPath("single-profile-folders.png") });
+      await single.getByRole("button", { name: "Close sessions" }).click();
+      await ui.switcher.click();
+      await ui.switcherAll.click();
+      const catalog = await openSessionsCatalog(appPage);
+      for (const record of records) {
+        const group = catalog.getByTestId(`os-sessions-modal-profile-${record.folder.profile_id}`);
+        const folder = group.getByTestId(`os-sessions-modal-folder-${record.folder.id}`);
+        await expect(
+          folder.getByTestId(`os-sessions-modal-session-${record.session.id}`)
+        ).toBeVisible();
+        await expect(
+          folder.getByTestId(`session-provider-mark-${record.session.id}`)
+        ).toBeVisible();
+      }
+      const local = records[0]!;
+      const source = catalog.getByTestId(`os-sessions-modal-session-${local.session.id}`);
+      await source.dragTo(
+        catalog.getByTestId(`os-sessions-modal-folder-${records[1]!.folder.id}-header`)
+      );
+      await expect(
+        catalog
+          .getByTestId(`os-sessions-modal-folder-${local.folder.id}`)
+          .getByTestId(`os-sessions-modal-session-${local.session.id}`)
+      ).toBeVisible();
+      const membership = await runtime.requestJSON<{
+        sessions: Array<{ id: string; folder_id?: string }>;
+      }>(`/api/workspaces/${workspaceId}/sessions?profile=default`);
+      expect(membership.sessions.find(session => session.id === local.session.id)?.folder_id).toBe(
+        local.folder.id
+      );
+      const foreign = records[1]!;
+      const header = catalog.getByTestId(`os-sessions-modal-folder-${foreign.folder.id}-header`);
+      await header.click({ button: "right" });
+      await appPage.getByRole("menuitem", { name: "Rename folder" }).click();
+      await appPage.getByTestId("session-folder-name").fill("Owner research");
+      const renamed = appPage.waitForResponse(
+        response =>
+          response.request().method() === "PATCH" &&
+          response.url().includes(foreign.folder.id) &&
+          response.url().includes("profile=folder-owner")
+      );
+      await appPage.getByTestId("session-folder-name-confirm").click();
+      expect((await renamed).ok()).toBe(true);
+      const saved = await runtime.requestJSON<{ folders: Array<{ id: string; name: string }> }>(
+        `/api/workspaces/${workspaceId}/session-folders?profile=folder-owner`
+      );
+      expect(saved.folders.find(folder => folder.id === foreign.folder.id)?.name).toBe(
+        "Owner research"
+      );
+      await appPage.screenshot({ path: testInfo.outputPath("all-profile-folders.png") });
+      await appPage.reload({ waitUntil: "domcontentloaded" });
+      const reloaded = await openSessionsCatalog(appPage);
+      await expect(
+        reloaded.getByTestId(`os-sessions-modal-folder-${foreign.folder.id}`)
+      ).toContainText("Owner research");
+    });
+  });
+
   // Invariant: keyboard profile selection reaches a listing empty for that identity.
   // Owner: browser profile navigation; canonical suite: Profiles E2E-029 / E2E-019.
   test("E2E-029 / E2E-019: keyboard profile switching preserves tray order and scopes empty listings", async ({

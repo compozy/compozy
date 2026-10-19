@@ -329,6 +329,27 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain recorded runtime identity without claiming an active binding", func(t *testing.T) {
+		t.Parallel()
+		for _, state := range []session.State{session.StateActive, session.StateStopped} {
+			payload := core.SessionPayloadFromStoreInfo(&store.SessionInfo{
+				ID: "sess-released", State: string(state), Provider: "codex", Model: "gpt-test",
+				ReasoningEffort: "high", RuntimeStatus: session.RuntimeStatusUnbound,
+			})
+			if payload.Runtime.Effective != nil {
+				t.Fatalf("effective = %#v, want no current binding", payload.Runtime.Effective)
+			}
+			if got := payload.Runtime.LastKnown; got == nil || got.Provider != "codex" ||
+				got.Model != "gpt-test" || got.ReasoningEffort != "high" {
+				t.Fatalf("last known = %#v, want persisted runtime", got)
+			}
+		}
+		fresh := core.SessionPayloadFromInfo(&session.Info{RuntimeStatus: session.RuntimeStatusUnbound})
+		if fresh.Runtime.LastKnown != nil || fresh.Runtime.Effective != nil {
+			t.Fatalf("never-bound runtime = %#v, want no invented history", fresh.Runtime)
+		}
+	})
+
 	t.Run("Should mark stalled session payloads as hung and not attachable", func(t *testing.T) {
 		t.Parallel()
 

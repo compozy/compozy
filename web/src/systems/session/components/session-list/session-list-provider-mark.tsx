@@ -12,7 +12,7 @@ import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label"
 
 export interface SessionListProviderMarkProps {
   sessionId: string;
-  /** The row's resolved runtime; `null` before the first bind renders nothing. */
+  /** The row's resolved current, recorded, selected, or default runtime. */
   runtime: SessionRuntimeLabel | null;
   /**
    * Set while the row holds keyboard focus, fresh for every focus, so the
@@ -27,9 +27,7 @@ export interface SessionListProviderMarkProps {
 }
 
 /**
- * The provider a row runs on, read from its effective runtime so a continue,
- * fork, or process replacement repaints it with the next catalog read. An
- * unbound session has no runtime yet and renders nothing rather than a guess.
+ * The row resolves current and recorded identity before next-prompt defaults.
  *
  * The glyph is decorative and never a tab stop: the row's accessible name
  * carries `Provider · Model` as text, and the tooltip opens on the glyph's hover

@@ -4,6 +4,7 @@ import { TriangleAlert, WifiOff } from "lucide-react";
 
 import { Alert, AlertActions, AlertDescription, Button, SearchInput } from "@compozy/ui";
 
+import { canGroupSessionThreads } from "../../lib/session-folders";
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
@@ -14,6 +15,7 @@ import { emptyForScope } from "@/systems/profiles";
 import { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
+import { SessionListProfileGroups, SessionListProfileStatus } from "./session-list-profile-group";
 import { SessionListSections } from "./session-list-sections";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListThreadList } from "./session-list-thread-list";
@@ -84,6 +86,9 @@ export function SessionList({
     remoteSearch && normalizedFilter !== ""
   );
   const threads = buildSessionListThreads(listed, remoteSearch ? "" : normalizedFilter);
+  const profileGroups = canGroupSessionThreads(threads, view.profileFolderGroups)
+    ? view.profileFolderGroups
+    : undefined;
   const visibleCount = countThreadSessions(threads);
   const collapsedThreads = new Set(collapsedThreadIds);
   const filtering = normalizedFilter !== "";
@@ -121,26 +126,25 @@ export function SessionList({
           containerClassName="min-w-0"
         />
       </div>
-      {disconnected ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <WifiOff aria-hidden="true" />
-          <AlertDescription>
-            Can&apos;t get session updates right now. The sessions below may be out of date.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {view.layoutError ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <TriangleAlert aria-hidden="true" />
-          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
-          <AlertActions>
-            <Button size="xs" type="button" variant="secondary" onClick={view.layoutError.retry}>
-              Retry
-            </Button>
-          </AlertActions>
-        </Alert>
-      ) : null}
-      {sections && layout ? (
+      <SessionListStatus disconnected={disconnected} view={view} />
+      {profileGroups?.length ? (
+        <SessionListProfileGroups
+          groups={profileGroups}
+          view={view}
+          threads={threads}
+          filtering={filtering}
+          collapsedThreads={collapsedThreads}
+          currentSessionId={currentSessionId}
+          onToggleThread={onToggleThread}
+          onSelectSession={onSelectSession}
+          onNewSessionInFolder={folderId => onNewSession({ folderId })}
+          selection={bulk.rowSelection}
+          sessionActions={sessionActions}
+          testIdPrefix={testIdPrefix}
+          emptyMessage={emptySessionListMessage(filtering, view)}
+          footer={view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
+        />
+      ) : sections && layout ? (
         <SessionListFolderBody
           sections={sections}
           layout={layout}
@@ -180,6 +184,36 @@ export function SessionList({
         />
       ) : null}
     </div>
+  );
+}
+
+function SessionListStatus({
+  disconnected,
+  view,
+}: Pick<SessionListProps, "disconnected" | "view">) {
+  return (
+    <>
+      {disconnected ? (
+        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
+          <WifiOff aria-hidden="true" />
+          <AlertDescription>
+            Can&apos;t get session updates right now. The sessions below may be out of date.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {view.layoutError ? (
+        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
+          <TriangleAlert aria-hidden="true" />
+          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
+          <AlertActions>
+            <Button size="xs" type="button" variant="secondary" onClick={view.layoutError.retry}>
+              Retry
+            </Button>
+          </AlertActions>
+        </Alert>
+      ) : null}
+      <SessionListProfileStatus view={view} />
+    </>
   );
 }
 

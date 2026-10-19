@@ -16,6 +16,10 @@ import { expectFetchRequest } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
 import { providerListOptions, type ProviderSummary } from "@/systems/providers";
 
+import { primaryAgentFixture } from "@/systems/agent/testing";
+import { agentsListOptions } from "@/systems/agent";
+import { sessionFoldersOptions } from "../../lib/session-catalog-options";
+
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
@@ -744,7 +748,7 @@ describe("SessionList provider marks", () => {
   });
   const rowButton = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`);
 
-  it("names root and nested rows in catalog display names and shows none before the first bind", () => {
+  it("names root and nested rows and identifies an unselected runtime", () => {
     renderList({
       sessions: [
         row("root", { runtime: runtime("codex", "gpt-6.1-sol") }),
@@ -774,13 +778,78 @@ describe("SessionList provider marks", () => {
       )
     ).toHaveAttribute("data-kind", "claude");
     expect(rowButton("child")).toHaveAccessibleName(/Session child\s*Claude Code/);
-    expect(screen.queryByTestId("session-provider-mark-unbound")).not.toBeInTheDocument();
-    expect(rowButton("unbound")).toHaveAccessibleName(/Session unbound\s*frontend-engineer-agent/);
+    expect(screen.getByTestId("session-provider-mark-unbound")).toHaveAttribute(
+      "data-kind",
+      "unknown"
+    );
+    expect(rowButton("unbound")).toHaveAccessibleName(
+      /Session unbound\s*Runtime not selected frontend-engineer-agent/
+    );
   });
 
-  // Invariant: a child running its root's agent on its root's provider and model drops
-  // the repeated who line, yet still names its runtime and agent; any difference keeps it.
-  it("collapses a child that repeats its root's agent, provider, and model, keeping its spoken runtime", () => {
+  it.each(["released", "detached", "stopped"])(
+    "shows the recorded runtime for %s sessions",
+    state => {
+      renderList({
+        sessions: [
+          row(state, {
+            state: state === "stopped" ? "stopped" : "active",
+            runtime: {
+              status: "unbound",
+              selection_revision: 1,
+              generation: 1,
+              last_known: { provider: "codex", model: "gpt-6.1-sol" },
+              selected: { provider: "claude" },
+            },
+          }),
+        ],
+      });
+      expect(screen.getByTestId(`session-provider-mark-${state}`)).toHaveAttribute(
+        "data-kind",
+        "codex"
+      );
+      expect(rowButton(state)).toHaveAccessibleName(/Codex · GPT-6\.1 Sol frontend-engineer-agent/);
+    }
+  );
+
+  it("uses the selected runtime before defaults and resolves never-bound defaults in the owner scope", async () => {
+    const unbound = row("fresh", {
+      workspace_id: "ws",
+      profile_name: "marketing",
+      runtime: { status: "unbound", selection_revision: 0 },
+    });
+    const { queryClient } = renderList({
+      sessions: [
+        unbound,
+        row("selected", {
+          runtime: {
+            status: "unbound",
+            selection_revision: 1,
+            last_known: { provider: "codex", model: "gpt-5.6-sol" },
+            selected: { provider: "claude", model: "claude-opus-5-5" },
+          },
+        }),
+      ],
+    });
+    act(() =>
+      queryClient.setQueryData(agentsListOptions("ws", "marketing").queryKey, [
+        {
+          ...primaryAgentFixture,
+          name: unbound.agent_name,
+          effective_runtime: {
+            provider: "codex",
+            model: "gpt-6.1-sol",
+            sources: { provider: "project_default", model: "provider_default" },
+          },
+        },
+      ])
+    );
+    await waitFor(() => expect(rowButton("fresh")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol/));
+    expect(rowButton("selected")).toHaveAccessibleName(/Claude Code · Claude Opus 5.5/);
+  });
+
+  // Invariant: every child retains its runtime and agent, even when they match its root.
+  it("shows a child's runtime even when it repeats its root", () => {
     const lineage = (parent: string): SessionPayload["lineage"] => ({
       parent_session_id: parent,
       root_session_id: parent,
@@ -799,7 +868,7 @@ describe("SessionList provider marks", () => {
       ],
     });
 
-    expect(screen.queryByTestId("session-provider-mark-same")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-provider-mark-same")).toHaveAttribute("data-kind", "codex");
     expect(rowButton("same")).toHaveAccessibleName(
       /Session same\s*Codex · GPT-6\.1 Sol frontend-engineer-agent/
     );
@@ -947,6 +1016,190 @@ describe("SessionList folders and manual order", () => {
     renderList({ sessions: layoutRows, view: { ...view, sort, layout }, onNewSession });
     return { layout, onNewSession };
   }
+
+  it("Should keep folders and moves inside their owning profile in the aggregate", async () => {
+    const groups = [
+      {
+        owner: { id: "default", name: "default", archived: false },
+        workspaceId: "ws",
+        folders: [folderA],
+        canCreateSession: true,
+      },
+      {
+        owner: { id: "other", name: "other", archived: false },
+        workspaceId: "ws",
+        folders: [{ ...folderB, profile_id: "other" }],
+        canCreateSession: false,
+      },
+    ];
+    const { queryClient } = renderList({
+      sessions: [
+        { ...layoutRows[1]!, profile_id: "default", profile_name: "default" },
+        {
+          ...layoutRows[0]!,
+          id: "foreign",
+          folder_id: "fb",
+          profile_id: "other",
+          profile_name: "other",
+        },
+      ],
+      view: {
+        ...view,
+        aggregate: true,
+        profileFolderGroups: groups,
+        ownerOf: session => groups.find(group => group.owner.id === session.profile_id)!.owner,
+      },
+    });
+    act(() => {
+      for (const group of groups)
+        queryClient.setQueryData(
+          sessionFoldersOptions({ workspaceId: "ws", profile: group.owner.name }).queryKey,
+          group.folders
+        );
+    });
+    const alpha = await screen.findByTestId("session-sidebar-folder-fa");
+    const beta = await screen.findByTestId("session-sidebar-folder-fb");
+    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+    expect(within(beta).getByTestId("session-sidebar-session-foreign")).toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-folder-fb-new-session")).toBeDisabled();
+    const source = screen.getByTestId("session-sidebar-session-f1");
+    fireEvent.dragStart(source, { dataTransfer: { setData: vi.fn() } });
+    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
+    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+    fireEvent.dragEnd(source);
+  });
+
+  // Invariants: stale aggregate rows cannot navigate; empty owners expose failed folder reads.
+  // Owner: SessionList composition; canonical suite: SessionList folders and manual order.
+  it.each([true, false])("Should gate aggregate selection while paging is %s", async paging => {
+    const rows = [{ ...layoutRows[0]!, profile_id: "default", profile_name: "default" }];
+    const { onSelect } = renderList({
+      sessions: rows,
+      view: {
+        ...view,
+        aggregate: true,
+        profileFolderGroups: [
+          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
+        ],
+        catalog: {
+          sessions: rows,
+          facets: undefined,
+          total: undefined,
+          loading: false,
+          failed: false,
+          next: false,
+          previous: false,
+          paging,
+          nextPage: vi.fn(),
+          previousPage: vi.fn(),
+          retry: vi.fn(),
+        },
+      },
+    });
+    await userEvent.setup().click(screen.getByTestId("session-sidebar-session-r1"));
+    expect(onSelect).toHaveBeenCalledTimes(paging ? 0 : 1);
+    const container = screen.getByTestId("session-sidebar-profile-default").parentElement;
+    if (paging) expect(container).toHaveAttribute("aria-busy", "true");
+    else expect(container).not.toHaveAttribute("aria-busy");
+  });
+
+  it("Should retry a failed aggregate folder read for an owner with no sessions", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("folder read failed"));
+    try {
+      renderList({
+        sessions: [],
+        view: {
+          ...view,
+          aggregate: true,
+          profileFolderGroups: [
+            { owner: view.ownerOf(sessions[0]!), workspaceId: "ws", canCreateSession: true },
+          ],
+        },
+      });
+      expect(await screen.findByText("Couldn’t load folders.")).toBeVisible();
+      const calls = fetcher.mock.calls.length;
+      fetcher.mockResolvedValue(
+        new Response(JSON.stringify({ folders: [folderA] }), {
+          headers: { "content-type": "application/json" },
+        })
+      );
+      await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+      expect(await screen.findByTestId("session-sidebar-folder-fa")).toBeVisible();
+      expect(fetcher.mock.calls.length).toBeGreaterThan(calls);
+      expect(screen.queryByText("Couldn’t load folders.")).not.toBeInTheDocument();
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+
+  it("Should expose aggregate profile loading and retry while preserving catalog rows", async () => {
+    const retry = vi.fn();
+    const aggregate = { ...view, aggregate: true, scopeLabel: null };
+    const { update } = renderList({ view: { ...aggregate, profileFoldersLoading: true } });
+    expect(screen.getByRole("status")).toHaveTextContent("Loading profiles");
+    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
+    update(sessions, { ...aggregate, profileFoldersError: { retry } });
+    expect(screen.getByText("Couldn’t load profiles.")).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+    update(sessions, aggregate);
+    expect(screen.queryByText("Couldn’t load profiles.")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
+  });
+
+  it("Should retain unmatched profile rows and bulk selection until the profile catalog catches up", async () => {
+    const rows = [
+      { ...layoutRows[0]!, profile_id: "default" },
+      { ...layoutRows[1]!, profile_id: "new-profile" },
+    ];
+    renderList({
+      sessions: rows,
+      view: {
+        ...view,
+        aggregate: true,
+        profileFolderGroups: [
+          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
+        ],
+      },
+    });
+    expect(screen.getByTestId("session-sidebar-session-r1")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox", { name: "Select Root one" }));
+    await user.click(screen.getByTestId("session-sidebar-session-f1"));
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
+  });
+
+  it.each([{ folders: [] }, { folders: [folderA] }])(
+    "Should explain aggregate empty search with folder data %j",
+    async ({ folders }) => {
+      const rows = [{ ...layoutRows[0]!, profile_id: "default" }];
+      const { queryClient } = renderList({
+        sessions: rows,
+        view: {
+          ...view,
+          aggregate: true,
+          scopeLabel: null,
+          profileFolderGroups: [
+            { owner: view.ownerOf(rows[0]!), workspaceId: "ws", folders, canCreateSession: true },
+          ],
+        },
+      });
+      act(() =>
+        queryClient.setQueryData(
+          sessionFoldersOptions({ workspaceId: "ws", profile: "default" }).queryKey,
+          folders
+        )
+      );
+      await userEvent
+        .setup()
+        .type(screen.getByRole("searchbox", { name: "Filter sessions" }), "unmatched query");
+      expect(screen.getByText(/No matching sessions/)).toBeVisible();
+      expect(screen.queryByTestId("session-sidebar-session-r1")).not.toBeInTheDocument();
+    }
+  );
 
   it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
     const user = userEvent.setup();

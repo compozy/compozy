@@ -6567,6 +6567,7 @@ export type SessionRuntimePayload = {
   effective?: RuntimeSelectionPayload | null;
   failure?: string;
   generation?: number;
+  last_known?: RuntimeSelectionPayload | null;
   recovery?: SessionRuntimeRecoveryPayload | null;
   selected?: PromptRuntimeSelectionPayload | null;
   selection_revision: number;
