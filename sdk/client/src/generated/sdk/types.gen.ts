@@ -6301,6 +6301,17 @@ export type SessionFailurePayload = {
   summary?: string;
 };
 
+export type SessionFileEntryPayload = {
+  kind: "file" | "folder";
+  name: string;
+  path: string;
+};
+
+export type SessionFilesResponse = {
+  entries: Array<SessionFileEntryPayload>;
+  truncated: boolean;
+};
+
 export type SessionFolderPayload = {
   created_at: string;
   id: string;
@@ -6377,12 +6388,22 @@ export type SessionInputListResponse = {
   queue?: SessionQueueSummaryPayload | null;
 };
 
+export type SessionInputMentionPayload = {
+  end: number;
+  kind: "file" | "folder" | "session";
+  label: string;
+  start: number;
+  target: string;
+  token: string;
+};
+
 export type SessionInputPayload = {
   attachments?: Array<PromptAttachmentRef>;
   delivery: string;
   enqueued_at: string;
   id: string;
   idempotency_key?: string;
+  mentions?: Array<SessionInputMentionPayload>;
   message_id?: string;
   mode: string;
   origin?: PromptOriginMeta | null;
@@ -31636,6 +31657,62 @@ export type ListSessionEventsResponses = {
 
 export type ListSessionEventsResponse =
   ListSessionEventsResponses[keyof ListSessionEventsResponses];
+
+export type SearchSessionFilesData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Search text; empty returns the shallowest entries
+     */
+    q?: string;
+    /**
+     * Maximum entries returned
+     */
+    limit?: number;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files";
+};
+
+export type SearchSessionFilesErrors = {
+  /**
+   * Invalid limit
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Session working directory no longer exists
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type SearchSessionFilesError = SearchSessionFilesErrors[keyof SearchSessionFilesErrors];
+
+export type SearchSessionFilesResponses = {
+  /**
+   * OK
+   */
+  200: SessionFilesResponse;
+};
+
+export type SearchSessionFilesResponse =
+  SearchSessionFilesResponses[keyof SearchSessionFilesResponses];
 
 export type ForkSessionData = {
   /**

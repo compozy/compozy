@@ -281,6 +281,15 @@ The runtime selector reports provider model list problems behind one warning mar
 - Catalog-wide messages: the surface's read error, "Could not refresh the model list. Try again." for a refresh no provider row explains, or "Model catalog may be out of date." when the list is stale and no provider reported a problem.
 - Never in this feature's copy: raw subprocess output, a count badge on the mark, or the old inline guidance under the provider chips.
 
+### Composer Mention Terms
+
+A mention is an `@` token that points the agent at a file, folder, or session; the glossary entry **Mention** is authoritative. Nouns are `file`, `folder`, and `session`. The `@` picker reuses the `/` command picker's grammar and the chips reuse the skill chip's grammar in neutral ink; there is no helper prose. The session references block agents receive is fixed English for agents, not UI copy.
+
+- Composer placeholder: "Send a message — type / for commands, @ to mention".
+- Picker (listbox aria "Mentions"): groups "Files" and "Sessions"; empty rows "No matching files" / "No matching sessions"; first-load rows "Loading files…" / "Loading sessions…"; errors "Couldn't search files" / "Couldn't load sessions"; truncation footer "Showing results from the first 25,000 files". File and folder rows show the parent directory as secondary text; session rows show "{agent} · {relative time}", and an untitled session shows its id.
+- Chips: the file name, the folder name ending in `/`, or the session title (its id when untitled); the tooltip shows the full relative path or the session id. In the transcript a session chip opens that session; file and folder chips are not interactive.
+- Never in this feature's copy: "tag", "reference chip", "attach" (attachments send contents; mentions send a link), or "thread" (a session is never a thread).
+
 ### Surface Aliases
 
 Some canonical nouns are precise in the runtime and opaque on an end-user surface. A surface alias lets the UI use the plain word without renaming anything. **canonical values stay in code, payloads, CLI, API, and reference docs; the alias is a UI label only, never a rename.**

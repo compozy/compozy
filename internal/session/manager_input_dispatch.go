@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 )
@@ -28,6 +29,8 @@ type queuedInput struct {
 	text              string
 	runtime           store.SessionInputRuntime
 	skillInvocations  []commandpkg.Invocation
+	mentions          []mention.Mention
+	humanIngress      bool
 	attachments       []AttachmentMeta
 	sessionGeneration int64
 	// batch holds the consecutive agent and reply entries claimed to run in this entry's turn.
@@ -49,6 +52,8 @@ func queuedInputFromEntry(entry *store.SessionInputQueueEntry) queuedInput {
 		text:              entry.Text,
 		runtime:           entry.Runtime,
 		skillInvocations:  append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
+		mentions:          storedMentions(entry.MentionsJSON),
+		humanIngress:      entry.HumanIngress,
 		attachments:       attachmentMetaFromStore(entry.Attachments),
 		sessionGeneration: entry.SessionGeneration,
 	}
@@ -256,6 +261,8 @@ func (m *Manager) newQueuedInputPromptRequest(
 		meta:             acp.PromptMeta{TurnSource: string(TurnSourceUser)},
 		runtime:          runtimeSelectionFromStore(entry.runtime),
 		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
+		mentions:         cloneMentions(entry.mentions),
+		humanIngress:     entry.humanIngress,
 		attachments:      cloneAttachmentMeta(entry.attachments),
 		batch:            entry.batch,
 	}

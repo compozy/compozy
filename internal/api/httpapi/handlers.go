@@ -44,6 +44,7 @@ type handlerConfig struct {
 	tools                 core.ToolRegistry
 	toolArtifacts         toolspkg.ToolArtifactStore
 	sessionAttachments    core.SessionAttachmentStore
+	sessionFiles          core.SessionFileSearcher
 	toolsets              core.ToolsetRegistry
 	toolApprovals         core.ToolApprovalIssuer
 	approvalGrants        core.ToolApprovalGrantService
@@ -224,6 +225,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		Tools:                  cfg.tools,
 		ToolArtifacts:          cfg.toolArtifacts,
 		SessionAttachments:     cfg.sessionAttachments,
+		SessionFiles:           cfg.sessionFiles,
 		Toolsets:               cfg.toolsets,
 		ToolApprovals:          cfg.toolApprovals,
 		ApprovalGrants:         cfg.approvalGrants,

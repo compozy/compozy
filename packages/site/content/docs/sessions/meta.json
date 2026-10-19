@@ -3,6 +3,7 @@
     "icon": "Activity",
     "pages": [
         "lifecycle",
+        "mentions",
         "control-plane",
         "orchestration",
         "subagents",

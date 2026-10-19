@@ -6784,6 +6784,10 @@ func (f *fakeSessionManager) InputQueueSummary(
 	return session.InputQueueSummary{}, nil
 }
 
+func (f *fakeSessionManager) WorkingDir(context.Context, string) (string, error) {
+	return "", session.ErrSessionNotFound
+}
+
 func (f *fakeSessionManager) RepairSession(
 	_ context.Context,
 	opts session.RepairOpts,

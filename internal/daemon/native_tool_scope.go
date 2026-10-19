@@ -154,12 +154,30 @@ func (n *daemonNativeTools) nativeSessionInWorkspace(
 	if n == nil || n.deps == nil || n.deps.Sessions == nil {
 		return nil, errors.New("daemon: sessions are required")
 	}
-	info, err := n.deps.Sessions.Status(ctx, strings.TrimSpace(sessionID))
+	info, err := sessionInWorkspace(ctx, n.deps.Sessions, workspaceID, sessionID)
+	if errors.Is(err, errSessionOutsideWorkspace) {
+		return nil, nativeWorkspaceAccessDeniedError(id)
+	}
+	return info, err
+}
+
+// errSessionOutsideWorkspace reports a session that does not belong to the requested workspace.
+var errSessionOutsideWorkspace = errors.New("daemon: session belongs to another workspace")
+
+// sessionInWorkspace is the workspace-scoped session lookup shared by compozy__session_history and
+// session mention references: the session must exist and belong to workspaceID.
+func sessionInWorkspace(
+	ctx context.Context,
+	sessions nativeToolPolicySessionReader,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	info, err := sessions.Status(ctx, strings.TrimSpace(sessionID))
 	if err != nil {
 		return nil, err
 	}
 	if info == nil || strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
-		return nil, nativeWorkspaceAccessDeniedError(id)
+		return nil, errSessionOutsideWorkspace
 	}
 	return info, nil
 }

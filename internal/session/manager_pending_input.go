@@ -69,6 +69,8 @@ func (m *Manager) ReplacePendingInput(
 			return PendingInput{}, err
 		}
 	}
+	request.humanIngress = humanPromptCaller(opts.Caller)
+	m.prepareMentions(ctx, &request)
 	entry, _, err := m.inputQueue.Replace(
 		ctx,
 		session.ID,
@@ -77,6 +79,7 @@ func (m *Manager) ReplacePendingInput(
 		opts.MessageID,
 		opts.IdempotencyKey,
 		request.skillInvocations,
+		inputqueue.MentionAdmission{Mentions: request.mentions, HumanIngress: request.humanIngress},
 	)
 	if err != nil {
 		return PendingInput{}, err
@@ -111,6 +114,8 @@ func (m *Manager) PromotePendingInputToSteer(
 			return SendPromptResult{}, err
 		}
 	}
+	request.humanIngress = humanPromptCaller(opts.Caller)
+	m.prepareMentions(ctx, &request)
 	replayed, found, err := m.inputQueue.ReplayPromotion(
 		ctx,
 		session.ID,
@@ -152,6 +157,7 @@ func (m *Manager) PromotePendingInputToSteer(
 		opts.MessageID,
 		opts.IdempotencyKey,
 		request.skillInvocations,
+		inputqueue.MentionAdmission{Mentions: request.mentions, HumanIngress: request.humanIngress},
 	)
 	if errors.Is(err, inputqueue.ErrInputTextRequired) {
 		return SendPromptResult{}, fmt.Errorf("%w: %w", ErrValidation, err)
@@ -199,6 +205,7 @@ func pendingInputFromStore(entry *store.SessionInputQueueEntry) PendingInput {
 		EnqueuedAt:       entry.EnqueuedAt,
 		Runtime:          runtime,
 		SkillInvocations: append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
+		Mentions:         storedMentions(entry.MentionsJSON),
 		Attachments:      attachmentMetaFromStore(entry.Attachments),
 	}
 }

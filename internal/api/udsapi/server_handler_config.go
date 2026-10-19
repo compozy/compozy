@@ -22,6 +22,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		tools:                 s.tools,
 		toolArtifacts:         s.toolArtifacts,
 		sessionAttachments:    s.sessionAttachments,
+		sessionFiles:          s.sessionFiles,
 		toolsets:              s.toolsets,
 		toolApprovals:         s.toolApprovals,
 		approvalGrants:        s.approvalGrants,

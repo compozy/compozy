@@ -4,6 +4,7 @@ import {
   formatCommandChipLabel,
   type SessionComposerCommandCatalog,
 } from "./session-command-menu-model";
+import { MENTION_DIRECTIVE_TYPE, mentionItemToken } from "./session-mention-model";
 
 export const SKILL_DIRECTIVE_TYPE = "session-command-skill";
 
@@ -34,6 +35,8 @@ export function createSessionCommandFormatter(
   const chipTokens = skillChipTokens(catalog);
   return {
     serialize(item) {
+      // `@` mentions serialize to their plain token too; the prompt body stays text.
+      if (item.type === MENTION_DIRECTIVE_TYPE) return mentionItemToken(item);
       if (typeof item.metadata?.token === "string") return item.metadata.token;
       if (item.id.startsWith("/")) return item.id;
       return item.label;

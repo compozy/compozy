@@ -197,6 +197,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/clarifications",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/events",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/commands",
+			"GET /api/workspaces/:workspace_id/sessions/:session_id/files",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/goal",
 			"POST /api/workspaces/:workspace_id/sessions/:session_id/goal",
 			"GET /api/workspaces/:workspace_id/sessions/:session_id/health",

@@ -11,6 +11,31 @@ import (
 	"strings"
 )
 
+// StreamCmdPaletteViewSession Stream one programmable command palette view
+func (c *Client) StreamCmdPaletteViewSession(ctx context.Context, params StreamCmdPaletteViewSessionParams) (*Stream[ViewFrame], error) {
+	path := "/api/cmd-palette/view-sessions/{session}/stream"
+	path = strings.ReplaceAll(path, "{session}", url.PathEscape(params.Session))
+	query := url.Values{}
+	query.Set("token", params.Token)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[ViewFrame](ctx, c, "GET", path, nil, nil, "streamCmdPaletteViewSession")
+}
+
+// StreamGlobalSessionParams carries the path, query, and header parameters.
+type StreamGlobalSessionParams struct {
+	SessionID     string  `url:"session_id"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Frames        *string `url:"frames"`
+	Epoch         *int64  `url:"epoch"`
+	Generation    *int64  `url:"generation"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // StreamGlobalSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
 type StreamGlobalSessionFrame struct {
 	Raw json.RawMessage
@@ -411,33 +436,6 @@ func (f StreamSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error
 // AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
 func (f StreamSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
 	var out TranscriptSnapshotPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
-func (f StreamSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
-	var out TranscriptDeltaPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
-func (f StreamSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
-	var out GoalSnapshotChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
-func (f StreamSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
-	var out SessionCommandsChangedPayload
 	if err := json.Unmarshal(f.Raw, &out); err != nil {
 		return nil, err
 	}

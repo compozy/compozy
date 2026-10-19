@@ -46,6 +46,7 @@ var namedHookTypes = mergeNamedHookTypes(map[string]NamedType{
 	"SessionPostStopPatch":        {Name: "SessionPostStopPatch", Value: hooks.SessionPostStopPatch{}},
 	sdkInputPreSubmitPayloadValue: {Name: sdkInputPreSubmitPayloadValue, Value: hooks.InputPreSubmitPayload{}},
 	"InputAttachmentMetadata":     {Name: "InputAttachmentMetadata", Value: hooks.InputAttachmentMetadata{}},
+	"InputMentionMetadata":        {Name: "InputMentionMetadata", Value: hooks.InputMentionMetadata{}},
 	sdkInputPreSubmitPatchValue:   {Name: sdkInputPreSubmitPatchValue, Value: hooks.InputPreSubmitPatch{}},
 	sdkPromptPayloadValue:         {Name: sdkPromptPayloadValue, Value: hooks.PromptPayload{}},
 	sdkPromptPatchValue:           {Name: sdkPromptPatchValue, Value: hooks.PromptPatch{}},
