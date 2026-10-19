@@ -60,6 +60,8 @@ vi.mock("@/systems/session/adapters/session-api", () => ({
 
 const scopedDetailSpy = vi.fn((..._args: unknown[]) => ({}));
 const foreignState: { current: Record<string, unknown> } = { current: { status: "disabled" } };
+const profileScope = { aggregate: false };
+let deletionPending = false;
 const ownerViewSpy = vi.fn((_props: Record<string, unknown>) => null);
 
 vi.mock("@/systems/session/lib/query-options", () => ({
@@ -72,6 +74,7 @@ vi.mock("@/systems/session", async importOriginal => {
     ...actual,
     sessionScopedDetailOptions: (...args: unknown[]) => scopedDetailSpy(...args),
     useForeignProfileSession: () => foreignState.current,
+    useSessionDeletionPending: () => deletionPending,
   };
 });
 
@@ -82,7 +85,7 @@ vi.mock("@/systems/session/hooks/use-foreign-profile-session", () => ({
 vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
   useProfileReadScope: () => ({
     key: "marketing",
-    aggregate: false,
+    aggregate: profileScope.aggregate,
     params: { profile: "marketing" },
   }),
 }));
@@ -149,6 +152,8 @@ describe("SessionWindow", () => {
     scopedDetailSpy.mockClear();
     ownerViewSpy.mockClear();
     foreignState.current = { status: "disabled" };
+    profileScope.aggregate = false;
+    deletionPending = false;
     userRetireSession.mockClear();
     userRetireSession.mockResolvedValue(true);
     userClose.mockClear();
@@ -298,6 +303,43 @@ describe("SessionWindow", () => {
     expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ windowId: "session:sess-1" })
     );
+  });
+
+  it("Should retire an aggregate 404 without rendering the missing-session notice", async () => {
+    profileScope.aggregate = true;
+    queryState.data = undefined;
+    queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    render(<SessionWindow windowId="session:sess-1" />);
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(sessionWindowEmptySpy).toHaveBeenCalled();
+    expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("Should preserve transport errors with aggregate=%s", aggregate => {
+    profileScope.aggregate = aggregate;
+    queryState.data = undefined;
+    queryState.error = new Error("Network unavailable");
+    queryState.isError = true;
+    render(<SessionWindow windowId="session:sess-1" />);
+    expect(userRetireSession).not.toHaveBeenCalled();
+    expect(sessionWindowEmptySpy).not.toHaveBeenCalled();
+  });
+
+  it("Should defer remote retirement while an operator deletion owns the window", async () => {
+    profileScope.aggregate = true;
+    deletionPending = true;
+    queryState.data = undefined;
+    queryState.error = new SessionNotFoundError("sess-1");
+    queryState.isError = true;
+    const { rerender } = render(<SessionWindow windowId="session:sess-1" />);
+    expect(userRetireSession).not.toHaveBeenCalled();
+    expect(sessionWindowEmptySpy).toHaveBeenCalled();
+    deletionPending = false;
+    rerender(<SessionWindow windowId="session:sess-1" />);
+    await waitFor(() => expect(userRetireSession).toHaveBeenCalledOnce());
   });
 
   it("Should read the session through the profile-enforced route, keyed by the active lens", () => {

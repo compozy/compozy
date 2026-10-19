@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { useSessionPresence } from "@/systems/session";
+import { useProfileReadScope } from "@/systems/profiles";
+import { useSessionDeletionPending, useSessionPresence } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
@@ -11,10 +12,12 @@ import { useSessionWindowRuntime } from "./use-session-window-runtime";
 /** Resolves the session window identity and owns its redirect/delete lifecycle. */
 export function useSessionWindowController(windowId: string) {
   const { coordinator } = useOsShell();
+  const { aggregate } = useProfileReadScope();
   const activeWorkspace = useActiveWorkspace();
   const runtimeWorkspaceId = activeWorkspace.runtimeWorkspaceId?.trim() || null;
   const { liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
+  const deletionPending = useSessionDeletionPending(sessionId);
   const [deletedSessionId, setDeletedSessionId] = useState<string | null>(null);
   const deletedByOperator = sessionId !== null && deletedSessionId === sessionId;
   const resolution = useSessionWindowResolution({
@@ -23,7 +26,9 @@ export function useSessionWindowController(windowId: string) {
     liveTailEnabled: liveTailEnabled && !deletedByOperator,
   });
   const remotelyGone =
-    sessionId !== null && resolution.scopedMiss && resolution.foreign.status === "missing";
+    sessionId !== null &&
+    resolution.scopedMiss &&
+    (aggregate || resolution.foreign.status === "missing");
   const deletedLocally = deletedByOperator || remotelyGone;
   const effectiveLiveTailEnabled =
     liveTailEnabled && !deletedLocally && !resolution.crossesWorkspace;
@@ -39,10 +44,10 @@ export function useSessionWindowController(windowId: string) {
   useEffect(() => {
     // A document's project lens cannot remove a valid shared window. Only a
     // confirmed missing session retires it; scope mismatches render a local notice.
-    if (sessionId === null || deletedByOperator || !remotelyGone) return;
+    if (sessionId === null || deletionPending || deletedByOperator || !remotelyGone) return;
     toast.error("Session not found");
     void coordinator.userRetireSession(windowId);
-  }, [coordinator, deletedByOperator, remotelyGone, sessionId, windowId]);
+  }, [coordinator, deletedByOperator, deletionPending, remotelyGone, sessionId, windowId]);
 
   return {
     ...resolution,

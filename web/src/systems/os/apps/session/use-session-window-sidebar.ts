@@ -5,12 +5,12 @@ import { runViewTransition } from "@compozy/ui";
 
 import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
 import { useOsShell } from "../../hooks/use-os-shell";
+import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 import { useAttentionJump } from "../../hooks/use-attention-jump";
 import {
   type SessionLifecycleActionHandlers,
   type SessionPayload,
   useSessionCreateActions,
-  useSessionLifecycleActions,
   useSessionListView,
   useSessionSidebarState,
   useSessionTransportState,
@@ -19,6 +19,7 @@ import {
 } from "@/systems/session";
 
 /** A session to open by id; the agent name lets this window retarget in place. */
+
 export interface SessionWindowSidebarTarget {
   sessionId: string;
   agentName: string;
@@ -38,8 +39,8 @@ export interface SessionWindowSidebarModel {
   openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
   onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
-  rowDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
-  rowRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
+  rowDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
+  rowRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];
 }
 
 /**
@@ -66,7 +67,7 @@ export function useSessionWindowSidebar({
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
-  const lifecycle = useSessionLifecycleActions();
+  const lifecycle = useSessionListLifecycleActions();
   const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
     enabled: sidebar.open,
   });

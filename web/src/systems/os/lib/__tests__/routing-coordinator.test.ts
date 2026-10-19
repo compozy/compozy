@@ -1010,6 +1010,17 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).toHaveBeenCalledWith(target);
   });
 
+  it("Should retire a background session without changing the focused route", async () => {
+    const focused = windowFixture("session", "/agents/coder/sessions/kept", "kept");
+    const deleted = windowFixture("session", "/agents/coder/sessions/deleted", "deleted");
+    const { coordinator, router, store } = createCoordinator([deleted, focused]);
+    coordinator.completeHydration();
+    await coordinator.userRetireSession(deleted.id);
+    expect(store.getState().windows[deleted.id]?.instanceKey).toBe("");
+    expect(store.getState().focusedId).toBe(focused.id);
+    expect(router.navigate).not.toHaveBeenCalled();
+  });
+
   it("Should retire a session tab onto the empty route without closing the window", async () => {
     const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
     const { coordinator, router, store } = createCoordinator([current]);

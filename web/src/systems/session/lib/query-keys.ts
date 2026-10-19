@@ -18,6 +18,7 @@ function normalizedEventParams(params: FetchSessionEventsParams = {}): FetchSess
 
 export const sessionKeys = {
   all: ["sessions"] as const,
+  deletions: () => [...sessionKeys.all, "delete"] as const,
   commandsRoot: ["session-commands"] as const,
   workspaceCommands: (workspace: string) =>
     [...sessionKeys.commandsRoot, workspace.trim()] as const,

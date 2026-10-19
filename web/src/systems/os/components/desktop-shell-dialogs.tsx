@@ -1,9 +1,11 @@
-import { useSessionLifecycleActions, type SessionListViewModel } from "@/systems/session";
+import type { SessionListViewModel } from "@/systems/session";
 import {
   useWorkspaceSetupContent,
   WorkspaceSetupDialog,
   type WorkspaceSetupDefaultsModel,
 } from "@/systems/workspace";
+
+import { useSessionListLifecycleActions } from "../hooks/use-session-list-lifecycle-actions";
 
 import { OsSessionsDialogHost } from "./sessions-modal";
 
@@ -29,7 +31,7 @@ export function DesktopSessionDialogs({
   view,
   onNewSession,
 }: DesktopSessionDialogsProps) {
-  const lifecycle = useSessionLifecycleActions();
+  const lifecycle = useSessionListLifecycleActions();
   return (
     <OsSessionsDialogHost
       open={open}

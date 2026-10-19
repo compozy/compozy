@@ -20,9 +20,10 @@ import {
   useSessionCreateActions,
   useSessionCreateIsCreating,
   useSessionCreatePendingAgentName,
-  useSessionLifecycleActions,
 } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
+
+import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 
 export interface UseAgentDetailResult {
   agent: AgentPayload | undefined;
@@ -63,9 +64,9 @@ export interface UseAgentDetailResult {
   onDelete: () => void;
   onBackToAgents: () => void;
   deleteDialog: ReturnType<typeof useAgentDeleteFlow>["confirmDialog"];
-  sessionActions: ReturnType<typeof useSessionLifecycleActions>["actions"];
-  sessionDeleteDialog: ReturnType<typeof useSessionLifecycleActions>["deleteDialog"];
-  sessionRenameDialog: ReturnType<typeof useSessionLifecycleActions>["renameDialog"];
+  sessionActions: ReturnType<typeof useSessionListLifecycleActions>["actions"];
+  sessionDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
+  sessionRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];
 }
 
 /** Combines agent details and session catalogs with lifecycle actions scoped to each row. */
@@ -98,7 +99,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     isError: sessionsError,
     retry: onRetrySessions,
   } = useAgentSessions(runtimeWorkspaceId, name, { enabled: !pending });
-  const sessionLifecycle = useSessionLifecycleActions();
+  const sessionLifecycle = useSessionListLifecycleActions();
 
   const deleteFlow = useAgentDeleteFlow({
     agent,

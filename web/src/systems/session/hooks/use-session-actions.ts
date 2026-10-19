@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { createClientId } from "@/lib/client-id";
 import {
@@ -126,12 +126,33 @@ export function useStopSession() {
   });
 }
 
+/** Keep remote disappearance recovery from racing an operator-owned deletion. */
+export function useSessionDeletionPending(sessionId: string | null): boolean {
+  return (
+    useIsMutating({
+      mutationKey: sessionKeys.deletions(),
+      predicate: mutation => {
+        const variables = mutation.state.variables;
+        return (
+          typeof variables === "object" &&
+          variables !== null &&
+          "id" in variables &&
+          variables.id === sessionId
+        );
+      },
+    }) > 0
+  );
+}
+
 /** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
-export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {}) {
+export function useDeleteSession(
+  options: { onDeleteSuccess?: (session: SessionActionTarget) => void | Promise<void> } = {}
+) {
   const queryClient = useQueryClient();
 
   // Capture ownership with the target, not the active profile/workspace at confirmation time.
   return useMutation({
+    mutationKey: sessionKeys.deletions(),
     mutationFn: (session: Pick<SessionPayload, "id" | "workspace_id" | "profile_name">) =>
       deleteSession(requireWorkspace(session.workspace_id), session.id, session.profile_name),
     onMutate: async ({ id, workspace_id }) => {
@@ -142,12 +163,13 @@ export function useDeleteSession(options: { onDeleteSuccess?: () => void } = {})
         queryClient.cancelQueries({ queryKey: sessionKeys.byIdRoot(id) }),
       ]);
     },
-    onSuccess: (_data, { id, workspace_id }) => {
+    onSuccess: async (_data, session) => {
+      const { id, workspace_id } = session;
       const successWorkspaceId = requireWorkspace(workspace_id);
+      await options.onDeleteSuccess?.(session);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
-      options.onDeleteSuccess?.();
       void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
       void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });

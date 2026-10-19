@@ -60,6 +60,10 @@ vi.mock("@/systems/session/hooks/use-session-create", () => ({
   useSessionCreatePendingAgentName: () => null,
 }));
 
+vi.mock("../../../hooks/use-session-list-lifecycle-actions", () => ({
+  useSessionListLifecycleActions: () => mockUseSessionLifecycleActions(),
+}));
+
 vi.mock("@/systems/session/hooks/use-session-lifecycle-actions", () => ({
   useSessionLifecycleActions: () => mockUseSessionLifecycleActions(),
 }));
