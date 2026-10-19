@@ -50,13 +50,21 @@ export function detectMentionTrigger(text: string, cursor: number): SessionMenti
 /** The daemon trims these from an unquoted token's end (Business Rule 2). */
 const TRIMMED_TRAILING_RE = /[.,;:!?)\]}'"]$/u;
 
+/** Unquoted, these leading characters change what the daemon reads the token as. */
+const RESERVED_PATH_PREFIXES = ["@", "session:"] as const;
+
 /**
  * The token a picked path serializes to. A path the daemon would split at
- * whitespace or trim at its end is quoted, so the sent text always names
- * exactly the picked target (US-002.EC-1).
+ * whitespace, trim at its end, or read as something else (`@@notes.md` is no
+ * token, `@session:notes.md` is a session lookup) is quoted, so the sent text
+ * always names exactly the picked target (US-002.EC-1).
  */
 export function pathMentionToken(path: string): string {
-  return WHITESPACE_RE.test(path) || TRIMMED_TRAILING_RE.test(path) ? `@"${path}"` : `@${path}`;
+  const quote =
+    WHITESPACE_RE.test(path) ||
+    TRIMMED_TRAILING_RE.test(path) ||
+    RESERVED_PATH_PREFIXES.some(prefix => path.startsWith(prefix));
+  return quote ? `@"${path}"` : `@${path}`;
 }
 
 export function sessionMentionToken(sessionId: string): string {

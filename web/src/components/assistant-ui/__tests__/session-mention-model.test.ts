@@ -92,6 +92,12 @@ describe("mention tokens", () => {
     expect(pathMentionToken("src/a.ts")).toBe("@src/a.ts");
   });
 
+  it("Should quote a path whose leading characters would change the token's meaning", () => {
+    expect(pathMentionToken("@notes.md")).toBe('@"@notes.md"');
+    expect(pathMentionToken("session:notes.md")).toBe('@"session:notes.md"');
+    expect(pathMentionToken("docs/session:notes.md")).toBe("@docs/session:notes.md");
+  });
+
   it("Should label chips by name, folder with a slash, untitled session by id", () => {
     expect(fileMentionItem({ path: "internal/acp/client_prompt.go", kind: "file" }).label).toBe(
       "client_prompt.go"
