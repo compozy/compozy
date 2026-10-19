@@ -48,11 +48,10 @@ export class RoutingCoordinator {
   private nextReconciliationToken = 0;
   private nextUserRetargetToken = 0;
   /**
-   * Bumped by every navigation the coordinator did not write itself and by
-   * every explicit user navigation. A user command that is still waiting on
-   * the daemon compares its token before writing history: a newer intent
-   * already owns the URL, and a late push would drag the window back to a
-   * destination the operator has since left (rule 3 coalescing).
+   * Bumped by every navigation the coordinator did not write itself and by every explicit
+   * user navigation or focus choice. A user command still waiting on the daemon compares its
+   * token before writing history or taking focus: a newer intent already owns the URL, and a
+   * late push would drag the operator back to a destination they left (rule 3 coalescing).
    */
   private nextUserIntentToken = 0;
   private pendingNavigateMode: "push" | "pop" | null = null;
@@ -182,10 +181,9 @@ export class RoutingCoordinator {
   }
 
   /**
-   * A creation surface that lands its session through the URL (the New session dialog) names
-   * the session before navigating, so the reconciliation that follows prefers an existing
-   * Session window over a new one (#825). One-shot like `noteNavigateMode`, but it survives a
-   * workspace switch: the held deep link reconciles after the target workspace hydrates.
+   * The New session dialog names its session before navigating, so the reconciliation that
+   * lands it prefers an existing Session window (#825). One-shot like `noteNavigateMode`, it
+   * survives a workspace switch: the held deep link reconciles after hydration.
    */
   noteCreatedSession(sessionId: string): void {
     this.createdSessionIntent = sessionId.trim() || null;
@@ -235,9 +233,10 @@ export class RoutingCoordinator {
     const host = createdSessionHostWindow(this.manager.getState(), target);
     if (host === null) return this.userOpen(target);
     const intentToken = ++this.nextUserIntentToken;
-    const outcome = landCreatedSession(this.manager, host, target);
+    const isCurrent = () => intentToken === this.nextUserIntentToken;
+    const outcome = landCreatedSession(this.manager, host, target, isCurrent);
     if (!(await outcome.completion)) return null;
-    if (intentToken === this.nextUserIntentToken) this.pushRoute(target.route);
+    if (isCurrent()) this.pushRoute(target.route);
     return host.id;
   }
 
@@ -252,6 +251,7 @@ export class RoutingCoordinator {
     const alreadyActive =
       state.focusedId === windowId && !win?.minimized && win?.stackActive === true;
     if (!win || opts.viaLink || alreadyActive) return false;
+    this.nextUserIntentToken += 1;
     const outcome = this.manager.focusWindow(windowId);
     if (!(await outcome.completion)) return false;
     const focused = this.manager.getState().windows[windowId];
@@ -269,6 +269,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win) return false;
+    this.nextUserIntentToken += 1;
     const outcome = win.minimized
       ? this.manager.restoreWindow(windowId)
       : this.manager.focusWindow(windowId);
@@ -344,6 +345,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win || win.minimized) return false;
+    this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.minimizeWindow(windowId))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
@@ -359,6 +361,7 @@ export class RoutingCoordinator {
     const state = this.manager.getState();
     const win = state.windows[windowId];
     if (!win || win.minimized) return false;
+    this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     const outcome = this.manager.zoomWindow(windowId);
     if (!(await outcome.completion)) return false;
@@ -444,12 +447,14 @@ export class RoutingCoordinator {
     const createdSession =
       pending.createdSession === true || this.takeCreatedSessionIntent(resolved.instanceKey);
     const tracked = createdSession ? { ...pending, createdSession } : pending;
+    const intentToken = this.nextUserIntentToken;
     const outcome = decideRouteReconciliation(this.manager, {
       resolved,
       route,
       desktopDefaultView,
       mode,
       createdSession,
+      isCurrent: () => intentToken === this.nextUserIntentToken,
     });
     if (outcome === null) {
       this.routeReconciliation = null;

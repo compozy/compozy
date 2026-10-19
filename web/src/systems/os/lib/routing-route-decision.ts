@@ -14,6 +14,8 @@ export interface RouteDecisionInput {
   mode: "push" | "pop" | null;
   /** The route names a session the operator just created (#825). */
   createdSession: boolean;
+  /** False once a newer operator choice owns focus; a created-session landing then skips it. */
+  isCurrent: () => boolean;
 }
 
 /**
@@ -23,7 +25,7 @@ export interface RouteDecisionInput {
  */
 export function decideRouteReconciliation(
   manager: RoutingManager,
-  { resolved, route, desktopDefaultView, mode, createdSession }: RouteDecisionInput
+  { resolved, route, desktopDefaultView, mode, createdSession, isCurrent }: RouteDecisionInput
 ): WindowManagerOpenOutcome | null {
   const state = manager.getState();
   const { app, instanceKey } = resolved;
@@ -56,7 +58,7 @@ export function decideRouteReconciliation(
   }
   if (createdSession && app.id === "session" && instanceKey) {
     const host = createdSessionHostWindow(state, { instanceKey, route });
-    if (host) return landCreatedSession(manager, host, { instanceKey, route });
+    if (host) return landCreatedSession(manager, host, { instanceKey, route }, isCurrent);
   }
   return manager.openOrFocus({
     app: app.id,

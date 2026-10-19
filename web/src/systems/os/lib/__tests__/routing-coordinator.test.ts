@@ -1146,6 +1146,52 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).toHaveBeenCalledOnce();
     });
 
+    it.each([
+      ["a launcher", "direct"],
+      ["the New session dialog", "route"],
+    ] as const)(
+      "Should not pull focus back when the operator moves on while %s lands the session",
+      async (_label, path) => {
+        const session = sessionWindow("sess-a");
+        const tasks = windowFixture("tasks", "/tasks");
+        const settings = windowFixture("settings", "/settings/general");
+        const { coordinator, router, store } = createCoordinator([settings, session, tasks]);
+        coordinator.completeHydration();
+        vi.mocked(router.navigate).mockClear();
+        let settleRetarget: ((applied: boolean) => void) | undefined;
+        store.retargetWindow.mockReturnValueOnce({
+          accepted: true,
+          completion: new Promise<boolean>(resolve => {
+            settleRetarget = resolve;
+          }),
+        });
+
+        let landing: Promise<string | null> | undefined;
+        if (path === "direct") {
+          landing = coordinator.userOpenCreatedSession(created);
+        } else {
+          coordinator.noteCreatedSession(created.instanceKey);
+          coordinator.reportRouteMatch(created.route);
+        }
+        expect(store.spies.retargetWindow).toHaveBeenCalledWith(
+          session.id,
+          created.instanceKey,
+          created.route
+        );
+        // The operator picks another window while the retarget waits on the daemon.
+        await coordinator.userActivateWindow(settings.id);
+        vi.mocked(router.navigate).mockClear();
+        settleRetarget?.(true);
+        await landing;
+        await Promise.resolve();
+
+        expect(store.spies.focusWindow).not.toHaveBeenCalledWith(session.id);
+        expect(store.spies.restoreWindow).not.toHaveBeenCalled();
+        expect(store.getState().focusedId).toBe(settings.id);
+        expect(router.navigate).not.toHaveBeenCalled();
+      }
+    );
+
     it("Should focus the window that already owns the new session", async () => {
       const owner = sessionWindow("sess-new");
       const focused = sessionWindow("sess-a");

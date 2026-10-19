@@ -64,12 +64,14 @@ export function createdSessionHostWindow(
  * Re-keys `host` to the created session in place — its tab, split and frame stay where they
  * are — then activates it: restore when minimized, focus otherwise, nothing when it already
  * is the active focused window. The activation waits on the retarget so the window never
- * gains focus while it still shows the previous session.
+ * gains focus while it still shows the previous session, and it is dropped when `isCurrent`
+ * reports that the operator made a newer choice meanwhile: a late focus would pull them back.
  */
 export function landCreatedSession(
   manager: Pick<RoutingManager, "getState" | "retargetWindow" | "focusWindow" | "restoreWindow">,
   host: OsWindow,
-  target: CreatedSessionTarget
+  target: CreatedSessionTarget,
+  isCurrent: () => boolean
 ): WindowManagerOpenOutcome {
   const retarget = manager.retargetWindow(host.id, target.instanceKey, target.route);
   if (!retarget.accepted) return { windowId: host.id, ...retarget };
@@ -78,6 +80,7 @@ export function landCreatedSession(
     const state = manager.getState();
     const win = state.windows[host.id];
     if (!win) return false;
+    if (!isCurrent()) return true;
     if (state.focusedId === host.id && !win.minimized && win.stackActive) return true;
     const activation = win.minimized
       ? manager.restoreWindow(host.id)
