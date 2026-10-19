@@ -5785,6 +5785,17 @@ func TestManagerPromptMentions(t *testing.T) {
 		if mentions[1].Kind != mention.KindFolder || mentions[1].Label != "src/" || mentions[0].Label != "README.md" {
 			t.Fatalf("persisted mentions = %#v", mentions)
 		}
+		// The transcript renders a chip only where the persisted token still matches the authored text at
+		// its offsets, so the stored token must survive persistence redaction verbatim.
+		wantTokens := []string{"@README.md", "@src", "@README.md"}
+		for i, item := range mentions {
+			if item.Token != wantTokens[i] {
+				t.Fatalf("persisted mention %d token = %q, want %q", i, item.Token, wantTokens[i])
+			}
+		}
+		if mentions[0].Start != 7 || mentions[0].End != 17 {
+			t.Fatalf("persisted mention offsets = [%d,%d), want [7,17)", mentions[0].Start, mentions[0].End)
+		}
 		for _, item := range mentions {
 			if filepath.IsAbs(item.Target) || strings.Contains(item.Target, workingDir) {
 				t.Fatalf("persisted mention target %q is absolute", item.Target)
