@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providerexec"
 )
 
 type liveDiscoveryKind string
@@ -32,17 +33,18 @@ const (
 )
 
 type liveProviderAdapter struct {
-	defaultKind       liveDiscoveryKind
-	defaultEndpoint   string
-	defaultCommand    string
-	bootstrapOnList   bool
-	commandOnly       bool
-	parseCommandRows  liveCommandRowsParser
-	parseACPModelRows liveACPModelRowsParser
-	authScheme        liveAuthScheme
-	authRequired      bool
-	credentialEnvKeys []string
-	headers           map[string]string
+	defaultKind             liveDiscoveryKind
+	defaultEndpoint         string
+	defaultCommand          string
+	bootstrapOnList         bool
+	commandOnly             bool
+	retainContextPartitions bool
+	parseCommandRows        liveCommandRowsParser
+	parseACPModelRows       liveACPModelRowsParser
+	authScheme              liveAuthScheme
+	authRequired            bool
+	credentialEnvKeys       []string
+	headers                 map[string]string
 }
 
 type liveCommandRowsParser func(string, string, time.Time) ([]ModelRow, error)
@@ -119,10 +121,11 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultEndpoint: "http://localhost:11434/api/tags",
 	},
 	liveSourcesOpencodeKey: {
-		defaultKind:      liveDiscoveryCommand,
-		defaultCommand:   "opencode models --verbose",
-		bootstrapOnList:  true,
-		parseCommandRows: parseOpenCodeModelRows,
+		defaultKind:             liveDiscoveryCommand,
+		defaultCommand:          "opencode models --verbose",
+		bootstrapOnList:         true,
+		parseCommandRows:        parseOpenCodeV1ModelRows,
+		retainContextPartitions: true,
 	},
 	liveSourcesCursorKey: {
 		defaultKind:      liveDiscoveryCommand,
@@ -281,6 +284,25 @@ func (s *LiveProviderSource) CatalogExecutionFingerprint() (string, error) {
 	if _, registered := liveProviderAdapters[s.providerID]; !registered {
 		providerIdentity += "\x1f" + provider.RuntimeProviderName(s.providerID)
 	}
+	origin := "authored"
+	if provider.CommandIsBuiltin {
+		origin = "builtin"
+	}
+	assignments := ""
+	if parsed, parseErr := compozyconfig.ParseLaunchCommand(provider.Command); parseErr == nil {
+		assignments = strings.Join(parsed.Environment, "\x1f")
+	}
+	invocationIdentity := ""
+	if target.kind == liveDiscoveryCommand && isAutomaticOpenCodeDiscovery(s.providerID, provider) {
+		if resolved, err := providerexec.ResolveOpenCodeCommand(provider, s.baseEnv, s.workingDir); err == nil {
+			invocationIdentity = providerexec.OpenCodeInvocationFingerprint(
+				resolved,
+				provider.CommandIsBuiltin,
+			)
+		} else {
+			invocationIdentity = "unresolved-opencode-discovery"
+		}
+	}
 	return CatalogExecutionFingerprint(
 		providerIdentity,
 		string(target.kind),
@@ -293,6 +315,9 @@ func (s *LiveProviderSource) CatalogExecutionFingerprint() (string, error) {
 		string(provider.EffectiveHomePolicy()),
 		strings.Join(credentialShape, "\x1e"),
 		modelMappings,
+		origin,
+		assignments,
+		invocationIdentity,
 	), nil
 }
 

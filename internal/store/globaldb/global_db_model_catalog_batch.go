@@ -88,15 +88,16 @@ func replaceModelCatalogSourceRows(
 	if err != nil {
 		return err
 	}
-	if err := pruneSupersededModelCatalogSourceContexts(
-		ctx,
-		exec,
-		executionContext,
-		contextID,
-		status.SourceID,
-		status.ProviderID,
-	); err != nil {
-		return err
+	if len(rows) > 0 || status.RetainContextPartitions {
+		if err := pruneSupersededModelCatalogSourceContexts(
+			ctx,
+			exec,
+			executionContext,
+			contextID,
+			status,
+		); err != nil {
+			return err
+		}
 	}
 	if err := upsertModelCatalogSourceStatus(ctx, exec, contextID, status); err != nil {
 		return err

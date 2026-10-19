@@ -174,6 +174,7 @@ func (m *Manager) finalizeProviderProbeEnvForStart(
 	next := opts
 	providerConfig := *opts.ProviderConfig
 	providerConfig.Command = next.Command
+	providerConfig.CommandIsBuiltin = resolved.CommandIsBuiltin
 	next.ProviderConfig = &providerConfig
 	probeEnv := providerProbeEnvForStart(m, session, resolved, next.Env, next.Cwd)
 	next.ProviderAuthEnv = &probeEnv

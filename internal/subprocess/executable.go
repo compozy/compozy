@@ -38,6 +38,7 @@ func ResolveExecutable(command string, env []string, dir string) (string, error)
 	if !ok {
 		return "", executableNotFound(command)
 	}
+	var permissionErr error
 	for _, pathEntry := range filepath.SplitList(pathValue) {
 		if runtime.GOOS == subprocessWindowsKey {
 			pathEntry = strings.Trim(pathEntry, `"`)
@@ -53,9 +54,19 @@ func ResolveExecutable(command string, env []string, dir string) (string, error)
 			}
 			return resolved, nil
 		}
-		if !errors.Is(resolveErr, errExecutableCandidateMissing) {
-			return "", resolveErr
+		if errors.Is(resolveErr, errExecutableCandidateMissing) {
+			continue
 		}
+		if errors.Is(resolveErr, os.ErrPermission) {
+			if permissionErr == nil {
+				permissionErr = resolveErr
+			}
+			continue
+		}
+		return "", resolveErr
+	}
+	if permissionErr != nil {
+		return "", permissionErr
 	}
 	return "", executableNotFound(command)
 }
@@ -106,7 +117,11 @@ func resolveExecutableCandidate(candidate string, pathExt string, base string) (
 			continue
 		}
 		if runtime.GOOS != subprocessWindowsKey && info.Mode().Perm()&0o111 == 0 {
-			continue
+			return "", fmt.Errorf(
+				"subprocess: executable candidate %q is not executable: %w",
+				executable,
+				os.ErrPermission,
+			)
 		}
 		return filepath.Clean(executable), nil
 	}

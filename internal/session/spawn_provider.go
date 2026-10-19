@@ -30,6 +30,7 @@ func (m *Manager) resolveSpawnProviderCommand(
 		route := current.providerRoutingSnapshot()
 		if compatibleSpawnProviderRoute(route, resolved) {
 			resolved.Command = route.Command
+			resolved.CommandIsBuiltin = route.CommandIsBuiltin
 			return resolved, nil
 		}
 	}
@@ -47,6 +48,7 @@ func (m *Manager) resolveSpawnProviderCommand(
 	}
 	if compatibleSpawnProviderRoute(parentRoute, resolved) {
 		resolved.Command = parentRoute.Command
+		resolved.CommandIsBuiltin = parentRoute.CommandIsBuiltin
 	}
 	return resolved, nil
 }

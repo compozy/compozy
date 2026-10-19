@@ -43,6 +43,9 @@ command = "custom-codex"
 	if got, want := codex.SourceMetadata.EffectiveSource.Kind, SourceKindGlobalConfig; got != want {
 		t.Fatalf("before delete effective source = %q, want %q", got, want)
 	}
+	if codex.Settings.CommandInherited {
+		t.Fatalf("before delete command %q marked inherited, want the authored override", codex.Settings.Command)
+	}
 	if codex.Fallback == nil {
 		t.Fatal("before delete fallback = nil, want builtin fallback metadata")
 	}
@@ -61,6 +64,9 @@ command = "custom-codex"
 	codex = findProviderItem(t, after.Providers, "codex")
 	if got, want := codex.SourceMetadata.EffectiveSource.Kind, SourceKindBuiltinProvider; got != want {
 		t.Fatalf("after delete effective source = %q, want %q", got, want)
+	}
+	if !codex.Settings.CommandInherited {
+		t.Fatalf("after delete command %q not marked inherited, want the builtin default", codex.Settings.Command)
 	}
 	if codex.Fallback != nil {
 		t.Fatalf("after delete fallback = %#v, want nil", codex.Fallback)

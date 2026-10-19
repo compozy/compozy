@@ -39,20 +39,21 @@ func providerSettingsBaseFromConfig(name string, provider compozyconfig.Provider
 	models := cloneProviderModelsConfig(provider.Models)
 	models.Curated = nil
 	return ProviderSettings{
-		Command:         provider.Command,
-		SteerCapability: provider.SteerCapability,
-		DisplayName:     provider.DisplayName,
-		Models:          models,
-		Harness:         provider.EffectiveHarness(),
-		RuntimeProvider: provider.RuntimeProviderName(name),
-		Transport:       strings.TrimSpace(provider.Transport),
-		BaseURL:         strings.TrimSpace(provider.BaseURL),
-		AuthMode:        provider.EffectiveAuthMode(),
-		EnvPolicy:       provider.EffectiveEnvPolicy(),
-		HomePolicy:      provider.EffectiveHomePolicy(),
-		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
-		AuthACPMethod:   strings.TrimSpace(provider.AuthACPMethod),
-		CredentialSlots: provider.EffectiveCredentialSlots(),
+		Command:          provider.Command,
+		CommandInherited: provider.CommandIsBuiltin,
+		SteerCapability:  provider.SteerCapability,
+		DisplayName:      provider.DisplayName,
+		Models:           models,
+		Harness:          provider.EffectiveHarness(),
+		RuntimeProvider:  provider.RuntimeProviderName(name),
+		Transport:        strings.TrimSpace(provider.Transport),
+		BaseURL:          strings.TrimSpace(provider.BaseURL),
+		AuthMode:         provider.EffectiveAuthMode(),
+		EnvPolicy:        provider.EffectiveEnvPolicy(),
+		HomePolicy:       provider.EffectiveHomePolicy(),
+		AuthStatusCmd:    strings.TrimSpace(provider.AuthStatusCmd),
+		AuthACPMethod:    strings.TrimSpace(provider.AuthACPMethod),
+		CredentialSlots:  provider.EffectiveCredentialSlots(),
 	}
 }
 

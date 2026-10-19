@@ -1,0 +1,61 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "opencode-browser",
+            "provider": "opencode",
+            "prompt": "Exercise the OpenCode browser journey.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "openrouter/acme/coding-default",
+                    "values": [
+                        { "value": "openrouter/acme/coding-default", "label": "Coding default" },
+                        { "value": "openai/qa-next", "label": "QA Next" }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "medium", "label": "Medium" },
+                        { "value": "high", "label": "High" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "first-prompt",
+                    "match": { "user_text": "opencode browser first prompt" },
+                    "steps": [{ "kind": "assistant", "text": "opencode browser v1 first response" }]
+                },
+                {
+                    "name": "interrupted-prompt",
+                    "match": { "user_text": "opencode browser interrupted prompt" },
+                    "steps": [
+                        { "kind": "assistant", "text": "opencode browser ready for stop" },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 10000 }
+                        }
+                    ]
+                },
+                {
+                    "name": "second-prompt",
+                    "match": { "user_text": "opencode browser second prompt" },
+                    "steps": [
+                        { "kind": "assistant", "text": "opencode browser v1 second response" }
+                    ]
+                },
+                {
+                    "name": "v2-prompt",
+                    "match": { "user_text": "opencode browser v2 prompt" },
+                    "steps": [{ "kind": "assistant", "text": "opencode browser v2 response" }]
+                }
+            ]
+        }
+    ]
+}

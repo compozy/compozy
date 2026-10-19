@@ -30,6 +30,8 @@ export function emptyProviderDraft(): ProviderDraft {
   return {
     name: "",
     command: "",
+    command_inherited: false,
+    command_dirty: false,
     display_name: "",
     model_default: "",
     curated_models: "",
@@ -56,6 +58,8 @@ export function providerDraftFromEntry(entry: SettingsProviderEntry): ProviderDr
   return {
     name: entry.name,
     command: entry.settings.command ?? "",
+    command_inherited: entry.settings.command_inherited ?? false,
+    command_dirty: false,
     display_name: entry.settings.display_name ?? "",
     model_default: entry.settings.models?.default ?? "",
     curated_models: joinCuratedModels(entry.settings.models?.curated ?? []),
@@ -157,7 +161,12 @@ export function providerDraftToRequest(
   baselineMethod = ""
 ): SettingsProviderRequest {
   const settings: SettingsProviderRequest["settings"] = {};
-  assignTrimmed(settings, "command", draft.command);
+  // An untouched inherited command is omitted: resubmitting the echoed builtin
+  // text would author it and drop the builtin fallback. A dirty field sends the
+  // typed text, which is how an operator pins a default explicitly.
+  if (draft.command_dirty || !draft.command_inherited) {
+    assignTrimmed(settings, "command", draft.command);
+  }
   assignTrimmed(settings, "display_name", draft.display_name);
   settings.models = {
     ...(draft.model_default.trim() ? { default: draft.model_default.trim() } : {}),

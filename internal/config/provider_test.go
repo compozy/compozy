@@ -79,7 +79,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		},
 		{
 			name:         "opencode",
-			command:      "npx -y opencode-ai@latest acp",
+			command:      "opencode acp",
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
 			loginCommand: "opencode auth login",

@@ -95,11 +95,26 @@ func finishLoginDescriptor(
 		return descriptor
 	}
 	if nativeCLI.Present {
+		// A resolved path that is not the named executable (for example the npm
+		// runner behind an inherited OpenCode command) is not login proof.
+		resolvedBase := providerLoginExecutableBase(nativeCLI.Path)
+		if resolvedBase != "" && !sameProviderLoginExecutable(descriptor.Executable, resolvedBase) {
+			return descriptor
+		}
 		descriptor.Presence = ProviderLoginPresencePresent
 	} else {
 		descriptor.Presence = ProviderLoginPresenceMissing
 	}
 	return descriptor
+}
+
+// sameProviderLoginExecutable compares names ignoring case and a platform suffix.
+func sameProviderLoginExecutable(expected string, resolved string) bool {
+	strip := func(value string) string {
+		value = strings.ToLower(value)
+		return strings.TrimSuffix(value, strings.ToLower(pathpkg.Ext(value)))
+	}
+	return strip(expected) == strip(resolved)
 }
 
 func providerLoginExecutableBase(executable string) string {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -20,6 +21,7 @@ func (s *CatalogService) recordEmptySourceFailure(
 	historyExecutionContext, err := failureHistoryExecutionContext(
 		executionContext,
 		previousExecutionContext,
+		sourceRetainsContextPartitions(source),
 	)
 	if err != nil {
 		return nil, refreshOutcomeEmpty, err
@@ -79,6 +81,7 @@ func (s *CatalogService) recordEmptySourceFailure(
 func failureHistoryExecutionContext(
 	current CatalogExecutionContext,
 	previous CatalogExecutionContext,
+	denyCrossInvocationTransfer bool,
 ) (CatalogExecutionContext, error) {
 	current, err := NormalizePersistedExecutionContext(current)
 	if err != nil {
@@ -97,6 +100,11 @@ func failureHistoryExecutionContext(
 		return CatalogExecutionContext{}, fmt.Errorf(
 			"model catalog: previous execution context must match the current ownership scope",
 		)
+	}
+	// Cross-selector stale rows stay stored, but never prove availability for the new invocation.
+	if denyCrossInvocationTransfer &&
+		strings.TrimSpace(previous.CommandFingerprint) != strings.TrimSpace(current.CommandFingerprint) {
+		return current, nil
 	}
 	return previous, nil
 }

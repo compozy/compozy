@@ -1,0 +1,76 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "opencode-native",
+            "provider": "opencode",
+            "prompt": "Exercise the selected OpenCode installation.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "openrouter/acme/coding-default",
+                    "values": [
+                        { "value": "openrouter/acme/coding-default", "label": "Coding default" },
+                        { "value": "openai/qa-next", "label": "QA Next" }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "medium", "label": "Medium" },
+                        { "value": "high", "label": "High" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "first-prompt",
+                    "match": { "user_text": "opencode first prompt" },
+                    "steps": [{ "kind": "assistant", "text": "opencode first response" }]
+                },
+                {
+                    "name": "second-prompt",
+                    "match": { "user_text": "opencode second prompt" },
+                    "steps": [{ "kind": "assistant", "text": "opencode second response" }]
+                }
+            ]
+        },
+        {
+            "name": "opencode-reject",
+            "provider": "opencode",
+            "prompt": "Exercise truthful incompatible-model rejection.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "openrouter/acme/coding-default",
+                    "values": [
+                        { "value": "openrouter/acme/coding-default", "label": "Coding default" },
+                        { "value": "openai/qa-next", "label": "QA Next", "reject_set": true }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "medium",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "medium", "label": "Medium" },
+                        { "value": "high", "label": "High" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "must-not-run",
+                    "match": { "user_text": "opencode rejected prompt" },
+                    "steps": [{ "kind": "assistant", "text": "unexpected inference" }]
+                }
+            ]
+        }
+    ]
+}

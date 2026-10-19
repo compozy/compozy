@@ -74,6 +74,16 @@ Routing-slice verification: [2026-09-09 issue #564 report](../reports/2026-09-09
 retained for inspection, and correlated with exactly one fingerprint per selected/error JSON log.
 This slice does not replace the unrelated wake-delivery walkthroughs above.
 
+QA impact 2026-10-19 — Add a pre-start hook that wraps its input command. Create an unbound
+parent, bind it with its first prompt, and spawn a compatible commandless child. Both launches
+must contain exactly one wrapper; both routing snapshots and accepted fingerprints must retain
+the configured command and its origin, and rewritten launch options must be non-builtin. Repeat
+with built-in OpenCode, only npm's `npx` available, and a hook matching only the parent agent:
+the parent must launch its wrapper and the compatible child must use the npm fallback without
+inheriting that wrapper. Both saved routes must remain built-in. Focused race-enabled
+evidence: `TestAgentPreStartHookProviderRouting` passes alongside the launch-origin and spawn
+command-precedence suites. The provider-backed public-surface walk remains pending.
+
 QA impact 2026-10-09 — Subagents service slice: delegated children use `spawn_role=subagent`,
 `notify_creator=false`, and the dedicated subagent wake reactor. Verify batched wakes, status
 acknowledgement removing a queued result, canceled queued wakes returning to pending, and user/agent

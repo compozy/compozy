@@ -10,7 +10,7 @@ import (
 
 // OpenCode's verbose CLI pairs each provider/model heading with its JSON model.
 // The exact variant keys also form its ACP thought_level options.
-func parseOpenCodeModelRows(providerID, output string, now time.Time) ([]ModelRow, error) {
+func parseOpenCodeV1ModelRows(providerID, output string, now time.Time) ([]ModelRow, error) {
 	var rows []ModelRow
 	var id string
 	var body strings.Builder

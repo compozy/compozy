@@ -219,6 +219,8 @@ type SourceStatus struct {
 	RefreshState RefreshState
 	RowCount     int
 	Stale        bool
+	// RetainContextPartitions is a write-time policy, not persisted source health.
+	RetainContextPartitions bool `json:"-"`
 }
 
 // FreshAt reports whether a settled source status still defers its next refresh past now.

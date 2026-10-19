@@ -7609,6 +7609,7 @@ export type SettingsProviderSettingsPayload = {
   auth_status_command?: string;
   base_url?: string;
   command?: string;
+  command_inherited?: boolean;
   credential_slots?: Array<SettingsProviderCredentialSlotPayload>;
   display_name?: string;
   env_policy?: string;

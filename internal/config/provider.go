@@ -128,24 +128,25 @@ type ModelsDevSourceConfig struct {
 
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
-	Command         string                   `toml:"command"`
-	SteerCapability SteerCapability          `toml:"steer_capability,omitempty"`
-	DisplayName     string                   `toml:"display_name,omitempty"`
-	Models          ProviderModelsConfig     `toml:"models,omitempty"`
-	Harness         ProviderHarness          `toml:"harness,omitempty"`
-	RuntimeProvider string                   `toml:"runtime_provider,omitempty"`
-	Transport       string                   `toml:"transport,omitempty"`
-	BaseURL         string                   `toml:"base_url,omitempty"`
-	AuthMode        ProviderAuthMode         `toml:"auth_mode,omitempty"`
-	EnvPolicy       ProviderEnvPolicy        `toml:"env_policy,omitempty"`
-	HomePolicy      ProviderHomePolicy       `toml:"home_policy,omitempty"`
-	NoneSecurity    ProviderNoneSecurity     `toml:"none_security,omitempty"`
-	AuthStatusCmd   string                   `toml:"auth_status_command,omitempty"`
-	AuthLoginCmd    string                   `toml:"auth_login_command,omitempty"`
-	AuthACPMethod   string                   `toml:"auth_acp_method,omitempty"`
-	SessionMCP      *bool                    `toml:"session_mcp,omitempty"`
-	CredentialSlots []ProviderCredentialSlot `toml:"credential_slots,omitempty"`
-	MCPServers      []MCPServer              `toml:"mcp_servers,omitempty"`
+	Command          string                   `toml:"command"`
+	CommandIsBuiltin bool                     `toml:"-"                             json:"-" yaml:"-"`
+	SteerCapability  SteerCapability          `toml:"steer_capability,omitempty"`
+	DisplayName      string                   `toml:"display_name,omitempty"`
+	Models           ProviderModelsConfig     `toml:"models,omitempty"`
+	Harness          ProviderHarness          `toml:"harness,omitempty"`
+	RuntimeProvider  string                   `toml:"runtime_provider,omitempty"`
+	Transport        string                   `toml:"transport,omitempty"`
+	BaseURL          string                   `toml:"base_url,omitempty"`
+	AuthMode         ProviderAuthMode         `toml:"auth_mode,omitempty"`
+	EnvPolicy        ProviderEnvPolicy        `toml:"env_policy,omitempty"`
+	HomePolicy       ProviderHomePolicy       `toml:"home_policy,omitempty"`
+	NoneSecurity     ProviderNoneSecurity     `toml:"none_security,omitempty"`
+	AuthStatusCmd    string                   `toml:"auth_status_command,omitempty"`
+	AuthLoginCmd     string                   `toml:"auth_login_command,omitempty"`
+	AuthACPMethod    string                   `toml:"auth_acp_method,omitempty"`
+	SessionMCP       *bool                    `toml:"session_mcp,omitempty"`
+	CredentialSlots  []ProviderCredentialSlot `toml:"credential_slots,omitempty"`
+	MCPServers       []MCPServer              `toml:"mcp_servers,omitempty"`
 }
 
 // MCPServerTransport identifies how Compozy reaches an MCP server.
@@ -184,6 +185,7 @@ type ResolvedAgent struct {
 	ProfileName        string
 	Provider           string
 	Command            string
+	CommandIsBuiltin   bool `json:"-" toml:"-" yaml:"-"`
 	DisplayName        string
 	Model              string
 	ReasoningEffort    string

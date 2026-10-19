@@ -42,6 +42,7 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	retiredBase := false
 	if hasBuiltin {
 		resolved = cloneProvider(resolved)
+		resolved.CommandIsBuiltin = true
 	} else {
 		resolved, retiredBase = retiredProviderBase(providerName, override, overridden)
 		hasBuiltin = retiredBase
@@ -123,6 +124,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		mcpServers,
 	)
 	resolved.ToolPolicyEnforced = toolPolicyEnforced
+	resolved.CommandIsBuiltin = provider.CommandIsBuiltin && strings.TrimSpace(agent.Command) == ""
 	resolved.RuntimeSources = ResolvedRuntimeSources{
 		Provider:        providerSource,
 		Model:           modelSource,
@@ -356,6 +358,7 @@ func (c *Config) ResolveSessionAgentWithRuntime(
 	}
 	if command := strings.TrimSpace(overrides.Command); command != "" {
 		resolved.Command = command
+		resolved.CommandIsBuiltin = false
 	}
 	return resolved, nil
 }

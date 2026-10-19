@@ -41,6 +41,15 @@ type sourceExecutionFingerprinter interface {
 	CatalogExecutionFingerprint() (string, error)
 }
 
+type sourceContextPartitionRetainer interface {
+	RetainContextPartitions() bool
+}
+
+func sourceRetainsContextPartitions(source Source) bool {
+	policy, ok := source.(sourceContextPartitionRetainer)
+	return ok && policy.RetainContextPartitions()
+}
+
 func resolveSourceExecutionContexts(
 	sources []Source,
 	requested CatalogExecutionContext,

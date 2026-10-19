@@ -87,7 +87,17 @@ function matchesQuery(model: RuntimeModelOption, providerName: string, tokens: s
   return tokens.every(token => haystack.includes(token));
 }
 
-/** Ranking within a visible set: favorites first, then featured, then daemon order (stable). */
+/** OpenCode IDs are provider/model; unqualified or missing identities have no provider label. */
+export function openCodeModelProvider(model: {
+  provider: string | null | undefined;
+  id: string | null | undefined;
+}): string {
+  if (model.provider !== "opencode") return "";
+  const [provider, id] = model.id?.split("/", 2) ?? [];
+  return id?.trim() ? (provider?.trim() ?? "") : "";
+}
+
+/** OpenCode sorts by upstream provider/name; other CLIs retain favorite/featured/daemon ranking. */
 function rankModels(
   models: RuntimeModelOption[],
   isFavorite: (model: RuntimeModelOption) => boolean
@@ -95,6 +105,12 @@ function rankModels(
   return models
     .map((model, index) => ({ model, index }))
     .sort((a, b) => {
+      if (a.model.provider === "opencode") {
+        return (
+          openCodeModelProvider(a.model).localeCompare(openCodeModelProvider(b.model)) ||
+          a.model.name.localeCompare(b.model.name)
+        );
+      }
       const favDelta = Number(isFavorite(b.model)) - Number(isFavorite(a.model));
       if (favDelta !== 0) return favDelta;
       const featuredDelta = Number(Boolean(b.model.featured)) - Number(Boolean(a.model.featured));
@@ -167,16 +183,15 @@ export function buildRuntimeListModel({
     }
   }
 
-  // Grouped models across providers. Browse shows the curated subset; search
-  // spans the full `view=all` set. A provider-scoped rail is a local filter
-  // over the loaded cross-provider set; "fav" hides the grouped section.
+  // All browses the curated subset; search and a provider rail expose the full
+  // catalog. Curation is metadata, not an allowlist; "fav" hides the groups.
   const groups: RuntimeListGroup[] = [];
   if (!exactEntry && effectiveRail !== "fav") {
     const providerFilter = effectiveRail === "all" ? null : effectiveRail;
     const grouped = new Map<string, RuntimeModelOption[]>();
     for (const model of models) {
       if (providerFilter && model.provider !== providerFilter) continue;
-      if (!searching && !model.curated) continue;
+      if (!searching && !providerFilter && !model.curated) continue;
       if (searching && !matchesQuery(model, providerDisplayName(model.provider), tokens)) continue;
       const bucket = grouped.get(model.provider) ?? [];
       bucket.push(model);

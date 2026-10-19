@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
+import { openCodeModelProvider } from "./runtime-list-model";
 import type { RuntimeModelOption } from "./types";
 
 export interface ModelRowProps {
@@ -77,6 +78,8 @@ function ModelRowLabel({
   selected,
   favorite,
 }: Pick<ModelRowProps, "model" | "providerName" | "selected" | "favorite">) {
+  const modelProvider = openCodeModelProvider(model);
+
   return (
     <span className="flex min-w-0 flex-1 items-center gap-2">
       <span
@@ -87,6 +90,9 @@ function ModelRowLabel({
       >
         {model.name}
       </span>
+      {modelProvider ? (
+        <span className="truncate text-small-body text-muted">{modelProvider}</span>
+      ) : null}
       <span className="sr-only">from {providerName}</span>
       {modelReasons(model) ? (
         <span

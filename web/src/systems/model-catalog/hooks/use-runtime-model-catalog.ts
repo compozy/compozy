@@ -18,8 +18,8 @@ export interface RuntimeCatalogProvider {
 export interface RuntimeModelCatalog {
   /**
    * Cross-provider `view=all` models mapped for the selector, restricted to the
-   * providers the surface allows. The selector browses the curated subset and
-   * searches the full set across those providers.
+   * providers the surface allows. Curated browsing applies to All models; a
+   * provider chip browses that provider's full catalog, like search.
    */
   models: RuntimeModelOption[];
   /** Raw daemon payloads keyed by provider id (reasoning-source derivation). */
@@ -48,8 +48,8 @@ function describeCatalogError(error: unknown): string {
  * are filtered down to the providers a surface allows — a workspace agent or
  * session flow can therefore never select a provider outside its workspace
  * provider set — and each row is disabled when its provider needs sign-in.
- * Browsing shows the curated subset while search reaches the full set; both span
- * every allowed provider per `_spec.md` §6.1 behavior rule 4. Refresh targets the
+ * Curated browsing applies to All models; a provider chip or search reaches the
+ * full set; both span every allowed provider per `_spec.md` §6.1 behavior rule 4. Refresh targets the
  * aggregate refresh endpoint so the visible affordance truthfully refreshes the
  * whole catalog instead of a single provider.
  */

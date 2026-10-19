@@ -19,3 +19,11 @@ overlaps: MS-058; MS-web-settings-takeover-redesign
 Introduced by the opendesign settings redesign (docs/design/opendesign/settings/settings-providers.html, implemented 2026-07-21). Visual contract evidence: .compozy/tasks/os-shell/evidence/visual/opendesign-redesigns/VC-S2/.
 
 2026-09-28 qa-impact (ui-normie-pass settings): Rows/Cards toggle and the mono launch command were removed from the list (the command stays in the provider detail's Technical details); a filter with no matches shows "No providers match" with a "Clear filters" action. Status remains blocked-verify until re-walked.
+
+2026-10-19 qa-impact (OpenCode launch availability): With the inherited OpenCode command, an
+`opencode` file lacking execute permission and an executable `npx` on PATH must produce
+`command_available: false`; Settings must not count that provider as launch-ready through npm.
+Removing the native file permits npm fallback, and an executable native command remains available
+without npx. Backend regression coverage lives in `TestProviderListCommandAvailableHonorsOpenCodeNPMLaunchFallback`
+and `TestProviderListCommandAvailableRejectsNonExecutableOpenCode`; browser status remains
+blocked-verify until re-walked.

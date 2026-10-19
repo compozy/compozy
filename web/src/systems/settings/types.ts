@@ -72,6 +72,14 @@ export type ProviderCredentialSlotDraft = SettingsProviderCredentialSlotRequest 
 export type ProviderDraft = {
   name: string;
   command: string;
+  /**
+   * True while `command` is the inherited builtin default rather than an
+   * operator-authored override. An untouched inherited command is never
+   * resubmitted, so a round-trip save cannot author the builtin text.
+   */
+  command_inherited: boolean;
+  /** True once the operator edited the command field in this dialog session. */
+  command_dirty: boolean;
   display_name: string;
   model_default: string;
   curated_models: string;

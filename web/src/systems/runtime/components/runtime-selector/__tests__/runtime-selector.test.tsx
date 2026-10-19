@@ -15,6 +15,7 @@ import { IntensityMeter, TooltipProvider, UIProvider } from "@compozy/ui";
 
 import { FAVORITES_STORAGE_KEY, RECENTS_LIMIT, RECENTS_STORAGE_KEY } from "../favorites";
 import { runtimeModelKey } from "../model-key";
+import { openCodeModelProvider } from "../runtime-list-model";
 import { SelectorFooter } from "../selector-footer";
 import { RuntimeSelector, type RuntimeSelectorProps } from "../runtime-selector";
 import {
@@ -1187,7 +1188,7 @@ describe("RuntimeSelector browse, search and ranking", () => {
     model("gpt-hidden", { name: "GPT Hidden", curated: false }),
   ];
 
-  it("Should show only curated rows while browsing and reveal non-curated rows on search", async () => {
+  it("Should keep All curated and reveal the full catalog on search or a provider rail", async () => {
     const user = userEvent.setup();
     renderSelector({
       value: { provider: "codex", model: "", reasoning_effort: "" },
@@ -1205,7 +1206,40 @@ describe("RuntimeSelector browse, search and ranking", () => {
     await waitFor(() =>
       expect(document.querySelector('[data-model="gpt-hidden"]')).toBeInTheDocument()
     );
+
+    fireEvent.change(screen.getByTestId("runtime-selector-search"), { target: { value: "" } });
+    await user.click(document.querySelector('[data-rail="codex"]')!);
+    expect(document.querySelector('[data-model="gpt-hidden"]')).toBeInTheDocument();
   });
+
+  it.each(["opencode", "codex"])(
+    "Should offer every %s model without a search when no rows are curated",
+    async provider => {
+      const user = userEvent.setup();
+      const ids = ["openrouter/Acme/coding-default", "openai/next-model"];
+      const { onChange } = renderSelector({
+        value: { provider: "claude", model: "claude-model", reasoning_effort: "" },
+        providers: [{ id: provider, name: provider }, claudeProvider],
+        models: [
+          ...ids.map(id => model(id, { provider, curated: false })),
+          model("claude-model", { provider: "claude" }),
+        ],
+      });
+
+      await openSelector(user);
+      expect(optionOrder()).toEqual(["claude-model"]);
+      await user.click(document.querySelector(`[data-rail="${provider}"]`)!);
+
+      expect(screen.getByTestId("runtime-selector-search")).toHaveValue("");
+      expect(optionOrder()).toEqual(provider === "opencode" ? [...ids].reverse() : ids);
+      await user.click(row(ids[0]!));
+      expect(onChange).toHaveBeenLastCalledWith({
+        provider,
+        model: ids[0],
+        reasoning_effort: "",
+      });
+    }
+  );
 
   it("Should order rows favorites first, then featured, then daemon order", async () => {
     window.localStorage.setItem(
@@ -1222,8 +1256,45 @@ describe("RuntimeSelector browse, search and ranking", () => {
     // Drop the pinned "Recent & favorites" block so the provider group is the only listbox content.
     await user.click(document.querySelector('[data-rail="codex"]')!);
 
-    await waitFor(() => expect(optionOrder()).toEqual(["gpt-fav", "gpt-featured", "gpt-plain"]));
+    await waitFor(() =>
+      expect(optionOrder()).toEqual(["gpt-fav", "gpt-featured", "gpt-plain", "gpt-hidden"])
+    );
   });
+
+  it.each(["opencode", "codex", "claude", "agy"])(
+    "Should apply provider/name ordering only to OpenCode, preserving %s ranking",
+    async provider => {
+      const ids = ["openrouter/model", "openai/a-model", "openai/z-model", "anthropic/model"];
+      window.localStorage.setItem(
+        FAVORITES_STORAGE_KEY,
+        JSON.stringify([runtimeModelKey(provider, ids[0]!)])
+      );
+      const user = userEvent.setup();
+      renderSelector({
+        value: { provider, model: "", reasoning_effort: "" },
+        providers: [{ id: provider, name: provider }],
+        // Seeded out of rank order so a lost favorite/featured hoist cannot pass.
+        models: [
+          model(ids[2]!, { provider, name: "Model Beta" }),
+          model(ids[0]!, { provider, name: "Model Alpha" }),
+          model(ids[3]!, { provider, name: "Model Omega" }),
+          model(ids[1]!, { provider, name: "Model Zeta", featured: true }),
+        ],
+      });
+
+      await openSelector(user);
+      await user.click(document.querySelector(`[data-rail="${provider}"]`)!);
+      const expected = provider === "opencode" ? [ids[3], ids[2], ids[1], ids[0]] : ids;
+      expect(optionOrder()).toEqual(expected);
+      fireEvent.change(screen.getByTestId("runtime-selector-search"), {
+        target: { value: "model" },
+      });
+      expect(optionOrder()).toEqual(expected);
+      const providerLabel = within(row(ids[0]!)).queryByText("openrouter");
+      if (provider === "opencode") expect(providerLabel).toBeVisible();
+      else expect(providerLabel).toBeNull();
+    }
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -1893,6 +1964,62 @@ describe("RuntimeSelector provider rail filtering", () => {
 // ---------------------------------------------------------------------------
 
 describe("RuntimeSelector single-line row", () => {
+  it("Should show the OpenCode model provider after its name without changing its selected ID", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "opencode", model: "", reasoning_effort: "" },
+      providers: [{ id: "opencode", name: "OpenCode" }],
+      models: [model("openrouter/acme/model", { provider: "opencode", name: "Acme Model" })],
+    });
+
+    await openSelector(user);
+    const option = row("openrouter/acme/model");
+    expect(within(option).getByText("openrouter")).toBeVisible();
+    expect(option).toHaveAccessibleName(/^Acme Model\s*openrouter\s*from OpenCode$/);
+    await user.click(option);
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "opencode",
+      model: "openrouter/acme/model",
+      reasoning_effort: "",
+    });
+  });
+
+  it("Should keep OpenCode models without a provider prefix visible and selectable without a provider label", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "opencode", model: "", reasoning_effort: "" },
+      providers: [{ id: "opencode", name: "OpenCode" }],
+      models: ["plain-model", "/missing-provider", "   /blank-provider"].map(id =>
+        model(id, { provider: "opencode", name: "Model" })
+      ),
+    });
+
+    await openSelector(user);
+    for (const option of screen.getAllByRole("option")) {
+      expect(option).toHaveAccessibleName(/^Model\s*from OpenCode$/);
+      expect(option).not.toHaveAttribute("aria-disabled", "true");
+    }
+    expect(screen.getAllByRole("option")).toHaveLength(3);
+    await user.click(row("plain-model"));
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "opencode",
+      model: "plain-model",
+      reasoning_effort: "",
+    });
+  });
+
+  it.each([
+    { provider: "opencode", id: null },
+    { provider: "opencode", id: undefined },
+    { provider: "opencode", id: "" },
+    { provider: "opencode", id: " /model" },
+    { provider: "opencode", id: "unqualified-model" },
+    { provider: null, id: "openai/model" },
+    { provider: "", id: "openai/model" },
+  ])("Should omit unavailable provider text without throwing for $provider/$id", value => {
+    expect(openCodeModelProvider(value)).toBe("");
+  });
+
   it("Should render no metadata chips — the name is the only visible row text", async () => {
     const user = userEvent.setup();
     renderSelector({

@@ -79,7 +79,7 @@ export const runtimeSelectorStoryModels: RuntimeModelOption[] = [
     id: "gpt-5.4-mini",
     provider: "codex",
     name: "GPT-5.4 Mini",
-    // Non-curated: hidden while browsing, revealed on search.
+    // Non-curated: hidden under All models browsing, revealed by a provider chip or search.
     curated: false,
     availability: "stale",
   }),

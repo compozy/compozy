@@ -9,10 +9,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -169,6 +172,660 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 					wantEfforts,
 				)
 			}
+		}
+	})
+
+	t.Run("Should transition OpenCode versions and isolate invocation partitions", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("OpenCode integration fixture requires /bin/sh")
+		}
+
+		ctx := testutil.Context(t)
+		fixtureDir := writeOpenCodeNativeFixture(t)
+		workDir := t.TempDir()
+		homeDir := t.TempDir()
+		writeOpenCodeFixtureFile(t, fixtureDir, "version", "opencode v1.18.33\n")
+		writeOpenCodeFixtureFile(t, fixtureDir, "v1.txt",
+			"openrouter/acme/coding-default\n"+
+				`{"name":"Coding default","capabilities":{"reasoning":true,"toolcall":true},`+
+				`"limit":{"context":262144},"variants":{"high":{},"low":{}}}`+"\n")
+		provider := compozyconfig.BuiltinProviders()["opencode"]
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"opencode",
+			provider,
+			&modelcatalog.LiveProviderSourcesConfig{
+				BaseEnv: []string{
+					"PATH=" + filepath.Join(fixtureDir, "bin") + string(os.PathListSeparator) + os.Getenv("PATH"),
+					"HOME=" + homeDir,
+					"OPENCODE_FIXTURE_DIR=" + fixtureDir,
+					"OPENCODE_FIXTURE_LOG=" + filepath.Join(fixtureDir, "calls.log"),
+				},
+				WorkingDir: workDir,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		configSource := modelcatalog.NewConfigSource(map[string]compozyconfig.ProviderConfig{
+			"opencode": {Models: compozyconfig.ProviderModelsConfig{
+				Curated: []compozyconfig.ProviderModelConfig{{ID: "openrouter/acme/coding-default"}},
+			}},
+		})
+		store, dbPath := openCatalogGlobalDB(t)
+		service, err := modelcatalog.NewService(
+			store,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{ReasoningApply: map[string]bool{"opencode": true}},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		execution := modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: "it-opencode-transition",
+		}
+		if err := service.SetDefaultExecutionContext(execution); err != nil {
+			t.Fatalf("SetDefaultExecutionContext() error = %v", err)
+		}
+		refresh := func(force bool, now time.Time) []modelcatalog.SourceStatus {
+			t.Helper()
+			statuses, err := service.Refresh(ctx, modelcatalog.RefreshOptions{
+				ProviderID:       "opencode",
+				ExecutionContext: execution,
+				Force:            force,
+				Now:              now,
+			})
+			if err != nil {
+				t.Fatalf("Refresh() error = %v", err)
+			}
+			return statuses
+		}
+		listAll := func(now time.Time) []modelcatalog.Model {
+			t.Helper()
+			models, err := service.ListModels(ctx, modelcatalog.ListOptions{
+				ProviderID:       "opencode",
+				ExecutionContext: execution,
+				View:             modelcatalog.CatalogViewAll,
+				IncludeStale:     true,
+				Now:              now,
+			})
+			if err != nil {
+				t.Fatalf("ListModels() error = %v", err)
+			}
+			return models
+		}
+
+		// Step 1: v1 discovery persists a curated row with lossless metadata.
+		refresh(true, integrationTime(40))
+		calls := openCodeFixtureCalls(t, fixtureDir)
+		if len(calls) != 2 || calls[0] != "--version" || calls[1] != "models --verbose" {
+			t.Fatalf("v1 discovery calls = %#v, want version then models --verbose", calls)
+		}
+		models := listAll(integrationTime(40))
+		if got := integrationModelIDs(models); !slices.Equal(got, []string{"openrouter/acme/coding-default"}) {
+			t.Fatalf("v1 model ids = %#v", got)
+		}
+		if !models[0].Curated || models[0].ContextWindow == nil || *models[0].ContextWindow != 262144 ||
+			models[0].SupportsTools == nil || !*models[0].SupportsTools ||
+			!slices.Equal(models[0].ReasoningEfforts, []modelcatalog.ReasoningEffort{"low", "high"}) {
+			t.Fatalf("v1 metadata lost: %#v", models[0])
+		}
+
+		// Step 2: in-place v2 upgrade returns a complete new generation.
+		writeOpenCodeFixtureFile(t, fixtureDir, "version", "opencode v2.0.32\n")
+		writeOpenCodeFixtureFile(t, fixtureDir, "v2.json", `{"location":{},"data":[
+{"providerID":"openrouter","id":"acme/coding-default","name":"Coding default","enabled":true,
+"capabilities":{"tools":true},"limit":{"context":262144,"input":200000,"output":32768},
+"variants":[{"id":"high"},{"id":"low"}]},
+{"providerID":"openai","id":"qa-next","name":"QA Next","enabled":true,"limit":{"context":128000},"variants":[]}
+]}`)
+		refresh(true, integrationTime(41))
+		calls = openCodeFixtureCalls(t, fixtureDir)
+		if len(calls) != 4 || calls[2] != "--version" ||
+			!strings.HasPrefix(calls[3], "api --standalone GET /api/model?") {
+			t.Fatalf("v2 discovery calls = %#v, want version then standalone model.list", calls)
+		}
+		rawQuery, found := strings.CutPrefix(strings.SplitN(calls[3], " ", 4)[3], "/api/model?")
+		if !found {
+			t.Fatalf("v2 call = %q, want encoded model.list path", calls[3])
+		}
+		values, err := url.ParseQuery(rawQuery)
+		if err != nil {
+			t.Fatalf("ParseQuery() error = %v", err)
+		}
+		if got := values.Get("location[directory]"); got != workDir {
+			t.Fatalf("v2 location = %q, want %q", got, workDir)
+		}
+		models = listAll(integrationTime(41))
+		if got := integrationModelIDs(models); !slices.Equal(
+			got,
+			[]string{"openrouter/acme/coding-default", "openai/qa-next"},
+		) {
+			t.Fatalf("v2 model ids = %#v", got)
+		}
+		if !models[0].Curated || models[1].Curated {
+			t.Fatalf("curation changed across version transition: %#v", models)
+		}
+		if models[0].SupportsTools == nil || !*models[0].SupportsTools ||
+			models[0].MaxInputTokens == nil || *models[0].MaxInputTokens != 200000 {
+			t.Fatalf("v2 metadata lost: %#v", models[0])
+		}
+		step2LiveRows := liveRowRefreshedAt(t, dbPath)
+
+		// A warm cached read performs no further detection.
+		if _, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+			Now:              integrationTime(42),
+		}); err != nil {
+			t.Fatalf("ListModels(cached) error = %v", err)
+		}
+		if got := len(openCodeFixtureCalls(t, fixtureDir)); got != 4 {
+			t.Fatalf("cached read executed %d discovery calls, want 4", got)
+		}
+
+		// Step 3: malformed v2 after a valid row fails without partial rows.
+		writeOpenCodeFixtureFile(t, fixtureDir, "v2.json", `{"data":[
+{"providerID":"openrouter","id":"acme/coding-default","name":"Coding default","enabled":true},
+{"providerID":"openai","id":"qa-next","enabled":"yes"}]}`)
+		_, refreshErr := service.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+			Force:            true,
+			Now:              integrationTime(43),
+		})
+		if refreshErr == nil || !strings.Contains(refreshErr.Error(), "invalid OpenCode v2 model payload") {
+			t.Fatalf("Refresh() error = %v, want v2 payload failure", refreshErr)
+		}
+		models = listAll(integrationTime(43))
+		if got := integrationModelIDs(models); !slices.Equal(
+			got,
+			[]string{"openrouter/acme/coding-default", "openai/qa-next"},
+		) {
+			t.Fatalf("stale model ids = %#v, want last complete generation", got)
+		}
+		for _, model := range models {
+			if !model.Stale || model.AvailabilityState != modelcatalog.AvailabilityStateAvailableStale {
+				t.Fatalf("stale model = %#v, want stale availability", model)
+			}
+		}
+		liveOnly, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			SourceID:         "provider_live:opencode",
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(43),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got := integrationModelIDs(liveOnly); !slices.Equal(
+			got,
+			[]string{"openrouter/acme/coding-default", "openai/qa-next"},
+		) {
+			t.Fatalf("live-only model ids = %#v, want last complete generation", got)
+		}
+		for _, model := range liveOnly {
+			if !model.Stale {
+				t.Fatalf("live-only model not stale: %#v", model)
+			}
+		}
+		if after := liveRowRefreshedAt(t, dbPath); !reflect.DeepEqual(step2LiveRows, after) {
+			t.Fatalf("stale live rows changed across failure: %#v vs %#v", step2LiveRows, after)
+		}
+		statuses, err := service.ListSourceStatus(ctx, modelcatalog.StatusOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+		})
+		if err != nil {
+			t.Fatalf("ListSourceStatus() error = %v", err)
+		}
+		failed := false
+		for _, status := range statuses {
+			if status.SourceID != "provider_live:opencode" {
+				continue
+			}
+			failed = status.RefreshState == modelcatalog.RefreshStateFailed &&
+				status.LastSuccess.Equal(integrationTime(41))
+		}
+		if !failed {
+			t.Fatalf("source statuses = %#v, want failed with preserved last success", statuses)
+		}
+
+		// Step 4: close/reopen keeps stale rows and curation without new detection.
+		closeCtx, closeCancel := context.WithTimeout(context.Background(), 45*time.Second)
+		if err := store.Close(closeCtx); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		closeCancel()
+		reopened, err := globaldb.OpenGlobalDB(ctx, dbPath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			closeCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			if closeErr := reopened.Close(closeCtx); closeErr != nil {
+				t.Errorf("GlobalDB.Close() error = %v", closeErr)
+			}
+		})
+		reopenedService, err := modelcatalog.NewService(
+			reopened,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{ReasoningApply: map[string]bool{"opencode": true}},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		if err := reopenedService.SetDefaultExecutionContext(execution); err != nil {
+			t.Fatalf("SetDefaultExecutionContext() error = %v", err)
+		}
+		reopenedModels, err := reopenedService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(44),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(reopened) error = %v", err)
+		}
+		if got := integrationModelIDs(reopenedModels); !slices.Equal(
+			got,
+			[]string{"openrouter/acme/coding-default", "openai/qa-next"},
+		) {
+			t.Fatalf("reopened model ids = %#v, want retained stale generation", got)
+		}
+		if !reopenedModels[0].Curated {
+			t.Fatalf("reopened curation lost: %#v", reopenedModels[0])
+		}
+		if got := len(openCodeFixtureCalls(t, fixtureDir)); got != 6 {
+			t.Fatalf("reopen executed %d discovery calls, want 6", got)
+		}
+
+		// Step 5: valid v2 recovers, then v1 dispatch returns without version cache.
+		writeOpenCodeFixtureFile(t, fixtureDir, "v2.json", `{"data":[
+{"providerID":"openrouter","id":"acme/coding-default","name":"Coding default","enabled":true},
+{"providerID":"openai","id":"qa-next","name":"QA Next","enabled":true}]}`)
+		serviceRefresh := func(svc *modelcatalog.CatalogService, now time.Time) {
+			t.Helper()
+			if _, err := svc.Refresh(ctx, modelcatalog.RefreshOptions{
+				ProviderID:       "opencode",
+				ExecutionContext: execution,
+				Force:            true,
+				Now:              now,
+			}); err != nil {
+				t.Fatalf("Refresh() error = %v", err)
+			}
+		}
+		serviceRefresh(reopenedService, integrationTime(45))
+		fresh, err := reopenedService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(45),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		for _, model := range fresh {
+			if model.Stale {
+				t.Fatalf("recovered model stale: %#v", model)
+			}
+		}
+		writeOpenCodeFixtureFile(t, fixtureDir, "version", "opencode v1.18.33\n")
+		serviceRefresh(reopenedService, integrationTime(46))
+		calls = openCodeFixtureCalls(t, fixtureDir)
+		if len(calls) != 10 || calls[8] != "--version" || calls[9] != "models --verbose" {
+			t.Fatalf("v1 return calls = %#v, want re-detected version then models --verbose", calls)
+		}
+		returned, err := reopenedService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(46),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got := integrationModelIDs(returned); !slices.Equal(got, []string{"openrouter/acme/coding-default"}) {
+			t.Fatalf("returned model ids = %#v", got)
+		}
+
+		// Step 6: a different selector partitions rows; stale transfer is denied.
+		oldFingerprint, err := liveSource.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatalf("CatalogExecutionFingerprint() error = %v", err)
+		}
+		if got := len(openCodeFixtureCalls(t, fixtureDir)); got != 10 {
+			t.Fatalf("fingerprinting executed %d discovery calls, want 10", got)
+		}
+		nextFixture := writeOpenCodeNativeFixture(t)
+		writeOpenCodeFixtureFile(t, nextFixture, "version", "opencode v2.0.32\n")
+		writeOpenCodeFixtureFile(t, nextFixture, "v2.json", `{"data":[
+{"providerID":"openrouter","id":"acme/coding-default","name":"Coding default","enabled":true},
+{"providerID":"openai","id":"qa-next","enabled":"yes"}]}`)
+		nextProvider := compozyconfig.ProviderConfig{
+			Command: filepath.Join(nextFixture, "bin", "opencode") + " acp",
+		}
+		nextSource, err := modelcatalog.NewLiveProviderSource(
+			"opencode",
+			nextProvider,
+			&modelcatalog.LiveProviderSourcesConfig{
+				BaseEnv: []string{
+					"PATH=" + filepath.Join(nextFixture, "bin") + string(os.PathListSeparator) + os.Getenv("PATH"),
+					"HOME=" + homeDir,
+					"OPENCODE_FIXTURE_DIR=" + nextFixture,
+					"OPENCODE_FIXTURE_LOG=" + filepath.Join(nextFixture, "calls.log"),
+				},
+				WorkingDir: workDir,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		nextFingerprint, err := nextSource.CatalogExecutionFingerprint()
+		if err != nil {
+			t.Fatalf("CatalogExecutionFingerprint() error = %v", err)
+		}
+		if nextFingerprint == oldFingerprint {
+			t.Fatal("different selectors share an execution fingerprint")
+		}
+		if got := len(openCodeFixtureCalls(t, nextFixture)); got != 0 {
+			t.Fatalf("fingerprinting executed %d discovery calls, want none", got)
+		}
+		nextService, err := modelcatalog.NewService(
+			reopened,
+			[]modelcatalog.Source{configSource, nextSource},
+			modelcatalog.MergeOptions{ReasoningApply: map[string]bool{"opencode": true}},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		if err := nextService.SetDefaultExecutionContext(execution); err != nil {
+			t.Fatalf("SetDefaultExecutionContext() error = %v", err)
+		}
+		oldContext, err := execution.WithCommandFingerprint(oldFingerprint)
+		if err != nil {
+			t.Fatalf("WithCommandFingerprint() error = %v", err)
+		}
+		statuses, refreshErr = nextService.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID:               "opencode",
+			ExecutionContext:         execution,
+			PreviousExecutionContext: oldContext,
+			Force:                    true,
+			Now:                      integrationTime(47),
+		})
+		if refreshErr != nil {
+			t.Fatalf("Refresh() error = %v, want masked partial success", refreshErr)
+		}
+		failedTransfer := false
+		for _, status := range statuses {
+			if status.SourceID != "provider_live:opencode" {
+				continue
+			}
+			failedTransfer = status.RefreshState == modelcatalog.RefreshStateFailed &&
+				strings.Contains(status.LastError, "invalid OpenCode v2 model payload")
+		}
+		if !failedTransfer {
+			t.Fatalf("source statuses = %#v, want failed live source without stale transfer", statuses)
+		}
+		isolated, err := nextService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(47),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		for _, model := range isolated {
+			for _, ref := range model.Sources {
+				if ref.SourceID == "provider_live:opencode" {
+					t.Fatalf("new invocation reads transferred live rows: %#v", isolated)
+				}
+			}
+		}
+		oldService, err := modelcatalog.NewService(
+			reopened,
+			[]modelcatalog.Source{configSource, liveSource},
+			modelcatalog.MergeOptions{ReasoningApply: map[string]bool{"opencode": true}},
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		if err := oldService.SetDefaultExecutionContext(execution); err != nil {
+			t.Fatalf("SetDefaultExecutionContext() error = %v", err)
+		}
+		retained, err := oldService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(47),
+		})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got := integrationModelIDs(retained); !slices.Equal(got, []string{"openrouter/acme/coding-default"}) {
+			t.Fatalf("retained model ids = %#v, want stored old-selector rows", got)
+		}
+		retainedLiveRows := false
+		for _, model := range retained {
+			for _, ref := range model.Sources {
+				if ref.SourceID == "provider_live:opencode" {
+					retainedLiveRows = true
+				}
+			}
+		}
+		if !retainedLiveRows {
+			t.Fatalf("old-selector live rows were pruned instead of retained: %#v", retained)
+		}
+
+		// Step 7: a successful switch must keep both installations' last complete generations.
+		writeOpenCodeFixtureFile(t, nextFixture, "v2.json", `{"data":[
+{"providerID":"openai","id":"installation-b","name":"Installation B","enabled":true}]}`)
+		serviceRefresh(nextService, integrationTime(48))
+		installationB, err := nextService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			SourceID:         liveSource.ID(),
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(48),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(installation B) error = %v", err)
+		}
+		if len(installationB) != 1 || installationB[0].ModelID != "openai/installation-b" ||
+			installationB[0].Stale {
+			t.Fatalf("installation B models = %#v, want its fresh generation only", installationB)
+		}
+
+		writeOpenCodeFixtureFile(t, fixtureDir, "version", "development\n")
+		nextContext, err := execution.WithCommandFingerprint(nextFingerprint)
+		if err != nil {
+			t.Fatalf("WithCommandFingerprint() error = %v", err)
+		}
+		statuses, refreshErr = oldService.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID:               "opencode",
+			SourceID:                 liveSource.ID(),
+			ExecutionContext:         execution,
+			PreviousExecutionContext: nextContext,
+			Force:                    true,
+			Now:                      integrationTime(49),
+		})
+		if refreshErr == nil || !strings.Contains(refreshErr.Error(), "could not determine OpenCode version") {
+			t.Fatalf("Refresh(installation A) error = %v, want version detection failure", refreshErr)
+		}
+		if len(statuses) != 1 || statuses[0].RefreshState != modelcatalog.RefreshStateFailed ||
+			!statuses[0].Stale || statuses[0].RowCount != 1 ||
+			!statuses[0].LastSuccess.Equal(integrationTime(46)) {
+			t.Fatalf("installation A statuses = %#v, want stale fallback with its last success", statuses)
+		}
+		installationA, err := oldService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			SourceID:         liveSource.ID(),
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(49),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(installation A) error = %v", err)
+		}
+		if len(installationA) != 1 || installationA[0].ModelID != "openrouter/acme/coding-default" ||
+			!installationA[0].Stale || installationA[0].LastError == "" ||
+			installationA[0].AvailabilityState != modelcatalog.AvailabilityStateAvailableStale ||
+			!slices.ContainsFunc(installationA[0].Sources, func(ref modelcatalog.SourceRef) bool {
+				return ref.SourceID == liveSource.ID() && ref.Stale && ref.RefreshedAt.Equal(integrationTime(46))
+			}) {
+			t.Fatalf("installation A models = %#v, want its preserved stale generation only", installationA)
+		}
+		installationB, err = nextService.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID:       "opencode",
+			SourceID:         liveSource.ID(),
+			ExecutionContext: execution,
+			View:             modelcatalog.CatalogViewAll,
+			IncludeStale:     true,
+			Now:              integrationTime(49),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(installation B after A failure) error = %v", err)
+		}
+		if len(installationB) != 1 || installationB[0].ModelID != "openai/installation-b" ||
+			installationB[0].Stale {
+			t.Fatalf("installation B models after A failure = %#v, want its fresh generation", installationB)
+		}
+	})
+
+	t.Run("Should retain custom OpenCode discovery partitions without transferring stale rows", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("OpenCode integration fixture requires /bin/sh")
+		}
+		ctx := t.Context()
+		store, _ := openCatalogGlobalDB(t)
+		const providerID = "opencode-work"
+		execution := modelcatalog.CatalogExecutionContext{
+			Scope:       modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:   "custom-opencode-profile",
+			WorkspaceID: "custom-opencode-workspace",
+		}
+		type installation struct {
+			dir     string
+			source  *modelcatalog.LiveProviderSource
+			service *modelcatalog.CatalogService
+			context modelcatalog.CatalogExecutionContext
+		}
+		installations := make([]installation, 3)
+		workDir, homeDir := t.TempDir(), t.TempDir()
+		for index := range installations {
+			dir := writeOpenCodeNativeFixture(t)
+			writeOpenCodeFixtureFile(t, dir, "v1.txt", fmt.Sprintf("vendor/model-%d\n", index))
+			provider := compozyconfig.BuiltinProviders()["opencode"]
+			provider.RuntimeProvider = "opencode"
+			provider.Models.Discovery.Command = filepath.Join(dir, "bin", "opencode") + " models --verbose"
+			source, err := modelcatalog.NewLiveProviderSource(
+				providerID,
+				provider,
+				&modelcatalog.LiveProviderSourcesConfig{
+					WorkingDir: workDir,
+					BaseEnv: []string{
+						"PATH=" + os.Getenv("PATH"), "HOME=" + homeDir,
+						"OPENCODE_FIXTURE_DIR=" + dir,
+						"OPENCODE_FIXTURE_LOG=" + filepath.Join(dir, "calls.log"),
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service, err := modelcatalog.NewService(store, []modelcatalog.Source{source}, modelcatalog.MergeOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := source.CatalogExecutionFingerprint()
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := execution.WithCommandFingerprint(fingerprint)
+			if err != nil {
+				t.Fatal(err)
+			}
+			installations[index] = installation{dir: dir, source: source, service: service, context: resolved}
+		}
+		a, b, c := installations[0], installations[1], installations[2]
+		if _, err := a.service.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID: providerID, ExecutionContext: execution, Force: true, Now: integrationTime(50),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		plan, err := b.service.NewRefreshPlan()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := plan.Refresh(ctx, b.source, modelcatalog.RefreshOptions{
+			ProviderID: providerID, ExecutionContext: execution, Force: true, Now: integrationTime(51),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.service.CommitRefreshPlan(ctx, plan); err != nil {
+			t.Fatal(err)
+		}
+
+		// Provider-wide refresh wraps the source and must preserve its retention policy.
+		writeOpenCodeFixtureFile(t, c.dir, "v1.txt", "vendor/model-2\n{broken json")
+		statuses, refreshErr := c.service.Refresh(ctx, modelcatalog.RefreshOptions{
+			ExecutionContext: execution, PreviousExecutionContext: b.context,
+			Force: true, Now: integrationTime(52),
+		})
+		if refreshErr == nil || len(statuses) != 1 || statuses[0].RowCount != 0 || !statuses[0].LastSuccess.IsZero() {
+			t.Fatalf(
+				"new invocation statuses = %#v, error = %v; want failure without stale transfer",
+				statuses,
+				refreshErr,
+			)
+		}
+		rows, err := store.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: providerID, SourceID: c.source.ID(), ExecutionContext: c.context, IncludeStale: true,
+		})
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("new invocation rows = %#v, error = %v; want no transferred rows", rows, err)
+		}
+
+		writeOpenCodeFixtureFile(t, a.dir, "v1.txt", "vendor/model-0\n{broken json")
+		statuses, refreshErr = a.service.Refresh(ctx, modelcatalog.RefreshOptions{
+			ExecutionContext: execution, PreviousExecutionContext: b.context,
+			Force: true, Now: integrationTime(53),
+		})
+		if refreshErr == nil || len(statuses) != 1 || statuses[0].RowCount != 1 || !statuses[0].Stale ||
+			!statuses[0].LastSuccess.Equal(integrationTime(50)) {
+			t.Fatalf(
+				"returning invocation statuses = %#v, error = %v; want its own stale generation",
+				statuses,
+				refreshErr,
+			)
+		}
+		models, err := a.service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID: providerID, ExecutionContext: execution, View: modelcatalog.CatalogViewAll,
+			IncludeStale: true, Now: integrationTime(53),
+		})
+		if err != nil || len(models) != 1 || models[0].ModelID != "vendor/model-0" ||
+			models[0].AvailabilityState != modelcatalog.AvailabilityStateAvailableStale ||
+			!models[0].RefreshedAt.Equal(integrationTime(50)) {
+			t.Fatalf("returning invocation models = %#v, error = %v; want its preserved stale row", models, err)
+		}
+		rows, err = store.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: providerID, SourceID: b.source.ID(), ExecutionContext: b.context, IncludeStale: true,
+		})
+		if err != nil || len(rows) != 1 || rows[0].ModelID != "vendor/model-1" || rows[0].Stale {
+			t.Fatalf("other invocation rows = %#v, error = %v; want its unchanged fresh row", rows, err)
 		}
 	})
 
@@ -451,6 +1108,98 @@ func openCatalogGlobalDB(t *testing.T) (*globaldb.GlobalDB, string) {
 
 func integrationTime(offset int) time.Time {
 	return time.Date(2026, 5, 7, 13, offset, 0, 0, time.UTC)
+}
+
+// writeOpenCodeNativeFixture creates a native placeholder whose output changes per request.
+func writeOpenCodeNativeFixture(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+	script := `#!/bin/sh
+printf '%s
+' "$*" >> "${OPENCODE_FIXTURE_LOG:?missing log}"
+data="${OPENCODE_FIXTURE_DIR:?missing fixture dir}"
+case "$1" in
+  --version) cat "$data/version";;
+  models) cat "$data/v1.txt";;
+  api) cat "$data/v2.json";;
+  *) echo "unexpected discovery command: $*" >&2; exit 1;;
+esac
+`
+	binDir := filepath.Join(dir, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(binDir, "opencode"), []byte(script), 0o755); err != nil {
+		t.Fatalf("WriteFile(opencode fixture) error = %v", err)
+	}
+	return dir
+}
+
+func writeOpenCodeFixtureFile(t *testing.T, dir string, name string, content string) {
+	t.Helper()
+
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o600); err != nil {
+		t.Fatalf("WriteFile(%s) error = %v", name, err)
+	}
+}
+
+func openCodeFixtureCalls(t *testing.T, dir string) []string {
+	t.Helper()
+
+	raw, err := os.ReadFile(filepath.Join(dir, "calls.log"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		t.Fatalf("ReadFile(calls.log) error = %v", err)
+	}
+	var calls []string
+	for line := range strings.Lines(strings.TrimSpace(string(raw))) {
+		calls = append(calls, strings.TrimSpace(line))
+	}
+	return calls
+}
+
+// liveRowRefreshedAt snapshots persisted live-row timestamps without config-source rows.
+func liveRowRefreshedAt(t *testing.T, dbPath string) map[string]string {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", dbPath)
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	defer func() {
+		if closeErr := db.Close(); closeErr != nil {
+			t.Errorf("db.Close() error = %v", closeErr)
+		}
+	}()
+	rows, err := db.QueryContext(
+		context.Background(),
+		`SELECT model_id, refreshed_at FROM model_catalog_rows
+		 WHERE source_id = 'provider_live:opencode' AND provider_id = 'opencode'
+		 ORDER BY model_id`,
+	)
+	if err != nil {
+		t.Fatalf("QueryContext() error = %v", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Errorf("rows.Close() error = %v", closeErr)
+		}
+	}()
+	snapshot := make(map[string]string)
+	for rows.Next() {
+		var modelID, refreshedAt string
+		if err := rows.Scan(&modelID, &refreshedAt); err != nil {
+			t.Fatalf("Scan() error = %v", err)
+		}
+		snapshot[modelID] = refreshedAt
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("rows.Err() = %v", err)
+	}
+	return snapshot
 }
 
 type integrationBlockingSource struct {

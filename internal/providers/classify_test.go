@@ -3,7 +3,10 @@ package providers
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -466,6 +469,99 @@ func TestClassifyProviderAuth(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestClassifyDeclaredOpenCodeLaunchIdentity(t *testing.T) {
+	t.Parallel()
+
+	writeExecutableFixture := func(t *testing.T, name string, executable bool) string {
+		t.Helper()
+		dir := t.TempDir()
+		writeExecutableFixtureIn(t, dir, name, executable)
+		return dir
+	}
+
+	t.Run("Should keep npm-only OpenCode readiness unknown instead of missing", func(t *testing.T) {
+		t.Parallel()
+
+		dir := writeExecutableFixture(t, "npx", true)
+		provider := compozyconfig.BuiltinProviders()["opencode"]
+		env := &ProbeEnv{ProviderName: "opencode", CommandEnv: []string{"PATH=" + dir}}
+		status, err := NativeCLIStatus(testutil.Context(t), provider, env)
+		if err != nil {
+			t.Fatalf("NativeCLIStatus() error = %v", err)
+		}
+		if status.Source != providerauth.NativeCLISourceCommand {
+			t.Fatalf("Source = %q, want %q", status.Source, providerauth.NativeCLISourceCommand)
+		}
+		if !status.Present {
+			t.Fatalf("NativeCLIStatus() = %#v, want npm runner presence", status)
+		}
+		classification, err := ClassifyDeclared(testutil.Context(t), provider, env)
+		if err != nil {
+			t.Fatalf("ClassifyDeclared() error = %v", err)
+		}
+		if classification.State != ProviderAuthStateUnknown {
+			t.Fatalf("State = %q, want unknown (not missing CLI)", classification.State)
+		}
+	})
+
+	t.Run("Should keep a non-runnable OpenCode candidate unknown instead of missing", func(t *testing.T) {
+		t.Parallel()
+
+		dir := writeExecutableFixture(t, "opencode", false)
+		writeExecutableFixtureIn(t, dir, "npx", true)
+		provider := compozyconfig.BuiltinProviders()["opencode"]
+		env := &ProbeEnv{ProviderName: "opencode", CommandEnv: []string{"PATH=" + dir}}
+		status, err := NativeCLIStatus(testutil.Context(t), provider, env)
+		if err != nil {
+			t.Fatalf("NativeCLIStatus() error = %v, want retained unknown status", err)
+		}
+		if status.Present || strings.TrimSpace(status.Error) == "" {
+			t.Fatalf("NativeCLIStatus() = %#v, want retained resolution error", status)
+		}
+		classification, err := ClassifyDeclared(testutil.Context(t), provider, env)
+		if err != nil {
+			t.Fatalf("ClassifyDeclared() error = %v", err)
+		}
+		if classification.State != ProviderAuthStateUnknown {
+			t.Fatalf("State = %q, want unknown (not missing CLI)", classification.State)
+		}
+	})
+	t.Run("Should not project the npm launch fallback as login presence", func(t *testing.T) {
+		t.Parallel()
+
+		dir := writeExecutableFixture(t, "npx", true)
+		provider := compozyconfig.BuiltinProviders()["opencode"]
+		env := &ProbeEnv{ProviderName: "opencode", CommandEnv: []string{"PATH=" + dir}}
+		status, err := NativeCLIStatus(testutil.Context(t), provider, env)
+		if err != nil {
+			t.Fatalf("NativeCLIStatus() error = %v", err)
+		}
+		descriptor := DescribeProviderLogin(provider, status, Classification{State: ProviderAuthStateUnknown})
+		if got, want := descriptor.Presence, ProviderLoginPresenceUnknown; got != want {
+			t.Fatalf("Presence = %q, want %q for the npm runner", got, want)
+		}
+		if got, want := descriptor.Executable, "opencode"; got != want {
+			t.Fatalf("Executable = %q, want %q", got, want)
+		}
+	})
+}
+
+func writeExecutableFixtureIn(t *testing.T, dir string, name string, executable bool) string {
+	t.Helper()
+	if runtime.GOOS == "windows" && !strings.HasSuffix(name, ".exe") {
+		name += ".exe"
+	}
+	perm := os.FileMode(0o755)
+	if !executable {
+		perm = os.FileMode(0o644)
+	}
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte("#!/bin/sh\nexit 0\n"), perm); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	return path
 }
 
 func nativeProvider() compozyconfig.ProviderConfig {

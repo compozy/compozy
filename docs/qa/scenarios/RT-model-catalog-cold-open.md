@@ -111,3 +111,34 @@ popover lists each provider and message. Escape or a press elsewhere in the sele
 that popover and returns focus to the mark; a second Escape closes the selector. With every
 provider healthy, no mark renders. Targeted Web tests and rendered Storybook (light/dark, one and
 many issues) verify presentation and dismissal; a live signed-out provider walk remains CI/QA-owned.
+
+QA impact 2026-10-18, opencode-model-discovery Task 03 (fixture proof only; live legs unverified): with models.dev disabled and no preseeded OpenCode rows, open the session Runtime selector and select provider `opencode`. Confirm actual native discovery runs (`--version`, then v1 `models --verbose` or workspace-scoped v2 `api --standalone GET /api/model`), select `openrouter/acme/coding-default` with effort `high`, and complete a first prompt: `runtime.effective` must show the selected provider/model/effort and the fixture's discovery/ACP `exe=` markers must agree. Restart (fresh bind) and complete a second prompt with compatible intent. Failure legs: an incompatible selection fails before inference with no silent substitution; a native startup failure leaves the npm canary untouched and joins owned processes. Live vendor, npm acquisition, and private-service lifecycle legs remain unverified (Task 05 / V-001).
+
+QA 2026-10-18, opencode-model-discovery Task 05 (live, build from Tasks 01–03 diff; installed v2.0.32; models.dev disabled; browser unavailable so CLI equivalents): L1 pass — `provider_live:opencode` 92 live rows; `opencode/beam-free` + `low` completed both first and post-restart prompts with agreeing effective runtime. L3 pass — forced refresh/recovers, timeout→stale→fresh. L4a/L3-partition pass — bogus explicit discovery fails with no native fallback; second-install selector refreshes and launches from its own path. L5 pass — owned ACP exits on stop, pre-existing shared service intact, waiter-kill leaves daemon consistent with no orphans. L6 pass — CLI/HTTP/UDS/native-tool agree on IDs + `provider_live:opencode`. Blocked-external: L4 npm end-to-end (npm prefix selected and package v1.19.3 acquired, but v1 listing rejects the v2-created global db in the authorized HOME; product fails truthfully with no fallback) and L2 v1 (no pinned v1 binary). Report: [2026-10-18 task05](../reports/2026-10-18-opencode-model-discovery-task05.md).
+
+QA impact 2026-10-18, selector follow-up: keep an explicit OpenCode curated set containing only a
+deprecated model. Confirm `view=all` still contains native live rows with `curated=false`. Open a
+session's Runtime selector, click OpenCode with an empty search, and verify all discovered models
+appear and can be selected with their exact IDs. All models retains curated browsing; switching
+providers must not show foreign rows or bypass authentication. Repeat with v1 and v2 executable
+fixtures and complete the existing prompt journey without changing operator configuration.
+
+Selector retest: **pass**. Live `make dev` Chromium replay rendered all 92 available v2.0.32
+models (174 total catalog rows), with an empty search and no disabled live rows. Keyboard edges
+and Escape focus return passed. Daemon-served OpenCode v1→v2 fixture selection/prompt/restart
+passed; the complete provider-override spec passed 4/4. See the selector follow-up in the
+[2026-10-18 report](../reports/2026-10-18-opencode-model-discovery-task05.md); other live-vendor
+and platform gaps above remain unchanged.
+
+QA impact 2026-10-18, OpenCode list metadata: OpenCode rows show a muted native-provider label
+after the model name, and its catalog group sorts by provider then model display name ascending
+in browsing and search. Missing/blank/null provider metadata produces no label or exception and
+does not hide the model. Exact selected IDs and pinned recent/favorite order remain unchanged;
+Codex, Claude, and Antigravity retain their prior labels and ranking. Verify the v1→v2 executable
+fixture journey and inspect narrow/wide rendering for overflow.
+
+Metadata retest: **pass**. The existing selector suite passed 104/104, including null/blank
+provider handling, provider/display-name order, exact IDs, and unchanged Codex/Claude/Antigravity
+ranking. The daemon-served provider-override suite passed 4/4 with v1/v2 label assertions.
+1280×720 and 390×844 captures show the labels on one line without picker overflow. This is
+executable-fixture/browser evidence, not a new live-vendor inference claim.

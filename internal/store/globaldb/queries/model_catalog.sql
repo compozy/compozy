@@ -229,3 +229,20 @@ ORDER BY s.source_id ASC, s.provider_id ASC, s.model_id ASC,
 -- name: DeleteModelCatalogSource :exec
 DELETE FROM model_catalog_sources
 WHERE source_id = sqlc.arg(source_id) AND provider_id = sqlc.arg(provider_id);
+
+-- name: PruneModelCatalogSourceContexts :exec
+DELETE FROM model_catalog_sources
+WHERE model_catalog_sources.source_id = sqlc.arg(source_id)
+  AND model_catalog_sources.provider_id = sqlc.arg(provider_id)
+  AND model_catalog_sources.context_id IN (
+    SELECT s.context_id
+    FROM model_catalog_sources s
+    JOIN model_catalog_execution_contexts c ON c.context_id = s.context_id
+    WHERE s.source_id = sqlc.arg(source_id) AND s.provider_id = sqlc.arg(provider_id)
+      AND s.context_id <> sqlc.arg(context_id)
+      AND c.scope = sqlc.arg(scope)
+      AND c.profile_id = sqlc.arg(profile_id)
+      AND c.workspace_id = sqlc.arg(workspace_id)
+    ORDER BY s.last_refresh_at DESC, s.context_id ASC
+    LIMIT -1 OFFSET sqlc.arg(retained_siblings)
+  );

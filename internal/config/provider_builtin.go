@@ -57,7 +57,7 @@ var builtinProviders = map[string]ProviderConfig{
 		},
 	},
 	providerOpencodeKey: {
-		Command:      "npx -y opencode-ai@latest acp",
+		Command:      "opencode acp",
 		DisplayName:  "OpenCode",
 		Harness:      ProviderHarnessACP,
 		AuthLoginCmd: "opencode auth login",
@@ -171,7 +171,12 @@ var builtinProviders = map[string]ProviderConfig{
 
 // BuiltinProviders returns a deep copy of the built-in provider registry.
 func BuiltinProviders() map[string]ProviderConfig {
-	return cloneProviders(builtinProviders)
+	cloned := cloneProviders(builtinProviders)
+	for name, provider := range cloned {
+		provider.CommandIsBuiltin = true
+		cloned[name] = provider
+	}
+	return cloned
 }
 
 // CanonicalProviderName resolves known builtin aliases to the stable provider id.
