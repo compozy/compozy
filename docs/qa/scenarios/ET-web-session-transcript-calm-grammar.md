@@ -153,3 +153,5 @@ and no longer hides the conversation behind "Couldn't load this conversation". A
 transcript recovery now backs off 5s → 60s instead of refetching every 5s. Verified against the
 real events of a session that had hit the error (9,797 events reprojected, client normalization
 passes). Needs a fresh live walk.
+
+QA walk 2026-10-19 (#835, scoped): an isolated source-built daemon and deterministic ACP fixture streamed an edit and four native reviewers. The changed-files summary stayed absent throughout child updates, appeared once after settlement, expanded to its file row, and persisted on reload. Live cards remained visible. Focused pass only; other steps and real-provider paths retain their previous status. Report: `docs/qa/reports/2026-10-19-issue-835-transcript-flicker.md`.

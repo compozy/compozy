@@ -35,19 +35,29 @@ function messageStatusIsRunning(message: { status?: unknown }): boolean {
 }
 
 function partIsLive(part: SessionTimelinePart): boolean {
+  if (!isParentWorkPart(part)) return false;
   if (part.kind === "tool") {
     return part.status === "running";
   }
   return isStreamingState(part.state);
 }
 
+// Child work and event receipts do not own the parent message's activity.
+function isParentWorkPart(part: SessionTimelinePart): boolean {
+  return (
+    !part.parentToolCallId &&
+    (part.kind === "tool" || part.kind === "text" || part.kind === "reasoning")
+  );
+}
+
 function messageTurnId(
   message: { id?: string },
   parts: readonly SessionTimelinePart[]
 ): string | undefined {
-  for (let index = parts.length - 1; index >= 0; index -= 1) {
-    const turnId = parts[index]?.turnId;
-    if (turnId) return turnId;
+  // Anchor on the parent's own content, never the last-arriving child or tick.
+  // Explicit parent attribution also supports messages whose id differs from the turn.
+  for (const part of parts) {
+    if (isParentWorkPart(part) && part.turnId) return part.turnId;
   }
   return typeof message.id === "string" && message.id.length > 0 ? message.id : undefined;
 }

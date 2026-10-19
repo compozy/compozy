@@ -36,6 +36,12 @@ export function foldSettledTurns(
   recordedTimes: ReadonlyMap<string, readonly number[]> = new Map()
 ): SessionRow[] {
   const folded: SessionRow[] = [];
+  // A live child can sit beyond a row from another turn. Its spawning turn's
+  // file summary still waits for it, without preventing the parent's work fold.
+  const liveSubagentTurns = new Set<string>();
+  for (const row of rows) {
+    if (row.kind === "subagents" && row.live && row.turnId) liveSubagentTurns.add(row.turnId);
+  }
   for (let index = 0; index < rows.length;) {
     const row = rows[index];
     const turnId = row?.turnId;
@@ -50,7 +56,9 @@ export function foldSettledTurns(
       index += 1;
     }
     folded.push(...foldTurnGroup(turnId, group, options, recordedTimes.get(turnId) ?? []));
-    const changedFiles = changedFilesRowForTurn(turnId, group, options);
+    const changedFiles = liveSubagentTurns.has(turnId)
+      ? null
+      : changedFilesRowForTurn(turnId, group, options);
     if (changedFiles) folded.push(changedFiles);
   }
   return folded;

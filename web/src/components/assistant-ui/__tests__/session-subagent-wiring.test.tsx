@@ -1,4 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  AssistantRuntimeProvider,
+  MessageByIndexProvider,
+  useExternalStoreRuntime,
+  fromThreadMessageLike,
+  type ThreadMessageLike,
+} from "@assistant-ui/react";
 import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { act, createElement, Profiler, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,6 +46,7 @@ import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import type { SessionMessage, SessionPayload } from "@/systems/session/types";
 
 import { SessionSubagentBanner } from "../session-subagent-banner";
+import { useAssistantMessageTimeline } from "../hooks/use-assistant-message-timeline";
 import { SessionSubagentRowView } from "../session-subagent-row";
 import { deriveSessionRows, type SessionTimelinePart } from "../session-timeline.logic";
 
@@ -151,6 +159,96 @@ function renderRow(parts: SessionTimelinePart[], wrapper: ReturnType<typeof harn
 beforeEach(() => {
   vi.mocked(cancelSubagent).mockReset();
   vi.mocked(fetchSession).mockReset();
+});
+
+describe("parent timeline activity across subagent updates (#835)", () => {
+  // Invariant: child/progress updates cannot move the parent's active identity;
+  // roster settlement reveals its edited files once. Owner: timeline hook wiring.
+  it.each(["progress", "child"])(
+    "Should retain the parent turn across alternating %s turn IDs",
+    async tail => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const Host = harness([view("sub-live")], null, client);
+      const edit = {
+        type: "tool-call",
+        toolCallId: "edit-1",
+        toolName: "Edit",
+        argsText: "{}",
+        args: { file_path: "/src/a.ts", old_string: "a", new_string: "a\nb" },
+        result: { ok: true },
+        turnId: "turn-1",
+      };
+      let message: ThreadMessageLike;
+      const update = (trailingTurnId: string, running = true): ThreadMessageLike => ({
+        id: "turn-1",
+        role: "assistant",
+        status: running ? { type: "running" } : { type: "complete", reason: "stop" },
+        content: [
+          edit,
+          {
+            type: "data",
+            name: "compozy-subagent",
+            data: {
+              subagent_id: "sub-live",
+              tool_call_id: "delegate-1",
+              turn_id: "turn-1",
+              origin: "provider_native",
+            },
+          },
+          tail === "progress"
+            ? {
+                type: "data",
+                name: "compozy-event",
+                state: "streaming",
+                data: { type: "runtime_progress", turn_id: trailingTurnId },
+              }
+            : {
+                type: "text",
+                text: "Reviewing the change",
+                state: "streaming",
+                turnId: trailingTurnId,
+                parentToolCallId: "delegate-1",
+              },
+        ] as ThreadMessageLike["content"],
+      });
+      message = update("turn-1");
+      function Wrapper({ children }: { children: ReactNode }) {
+        const runtime = useExternalStoreRuntime({
+          messages: [message],
+          convertMessage: value =>
+            fromThreadMessageLike(value, "turn-1", { type: "complete", reason: "stop" }),
+          onNew: async () => {},
+        });
+        return (
+          <Host>
+            <AssistantRuntimeProvider runtime={runtime}>
+              <MessageByIndexProvider index={0}>{children}</MessageByIndexProvider>
+            </AssistantRuntimeProvider>
+          </Host>
+        );
+      }
+      const { result, rerender } = renderHook(useAssistantMessageTimeline, { wrapper: Wrapper });
+      for (const turnId of ["child-turn", "turn-1", "another-turn", "turn-1"]) {
+        message = update(turnId);
+        rerender();
+        expect(result.current.rows.find(row => row.kind === "working")?.turnId).toBe("turn-1");
+        expect(result.current.rows.some(row => row.kind === "changed-files")).toBe(false);
+      }
+      message = update("child-turn", false);
+      rerender();
+      expect(result.current.rows.some(row => row.kind === "working")).toBe(false);
+      expect(result.current.rows.some(row => row.kind === "changed-files")).toBe(false);
+      act(() => {
+        client.setQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE_ID, SESSION_ID), {
+          rows: [view("sub-live", { status: "completed", settled_at: T0 })],
+          staleIds: new Set(),
+        });
+      });
+      await waitFor(() =>
+        expect(result.current.rows.filter(row => row.kind === "changed-files")).toHaveLength(1)
+      );
+    }
+  );
 });
 
 describe("subagent card drill-in (UT-W16)", () => {
