@@ -64,3 +64,5 @@ QA impact 2026-10-16 (#766): background Agent launches no longer settle on their
 Real-provider walk pending; previous verdict kept for the foreground path.
 
 QA walk 2026-10-19 (#835, scoped): an isolated source-built daemon and deterministic ACP fixture streamed an edit and four native reviewers. The changed-files summary stayed absent throughout child updates, appeared once after settlement, expanded to its file row, and persisted on reload. Live cards remained visible. Focused pass only; other steps and real-provider paths retain their previous status. Report: `docs/qa/reports/2026-10-19-issue-835-transcript-flicker.md`.
+
+Review re-walk 2026-10-19 (#835): fresh-browser stopped history also retains the saved file summary after a one-time authoritative roster read, without interval polling. The live streaming scenario was repeated and passed. See the same scoped report.

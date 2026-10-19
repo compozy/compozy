@@ -35,3 +35,9 @@ Parent activity derives from parent text/reasoning/tools rather than child attri
 - The deterministic ACP run does not establish external-provider compatibility or a physical file write; the fixture reports an edit through the real protocol. Other scenario branches were not revalidated.
 
 Teardown completed through the manifest-owned helper: `TEARDOWN_ALL_CLEAN=true`; only this lab and its registered processes were stopped.
+
+## Review follow-up: stopped history
+
+Greptile identified that a fresh load of a stopped session has no SSE snapshot. The empty roster left recorded children unconfirmed/live and suppressed saved file summaries. Reproduced against the first build in a new browser: expected one summary, received zero. Reused the complete, paginated roster read for stopped sessions with no polling interval; active prompt polling remains unchanged. The existing roster-control suite now verifies one-time settlement hydration without interval requests. Focused timeline/wiring/roster suites: 97 tests passed; affected web typecheck/lint and React Doctor passed. The real stopped-session re-walk is recorded below.
+
+Re-walk passed on the repaired bundle: a fresh browser loaded stopped session `sess-80bd1ebe94b7d7fc`, displayed one summary and expanded its file row. A fresh streaming session `sess-343c9911695392ad` again produced exactly `[0, 1]` over 9.699 seconds with zero page errors. [Stopped-history evidence](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-835/stopped.png).

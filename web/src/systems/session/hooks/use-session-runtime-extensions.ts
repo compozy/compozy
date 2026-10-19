@@ -66,20 +66,22 @@ export function useSessionRuntimeExtensions({
     workspaceId,
   });
   const controlPolling = liveTailEnabled && promptPending;
-  useSubagentRosterControlPoll({
-    workspaceId,
-    sessionId,
-    enabled: controlPolling,
-    intervalMs: PROMPT_POST_CONTROL_POLL_MS,
-  });
-  const clarifications = useSessionClarifications(workspaceId, sessionId, {
-    enabled: liveTailEnabled,
-    refetchInterval: controlPolling ? PROMPT_POST_CONTROL_POLL_MS : false,
-  });
   const session = useQuery({
     ...sessionDetailOptions(workspaceId, sessionId),
     enabled: liveTailEnabled && !liveTailSuppressed,
     ...(controlPolling ? { refetchInterval: PROMPT_POST_CONTROL_POLL_MS } : {}),
+  });
+  useSubagentRosterControlPoll({
+    workspaceId,
+    sessionId,
+    enabled:
+      controlPolling ||
+      (liveTailEnabled && !liveTailSuppressed && session.data?.state === "stopped"),
+    intervalMs: controlPolling ? PROMPT_POST_CONTROL_POLL_MS : false,
+  });
+  const clarifications = useSessionClarifications(workspaceId, sessionId, {
+    enabled: liveTailEnabled,
+    refetchInterval: controlPolling ? PROMPT_POST_CONTROL_POLL_MS : false,
   });
   const inputs = useSessionInputs(workspaceId, sessionId, {
     enabled: liveTailEnabled,
