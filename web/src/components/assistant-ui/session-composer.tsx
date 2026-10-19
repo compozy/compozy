@@ -16,7 +16,8 @@ import {
 } from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { commandItemPresentation } from "./session-command-menu-model";
-import { SessionCommandChip } from "./session-composer-chip";
+import { SessionComposerDirectiveChip } from "./session-composer-chip";
+import { SessionComposerMentionMenu } from "./session-composer-mention-menu";
 import {
   SessionComposerCommandMenu,
   type SessionComposerCommandCatalog,
@@ -27,6 +28,7 @@ import {
   SessionComposerHandleBridge,
   SessionComposerPastePlugin,
   SessionDirectiveBoundaryPlugin,
+  SessionMentionTriggerPlugin,
 } from "./session-composer-lexical-plugins";
 import { SessionAttachmentStrip } from "./session-attachment-strip";
 import { SessionComposerDropRoot } from "./session-attachment-drop-overlay";
@@ -39,6 +41,7 @@ import {
 } from "./hooks/use-session-composer-context";
 import type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-actions";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
+import { useMentionWorkspaceId } from "./hooks/use-mention-workspace-id";
 import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
 import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "./session-thread-content-rail-constants";
 import { SessionComposerProvider } from "./session-composer-provider";
@@ -165,6 +168,7 @@ function SessionComposerQueue() {
 function SessionComposerEditor() {
   const state = useSessionComposerStateContext();
   const meta = useSessionComposerMetaContext();
+  const mentionWorkspaceId = useMentionWorkspaceId();
   return (
     <ComposerPrimitive.Unstable_TriggerPopoverRoot>
       <SessionComposerCommandMenu
@@ -173,6 +177,13 @@ function SessionComposerEditor() {
         isCatalogLoading={meta.commandCatalogStatus === "loading"}
         onOpen={meta.onCommandCatalogOpen}
       />
+      {mentionWorkspaceId ? (
+        <SessionComposerMentionMenu
+          workspaceId={mentionWorkspaceId}
+          sessionId={meta.sessionId}
+          trigger={meta.canPrompt ? state.mentionTrigger : null}
+        />
+      ) : null}
       <SessionComposerDropRoot disabled={!meta.canPrompt || !meta.attachments}>
         <InputGroup variant="composer">
           <ComposerPrimitive.Root
@@ -198,18 +209,19 @@ function SessionComposerInput() {
   const state = useSessionComposerStateContext();
   const actions = useSessionComposerActionsContext();
   const meta = useSessionComposerMetaContext();
+  const mentionsAvailable = useMentionWorkspaceId() !== "";
   return (
     <LexicalComposerInput
       data-testid="composer-input"
       inert={!meta.canPrompt}
       placeholder={
         meta.canPrompt
-          ? (meta.placeholder ?? "Send a message — type / for commands")
+          ? (meta.placeholder ?? "Send a message — type / for commands, @ to mention")
           : meta.inactivePlaceholder
       }
       submitMode="enter"
       formatter={state.commandFormatter}
-      directiveChip={SessionCommandChip}
+      directiveChip={SessionComposerDirectiveChip}
       directivePluginProps={{
         onDirectiveSelect: item => {
           const token = commandItemPresentation(item).token;
@@ -234,6 +246,10 @@ function SessionComposerInput() {
       />
       <SessionCommandScopePlugin setScope={actions.setCommandScope} />
       <SessionDirectiveBoundaryPlugin />
+      <SessionMentionTriggerPlugin
+        onTrigger={actions.observeMentionTrigger}
+        onEscape={() => mentionsAvailable && actions.dismissMentionTrigger()}
+      />
       {meta.attachments ? <SessionComposerPastePlugin /> : null}
     </LexicalComposerInput>
   );

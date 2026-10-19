@@ -20,6 +20,7 @@ import { createSessionCommandFormatter } from "../session-command-formatter";
 import type { CommandCatalogScope } from "../session-composer-command-menu";
 import { useSessionBusyInputActions } from "./use-session-busy-input-actions";
 import { usePendingCommandAction } from "./use-pending-command-action";
+import { useSessionMentionTrigger } from "./use-session-mention-trigger";
 import type { SessionComposerState } from "./use-session-composer-state";
 import { sessionComposerSendBlocker } from "./use-session-composer-send-gate";
 
@@ -89,6 +90,8 @@ export function useSessionComposerController({
   const commandFormatter = createSessionCommandFormatter(
     commandCatalog ?? { standaloneSections: [], inlineSkills: [] }
   );
+  const { mentionTrigger, observeMentionTrigger, dismissMentionTrigger } =
+    useSessionMentionTrigger();
   const stagedQuote = useSessionTerminalQuote(sessionId);
   const transportDisconnected = isSessionTransportDisconnected(useSessionTransportState());
   const trimmedComposerText = composerText.trim();
@@ -175,6 +178,7 @@ export function useSessionComposerController({
       enterHint,
       feedback: visibleFeedback,
       hasStagedQuote: Boolean(stagedQuote),
+      mentionTrigger,
       queueFull,
       runtimeRunning,
       sendBlocker: attachmentBlocker,
@@ -191,6 +195,8 @@ export function useSessionComposerController({
       recordPendingCommandAction: (token: string, beforeSelection: string) => {
         pendingCommandActionRef.current = { beforeSelection, token };
       },
+      dismissMentionTrigger,
+      observeMentionTrigger,
       setCommandScope,
       setComposerInputElement,
     },
