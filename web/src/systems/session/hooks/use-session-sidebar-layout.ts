@@ -1,8 +1,11 @@
-import { type MouseEvent, useEffect, useRef, useState } from "react";
+import { type MouseEvent, type RefObject, useEffect, useRef, useState } from "react";
 
 import { type Layout, usePanelRef } from "@compozy/ui";
 
-import { SESSION_SIDEBAR_DEFAULT_WIDTH } from "../lib/session-sidebar-width";
+import {
+  SESSION_SIDEBAR_DEFAULT_WIDTH,
+  SESSION_SIDEBAR_MIN_WIDTH,
+} from "../lib/session-sidebar-width";
 import { useSessionSidebarState } from "./use-session-sidebar-state";
 
 /** Layout key of the rail panel inside its group. */
@@ -61,7 +64,26 @@ function animateToggle(group: HTMLDivElement | null): void {
 }
 
 /**
- * Binds one session window's resizable rail to the shared rail preference:
+ * The session pane keeps half the window. Below two rail floors the pixel
+ * floor and that half cannot both hold, so the rail's floor yields to half
+ * the window instead of over-constraining the group.
+ */
+function useRailMinSize(groupRef: RefObject<HTMLDivElement | null>): number | string {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const group = groupRef.current;
+    if (group === null || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setNarrow(entry.contentRect.width < SESSION_SIDEBAR_MIN_WIDTH * 2);
+    });
+    observer.observe(group);
+    return () => observer.disconnect();
+  }, [groupRef]);
+  return narrow ? "50%" : SESSION_SIDEBAR_MIN_WIDTH;
+}
+
+/**
+ * Binds one session window's resizable rail to that window's rail preference:
  * the topbar toggle opens and collapses the panel, operator resizes persist
  * the width, dragging past the floor closes the rail, and a double-click on
  * the handle returns to the default width.
@@ -71,6 +93,7 @@ export function useSessionSidebarLayout() {
   const panelRef = usePanelRef();
   const groupRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
+  const railMinSize = useRailMinSize(groupRef);
   // Mount geometry only: later widths reach the panel through its API, so a
   // drag in another session window never moves this one.
   const [mountSize] = useState(() => (open ? width : 0));
@@ -93,6 +116,7 @@ export function useSessionSidebarLayout() {
     groupRef,
     handleRef,
     mountSize,
+    railMinSize,
     onLayoutChanged: (layout: Layout, meta: { isUserInteraction: boolean }) => {
       const panel = panelRef.current;
       if (!meta.isUserInteraction || panel === null) return;

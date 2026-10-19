@@ -14,7 +14,11 @@ import { applySubagentsSnapshot, type SubagentRoster } from "../lib/subagent-ros
  * tail's own snapshot replaces it when the stream reopens on settle. Missing or
  * gone parents stop interval polling; transient failures retain recovery polls.
  * Stopped history uses the same complete read once, with no interval: it has no SSE.
+ * A transient failure of that one-shot read retries until it loads, so saved
+ * child states (and the file summaries they gate) are not hidden until a refocus.
  */
+const STOPPED_HISTORY_RETRY_MS = 5_000;
+
 export function useSubagentRosterControlPoll({
   workspaceId,
   sessionId,
@@ -30,14 +34,14 @@ export function useSubagentRosterControlPoll({
   const poll = useQuery({
     ...sessionSubagentRosterPollOptions(workspaceId, sessionId),
     enabled: enabled && workspaceId !== "" && sessionId !== "",
-    refetchInterval: query =>
-      enabled &&
-      !(
+    refetchInterval: query => {
+      const terminal =
         query.state.error instanceof SessionApiError &&
-        [404, 410].includes(query.state.error.status)
-      )
-        ? intervalMs
-        : false,
+        [404, 410].includes(query.state.error.status);
+      if (!enabled || terminal) return false;
+      if (intervalMs !== false) return intervalMs;
+      return query.state.status === "error" ? STOPPED_HISTORY_RETRY_MS : false;
+    },
   });
   const page = enabled ? poll.data : undefined;
   useEffect(() => {

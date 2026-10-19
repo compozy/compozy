@@ -123,10 +123,12 @@ func (h *BaseHandlers) respondSessionFilesRootError(
 }
 
 // redactSessionFilesRoot renders err for logs with root replaced, keeping the
-// cause chain so cancellation still logs at debug level.
+// cause chain so cancellation still logs at debug level. Without a resolved
+// root (the working-directory lookup itself failed, possibly naming the path)
+// the whole message is withheld.
 func redactSessionFilesRoot(root string, err error) error {
 	if strings.TrimSpace(root) == "" {
-		return err
+		return redactedRootError{message: "resolve session working directory: <redacted>", cause: err}
 	}
 	return redactedRootError{message: strings.ReplaceAll(err.Error(), root, "<root>"), cause: err}
 }

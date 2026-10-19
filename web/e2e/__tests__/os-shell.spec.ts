@@ -1973,6 +1973,23 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
     })
     .toBe(true);
   await browserArtifacts.captureScreenshot("rail-narrow-window", appPage);
+
+  // Narrower than two rail floors (288px): the rail's floor yields, so the
+  // session pane still holds half the window instead of being squeezed.
+  await moveWindowToNormalizedRect(runtime, workspace.id, windowId, {
+    x: 0.04,
+    y: 0.04,
+    width: 0.2,
+    height: 0.86,
+  });
+  const panes = sessionWin.locator("[data-panel]");
+  await expect
+    .poll(async () => {
+      const windowWidth = (await sessionWin.boundingBox())?.width ?? 0;
+      const paneWidth = (await panes.last().boundingBox())?.width ?? 0;
+      return windowWidth < 400 && paneWidth >= Math.floor(windowWidth / 2) - 2;
+    })
+    .toBe(true);
 });
 
 test("E2E-029: dropping onto a tiled window splits its group and the zoom menu arranges presets", async ({

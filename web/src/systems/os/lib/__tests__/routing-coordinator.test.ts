@@ -1234,6 +1234,25 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
     });
 
+    it("Should open the session the ordinary way when a surviving host refuses the landing", async () => {
+      const session = sessionWindow("sess-a");
+      const tasks = windowFixture("tasks", "/tasks");
+      const { coordinator, router, store } = createCoordinator([session, tasks]);
+      coordinator.completeHydration();
+      vi.mocked(router.replace).mockClear();
+      store.retargetWindow.mockImplementationOnce(() => ({
+        accepted: true,
+        completion: Promise.resolve(false),
+      }));
+
+      const landed = await coordinator.userOpenCreatedSession(created);
+
+      expect(store.getState().windows[session.id]).toBeDefined();
+      expect(store.spies.openOrFocus).toHaveBeenCalledExactlyOnceWith(created);
+      expect(landed).toBe(testWindowId("session", created.instanceKey));
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
+    });
+
     it("Should focus the window that already owns the new session", async () => {
       const owner = sessionWindow("sess-new");
       const focused = sessionWindow("sess-a");
