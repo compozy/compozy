@@ -38,6 +38,10 @@ row, and the `input.pre_submit` note in `hooks/event-catalog`; regenerated API r
 `ET-session-mention-folder-quoted`, `ET-session-mention-session`, `ET-session-mention-session-inline`,
 `ET-session-mention-containment`, `ET-session-mention-typed-token`, `ET-session-mention-queued-input`,
 `ET-session-mention-hook-rewrite`, `ET-session-mention-history-chips` (untested until the QA tail).
+Data boundaries (`eng-data-boundaries` audit): `searchSessionFiles` scopes the session through
+`requireSessionInWorkspace` and the profile read scope (foreign workspace or profile → 404 before the
+working directory is resolved), HTTP and UDS share one handler with parity covering 404/409, and the
+picker's session catalog query is scoped by workspace and profile on the server.
 
 ## Daemon idle-cost and renderer batching — 2026-10-18
 
