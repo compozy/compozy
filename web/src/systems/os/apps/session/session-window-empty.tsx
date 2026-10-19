@@ -4,7 +4,7 @@ import { MessagesSquare, Plus } from "lucide-react";
 import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
-import { SessionPanelToggle, SessionSidebar } from "@/systems/session";
+import { SessionPanelToggle, SessionSidebar, SessionSidebarLayout } from "@/systems/session";
 
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
@@ -37,38 +37,43 @@ export function SessionWindowEmpty({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-      <SessionSidebar
-        open={sidebar.open}
-        sessions={sidebar.sessions}
-        disconnected={sidebar.disconnected}
-        collapsedThreadIds={sidebar.collapsedThreadIds}
-        view={sidebar.view}
-        onToggleThread={sidebar.onToggleThread}
-        onSelectSession={sidebar.onSelectSession}
-        onNewSession={sidebar.onNewSession}
-        sessionActions={sidebar.sessionActions}
-      />
-      <div
-        className="flex min-h-0 min-w-0 flex-1 items-center justify-center"
-        data-testid="session-window-empty"
+      <SessionSidebarLayout
+        sidebar={
+          <SessionSidebar
+            open={sidebar.open}
+            sessions={sidebar.sessions}
+            disconnected={sidebar.disconnected}
+            collapsedThreadIds={sidebar.collapsedThreadIds}
+            view={sidebar.view}
+            onToggleThread={sidebar.onToggleThread}
+            onSelectSession={sidebar.onSelectSession}
+            onNewSession={sidebar.onNewSession}
+            sessionActions={sidebar.sessionActions}
+          />
+        }
       >
-        <Empty
-          action={
-            <Button
-              data-testid="session-window-empty-new"
-              onClick={() => sidebar.onNewSession()}
-              type="button"
-              variant="primary"
-            >
-              <Plus aria-hidden="true" data-icon="inline-start" />
-              New session
-            </Button>
-          }
-          description="Pick one from the list, or start a new one."
-          icon={MessagesSquare}
-          title="No session selected"
-        />
-      </div>
+        <div
+          className="flex min-h-0 min-w-0 flex-1 items-center justify-center"
+          data-testid="session-window-empty"
+        >
+          <Empty
+            action={
+              <Button
+                data-testid="session-window-empty-new"
+                onClick={() => sidebar.onNewSession()}
+                type="button"
+                variant="primary"
+              >
+                <Plus aria-hidden="true" data-icon="inline-start" />
+                New session
+              </Button>
+            }
+            description="Pick one from the list, or start a new one."
+            icon={MessagesSquare}
+            title="No session selected"
+          />
+        </div>
+      </SessionSidebarLayout>
       {sidebar.rowDeleteDialog.open && sidebar.rowDeleteDialog.session ? (
         <Suspense fallback={null}>
           <SessionDeleteDialog

@@ -6,10 +6,14 @@ import { useSelector } from "@xstate/store-react";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
+import {
+  normalizeSessionSidebarWidth,
+  SESSION_SIDEBAR_DEFAULT_WIDTH,
+} from "../lib/session-sidebar-width";
+
 /**
  * One window's sessions-rail presentation. Per-window by design: two session
- * windows side by side open, close, and collapse independently. A rail width
- * (the #836 resizer) belongs here as another per-scope field.
+ * windows side by side open, close, collapse, and resize independently.
  */
 export interface SessionSidebarScopeState {
   /** The rail is open until the operator closes it in this window. */
@@ -17,6 +21,11 @@ export interface SessionSidebarScopeState {
   collapsedThreads: Record<string, boolean>;
   /** Folders start expanded; a collapse is remembered per folder id. */
   collapsedFolders: Record<string, boolean>;
+  /**
+   * The rail width the operator dragged to in this window, in pixels. `null`
+   * follows the default, so a reset tracks it.
+   */
+  width: number | null;
 }
 
 interface SessionSidebarContext {
@@ -42,6 +51,7 @@ const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   open: true,
   collapsedThreads: {},
   collapsedFolders: {},
+  width: null,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,6 +77,7 @@ function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     open: typeof value.open === "boolean" ? value.open : DEFAULT_SCOPE_STATE.open,
     collapsedThreads: normalizedCollapsedFlags(value.collapsedThreads),
     collapsedFolders: normalizedCollapsedFlags(value.collapsedFolders),
+    width: normalizeSessionSidebarWidth(value.width),
   };
 }
 
@@ -135,6 +146,22 @@ export const sessionSidebarLogic = createStoreLogic({
         ...state,
         collapsedThreads: toggledFlag(state.collapsedThreads, event.sessionId),
       }));
+    },
+    widthChanged: (context, event: { scopeId: string; width: number }) => {
+      const width = normalizeSessionSidebarWidth(event.width);
+      if (width === null) {
+        return;
+      }
+      if (resolveSessionSidebarScope(context.byScope, event.scopeId).width === width) {
+        return;
+      }
+      return withScopeState(context, event.scopeId, state => ({ ...state, width }));
+    },
+    widthReset: (context, event: { scopeId: string }) => {
+      if (resolveSessionSidebarScope(context.byScope, event.scopeId).width === null) {
+        return;
+      }
+      return withScopeState(context, event.scopeId, state => ({ ...state, width: null }));
     },
     folderToggled: (context, event: { scopeId: string; folderId: string }) => {
       if (!event.folderId) {
@@ -263,6 +290,10 @@ export interface UseSessionSidebarStateResult {
   toggleThread: (sessionId: string) => void;
   collapsedFolderIds: string[];
   toggleFolder: (folderId: string) => void;
+  /** Rail width in pixels: the operator's choice in this window, else the default. */
+  width: number;
+  setWidth: (width: number) => void;
+  resetWidth: () => void;
 }
 
 /**
@@ -297,6 +328,10 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     collapsedFolderIds: collapsedIds(state.collapsedFolders),
     toggleFolder: (folderId: string) =>
       sessionSidebarStore.trigger.folderToggled({ scopeId, folderId }),
+    width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
+    setWidth: (nextWidth: number) =>
+      sessionSidebarStore.trigger.widthChanged({ scopeId, width: nextWidth }),
+    resetWidth: () => sessionSidebarStore.trigger.widthReset({ scopeId }),
   };
 }
 

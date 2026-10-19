@@ -28,6 +28,7 @@ import {
   SessionResumeFailure,
   SessionRuntimeRecoveryNotice,
   SessionSidebar,
+  SessionSidebarLayout,
   SessionStopAttentionNotice,
   hasUnrecoverableRuntime,
   useCreateSession,
@@ -251,113 +252,120 @@ export function SessionWindowContent({
     >
       <SessionOriginContext value={derive.originContext}>
         <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <SessionSidebar
-            open={sidebar.open}
-            sessions={sidebar.sessions}
-            disconnected={sidebar.disconnected}
-            collapsedThreadIds={sidebar.collapsedThreadIds}
-            view={sidebar.view}
-            currentSessionId={sessionId}
-            revealedSession={session}
-            onToggleThread={sidebar.onToggleThread}
-            onSelectSession={sidebar.onSelectSession}
-            onNewSession={sidebar.onNewSession}
-            sessionActions={sidebar.sessionActions}
-          />
-          <div
-            className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
-            style={{ viewTransitionName: viewTransitionName("session-pane", windowId) }}
+          <SessionSidebarLayout
+            sidebar={
+              <SessionSidebar
+                open={sidebar.open}
+                sessions={sidebar.sessions}
+                disconnected={sidebar.disconnected}
+                collapsedThreadIds={sidebar.collapsedThreadIds}
+                view={sidebar.view}
+                currentSessionId={sessionId}
+                revealedSession={session}
+                onToggleThread={sidebar.onToggleThread}
+                onSelectSession={sidebar.onSelectSession}
+                onNewSession={sidebar.onNewSession}
+                sessionActions={sidebar.sessionActions}
+              />
+            }
           >
-            <SessionWindowNotice
-              agentName={agentName}
-              controls={controls}
-              isForking={forkSession.isPending}
-              onFork={handleForkDeadSession}
-              session={session}
-              sessionId={sessionId}
-            />
-            <SessionThread
-              liveDataEnabled={liveDataEnabled}
-              sessionId={sessionId}
-              workspaceId={workspaceId}
-              agentName={agentName}
-              acpSessionId={session.runtime.acp_session_id}
-              sessionState={session.state}
-              failure={session.failure}
-              statusSession={session}
-              stopCompletionNote={controls.stopCompletionNote}
-              canPrompt={controls.canPrompt}
-              onCancelPrompt={controls.handleCancelPrompt}
-              onQueuePrompt={controls.handleQueuePrompt}
-              onInterruptPrompt={controls.handleInterruptPrompt}
-              onSteerPrompt={controls.handleSteerPrompt}
-              isBusyInputPending={controls.isBusyInputPending}
-              isSessionRunning={controls.isSessionRunning}
-              stopPhase={controls.stopPhase}
-              allowBusyInput={controls.allowBusyInput}
-              busyInputDefaultMode={controls.busyInputDefaultMode}
-              busyInputSteerDelivery={controls.busyInputSteerDelivery}
-              queuedPrompts={controls.queuedPrompts}
-              onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
-              onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
-              onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
-              onClearQueue={controls.handleClearQueue}
-              queueCap={controls.queueCap}
-              unconfirmedSends={controls.unconfirmedSends}
-              onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
-              onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
-              contextControl={
-                <SessionContextControl
-                  context={sessionContext.context}
-                  open={inspector.open}
-                  onOpen={() => inspector.setOpen(true)}
-                />
-              }
-              subagentControl={<SessionComposerSubagents session={session} onOpen={openSubagent} />}
-              runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
-              environmentControl={
-                <SessionEnvironmentControl
-                  ref={environmentControl}
-                  binding={worktreeBinding}
-                  sessionId={sessionId}
-                  sessionTitle={session.name ?? sessionId}
-                  workspaceId={workspaceId}
-                  workspaceName={session.workspace_path ?? workspaceId}
-                />
-              }
-              commandCatalog={commandCatalog}
-              commandCatalogStatus={commandCatalogStatus}
-              onCommandCatalogOpen={refreshCommandCatalog}
-              onCommandAction={token => {
-                if (token !== "/worktree") return false;
-                environmentControl.current?.openFork();
-                return true;
-              }}
-              promptImageCapability={promptImageCapability}
-              promptEmbeddedContextCapability={promptEmbeddedContextCapability}
-              subagentNavigation={{
-                openSession: sidebar.openSession,
-                // "and N more" lands on the inspector's Subagents section, as the chip does.
-                showSubagents: () => requestSessionInspectorSection(sessionId, "subagents"),
-              }}
-              subagentOrigin={
-                derive.subagentOrigin && {
-                  parent: subagentParent,
-                  onOpenParent: subagentParent
-                    ? () =>
-                        sidebar.openSession(
-                          {
-                            sessionId: subagentParent.id,
-                            agentName: subagentParent.agentName,
-                            workspaceId,
-                          },
-                          { newWindow: false }
-                        )
-                    : undefined,
+            <div
+              className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+              style={{ viewTransitionName: viewTransitionName("session-pane", windowId) }}
+            >
+              <SessionWindowNotice
+                agentName={agentName}
+                controls={controls}
+                isForking={forkSession.isPending}
+                onFork={handleForkDeadSession}
+                session={session}
+                sessionId={sessionId}
+              />
+              <SessionThread
+                liveDataEnabled={liveDataEnabled}
+                sessionId={sessionId}
+                workspaceId={workspaceId}
+                agentName={agentName}
+                acpSessionId={session.runtime.acp_session_id}
+                sessionState={session.state}
+                failure={session.failure}
+                statusSession={session}
+                stopCompletionNote={controls.stopCompletionNote}
+                canPrompt={controls.canPrompt}
+                onCancelPrompt={controls.handleCancelPrompt}
+                onQueuePrompt={controls.handleQueuePrompt}
+                onInterruptPrompt={controls.handleInterruptPrompt}
+                onSteerPrompt={controls.handleSteerPrompt}
+                isBusyInputPending={controls.isBusyInputPending}
+                isSessionRunning={controls.isSessionRunning}
+                stopPhase={controls.stopPhase}
+                allowBusyInput={controls.allowBusyInput}
+                busyInputDefaultMode={controls.busyInputDefaultMode}
+                busyInputSteerDelivery={controls.busyInputSteerDelivery}
+                queuedPrompts={controls.queuedPrompts}
+                onRemoveQueuedPrompt={controls.handleRemoveQueuedPrompt}
+                onReplaceQueuedPrompt={controls.handleReplaceQueuedPrompt}
+                onSteerQueuedPrompt={controls.handleSteerQueuedPrompt}
+                onClearQueue={controls.handleClearQueue}
+                queueCap={controls.queueCap}
+                unconfirmedSends={controls.unconfirmedSends}
+                onRetryUnconfirmedSend={controls.handleRetryUnconfirmedSend}
+                onDiscardUnconfirmedSend={controls.handleDiscardUnconfirmedSend}
+                contextControl={
+                  <SessionContextControl
+                    context={sessionContext.context}
+                    open={inspector.open}
+                    onOpen={() => inspector.setOpen(true)}
+                  />
                 }
-              }
-            />
-          </div>
+                subagentControl={
+                  <SessionComposerSubagents session={session} onOpen={openSubagent} />
+                }
+                runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
+                environmentControl={
+                  <SessionEnvironmentControl
+                    ref={environmentControl}
+                    binding={worktreeBinding}
+                    sessionId={sessionId}
+                    sessionTitle={session.name ?? sessionId}
+                    workspaceId={workspaceId}
+                    workspaceName={session.workspace_path ?? workspaceId}
+                  />
+                }
+                commandCatalog={commandCatalog}
+                commandCatalogStatus={commandCatalogStatus}
+                onCommandCatalogOpen={refreshCommandCatalog}
+                onCommandAction={token => {
+                  if (token !== "/worktree") return false;
+                  environmentControl.current?.openFork();
+                  return true;
+                }}
+                promptImageCapability={promptImageCapability}
+                promptEmbeddedContextCapability={promptEmbeddedContextCapability}
+                subagentNavigation={{
+                  openSession: sidebar.openSession,
+                  // "and N more" lands on the inspector's Subagents section, as the chip does.
+                  showSubagents: () => requestSessionInspectorSection(sessionId, "subagents"),
+                }}
+                subagentOrigin={
+                  derive.subagentOrigin && {
+                    parent: subagentParent,
+                    onOpenParent: subagentParent
+                      ? () =>
+                          sidebar.openSession(
+                            {
+                              sessionId: subagentParent.id,
+                              agentName: subagentParent.agentName,
+                              workspaceId,
+                            },
+                            { newWindow: false }
+                          )
+                      : undefined,
+                  }
+                }
+              />
+            </div>
+          </SessionSidebarLayout>
           {inspector.open ? (
             <Suspense fallback={null}>
               <SessionWindowInspector

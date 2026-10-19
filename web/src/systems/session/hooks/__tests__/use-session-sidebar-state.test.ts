@@ -1,11 +1,12 @@
-// Suite: session-window sessions rail state (open/closed, folder and thread collapse)
+// Suite: session-window sessions rail state (open/closed, width, folder and thread collapse)
 // Invariant: rail state is owned per window scope — two session windows never
-// share a toggle; a window without its own entry starts from the last-used
-// (shell) state; a persisted entry survives a reload; closed windows' entries
+// share a toggle or width; a window without its own entry starts from the
+// last-used (shell) state; a persisted entry survives a reload; a width stays
+// within bounds and a reset follows the default again; closed windows' entries
 // are pruned only by the workspace/profile snapshot that listed them, so a
-// switch away and back keeps them; every older global blob upgrades into the
-// shell scope without loss, and a pre-default blob's incidental `open: false`
-// never masks the default.
+// switch away and back keeps them; every older global blob (including one
+// written before widths existed) upgrades into the shell scope without loss,
+// and a pre-default blob's incidental `open: false` never masks the default.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -232,6 +233,73 @@ describe("useSessionSidebarState", () => {
     const afterReload = renderInScope(reloaded, WINDOW_ONE);
     expect(afterReload.current.open).toBe(false);
     expect(afterReload.current.collapsedThreadIds).toEqual(["sess_root"]);
+  });
+
+  it("Should restore a dragged width per window across a reload and follow the default after a reset", async () => {
+    const first = await loadFreshSidebarState();
+    const result = renderInScope(first, WINDOW_ONE);
+    const other = renderInScope(first, WINDOW_TWO);
+    expect(result.current.width).toBe(264);
+    act(() => {
+      result.current.setWidth(361.6);
+    });
+    expect(result.current.width).toBe(362);
+    expect(other.current.width).toBe(264);
+
+    const reloaded = await loadFreshSidebarState();
+    const afterReload = renderInScope(reloaded, WINDOW_ONE);
+    expect(afterReload.current.width).toBe(362);
+    act(() => {
+      afterReload.current.resetWidth();
+    });
+    expect(afterReload.current.width).toBe(264);
+    expect(persistedContext()).toMatchObject({ byScope: { [WINDOW_ONE]: { width: null } } });
+  });
+
+  it.each([
+    { name: "below the floor", stored: 40, expected: 200 },
+    { name: "past the ceiling", stored: 4000, expected: 480 },
+    { name: "not a number", stored: "wide", expected: 264 },
+    { name: "reset to the default", stored: null, expected: 264 },
+  ])("Should keep a stored width $name within bounds", async ({ stored, expected }) => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        context: { byScope: { [WINDOW_ONE]: { open: true, width: stored } }, partitionByScope: {} },
+        version: 3,
+      })
+    );
+    const loaded = await loadFreshSidebarState();
+    const result = renderInScope(loaded, WINDOW_ONE);
+    expect(result.current.width).toBe(expected);
+  });
+
+  it("Should clamp a width set past the bounds", async () => {
+    const loaded = await loadFreshSidebarState();
+    const result = renderInScope(loaded, WINDOW_ONE);
+    act(() => {
+      result.current.setWidth(10_000);
+    });
+    expect(result.current.width).toBe(480);
+    act(() => {
+      result.current.setWidth(Number.NaN);
+    });
+    expect(result.current.width).toBe(480);
+  });
+
+  it("Should keep the open state and folds of a global blob written before widths existed", async () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        context: { open: false, collapsedThreads: {}, collapsedFolders: { "sfold-a": true } },
+        version: 2,
+      })
+    );
+    const upgraded = await loadFreshSidebarState();
+    const result = renderInScope(upgraded, WINDOW_ONE);
+    expect(result.current.open).toBe(false);
+    expect(result.current.collapsedFolderIds).toEqual(["sfold-a"]);
+    expect(result.current.width).toBe(264);
   });
 
   it("Should start folders expanded and remember a collapsed folder across a reload", async () => {

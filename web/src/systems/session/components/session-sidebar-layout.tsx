@@ -1,0 +1,64 @@
+import type { ReactNode } from "react";
+
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@compozy/ui";
+
+import { cn } from "@/lib/utils";
+
+import {
+  SESSION_SIDEBAR_PANEL_ID,
+  useSessionSidebarLayout,
+} from "../hooks/use-session-sidebar-layout";
+import { SESSION_SIDEBAR_MAX_WIDTH, SESSION_SIDEBAR_MIN_WIDTH } from "../lib/session-sidebar-width";
+
+/**
+ * Session window body: the sessions rail and the session pane split by a
+ * resize handle. The rail's open state and width are one operator preference
+ * shared by every session window; the width holds in pixels when the window
+ * resizes, within its bounds and never past half the window.
+ */
+export function SessionSidebarLayout({
+  sidebar,
+  children,
+}: {
+  /** The rail: fills the resizable panel. */
+  sidebar: ReactNode;
+  /** The session pane right of the rail. */
+  children: ReactNode;
+}) {
+  const layout = useSessionSidebarLayout();
+
+  return (
+    <ResizablePanelGroup
+      elementRef={layout.groupRef}
+      orientation="horizontal"
+      disabled={!layout.open}
+      className="min-h-0 min-w-0 flex-1 data-toggling:*:data-panel:transition-[flex-grow] data-toggling:*:data-panel:duration-shell-slow motion-reduce:*:data-panel:transition-none"
+      onLayoutChanged={layout.onLayoutChanged}
+      onDoubleClick={layout.onDoubleClick}
+    >
+      <ResizablePanel
+        id={SESSION_SIDEBAR_PANEL_ID}
+        panelRef={layout.panelRef}
+        collapsible
+        collapsedSize={0}
+        defaultSize={layout.mountSize}
+        minSize={SESSION_SIDEBAR_MIN_WIDTH}
+        maxSize={SESSION_SIDEBAR_MAX_WIDTH}
+        groupResizeBehavior="preserve-pixel-size"
+        style={{ overflow: "hidden" }}
+      >
+        {sidebar}
+      </ResizablePanel>
+      {/* The library's own reset targets the mount size, so the group resets to the default. */}
+      <ResizableHandle
+        aria-label="Resize sessions sidebar"
+        className={cn(!layout.open && "hidden")}
+        disableDoubleClick
+        elementRef={layout.handleRef}
+      />
+      <ResizablePanel minSize="50%" className="flex min-w-0" style={{ overflow: "hidden" }}>
+        {children}
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  );
+}

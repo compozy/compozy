@@ -401,6 +401,7 @@ export {
 export { SessionRowActions, type SessionRowActionsProps } from "./components/session-row-actions";
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
+export { SessionSidebarLayout } from "./components/session-sidebar-layout";
 export {
   buildSessionTree,
   childSessionSignalState,

@@ -28,3 +28,7 @@ qa-impact: Removed ThreadContentRail max-width/centering so session chat is full
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+2026-10-19 issue #836 impact flag: the sessions rail is resizable (200–480 px,
+pane keeps at least half the window). Full-bleed now applies to whatever width
+the rail leaves; re-check it beside a widened rail in the next QA cycle.

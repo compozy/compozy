@@ -118,7 +118,7 @@ export {
   ResizablePanel,
   ResizablePanelGroup,
 } from "./components/resizable";
-export { useDefaultLayout } from "react-resizable-panels";
+export { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 export {
   Select,
   SelectContent,
