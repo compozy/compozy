@@ -44,12 +44,15 @@ import {
   useSessionTranscriptThreadState,
 } from "@/systems/session";
 import { sessionPromptRecovery } from "@/systems/session/lib/session-prompt-recovery";
+import { toast } from "sonner";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
 
-// The recovery owner is app-scoped: a draft one test leaves pending must not reach the next.
+// The recovery owner and sonner's toast list are app-scoped: nothing one test leaves
+// pending may reach the next.
 afterEach(() => {
   sessionPromptRecovery.reset();
+  toast.dismiss();
 });
 
 describe("formatMessageError", () => {
@@ -906,6 +909,15 @@ describe("SessionChatRuntimeProvider", () => {
       }
 
       if (
+        (input instanceof Request ? input.method : init?.method) === "DELETE" &&
+        pathname.startsWith(
+          `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments/`
+        )
+      ) {
+        return new Response(null, { status: 204 });
+      }
+
+      if (
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`
       ) {
@@ -1706,7 +1718,10 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
   });
 
-  it("Should preserve a newer draft when a rejected prompt restores its files", async () => {
+  // Invariant (issue #815): a refused draft returns whole — its own text and files — and
+  // never overwrites or merges into a newer draft the operator is writing; it waits for
+  // the composer to be free.
+  it("Should hold a refused draft while a newer draft occupies the composer, then restore it whole", async () => {
     const rejection = createDeferred<Response>();
     promptResponsePromise = rejection.promise;
     const user = userEvent.setup();
@@ -1724,7 +1739,14 @@ describe("SessionChatRuntimeProvider", () => {
     await setComposerText("Newer draft");
     rejection.resolve(jsonResponse({ error: "prompt rejected" }, { status: 422 }));
 
-    await waitFor(() => expect(composerText()).toBe("Newer draft"));
+    await act(async () => {
+      await new Promise(resolve => window.setTimeout(resolve, 50));
+    });
+    expect(composerText()).toBe("Newer draft");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+
+    await setComposerText("");
+    await waitFor(() => expect(composerText()).toBe("Rejected attachment"));
     expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
   });
 
@@ -1826,6 +1848,52 @@ describe("SessionChatRuntimeProvider", () => {
     await screen.findByTestId("composer-input");
     await waitFor(() => expect(composerText()).toBe("Orchestrate issue 815"));
     expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+  });
+
+  it("Should restore two refused drafts separately instead of folding the later one into the first", async () => {
+    const scope = { workspaceId: fixtureWorkspaceId(), sessionId: primarySessionFixture.id };
+    const prompt = (id: string, text: string) => ({
+      messages: [{ id, parts: [{ text, type: "text" as const }], role: "user" as const }],
+    });
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+
+    sessionPromptRecovery.stage(scope, "refused-first", prompt("refused-first", "First refused"));
+    sessionPromptRecovery.stage(
+      scope,
+      "refused-second",
+      prompt("refused-second", "Second refused")
+    );
+    act(() => {
+      sessionPromptRecovery.recover(scope, "refused-first", [
+        new File(["a"], "first.txt", { type: "text/plain" }),
+      ]);
+      sessionPromptRecovery.recover(scope, "refused-second", [
+        new File(["b"], "second.txt", { type: "text/plain" }),
+      ]);
+    });
+
+    await waitFor(() => expect(composerText()).toBe("First refused"));
+    await waitFor(() =>
+      expect(
+        requireComposerAui()
+          .composer.getState()
+          .attachments.map(attachment => attachment.name)
+      ).toEqual(["first.txt"])
+    );
+
+    await act(async () => {
+      requireComposerAui().composer.setText("");
+      await requireComposerAui().composer.clearAttachments();
+    });
+    await waitFor(() => expect(composerText()).toBe("Second refused"));
+    await waitFor(() =>
+      expect(
+        requireComposerAui()
+          .composer.getState()
+          .attachments.map(attachment => attachment.name)
+      ).toEqual(["second.txt"])
+    );
   });
 
   it("Should keep the draft as unconfirmed, not refused, when a closed runtime's prompt gets a 5xx", async () => {

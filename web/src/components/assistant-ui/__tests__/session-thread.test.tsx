@@ -68,7 +68,7 @@ import {
   peekPendingTerminalQuote,
   takePendingTerminalQuote,
 } from "@/systems/terminal/parts";
-import { sessionPromptRecovery } from "@/systems/session/lib/session-prompt-recovery";
+import { resetSessionPromptRecovery } from "@/systems/session";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -540,7 +540,7 @@ function renderThreadState(
 
 // The recovery owner is app-scoped: a draft one test leaves pending must not reach the next.
 afterEach(() => {
-  sessionPromptRecovery.reset();
+  resetSessionPromptRecovery();
 });
 
 describe("SessionThread transcript states", () => {

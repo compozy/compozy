@@ -171,4 +171,26 @@ describe("SessionPromptRecovery", () => {
     expect(listener).toHaveBeenCalledOnce();
     expect(listener).toHaveBeenCalledWith({ files: [laterFile], quote: null, text: "Later" });
   });
+
+  it("Should keep a delivered draft until a composer settles it", () => {
+    const recovery = new SessionPromptRecovery();
+    const departing = vi.fn();
+    const unsubscribe = recovery.subscribe(SCOPE, departing);
+
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    recovery.recover(SCOPE, "prompt-1", []);
+    unsubscribe();
+    const next = vi.fn();
+    const unsubscribeNext = recovery.subscribe(SCOPE, next);
+    const restored = next.mock.calls[0]?.[0];
+    recovery.settle(SCOPE, restored);
+    unsubscribeNext();
+    const later = vi.fn();
+    recovery.subscribe(SCOPE, later);
+
+    expect(departing).toHaveBeenCalledOnce();
+    expect(next).toHaveBeenCalledOnce();
+    expect(restored).toEqual(departing.mock.calls[0]?.[0]);
+    expect(later).not.toHaveBeenCalled();
+  });
 });

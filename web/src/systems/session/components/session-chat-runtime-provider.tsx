@@ -1,5 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { AssistantRuntimeProvider, DataRenderers, Tools, useAui } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  DataRenderers,
+  Tools,
+  useAui,
+  useAuiState,
+} from "@assistant-ui/react";
 import { useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
@@ -22,21 +28,23 @@ import {
 import { stageChosenSessionTerminalQuote } from "@/systems/session/lib/session-terminal-quote";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 
+/** Returns false, touching nothing, when the composer already holds another draft. */
 async function restoreRejectedPromptDraft(
   aui: ReturnType<typeof useAui>,
   draft: RestoredSessionPromptDraft,
   sessionId: string
-): Promise<void> {
-  if (aui.composer.getState().text.length === 0) {
-    if (draft.quote) {
-      stageChosenSessionTerminalQuote(sessionId, draft.quote);
-    }
-    aui.composer.setText(draft.text);
+): Promise<boolean> {
+  const composer = aui.composer.getState();
+  if (composer.text.trim().length > 0 || composer.attachments.length > 0) return false;
+  if (draft.quote) {
+    stageChosenSessionTerminalQuote(sessionId, draft.quote);
   }
+  aui.composer.setText(draft.text);
   await draft.files.reduce(
     (pending, file) => pending.then(() => aui.composer.addAttachment(file)),
     Promise.resolve()
   );
+  return true;
 }
 
 function SessionPromptRecoveryBridge({
@@ -49,14 +57,26 @@ function SessionPromptRecoveryBridge({
   workspaceId: string;
 }) {
   const aui = useAui();
-  // Overlapping prompts of one session can each come back refused: restore them in arrival order.
-  const [drafts, setDrafts] = useState<readonly RestoredSessionPromptDraft[]>([]);
-  const draft = drafts[0] ?? null;
+  // A refused draft returns whole — its own text and files — into an empty composer, in
+  // arrival order. While the operator holds another draft there, it waits instead of losing
+  // its text or folding its files into someone else's message.
+  const [restore, setRestore] = useState<{
+    queue: readonly RestoredSessionPromptDraft[];
+    restoring: RestoredSessionPromptDraft | null;
+  }>({ queue: [], restoring: null });
+  const composerEmpty = useAuiState(
+    state => state.composer.text.trim().length === 0 && state.composer.attachments.length === 0
+  );
+  const draft = restore.restoring ?? (composerEmpty ? (restore.queue[0] ?? null) : null);
 
   useEffect(
     () =>
       recovery.subscribe({ workspaceId, sessionId }, restored =>
-        setDrafts(current => [...current, restored])
+        setRestore(current =>
+          current.queue.includes(restored)
+            ? current
+            : { ...current, queue: [...current.queue, restored] }
+        )
       ),
     [recovery, sessionId, workspaceId]
   );
@@ -67,21 +87,33 @@ function SessionPromptRecoveryBridge({
     // assistant-ui finalizes the submitted composer after its onError callback.
     // Restore on the next task so that finalization cannot erase the recovered draft.
     const timeout = window.setTimeout(() => {
+      // The restore fills the composer; pin the draft so that change cannot cancel it.
+      setRestore(current => ({ ...current, restoring: draft }));
+      let restored = true;
       void restoreRejectedPromptDraft(aui, draft, sessionId)
+        .then(result => {
+          restored = result;
+        })
         .catch(() => {
           toast.error("Couldn't restore the rejected attachment.");
         })
         .finally(() => {
-          if (active) {
-            setDrafts(current => (current[0] === draft ? current.slice(1) : current));
-          }
+          // A composer torn down mid-restore leaves the draft with recovery for the next one.
+          if (!active) return;
+          if (restored) recovery.settle({ workspaceId, sessionId }, draft);
+          setRestore(current => ({
+            queue: restored
+              ? current.queue.filter(candidate => candidate !== draft)
+              : current.queue,
+            restoring: null,
+          }));
         });
     }, 0);
     return () => {
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [aui, draft, sessionId]);
+  }, [aui, draft, recovery, sessionId, workspaceId]);
 
   return null;
 }
