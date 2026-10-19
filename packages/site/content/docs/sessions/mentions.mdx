@@ -189,8 +189,13 @@ blocks, in this order:
    A path with spaces keeps them in `name` and is percent-encoded in `uri`.
 4. Any [attachments](/docs/sessions#attach-files-to-prompts) last.
 
-The built-in Claude and Codex agents show each link to the model as `[@name](file:///…)`, next to
-the path already in your text.
+The built-in Claude and Codex agents show each link to the model as a Markdown link, next to the path
+already in your text. Codex uses the link name, as in
+`[@internal/acp/client_prompt.go](file:///Users/ana/code/shop/internal/acp/client_prompt.go)`. Claude
+uses the last part of the path, as in
+`[@client_prompt.go](file:///Users/ana/code/shop/internal/acp/client_prompt.go)`. To see it yourself,
+search the agent's own transcript for `file://`: Claude keeps it under `~/.claude/projects/`, Codex
+under `~/.codex/sessions/`.
 
 ### The three forms of the session references block
 
@@ -217,7 +222,8 @@ These are references to other CompozyOS sessions in this workspace. Their recent
 
 Inline history is bounded: the newest 20 user and assistant text messages per session, 1,500
 characters per message (cut with `…[truncated]`), 8,000 characters per session, and 16,000 for the
-whole block. A session left without budget reads `history omitted: budget reached`. `<`, `>`, and `&`
+whole block. A session left without budget reads `history omitted: budget reached`, and a session
+with no user or assistant messages yet reads `no recent messages`. `<`, `>`, and `&`
 in titles and history are escaped, so a title cannot close the block early.
 
 ## Step 7: Inspect mentions after the fact
