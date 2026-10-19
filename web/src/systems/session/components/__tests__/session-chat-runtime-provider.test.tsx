@@ -43,8 +43,14 @@ import {
   useClearSessionConversation,
   useSessionTranscriptThreadState,
 } from "@/systems/session";
+import { sessionPromptRecovery } from "@/systems/session/lib/session-prompt-recovery";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
+
+// The recovery owner is app-scoped: a draft one test leaves pending must not reach the next.
+afterEach(() => {
+  sessionPromptRecovery.reset();
+});
 
 describe("formatMessageError", () => {
   it("extracts provider failure detail from JSON-RPC error envelopes", () => {
@@ -1656,6 +1662,8 @@ describe("SessionChatRuntimeProvider", () => {
       await user.click(screen.getByTestId("composer-send-button"));
 
       await waitFor(() => expect(signals).toEqual(["revoked"]));
+      // The refusal returns the draft; let that settle before cleanup unmounts the composer.
+      await waitFor(() => expect(composerText()).toBe("Prompt from a revoked device"));
     } finally {
       unsubscribe();
     }
@@ -1818,6 +1826,30 @@ describe("SessionChatRuntimeProvider", () => {
     await screen.findByTestId("composer-input");
     await waitFor(() => expect(composerText()).toBe("Orchestrate issue 815"));
     expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+  });
+
+  it("Should keep the draft as unconfirmed, not refused, when a closed runtime's prompt gets a 5xx", async () => {
+    const answer = createDeferred<Response>();
+    promptResponsePromise = answer.promise;
+    render(<Toaster duration={5_000} />);
+    const user = userEvent.setup();
+    const first = renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Maybe recorded");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+
+    first.unmount();
+    answer.resolve(jsonResponse({ error: "gateway timeout" }, { status: 504 }));
+    expect(
+      await screen.findByText("Couldn't confirm the message was sent. Your draft was kept.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Message not sent/)).not.toBeInTheDocument();
+
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+    await waitFor(() => expect(composerText()).toBe("Maybe recorded"));
   });
 
   it("Should consume the draft when a prompt left by a closed runtime is accepted", async () => {

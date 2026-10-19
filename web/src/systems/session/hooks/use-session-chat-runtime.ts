@@ -84,12 +84,24 @@ function completeWhenResponseBodySettles(response: Response, onComplete: () => v
  * an answer, gives it back to its session.
  */
 interface SessionPromptOutcome {
-  accepted: () => void;
-  canceled: () => void;
+  accepted: (messageId: string | null) => void;
+  canceled: (messageId: string | null) => void;
   /** The prompt never left this browser; its draft returns without a notice. */
-  returned: () => void;
+  returned: (messageId: string | null) => void;
   /** The daemon refused it, or never answered: the draft returns with the reason. */
-  notSent: (reason: string | null) => void;
+  notSent: (messageId: string | null, reason: string | null) => void;
+}
+
+/** The durable identity a prompt POST carries; every outcome settles only that prompt's draft. */
+function promptRequestMessageId(body: BodyInit | null | undefined): string | null {
+  if (typeof body !== "string") return null;
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (typeof parsed !== "object" || parsed === null || !("message_id" in parsed)) return null;
+    return typeof parsed.message_id === "string" ? parsed.message_id : null;
+  } catch {
+    return null;
+  }
 }
 
 function promptRuntimeClosedError(): DOMException {
@@ -101,17 +113,28 @@ function promptRuntimeClosedError(): DOMException {
  * may still be waiting for admission. The daemon keeps executing it either
  * way, so the request runs on detached and its answer decides the draft.
  */
-function settleDetachedPrompt(request: Promise<Response>, outcome: SessionPromptOutcome): void {
+function settleDetachedPrompt(
+  request: Promise<Response>,
+  messageId: string | null,
+  outcome: SessionPromptOutcome
+): void {
   void request.then(
     async response => {
       if (response.ok) {
-        outcome.accepted();
+        outcome.accepted(messageId);
         await response.body?.cancel().catch(() => undefined);
         return;
       }
-      outcome.notSent(sessionPromptRefusalReason(await response.text().catch(() => "")));
+      if (response.status >= 500) {
+        // A 5xx may follow durable acceptance: not a refusal. With no composer left to hold
+        // a retryable pending-ack row, the draft returns as unconfirmed instead of being lost.
+        await response.body?.cancel().catch(() => undefined);
+        outcome.notSent(messageId, null);
+        return;
+      }
+      outcome.notSent(messageId, sessionPromptRefusalReason(await response.text().catch(() => "")));
     },
-    () => outcome.notSent(null)
+    () => outcome.notSent(messageId, null)
   );
 }
 
@@ -182,6 +205,7 @@ function buildSessionRuntimeConfig(
     if (readOnly) throw new Error("This session history is read-only");
     const controller = new AbortController();
     const upstreamSignal = init?.signal;
+    const messageId = promptRequestMessageId(init?.body);
     let answered = false;
     let detached = false;
     let request: Promise<Response> | null = null;
@@ -202,7 +226,7 @@ function buildSessionRuntimeConfig(
       detach();
     };
     if (upstreamSignal?.aborted) {
-      promptOutcome.returned();
+      promptOutcome.returned(messageId);
       throw promptRuntimeClosedError();
     }
     upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
@@ -237,16 +261,16 @@ function buildSessionRuntimeConfig(
       answered = true;
       promptDispatch.trigger.promptAnswered({ status: response.status });
       await reportGatewayResponse(response);
-      if (response.ok) promptOutcome.accepted();
+      if (response.ok) promptOutcome.accepted(messageId);
       responseOwnsCompletion = true;
       return completeWhenResponseBodySettles(response, completeRequest);
     } catch (error) {
       if (detached) {
-        if (request) settleDetachedPrompt(request, promptOutcome);
-        else promptOutcome.returned();
+        if (request) settleDetachedPrompt(request, messageId, promptOutcome);
+        else promptOutcome.returned(messageId);
       } else if (!answered && controller.signal.aborted) {
         // An operator cancel aborts the request before any answer: nothing comes back to restore.
-        promptOutcome.canceled();
+        promptOutcome.canceled(messageId);
       }
       throw error;
     } finally {
@@ -263,7 +287,7 @@ function buildSessionRuntimeConfig(
       ...(idempotencyKeys ? { idempotencyKeys } : {}),
       ...(preparedUserMessages ? { preparedUserMessages } : {}),
       onPromptPrepared: request => {
-        promptRecovery.stage(recoveryScope, request);
+        promptRecovery.stage(recoveryScope, request.body.message_id, request);
         promptDispatch.trigger.promptPrepared({
           envelope: envelopeFromPromptBody(request.body, getRuntimeSnapshot?.() ?? null),
         });
@@ -299,20 +323,20 @@ export function useSessionChatRuntime({
   const [preparedUserMessages] = useState(() => new Map<string, UIMessage>());
   const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
   const recoveryScope = { workspaceId, sessionId };
-  const restoreDraft = () =>
-    promptRecovery.recover(recoveryScope, attachmentAdapter.recoverSentFiles());
+  const consumeDraft = (messageId: string | null) => {
+    if (messageId !== null) promptRecovery.acknowledge(recoveryScope, messageId);
+    attachmentAdapter.acknowledgeSentFiles();
+  };
+  const restoreDraft = (messageId: string | null) => {
+    const files = attachmentAdapter.recoverSentFiles();
+    if (messageId !== null) promptRecovery.recover(recoveryScope, messageId, files);
+  };
   const promptOutcome: SessionPromptOutcome = {
-    accepted: () => {
-      promptRecovery.acknowledge(recoveryScope);
-      attachmentAdapter.acknowledgeSentFiles();
-    },
-    canceled: () => {
-      promptRecovery.acknowledge(recoveryScope);
-      attachmentAdapter.acknowledgeSentFiles();
-    },
+    accepted: consumeDraft,
+    canceled: consumeDraft,
     returned: restoreDraft,
-    notSent: reason => {
-      restoreDraft();
+    notSent: (messageId, reason) => {
+      restoreDraft(messageId);
       notifySessionPromptNotSent(reason);
     },
   };
@@ -340,23 +364,24 @@ export function useSessionChatRuntime({
       // draft comes back): both are outcomes, never unconfirmed.
       const prompt = promptDispatch.getSnapshot().context.prompt;
       const answered = prompt?.answeredStatus ?? null;
+      const messageId = prompt?.envelope.identity.messageId ?? null;
       const unconfirmed =
         prompt !== null &&
         (answered === null || answered >= 500) &&
         isSendAcknowledgmentLost(error);
       promptDispatch.trigger.promptFailed({ unconfirmed });
       if (unconfirmed) {
-        promptRecovery.acknowledge(recoveryScope);
-        attachmentAdapter.acknowledgeSentFiles();
+        consumeDraft(messageId);
         return;
       }
       if (answered !== null && answered >= 400 && answered < 500) {
         promptOutcome.notSent(
+          messageId,
           sessionPromptRefusalReason(error instanceof Error ? error.message : "")
         );
         return;
       }
-      restoreDraft();
+      restoreDraft(messageId);
     },
     /**
      * Emits a draft handoff only for the matching successful operator prompt.

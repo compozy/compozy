@@ -49,10 +49,15 @@ function SessionPromptRecoveryBridge({
   workspaceId: string;
 }) {
   const aui = useAui();
-  const [draft, setDraft] = useState<RestoredSessionPromptDraft | null>(null);
+  // Overlapping prompts of one session can each come back refused: restore them in arrival order.
+  const [drafts, setDrafts] = useState<readonly RestoredSessionPromptDraft[]>([]);
+  const draft = drafts[0] ?? null;
 
   useEffect(
-    () => recovery.subscribe({ workspaceId, sessionId }, setDraft),
+    () =>
+      recovery.subscribe({ workspaceId, sessionId }, restored =>
+        setDrafts(current => [...current, restored])
+      ),
     [recovery, sessionId, workspaceId]
   );
 
@@ -68,7 +73,7 @@ function SessionPromptRecoveryBridge({
         })
         .finally(() => {
           if (active) {
-            setDraft(current => (current === draft ? null : current));
+            setDrafts(current => (current[0] === draft ? current.slice(1) : current));
           }
         });
     }, 0);

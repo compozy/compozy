@@ -68,6 +68,7 @@ import {
   peekPendingTerminalQuote,
   takePendingTerminalQuote,
 } from "@/systems/terminal/parts";
+import { sessionPromptRecovery } from "@/systems/session/lib/session-prompt-recovery";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -536,6 +537,11 @@ function renderThreadState(
       result.rerender(threadStateElement(queryClient, { ...options, ...next })),
   };
 }
+
+// The recovery owner is app-scoped: a draft one test leaves pending must not reach the next.
+afterEach(() => {
+  sessionPromptRecovery.reset();
+});
 
 describe("SessionThread transcript states", () => {
   // Invariant: a supplied context action reaches the composer in its host thread; owner: thread/composer composition.

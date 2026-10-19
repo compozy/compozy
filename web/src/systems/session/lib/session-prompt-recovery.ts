@@ -39,39 +39,57 @@ function latestUserPromptText(messages: readonly UIMessage[]): string {
   return "";
 }
 
+function stagedDraftKey(scope: SessionPromptRecoveryScope, messageId: string): string {
+  return JSON.stringify([scope.workspaceId, scope.sessionId, messageId]);
+}
+
 /**
- * Holds only the in-flight composer draft until the daemon either accepts the
- * prompt or rejects it. The adapter supplies the original Files on rejection,
- * allowing the public composer API to restore previews and editable text.
+ * Holds each in-flight composer draft, by prompt identity, until the daemon
+ * either accepts that prompt or rejects it. The adapter supplies the original
+ * Files on rejection, allowing the public composer API to restore previews and
+ * editable text.
  *
- * A rejection can land after its composer is gone (navigation, a profile
- * switch): the restored draft then waits for the next composer of that
- * session instead of being dropped. One composer receives it, so a session
- * open twice never restores the same files into both.
+ * Prompts of one session can overlap once a runtime closes mid-request and a
+ * new one sends again, so every outcome settles only its own `message_id`. A
+ * rejection can land after its composer is gone (navigation, a profile
+ * switch): the restored draft then waits, in arrival order, for the next
+ * composer of that session instead of being dropped. One composer receives
+ * it, so a session open twice never restores the same files into both.
  */
 export class SessionPromptRecovery {
   private readonly drafts = new Map<string, RejectedSessionPromptDraft>();
-  private readonly restored = new Map<string, RestoredSessionPromptDraft>();
+  private readonly restored = new Map<string, RestoredSessionPromptDraft[]>();
   private readonly listeners = new Map<string, Set<RecoveryListener>>();
+
+  /** Forgets staged and pending drafts; suites sharing the app-scoped owner start clean. */
+  public reset(): void {
+    this.drafts.clear();
+    this.restored.clear();
+  }
 
   public stage(
     scope: SessionPromptRecoveryScope,
+    messageId: string,
     { messages }: { messages: readonly UIMessage[] }
   ): void {
     const { annotation, quote } = splitQuotedPrompt(latestUserPromptText(messages));
-    this.drafts.set(recoveryScopeKey(scope), { quote, text: annotation });
+    this.drafts.set(stagedDraftKey(scope, messageId), { quote, text: annotation });
   }
 
-  public acknowledge(scope: SessionPromptRecoveryScope): void {
-    this.drafts.delete(recoveryScopeKey(scope));
+  public acknowledge(scope: SessionPromptRecoveryScope, messageId: string): void {
+    this.drafts.delete(stagedDraftKey(scope, messageId));
   }
 
-  public recover(scope: SessionPromptRecoveryScope, files: readonly File[]): void {
-    const key = recoveryScopeKey(scope);
+  public recover(
+    scope: SessionPromptRecoveryScope,
+    messageId: string,
+    files: readonly File[]
+  ): void {
+    const key = stagedDraftKey(scope, messageId);
     const draft = this.drafts.get(key);
     this.drafts.delete(key);
     if (!draft) return;
-    this.deliver(key, { files, quote: draft.quote, text: draft.text });
+    this.deliver(recoveryScopeKey(scope), { files, quote: draft.quote, text: draft.text });
   }
 
   public subscribe(scope: SessionPromptRecoveryScope, listener: RecoveryListener): () => void {
@@ -79,11 +97,9 @@ export class SessionPromptRecovery {
     const listeners = this.listeners.get(key) ?? new Set<RecoveryListener>();
     listeners.add(listener);
     this.listeners.set(key, listeners);
-    const pending = this.restored.get(key);
-    if (pending) {
-      this.restored.delete(key);
-      listener(pending);
-    }
+    const pending = this.restored.get(key) ?? [];
+    this.restored.delete(key);
+    for (const draft of pending) listener(draft);
     return () => {
       listeners.delete(listener);
       if (listeners.size === 0) this.listeners.delete(key);
@@ -93,7 +109,7 @@ export class SessionPromptRecovery {
   private deliver(key: string, draft: RestoredSessionPromptDraft): void {
     const [listener] = this.listeners.get(key) ?? [];
     if (!listener) {
-      this.restored.set(key, draft);
+      this.restored.set(key, [...(this.restored.get(key) ?? []), draft]);
       return;
     }
     listener(draft);
