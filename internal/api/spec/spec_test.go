@@ -3464,6 +3464,34 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			configProperties[field] = map[string]any{"type": "string"}
 		}
 	}
+
+	// #813: optional opt-in query parameters on worktree cleanup, inserted before
+	// the trailing profile selector; existing parameters keep their meaning.
+	boolQuery := func(name string) map[string]any {
+		return map[string]any{"in": "query", "name": name, "schema": map[string]any{"type": "boolean"}}
+	}
+	worktreePath := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
+	for _, change := range []struct {
+		path, method string
+		added        []any
+	}{
+		{worktreePath, "delete", []any{boolQuery("delete_branch")}},
+		{worktreePath + "/dismiss", "post", []any{boolQuery("delete_branch"), boolQuery("force")}},
+	} {
+		operation := paths[change.path].(map[string]any)[change.method].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		last := len(parameters) - 1
+		if parameters[last].(map[string]any)["name"] != "profile" {
+			t.Fatalf(
+				"approved worktree cleanup addition: %s %s no longer ends with profile",
+				change.method, change.path,
+			)
+		}
+		operation["parameters"] = append(
+			append(append([]any{}, parameters[:last]...), change.added...),
+			parameters[last],
+		)
+	}
 }
 
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {
