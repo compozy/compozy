@@ -6114,11 +6114,11 @@ func TestManagerPromptMentions(t *testing.T) {
 			// A fresh manager over the same home and store: only durable state carries over.
 			restarted := newManagerWithHarness(t, h, WithSessionInputQueueStore(database),
 				WithSessionCatalog(database), WithMentionReferenceRenderer(renderer.render))
-			resumed, err := restarted.Prompt(t.Context(), sess.ID, "after restart")
-			if err != nil {
-				t.Fatalf("Prompt(after restart) error = %v", err)
+			// Resume dispatches the durable queue head; a direct Prompt would race it and
+			// report the session busy.
+			if _, err := restarted.Resume(t.Context(), sess.ID); err != nil {
+				t.Fatalf("Resume(after restart) error = %v", err)
 			}
-			collectEvents(t, resumed)
 			t.Cleanup(func() {
 				if err := restarted.Stop(testutil.Context(t), sess.ID); err != nil {
 					t.Errorf("Stop(restarted) error = %v", err)
@@ -6212,6 +6212,11 @@ func TestManagerPromptMentions(t *testing.T) {
 			!slices.Equal(delivery.MentionDelivery.SessionIDs, []string{"sess-same"}) ||
 			delivery.MentionDelivery.ReferencesForm != string(MentionReferenceFormReference) {
 			t.Fatalf("references = %q delivery = %#v", delivery.SessionReferences, delivery.MentionDelivery)
+		}
+		// US-006.AC-4: the references block reaches the agent only; the persisted user event
+		// keeps the authored message.
+		if text := storedInputEvent(t, sess).Text; text != message || strings.Contains(text, "<refs/>") {
+			t.Fatalf("persisted user text = %q, want the authored message %q", text, message)
 		}
 	})
 
