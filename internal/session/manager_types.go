@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	loggerpkg "github.com/compozy/compozy/internal/logger"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -183,35 +184,37 @@ type Manager struct {
 	spawnWakeEventIDs       map[string]struct{}
 	spawnWakeEventOrder     []string
 
-	logger                       *slog.Logger
-	driver                       AgentDriver
-	notifier                     Notifier
-	sessionWindowReconciler      WindowReconciler
-	windowReconciliationCtx      context.Context
-	windowReconciliationCancel   context.CancelFunc
-	windowReconciliationMu       sync.Mutex
-	windowReconciliationClosed   bool
-	windowReconciliationWG       sync.WaitGroup
-	turnEndNotifier              TurnEndNotifier
-	spawnWakeNotifier            SpawnWakeNotifier
-	inputAugmenter               PromptInputAugmenter
-	commandService               CommandService
-	inputQueue                   *inputqueue.Service
-	inputQueueStore              store.SessionInputQueueStore
-	promptAdmissionStore         store.SessionPromptAdmissionStore
-	attachmentOpener             AttachmentOpener
-	attachmentScopeLease         attachmentScopeLease
-	managedInputLifecycle        ManagedInputLifecycle
-	workAdmission                admission.Checker
-	goalCommandHandler           GoalCommandHandler
-	startupOverlay               StartupPromptOverlay
-	hooks                        HookSet
-	agentResolver                AgentResolver
-	providerSecrets              ProviderSecretResolver
-	profileNames                 ProfileNameResolver
-	modelCatalog                 modelcatalog.Service
-	skillRegistry                SkillRegistry
-	mentionRenderer              MentionReferenceRenderer
+	logger                     *slog.Logger
+	driver                     AgentDriver
+	notifier                   Notifier
+	sessionWindowReconciler    WindowReconciler
+	windowReconciliationCtx    context.Context
+	windowReconciliationCancel context.CancelFunc
+	windowReconciliationMu     sync.Mutex
+	windowReconciliationClosed bool
+	windowReconciliationWG     sync.WaitGroup
+	turnEndNotifier            TurnEndNotifier
+	spawnWakeNotifier          SpawnWakeNotifier
+	inputAugmenter             PromptInputAugmenter
+	commandService             CommandService
+	inputQueue                 *inputqueue.Service
+	inputQueueStore            store.SessionInputQueueStore
+	promptAdmissionStore       store.SessionPromptAdmissionStore
+	attachmentOpener           AttachmentOpener
+	attachmentScopeLease       attachmentScopeLease
+	managedInputLifecycle      ManagedInputLifecycle
+	workAdmission              admission.Checker
+	goalCommandHandler         GoalCommandHandler
+	startupOverlay             StartupPromptOverlay
+	hooks                      HookSet
+	agentResolver              AgentResolver
+	providerSecrets            ProviderSecretResolver
+	profileNames               ProfileNameResolver
+	modelCatalog               modelcatalog.Service
+	skillRegistry              SkillRegistry
+	mentionRenderer            MentionReferenceRenderer
+	// mentionPathProbe replaces probeMentionPath at admission when set; tests count filesystem probes with it.
+	mentionPathProbe             func(workingDir string, relative string) (mention.Kind, bool)
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	toolUniverse                 []toolspkg.ToolID
 	mcpResolver                  MCPResolver

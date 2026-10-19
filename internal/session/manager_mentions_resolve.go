@@ -168,7 +168,11 @@ func (r *mentionResolver) resolvePath(token mention.Token) (mention.Mention, boo
 
 // probePath stats one relative target inside the working directory after symlink resolution.
 func (r *mentionResolver) probePath(relative string) mentionLookup {
-	kind, ok := probeMentionPath(r.workingDir, relative)
+	probe := probeMentionPath
+	if r.manager.mentionPathProbe != nil {
+		probe = r.manager.mentionPathProbe
+	}
+	kind, ok := probe(r.workingDir, relative)
 	if !ok {
 		return mentionLookup{}
 	}

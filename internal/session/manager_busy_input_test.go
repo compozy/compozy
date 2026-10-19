@@ -6049,9 +6049,15 @@ func TestManagerPromptMentions(t *testing.T) {
 		writeMentionFixture(t, h.workspace, "a.go", "b.go")
 		sess := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		var probes atomic.Int64
+		h.manager.mentionPathProbe = func(workingDir string, relative string) (mention.Kind, bool) {
+			probes.Add(1)
+			return probeMentionPath(workingDir, relative)
+		}
 
+		// 250 distinct candidates: a.go, 248 missing paths, then b.go past the candidate cap.
 		tokens := []string{"@a.go"}
-		for index := range mention.MaxCandidateTokens - 1 {
+		for index := range 248 {
 			tokens = append(tokens, fmt.Sprintf("@missing-%03d.go", index))
 		}
 		tokens = append(tokens, "@b.go")
@@ -6060,10 +6066,80 @@ func TestManagerPromptMentions(t *testing.T) {
 			t.Fatalf("SendPrompt() error = %v", err)
 		}
 		collectEvents(t, result.Events)
+		if got := probes.Load(); got != mention.MaxCandidateTokens {
+			t.Fatalf("filesystem probes = %d, want %d", got, mention.MaxCandidateTokens)
+		}
 		if got := mentionTargets(storedInputMentions(t, sess)); !slices.Equal(got, []string{"a.go"}) {
 			t.Fatalf("mention targets = %v, want b.go past the candidate cap left as text", got)
 		}
+		if got := managerPromptCalls(h)[0].MentionDelivery.DroppedOverCap; got != 50 {
+			t.Fatalf("DroppedOverCap = %d, want the 50 candidates past the cap", got)
+		}
 	})
+
+	t.Run("Should dispatch a queued mention with the same links and ingress after a manager restart",
+		func(t *testing.T) {
+			t.Parallel()
+			renderer := &recordingMentionRenderer{}
+			h, database := newMentionHarness(t, WithMentionReferenceRenderer(renderer.render))
+			writeMentionFixture(t, h.workspace, "a.go")
+			registerMentionCatalogSession(t, database, "sess-ref", h.workspaceID)
+			sess := createSession(t, h)
+			holdMentionActiveTurn(t, h)
+
+			if _, err := h.manager.Prompt(t.Context(), sess.ID, "active"); err != nil {
+				t.Fatal(err)
+			}
+			queued, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+				Message: "read @a.go with @session:sess-ref", Mode: BusyInputModeQueue,
+				Caller: PromptCaller{Kind: "human", ID: "operator", Source: "test"},
+			})
+			if err != nil || queued.Status != store.SessionPromptResultStatusQueued {
+				t.Fatalf("queued = %#v, %v", queued, err)
+			}
+			workingDir, err := h.manager.WorkingDir(t.Context(), sess.ID)
+			if err != nil {
+				t.Fatalf("WorkingDir() error = %v", err)
+			}
+
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Fatalf("Stop(before restart) error = %v", err)
+			}
+			entry, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, queued.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusQueued || !entry.HumanIngress {
+				t.Fatalf("queued row before restart = %#v, %v; want still queued with human ingress", entry, err)
+			}
+			before := len(managerPromptCalls(h))
+
+			// A fresh manager over the same home and store: only durable state carries over.
+			restarted := newManagerWithHarness(t, h, WithSessionInputQueueStore(database),
+				WithSessionCatalog(database), WithMentionReferenceRenderer(renderer.render))
+			resumed, err := restarted.Prompt(t.Context(), sess.ID, "after restart")
+			if err != nil {
+				t.Fatalf("Prompt(after restart) error = %v", err)
+			}
+			collectEvents(t, resumed)
+			t.Cleanup(func() {
+				if err := restarted.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Errorf("Stop(restarted) error = %v", err)
+				}
+			})
+			want := []acp.PromptResourceLink{
+				acp.NewPromptResourceLink("a.go", filepath.Join(workingDir, "a.go"), false),
+			}
+			waitForCondition(t, "queued mention dispatched after restart", func() bool {
+				for _, call := range managerPromptCalls(h)[before:] {
+					if slices.Equal(call.MentionLinks, want) {
+						return true
+					}
+				}
+				return false
+			})
+			calls := renderer.snapshot()
+			if len(calls) != 1 || !calls[0].human || calls[0].refs[0].Target != "sess-ref" {
+				t.Fatalf("renderer calls = %#v, want one human-ingress reference to sess-ref", calls)
+			}
+		})
 
 	t.Run("Should cap distinct session references", func(t *testing.T) {
 		t.Parallel()
