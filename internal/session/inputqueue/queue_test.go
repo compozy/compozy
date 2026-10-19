@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -130,6 +131,7 @@ func TestServiceMutateAttachments(t *testing.T) {
 			"msg-replace",
 			"idem-replace",
 			nil,
+			MentionAdmission{},
 		)
 		if err != nil {
 			t.Fatalf("Replace() error = %v", err)
@@ -169,6 +171,7 @@ func TestServiceMutateAttachments(t *testing.T) {
 			"msg-promote",
 			"idem-promote",
 			nil,
+			MentionAdmission{},
 		)
 		if err != nil {
 			t.Fatalf("PromoteToSteer() error = %v", err)
@@ -390,3 +393,64 @@ func unusedQueueStoreError() error {
 }
 
 var _ store.SessionInputQueueStore = (*recordingQueueStore)(nil)
+
+// Invariant: queued input persists the mentions and human ingress admission verified, and a replacement
+// carries the replacer's verified mentions and authorship rather than the replaced row's.
+func TestServiceMentionCarriage(t *testing.T) {
+	t.Parallel()
+
+	admitted := []mention.Mention{{
+		Kind: mention.KindFolder, Token: "@src", Target: "src/", Label: "src/", Start: 5, End: 9,
+	}}
+	const encoded = `[{"kind":"folder","token":"@src","target":"src/","label":"src/","start":5,"end":9}]`
+
+	t.Run("Should encode admitted mentions and human ingress on a queue insert", func(t *testing.T) {
+		t.Parallel()
+
+		service := newTestQueueService(t)
+		insert, err := service.PrepareQueue(InputRequest{
+			SessionID: "sess-mentions", Text: "read @src", Mentions: admitted, HumanIngress: true,
+		})
+		if err != nil {
+			t.Fatalf("PrepareQueue() error = %v", err)
+		}
+		if insert.MentionsJSON != encoded || !insert.HumanIngress {
+			t.Fatalf(
+				"insert mentions = %s human = %v, want %s and true",
+				insert.MentionsJSON,
+				insert.HumanIngress,
+				encoded,
+			)
+		}
+		decoded, err := DecodeMentions(insert.MentionsJSON)
+		if err != nil || len(decoded) != 1 || decoded[0] != admitted[0] {
+			t.Fatalf("DecodeMentions() = %#v, %v; want the admitted mention", decoded, err)
+		}
+		plain, err := service.PrepareQueue(InputRequest{SessionID: "sess-mentions", Text: "plain"})
+		if err != nil || plain.MentionsJSON != store.EmptyMentionsJSON || plain.HumanIngress ||
+			HasMentions(plain.MentionsJSON) {
+			t.Fatalf("plain insert = %s human = %v, %v; want [] and false", plain.MentionsJSON, plain.HumanIngress, err)
+		}
+	})
+
+	t.Run("Should carry the replacement's verified mentions and authorship", func(t *testing.T) {
+		t.Parallel()
+
+		source := store.SessionInputQueueEntry{
+			ID: "inq-source", SessionID: "sess-mutate", Text: "old @a.go", MentionsJSON: `[{"kind":"file"}]`,
+			Mode: store.SessionInputQueueModeQueue, Delivery: store.SessionInputDeliveryAfterTurn,
+			Status: store.SessionInputQueueStatusQueued, HumanIngress: false,
+		}
+		queueStore := newMutationQueueStore(source)
+		service := newTestMutationService(t, queueStore)
+		if _, _, err := service.Replace(t.Context(), "sess-mutate", "inq-source", "read @src", "msg-replace",
+			"idem-replace", nil, MentionAdmission{Mentions: admitted, HumanIngress: true},
+		); err != nil {
+			t.Fatalf("Replace() error = %v", err)
+		}
+		if queueStore.replaced == nil || queueStore.replaced.MentionsJSON != encoded ||
+			!queueStore.replaced.HumanIngress {
+			t.Fatalf("replacement = %#v, want the replacer's mentions and human ingress", queueStore.replaced)
+		}
+	})
+}

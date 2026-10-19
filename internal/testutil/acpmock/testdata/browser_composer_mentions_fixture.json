@@ -1,0 +1,25 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "composer-mentions-agent",
+            "provider": "claude",
+            "permissions": "approve-reads",
+            "prompt": "Acknowledge every mention prompt.",
+            "turns": [
+                {
+                    "name": "acknowledge-mentions",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "chunks": ["Read the mentioned context."]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

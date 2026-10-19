@@ -65,7 +65,7 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 func promotableQueuedInput(entry *store.SessionInputQueueEntry) bool {
 	return entry.OwnerKind == "" && entry.OriginClass == store.SessionInputOriginClassAgent &&
 		entry.Mode == store.SessionInputQueueModeQueue && entry.Status == store.SessionInputQueueStatusQueued &&
-		len(entry.SkillInvocations) == 0
+		len(entry.SkillInvocations) == 0 && !hasStoredMentions(entry.MentionsJSON)
 }
 
 func (m *Manager) promoteQueuedInput(
@@ -93,6 +93,7 @@ func (m *Manager) promoteQueuedInput(
 		TurnSourceUser,
 		entry.Text,
 		attachmentMetaFromStore(entry.Attachments),
+		storedMentions(entry.MentionsJSON),
 	)
 	if err != nil {
 		session.promotionDeclined.Store(entryID, turnID)

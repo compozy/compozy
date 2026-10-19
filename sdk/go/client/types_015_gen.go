@@ -397,6 +397,22 @@ type SessionFailurePayload struct {
 	CrashBundlePath string            `json:"crash_bundle_path,omitempty"`
 }
 
+// SessionFileEntryPayload is a daemon API value.
+type SessionFileEntryPayload struct {
+	Path string          `json:"path"`
+	Name string          `json:"name"`
+	Kind SessionFileKind `json:"kind"`
+}
+
+// SessionFileKind is a daemon API value.
+type SessionFileKind string
+
+// SessionFilesResponse is a daemon API value.
+type SessionFilesResponse struct {
+	Entries   []SessionFileEntryPayload `json:"entries"`
+	Truncated bool                      `json:"truncated"`
+}
+
 // SessionFolderPayload is a daemon API value.
 type SessionFolderPayload struct {
 	ID           string    `json:"id"`
@@ -429,11 +445,3 @@ type SessionGoalCommandRequest struct {
 
 // SessionGoalOperation is a daemon API value.
 type SessionGoalOperation string
-
-// SessionGoalResponse is a daemon API value.
-type SessionGoalResponse struct {
-	Goal *GoalSnapshot `json:"goal"`
-}
-
-// SessionHealthIneligibilityReason is a daemon API value.
-type SessionHealthIneligibilityReason string

@@ -79,22 +79,26 @@ func (r SessionInputRuntime) Normalize() SessionInputRuntime {
 type SessionInputQueueEntry struct {
 	Priority int
 	// SupersededIDs identifies entries canceled by the transaction creating this input.
-	SupersededIDs            []string
-	ID                       string
-	SessionID                string
-	PromptAdmissionID        string
-	MessageID                string
-	IdempotencyKey           string
-	TurnID                   string
-	TargetTurnID             string
-	EventID                  string
-	Status                   string
-	Mode                     string
-	Delivery                 string
-	SteerDelivery            SteerDeliveryMode
-	Text                     string
-	Runtime                  SessionInputRuntime
-	SkillInvocations         []commandpkg.Invocation
+	SupersededIDs     []string
+	ID                string
+	SessionID         string
+	PromptAdmissionID string
+	MessageID         string
+	IdempotencyKey    string
+	TurnID            string
+	TargetTurnID      string
+	EventID           string
+	Status            string
+	Mode              string
+	Delivery          string
+	SteerDelivery     SteerDeliveryMode
+	Text              string
+	Runtime           SessionInputRuntime
+	SkillInvocations  []commandpkg.Invocation
+	// MentionsJSON is the JSON array of resolved composer mentions; blank persists as [].
+	MentionsJSON string
+	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
+	HumanIngress             bool
 	Origin                   json.RawMessage
 	OriginClass              string
 	OriginSessionID          string
@@ -166,14 +170,18 @@ type SessionInputQueueInsert struct {
 	Text              string
 	Runtime           SessionInputRuntime
 	SkillInvocations  []commandpkg.Invocation
-	Origin            json.RawMessage
+	// MentionsJSON is the JSON array of resolved composer mentions; blank persists as [].
+	MentionsJSON string
+	Origin       json.RawMessage
 	// OriginClass and OriginSessionID default from OwnerKind and Origin; set
 	// OriginClass explicitly only when a human re-authors an agent row.
 	OriginClass     string
 	OriginSessionID string
 	// Supersede cancels the same sender's older undispatched messages to this session in the
 	// transaction that inserts this agent-authored queue entry.
-	Supersede         bool
+	Supersede bool
+	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
+	HumanIngress      bool
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64
 	TaskRunID         string
@@ -201,6 +209,7 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized.Text = strings.TrimSpace(normalized.Text)
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
+	normalized.MentionsJSON = NormalizeMentionsJSON(normalized.MentionsJSON)
 	normalized.Origin = append(json.RawMessage(nil), normalized.Origin...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
@@ -219,6 +228,9 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 func (r SessionInputQueueInsert) Validate() error {
 	normalized := r.Normalize()
 	if err := normalized.validateSyntheticPrompt(); err != nil {
+		return err
+	}
+	if err := ValidateMentionsJSON(normalized.MentionsJSON); err != nil {
 		return err
 	}
 	if err := normalized.SteerDelivery.Validate(); err != nil {

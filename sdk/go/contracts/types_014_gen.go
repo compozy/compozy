@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type ProfileLensID string
+
+type PromptDelivery string
+
 type PromptMode string
 
 type PromptPatch struct {
@@ -151,10 +155,3 @@ type ResourceRecord struct {
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
 }
-
-type ResourceScope struct {
-	Kind ResourceScopeKind `json:"kind"`
-	ID   string            `json:"id,omitempty"`
-}
-
-type ResourceScopeKind string

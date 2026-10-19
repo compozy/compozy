@@ -9,6 +9,28 @@ import (
 	"strings"
 )
 
+// UpdateWorkspaceParams carries the path, query, and header parameters.
+type UpdateWorkspaceParams struct {
+	ID string `url:"id"`
+}
+
+// UpdateWorkspace Update a registered workspace
+func (c *Client) UpdateWorkspace(ctx context.Context, params UpdateWorkspaceParams, body UpdateWorkspaceRequest) (*WorkspaceResponse, error) {
+	path := "/api/workspaces/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UploadSessionAttachmentParams carries the path, query, and header parameters.
+type UploadSessionAttachmentParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
 // UploadSessionAttachment Upload a session attachment
 func (c *Client) UploadSessionAttachment(ctx context.Context, params UploadSessionAttachmentParams, body *UploadFile) (*SessionAttachmentUploadResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments"

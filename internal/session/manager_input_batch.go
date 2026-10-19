@@ -18,7 +18,7 @@ const queuedInputBatchSeparator = "\n\n---\n\n"
 
 // claimQueuedInputBatch leases the consecutive messages from other sessions and reply wakes that
 // follow a claimed head of the same kind, so one turn answers them together. Operator input,
-// interrupts, Goal prompts, subagent wakes, and entries whose attachments, slash commands, or
+// interrupts, Goal prompts, subagent wakes, and entries whose attachments, slash commands, mentions, or
 // runtime differ always end the batch and keep a turn of their own.
 func (m *Manager) claimQueuedInputBatch(
 	session *Session,
@@ -49,9 +49,10 @@ func (m *Manager) claimQueuedInputBatch(
 }
 
 // batchableQueuedInput reports an after-turn message from another session or a reply wake without
-// slash commands. Only those may share a turn; human input is never merged.
+// slash commands or mentions. Only those may share a turn; human input is never merged.
 func batchableQueuedInput(entry *store.SessionInputQueueEntry) bool {
-	if entry.Delivery != store.SessionInputDeliveryAfterTurn || len(entry.SkillInvocations) > 0 {
+	if entry.Delivery != store.SessionInputDeliveryAfterTurn || len(entry.SkillInvocations) > 0 ||
+		hasStoredMentions(entry.MentionsJSON) {
 		return false
 	}
 	if entry.Mode != store.SessionInputQueueModeQueue && entry.Mode != store.SessionInputQueueModeSteer {
@@ -151,7 +152,8 @@ func (m *Manager) prepareBatchedPromptInput(
 		return batchedPromptInput{}, err
 	}
 	follower.turnID = req.turnID
-	message, err := m.dispatchInputPreSubmit(ctx, session, req.turnID, follower.turnSource, follower.message, nil)
+	message, err := m.dispatchInputPreSubmit(ctx, session, req.turnID, follower.turnSource, follower.message, nil,
+		follower.mentions)
 	if err != nil {
 		return batchedPromptInput{}, err
 	}

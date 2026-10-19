@@ -386,6 +386,30 @@ and PDFs require embedded context. Markdown and plain text fall back to text blo
 context is unavailable. Archive and conversation clear retain attachments; `compozy session remove`
 removes a session's attachments, and `compozy workspace remove` removes the workspace attachment tree.
 
+Prompt text may carry mentions: `@path/to/file.go`, `@dir/` (trailing `/` optional), `@"path with
+spaces.md"`, and `@session:<session-id>`. A token starts at text start or after whitespace and ends at
+the next whitespace; trailing `.,;:!?)]}'"` are trimmed; tokens inside inline code or fenced blocks are
+ignored. The daemon resolves them for every caller (web, `compozy session prompt`,
+`compozy__session_prompt`, queue, steer, replace, promote; not gated like slash commands) against the
+**receiving** session: paths relative to its working directory (creation-profile CWD, else session
+cwd, else execution root) whose real path stays inside it, and sessions of its own workspace and
+profile other than itself (archived resolve, deleted do not). Absolute paths, `../` escapes, outward
+symlinks, and foreign or self sessions stay plain text; the prompt is still sent. Caps per prompt:
+200 candidate tokens, 50 distinct files/folders, 16 sessions. Delivery order in ACP `session/prompt`:
+the literal text, then one `<compozy_session_references>` text block when a session resolved, then one
+`resource_link` per distinct file/folder (`name` relative, `uri` absolute `file://`, folders end in
+`/`; contents are never embedded), then attachments. The references block tells the agent to call
+`compozy__session_history` with each `session_id` when that tool is callable; it inlines a bounded
+recent history (20 messages, 1,500 chars each, 8,000 per session, 16,000 total) only when the
+receiving session has tools disabled and a human operator sent the prompt; otherwise it says history
+is unavailable. Links are re-checked for containment at dispatch. Verified mentions appear as
+`mentions` (`kind`, `token`, `target`, `label`, UTF-16 `start`/`end`) on user messages in
+`compozy session history --json`, `session events --json`, transcript `metadata.mentions`, queued
+inputs, and the `input.pre_submit` hook payload; a hook rewrite keeps only tokens still present and
+cannot add mentions. The web picker searches files through
+`GET /api/workspaces/:workspace_id/sessions/:session_id/files?q=&limit=` (HTTP and UDS, default 50,
+max 200; `409 session_directory_unavailable` when the working directory is gone).
+
 `session runtime set` persists the complete default selection without starting or reconfiguring ACP;
 the next prompt applies it. `session runtime clear` returns resolution to the effective/agent default.
 Both commands use `runtime.selection_revision` as a compare-and-swap fence; omit
