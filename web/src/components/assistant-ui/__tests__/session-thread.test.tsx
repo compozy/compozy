@@ -7335,7 +7335,8 @@ describe("SessionThread composer mentions", () => {
         fireEvent.keyDown(editable, { key });
       });
     };
-    expect(highlighted()).toBe(0);
+    // The "read" rows have landed: the first one is highlighted.
+    await waitFor(() => expect(highlighted()).toBe(0));
 
     await press("ArrowDown");
     await waitFor(() => expect(highlighted()).toBe(1));

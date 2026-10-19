@@ -4,7 +4,7 @@ import {
   unstable_useTriggerPopoverScopeContext as useTriggerPopoverScopeContext,
 } from "@assistant-ui/react";
 import { File, Folder, MessagesSquare } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 
 import { formatRelativeTime } from "@compozy/ui";
 
@@ -223,6 +223,21 @@ function MentionDirectiveBehavior() {
 
 const NO_CATEGORIES: never[] = [];
 
+function sameMentionItems(
+  left: readonly Unstable_TriggerItem[],
+  right: readonly Unstable_TriggerItem[]
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every(
+      (item, index) =>
+        item.id === right[index]?.id &&
+        item.label === right[index]?.label &&
+        item.description === right[index]?.description
+    )
+  );
+}
+
 /**
  * The `@` picker (S1): a second trigger beside `/` with "Files" (files and
  * folders under the session's working directory, recents first for a bare
@@ -253,11 +268,16 @@ export function SessionComposerMentionMenu({
   // with nothing highlightable, so Enter waits for the current query's rows
   // instead of sending the prompt or picking a row from an earlier query.
   const listboxOpen = active && model.rowCount > 0;
+  // assistant-ui resets the highlight whenever the item list changes identity,
+  // so an unrelated re-render (a group settling, a catalog refresh) keeps the
+  // same list while its rows are unchanged and the arrow position holds.
+  const [items, setItems] = useState(model.items);
+  if (!sameMentionItems(items, model.items)) setItems(model.items);
   const adapter = listboxOpen
     ? {
         categories: () => NO_CATEGORIES,
         categoryItems: () => NO_CATEGORIES,
-        search: () => model.items,
+        search: () => items,
       }
     : undefined;
 
