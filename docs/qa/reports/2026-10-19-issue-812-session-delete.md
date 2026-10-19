@@ -34,3 +34,10 @@ Turbo's optional shared-cache write emitted an IO permission warning after succe
 ## Final status
 
 Targeted QA passed. PR CI and both external reviews are tracked in the PR; this QA report alone is not a PR delivery claim. The manifest-driven teardown completed with `TEARDOWN_CLEAN=true` and `TEARDOWN_ALL_CLEAN=true`; no owned lab processes remain.
+
+
+## CI remediation rewalk
+
+React Doctor CI flagged the per-window `await` loop. The window-manager runtime already serializes command transport and reads a fresh layout revision for each queued command, so the host now admits matching retirements together and awaits every result. Its ordering remains owned by that existing queue. A focused runtime/controller/action run passed **115 tests**, and Web lint/typecheck plus the tracked-file React Doctor diff scan passed.
+
+All four real deletion combinations were repeated in a fresh isolated lab after this change. A DOM observer recorded no missing-session notice or toast during the delete-to-empty transition. Independent HTTP reads and public window snapshots confirmed each deletion and retirement. A first cold Vite navigation timed out; one clean retry after HTTP readiness passed all four flows. The hosted before/after captures were refreshed from this rewalk. The foreign-owner capture remains from the unchanged owner-flow canary.

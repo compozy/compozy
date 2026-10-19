@@ -8,10 +8,14 @@ export function useSessionListLifecycleActions() {
   return useSessionLifecycleActions({
     onDeleteSuccess: async session => {
       const windows = Object.values(manager.getState().windows);
-      for (const window of windows) {
-        if (window.app !== "session" || window.instanceKey !== session.id) continue;
-        await coordinator.userRetireSession(window.id);
-      }
+      // The runtime serializes commands against fresh layout revisions; await every outcome.
+      await Promise.all(
+        windows.flatMap(window =>
+          window.app === "session" && window.instanceKey === session.id
+            ? [coordinator.userRetireSession(window.id)]
+            : []
+        )
+      );
     },
   });
 }
