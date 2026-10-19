@@ -64,6 +64,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithModelCatalog(deps.ModelCatalog),
 			session.WithSoulSnapshotStore(deps.SoulStore),
 			session.WithSoulRunActivityChecker(deps.SoulRunChecker),
+			session.WithMentionReferenceRenderer(deps.MentionReferences),
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
 				acp.WithProcessRegistry(deps.ProcessRegistry),
