@@ -1,7 +1,6 @@
 package workspacefiles
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -36,77 +35,6 @@ func (idx *index) collect(ctx context.Context, root string) (*snapshot, string, 
 		return nil, "", errors.Join(gitErr, err)
 	}
 	return newSnapshot(files, truncated), sourceWalk, nil
-}
-
-var errNotRepository = errors.New("workspacefiles: root is not inside a git repository")
-
-// gitFiles returns tracked and untracked-not-ignored files, minus deleted ones,
-// relative to root.
-func (idx *index) gitFiles(ctx context.Context, root string) ([]string, bool, error) {
-	gitCtx, cancel := context.WithTimeout(ctx, idx.gitTimeout)
-	defer cancel()
-	listed, err := idx.runGit(gitCtx, root, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
-	if err != nil {
-		return nil, false, err
-	}
-	deletedOut, err := idx.runGit(gitCtx, root, "ls-files", "--deleted", "-z")
-	if err != nil {
-		return nil, false, err
-	}
-	deletedNames, _ := splitNUL(deletedOut)
-	deleted := make(map[string]struct{}, len(deletedNames))
-	for _, name := range deletedNames {
-		deleted[name] = struct{}{}
-	}
-	names, partial := splitNUL(listed)
-	seen := make(map[string]struct{}, len(names))
-	files := make([]string, 0, min(len(names), idx.maxFiles))
-	truncated := partial
-	for _, name := range names {
-		if _, gone := deleted[name]; gone || !indexablePath(name) {
-			continue
-		}
-		if _, dup := seen[name]; dup {
-			continue
-		}
-		seen[name] = struct{}{}
-		if len(files) == idx.maxFiles {
-			truncated = true
-			break
-		}
-		files = append(files, name)
-	}
-	return files, truncated, nil
-}
-
-func (idx *index) runGit(ctx context.Context, root string, args ...string) ([]byte, error) {
-	stdout, stderr, err := idx.git.Run(ctx, root, args...)
-	if err == nil {
-		return stdout, nil
-	}
-	if strings.Contains(string(stderr), "not a git repository") ||
-		strings.Contains(err.Error(), "not a git repository") {
-		return nil, errNotRepository
-	}
-	return nil, fmt.Errorf("workspacefiles: git %s: %w", args[0], err)
-}
-
-// splitNUL splits NUL-terminated records. A trailing record without its NUL was
-// cut by the runner's output cap; it is dropped and reported as partial.
-func splitNUL(output []byte) ([]string, bool) {
-	if len(output) == 0 {
-		return nil, false
-	}
-	partial := output[len(output)-1] != 0
-	records := bytes.Split(output, []byte{0})
-	records = records[:len(records)-1]
-	names := make([]string, 0, len(records))
-	for _, record := range records {
-		if len(record) > 0 {
-			names = append(names, string(record))
-		}
-	}
-	return names, partial
 }
 
 // walkFiles lists regular files and symlinks under root without following

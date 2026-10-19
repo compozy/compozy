@@ -3,6 +3,7 @@ package workspacefiles
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -296,6 +297,104 @@ func TestIndexSearchCache(t *testing.T) {
 			t.Fatalf("builds after TTL = %d, want 2", calls)
 		}
 	})
+}
+
+func TestIndexSearchStreamingGit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should index streamed entries past one mebibyte of listing", func(t *testing.T) {
+		t.Parallel()
+		runner := newFakeStreamingRunner(6_000)
+		if runner.listingBytes <= 1<<20 {
+			t.Fatalf("listing = %d bytes, want more than 1 MiB", runner.listingBytes)
+		}
+
+		result, err := New(runner).Search(t.Context(), t.TempDir(), runner.files[len(runner.files)-1], 5)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if len(result.Entries) == 0 || result.Entries[0].Path != runner.files[len(runner.files)-1] || result.Truncated {
+			t.Fatalf(
+				"Search(last file) = %#v truncated=%v, want the last streamed file",
+				result.Entries,
+				result.Truncated,
+			)
+		}
+		if runner.bufferedCalls.Load() != 0 {
+			t.Fatalf("buffered Run calls = %d, want streaming only", runner.bufferedCalls.Load())
+		}
+	})
+
+	t.Run("Should stop the git listing once the cap is exceeded", func(t *testing.T) {
+		t.Parallel()
+		runner := newFakeStreamingRunner(6_000)
+
+		result, err := New(runner, WithMaxFiles(100)).Search(t.Context(), t.TempDir(), "", 200)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		if !result.Truncated {
+			t.Fatal("Search() Truncated = false, want true")
+		}
+		if !runner.canceled.Load() {
+			t.Fatal("streaming git context was not canceled at the cap")
+		}
+		if sent, total := runner.sentBytes.Load(), int64(runner.listingBytes); sent >= total {
+			t.Fatalf("streamed %d of %d bytes, want the listing cut short", sent, total)
+		}
+	})
+}
+
+// fakeStreamingRunner streams a NUL-separated listing in small chunks that split records.
+type fakeStreamingRunner struct {
+	files         []string
+	listingBytes  int
+	sentBytes     atomic.Int64
+	canceled      atomic.Bool
+	bufferedCalls atomic.Int32
+}
+
+func newFakeStreamingRunner(count int) *fakeStreamingRunner {
+	runner := &fakeStreamingRunner{files: make([]string, 0, count)}
+	for i := range count {
+		name := fmt.Sprintf("dir%02d/%s_%05d.go", i%50, strings.Repeat("long_segment_", 15), i)
+		runner.files = append(runner.files, name)
+		runner.listingBytes += len(name) + 1
+	}
+	return runner
+}
+
+func (f *fakeStreamingRunner) Run(context.Context, string, ...string) ([]byte, []byte, error) {
+	f.bufferedCalls.Add(1)
+	return nil, nil, errors.New("buffered run must not be used")
+}
+
+func (f *fakeStreamingRunner) RunStreaming(
+	ctx context.Context,
+	_ string,
+	onStdout func([]byte),
+	args ...string,
+) ([]byte, error) {
+	if slices.Contains(args, "--deleted") {
+		return nil, nil
+	}
+	var listing strings.Builder
+	for _, file := range f.files {
+		listing.WriteString(file)
+		listing.WriteByte(0)
+	}
+	data := []byte(listing.String())
+	const chunkSize = 4093
+	for start := 0; start < len(data); start += chunkSize {
+		if err := ctx.Err(); err != nil {
+			f.canceled.Store(true)
+			return nil, err
+		}
+		chunk := data[start:min(start+chunkSize, len(data))]
+		f.sentBytes.Add(int64(len(chunk)))
+		onStdout(chunk)
+	}
+	return nil, nil
 }
 
 type fakeGitRunner struct {
