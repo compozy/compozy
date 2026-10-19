@@ -6,22 +6,33 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
 // DismissWorktree Dismiss a worktree tombstone
-func (c *Client) DismissWorktree(ctx context.Context, params DismissWorktreeParams) error {
+func (c *Client) DismissWorktree(ctx context.Context, params DismissWorktreeParams) (*WorktreeCleanupResponse, error) {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
 	query := url.Values{}
+	if params.DeleteBranch != nil {
+		query.Set("delete_branch", strconv.FormatBool(*params.DeleteBranch))
+	}
+	if params.Force != nil {
+		query.Set("force", strconv.FormatBool(*params.Force))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	return c.doContent(ctx, "POST", path, nil, nil, nil, "", "")
+	var out WorktreeCleanupResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // DownloadSupportBundleParams carries the path, query, and header parameters.
@@ -433,10 +444,4 @@ func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ForceReleaseTaskRunParams carries the path, query, and header parameters.
-type ForceReleaseTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

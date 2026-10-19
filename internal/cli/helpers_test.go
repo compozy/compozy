@@ -194,8 +194,8 @@ type stubClient struct {
 		context.Context, string, string, WorktreeExitActionRequest,
 	) (WorktreeExitOperationRecord, error)
 	cancelWorktreeExitFn func(context.Context, string, string, string) error
-	removeWorktreeFn     func(context.Context, string, string, bool) error
-	dismissWorktreeFn    func(context.Context, string, string) error
+	removeWorktreeFn     func(context.Context, string, string, WorktreeCleanupOptions) (*contract.WorktreeBranchOutcomePayload, error)
+	dismissWorktreeFn    func(context.Context, string, string, WorktreeCleanupOptions) (*contract.WorktreeBranchOutcomePayload, error)
 	listLoopsFn          func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
 	createLoopFn         func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
 	getLoopFn            func(context.Context, string, string) (contract.LoopResponse, error)
@@ -1761,18 +1761,26 @@ func (s *stubClient) CancelWorktreeExitAction(
 	return errors.New("unexpected CancelWorktreeExitAction call")
 }
 
-func (s *stubClient) RemoveWorktree(ctx context.Context, workspace, ref string, force bool) error {
+func (s *stubClient) RemoveWorktree(
+	ctx context.Context,
+	workspace, ref string,
+	opts WorktreeCleanupOptions,
+) (*contract.WorktreeBranchOutcomePayload, error) {
 	if s.removeWorktreeFn != nil {
-		return s.removeWorktreeFn(ctx, workspace, ref, force)
+		return s.removeWorktreeFn(ctx, workspace, ref, opts)
 	}
-	return errors.New("unexpected RemoveWorktree call")
+	return nil, errors.New("unexpected RemoveWorktree call")
 }
 
-func (s *stubClient) DismissWorktree(ctx context.Context, workspace, ref string) error {
+func (s *stubClient) DismissWorktree(
+	ctx context.Context,
+	workspace, ref string,
+	opts WorktreeCleanupOptions,
+) (*contract.WorktreeBranchOutcomePayload, error) {
 	if s.dismissWorktreeFn != nil {
-		return s.dismissWorktreeFn(ctx, workspace, ref)
+		return s.dismissWorktreeFn(ctx, workspace, ref, opts)
 	}
-	return errors.New("unexpected DismissWorktree call")
+	return nil, errors.New("unexpected DismissWorktree call")
 }
 
 func (s *stubClient) ListLoops(

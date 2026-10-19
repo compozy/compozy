@@ -197,12 +197,12 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 			_ context.Context,
 			workspaceID string,
 			ref string,
-			force bool,
-		) error {
-			if workspaceID != "workspace-a" || ref != "wt-a" || force {
-				t.Fatalf("RemoveWorktree() args = %q, %q, %t", workspaceID, ref, force)
+			opts WorktreeCleanupOptions,
+		) (*contract.WorktreeBranchOutcomePayload, error) {
+			if workspaceID != "workspace-a" || ref != "wt-a" || opts != (WorktreeCleanupOptions{}) {
+				t.Fatalf("RemoveWorktree() args = %q, %q, %#v", workspaceID, ref, opts)
 			}
-			return apiErr
+			return nil, apiErr
 		}})
 		exitCode, _, stderr := executeRootCommandWithExit(
 			t,
@@ -283,12 +283,12 @@ func TestWorktreeMutationNameReferences(t *testing.T) {
 		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "ready"), removeWorktreeFn: func(
 			_ context.Context,
 			workspaceID, ref string,
-			force bool,
-		) error {
-			if workspaceID != "workspace-a" || ref != "wt-a" || !force {
-				t.Fatalf("RemoveWorktree() args = %q, %q, %t", workspaceID, ref, force)
+			opts WorktreeCleanupOptions,
+		) (*contract.WorktreeBranchOutcomePayload, error) {
+			if workspaceID != "workspace-a" || ref != "wt-a" || opts != (WorktreeCleanupOptions{Force: true}) {
+				t.Fatalf("RemoveWorktree() args = %q, %q, %#v", workspaceID, ref, opts)
 			}
-			return nil
+			return nil, nil
 		}})
 		stdout, _, err := executeRootCommand(
 			t, newWorkspaceTestDeps(t, client),
@@ -306,11 +306,12 @@ func TestWorktreeMutationNameReferences(t *testing.T) {
 			_ context.Context,
 			workspaceID string,
 			ref string,
-		) error {
-			if workspaceID != "workspace-a" || ref != "wt-a" {
-				t.Fatalf("DismissWorktree() args = %q, %q", workspaceID, ref)
+			opts WorktreeCleanupOptions,
+		) (*contract.WorktreeBranchOutcomePayload, error) {
+			if workspaceID != "workspace-a" || ref != "wt-a" || opts != (WorktreeCleanupOptions{}) {
+				t.Fatalf("DismissWorktree() args = %q, %q, %#v", workspaceID, ref, opts)
 			}
-			return nil
+			return nil, nil
 		}})
 		stdout, _, err := executeRootCommand(
 			t, newWorkspaceTestDeps(t, client),
@@ -320,6 +321,64 @@ func TestWorktreeMutationNameReferences(t *testing.T) {
 			t.Fatalf("worktree dismiss by name error = %v", err)
 		}
 		assertMutation(t, stdout, "dismissed", "dismissed")
+	})
+
+	t.Run("Should forward the delete-branch opt-in and report the kept branch reason", func(t *testing.T) {
+		t.Parallel()
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "missing"), dismissWorktreeFn: func(
+			_ context.Context,
+			workspaceID string,
+			ref string,
+			opts WorktreeCleanupOptions,
+		) (*contract.WorktreeBranchOutcomePayload, error) {
+			want := WorktreeCleanupOptions{DeleteBranch: true}
+			if workspaceID != "workspace-a" || ref != "wt-a" || opts != want {
+				t.Fatalf("DismissWorktree() args = %q, %q, %#v", workspaceID, ref, opts)
+			}
+			return &contract.WorktreeBranchOutcomePayload{Name: "fix/a", Reason: "not_fully_merged"}, nil
+		}})
+		stdout, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "dismiss", "feature-a", "--delete-branch", "--workspace", "workspace-a", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("worktree dismiss --delete-branch error = %v", err)
+		}
+		assertMutation(t, stdout, "dismissed", "dismissed")
+		var got struct {
+			Branch *contract.WorktreeBranchOutcomePayload `json:"branch"`
+		}
+		if err := json.Unmarshal([]byte(stdout), &got); err != nil {
+			t.Fatalf("decode branch outcome: %v", err)
+		}
+		if got.Branch == nil || got.Branch.Name != "fix/a" || got.Branch.Deleted ||
+			got.Branch.Reason != "not_fully_merged" {
+			t.Fatalf("branch outcome = %#v, want kept fix/a not_fully_merged", got.Branch)
+		}
+	})
+
+	t.Run("Should report a deleted branch in human removal output", func(t *testing.T) {
+		t.Parallel()
+		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: inspect(t, "ready"), removeWorktreeFn: func(
+			_ context.Context,
+			_, _ string,
+			opts WorktreeCleanupOptions,
+		) (*contract.WorktreeBranchOutcomePayload, error) {
+			if opts != (WorktreeCleanupOptions{Force: true, DeleteBranch: true}) {
+				t.Fatalf("RemoveWorktree() opts = %#v", opts)
+			}
+			return &contract.WorktreeBranchOutcomePayload{Name: "fix/a", Deleted: true}, nil
+		}})
+		stdout, _, err := executeRootCommand(
+			t, newWorkspaceTestDeps(t, client),
+			"worktree", "remove", "feature-a", "--force", "--delete-branch", "--workspace", "workspace-a",
+		)
+		if err != nil {
+			t.Fatalf("worktree remove --delete-branch error = %v", err)
+		}
+		if !strings.Contains(stdout, "fix/a deleted") {
+			t.Fatalf("human output = %q, want deleted branch summary", stdout)
+		}
 	})
 }
 

@@ -1232,6 +1232,126 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	// Invariant: opt-in branch deletion runs only after cleanup, keeps protected
+	// and unmerged branches, and releases only the cleaned record's stale entry.
+	t.Run("Should delete local branches after cleanup only when Git safety allows it", func(t *testing.T) {
+		fixture := newRealGitFixture(t)
+		root := fixture.workspace.Root
+		create := func(name, existingBranch string) Worktree {
+			t.Helper()
+			item, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
+				ProfileID: testWorktreeProfileID, Name: name, ExistingBranch: existingBranch,
+			})
+			if err != nil {
+				t.Fatalf("Create(%s) error = %v", name, err)
+			}
+			return *item
+		}
+		remove := func(item Worktree, force bool) {
+			t.Helper()
+			if refusalResult, err := fixture.service.Remove(
+				t.Context(), fixture.workspace.ID, item.ID, force,
+			); err != nil || refusalResult != nil {
+				t.Fatalf("Remove(%s) = (%#v, %v), want success", item.Name, refusalResult, err)
+			}
+		}
+		deleteBranch := func(item Worktree, force bool) BranchOutcome {
+			t.Helper()
+			outcome, err := fixture.service.DeleteLocalBranch(t.Context(), fixture.workspace.ID, item.ID, force)
+			if err != nil {
+				t.Fatalf("DeleteLocalBranch(%s) error = %v", item.Name, err)
+			}
+			if outcome.Name != item.Branch {
+				t.Fatalf("DeleteLocalBranch(%s) branch = %q, want %q", item.Name, outcome.Name, item.Branch)
+			}
+			return outcome
+		}
+		branchExists := func(branch string) bool {
+			_, _, err := fixture.runner.Run(t.Context(), root, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+			return err == nil
+		}
+
+		merged := create("Branch Merged", "")
+		if _, err := fixture.service.DeleteLocalBranch(
+			t.Context(), fixture.workspace.ID, merged.ID, false,
+		); !errors.Is(err, ErrNotReady) {
+			t.Fatalf("DeleteLocalBranch(ready) error = %v, want ErrNotReady", err)
+		}
+		remove(merged, false)
+		if outcome := deleteBranch(merged, false); !outcome.Deleted || branchExists(merged.Branch) {
+			t.Fatalf("merged outcome = %#v, want deleted branch", outcome)
+		}
+		if outcome := deleteBranch(merged, false); outcome.Deleted || outcome.Reason != BranchKeptAbsent {
+			t.Fatalf("repeated outcome = %#v, want branch_absent", outcome)
+		}
+
+		unmerged := create("Branch Unmerged", "")
+		if err := os.WriteFile(filepath.Join(unmerged.Path, "work.txt"), []byte("work\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(unmerged) error = %v", err)
+		}
+		fixture.git(unmerged.Path, "add", "work.txt")
+		fixture.git(unmerged.Path, "commit", "-m", "unmerged work")
+		remove(unmerged, true)
+		if outcome := deleteBranch(unmerged, false); outcome.Deleted || outcome.Reason != BranchKeptNotFullyMerged ||
+			!branchExists(unmerged.Branch) {
+			t.Fatalf("unmerged outcome = %#v, want kept not_fully_merged", outcome)
+		}
+		if outcome := deleteBranch(unmerged, true); !outcome.Deleted || branchExists(unmerged.Branch) {
+			t.Fatalf("forced outcome = %#v, want deleted branch", outcome)
+		}
+
+		missing := create("Branch Missing", "")
+		bystander := create("Branch Bystander", "")
+		for _, item := range []Worktree{missing, bystander} {
+			if err := os.RemoveAll(item.Path); err != nil {
+				t.Fatalf("RemoveAll(%s) error = %v", item.Name, err)
+			}
+		}
+		if _, err := fixture.service.List(t.Context(), fixture.workspace.ID, true); err != nil {
+			t.Fatalf("List(missing) error = %v", err)
+		}
+		if err := fixture.service.Dismiss(t.Context(), fixture.workspace.ID, missing.ID); err != nil {
+			t.Fatalf("Dismiss(missing) error = %v", err)
+		}
+		if outcome := deleteBranch(missing, false); !outcome.Deleted || branchExists(missing.Branch) {
+			t.Fatalf("missing outcome = %#v, want deleted after releasing the stale registration", outcome)
+		}
+		registrations := fixture.git(root, "worktree", "list", "--porcelain")
+		if strings.Contains(registrations, filepath.Base(missing.Path)+"\n") ||
+			!strings.Contains(registrations, filepath.Base(bystander.Path)) {
+			t.Fatalf("registrations = %s, want only the dismissed record released", registrations)
+		}
+
+		if err := os.MkdirAll(bystander.Path, 0o700); err != nil {
+			t.Fatalf("MkdirAll(reappeared) error = %v", err)
+		}
+		if err := fixture.service.Dismiss(t.Context(), fixture.workspace.ID, bystander.ID); err != nil {
+			t.Fatalf("Dismiss(reappeared) error = %v", err)
+		}
+		if outcome := deleteBranch(bystander, true); outcome.Deleted || outcome.Reason != BranchKeptCheckoutPresent ||
+			!branchExists(bystander.Branch) {
+			t.Fatalf("reappeared outcome = %#v, want kept checkout_present", outcome)
+		}
+
+		rooted := create("Branch Rooted", "")
+		remove(rooted, false)
+		fixture.git(root, "checkout", "--quiet", rooted.Branch)
+		if outcome := deleteBranch(rooted, true); outcome.Deleted || outcome.Reason != BranchKeptRootCheckout {
+			t.Fatalf("root HEAD outcome = %#v, want kept root_checkout_branch", outcome)
+		}
+		fixture.git(root, "checkout", "--quiet", "main")
+
+		fixture.git(root, "branch", "trunk")
+		fixture.git(root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+		fixture.git(root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+		trunk := create("Branch Trunk", "trunk")
+		remove(trunk, false)
+		if outcome := deleteBranch(trunk, true); outcome.Deleted || outcome.Reason != BranchKeptDefaultBranch ||
+			!branchExists("trunk") {
+			t.Fatalf("default branch outcome = %#v, want kept default_branch", outcome)
+		}
+	})
+
 	t.Run("Should restore dismiss and preserve unrelated replacements for missing rows", func(t *testing.T) {
 		reconcile := newRealGitFixture(t)
 		item, err := reconcile.service.Create(

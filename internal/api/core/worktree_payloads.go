@@ -108,3 +108,10 @@ func WorktreeRemovalRefusalPayload(
 		Downgrade: refusal.Downgrade,
 	}
 }
+
+// WorktreeBranchOutcomePayload maps an opt-in branch deletion outcome to its wire shape.
+func WorktreeBranchOutcomePayload(outcome worktree.BranchOutcome) contract.WorktreeBranchOutcomePayload {
+	return contract.WorktreeBranchOutcomePayload{
+		Name: outcome.Name, Deleted: outcome.Deleted, Reason: outcome.Reason, Detail: outcome.Detail,
+	}
+}

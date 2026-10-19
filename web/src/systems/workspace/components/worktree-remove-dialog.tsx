@@ -1,11 +1,24 @@
 import { Trash2, TriangleAlert } from "lucide-react";
 
-import { Alert, AlertDescription, Button, ConfirmDialog, MetadataList, MonoId } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Checkbox,
+  ConfirmDialog,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  MetadataList,
+  MonoId,
+} from "@compozy/ui";
 
 import type { WorktreeRefusal } from "../lib/worktree-refusal";
 import type { WorktreePayload } from "../types";
 import {
   boundIdleNote,
+  DELETE_BRANCH_HINT,
+  REMOVE_BRANCH_HISTORY_NOTE,
   REMOVE_DOWNGRADE_NOTE,
   REMOVE_HISTORY_NOTE,
   removeDialogDescription,
@@ -25,6 +38,9 @@ export interface WorktreeRemoveDialogProps {
   onRequestForce: () => void;
   boundSessions?: { running: number; idle: number };
   isRemoving: boolean;
+  /** Opt-in: also delete the local branch once the checkout is removed. */
+  deleteBranch: boolean;
+  onDeleteBranchChange: (deleteBranch: boolean) => void;
   onConfirm: (force: boolean) => void;
   /** The alternative to destroying the work: the assisted exit flow. */
   onCommitAndPush?: () => void;
@@ -45,6 +61,8 @@ export function WorktreeRemoveDialog({
   onRequestForce,
   boundSessions = { running: 0, idle: 0 },
   isRemoving,
+  deleteBranch,
+  onDeleteBranchChange,
   onConfirm,
   onCommitAndPush,
   onOpenSession,
@@ -52,6 +70,25 @@ export function WorktreeRemoveDialog({
   const stage = resolveRemoveStage(refusal, forceRequested, boundSessions);
   const risk = refusal?.risk ?? null;
   const isRefusal = stage === "dirty-refusal" || stage === "bound-running";
+  const branchOptIn =
+    !isRefusal && worktree.branch !== "" ? (
+      <Field orientation="horizontal">
+        <Checkbox
+          id="worktree-remove-delete-branch"
+          aria-describedby="worktree-remove-delete-branch-hint"
+          checked={deleteBranch}
+          disabled={isRemoving}
+          data-testid="worktree-remove-delete-branch"
+          onCheckedChange={checked => onDeleteBranchChange(checked === true)}
+        />
+        <div className="grid gap-1">
+          <FieldLabel htmlFor="worktree-remove-delete-branch">Also delete local branch</FieldLabel>
+          <FieldDescription id="worktree-remove-delete-branch-hint">
+            {DELETE_BRANCH_HINT}
+          </FieldDescription>
+        </div>
+      </Field>
+    ) : null;
 
   const facts = (
     <MetadataList data-testid="worktree-remove-facts">
@@ -70,7 +107,7 @@ export function WorktreeRemoveDialog({
       onOpenChange={onOpenChange}
       tone={stage === "force" ? "danger" : isRefusal ? "warning" : "danger"}
       title={removeDialogTitle(stage, worktree.name)}
-      description={removeDialogDescription(stage, worktree.branch, risk)}
+      description={removeDialogDescription(stage, worktree.branch, risk, deleteBranch)}
       note={
         stage === "downgrade"
           ? REMOVE_DOWNGRADE_NOTE
@@ -78,7 +115,9 @@ export function WorktreeRemoveDialog({
             ? boundIdleNote(boundSessions.idle)
             : stage === "force"
               ? "This deletes work that was never pushed anywhere."
-              : REMOVE_HISTORY_NOTE
+              : deleteBranch
+                ? REMOVE_BRANCH_HISTORY_NOTE
+                : REMOVE_HISTORY_NOTE
       }
       noteTone={stage === "downgrade" ? "info" : stage === "force" ? "warning" : "neutral"}
       body={
@@ -91,6 +130,7 @@ export function WorktreeRemoveDialog({
             />
           ) : null}
           {facts}
+          {branchOptIn}
           {stage === "bound-running" ? (
             <Alert variant="warning" data-testid="worktree-remove-session-running">
               <AlertDescription>

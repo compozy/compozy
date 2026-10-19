@@ -66,6 +66,11 @@ The lazy `compozy__worktree` toolset contains:
 | `compozy__worktree_create`  | mutating    | Accept durable phased creation.              |
 | `compozy__worktree_remove`  | destructive | Remove after safety evaluation and approval. |
 
+`compozy__worktree_remove` also accepts `delete_branch: true` to delete the local branch after the
+checkout is removed. The result then carries a `branch` outcome; see
+[Delete the local branch](/docs/worktrees/removal-and-recovery#delete-the-local-branch) for the
+safety rules and kept-branch reasons.
+
 There are no direct native tools for adopt, exit, commit, push, pull request creation, cancel, or
 dismiss. Use structured CLI or HTTP/UDS for those actions. Related tools are
 `compozy__session_create` (`worktree` or `new_worktree`), `compozy__task_worktree_policy_set`,

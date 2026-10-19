@@ -1,4 +1,4 @@
-import type { WorktreeRemovalBatch, WorktreeRemovalProfile } from "@/systems/workspace";
+import type { WorktreeRemovalBatch } from "@/systems/workspace";
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import { usePaletteCommand } from "../hooks/use-palette-registry";
@@ -67,7 +67,6 @@ export interface DesktopMenubarProps {
   onCreateWorktree?: (workspaceId: string) => void;
   onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onOpenWorktreeContext?: (workspaceId: string, entry: WorktreeNestEntry) => void;
-  removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   /** Desktop pager, supplied by the shell (it owns the desktop switch wiring). */
@@ -132,7 +131,6 @@ export function DesktopMenubar({
   onResolveMissingWorktree,
   onOpenWorktreeContext,
   onRemoveWorktree,
-  removalProfile,
   onRemoveWorktrees,
   pager,
   layoutUnbound = false,
@@ -223,7 +221,6 @@ export function DesktopMenubar({
           onResolveMissingWorktree={onResolveMissingWorktree}
           onOpenWorktreeContext={onOpenWorktreeContext}
           onRemoveWorktree={onRemoveWorktree}
-          removalProfile={removalProfile}
           onRemoveWorktrees={onRemoveWorktrees}
           notice={scopeModel.fallbackNotice}
         />

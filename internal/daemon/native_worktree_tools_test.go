@@ -24,6 +24,7 @@ type nativeWorktreeServiceStub struct {
 	resolve       func(context.Context, string, string) (*worktree.Worktree, error)
 	inspect       func(context.Context, string, string) (*worktree.Inspection, error)
 	remove        func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	deleteBranch  func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
 	capabilityErr error
 }
 
@@ -149,6 +150,17 @@ func (s *nativeWorktreeServiceStub) Remove(
 
 func (s *nativeWorktreeServiceStub) Dismiss(context.Context, string, string) error {
 	return fmt.Errorf("unexpected Dismiss call")
+}
+
+func (s *nativeWorktreeServiceStub) DeleteLocalBranch(
+	ctx context.Context,
+	workspaceID, worktreeID string,
+	force bool,
+) (worktree.BranchOutcome, error) {
+	if s.deleteBranch == nil {
+		return worktree.BranchOutcome{}, fmt.Errorf("unexpected DeleteLocalBranch call")
+	}
+	return s.deleteBranch(ctx, workspaceID, worktreeID, force)
 }
 
 func TestNativeWorktreeTools(t *testing.T) {
@@ -326,6 +338,64 @@ func TestNativeWorktreeTools(t *testing.T) {
 		}
 		if payload.WorktreeID != "wt-a" || payload.State != string(worktree.StateRemoved) {
 			t.Fatalf("worktree_remove payload = %#v", payload)
+		}
+	})
+
+	t.Run("Should delete the local branch only when the removal opted in", func(t *testing.T) {
+		t.Parallel()
+		deletions := 0
+		service := &nativeWorktreeServiceStub{
+			resolve: func(_ context.Context, workspaceID, ref string) (*worktree.Worktree, error) {
+				return &worktree.Worktree{
+					ID: "wt-a", WorkspaceID: workspaceID, Name: ref, State: worktree.StateReady,
+				}, nil
+			},
+			remove: func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error) { return nil, nil },
+			deleteBranch: func(
+				_ context.Context,
+				workspaceID, worktreeID string,
+				force bool,
+			) (worktree.BranchOutcome, error) {
+				deletions++
+				if workspaceID != "registry-a" || worktreeID != "wt-a" || force {
+					t.Fatalf("DeleteLocalBranch() args = %q, %q, %t", workspaceID, worktreeID, force)
+				}
+				return worktree.BranchOutcome{Name: "fix/a", Reason: worktree.BranchKeptDefaultBranch}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeWorktreeWorkspaceService(), Worktrees: service,
+		}, nativeApproveAllPolicyInputs())
+		for _, input := range []string{
+			`{"workspace":"ws-a","ref":"feature-a"}`,
+			`{"workspace":"ws-a","ref":"feature-a","delete_branch":true}`,
+		} {
+			result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeRemove, Input: json.RawMessage(input),
+			})
+			if err != nil {
+				t.Fatalf("worktree_remove(%s) error = %v", input, err)
+			}
+			var payload struct {
+				Branch *struct {
+					Name    string `json:"name"`
+					Deleted bool   `json:"deleted"`
+					Reason  string `json:"reason"`
+				} `json:"branch"`
+			}
+			if err := json.Unmarshal(result.Structured, &payload); err != nil {
+				t.Fatalf("json.Unmarshal(worktree_remove) error = %v", err)
+			}
+			optedIn := strings.Contains(input, "delete_branch")
+			if optedIn != (payload.Branch != nil) {
+				t.Fatalf("worktree_remove(%s) branch = %#v, want present only on opt-in", input, payload.Branch)
+			}
+			if optedIn && (payload.Branch.Deleted || payload.Branch.Reason != worktree.BranchKeptDefaultBranch) {
+				t.Fatalf("worktree_remove branch = %#v, want kept default branch", payload.Branch)
+			}
+		}
+		if deletions != 1 {
+			t.Fatalf("DeleteLocalBranch() calls = %d, want one", deletions)
 		}
 	})
 

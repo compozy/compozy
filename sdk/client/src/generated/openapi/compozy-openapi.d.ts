@@ -18677,11 +18677,20 @@ export interface components {
     WorktreeBindingsPayload: {
       agent_activity: string;
     };
+    WorktreeBranchOutcomePayload: {
+      deleted: boolean;
+      detail?: string;
+      name: string;
+      reason?: string;
+    };
     WorktreeCatalogEventPayload: {
       error?: string;
       kind: string;
       workspace_id: string;
       worktree_id: string;
+    };
+    WorktreeCleanupResponse: {
+      branch: components["schemas"]["WorktreeBranchOutcomePayload"];
     };
     WorktreeExitActionPlan: {
       action: string;
@@ -50638,8 +50647,10 @@ export interface operations {
   removeWorktree: {
     parameters: {
       query?: {
-        /** @description Confirm destructive removal */
+        /** @description Confirm destructive removal; with delete_branch, also delete an unmerged branch */
         force?: boolean;
+        /** @description Also delete the recorded local branch after cleanup. The root checkout HEAD and default branches are kept; an unmerged branch is kept unless force is set. */
+        delete_branch?: boolean;
         /** @description Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile. */
         profile?: string;
       };
@@ -50654,6 +50665,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description Cleaned up; reports the requested local branch deletion */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorktreeCleanupResponse"];
+        };
+      };
       /** @description No Content */
       204: {
         headers: {
@@ -50806,6 +50826,10 @@ export interface operations {
   dismissWorktree: {
     parameters: {
       query?: {
+        /** @description Also delete the recorded local branch after cleanup. The root checkout HEAD and default branches are kept; an unmerged branch is kept unless force is set. */
+        delete_branch?: boolean;
+        /** @description With delete_branch, also delete an unmerged branch */
+        force?: boolean;
         /** @description Act as this profile by name. If omitted, operator requests infer the target record owner; authenticated agents remain scoped to their session profile. */
         profile?: string;
       };
@@ -50820,6 +50844,15 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description Cleaned up; reports the requested local branch deletion */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorktreeCleanupResponse"];
+        };
+      };
       /** @description No Content */
       204: {
         headers: {

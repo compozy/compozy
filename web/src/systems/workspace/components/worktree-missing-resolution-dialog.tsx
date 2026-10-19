@@ -4,6 +4,7 @@ import {
   Alert,
   AlertDescription,
   Button,
+  Checkbox,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -11,6 +12,9 @@ import {
   DialogHeader,
   DialogTitle,
   Eyebrow,
+  Field,
+  FieldDescription,
+  FieldLabel,
   Icon,
   Item,
   ItemContent,
@@ -35,6 +39,9 @@ export interface WorktreeMissingResolutionDialogProps {
   refusal: WorktreeRefusal | null;
   error?: string | null;
   isPending: boolean;
+  /** Opt-in: dismissing also deletes the recorded local branch. */
+  deleteBranch: boolean;
+  onDeleteBranchChange: (deleteBranch: boolean) => void;
   onDismissRecord: () => void;
   /**
    * Re-verifies the recorded path. Adoption is the restore path: it revalidates
@@ -55,6 +62,8 @@ export function WorktreeMissingResolutionDialog({
   refusal,
   error,
   isPending,
+  deleteBranch,
+  onDeleteBranchChange,
   onDismissRecord,
   onRestore,
 }: WorktreeMissingResolutionDialogProps) {
@@ -106,10 +115,34 @@ export function WorktreeMissingResolutionDialog({
                 <ItemContent>
                   <ItemTitle>Dismiss record</ItemTitle>
                   <ItemDescription>
-                    Removes this entry from the list. Run history is preserved.
+                    {deleteBranch
+                      ? "Removes this entry and its local branch. Run history is preserved."
+                      : "Removes this entry from the list. Run history is preserved."}
                   </ItemDescription>
                 </ItemContent>
               </Item>
+
+              {worktree.branch ? (
+                <Field orientation="horizontal" className="px-3 py-1">
+                  <Checkbox
+                    id="worktree-missing-delete-branch"
+                    aria-describedby="worktree-missing-delete-branch-hint"
+                    checked={deleteBranch}
+                    disabled={isPending}
+                    data-testid="worktree-missing-delete-branch"
+                    onCheckedChange={checked => onDeleteBranchChange(checked === true)}
+                  />
+                  <div className="grid gap-1">
+                    <FieldLabel htmlFor="worktree-missing-delete-branch">
+                      Also delete local branch when dismissing
+                    </FieldLabel>
+                    <FieldDescription id="worktree-missing-delete-branch-hint">
+                      Kept if it is the main checkout’s branch, the default branch, or has unmerged
+                      commits.
+                    </FieldDescription>
+                  </div>
+                </Field>
+              ) : null}
 
               <Item
                 as="button"

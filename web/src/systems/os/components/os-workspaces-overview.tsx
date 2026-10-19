@@ -1,4 +1,4 @@
-import type { WorktreeRemovalBatch, WorktreeRemovalProfile } from "@/systems/workspace";
+import type { WorktreeRemovalBatch } from "@/systems/workspace";
 import { useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
 
@@ -48,7 +48,6 @@ export interface OsWorkspacesOverviewProps {
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onResolveMissingWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   onCreateWorktree?: (workspaceId: string) => void;
-  removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onRemoveWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
   shortcutLabels?: {
@@ -173,7 +172,6 @@ function OsWorkspacesStage({
   onCreateWorktree,
   onResolveMissingWorktree,
   onRemoveWorktree,
-  removalProfile,
   onRemoveWorktrees,
   onOpenChange,
   overlayRef,
@@ -325,7 +323,6 @@ function OsWorkspacesStage({
             <OsWorkspacesWorktreeMenu
               key={menuModel.node.workspace.id}
               model={menuModel}
-              removalProfile={removalProfile}
               onRemoveWorktrees={onRemoveWorktrees}
               onResolveMissing={entry => {
                 onResolveMissingWorktree?.(menuModel.node.workspace.id, entry);

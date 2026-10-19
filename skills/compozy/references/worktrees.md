@@ -91,6 +91,18 @@ Structured mutation receipts return the canonical ID after resolving a name. Bec
 the branch, recreate a released name with `--existing-branch <branch>` to retain that history, or
 choose `--branch <new-branch>` for a distinct branch.
 
+Local branch deletion is an explicit opt-in: `compozy worktree remove <ref> --delete-branch` or, for a
+missing record, `compozy worktree dismiss <ref> --delete-branch` (HTTP/UDS `delete_branch=true`;
+native `compozy__worktree_remove` input `delete_branch`). It runs only after the checkout removal or
+dismissal succeeds and uses Git's merged-only delete; `--force` also deletes unmerged commits. The
+root checkout's HEAD branch and the default branch (`origin/HEAD`, else `main`) are always kept. The
+receipt's `branch` object reports `deleted: true` or a kept `reason` (`root_checkout_branch`,
+`default_branch`, `not_fully_merged`, `checked_out_elsewhere`, `checkout_present`,
+`registration_present`, `branch_absent`, `no_branch`, `delete_failed`) — a kept branch is not a
+failed cleanup. Re-running the same command on the removed or dismissed record retries only the
+branch step. Dismissal with the opt-in releases Git's stale registration for that record's path only;
+it never prunes other worktrees. Without the opt-in, callers keep the established `204` behavior.
+
 ## Configuration And Errors
 
 `[worktrees]` controls new managed placement, per-run branch namespace, bootstrap copy/setup, and

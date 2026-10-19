@@ -3,6 +3,7 @@ import { useState } from "react";
 import { isSessionRunning, useSessions } from "@/systems/session";
 import {
   decodeWorktreeRefusal,
+  describeBranchOutcome,
   selectWorktreeForScope,
   useAdoptWorktree,
   useDismissWorktree,
@@ -87,6 +88,7 @@ export function WorktreeRemoveDialogBoundary({
 }) {
   const remove = useRemoveWorktree(workspaceId, worktree.profile_name);
   const [forceRequested, setForceRequested] = useState(false);
+  const [deleteBranch, setDeleteBranch] = useState(false);
   const sessions = useSessions(workspaceId, { filters: { worktree: worktree.id } });
   const { coordinator } = useOsShell();
   const boundSessions = sessions.data ?? [];
@@ -105,7 +107,11 @@ export function WorktreeRemoveDialogBoundary({
       onRequestForce={() => setForceRequested(true)}
       boundSessions={{ running, idle: boundSessions.length - running }}
       isRemoving={remove.isPending}
-      onConfirm={force => remove.mutate({ worktreeID: worktree.id, force }, { onSuccess: onClose })}
+      deleteBranch={deleteBranch}
+      onDeleteBranchChange={setDeleteBranch}
+      onConfirm={force =>
+        remove.mutate({ worktreeID: worktree.id, force, deleteBranch }, { onSuccess: onClose })
+      }
       onOpenSession={
         firstSession
           ? () => {
@@ -185,6 +191,7 @@ export function WorktreeMissingDialogBoundary({
 }) {
   const dismiss = useDismissWorktree(workspaceId, worktree.profile_name);
   const restore = useAdoptWorktree(workspaceId, worktree.profile_name);
+  const [deleteBranch, setDeleteBranch] = useState(false);
 
   return (
     <WorktreeMissingResolutionDialog
@@ -193,11 +200,19 @@ export function WorktreeMissingDialogBoundary({
         if (!open) onClose();
       }}
       worktree={worktree}
-      outcome={dismiss.isSuccess ? WORKTREE_DISMISS_OUTCOME : null}
+      outcome={
+        dismiss.isSuccess
+          ? dismiss.data
+            ? `${WORKTREE_DISMISS_RECORD_OUTCOME} ${describeBranchOutcome(dismiss.data)}`
+            : WORKTREE_DISMISS_OUTCOME
+          : null
+      }
       refusal={decodeWorktreeRefusal(dismiss.error ?? restore.error)}
       error={(dismiss.error ?? restore.error)?.message}
       isPending={dismiss.isPending || restore.isPending}
-      onDismissRecord={() => dismiss.mutate(worktree.id)}
+      deleteBranch={deleteBranch}
+      onDeleteBranchChange={setDeleteBranch}
+      onDismissRecord={() => dismiss.mutate({ worktreeID: worktree.id, deleteBranch })}
       // Adoption is the restore path: it revalidates Git identity and returns
       // this same record to ready.
       onRestore={() => restore.mutate({ path: worktree.path }, { onSuccess: onClose })}
@@ -207,6 +222,9 @@ export function WorktreeMissingDialogBoundary({
 
 const WORKTREE_DISMISS_OUTCOME =
   "Record dismissed. Files, branches, sessions and run history are preserved.";
+
+const WORKTREE_DISMISS_RECORD_OUTCOME =
+  "Record dismissed. Files, sessions and run history are preserved.";
 
 /** Adoption confirm/refusal for a selected discovered row (ADR-002). */
 export function WorktreeAdoptDialogBoundary({

@@ -4,14 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { dismissWorktree, removeWorktree } from "@/systems/workspace/adapters/worktree-api";
 import { inspectWorktree } from "@/systems/workspace/adapters/worktree-exit-api";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
+import { describeBranchOutcome } from "@/systems/workspace/lib/worktree-branch-outcome";
 import { decodeWorktreeRefusal } from "@/systems/workspace/lib/worktree-refusal";
 import { removeWorktreeFromList } from "@/systems/workspace/lib/worktree-list-reconciliation";
 import { activeWorkspaceStore } from "@/systems/workspace/stores/active-workspace-store";
 import type { WorktreePayload, WorktreesResponse } from "@/systems/workspace/types";
-import type {
-  WorktreeRemovalBatch,
-  WorktreeRemovalProfile,
-} from "@/systems/workspace/hooks/use-worktree-removal-selection";
+import type { WorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
 interface RemovalResult {
   row: WorktreePayload;
@@ -21,11 +19,15 @@ interface RemovalResult {
 const batchLogic = createStoreLogic({
   context: (batch: WorktreeRemovalBatch) => ({
     batch,
+    deleteBranch: false,
     running: false,
     attempted: false,
     results: batch.worktrees.map(row => ({ row, status: "pending", message: "" }) as RemovalResult),
   }),
   on: {
+    // The opt-in is part of the confirmed consequences; it freezes once a run starts.
+    deleteBranch: (context, event: { value: boolean }) =>
+      context.attempted ? undefined : { ...context, deleteBranch: event.value },
     start: context =>
       context.running ? undefined : { ...context, running: true, attempted: true },
     outcome: (
@@ -45,7 +47,7 @@ const batchLogic = createStoreLogic({
 
 /**
  * Confirms terminal receipts or rejects drift in a frozen target before mutation.
- * Path/state changes require fresh selection rather than changing the confirmed action.
+ * Owner/path/state changes require fresh selection rather than changing the confirmed action.
  */
 async function reconcileTarget(
   batch: WorktreeRemovalBatch,
@@ -55,7 +57,7 @@ async function reconcileTarget(
   if (
     current.id !== row.id ||
     current.workspace_id !== batch.workspaceId ||
-    current.profile_id !== batch.profile.id ||
+    current.profile_id !== row.profile_id ||
     current.profile_archived
   ) {
     throw new Error("Ownership changed. Refresh the list before selecting this worktree again.");
@@ -68,26 +70,31 @@ async function reconcileTarget(
   return false;
 }
 
+/** Runs one confirmed target with its owner's authority and describes the receipt. */
+async function cleanupTarget(row: WorktreePayload, workspaceId: string, deleteBranch: boolean) {
+  const options = { profile: row.profile_name, force: false, deleteBranch };
+  if (row.state === "missing") {
+    const branch = await dismissWorktree(workspaceId, row.id, options);
+    const record = "Record dismissed. Files and history preserved.";
+    return branch ? `${record} ${describeBranchOutcome(branch)}` : record;
+  }
+  const branch = await removeWorktree(workspaceId, row.id, options);
+  return branch ? `Worktree removed. ${describeBranchOutcome(branch)}` : "Worktree removed.";
+}
+
 /**
  * Executes one confirmed batch through the singular lifecycle APIs in repository-queue order.
  * Reconciles lost responses, preserves successful receipts, and retries only unresolved
  * targets without force. Scope and cache cleanup follow the confirmed workspace and ID.
  */
-export function useWorktreeRemovalBatch(
-  input: WorktreeRemovalBatch,
-  activeProfile: WorktreeRemovalProfile | null
-) {
+export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
   const store = useStore(batchLogic, input);
   const context = useSelector(store, snapshot => snapshot.context);
   const queryClient = useQueryClient();
-  const scopeMatches =
-    activeProfile?.id === context.batch.profile.id &&
-    activeProfile.name === context.batch.profile.name &&
-    !activeProfile.archived;
   const run = async () => {
-    if (!scopeMatches || !store.can.start()) return;
+    if (!store.can.start()) return;
     store.trigger.start();
-    const { batch, results } = store.getSnapshot().context;
+    const { batch, results, deleteBranch } = store.getSnapshot().context;
     // Targets share the daemon's bounded repository queue. Chain each request
     // after the previous receipt so selecting many rows cannot exhaust it.
     return results
@@ -100,16 +107,7 @@ export function useWorktreeRemovalBatch(
             let message = "Already removed or dismissed; confirmed by CompozyOS.";
             try {
               if (!(await reconcileTarget(batch, row))) {
-                if (row.state === "missing") {
-                  await dismissWorktree(batch.workspaceId, row.id, undefined, batch.profile.name);
-                  message = "Record dismissed. Files and history preserved.";
-                } else {
-                  await removeWorktree(batch.workspaceId, row.id, {
-                    profile: batch.profile.name,
-                    force: false,
-                  });
-                  message = "Worktree removed.";
-                }
+                message = await cleanupTarget(row, batch.workspaceId, deleteBranch);
               }
             } catch (error) {
               let confirmed = false;
@@ -153,5 +151,9 @@ export function useWorktreeRemovalBatch(
         });
       });
   };
-  return { ...context, scopeMatches, run };
+  return {
+    ...context,
+    setDeleteBranch: (value: boolean) => store.trigger.deleteBranch({ value }),
+    run,
+  };
 }

@@ -267,7 +267,6 @@ function DesktopShellScopedBody({
         onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
         onOpenWorktreeContext={worktreeDialogs.requestContext}
         onRemoveWorktree={worktreeDialogs.requestRemove}
-        removalProfile={worktreeDialogs.removalProfile}
         onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
         pager={
           <DesktopPagerSurface
@@ -402,7 +401,6 @@ function DesktopShellScopedBody({
         onCreateWorktree={model.openWorktreeCreate}
         onResolveMissingWorktree={worktreeDialogs.requestResolveMissing}
         onRemoveWorktree={worktreeDialogs.requestRemove}
-        removalProfile={worktreeDialogs.removalProfile}
         onRemoveWorktrees={worktreeDialogs.requestRemoveBatch}
       />
       <WorkspaceSetupDialogBoundary

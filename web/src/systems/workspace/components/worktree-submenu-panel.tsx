@@ -1,7 +1,6 @@
 import {
   useWorktreeRemovalSelection,
   type WorktreeRemovalBatch,
-  type WorktreeRemovalProfile,
 } from "../hooks/use-worktree-removal-selection";
 import { WorktreeSelectionToolbar } from "./worktree-selection-toolbar";
 import { Ellipsis, Plus } from "lucide-react";
@@ -53,13 +52,16 @@ export interface WorktreeSubmenuPanelProps {
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
   onOpenContext?: (entry: WorktreeNestEntry) => void;
   onClose?: () => void;
-  removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
 }
 
-/** Exposes singular cleanup or restore actions using the lifecycle state of the represented row. */
+/**
+ * Exposes singular cleanup actions for the row's lifecycle state. A refused
+ * cleanup stays visible as a disabled item that names the reason.
+ */
 function WorktreeSubmenuRowActions({
   entry,
+  cleanupReason,
   testIdPrefix,
   variant,
   onRemoveWorktree,
@@ -67,6 +69,7 @@ function WorktreeSubmenuRowActions({
   onOpenContext,
 }: {
   entry: WorktreeNestEntry;
+  cleanupReason: string | null;
   testIdPrefix: string;
   variant: "menu" | "panel";
   onRemoveWorktree?: (entry: WorktreeNestEntry) => void;
@@ -100,6 +103,7 @@ function WorktreeSubmenuRowActions({
         <ActionItem
           testId={`${testIdPrefix}-worktree-resolve-${entry.key}`}
           variant={variant}
+          disabledReason={cleanupReason}
           onSelect={() => onResolveMissing?.(entry)}
         >
           Clean up missing record…
@@ -110,6 +114,7 @@ function WorktreeSubmenuRowActions({
           testId={`${testIdPrefix}-worktree-remove-${entry.key}`}
           variant={variant}
           destructive
+          disabledReason={cleanupReason}
           onSelect={() => onRemoveWorktree?.(entry)}
         >
           Remove…
@@ -154,23 +159,37 @@ function ActionItem({
   testId,
   variant,
   destructive = false,
+  disabledReason = null,
   onSelect,
   children,
 }: {
   testId: string;
   variant: "menu" | "panel";
   destructive?: boolean;
+  /** Keeps a refused action discoverable: disabled, with its reason on a second line. */
+  disabledReason?: string | null;
   onSelect: () => void;
   children: React.ReactNode;
 }) {
+  const content = disabledReason ? (
+    <span className="flex min-w-0 flex-col">
+      <span>{children}</span>
+      <span data-slot="worktree-action-reason" className="text-form-hint text-subtle">
+        {disabledReason}
+      </span>
+    </span>
+  ) : (
+    children
+  );
   if (variant === "menu") {
     return (
       <MenubarItem
         data-testid={testId}
         variant={destructive ? "destructive" : "default"}
+        disabled={Boolean(disabledReason)}
         onClick={onSelect}
       >
-        {children}
+        {content}
       </MenubarItem>
     );
   }
@@ -178,9 +197,10 @@ function ActionItem({
     <DropdownMenuItem
       data-testid={testId}
       variant={destructive ? "destructive" : "default"}
+      disabled={Boolean(disabledReason)}
       onClick={onSelect}
     >
-      {children}
+      {content}
     </DropdownMenuItem>
   );
 }
@@ -203,16 +223,10 @@ export function WorktreeSubmenuPanel({
   onResolveMissing,
   onOpenContext,
   onClose,
-  removalProfile,
   onRemoveWorktrees,
 }: WorktreeSubmenuPanelProps) {
   const workspaceId = node.workspace.id;
-  const selection = useWorktreeRemovalSelection(
-    workspaceId,
-    node.worktrees,
-    removalProfile,
-    onRemoveWorktrees
-  );
+  const selection = useWorktreeRemovalSelection(workspaceId, node.worktrees, onRemoveWorktrees);
   const hasListRows = node.worktrees.length > 0;
   const selectEntry = (entry: WorktreeNestEntry) => {
     if (!entry.selectable) return;
@@ -268,10 +282,11 @@ export function WorktreeSubmenuPanel({
     const actions = (
       <WorktreeSubmenuRowActions
         entry={entry}
+        cleanupReason={selection.reason(entry)}
         testIdPrefix={testIdPrefix}
         variant={variant}
-        onRemoveWorktree={removalProfile && selection.reason(entry) ? undefined : onRemoveWorktree}
-        onResolveMissing={removalProfile && selection.reason(entry) ? undefined : onResolveMissing}
+        onRemoveWorktree={onRemoveWorktree}
+        onResolveMissing={onResolveMissing}
         onOpenContext={onOpenContext}
       />
     );

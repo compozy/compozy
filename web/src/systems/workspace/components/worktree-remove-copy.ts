@@ -53,7 +53,8 @@ export function removeDialogTitle(stage: WorktreeRemoveStage, worktreeName: stri
 export function removeDialogDescription(
   stage: WorktreeRemoveStage,
   branch: string,
-  risk: WorktreeRemovalRisk | null
+  risk: WorktreeRemovalRisk | null,
+  deleteBranch = false
 ): string {
   switch (stage) {
     case "bound-running":
@@ -65,11 +66,19 @@ export function removeDialogDescription(
         ? `${risk.changedFiles} changed ${risk.changedFiles === 1 ? "file" : "files"} (+${risk.insertions} −${risk.deletions}) and ${risk.unpushedCommits} unpushed ${risk.unpushedCommits === 1 ? "commit" : "commits"} are deleted permanently. They exist nowhere else.`
         : "This deletes work that was never pushed anywhere.";
     default:
-      return `The worktree directory is deleted. The branch ${branch} is not deleted.`;
+      return deleteBranch
+        ? `The worktree directory is deleted, then the local branch ${branch} unless Git keeps it.`
+        : `The worktree directory is deleted. The branch ${branch} is not deleted.`;
   }
 }
 
 export const REMOVE_HISTORY_NOTE = "Branch and run history stay in the workspace.";
+
+export const REMOVE_BRANCH_HISTORY_NOTE = "Run history stays in the workspace.";
+
+/** Shown under the opt-in; the daemon refuses these branches and reports why. */
+export const DELETE_BRANCH_HINT =
+  "Kept if it is the main checkout’s branch or the default branch. A branch with unmerged commits is kept until you choose Delete anyway.";
 
 export const REMOVE_DOWNGRADE_NOTE =
   "Branch has unique local commits, but the branch also exists on a remote — safe to delete locally.";

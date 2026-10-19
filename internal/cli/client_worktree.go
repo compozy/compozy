@@ -32,8 +32,12 @@ type worktreeClientAPI interface {
 		context.Context, string, string, WorktreeExitActionRequest,
 	) (WorktreeExitOperationRecord, error)
 	CancelWorktreeExitAction(context.Context, string, string, string) error
-	RemoveWorktree(context.Context, string, string, bool) error
-	DismissWorktree(context.Context, string, string) error
+	RemoveWorktree(
+		context.Context, string, string, WorktreeCleanupOptions,
+	) (*contract.WorktreeBranchOutcomePayload, error)
+	DismissWorktree(
+		context.Context, string, string, WorktreeCleanupOptions,
+	) (*contract.WorktreeBranchOutcomePayload, error)
 }
 
 func (c *daemonClient) ListWorktrees(
@@ -155,16 +159,54 @@ func (c *daemonClient) CancelWorktreeExitAction(
 	)
 }
 
-func (c *daemonClient) RemoveWorktree(ctx context.Context, workspaceRef, ref string, force bool) error {
-	query := url.Values{}
-	if force {
-		query.Set("force", strconv.FormatBool(force))
-	}
-	return c.doJSON(ctx, http.MethodDelete, worktreeItemPath(workspaceRef, ref), query, nil, nil)
+// WorktreeCleanupOptions carries the explicit escalations of one removal or dismissal.
+type WorktreeCleanupOptions struct {
+	Force        bool
+	DeleteBranch bool
 }
 
-func (c *daemonClient) DismissWorktree(ctx context.Context, workspaceRef, ref string) error {
-	return c.doJSON(ctx, http.MethodPost, worktreeItemPath(workspaceRef, ref)+"/dismiss", nil, nil, nil)
+func (o WorktreeCleanupOptions) query() url.Values {
+	query := url.Values{}
+	if o.Force {
+		query.Set("force", strconv.FormatBool(o.Force))
+	}
+	if o.DeleteBranch {
+		query.Set("delete_branch", strconv.FormatBool(o.DeleteBranch))
+	}
+	return query
+}
+
+// RemoveWorktree returns the branch outcome only when DeleteBranch was requested.
+func (c *daemonClient) RemoveWorktree(
+	ctx context.Context,
+	workspaceRef, ref string,
+	opts WorktreeCleanupOptions,
+) (*contract.WorktreeBranchOutcomePayload, error) {
+	return c.cleanupWorktree(ctx, http.MethodDelete, worktreeItemPath(workspaceRef, ref), opts)
+}
+
+// DismissWorktree returns the branch outcome only when DeleteBranch was requested.
+func (c *daemonClient) DismissWorktree(
+	ctx context.Context,
+	workspaceRef, ref string,
+	opts WorktreeCleanupOptions,
+) (*contract.WorktreeBranchOutcomePayload, error) {
+	return c.cleanupWorktree(ctx, http.MethodPost, worktreeItemPath(workspaceRef, ref)+"/dismiss", opts)
+}
+
+func (c *daemonClient) cleanupWorktree(
+	ctx context.Context,
+	method, path string,
+	opts WorktreeCleanupOptions,
+) (*contract.WorktreeBranchOutcomePayload, error) {
+	if !opts.DeleteBranch {
+		return nil, c.doJSON(ctx, method, path, opts.query(), nil, nil)
+	}
+	var response contract.WorktreeCleanupResponse
+	if err := c.doJSON(ctx, method, path, opts.query(), nil, &response); err != nil {
+		return nil, err
+	}
+	return &response.Branch, nil
 }
 
 func worktreeCollectionPath(workspaceRef string) string {

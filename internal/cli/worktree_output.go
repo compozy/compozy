@@ -2,6 +2,8 @@ package cli
 
 import (
 	"strconv"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func worktreeRecordBundle(item WorktreeRecord) outputBundle {
@@ -104,29 +106,54 @@ func worktreeStatusBundle(item WorktreeStatusRecord) outputBundle {
 	}
 }
 
-func worktreeMutationBundle(action string, item WorktreeRecord) outputBundle {
+// worktreeMutationBundle reports a lifecycle mutation; branch is present only
+// when the caller opted into local branch deletion.
+func worktreeMutationBundle(
+	action string,
+	item WorktreeRecord,
+	branch *contract.WorktreeBranchOutcomePayload,
+) outputBundle {
 	type result struct {
-		Action   string         `json:"action"`
-		Worktree WorktreeRecord `json:"worktree"`
+		Action   string                                 `json:"action"`
+		Worktree WorktreeRecord                         `json:"worktree"`
+		Branch   *contract.WorktreeBranchOutcomePayload `json:"branch,omitempty"`
 	}
-	value := result{Action: action, Worktree: item}
+	value := result{Action: action, Worktree: item, Branch: branch}
+	rows := []keyValue{
+		{Label: "Action", Value: action},
+		{Label: "ID", Value: stringOrDash(item.ID)},
+		{Label: automationNameValue, Value: stringOrDash(item.Name)},
+		{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
+	}
+	keys := []string{authoredContextActionKey, "id", automationNameKey, stateKey}
+	values := []string{action, item.ID, item.Name, item.State}
+	if branch != nil {
+		summary := worktreeBranchOutcomeSummary(*branch)
+		rows = append(rows, keyValue{Label: "Branch", Value: summary})
+		keys = append(keys, "branch")
+		values = append(values, summary)
+	}
 	return outputBundle{
 		jsonValue: value,
 		human: func() (string, error) {
-			return renderHumanSection("Worktree", []keyValue{
-				{Label: "Action", Value: action},
-				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
-			}), nil
+			return renderHumanSection("Worktree", rows), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("worktree",
-				[]string{authoredContextActionKey, "id", automationNameKey, stateKey},
-				[]string{action, item.ID, item.Name, item.State},
-			), nil
+			return renderToonObject("worktree", keys, values), nil
 		},
 	}
+}
+
+func worktreeBranchOutcomeSummary(branch contract.WorktreeBranchOutcomePayload) string {
+	name := stringOrDash(branch.Name)
+	if branch.Deleted {
+		return name + " deleted"
+	}
+	summary := name + " kept (" + branch.Reason + ")"
+	if branch.Detail != "" {
+		summary += ": " + branch.Detail
+	}
+	return summary
 }
 
 func formatOptionalInt(value *int) string {

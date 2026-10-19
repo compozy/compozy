@@ -31,7 +31,8 @@ func worktreeDescriptors() []toolspkg.Descriptor {
 			toolspkg.ToolIDWorktreeRemove,
 			"worktree_remove",
 			"Worktree Remove",
-			"Remove one worktree after authoritative dirty, commit, identity, and session checks.",
+			"Remove one worktree after authoritative dirty, commit, identity, and session checks; "+
+				"optionally delete its local branch.",
 			worktreeRemoveInputSchema,
 			toolspkg.RiskDestructive,
 			false,
@@ -85,7 +86,14 @@ const worktreeRemoveInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"ref":{"type":"string"},
-		"force":{"type":"boolean"}
+		"force":{
+			"type":"boolean",
+			"description":"Confirm destructive removal; with delete_branch, also delete an unmerged branch."
+		},
+		"delete_branch":{
+			"type":"boolean",
+			"description":"Also delete the local branch; protected or unmerged branches are kept with branch.reason."
+		}
 	},
 	"additionalProperties":false
 }`

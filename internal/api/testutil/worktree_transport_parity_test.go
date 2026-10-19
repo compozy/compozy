@@ -387,6 +387,16 @@ func (s *parityWorktreeService) Dismiss(_ context.Context, _ string, ref string)
 	return nil
 }
 
+func (s *parityWorktreeService) DeleteLocalBranch(
+	_ context.Context,
+	_ string,
+	ref string,
+	_ bool,
+) (worktree.BranchOutcome, error) {
+	s.recordRef(ref)
+	return worktree.BranchOutcome{Name: "parity", Deleted: true}, nil
+}
+
 func parityWorktreeTime() time.Time {
 	return time.Date(2026, 8, 12, 12, 0, 0, 0, time.UTC)
 }

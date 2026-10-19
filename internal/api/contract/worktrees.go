@@ -127,6 +127,23 @@ type WorktreeRemovalRefusalPayload struct {
 	Downgrade bool                       `json:"downgrade"`
 }
 
+// WorktreeBranchOutcomePayload reports an opted-in local branch deletion. A kept
+// branch names a stable reason: no_branch, branch_absent, checkout_present,
+// root_checkout_branch, default_branch, registration_present,
+// checked_out_elsewhere, not_fully_merged, or delete_failed.
+type WorktreeBranchOutcomePayload struct {
+	Name    string `json:"name"`
+	Deleted bool   `json:"deleted"`
+	Reason  string `json:"reason,omitempty"`
+	Detail  string `json:"detail,omitempty"`
+}
+
+// WorktreeCleanupResponse answers a removal or dismissal that requested
+// delete_branch; requests without it keep their 204 response.
+type WorktreeCleanupResponse struct {
+	Branch WorktreeBranchOutcomePayload `json:"branch"`
+}
+
 type WorktreeCatalogEventPayload struct {
 	Kind        string `json:"kind"`
 	WorkspaceID string `json:"workspace_id"`

@@ -6,7 +6,7 @@ import {
 } from "@/lib/api-client";
 import type { OperationRequestBody } from "@/lib/api-contract";
 
-import type { WorktreePayload, WorktreesResponse } from "../types";
+import type { WorktreeBranchOutcome, WorktreePayload, WorktreesResponse } from "../types";
 
 export type CreateWorktreeParams = OperationRequestBody<"createWorktree">;
 export type AdoptWorktreeParams = OperationRequestBody<"adoptWorktree">;
@@ -139,19 +139,41 @@ export async function adoptWorktree(
   return requireResponseData(data, response, "Failed to adopt worktree").worktree;
 }
 
-/** Without `force`, a dirty or unpushed worktree refuses with a 409 risk payload. */
+/**
+ * Explicit escalations for one removal or dismissal. `deleteBranch` opts into
+ * deleting the recorded local branch afterwards; `force` also permits deleting
+ * an unmerged branch (and, for removal, confirms a destructive checkout delete).
+ */
+export interface WorktreeCleanupOptions {
+  force?: boolean;
+  deleteBranch?: boolean;
+  profile?: string;
+}
+
+function cleanupQuery(options: WorktreeCleanupOptions) {
+  return {
+    force: options.force,
+    delete_branch: options.deleteBranch || undefined,
+    profile: options.profile,
+  };
+}
+
+/**
+ * Without `force`, a dirty or unpushed worktree refuses with a 409 risk payload.
+ * Resolves the branch outcome only when `deleteBranch` was requested.
+ */
 export async function removeWorktree(
   workspaceID: string,
   worktreeID: string,
-  options: { force?: boolean; profile?: string } = {},
+  options: WorktreeCleanupOptions = {},
   signal?: AbortSignal
-): Promise<void> {
-  const { error, response } = await apiClient.DELETE(
+): Promise<WorktreeBranchOutcome | null> {
+  const { data, error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}",
     {
       params: {
         path: { workspace_id: workspaceID, worktree_id: worktreeID },
-        query: { force: options.force, profile: options.profile },
+        query: cleanupQuery(options),
       },
       signal,
     }
@@ -163,19 +185,26 @@ export async function removeWorktree(
       error
     );
   }
+  return data?.branch ?? null;
 }
 
-/** Drops the tombstone record only. Sessions and run history are preserved. */
+/**
+ * Drops the tombstone record only; sessions and run history are preserved.
+ * Git is touched only when `deleteBranch` opts into deleting the local branch.
+ */
 export async function dismissWorktree(
   workspaceID: string,
   worktreeID: string,
-  signal?: AbortSignal,
-  profile?: string
-): Promise<void> {
-  const { error, response } = await apiClient.POST(
+  options: WorktreeCleanupOptions = {},
+  signal?: AbortSignal
+): Promise<WorktreeBranchOutcome | null> {
+  const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss",
     {
-      params: { path: { workspace_id: workspaceID, worktree_id: worktreeID }, query: { profile } },
+      params: {
+        path: { workspace_id: workspaceID, worktree_id: worktreeID },
+        query: cleanupQuery(options),
+      },
       signal,
     }
   );
@@ -186,4 +215,5 @@ export async function dismissWorktree(
       error
     );
   }
+  return data?.branch ?? null;
 }

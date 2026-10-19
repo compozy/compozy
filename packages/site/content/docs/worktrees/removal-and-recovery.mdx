@@ -3,7 +3,8 @@ title: Removal and Recovery
 description: Remove a linked checkout after safety checks or recover a Worktree that disappeared outside CompozyOS.
 ---
 
-Removal deletes the linked checkout, not operator-owned branches or Git history. CompozyOS checks bound sessions,
+Removal deletes the linked checkout, not operator-owned branches or Git history, unless you explicitly
+opt in to [deleting the local branch](#delete-the-local-branch). CompozyOS checks bound sessions,
 dirty files, unpushed commits, repository identity, and fresh cleanup evidence before it changes Git.
 
 ## Remove a clean Worktree
@@ -67,10 +68,59 @@ discard the checkout after reviewing those exact quantities, confirm explicitly:
 compozy worktree remove feature-auth --workspace . --force -o json
 ```
 
-`--force` does not delete an operator-owned branch. A remote branch may downgrade unpushed evidence,
+`--force` alone does not delete an operator-owned branch. A remote branch may downgrade unpushed evidence,
 but it never hides dirty files or an unreadable safety check. The narrow exception is an unchanged
 runtime-owned per-run branch: CompozyOS compare-deletes it only while it still points at the recorded
 creation commit and emits `worktree.branch_reclaimed`.
+
+## Delete the local branch
+
+Branch deletion is opt-in. Add `--delete-branch` to `remove` (or to `dismiss` for a missing record)
+and CompozyOS deletes the recorded local branch after the checkout is gone:
+
+```bash
+compozy worktree remove feature-auth --workspace . --delete-branch -o json
+```
+
+Expected result adds a `branch` outcome:
+
+```json
+{
+  "action": "removed",
+  "worktree": { "id": "wt_01...", "name": "feature-auth", "state": "removed" },
+  "branch": { "name": "feature-auth", "deleted": true }
+}
+```
+
+The deletion follows Git's merged-only rule (`git branch -d`): the branch must be contained in its
+upstream, or in the main checkout's `HEAD` when it has no upstream. Add `--force` to delete a branch
+with unmerged commits as well. Some branches are always kept, and the outcome names why:
+
+| `reason`                | Kept because                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| `root_checkout_branch`  | The main checkout has the branch checked out.                                |
+| `default_branch`        | It is the remote default branch (`origin/HEAD`), or `main` without a remote. |
+| `not_fully_merged`      | It has commits that are not merged; retry with `--force` to delete them.     |
+| `checked_out_elsewhere` | Another worktree has the branch checked out.                                 |
+| `checkout_present`      | A directory reappeared at the recorded path; nothing there is touched.       |
+| `registration_present`  | Git still registers the worktree (for example, it is locked).                |
+| `branch_absent`         | The branch no longer exists, for example after per-run reclamation.          |
+| `no_branch`             | The worktree had no recorded branch.                                         |
+| `delete_failed`         | Git refused the deletion; `detail` carries its bounded message.              |
+
+A kept branch is an outcome, not an error: the checkout removal or record dismissal has still
+succeeded. Repeating the same command on the already-removed or dismissed record retries only the
+branch step, so `remove --delete-branch --force` is the way to delete an unmerged branch you have
+reviewed.
+
+For a missing record, `dismiss --delete-branch` first releases Git's stale registration for that
+record's path only, then deletes the branch. Other prunable worktrees stay registered.
+
+HTTP and UDS clients pass `delete_branch=true` (plus `force=true` for unmerged branches) on
+`DELETE /api/workspaces/{workspace_id}/worktrees/{worktree_id}` or
+`POST .../{worktree_id}/dismiss`; the response is `200` with `{"branch": {...}}`. Requests without
+`delete_branch` keep their `204 No Content` response. The `compozy__worktree_remove` native tool
+accepts the same `delete_branch` input and returns the outcome as `branch`.
 
 ## Recover a missing path
 
@@ -98,7 +148,8 @@ compozy worktree dismiss feature-auth --workspace . -o json
 ```
 
 Expected result reports `action: "dismissed"`. Dismiss does not delete a filesystem path, a branch,
-session history, or task history. The retained record remains readable by its ID,
+session history, or task history. Add `--delete-branch` to also delete the local branch, as described
+in [Delete the local branch](#delete-the-local-branch). The retained record remains readable by its ID,
 but its name becomes available for a new Worktree. Every non-dismissed record, including `removed`,
 continues to reserve its name.
 
@@ -119,26 +170,35 @@ Select individual rows, use Shift to select a range, or choose **Select all elig
 Select all captures only eligible rows currently represented by that list; later arrivals are not
 added. Escape clears selection. Selection never navigates into a checkout or adopts a discovered one.
 
-**Remove selected** freezes the workspace, profile and Worktree IDs. The confirmation separates
-checkout removal from dismissal of missing records. Missing rows can also be resolved individually
-through **Clean up missing record…**, which retains **It's back**.
+Ready and missing rows can be selected together. **Remove selected** freezes the workspace and
+Worktree IDs. The confirmation separates checkout removal from dismissal of missing records and
+offers **Also delete local branches**, unchecked by default. Missing rows can also be resolved
+individually through **Clean up missing record…**, which retains **It's back** and offers the same
+branch opt-in. The single **Remove…** confirmation offers **Also delete local branch**; when an
+unmerged branch is kept, its notification offers **Delete anyway**.
 
-Each target receives fresh server checks. Active/busy Worktrees, unknown lifecycle states,
-unreadable status, hook denials, dirty edits and unpublished work remain refused. The batch never
-forces removal or stops sessions. Switch to the owning active profile before selecting a foreign
-row; archived owners and unregistered discovered checkouts are ineligible.
+Each target receives fresh server checks and acts with its own owner profile, exactly as the
+single-row actions do, so rows owned by another profile can be cleaned up without switching
+profiles. Active/busy Worktrees, unknown lifecycle states, unreadable status, hook denials, dirty
+edits and unpublished work remain refused. The batch never forces removal, never force-deletes a
+branch, and never stops sessions. Rows whose owner profile is archived or no longer exists, rows with
+an active session, and unregistered discovered checkouts are ineligible: their row action stays
+visible but disabled, and names the reason.
 
-Results report each success and refusal independently. Successful targets stay recorded in the
+Results report each success and refusal independently, including whether each branch was deleted
+or kept and why. Successful targets stay recorded in the
 result list; **Retry failed** reconciles the original IDs and retries only failed or unconfirmed
 items. A changed lifecycle state requires a new selection and confirmation. This is not an atomic
 batch: one refusal does not undo successful removals.
 
-Dismissing a missing record preserves files even if something reappeared at that path, plus branches,
-Git history, sessions and task/Loop history. It does not prune Git's administrative entries; an
-unregistered stale Git checkout may appear separately as unavailable discovery. Repeating dismissal
+Dismissing a missing record preserves files even if something reappeared at that path, plus Git
+history, sessions and task/Loop history, and its branch unless branch deletion was requested. Without
+that opt-in it does not prune Git's administrative entries; an unregistered stale Git checkout may
+appear separately as unavailable discovery. Repeating dismissal
 by the retained ID is safe. Refreshing or restarting does not revive the dismissed registry entry.
 
 Existing HTTP/UDS remove and dismiss clients may omit `profile`: operator requests infer the owner
 from the target record. Explicit selectors must match that owner, authenticated agents remain bound
-to their session profile, and archived owners are refused. The Web bulk flow always sends its frozen
-profile selector; reading the all-profiles catalog does not grant bulk mutation authority.
+to their session profile, and archived owners are refused. The Web sends each row's owner as the
+explicit selector, for single and bulk cleanup alike; owners that are archived or no longer exist are
+refused.

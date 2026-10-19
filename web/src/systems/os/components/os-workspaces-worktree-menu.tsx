@@ -2,7 +2,6 @@ import {
   useWorktreeRemovalSelection,
   WorktreeSelectionToolbar,
   type WorktreeRemovalBatch,
-  type WorktreeRemovalProfile,
 } from "@/systems/workspace";
 import { useState, type KeyboardEvent } from "react";
 import { Plus } from "lucide-react";
@@ -36,7 +35,6 @@ export interface OsWorkspacesWorktreeMenuProps {
   registerRow: (key: string) => (element: HTMLElement | null) => void;
   rowHandlers: (navIndex: number) => { onClick: () => void };
   canCreate: boolean;
-  removalProfile?: WorktreeRemovalProfile | null;
   onRemoveWorktrees?: (batch: WorktreeRemovalBatch) => void;
   onResolveMissing?: (entry: WorktreeNestEntry) => void;
   onDeleteRow: (entry: WorktreeNestEntry) => void;
@@ -80,14 +78,12 @@ export function OsWorkspacesWorktreeMenu({
   rowHandlers,
   canCreate,
   onDeleteRow,
-  removalProfile,
   onRemoveWorktrees,
   onResolveMissing,
 }: OsWorkspacesWorktreeMenuProps) {
   const selection = useWorktreeRemovalSelection(
     model.node.workspace.id,
     model.visible,
-    removalProfile,
     onRemoveWorktrees
   );
   const navIndexByKey = new Map(model.navRows.map((row, index) => [row.key, index]));
@@ -152,7 +148,6 @@ export function OsWorkspacesWorktreeMenu({
       <WorktreeMenuRows
         model={model}
         selection={selection}
-        removalProfile={removalProfile}
         onResolveMissing={onResolveMissing}
         onDeleteRow={onDeleteRow}
         userHomeDir={userHomeDir}
@@ -207,11 +202,10 @@ function SelectableWorktreeRow({
   );
 }
 
-/** Projects either selection controls or navigable rows with owner-gated singular actions. */
+/** Projects either selection controls or navigable rows whose refused actions name their reason. */
 function WorktreeMenuRows({
   model,
   selection,
-  removalProfile,
   onResolveMissing,
   onDeleteRow,
   userHomeDir,
@@ -222,7 +216,6 @@ function WorktreeMenuRows({
 }: Pick<
   OsWorkspacesWorktreeMenuProps,
   | "model"
-  | "removalProfile"
   | "onResolveMissing"
   | "onDeleteRow"
   | "userHomeDir"
@@ -252,10 +245,9 @@ function WorktreeMenuRows({
           <OsWorkspacesWorktreeRow
             key={entry.key}
             entry={entry}
+            cleanupReason={selection.reason(entry)}
             onResolveMissing={
-              entry.displayState === "missing" &&
-              onResolveMissing &&
-              (!removalProfile || !selection.reason(entry))
+              entry.displayState === "missing" && onResolveMissing
                 ? () => onResolveMissing(entry)
                 : undefined
             }
@@ -267,9 +259,7 @@ function WorktreeMenuRows({
             onDelete={
               // Delete stays gated to adopted, ready records — the remove
               // flow's production gate; discovered rows have no record.
-              canRemoveWorktree(entry) && (!removalProfile || !selection.reason(entry))
-                ? () => onDeleteRow(entry)
-                : undefined
+              canRemoveWorktree(entry) ? () => onDeleteRow(entry) : undefined
             }
             registerRow={registerRow(entry.key)}
             onSelect={navIndex === undefined ? undefined : rowHandlers(navIndex).onClick}

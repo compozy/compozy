@@ -11,13 +11,14 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Menubar, MenubarTrigger, UIProvider } from "@compozy/ui";
 
-import type { WorkspacePayload } from "@/systems/workspace";
+import type { WorkspacePayload, WorktreesResponse } from "@/systems/workspace";
 import {
   discoveredOnlyWorktreeListingFixture,
   discoveredWorktreeFixture,
   emptyWorktreeListingFixture,
   nonGitWorktreeListingFixture,
   worktreeListingFixture,
+  worktreeBehindFixture,
   worktreeMissingFixture,
   worktreeReadyDirtyRunningFixture,
 } from "@/systems/workspace/mocks";
@@ -49,6 +50,14 @@ function makeWorkspace(id: string, name: string): WorkspacePayload {
 }
 
 const gitAlpha = makeWorkspace("ws_alpha", "alpha");
+
+/** Listed rows belong to the workspace that lists them, as the daemon guarantees. */
+function listedIn(workspaceId: string, listing: WorktreesResponse): WorktreesResponse {
+  return {
+    ...listing,
+    worktrees: listing.worktrees.map(row => ({ ...row, workspace_id: workspaceId })),
+  };
+}
 const gitBeta = makeWorkspace("ws_beta", "beta");
 const plainNotes = makeWorkspace("ws_notes", "notes");
 
@@ -78,7 +87,7 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
             onRun={onRun}
             onAddWorkspace={vi.fn()}
             worktreesByWorkspace={{
-              [gitAlpha.id]: worktreeListingFixture,
+              [gitAlpha.id]: listedIn(gitAlpha.id, worktreeListingFixture),
               [gitBeta.id]: emptyWorktreeListingFixture,
               [plainNotes.id]: nonGitWorktreeListingFixture,
             }}
@@ -122,9 +131,7 @@ describe("WorkspaceMenu", () => {
     const user = userEvent.setup();
     const onRemoveWorktrees = vi.fn();
     const missing = { ...worktreeMissingFixture, workspace_id: gitAlpha.id };
-    const profile = { id: missing.profile_id, name: missing.profile_name, archived: false };
     const callbacks = renderMenu({
-      removalProfile: profile,
       onRemoveWorktrees,
       worktreesByWorkspace: {
         [gitAlpha.id]: {
@@ -266,13 +273,19 @@ describe("WorkspaceMenu", () => {
 
     await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
     await openSubmenuByKeyboard(user, "os-worktree-actions-wt_payments_retry");
-    act(() => screen.getByTestId("os-worktree-remove-wt_payments_retry").focus());
+    const busy = screen.getByTestId("os-worktree-remove-wt_payments_retry");
+    expect(busy).toHaveAttribute("data-disabled");
+    expect(busy).toHaveTextContent("Worktree has an active session");
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await openSubmenuByKeyboard(user, `os-worktree-actions-${worktreeBehindFixture.id}`);
+    act(() => screen.getByTestId(`os-worktree-remove-${worktreeBehindFixture.id}`).focus());
     await user.keyboard("{Enter}");
 
     expect(onRemoveWorktree).toHaveBeenCalledTimes(1);
     const [workspaceId, entry] = onRemoveWorktree.mock.calls[0];
     expect(workspaceId).toBe(gitAlpha.id);
-    expect(entry.key).toBe("wt_payments_retry");
+    expect(entry.key).toBe(worktreeBehindFixture.id);
   });
 
   it("Should expose Context behind a ready row's actions", async () => {
@@ -293,11 +306,11 @@ describe("WorkspaceMenu", () => {
     const user = userEvent.setup();
     const { onResolveMissingWorktree } = renderMenu({
       worktreesByWorkspace: {
-        [gitAlpha.id]: {
+        [gitAlpha.id]: listedIn(gitAlpha.id, {
           ...worktreeListingFixture,
           worktrees: [worktreeMissingFixture],
           discovered: [],
-        },
+        }),
         [gitBeta.id]: emptyWorktreeListingFixture,
         [plainNotes.id]: nonGitWorktreeListingFixture,
       },
@@ -311,6 +324,46 @@ describe("WorkspaceMenu", () => {
     expect(onResolveMissingWorktree).toHaveBeenCalledTimes(1);
     expect(onResolveMissingWorktree.mock.calls[0]?.[0]).toBe(gitAlpha.id);
     expect(onResolveMissingWorktree.mock.calls[0]?.[1]?.key).toBe(worktreeMissingFixture.id);
+  });
+
+  // Regression #813: cleanup follows the row owner, and a refused cleanup stays
+  // visible as a disabled item naming its reason instead of disappearing.
+  it("Should keep cleanup visible for every owner and name refusals on disabled items", async () => {
+    const user = userEvent.setup();
+    const foreign = {
+      ...worktreeMissingFixture,
+      workspace_id: gitAlpha.id,
+      profile_id: "profile-design",
+      profile_name: "open-design",
+    };
+    const orphan = {
+      ...worktreeMissingFixture,
+      id: "wt_orphan_missing",
+      name: "orphan-missing",
+      workspace_id: gitAlpha.id,
+      profile_id: "profile-deleted",
+      profile_name: "",
+    };
+    const { onResolveMissingWorktree } = renderMenu({
+      onRemoveWorktrees: vi.fn(),
+      worktreesByWorkspace: {
+        [gitAlpha.id]: { ...worktreeListingFixture, worktrees: [foreign, orphan], discovered: [] },
+        [gitBeta.id]: emptyWorktreeListingFixture,
+        [plainNotes.id]: nonGitWorktreeListingFixture,
+      },
+    });
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await openSubmenuByKeyboard(user, `os-worktree-actions-${foreign.id}`);
+    act(() => screen.getByTestId(`os-worktree-resolve-${foreign.id}`).focus());
+    await user.keyboard("{Enter}");
+    expect(onResolveMissingWorktree.mock.calls[0]?.[1]?.key).toBe(foreign.id);
+
+    await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
+    await openSubmenuByKeyboard(user, `os-worktree-actions-${orphan.id}`);
+    const refused = await screen.findByTestId(`os-worktree-resolve-${orphan.id}`);
+    expect(refused).toHaveAttribute("data-disabled");
+    expect(refused).toHaveTextContent("Owning profile is unavailable");
   });
 
   it("Should omit Remove from a discovered row's actions", async () => {

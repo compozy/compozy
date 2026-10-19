@@ -44,3 +44,8 @@ active/foreign/archived/discovered exclusions, immutable targets during live upd
 partial results and failed-only retry. Metadata dismissal preserves replacements and history;
 repeated dismissal and refresh/restart stay clean. No force or session stop is implicit.
 Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rendered and API evidence recorded; final CI pending).
+
+2026-10-19 #813 impact: HTTP/UDS `DELETE …/worktrees/{worktree_id}` and `POST …/dismiss` accept
+`delete_branch` (dismiss also `force`) and answer `200 {"branch": {...}}` only when it is set;
+requests without it keep `204`. `compozy__worktree_remove` accepts `delete_branch` and returns the
+same outcome as `branch`. Parity is covered by the handler, transport-parity and native-tool suites.
