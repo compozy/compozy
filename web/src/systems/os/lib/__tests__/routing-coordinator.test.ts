@@ -1146,18 +1146,40 @@ describe("RoutingCoordinator", () => {
       expect(router.navigate).toHaveBeenCalledOnce();
     });
 
-    it.each([
-      ["a launcher", "direct"],
-      ["the New session dialog", "route"],
-    ] as const)(
-      "Should not pull focus back when the operator moves on while %s lands the session",
-      async (_label, path) => {
+    type Gesture =
+      | "activate another window"
+      | "focus the active window"
+      | "close the focused window";
+    const gestures: Record<
+      Gesture,
+      { run: (coordinator: RoutingCoordinator) => Promise<boolean>; focused: string }
+    > = {
+      "activate another window": {
+        run: coordinator => coordinator.userActivateWindow("w-settings"),
+        focused: "w-settings",
+      },
+      "focus the active window": {
+        run: coordinator => coordinator.userFocus("w-tasks"),
+        focused: "w-tasks",
+      },
+      "close the focused window": {
+        run: coordinator => coordinator.userClose("w-tasks"),
+        focused: "w-settings",
+      },
+    };
+
+    it.each(
+      (["direct", "route"] as const).flatMap(path =>
+        (Object.keys(gestures) as Gesture[]).map(gesture => [path, gesture] as const)
+      )
+    )(
+      "Should not pull focus back when a %s landing is pending and the operator chooses to %s",
+      async (path, gesture) => {
         const session = sessionWindow("sess-a");
-        const tasks = windowFixture("tasks", "/tasks");
         const settings = windowFixture("settings", "/settings/general");
-        const { coordinator, router, store } = createCoordinator([settings, session, tasks]);
+        const tasks = { ...windowFixture("tasks", "/tasks"), stackActive: true };
+        const { coordinator, router, store } = createCoordinator([session, settings, tasks]);
         coordinator.completeHydration();
-        vi.mocked(router.navigate).mockClear();
         let settleRetarget: ((applied: boolean) => void) | undefined;
         store.retargetWindow.mockReturnValueOnce({
           accepted: true,
@@ -1178,8 +1200,8 @@ describe("RoutingCoordinator", () => {
           created.instanceKey,
           created.route
         );
-        // The operator picks another window while the retarget waits on the daemon.
-        await coordinator.userActivateWindow(settings.id);
+        // The operator makes a newer choice while the retarget waits on the daemon.
+        await gestures[gesture].run(coordinator);
         vi.mocked(router.navigate).mockClear();
         settleRetarget?.(true);
         await landing;
@@ -1187,10 +1209,30 @@ describe("RoutingCoordinator", () => {
 
         expect(store.spies.focusWindow).not.toHaveBeenCalledWith(session.id);
         expect(store.spies.restoreWindow).not.toHaveBeenCalled();
-        expect(store.getState().focusedId).toBe(settings.id);
+        expect(store.getState().focusedId).toBe(gestures[gesture].focused);
         expect(router.navigate).not.toHaveBeenCalled();
       }
     );
+
+    it("Should choose again when another client closes the host before the landing", async () => {
+      const session = sessionWindow("sess-a");
+      const tasks = windowFixture("tasks", "/tasks");
+      const { coordinator, router, store } = createCoordinator([session, tasks]);
+      coordinator.completeHydration();
+      vi.mocked(router.replace).mockClear();
+      store.retargetWindow.mockImplementationOnce(() => ({
+        accepted: true,
+        // The daemon rejects the retarget: a peer closed the window first.
+        completion: store.closeWindow(session.id).then(() => false),
+      }));
+
+      const landed = await coordinator.userOpenCreatedSession(created);
+
+      expect(store.spies.openOrFocus).toHaveBeenCalledExactlyOnceWith(created);
+      expect(landed).toBe(testWindowId("session", created.instanceKey));
+      expect(store.getState().windows[landed ?? ""]?.instanceKey).toBe(created.instanceKey);
+      expect(router.navigate).toHaveBeenCalledExactlyOnceWith(created.route);
+    });
 
     it("Should focus the window that already owns the new session", async () => {
       const owner = sessionWindow("sess-new");

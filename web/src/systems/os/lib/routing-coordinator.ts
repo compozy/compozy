@@ -223,10 +223,7 @@ export class RoutingCoordinator {
     return id;
   }
 
-  /**
-   * Launchers that open a just-created session directly (empty-desktop composer, palette prompt
-   * fallback): land it in an existing Session window when one qualifies, else open as usual.
-   */
+  /** Launchers that open a just-created session directly: prefer an existing Session window. */
   async userOpenCreatedSession(
     target: OsOpenTarget & { instanceKey: string; route: OsWindowRoute }
   ): Promise<string | null> {
@@ -235,9 +232,13 @@ export class RoutingCoordinator {
     const intentToken = ++this.nextUserIntentToken;
     const isCurrent = () => intentToken === this.nextUserIntentToken;
     const outcome = landCreatedSession(this.manager, host, target, isCurrent);
-    if (!(await outcome.completion)) return null;
-    if (isCurrent()) this.pushRoute(target.route);
-    return host.id;
+    if (await outcome.completion) {
+      if (isCurrent()) this.pushRoute(target.route);
+      return host.id;
+    }
+    // Another client closed the host first: choose again (a new window when none is left).
+    const hostGone = !this.manager.getState().windows[host.id];
+    return hostGone && isCurrent() ? this.userOpenCreatedSession(target) : null;
   }
 
   /**
@@ -250,8 +251,9 @@ export class RoutingCoordinator {
     const win = state.windows[windowId];
     const alreadyActive =
       state.focusedId === windowId && !win?.minimized && win?.stackActive === true;
-    if (!win || opts.viaLink || alreadyActive) return false;
+    if (!win || opts.viaLink) return false;
     this.nextUserIntentToken += 1;
+    if (alreadyActive) return false;
     const outcome = this.manager.focusWindow(windowId);
     if (!(await outcome.completion)) return false;
     const focused = this.manager.getState().windows[windowId];
@@ -334,6 +336,7 @@ export class RoutingCoordinator {
   async userClose(windowId: string): Promise<boolean> {
     const state = this.manager.getState();
     if (!state.windows[windowId]) return false;
+    this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
     if (!(await this.manager.closeWindow(windowId))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
@@ -444,8 +447,10 @@ export class RoutingCoordinator {
       this.routeReconciliation = null;
       return;
     }
+    const intent = this.createdSessionIntent;
+    this.createdSessionIntent = null;
     const createdSession =
-      pending.createdSession === true || this.takeCreatedSessionIntent(resolved.instanceKey);
+      pending.createdSession === true || (intent !== null && intent === resolved.instanceKey);
     const tracked = createdSession ? { ...pending, createdSession } : pending;
     const intentToken = this.nextUserIntentToken;
     const outcome = decideRouteReconciliation(this.manager, {
@@ -483,13 +488,6 @@ export class RoutingCoordinator {
       this.routeReconciliation = null;
       this.reportAuthoritativeState();
     });
-  }
-
-  private takeCreatedSessionIntent(instanceKey: string | null): boolean {
-    const intent = this.createdSessionIntent;
-    if (intent === null) return false;
-    this.createdSessionIntent = null;
-    return intent === instanceKey;
   }
 
   private invalidateRouteReconciliation(): void {
