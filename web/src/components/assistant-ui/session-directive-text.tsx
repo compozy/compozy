@@ -1,4 +1,6 @@
-import { use, type ReactNode } from "react";
+import { use, type ClipboardEvent, type ReactNode } from "react";
+
+import { markdownSlotSource } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { SubagentNavigationContext } from "@/systems/session/contexts/session-subagents-context-value";
@@ -47,32 +49,8 @@ function MentionToken({ mention }: { mention: SessionMentionDirective }) {
       target={mention.target}
       label={mention.label}
       onOpen={onOpen}
+      token={mention.token}
     />
-  );
-}
-
-function MessageTextFragment({ text, streaming }: { text: string; streaming: boolean }) {
-  if (text.trim().length === 0) {
-    return <>{text}</>;
-  }
-  const leadingWhitespace = text.match(/^\s*/u)?.[0] ?? "";
-  const trailingWhitespace = text.match(/\s*$/u)?.[0] ?? "";
-  const content = text.slice(leadingWhitespace.length, text.length - trailingWhitespace.length);
-
-  const markdown = content ? <SessionMessageText text={content} streaming={streaming} /> : null;
-  return (
-    <>
-      {leadingWhitespace}
-      {/* A one-line fragment flows inline with the chips beside it (VC-18):
-          its markdown wrappers dissolve and its paragraph joins the line. A
-          multi-line fragment keeps its block layout. */}
-      {markdown && !content.includes("\n") ? (
-        <span className="[&_div]:contents [&_p]:inline">{markdown}</span>
-      ) : (
-        markdown
-      )}
-      {trailingWhitespace}
-    </>
   );
 }
 
@@ -93,24 +71,14 @@ type TextDirective =
     };
 
 const NO_MENTIONS: readonly SessionMentionDirective[] = [];
+const MENTION_TOKEN_SELECTOR = "[data-mention-token]";
 
-/** CompozyOS-owned directive registry for persisted session invocation metadata. */
-export function SessionDirectiveText({
-  text,
-  directives,
-  mentions = NO_MENTIONS,
-  streaming = false,
-}: {
-  text: string;
-  directives: readonly SessionSkillInvocationDirective[];
-  /** Daemon-verified `@` mentions; unverified tokens stay text. */
-  mentions?: readonly SessionMentionDirective[];
-  streaming?: boolean;
-}) {
-  if (directives.length === 0 && mentions.length === 0) {
-    return <SessionMessageText text={text} streaming={streaming} />;
-  }
-
+/** Directives whose token sits exactly at its offsets, in text order, without overlaps. */
+function verifiedDirectives(
+  text: string,
+  directives: readonly SessionSkillInvocationDirective[],
+  mentions: readonly SessionMentionDirective[]
+): TextDirective[] {
   const candidates: TextDirective[] = [
     ...directives.map(skill => ({
       kind: "skill" as const,
@@ -139,48 +107,78 @@ export function SessionDirectiveText({
     }
     ordered.push(directive);
   }
+  return ordered;
+}
+
+/**
+ * Copying a selection that crosses a mention chip yields the chip's raw token,
+ * so pasted text still mentions the same target. Selections without chips
+ * keep the browser's default copy.
+ */
+function copySelectionWithMentionTokens(event: ClipboardEvent<HTMLElement>) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+  const fragment = selection.getRangeAt(0).cloneContents();
+  const chips = fragment.querySelectorAll<HTMLElement>(MENTION_TOKEN_SELECTOR);
+  if (chips.length === 0) return;
+  for (const chip of chips) {
+    chip.replaceWith(chip.dataset.mentionToken ?? "");
+  }
+  // innerText keeps the line breaks between blocks, but only for rendered nodes.
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;left:-10000px;top:0;white-space:pre-wrap";
+  host.append(fragment);
+  document.body.append(host);
+  const plain = typeof host.innerText === "string" ? host.innerText : (host.textContent ?? "");
+  const html = host.innerHTML;
+  host.remove();
+  event.clipboardData.setData("text/plain", plain);
+  event.clipboardData.setData("text/html", html);
+  event.preventDefault();
+}
+
+/** CompozyOS-owned directive registry for persisted session invocation metadata. */
+export function SessionDirectiveText({
+  text,
+  directives,
+  mentions = NO_MENTIONS,
+  streaming = false,
+}: {
+  text: string;
+  directives: readonly SessionSkillInvocationDirective[];
+  /** Daemon-verified `@` mentions; unverified tokens stay text. */
+  mentions?: readonly SessionMentionDirective[];
+  streaming?: boolean;
+}) {
+  const ordered =
+    directives.length === 0 && mentions.length === 0
+      ? []
+      : verifiedDirectives(text, directives, mentions);
   if (ordered.length === 0) {
     return <SessionMessageText text={text} streaming={streaming} />;
   }
 
-  const parts: ReactNode[] = [];
+  // Each verified token becomes an inline slot of one markdown document, so the
+  // markdown around a chip (bold, lists, headings) forms as written (VC-18).
+  const slots: Record<string, ReactNode> = {};
+  let source = "";
   let cursor = 0;
-  for (const directive of ordered) {
-    const fragment = text.slice(cursor, directive.start);
-    if (fragment) {
-      parts.push(
-        <MessageTextFragment
-          key={`text:${cursor}:${directive.start}`}
-          text={fragment}
-          streaming={streaming}
-        />
-      );
-    }
-    parts.push(
+  ordered.forEach((directive, index) => {
+    const id = `compozy-directive-${index}`;
+    slots[id] =
       directive.kind === "skill" ? (
-        <DirectiveToken
-          key={`${directive.skill.commandId}:${directive.start}:${directive.end}`}
-          directive={directive.skill}
-        />
+        <DirectiveToken directive={directive.skill} />
       ) : (
-        <MentionToken
-          key={`mention:${directive.start}:${directive.end}`}
-          mention={directive.mention}
-        />
-      )
-    );
+        <MentionToken mention={directive.mention} />
+      );
+    source += text.slice(cursor, directive.start) + markdownSlotSource(id);
     cursor = directive.end;
-  }
-  const remainder = text.slice(cursor);
-  if (remainder) {
-    parts.push(
-      <MessageTextFragment
-        key={`text:${cursor}:${text.length}`}
-        text={remainder}
-        streaming={streaming}
-      />
-    );
-  }
+  });
+  source += text.slice(cursor);
 
-  return <>{parts}</>;
+  return (
+    <div className="contents" onCopy={copySelectionWithMentionTokens}>
+      <SessionMessageText text={source} streaming={streaming} slots={slots} />
+    </div>
+  );
 }

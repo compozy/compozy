@@ -2399,6 +2399,68 @@ describe("SessionThread transcript states", () => {
     expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
   });
 
+  function mentionMessage(id: string, text: string, token: string): SessionMessage {
+    const start = text.indexOf(token);
+    return {
+      id,
+      role: "user",
+      content: text,
+      metadata: {
+        mentions: [
+          { kind: "file", token, target: "a.go", label: "a.go", start, end: start + token.length },
+        ],
+      },
+      parts: [{ type: "text", text, state: "done" }],
+    } as SessionMessage;
+  }
+
+  // Invariant (VC-18): a chip sits inside the markdown the author wrote around
+  // its token, so emphasis and lists still form. Owner: user message.
+  it("Should keep the markdown around a mention chip", async () => {
+    const text = "**Read @a.go now**\n\n- check @a.go first";
+    const message = mentionMessage("user-mention-markdown", text, "@a.go");
+    const secondStart = text.lastIndexOf("@a.go");
+    (message.metadata as { mentions: unknown[] }).mentions.push({
+      kind: "file",
+      token: "@a.go",
+      target: "a.go",
+      label: "a.go",
+      start: secondStart,
+      end: secondStart + 5,
+    });
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages([message]) });
+
+    const chips = await screen.findAllByTestId("session-mention-chip");
+    expect(chips).toHaveLength(2);
+    expect(chips[0]!.closest("strong")).toHaveTextContent("Read a.go");
+    expect(chips[1]!.closest("li")).toHaveTextContent("check a.go");
+    expect(screen.getByTestId("user-message-bubble")).not.toHaveTextContent("**");
+  });
+
+  // Invariant (US-008): copying a selection across a chip yields its raw
+  // token, so the pasted text still mentions the same target. Owner: user message.
+  it("Should copy a selected mention chip as its raw token", async () => {
+    const text = "Read @a.go now";
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([mentionMessage("user-mention-copy", text, "@a.go")]),
+    });
+
+    const chip = await screen.findByTestId("session-mention-chip");
+    const paragraph = chip.closest("p")!;
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const setData = vi.fn();
+
+    fireEvent.copy(paragraph, { clipboardData: { setData } });
+
+    expect(setData).toHaveBeenCalledWith("text/plain", "Read @a.go now");
+    selection.removeAllRanges();
+  });
+
   // Invariant (US-008.EC-2, VC-21): a session chip shows the title recorded at
   // send time, even after that session was renamed. Owner: user message.
   it("Should keep the recorded session title after the session is renamed", async () => {

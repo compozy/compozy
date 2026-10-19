@@ -1,19 +1,22 @@
 import { Activity } from "lucide-react";
 
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
-import { Marker, MarkerMeta } from "@compozy/ui";
+import { Marker, MarkerMeta, type StreamMarkdownSlots } from "@compozy/ui";
 
 export function SessionMessageText({
   text,
   streaming = false,
   reveal = false,
+  slots,
 }: {
   text: string;
   streaming?: boolean;
   /** Assistant prose: smooth reveal while streaming (ADR-008). */
   reveal?: boolean;
+  /** Inline nodes `text` places with `markdownSlotSource`. */
+  slots?: StreamMarkdownSlots;
 }) {
-  return <MessageMarkdown content={text} streaming={streaming} reveal={reveal} />;
+  return <MessageMarkdown content={text} streaming={streaming} reveal={reveal} slots={slots} />;
 }
 
 /**

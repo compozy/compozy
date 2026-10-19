@@ -26,6 +26,8 @@ export interface SessionMentionChipProps {
   label: string;
   /** History only: a session chip opens that session (⌘/Ctrl opens a new window). */
   onOpen?: (options: { newWindow: boolean }) => void;
+  /** History only: the raw token a copied selection carries in place of the chip. */
+  token?: string;
 }
 
 /**
@@ -34,7 +36,13 @@ export interface SessionMentionChipProps {
  * reading as a runnable command. The icon carries the kind; the tooltip and
  * visually hidden text carry the full relative path or session id.
  */
-export function SessionMentionChip({ kind, target, label, onOpen }: SessionMentionChipProps) {
+export function SessionMentionChip({
+  kind,
+  target,
+  label,
+  onOpen,
+  token,
+}: SessionMentionChipProps) {
   const Icon = MENTION_ICONS[kind];
   // Screen readers get the kind and the full path or session id as hidden
   // text inside the chip, so the name holds on a plain span too.
@@ -66,6 +74,7 @@ export function SessionMentionChip({ kind, target, label, onOpen }: SessionMenti
       data-testid="session-mention-chip"
       data-mention-kind={kind}
       data-mention-target={target}
+      data-mention-token={token}
       className={className}
       onClick={(event: MouseEvent<HTMLButtonElement>) =>
         onOpen({ newWindow: event.metaKey || event.ctrlKey })
@@ -78,6 +87,7 @@ export function SessionMentionChip({ kind, target, label, onOpen }: SessionMenti
       data-testid="session-mention-chip"
       data-mention-kind={kind}
       data-mention-target={target}
+      data-mention-token={token}
       className={className}
     >
       {content}

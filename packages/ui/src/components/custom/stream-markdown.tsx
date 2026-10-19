@@ -8,6 +8,8 @@ import { cn } from "../../lib/utils";
 import { CodeBlock } from "./code-block";
 import { Markdown, type MarkdownProps } from "./markdown";
 import { INLINE_CODE_CLASS } from "./markdown-components";
+import { MarkdownAnchor } from "./markdown-prose-parts";
+import type { StreamMarkdownSlots } from "./markdown-slots";
 
 type StreamMarkdownCodeProps = React.ComponentProps<"code"> & {
   node?: unknown;
@@ -65,11 +67,25 @@ const STREAM_MARKDOWN_COMPONENTS: Partial<Components> = {
   inlineCode: StreamMarkdownCode,
 };
 
+function slotComponents(slots: StreamMarkdownSlots): Partial<Components> {
+  function StreamMarkdownSlotAnchor(props: React.ComponentProps<typeof MarkdownAnchor>) {
+    const id =
+      typeof props.href === "string" && props.href.startsWith("#") ? props.href.slice(1) : "";
+    if (id !== "" && Object.hasOwn(slots, id)) {
+      return <>{slots[id]}</>;
+    }
+    return <MarkdownAnchor {...props} />;
+  }
+  return { ...STREAM_MARKDOWN_COMPONENTS, a: StreamMarkdownSlotAnchor };
+}
+
 export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "children"> {
   children: string;
   streaming?: boolean;
   /** Density forwarded to `<Markdown>`; see `MarkdownProps["compact"]`. */
   compact?: MarkdownProps["compact"];
+  /** Inline nodes rendered where the source places them with `markdownSlotSource`. */
+  slots?: StreamMarkdownSlots;
 }
 
 /**
@@ -81,15 +97,20 @@ function StreamMarkdown({
   children,
   streaming = false,
   compact = false,
+  slots,
   className,
   ...props
 }: StreamMarkdownProps) {
+  const components = React.useMemo(
+    () => (slots ? slotComponents(slots) : STREAM_MARKDOWN_COMPONENTS),
+    [slots]
+  );
   return (
     <Markdown
       data-slot="stream-markdown"
       streaming={streaming}
       compact={compact}
-      components={STREAM_MARKDOWN_COMPONENTS}
+      components={components}
       className={cn("max-w-[72ch]", className)}
       {...props}
     >
