@@ -1021,6 +1021,109 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should clean up a gone upstream only with current merged HEAD evidence", func(t *testing.T) {
+		t.Parallel()
+		for _, scenario := range []string{"merged", "later commit", "dirty", "stale", "no forge", "wrong head", "no base", "persisted merge", "provider unavailable"} {
+			t.Run("Should handle "+scenario, func(t *testing.T) {
+				t.Parallel()
+				f := newRealGitFixture(t)
+				bare := t.TempDir()
+				f.git(bare, "init", "--bare")
+				f.git(f.workspace.Root, "remote", "add", "origin", bare)
+				f.git(f.workspace.Root, "push", "-u", "origin", "main")
+				item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+					ProfileID: testWorktreeProfileID, Name: "Gone Upstream",
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(item.Path, "feature.txt"), []byte("feature\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				f.git(item.Path, "add", "feature.txt")
+				f.git(item.Path, "commit", "-m", "feature")
+				f.git(item.Path, "commit", "--allow-empty", "-m", "second feature commit")
+				head := f.git(item.Path, "rev-parse", "HEAD")
+				f.git(item.Path, "push", "-u", "origin", item.Branch)
+				f.git(f.workspace.Root, "merge", "--squash", item.Branch)
+				f.git(f.workspace.Root, "commit", "-m", "squash feature")
+				f.git(f.workspace.Root, "push", "origin", "main")
+				f.git(f.workspace.Root, "push", "origin", "--delete", item.Branch)
+				f.git(item.Path, "fetch", "--prune")
+				if scenario == "later commit" {
+					f.git(item.Path, "commit", "--allow-empty", "-m", "unpublished followup")
+				}
+				if scenario == "dirty" {
+					if err := os.WriteFile(filepath.Join(item.Path, "dirty.txt"), []byte("keep\n"), 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				now := time.Date(2026, time.October, 19, 12, 0, 0, 0, time.UTC)
+				f.service.now = func() time.Time { return now }
+				forge := ForgeStatus{Provider: "github", PRState: new("merged"), HeadSHA: head, FetchedAt: &now}
+				if scenario == "stale" {
+					forge.FetchedAt = new(now.Add(-exitForgeFreshness))
+				}
+				if scenario == "wrong head" {
+					forge.HeadSHA = f.git(f.workspace.Root, "rev-parse", "HEAD")
+				}
+				if scenario == "persisted merge" || scenario == "provider unavailable" {
+					live := forge
+					provider := &recordingExitForge{status: &live}
+					if scenario == "provider unavailable" {
+						provider.statusErr = ErrForgeUnavailable
+					}
+					WithForge(provider)(f.service)
+					forge.HeadSHA = ""
+				}
+				if scenario != "no forge" {
+					if err := f.store.SaveForgeStatus(t.Context(), f.workspace.ID, item.ID, forge); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if scenario == "no base" {
+					item.BaseRef = ""
+					f.store.mu.Lock()
+					f.store.items[worktreeStoreKey(item.WorkspaceID, item.ID)] = *item
+					f.store.mu.Unlock()
+				}
+				status, err := f.service.Status(t.Context(), f.workspace.ID, item.ID, true)
+				if err != nil || status.ReadError != "" || status.HasUpstream == nil || !*status.HasUpstream ||
+					status.Ahead != nil || status.Behind != nil {
+					t.Fatalf("gone status = (%#v, %v)", status, err)
+				}
+				plan, err := f.service.ExitPlan(t.Context(), f.workspace.ID, item.ID)
+				wantMerged := scenario == "merged" || scenario == "dirty" || scenario == "no base" || scenario == "persisted merge"
+				if err != nil || plan.Cleanup.Safe != wantMerged || (wantMerged && plan.Cleanup.Source != "forge") {
+					t.Fatalf("exit plan = (%#v, %v), want merged evidence %v", plan, err, wantMerged)
+				}
+				for _, action := range plan.Actions {
+					if action.Action == ExitActionPush && (action.Enabled || action.BlockedReason != reasonUpstreamGone) {
+						t.Fatalf("gone upstream push = %#v", action)
+					}
+				}
+				refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
+				switch scenario {
+				case "merged", "no base", "persisted merge":
+					if err != nil || refusal != nil || f.item(item.ID).State != StateRemoved {
+						t.Fatalf("Remove(merged) = (%#v, %v)", refusal, err)
+					}
+				case "dirty":
+					if !errors.Is(err, ErrDirtyRequiresForce) {
+						t.Fatalf("Remove(dirty) = %v", err)
+					}
+				default:
+					if !errors.Is(err, ErrUnpushedRequiresForce) || refusal == nil || refusal.Risk.UnpushedCommits == 0 {
+						t.Fatalf("Remove(unproven) = (%#v, %v)", refusal, err)
+					}
+					if refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, true); err != nil || refusal != nil {
+						t.Fatalf("Remove(force) = (%#v, %v)", refusal, err)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should reclaim only unchanged real runtime branches", func(t *testing.T) {
 		reclaim := newRealGitFixture(t)
 		unchanged, err := reclaim.service.Create(t.Context(), reclaim.workspace.ID, CreateOptions{

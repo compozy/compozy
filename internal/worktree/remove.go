@@ -12,6 +12,8 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
+const removalHeadRef = "HEAD"
+
 type RemovalRisk struct {
 	ChangedFiles    int
 	Insertions      int
@@ -347,20 +349,11 @@ func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, 
 		ChangedFiles: valueOrZero(status.DirtyFiles), Insertions: valueOrZero(status.Insertions),
 		Deletions: valueOrZero(status.Deletions),
 	}
-	comparison := ""
-	switch {
-	case item.BaseRef != "":
-		comparison = item.BaseRef + "..HEAD"
-	case status.Detached != nil && *status.Detached:
-		comparison = "HEAD --not --all"
-	case status.HasUpstream != nil && *status.HasUpstream:
-		comparison = "@{upstream}..HEAD"
-	}
-	if comparison == "" {
+	args := removalCommitComparison(item, status)
+	if len(args) == 0 {
 		return risk, nil
 	}
-	args := []string{"rev-list", "--count"}
-	args = append(args, strings.Fields(comparison)...)
+	args = append([]string{"rev-list", "--count"}, args...)
 	stdout, stderr, err := s.runner.Run(ctx, item.Path, args...)
 	if err != nil {
 		return RemovalRisk{}, fmt.Errorf(
@@ -381,7 +374,32 @@ func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, 
 		)
 	}
 	risk.ExistsOnRemote = strings.TrimSpace(string(stdout)) != ""
+	if !risk.ExistsOnRemote {
+		merged, err := s.removalMergeIsCurrent(ctx, item)
+		if err != nil {
+			return RemovalRisk{}, err
+		}
+		if merged {
+			risk.UnpushedCommits = 0
+		}
+	}
 	return risk, nil
+}
+
+func removalCommitComparison(item Worktree, status *Status) []string {
+	switch {
+	case item.BaseRef != "":
+		return []string{item.BaseRef + "..HEAD"}
+	case status.Detached != nil && *status.Detached:
+		return []string{removalHeadRef, "--not", "--all"}
+	case status.HasUpstream != nil && *status.HasUpstream:
+		if status.Ahead != nil {
+			return []string{"@{upstream}..HEAD"}
+		}
+		return []string{removalHeadRef, "--not", "--remotes", "--exclude=" + item.Branch, "--branches"}
+	default:
+		return nil
+	}
 }
 
 func (s *Service) validateRemovalIdentity(

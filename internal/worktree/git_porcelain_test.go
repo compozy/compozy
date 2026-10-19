@@ -65,6 +65,14 @@ func TestGitPorcelain(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve a gone upstream with unknown counts", func(t *testing.T) {
+		t.Parallel()
+		got, err := ParseStatusV2([]byte("# branch.oid abc\x00# branch.head main\x00# branch.upstream origin/main\x00"))
+		if err != nil || !got.HasUpstream || got.Upstream != "origin/main" || got.Ahead != nil || got.Behind != nil {
+			t.Fatalf("ParseStatusV2(gone) = (%#v, %v), want configured upstream with unknown counts", got, err)
+		}
+	})
+
 	t.Run("Should count dirty entries for a detached checkout", func(t *testing.T) {
 		t.Parallel()
 		got, err := ParseStatusV2([]byte("# branch.oid abc\n# branch.head (detached)\n? new.txt\x00"))
@@ -151,12 +159,6 @@ func TestGitPorcelain(t *testing.T) {
 			}},
 			{name: "invalid ahead behind", format: "status-v2", parse: func() error {
 				_, err := ParseStatusV2([]byte("# branch.oid abc\x00# branch.head main\x00# branch.ab +x -1\x00"))
-				return err
-			}},
-			{name: "upstream without counts", format: "status-v2", parse: func() error {
-				_, err := ParseStatusV2(
-					[]byte("# branch.oid abc\x00# branch.head main\x00# branch.upstream origin/main\x00"),
-				)
 				return err
 			}},
 			{name: "rename without old path", format: "status-v2", parse: func() error {
