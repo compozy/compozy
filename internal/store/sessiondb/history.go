@@ -48,7 +48,9 @@ func queryBoundedTurnHistory(
 ) ([]store.TurnHistory, error) {
 	queryForEvents := query
 	queryForEvents.Limit = historyChunkLimit(query.Limit)
+	// Chunks walk backward from the newest event; the caller's after cursor filters whole turns.
 	queryForEvents.AfterSequence = 0
+	queryForEvents.Forward = false
 	upperBound := query.BeforeSequence
 	events := make([]store.SessionEvent, 0, queryForEvents.Limit)
 	historyQuery := query

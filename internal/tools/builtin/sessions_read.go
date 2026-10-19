@@ -162,7 +162,8 @@ const sessionEventQueryInputSchema = `{
 		"agent_name":{"type":"string"},
 		"turn_id":{"type":"string"},
 		"after_sequence":{"type":"integer",
-			"description":"Read the oldest events after this sequence, ascending (forward paging)."},
+			"description":"Read the oldest events, or turns that start after this sequence, ascending ` +
+	`(forward paging)."},
 		"before_sequence":{"type":"integer","minimum":1,
 			"description":"Read the newest events or turns before this sequence (backward paging). ` +
 	`Cannot be combined with after_sequence."},

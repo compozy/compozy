@@ -3838,6 +3838,44 @@ func TestSessionDBHistoryGroupsByTurn(t *testing.T) {
 		}
 	})
 
+	t.Run("Should read bounded history after a forward cursor beyond one event chunk", func(t *testing.T) {
+		t.Parallel()
+
+		sessionDB := openTestSessionDB(t, "sess-history-forward-bounded")
+		for range historyEventChunkSize + 44 {
+			if err := sessionDB.Record(testutil.Context(t), SessionEvent{
+				TurnID: "turn-a", Type: "tool_result", AgentName: "coder", Content: `{"tool":"ls"}`,
+			}); err != nil {
+				t.Fatalf("Record() error = %v", err)
+			}
+		}
+		for _, turnID := range []string{"turn-b", "turn-c"} {
+			if err := sessionDB.Record(testutil.Context(t), SessionEvent{
+				TurnID: turnID, Type: "agent_message", AgentName: "coder", Content: `{"text":"next"}`,
+			}); err != nil {
+				t.Fatalf("Record() error = %v", err)
+			}
+		}
+
+		history, err := sessionDB.History(testutil.Context(t), EventQuery{Forward: true, Limit: 4})
+		if err != nil {
+			t.Fatalf("History(forward, limit) error = %v", err)
+		}
+		if got := turnIDs(history); !slices.Equal(got, []string{"turn-a", "turn-b", "turn-c"}) {
+			t.Fatalf("History(forward, limit) turns = %v, want every complete turn", got)
+		}
+		if got := len(history[0].Events); got != historyEventChunkSize+44 {
+			t.Fatalf("turn-a events = %d, want the complete turn", got)
+		}
+		history, err = sessionDB.History(testutil.Context(t), EventQuery{Forward: true, AfterSequence: 5, Limit: 1})
+		if err != nil {
+			t.Fatalf("History(after, limit) error = %v", err)
+		}
+		if got := turnIDs(history); !slices.Equal(got, []string{"turn-c"}) {
+			t.Fatalf("History(after, limit) turns = %v, want the newest turn starting after the cursor", got)
+		}
+	})
+
 	t.Run("Should read bounded history in chunks without splitting returned turns", func(t *testing.T) {
 		t.Parallel()
 
@@ -4249,4 +4287,12 @@ func equalInt64Slices(left []int64, right []int64) bool {
 		}
 	}
 	return true
+}
+
+func turnIDs(history []store.TurnHistory) []string {
+	ids := make([]string, 0, len(history))
+	for _, turn := range history {
+		ids = append(ids, turn.TurnID)
+	}
+	return ids
 }

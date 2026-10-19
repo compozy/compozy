@@ -8,9 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-// hostedSchemaRootKeywords are document-level keywords that must stay on the advertised root so
-// "#/..." references and dialect selection inside the declared schema keep resolving after wrapping.
-var hostedSchemaRootKeywords = []string{"$schema", "$id", "$defs", "definitions"}
+// hostedDeclaredSchemaPointer locates the declared schema inside the widened advertised schema.
+const hostedDeclaredSchemaPointer = "#/anyOf/0"
 
 // hostedResultEnvelopeSchema accepts the structured continuation emitted when the canonical
 // payload is unavailable, most commonly because the result exceeded the tool result budget.
@@ -46,7 +45,13 @@ const hostedResultEnvelopeSchema = `{
 const hostedErrorEnvelopeSchema = `{
 	"type":"object",
 	"required":["error"],
-	"properties":{"error":{"type":"object"}}
+	"properties":{
+		"error":{
+			"type":"object",
+			"required":["code","message"],
+			"properties":{"code":{"type":"string"},"message":{"type":"string"}}
+		}
+	}
 }`
 
 // hostedOutputSchema widens a descriptor output schema so every hosted result shape validates:
@@ -65,11 +70,14 @@ func hostedOutputSchema(schema json.RawMessage) any {
 		return cloneRaw(schema)
 	}
 	wrapped := map[string]any{"type": "object"}
-	for _, keyword := range hostedSchemaRootKeywords {
-		if value, present := declared[keyword]; present {
-			wrapped[keyword] = value
-			delete(declared, keyword)
-		}
+	if dialect, present := declared["$schema"]; present {
+		wrapped["$schema"] = dialect
+		delete(declared, "$schema")
+	}
+	if _, embedded := declared["$id"]; !embedded {
+		// Without its own $id the declared schema shares the advertised document, so every local
+		// JSON pointer it uses must now start at its new location.
+		rebaseHostedSchemaRefs(declared)
 	}
 	wrapped["anyOf"] = []any{
 		declared,
@@ -77,6 +85,40 @@ func hostedOutputSchema(schema json.RawMessage) any {
 		json.RawMessage(hostedErrorEnvelopeSchema),
 	}
 	return wrapped
+}
+
+// rebaseHostedSchemaRefs rewrites local "#" and "#/..." references of one schema object in place.
+// Plain-name anchors ("#name") are location-independent and stay unchanged.
+func rebaseHostedSchemaRefs(schema map[string]any) {
+	for keyword, value := range schema {
+		switch keyword {
+		case "$ref", "$dynamicRef":
+			if ref, ok := value.(string); ok && (ref == "#" || strings.HasPrefix(ref, "#/")) {
+				schema[keyword] = hostedDeclaredSchemaPointer + strings.TrimPrefix(ref, "#")
+			}
+		case "const", "enum", "default", "examples":
+			// Instance values, not subschemas.
+		case "properties", "patternProperties", "$defs", "definitions", "dependentSchemas":
+			if children, ok := value.(map[string]any); ok {
+				for _, child := range children {
+					rebaseHostedSchemaValue(child)
+				}
+			}
+		default:
+			rebaseHostedSchemaValue(value)
+		}
+	}
+}
+
+func rebaseHostedSchemaValue(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		rebaseHostedSchemaRefs(typed)
+	case []any:
+		for _, item := range typed {
+			rebaseHostedSchemaValue(item)
+		}
+	}
 }
 
 // hostedResultEnvelope is the structured continuation for results without an object payload.

@@ -57,25 +57,34 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 			payload string
 			valid   bool
 		}{
-			{name: "declared payload", payload: `{"grants":[{"id":"grant-1"}]}`, valid: true},
-			{name: "payload violating a referenced definition", payload: `{"grants":[{"id":7}]}`},
-			{name: "payload with an undeclared field", payload: `{"grants":[],"extra":true}`},
+			{name: "accept a declared payload", payload: `{"grants":[{"id":"grant-1"}]}`, valid: true},
+			{name: "reject a payload violating a referenced definition", payload: `{"grants":[{"id":7}]}`},
+			{name: "reject a payload with an undeclared field", payload: `{"grants":[],"extra":true}`},
 			{
-				name: "result continuation",
+				name: "accept the result continuation",
 				payload: `{"truncated":true,"truncated_from_bytes":530000,"preview":"{\"grants\":[",` +
 					`"artifacts":[{"uri":"compozy://tool-artifacts/art_1","bytes":530000}],` +
 					`"read_tool":"compozy__tool_artifact_read"}`,
 				valid: true,
 			},
-			{name: "typed tool error", payload: `{"error":{"code":"tool_denied","message":"denied"}}`, valid: true},
+			{
+				name:    "accept a typed tool error",
+				payload: `{"error":{"code":"tool_denied","message":"denied"}}`,
+				valid:   true,
+			},
+			{name: "reject an untyped error object", payload: `{"error":{}}`},
 		} {
-			err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.payload))
-			if testCase.valid && err != nil {
-				t.Fatalf("advertised output schema rejected %s: %v", testCase.name, err)
-			}
-			if !testCase.valid && err == nil {
-				t.Fatalf("advertised output schema accepted %s", testCase.name)
-			}
+			t.Run("Should "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.payload))
+				if testCase.valid && err != nil {
+					t.Fatalf("advertised output schema rejected %s: %v", testCase.payload, err)
+				}
+				if !testCase.valid && err == nil {
+					t.Fatalf("advertised output schema accepted %s", testCase.payload)
+				}
+			})
 		}
 		declaration, err := json.Marshal(tool.OutputSchema)
 		if err != nil {
@@ -87,6 +96,65 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 		}
 		if root["type"] != "object" {
 			t.Fatalf("OutputSchema root type = %#v, want object as MCP requires", root["type"])
+		}
+	})
+
+	t.Run("Should keep declared local references resolvable inside the widened output schema", func(t *testing.T) {
+		t.Parallel()
+
+		propertyRef := `"properties":{"value":{"type":"string"},"copy":{"$ref":"#/properties/value"}},` +
+			`"additionalProperties":false`
+		for _, testCase := range []struct {
+			name    string
+			schema  string
+			valid   string
+			invalid string
+		}{
+			{
+				name:    "a property pointer",
+				schema:  `{"type":"object",` + propertyRef + `}`,
+				valid:   `{"value":"a","copy":"b"}`,
+				invalid: `{"copy":7}`,
+			},
+			{
+				name: "a recursive root reference",
+				schema: `{"type":"object","required":["name"],"properties":{"name":{"type":"string"},` +
+					`"children":{"type":"array","items":{"$ref":"#"}}},"additionalProperties":false}`,
+				valid:   `{"name":"root","children":[{"name":"leaf","children":[]}]}`,
+				invalid: `{"name":"root","children":[{"children":[]}]}`,
+			},
+			{
+				name:    "an embedded schema resource",
+				schema:  `{"$id":"https://compozy.test/output.json","type":"object",` + propertyRef + `}`,
+				valid:   `{"value":"a","copy":"b"}`,
+				invalid: `{"copy":7}`,
+			},
+		} {
+			t.Run("Should resolve "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				view := hostedToolView("compozy__hosted_echo")
+				view.Descriptor.OutputSchema = json.RawMessage(testCase.schema)
+				tool := hostedMCPTool(view.Descriptor)
+				advertised := compileHostedOutputSchema(t, &tool)
+				if err := validateHostedStructuredContent(t, advertised, json.RawMessage(testCase.valid)); err != nil {
+					t.Fatalf("advertised output schema rejected declared payload %s: %v", testCase.valid, err)
+				}
+				if err := validateHostedStructuredContent(
+					t,
+					advertised,
+					json.RawMessage(testCase.invalid),
+				); err == nil {
+					t.Fatalf("advertised output schema accepted invalid payload %s", testCase.invalid)
+				}
+				if err := validateHostedStructuredContent(
+					t,
+					advertised,
+					json.RawMessage(`{"truncated":true,"read_tool":"compozy__tool_artifact_read"}`),
+				); err != nil {
+					t.Fatalf("advertised output schema rejected the result continuation: %v", err)
+				}
+			})
 		}
 	})
 

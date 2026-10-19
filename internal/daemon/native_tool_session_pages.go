@@ -73,14 +73,18 @@ func readNativeSessionEventPage(
 	return events, page, nil
 }
 
-// readNativeSessionHistoryPage returns the newest turns of one bounded history window; older turns
-// continue through before_sequence.
+// readNativeSessionHistoryPage returns the oldest turns starting after after_sequence when that
+// cursor is set, otherwise the newest turns of one bounded window; older turns continue through
+// before_sequence.
 func readNativeSessionHistoryPage(
 	ctx context.Context,
 	reader nativeSessionPageReader,
 	sessionID string,
 	query store.EventQuery,
 ) ([]store.TurnHistory, nativeSessionPage, error) {
+	if query.AfterSequence > 0 || query.Forward {
+		return readNativeSessionHistoryForwardPage(ctx, reader, sessionID, query)
+	}
 	history, err := reader.History(ctx, sessionID, nativeSessionPageProbe(query))
 	if err != nil {
 		return nil, nativeSessionPage{}, err
@@ -93,6 +97,39 @@ func readNativeSessionHistoryPage(
 	history = history[len(history)-query.Limit:]
 	page.NextBeforeSequence = nativeTurnFirstSequence(history[0])
 	return history, page, nil
+}
+
+// readNativeSessionHistoryForwardPage cuts the oldest turns after the cursor from the store's
+// unbounded after-cursor read, the same read an omitted limit performed before paging existed: the
+// store excludes every turn that began at or before the cursor only when it sees the whole log.
+func readNativeSessionHistoryForwardPage(
+	ctx context.Context,
+	reader nativeSessionPageReader,
+	sessionID string,
+	query store.EventQuery,
+) ([]store.TurnHistory, nativeSessionPage, error) {
+	unbounded := query
+	unbounded.Limit = 0
+	history, err := reader.History(ctx, sessionID, unbounded)
+	if err != nil {
+		return nil, nativeSessionPage{}, err
+	}
+	page := nativeSessionPage{Limit: query.Limit}
+	if len(history) <= query.Limit {
+		return history, page, nil
+	}
+	history = history[:query.Limit]
+	page.HasMore = true
+	page.NextAfterSequence = nativeTurnLastSequence(history[len(history)-1])
+	return history, page, nil
+}
+
+func nativeTurnLastSequence(turn store.TurnHistory) int64 {
+	var last int64
+	for _, event := range turn.Events {
+		last = max(last, event.Sequence)
+	}
+	return last
 }
 
 func nativeTurnFirstSequence(turn store.TurnHistory) int64 {

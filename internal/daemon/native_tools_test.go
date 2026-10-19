@@ -7556,6 +7556,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("default history page = %d turns, page %#v; want newest 10 turns with older cursor",
 				len(history.History), history.Page)
 		}
+		forwardHistory := call(t, toolspkg.ToolIDSessionHistory,
+			`{"workspace":"ws-stable","session_id":"sess-1","after_sequence":0,"limit":3}`)
+		nextHistory := call(t, toolspkg.ToolIDSessionHistory,
+			`{"workspace":"ws-stable","session_id":"sess-1","after_sequence":15,"limit":3}`)
+		if len(forwardHistory.History) != 3 || forwardHistory.History[0].TurnID != "turn-1" ||
+			forwardHistory.Page != (nativeSessionPage{Limit: 3, HasMore: true, NextAfterSequence: 15}) ||
+			len(nextHistory.History) != 3 || nextHistory.History[0].TurnID != "turn-4" {
+			t.Fatalf("forward history pages = %#v %#v / %#v; want oldest turns with a forward cursor",
+				forwardHistory.History, forwardHistory.Page, nextHistory.History)
+		}
 		gotEventQueries, gotHistoryQueries := seenEvents, seenHistory
 		if len(gotEventQueries) != 3 || gotEventQueries[0].Limit != 51 ||
 			gotEventQueries[1].BeforeSequence != 201 || gotEventQueries[1].Limit != 251 ||
@@ -7565,7 +7575,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				gotEventQueries,
 			)
 		}
-		if len(gotHistoryQueries) != 1 || gotHistoryQueries[0].Limit != 11 {
+		if len(gotHistoryQueries) != 3 || gotHistoryQueries[0].Limit != 11 ||
+			!gotHistoryQueries[1].Forward || gotHistoryQueries[1].Limit != 0 ||
+			gotHistoryQueries[2].AfterSequence != 15 {
 			t.Fatalf("history store queries = %#v, want bounded default probe", gotHistoryQueries)
 		}
 

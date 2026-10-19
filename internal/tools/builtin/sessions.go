@@ -55,7 +55,7 @@ var sessionTools = []toolspkg.Descriptor{
 		"session_history",
 		"Session History",
 		"Read one bounded page of grouped turn history for one runtime session: the newest 10 turns by default; "+
-			"continue to older turns with page.next_before_sequence.",
+			"continue to older turns with page.next_before_sequence, or page forward from after_sequence.",
 		sessionEventQueryInputSchema,
 		toolspkg.RiskRead,
 		true,
