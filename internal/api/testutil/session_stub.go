@@ -84,6 +84,7 @@ type StubSessionManager struct {
 	CancelPromptFn func(context.Context, string) (session.PromptCancelResult, error)
 	ApproveFn      func(context.Context, string, acp.ApproveRequest) (session.ApprovalResult, error)
 	InputQueueFn   func(context.Context, string) (session.InputQueueSummary, error)
+	WorkingDirFn   func(context.Context, string) (string, error)
 }
 
 func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {

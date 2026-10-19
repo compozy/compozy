@@ -124,6 +124,24 @@ func (f *mentionTestFixture) render(
 	return got
 }
 
+// mentionHistoryDecision evaluates the target's effective compozy__session_history decision.
+func mentionHistoryDecision(
+	t *testing.T,
+	f *mentionTestFixture,
+	inputs toolspkg.PolicyInputs,
+) toolspkg.EffectiveToolDecision {
+	t.Helper()
+	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: f.manager()}, inputs)
+	view, err := registry.DiagnosticGet(t.Context(), toolspkg.Scope{
+		ProfileID: mentionTestProfile, WorkspaceID: mentionTestWorkspace,
+		SessionID: mentionTestTargetID, AgentName: "general",
+	}, toolspkg.ToolIDSessionHistory)
+	if err != nil {
+		t.Fatalf("DiagnosticGet(compozy__session_history) error = %v", err)
+	}
+	return view.Decision
+}
+
 func sessionMentions(ids ...string) []mention.Mention {
 	refs := make([]mention.Mention, 0, len(ids))
 	for _, id := range ids {
@@ -207,6 +225,20 @@ func TestMentionReferenceRenderer(t *testing.T) {
 		}
 	})
 
+	t.Run("Should omit empty provider parentheses from the reference line", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newMentionTestFixture()
+		fixture.addSession("sess-a", "Fix login bug", mentionTestWorkspace, mentionTestProfile).Provider = ""
+
+		got := fixture.render(t, nativeApproveAllPolicyInputs(), sessionMentions("sess-a"), true)
+		wantLine := "- @session:sess-a · title \"Fix login bug\" · agent general · state stopped · " +
+			"updated 2026-10-18T00:04:11Z\n"
+		if !strings.Contains(got.Text, wantLine) || strings.Contains(got.Text, "()") {
+			t.Fatalf("Render() text = %s, want line %q", got.Text, wantLine)
+		}
+	})
+
 	t.Run("Should cap rendered sessions at the mention limit", func(t *testing.T) {
 		t.Parallel()
 
@@ -231,6 +263,7 @@ func TestMentionReferenceRenderer(t *testing.T) {
 		name   string
 		inputs func(t *testing.T) toolspkg.PolicyInputs
 		human  bool
+		reason toolspkg.ReasonCode
 	}{
 		{
 			name: "operator deny list",
@@ -239,7 +272,8 @@ func TestMentionReferenceRenderer(t *testing.T) {
 				inputs.DenyTools = []toolspkg.ToolPattern{mustToolPattern(t, "compozy__session_history")}
 				return inputs
 			},
-			human: true,
+			human:  true,
+			reason: toolspkg.ReasonPolicyDenied,
 		},
 		{
 			name: "agent deny list",
@@ -248,7 +282,8 @@ func TestMentionReferenceRenderer(t *testing.T) {
 				inputs.Agent.DenyTools = []toolspkg.ToolPattern{mustToolPattern(t, "compozy__session_*")}
 				return inputs
 			},
-			human: true,
+			human:  true,
+			reason: toolspkg.ReasonPolicyDenied,
 		},
 		{
 			name: "narrowed spawn policy",
@@ -260,12 +295,24 @@ func TestMentionReferenceRenderer(t *testing.T) {
 				}
 				return inputs
 			},
-			human: true,
+			human:  true,
+			reason: toolspkg.ReasonSessionDenied,
+		},
+		{
+			name: "enforced session allowlist",
+			inputs: func(*testing.T) toolspkg.PolicyInputs {
+				inputs := nativeApproveAllPolicyInputs()
+				inputs.Session = toolspkg.SessionToolPolicy{Enforced: true}
+				return inputs
+			},
+			human:  true,
+			reason: toolspkg.ReasonSessionDenied,
 		},
 		{
 			name:   "agent-origin prompt to a tools-disabled session",
 			inputs: func(*testing.T) toolspkg.PolicyInputs { return toolsDisabledPolicyInputs() },
 			human:  false,
+			reason: toolspkg.ReasonSourceDisabled,
 		},
 	}
 	for _, tc := range unavailableCases {
@@ -280,7 +327,13 @@ func TestMentionReferenceRenderer(t *testing.T) {
 				func(turn int, role string) string { return fmt.Sprintf("%s %d", role, turn) },
 			)
 
-			got := fixture.render(t, tc.inputs(t), sessionMentions("sess-a"), tc.human)
+			inputs := tc.inputs(t)
+			if reasons := mentionHistoryDecision(t, fixture, inputs).ReasonCodes; len(reasons) != 1 ||
+				reasons[0] != tc.reason {
+				t.Fatalf("compozy__session_history reasons = %v, want [%s]", reasons, tc.reason)
+			}
+
+			got := fixture.render(t, inputs, sessionMentions("sess-a"), tc.human)
 
 			want := "<compozy_session_references>\n" + mentionUnavailablePreamble + "\n" +
 				"- @session:sess-a · title \"Fix login bug\" · agent general (claude) · state stopped · " +

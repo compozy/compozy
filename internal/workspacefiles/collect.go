@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 const (
@@ -37,8 +40,8 @@ func (idx *index) collect(ctx context.Context, root string) (*snapshot, string, 
 	return newSnapshot(files, truncated), sourceWalk, nil
 }
 
-// walkFiles lists regular files and symlinks under root without following
-// symlinked directories, skipping .git and node_modules directories.
+// walkFiles lists regular files and classified symlinks under root without
+// following symlinked directories, skipping .git and node_modules directories.
 func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, error) {
 	files := make([]string, 0, 256)
 	truncated := false
@@ -61,7 +64,8 @@ func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, e
 			}
 			return nil
 		}
-		if !entry.Type().IsRegular() && entry.Type()&fs.ModeSymlink == 0 {
+		symlink := entry.Type()&fs.ModeSymlink != 0
+		if !entry.Type().IsRegular() && !symlink {
 			return nil
 		}
 		rel, err := filepath.Rel(root, path)
@@ -71,6 +75,12 @@ func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, e
 		rel = filepath.ToSlash(rel)
 		if !indexablePath(rel) {
 			return nil
+		}
+		if symlink {
+			var keep bool
+			if rel, keep = resolveSymlink(root, rel); !keep {
+				return nil
+			}
 		}
 		if len(files) == idx.maxFiles {
 			truncated = true
@@ -83,6 +93,42 @@ func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, e
 		return nil, false, fmt.Errorf("workspacefiles: walk root: %w", err)
 	}
 	return files, truncated, nil
+}
+
+// classifyListed applies the symlink rule to one git-listed path. Paths that
+// are not symlinks, or cannot be inspected, are kept as listed.
+func classifyListed(root string, rel string) (string, bool) {
+	info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(rel)))
+	if err != nil || info.Mode()&fs.ModeSymlink == 0 {
+		return rel, true
+	}
+	return resolveSymlink(root, rel)
+}
+
+// resolveSymlink classifies a symlink by its target, as mention resolution
+// does: a directory inside root lists as a folder ("rel/"), a regular file
+// inside root as a file, and a broken, escaping, or special target is skipped.
+func resolveSymlink(root string, rel string) (string, bool) {
+	resolved, err := filepath.EvalSymlinks(filepath.Join(root, filepath.FromSlash(rel)))
+	if err != nil {
+		return "", false
+	}
+	inside, err := fileutil.PathWithinRoot(root, resolved)
+	if err != nil || !inside {
+		return "", false
+	}
+	info, err := os.Stat(resolved)
+	if err != nil {
+		return "", false
+	}
+	switch {
+	case info.IsDir():
+		return rel + "/", true
+	case info.Mode().IsRegular():
+		return rel, true
+	default:
+		return "", false
+	}
 }
 
 // indexablePath rejects paths a mention token cannot carry.

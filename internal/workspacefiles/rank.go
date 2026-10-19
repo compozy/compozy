@@ -34,11 +34,20 @@ type snapshot struct {
 }
 
 // newSnapshot builds file entries and derives one folder entry per distinct parent directory.
+// A listed path ending in "/" (a symlink to a directory inside the root) is a folder entry.
 func newSnapshot(files []string, truncated bool) *snapshot {
 	entries := make([]indexedEntry, 0, len(files)+len(files)/4)
 	folders := make(map[string]struct{})
 	for _, file := range files {
-		entries = append(entries, newIndexedEntry(file, path.Base(file), KindFile))
+		if folder, ok := strings.CutSuffix(file, "/"); ok {
+			if _, seen := folders[folder]; !seen {
+				folders[folder] = struct{}{}
+				entries = append(entries, newIndexedEntry(file, path.Base(folder), KindFolder))
+			}
+			file = folder
+		} else {
+			entries = append(entries, newIndexedEntry(file, path.Base(file), KindFile))
+		}
 		for dir := path.Dir(file); dir != "." && dir != "/"; dir = path.Dir(dir) {
 			if _, ok := folders[dir]; ok {
 				break

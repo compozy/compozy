@@ -143,13 +143,21 @@ type InputAttachmentMetadata struct {
 	Kind  string `json:"kind"`
 }
 
+type InputMentionKind string
+
+const (
+	InputMentionKindFile    InputMentionKind = "file"
+	InputMentionKindFolder  InputMentionKind = "folder"
+	InputMentionKindSession InputMentionKind = "session"
+)
+
 type InputMentionMetadata struct {
-	Kind   string `json:"kind"`
-	Token  string `json:"token"`
-	Target string `json:"target"`
-	Label  string `json:"label"`
-	Start  int    `json:"start"`
-	End    int    `json:"end"`
+	Kind   InputMentionKind `json:"kind"`
+	Token  string           `json:"token"`
+	Target string           `json:"target"`
+	Label  string           `json:"label"`
+	Start  int              `json:"start"`
+	End    int              `json:"end"`
 }
 
 type InputPreSubmitPatch struct {
@@ -183,11 +191,3 @@ type InputPreSubmitPayload struct {
 	Attachments    []InputAttachmentMetadata `json:"attachments,omitempty"`
 	Mentions       []InputMentionMetadata    `json:"mentions,omitempty"`
 }
-
-type IssueSeverity string
-
-const (
-	IssueSeverityError   IssueSeverity = "error"
-	IssueSeverityWarning IssueSeverity = "warning"
-	IssueSeverityWarn    IssueSeverity = "warn"
-)

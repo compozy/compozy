@@ -13115,7 +13115,8 @@ export interface components {
     };
     SessionInputMentionPayload: {
       end: number;
-      kind: string;
+      /** @enum {string} */
+      kind: "file" | "folder" | "session";
       label: string;
       start: number;
       target: string;
@@ -45004,7 +45005,7 @@ export interface operations {
       query?: {
         /** @description Search text; empty returns the shallowest entries */
         q?: string;
-        /** @description Maximum entries returned (1-200, default 50) */
+        /** @description Maximum entries returned */
         limit?: number;
       };
       header?: never;
@@ -45056,15 +45057,6 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": components["schemas"]["ErrorPayload"];
-        };
-      };
-      /** @description Service unavailable - dependent service missing */
-      503: {
         headers: {
           [name: string]: unknown;
         };

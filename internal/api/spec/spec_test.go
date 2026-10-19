@@ -785,6 +785,31 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeSessionFileSearchLimitAndMentionKinds",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				search := operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/files", "GET")
+				limit := parameterSchema(t, search, "limit", openapi3.ParameterInQuery)
+				if limit.Min == nil || *limit.Min != 1 ||
+					limit.Max == nil || *limit.Max != float64(contract.SessionFilesMaxLimit) ||
+					limit.Default != contract.SessionFilesDefaultLimit {
+					t.Fatalf(
+						"limit schema min=%v max=%v default=%v, want 1/200/50",
+						limit.Min,
+						limit.Max,
+						limit.Default,
+					)
+				}
+				mention := componentSchema(t, doc, "SessionInputMentionPayload")
+				if got := propertySchema(t, mention, "kind").Enum; !slices.Equal(
+					got, []any{"file", "folder", "session"},
+				) {
+					t.Fatalf("mention kind enum = %v, want file|folder|session", got)
+				}
+			},
+		},
+		{
 			name: "ShouldDescribeSessionAttachAndRecapContracts",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
@@ -3465,6 +3490,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		}
 	}
 
+	// Composer mentions: optional additive `mentions` on queued-input payloads; no
+	// required/type/removal change.
+	addQueuedInputMentions(t, baseline)
+
 	// #813: optional opt-in query parameters on worktree cleanup, inserted before
 	// the trailing profile selector; existing parameters keep their meaning.
 	boolQuery := func(name string) map[string]any {
@@ -3491,6 +3520,51 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			append(append([]any{}, parameters[:last]...), change.added...),
 			parameters[last],
 		)
+	}
+}
+
+// addQueuedInputMentions adds the approved `mentions` array to every historical
+// queued-input payload schema (identified by skill_invocations + queue_generation).
+func addQueuedInputMentions(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	mentionKind := map[string]any{"type": "string", "enum": []any{"file", "folder", "session"}}
+	item := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"kind":   mentionKind,
+			"token":  map[string]any{"type": "string"},
+			"target": map[string]any{"type": "string"},
+			"label":  map[string]any{"type": "string"},
+			"start":  map[string]any{"type": "integer"},
+			"end":    map[string]any{"type": "integer"},
+		},
+		"required": []any{"end", "kind", "label", "start", "target", "token"},
+	}
+	added := 0
+	var walk func(node any)
+	walk = func(node any) {
+		switch value := node.(type) {
+		case map[string]any:
+			if properties, ok := value["properties"].(map[string]any); ok {
+				_, skills := properties["skill_invocations"]
+				_, generation := properties["queue_generation"]
+				if _, exists := properties["mentions"]; skills && generation && !exists {
+					properties["mentions"] = map[string]any{"type": "array", "items": item}
+					added++
+				}
+			}
+			for _, child := range value {
+				walk(child)
+			}
+		case []any:
+			for _, child := range value {
+				walk(child)
+			}
+		}
+	}
+	walk(baseline)
+	if added == 0 {
+		t.Fatal("approved mentions addition: no queued-input payload schema found in the historical baseline")
 	}
 }
 

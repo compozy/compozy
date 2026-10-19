@@ -15,7 +15,7 @@ func searchSessionFilesOperationSpec() OperationSpec {
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 			queryParam("q", "Search text; empty returns the shallowest entries", false),
-			intQueryParam("limit", "Maximum entries returned (1-200, default 50)"),
+			sessionFilesLimitParam(),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionFilesResponse{}},
@@ -26,12 +26,15 @@ func searchSessionFilesOperationSpec() OperationSpec {
 				Description: "Session working directory no longer exists",
 				Body:        contract.ErrorPayload{},
 			},
-			{
-				Status:      503,
-				Description: specServiceUnavailableDependentServiceMissingDescription,
-				Body:        contract.ErrorPayload{},
-			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
+}
+
+func sessionFilesLimitParam() ParameterSpec {
+	limit := intQueryParam("limit", "Maximum entries returned")
+	minimum, maximum := float64(1), float64(contract.SessionFilesMaxLimit)
+	limit.Minimum, limit.Maximum = &minimum, &maximum
+	limit.Default = contract.SessionFilesDefaultLimit
+	return limit
 }

@@ -962,7 +962,8 @@ func TestBuildWirePromptRequestDeliversMentions(t *testing.T) {
 				NewPromptResourceLink("web/src", "/Users/ana/code/shop/web/src", true),
 			},
 			MentionDelivery: PromptMentionDelivery{
-				Sessions: 1, ReferencesForm: "reference", DroppedOverCap: 2, DroppedAtDispatch: 1,
+				Sessions: 1, SessionIDs: []string{"sess-9f8e7d"}, ReferencesForm: "reference",
+				DroppedOverCap: 2, DroppedAtDispatch: 1,
 			},
 			Attachments: []PromptAttachment{{Name: "diagram.png", MIMEType: "image/png", Data: []byte("image")}},
 		})
@@ -992,6 +993,14 @@ func TestBuildWirePromptRequestDeliversMentions(t *testing.T) {
 		}
 		wantMentions := &DeliveredMentions{
 			Links: 2, Sessions: 1, ReferencesForm: "reference", DroppedOverCap: 2, DroppedAtDispatch: 1,
+			Blocks: []DeliveredMentionBlock{
+				{
+					Kind: DeliveredMentionBlockSessionReferences, Form: "reference",
+					SessionIDs: []string{"sess-9f8e7d"}, Bytes: int64(len(references)),
+				},
+				{Kind: DeliveredMentionBlockResourceLink, Name: "internal/acp/client_prompt.go"},
+				{Kind: DeliveredMentionBlockResourceLink, Name: "web/src/"},
+			},
 		}
 		if !reflect.DeepEqual(manifest.Mentions, wantMentions) {
 			t.Fatalf("manifest.Mentions = %#v, want %#v", manifest.Mentions, wantMentions)
@@ -1000,10 +1009,36 @@ func TestBuildWirePromptRequestDeliversMentions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("marshal mentions: %v", err)
 		}
-		const wantJSON = `{"links":2,"sessions":1,"references_form":"reference",` +
-			`"dropped_over_cap":2,"dropped_at_dispatch":1}`
+		wantJSON := `{"links":2,"sessions":1,"references_form":"reference",` +
+			`"dropped_over_cap":2,"dropped_at_dispatch":1,"blocks":[` +
+			`{"kind":"session_references","form":"reference","session_ids":["sess-9f8e7d"],"bytes":` +
+			fmt.Sprint(len(references)) + `},` +
+			`{"kind":"resource_link","name":"internal/acp/client_prompt.go"},` +
+			`{"kind":"resource_link","name":"web/src/"}]}`
 		if string(encoded) != wantJSON {
 			t.Fatalf("manifest mentions JSON = %s, want %s", encoded, wantJSON)
+		}
+		whole, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatalf("marshal manifest: %v", err)
+		}
+		if strings.Contains(string(whole), "/Users/ana") || strings.Contains(string(whole), "file://") {
+			t.Fatalf("manifest JSON = %s, want no absolute paths or URIs", whole)
+		}
+	})
+
+	t.Run("Should clone mention blocks independently of the source manifest", func(t *testing.T) {
+		t.Parallel()
+
+		source := &DeliveryManifest{Mentions: &DeliveredMentions{Blocks: []DeliveredMentionBlock{
+			{Kind: DeliveredMentionBlockSessionReferences, SessionIDs: []string{"sess-a"}},
+		}}}
+		cloned := cloneDeliveryManifest(source)
+		source.Mentions.Blocks[0].SessionIDs[0] = "sess-mutated"
+		source.Mentions.Blocks[0].Kind = "mutated"
+		if got := cloned.Mentions.Blocks[0]; got.Kind != DeliveredMentionBlockSessionReferences ||
+			got.SessionIDs[0] != "sess-a" {
+			t.Fatalf("cloned block = %#v, want unaffected by source mutation", got)
 		}
 	})
 

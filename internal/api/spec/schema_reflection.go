@@ -178,8 +178,14 @@ func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 	if spec.MaxLength != nil {
 		schema.MaxLength = spec.MaxLength
 	}
+	if spec.Minimum != nil {
+		schema.WithMin(*spec.Minimum)
+	}
 	if spec.Maximum != nil {
 		schema.WithMax(*spec.Maximum)
+	}
+	if spec.Default != nil {
+		schema.WithDefault(spec.Default)
 	}
 	return openapi3.NewSchemaRef("", schema)
 }
