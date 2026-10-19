@@ -610,6 +610,28 @@ test("E2E-007: quitting drains shell resources even when renderer unload cannot 
   }
 });
 
+test("E2E-007: failed product-window disposal retains the previous startup diagnosis", async ({
+  launchDesktop,
+}) => {
+  const first = await launchDesktop();
+  await first.product();
+  const before = await jsonCommand(first, ["app", "diagnose", "-o", "json"]);
+  const windowState = join(first.home, "desktop-window.json");
+  // Reject the real atomic state write rather than replacing the close implementation.
+  await rm(windowState, { force: true });
+  await mkdir(windowState);
+  await first.closeShell();
+  await rm(windowState, { recursive: true });
+
+  const next = await launchDesktop({ home: first.home });
+  await next.product();
+  const diagnosis = await jsonCommand(next, ["app", "diagnose", "-o", "json"]);
+  expect(diagnosis.previous_crash).toMatchObject({
+    boot_id: before.boot_id,
+    boot_phase: "product",
+  });
+});
+
 test("E2E-005 E2E-007 E2E-024: healthy diagnostics and shell relaunch preserve daemon ownership", async ({
   launchDesktop,
 }) => {

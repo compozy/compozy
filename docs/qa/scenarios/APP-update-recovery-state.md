@@ -52,3 +52,8 @@ focused macOS packaged run also passed bootstrap quit, cache-relaunch #742, and 
 crash recovery (four scenarios total). This proves the renderer-close failure mode; it does not
 identify why the renderer originally stalled in Linux CI. Full cross-platform CI remains the
 delivery gate, and prior update-recovery evidence above is retained.
+
+If product-window disposal fails, keep the startup marker while logging the failure and
+continuing the remaining cleanup. The packaged E2E-007 failure-path case rejects the real atomic
+window-state write and verifies that the next launch's public `app diagnose` reports the prior
+boot identity. It reproduced a missing `previous_crash` before the guard and passed after it.

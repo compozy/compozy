@@ -137,14 +137,16 @@ async function cleanup(): Promise<void> {
   cleanupPromise = (async () => {
     bootstrapAbort.abort();
     const errors: Error[] = [];
-    const attempt = async (name: string, step: () => void | Promise<void>): Promise<void> => {
+    const attempt = async (name: string, step: () => void | Promise<void>): Promise<boolean> => {
       logger.info("desktop shutdown step started", { step: name });
       try {
         await step();
         logger.info("desktop shutdown step completed", { step: name });
+        return true;
       } catch (error) {
         logger.error("desktop shutdown step failed", error, { step: name });
         errors.push(error instanceof Error ? error : new Error(String(error)));
+        return false;
       }
     };
     try {
@@ -161,8 +163,10 @@ async function cleanup(): Promise<void> {
       });
       await attempt("control token", async () => await deleteControlToken(paths.appToken));
       // Shell resources are drained; a stuck renderer must not hold the final quit handshake.
-      await attempt("product window", async () => await product?.close());
-      await attempt("clean marker", async () => await publisher?.markCleanShutdown());
+      const productClosed = await attempt("product window", async () => await product?.close());
+      if (productClosed) {
+        await attempt("clean marker", async () => await publisher?.markCleanShutdown());
+      }
       await attempt("logs", async () => await logger.flush());
       await logger.flush();
       if (errors.length === 1) throw errors[0];
