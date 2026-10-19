@@ -1,4 +1,4 @@
-import { Alert, AlertDescription, Button } from "@compozy/ui";
+import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 import { ProfileOwnerTag } from "@/systems/profiles";
 
 import { useSessionFolders } from "../../hooks/use-session-folders";
@@ -12,12 +12,7 @@ import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListSections, type SessionListSectionsProps } from "./session-list-sections";
 import { SessionListThreadList } from "./session-list-thread-list";
 
-export function SessionListProfileGroup({
-  group,
-  view,
-  threads,
-  ...props
-}: Pick<
+type ProfileGroupProps = Pick<
   SessionListSectionsProps,
   | "filtering"
   | "collapsedThreads"
@@ -32,7 +27,9 @@ export function SessionListProfileGroup({
   group: SessionProfileFolderGroup;
   view: SessionListViewModel;
   threads: readonly SessionThreadModel[];
-}) {
+};
+
+export function SessionListProfileGroup({ group, view, threads, ...props }: ProfileGroupProps) {
   const state = useSessionFolders({
     workspaceId: group.workspaceId,
     profile: group.owner.name,
@@ -94,5 +91,64 @@ export function SessionListProfileGroup({
         />
       ) : null}
     </section>
+  );
+}
+
+export function SessionListProfileStatus({ view }: { view: SessionListViewModel }) {
+  return (
+    <>
+      {view.profileFoldersLoading ? (
+        <p role="status" className="px-3 py-2 text-small-body text-muted">
+          Loading profiles…
+        </p>
+      ) : null}
+      {view.profileFoldersError ? (
+        <Alert className="mx-3 my-1 w-auto" variant="warning">
+          <AlertDescription>Couldn&rsquo;t load profiles.</AlertDescription>
+          <AlertActions>
+            <Button size="xs" variant="secondary" onClick={view.profileFoldersError.retry}>
+              Retry
+            </Button>
+          </AlertActions>
+        </Alert>
+      ) : null}
+    </>
+  );
+}
+
+export function SessionListProfileGroups({
+  groups,
+  view,
+  threads,
+  emptyMessage,
+  footer,
+  ...props
+}: Omit<ProfileGroupProps, "group"> & {
+  groups: readonly SessionProfileFolderGroup[];
+  emptyMessage: string;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
+      aria-busy={view.catalog?.paging || undefined}
+    >
+      {threads.length === 0 ? (
+        <p className="px-2 py-3 text-small-body text-muted">{emptyMessage}</p>
+      ) : null}
+      {groups.map(group => (
+        <SessionListProfileGroup
+          {...props}
+          key={group.owner.id}
+          group={group}
+          view={view}
+          threads={threads.filter(thread => thread.session.profile_id === group.owner.id)}
+          onSelectSession={session => {
+            if (!view.catalog?.paging) props.onSelectSession(session);
+          }}
+        />
+      ))}
+      {footer}
+    </div>
   );
 }

@@ -106,6 +106,16 @@ export interface VisibleSessionOrderOptions {
   filtering?: boolean;
 }
 
+/** Independent profile/catalog snapshots must never drop an unmatched root. */
+export function canGroupSessionThreads(
+  threads: readonly SessionThreadModel[],
+  groups: VisibleSessionOrderOptions["profileFolderGroups"]
+): boolean {
+  if (!groups?.length) return false;
+  const owners = new Set(groups.map(group => group.owner.id));
+  return threads.every(thread => owners.has(thread.session.profile_id ?? ""));
+}
+
 /**
  * Projects the row order the shared session catalog renders for the served
  * sessions. Closed groups, folders, and threads are excluded because the cycle
@@ -138,8 +148,11 @@ export function visibleSessionOrder(
           filtering
         )
       : owned;
-  const visibleThreads = options.profileFolderGroups?.length
-    ? options.profileFolderGroups.flatMap(group =>
+  const groups = canGroupSessionThreads(threads, options.profileFolderGroups)
+    ? options.profileFolderGroups
+    : undefined;
+  const visibleThreads = groups?.length
+    ? groups.flatMap(group =>
         inFolders(
           threads.filter(thread => thread.session.profile_id === group.owner.id),
           group.folders

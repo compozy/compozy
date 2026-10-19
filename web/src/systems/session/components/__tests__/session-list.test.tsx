@@ -1098,6 +1098,9 @@ describe("SessionList folders and manual order", () => {
     });
     await userEvent.setup().click(screen.getByTestId("session-sidebar-session-r1"));
     expect(onSelect).toHaveBeenCalledTimes(paging ? 0 : 1);
+    const container = screen.getByTestId("session-sidebar-profile-default").parentElement;
+    if (paging) expect(container).toHaveAttribute("aria-busy", "true");
+    else expect(container).not.toHaveAttribute("aria-busy");
   });
 
   it("Should retry a failed aggregate folder read for an owner with no sessions", async () => {
@@ -1130,6 +1133,73 @@ describe("SessionList folders and manual order", () => {
       fetcher.mockRestore();
     }
   });
+
+  it("Should expose aggregate profile loading and retry while preserving catalog rows", async () => {
+    const retry = vi.fn();
+    const aggregate = { ...view, aggregate: true, scopeLabel: null };
+    const { update } = renderList({ view: { ...aggregate, profileFoldersLoading: true } });
+    expect(screen.getByRole("status")).toHaveTextContent("Loading profiles");
+    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
+    update(sessions, { ...aggregate, profileFoldersError: { retry } });
+    expect(screen.getByText("Couldn’t load profiles.")).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+    update(sessions, aggregate);
+    expect(screen.queryByText("Couldn’t load profiles.")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
+  });
+
+  it("Should retain unmatched profile rows and bulk selection until the profile catalog catches up", async () => {
+    const rows = [
+      { ...layoutRows[0]!, profile_id: "default" },
+      { ...layoutRows[1]!, profile_id: "new-profile" },
+    ];
+    renderList({
+      sessions: rows,
+      view: {
+        ...view,
+        aggregate: true,
+        profileFolderGroups: [
+          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
+        ],
+      },
+    });
+    expect(screen.getByTestId("session-sidebar-session-r1")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox", { name: "Select Root one" }));
+    await user.click(screen.getByTestId("session-sidebar-session-f1"));
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
+  });
+
+  it.each([{ folders: [] }, { folders: [folderA] }])(
+    "Should explain aggregate empty search with folder data %j",
+    async ({ folders }) => {
+      const rows = [{ ...layoutRows[0]!, profile_id: "default" }];
+      const { queryClient } = renderList({
+        sessions: rows,
+        view: {
+          ...view,
+          aggregate: true,
+          scopeLabel: null,
+          profileFolderGroups: [
+            { owner: view.ownerOf(rows[0]!), workspaceId: "ws", folders, canCreateSession: true },
+          ],
+        },
+      });
+      act(() =>
+        queryClient.setQueryData(
+          sessionFoldersOptions({ workspaceId: "ws", profile: "default" }).queryKey,
+          folders
+        )
+      );
+      await userEvent
+        .setup()
+        .type(screen.getByRole("searchbox", { name: "Filter sessions" }), "unmatched query");
+      expect(screen.getByText(/No matching sessions/)).toBeVisible();
+      expect(screen.queryByTestId("session-sidebar-session-r1")).not.toBeInTheDocument();
+    }
+  );
 
   it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
     const user = userEvent.setup();

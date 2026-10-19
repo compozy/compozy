@@ -38,6 +38,8 @@ export interface SessionProfileFolderGroup {
 
 export interface SessionListViewModel {
   profileFolderGroups?: SessionProfileFolderGroup[];
+  profileFoldersLoading?: boolean;
+  profileFoldersError?: { retry: () => void };
   catalog?: ReturnType<typeof useSessionCatalog>;
   search?: string;
   setSearch?: (search: string) => void;
@@ -122,7 +124,7 @@ export function useSessionListView(
     workspaceScoped && (scope === "global" || workspaceId !== null)
   );
 
-  const profileFolderGroups = useProfileFolderGroups(
+  const profileFolders = useProfileFolderGroups(
     workspaceId,
     profile.destination,
     workspaceScoped && profile.aggregate
@@ -135,7 +137,7 @@ export function useSessionListView(
   });
 
   return {
-    profileFolderGroups,
+    ...profileFolders,
     layout: folders.layout,
     layoutError: folders.loadError,
     worktreeId: options.worktreeId,
@@ -172,18 +174,33 @@ function useProfileFolderGroups(
   workspaceId: string | null,
   destination: string,
   enabled: boolean
-): SessionProfileFolderGroup[] {
-  const profiles = useProfiles(enabled && workspaceId !== null);
+): Pick<
+  SessionListViewModel,
+  "profileFolderGroups" | "profileFoldersLoading" | "profileFoldersError"
+> {
+  const active = enabled && workspaceId !== null;
+  const profiles = useProfiles(active);
   const owners = enabled && workspaceId ? (profiles.data ?? []) : [];
   const folderQueries = useQueries({
     queries: owners.map(owner =>
       sessionFoldersOptions({ workspaceId: workspaceId ?? "", profile: owner.name })
     ),
   });
-  return owners.map((owner, index) => ({
-    owner: { ...owner, archived: owner.archived_at != null },
-    workspaceId: workspaceId ?? "",
-    folders: folderQueries[index]?.data,
-    canCreateSession: owner.name === destination,
-  }));
+  return {
+    profileFoldersLoading: active && profiles.isPending,
+    profileFoldersError:
+      active && profiles.isError
+        ? {
+            retry: () => {
+              void profiles.refetch();
+            },
+          }
+        : undefined,
+    profileFolderGroups: owners.map((owner, index) => ({
+      owner: { ...owner, archived: owner.archived_at != null },
+      workspaceId: workspaceId ?? "",
+      folders: folderQueries[index]?.data,
+      canCreateSession: owner.name === destination,
+    })),
+  };
 }

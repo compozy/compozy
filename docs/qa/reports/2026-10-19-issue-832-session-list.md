@@ -68,6 +68,17 @@ baseline. The existing approved-addition adapter now adds only `last_known`, usi
 `CGO_ENABLED=1 go test -race ./internal/api/spec -run '^TestDocumentPreservesSchemaSemantics$' -count=1`
 passed.
 
+CodeRabbit findings #4318833230, #4318833236 and #4318833241 are addressed. Aggregate empty
+search has a message and pending paging exposes `aria-busy`. Profile loading/error/retry are
+visible above the retained catalog. Grouping activates only when every thread root has an owner
+in the independent profile snapshot; otherwise rendering, bulk selection and keyboard cycling all
+retain the flat catalog. The three owning suites pass 78 tests. React Doctor's local scan reports
+no issues after keeping aggregate presentation and status notices in small components.
+
+An accidentally unfiltered Web test invocation during this round was stopped by terminating only
+its owned processes. It is not counted as validation evidence; the authorized three-file command
+was rerun. No global gate or full E2E run was used.
+
 ## Final status
 
 Targeted QA passed. PR delivery remains conditional on current-head required CI and reviewer feedback.

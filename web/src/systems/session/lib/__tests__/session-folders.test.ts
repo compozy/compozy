@@ -235,6 +235,23 @@ describe("visibleSessionOrder", () => {
     ]);
   });
 
+  it("Should retain catalog order when a profile owner is not in the independent profile snapshot", () => {
+    const page = [
+      { ...session("new-root"), profile_id: "new" },
+      { ...session("known-filed", "fa"), profile_id: "known" },
+    ];
+    expect(
+      order(
+        visibleSessionOrder(page, {
+          ...base,
+          scope: "workspace",
+          profileFolderGroups: [{ owner: { id: "known" }, folders: [folder("fa")] }],
+          collapsedFolderIds: new Set(["fa"]),
+        })
+      )
+    ).toEqual(["new-root", "known-filed"]);
+  });
+
   it("Should keep a search match inside a collapsed folder, as the list shows it", () => {
     const results = [session("a1", "fa"), session("r1")];
     const options = {
