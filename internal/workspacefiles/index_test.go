@@ -156,6 +156,7 @@ func TestIndexSearchGitRepository(t *testing.T) {
 		logs := &lockedBuffer{}
 		logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		runner := &fakeGitRunner{files: []string{"a.go", "pkg/b.go"}}
+		createListedFiles(t, root, runner.files)
 
 		result, err := New(runner, WithLogger(logger)).Search(t.Context(), root, "", 100)
 		if err != nil {
@@ -396,6 +397,9 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 			if !strings.Contains(output, `"source":"walk"`) {
 				t.Fatalf("logs = %s, want the index built from the walk", output)
 			}
+			if strings.Contains(output, root) {
+				t.Fatalf("logs = %s, want no root path", output)
+			}
 		})
 	}
 
@@ -454,6 +458,10 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		}
 		if message, ok := record["error"].(string); !ok || !strings.Contains(message, "git exploded") {
 			t.Fatalf("index_failed error = %#v, want both source failures", record["error"])
+		}
+		if message, _ := record["error"].(string); strings.Contains(logs.String(), root) ||
+			!strings.Contains(message, "<root>") {
+			t.Fatalf("logs = %s, want the walk error with the root path redacted", logs.String())
 		}
 	})
 }

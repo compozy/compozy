@@ -245,7 +245,9 @@ func (idx *index) build(ctx context.Context, root string, target *rootIndex) {
 	started := idx.now()
 	snap, source, err := idx.collect(ctx, root)
 	if err != nil {
-		idx.logger.Error("workspacefiles.index_failed", "root_hash", rootHash(root), "error", err)
+		idx.logger.Error(
+			"workspacefiles.index_failed", "root_hash", rootHash(root), "error", redactRoot(root, err),
+		)
 		target.err = fmt.Errorf("workspacefiles: index root: %w", err)
 	} else {
 		target.snapshot = snap
@@ -260,6 +262,12 @@ func (idx *index) build(ctx context.Context, root string, target *rootIndex) {
 	}
 	target.builtAt = idx.now()
 	close(target.done)
+}
+
+// redactRoot renders err for logs with every occurrence of root replaced, so
+// filesystem and git errors cannot reveal the path root_hash stands for.
+func redactRoot(root string, err error) string {
+	return strings.ReplaceAll(err.Error(), root, "<root>")
 }
 
 // rootHash identifies a root in logs without exposing its path.

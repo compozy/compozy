@@ -30,7 +30,9 @@ func (idx *index) collect(ctx context.Context, root string) (*snapshot, string, 
 		}
 		gitErr = err
 		if !errors.Is(err, errNotRepository) {
-			idx.logger.Warn("workspacefiles.git_fallback", "root_hash", rootHash(root), "error", err)
+			idx.logger.Warn(
+				"workspacefiles.git_fallback", "root_hash", rootHash(root), "error", redactRoot(root, err),
+			)
 		}
 	}
 	files, truncated, err := idx.walkFiles(ctx, root)
