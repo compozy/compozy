@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// ToolApprovalGrantPayload is a daemon API value.
+type ToolApprovalGrantPayload struct {
+	ID              string                `json:"id"`
+	ProfileID       string                `json:"profile_id"`
+	ProfileName     string                `json:"profile_name"`
+	ProfileColor    string                `json:"profile_color"`
+	ProfileIcon     string                `json:"profile_icon,omitempty"`
+	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
+	ProfileArchived bool                  `json:"profile_archived"`
+	WorkspaceID     string                `json:"workspace_id"`
+	AgentName       string                `json:"agent_name,omitempty"`
+	ToolID          ToolID                `json:"tool_id"`
+	InputDigest     string                `json:"input_digest,omitempty"`
+	Decision        ApprovalGrantDecision `json:"decision"`
+	CreatedAt       time.Time             `json:"created_at"`
+	LastUsedAt      time.Time             `json:"last_used_at"`
+}
+
+// ToolApprovalGrantResponse is a daemon API value.
+type ToolApprovalGrantResponse struct {
+	Grant ToolApprovalGrantPayload `json:"grant"`
+}
+
 // ToolApprovalGrantSetRequest is a daemon API value.
 type ToolApprovalGrantSetRequest struct {
 	ToolID    ToolID                       `json:"tool_id"`
@@ -414,29 +437,4 @@ type UpdateAgentRequest struct {
 type UpdateAppTokenRequest struct {
 	Name    *string   `json:"name,omitempty"`
 	Origins *[]string `json:"origins,omitempty"`
-}
-
-// UpdateExtensionRequest is a daemon API value.
-type UpdateExtensionRequest struct {
-	Scope                string           `json:"scope,omitempty"`
-	WorkspaceID          string           `json:"workspace_id,omitempty"`
-	Profile              string           `json:"profile,omitempty"`
-	Inputs               map[string]Value `json:"inputs,omitempty"`
-	Version              string           `json:"version,omitempty"`
-	CheckOnly            bool             `json:"check_only,omitzero"`
-	AllowUnverified      bool             `json:"allow_unverified,omitzero"`
-	ConfirmGatewayDigest string           `json:"confirm_gateway_digest,omitempty"`
-}
-
-// UpdateExtensionsRequest is a daemon API value.
-type UpdateExtensionsRequest struct {
-	Scope           string           `json:"scope,omitempty"`
-	WorkspaceID     string           `json:"workspace_id,omitempty"`
-	Profile         string           `json:"profile,omitempty"`
-	Inputs          map[string]Value `json:"inputs,omitempty"`
-	Names           []string         `json:"names,omitempty"`
-	All             bool             `json:"all,omitzero"`
-	Version         string           `json:"version,omitempty"`
-	CheckOnly       bool             `json:"check_only,omitzero"`
-	AllowUnverified bool             `json:"allow_unverified,omitzero"`
 }

@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+// UpdateExtensionRequest is a daemon API value.
+type UpdateExtensionRequest struct {
+	Scope                string           `json:"scope,omitempty"`
+	WorkspaceID          string           `json:"workspace_id,omitempty"`
+	Profile              string           `json:"profile,omitempty"`
+	Inputs               map[string]Value `json:"inputs,omitempty"`
+	Version              string           `json:"version,omitempty"`
+	CheckOnly            bool             `json:"check_only,omitzero"`
+	AllowUnverified      bool             `json:"allow_unverified,omitzero"`
+	ConfirmGatewayDigest string           `json:"confirm_gateway_digest,omitempty"`
+}
+
+// UpdateExtensionsRequest is a daemon API value.
+type UpdateExtensionsRequest struct {
+	Scope           string           `json:"scope,omitempty"`
+	WorkspaceID     string           `json:"workspace_id,omitempty"`
+	Profile         string           `json:"profile,omitempty"`
+	Inputs          map[string]Value `json:"inputs,omitempty"`
+	Names           []string         `json:"names,omitempty"`
+	All             bool             `json:"all,omitzero"`
+	Version         string           `json:"version,omitempty"`
+	CheckOnly       bool             `json:"check_only,omitzero"`
+	AllowUnverified bool             `json:"allow_unverified,omitzero"`
+}
+
 // UpdateJobRequest is a daemon API value.
 type UpdateJobRequest struct {
 	Name       *string          `json:"name,omitempty"`
@@ -418,30 +443,4 @@ type WindowManagerLayoutReplaceRequest struct {
 	Actor            WindowManagerActor          `json:"actor"`
 	Origin           string                      `json:"origin"`
 	Document         WindowManagerLayoutDocument `json:"document"`
-}
-
-// WindowManagerLayoutValidationRequest is a daemon API value.
-type WindowManagerLayoutValidationRequest struct {
-	WorkspaceID WindowmanagerWorkspaceID    `json:"workspace_id"`
-	Document    WindowManagerLayoutDocument `json:"document"`
-}
-
-// WindowManagerLayoutValidationResponse is a daemon API value.
-type WindowManagerLayoutValidationResponse struct {
-	WorkspaceID WindowmanagerWorkspaceID `json:"workspace_id"`
-	Valid       bool                     `json:"valid"`
-	Diagnostics []Diagnostic             `json:"diagnostics,omitempty"`
-}
-
-// WindowManagerPaletteContext is a daemon API value.
-type WindowManagerPaletteContext struct {
-	WindowFocused       bool         `json:"window_focused"`
-	WindowFloating      bool         `json:"window_floating"`
-	WindowStacked       bool         `json:"window_stacked"`
-	DesktopWindowCount  int          `json:"desktop_window_count"`
-	ScopeGlobal         bool         `json:"scope_global"`
-	ShellDesktop        bool         `json:"shell_desktop"`
-	FocusedSessionState string       `json:"focused_session_state,omitempty"`
-	WorkspaceTrusted    bool         `json:"workspace_trusted"`
-	DestinationIntent   *RouteIntent `json:"destination_intent,omitzero"`
 }

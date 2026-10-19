@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// TaskBlockPayload is a daemon API value.
+type TaskBlockPayload struct {
+	ID          string          `json:"id"`
+	TaskID      string          `json:"task_id"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Kind        BlockKind       `json:"kind"`
+	Reason      string          `json:"reason"`
+	Details     json.RawMessage `json:"details,omitempty"`
+	CreatedAt   time.Time       `json:"created_at"`
+	CreatedBy   ActorIdentity   `json:"created_by"`
+	ExpiresAt   *time.Time      `json:"expires_at,omitempty"`
+	ClearedAt   *time.Time      `json:"cleared_at,omitempty"`
+	ClearedBy   *ActorIdentity  `json:"cleared_by,omitempty"`
+	ClearNote   string          `json:"clear_note,omitempty"`
+}
+
 // TaskBlockResponse is a daemon API value.
 type TaskBlockResponse struct {
 	Block TaskBlockPayload `json:"block"`
@@ -428,23 +444,4 @@ type TaskInspectEventPayload struct {
 	Outcome   string    `json:"outcome,omitempty"`
 	Summary   string    `json:"summary,omitempty"`
 	Timestamp time.Time `json:"timestamp"`
-}
-
-// TaskInspectPayload is a daemon API value.
-type TaskInspectPayload struct {
-	Target       string                      `json:"target"`
-	Task         TaskSummaryPayload          `json:"task"`
-	CurrentRun   *TaskInspectRunPayload      `json:"current_run,omitzero"`
-	BoundSession *TaskInspectSessionPayload  `json:"bound_session,omitzero"`
-	RecentRuns   []TaskInspectRunPayload     `json:"recent_runs,omitempty"`
-	RecentEvents []TaskInspectEventPayload   `json:"recent_events,omitempty"`
-	Scheduler    TaskInspectSchedulerPayload `json:"scheduler"`
-	Diagnostics  []DiagnosticItem            `json:"diagnostics,omitempty"`
-	NextAction   string                      `json:"next_action"`
-	AsOf         time.Time                   `json:"as_of"`
-}
-
-// TaskInspectResponse is a daemon API value.
-type TaskInspectResponse struct {
-	Inspect TaskInspectPayload `json:"inspect"`
 }

@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+// WindowManagerLayoutValidationRequest is a daemon API value.
+type WindowManagerLayoutValidationRequest struct {
+	WorkspaceID WindowmanagerWorkspaceID    `json:"workspace_id"`
+	Document    WindowManagerLayoutDocument `json:"document"`
+}
+
+// WindowManagerLayoutValidationResponse is a daemon API value.
+type WindowManagerLayoutValidationResponse struct {
+	WorkspaceID WindowmanagerWorkspaceID `json:"workspace_id"`
+	Valid       bool                     `json:"valid"`
+	Diagnostics []Diagnostic             `json:"diagnostics,omitempty"`
+}
+
+// WindowManagerPaletteContext is a daemon API value.
+type WindowManagerPaletteContext struct {
+	WindowFocused       bool         `json:"window_focused"`
+	WindowFloating      bool         `json:"window_floating"`
+	WindowStacked       bool         `json:"window_stacked"`
+	DesktopWindowCount  int          `json:"desktop_window_count"`
+	ScopeGlobal         bool         `json:"scope_global"`
+	ShellDesktop        bool         `json:"shell_desktop"`
+	FocusedSessionState string       `json:"focused_session_state,omitempty"`
+	WorkspaceTrusted    bool         `json:"workspace_trusted"`
+	DestinationIntent   *RouteIntent `json:"destination_intent,omitzero"`
+}
+
 // WindowManagerPreview is a daemon API value.
 type WindowManagerPreview struct {
 	Snapshot    WindowManagerSnapshot    `json:"snapshot"`

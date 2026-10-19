@@ -438,14 +438,3 @@ type SessionWaitRequest struct {
 	Epoch     int64    `json:"epoch,omitzero"`
 	ResumeID  string   `json:"resume_id,omitempty"`
 }
-
-// SessionWaitResponse is a daemon API value.
-type SessionWaitResponse struct {
-	SessionID string   `json:"session_id"`
-	Outcome   string   `json:"outcome"`
-	State     string   `json:"state,omitempty"`
-	WaitedMS  int64    `json:"waited_ms"`
-	Until     []string `json:"until,omitempty"`
-	Revision  int64    `json:"revision"`
-	ResumeID  string   `json:"resume_id,omitempty"`
-}
