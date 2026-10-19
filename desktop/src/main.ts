@@ -162,6 +162,7 @@ async function cleanup(): Promise<void> {
       await attempt("control token", async () => await deleteControlToken(paths.appToken));
       await attempt("clean marker", async () => await publisher?.markCleanShutdown());
       await attempt("logs", async () => await logger.flush());
+      await logger.flush();
       if (errors.length === 1) throw errors[0];
       if (errors.length > 1) throw new AggregateError(errors, "Desktop cleanup failed.");
     } finally {
