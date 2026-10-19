@@ -3,6 +3,8 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -189,7 +191,8 @@ func TestMentionReferenceRenderer(t *testing.T) {
 			"- @session:sess-b · title \"sess-b\" · agent general (claude) · state stopped · " +
 			"updated 2026-10-18T00:04:11Z\n" +
 			"</compozy_session_references>"
-		if got.Text != want || got.Form != session.MentionReferenceFormReference || got.Sessions != 2 {
+		if got.Text != want || got.Form != session.MentionReferenceFormReference || got.Sessions != 2 ||
+			!slices.Equal(got.SessionIDs, []string{"sess-a", "sess-b"}) {
 			t.Fatalf("Render() = %#v\nwant text:\n%s", got, want)
 		}
 		if !strings.Contains(got.Text, "you MUST call compozy__session_history with its session_id") {
@@ -207,7 +210,7 @@ func TestMentionReferenceRenderer(t *testing.T) {
 		fixture.addSession("sess-foreign", "Foreign", "ws-2", mentionTestProfile)
 
 		got := fixture.render(t, nativeApproveAllPolicyInputs(), sessionMentions("sess-deleted", "sess-foreign"), true)
-		if got != (session.MentionReferences{}) {
+		if !reflect.DeepEqual(got, session.MentionReferences{}) {
 			t.Fatalf("Render() = %#v, want empty references", got)
 		}
 	})
@@ -253,7 +256,8 @@ func TestMentionReferenceRenderer(t *testing.T) {
 		got := fixture.render(t, nativeApproveAllPolicyInputs(), sessionMentions(ids...), true)
 		if got.Sessions != mention.MaxSessionMentions ||
 			strings.Count(got.Text, "- @session:") != mention.MaxSessionMentions ||
-			strings.Contains(got.Text, "sess-16") {
+			strings.Contains(got.Text, "sess-16") ||
+			!slices.Equal(got.SessionIDs, ids[:mention.MaxSessionMentions]) {
 			t.Fatalf("Render() = %d sessions, text:\n%s; want the first %d", got.Sessions, got.Text,
 				mention.MaxSessionMentions)
 		}
@@ -339,7 +343,8 @@ func TestMentionReferenceRenderer(t *testing.T) {
 				"- @session:sess-a · title \"Fix login bug\" · agent general (claude) · state stopped · " +
 				"updated 2026-10-18T00:04:11Z\n" +
 				"</compozy_session_references>"
-			if got.Text != want || got.Form != session.MentionReferenceFormUnavailable || got.Sessions != 1 {
+			if got.Text != want || got.Form != session.MentionReferenceFormUnavailable || got.Sessions != 1 ||
+				!slices.Equal(got.SessionIDs, []string{"sess-a"}) {
 				t.Fatalf("Render() = %#v\nwant text:\n%s", got, want)
 			}
 			if fixture.eventReads != 0 {

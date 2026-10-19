@@ -117,10 +117,15 @@ func (r *mentionReferenceRenderer) Render(
 			entries[index].history = history
 		}
 	}
+	ids := make([]string, 0, len(entries))
+	for index := range entries {
+		ids = append(ids, strings.TrimSpace(entries[index].info.ID))
+	}
 	return session.MentionReferences{
-		Text:     renderMentionReferences(form, entries),
-		Form:     form,
-		Sessions: len(entries),
+		Text:       renderMentionReferences(form, entries),
+		Form:       form,
+		Sessions:   len(entries),
+		SessionIDs: ids,
 	}, nil
 }
 
