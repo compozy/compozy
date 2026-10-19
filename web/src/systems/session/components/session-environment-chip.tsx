@@ -1,9 +1,6 @@
 import { FolderGit2Icon, FolderIcon, FolderPlusIcon } from "lucide-react";
 
-import { Button, cn, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
-
-// Composer toolbar ink (P5): `fg-2` at rest, `fg` on hover from the quiet variant.
-const ACTION_CLASS = "text-fg-2";
+import { cn, InputGroupButton, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 export type SessionEnvironmentChipState = "root" | "worktree" | "new" | "pending" | "failed";
 
@@ -62,10 +59,10 @@ export function SessionEnvironmentChip({
     <Tooltip>
       <TooltipTrigger
         render={
-          <Button
+          <InputGroupButton
             aria-disabled={forkAvailable ? undefined : true}
             aria-label={accessibleName}
-            className={cn(ACTION_CLASS, toneClass)}
+            className={toneClass}
             data-binding={state === "root" ? "root" : "worktree"}
             data-fork={
               forkAvailable ? "available" : forkUnavailableReason ? "unavailable" : undefined
@@ -75,12 +72,11 @@ export function SessionEnvironmentChip({
             data-slot="session-environment-chip"
             data-state={state}
             onClick={forkAvailable ? onFork : undefined}
-            size="icon"
+            size="tool-icon"
             type="button"
-            variant="quiet"
           >
             <Glyph aria-hidden="true" />
-          </Button>
+          </InputGroupButton>
         }
       />
       <TooltipContent>{accessibleName}</TooltipContent>

@@ -40,7 +40,7 @@ func (c *sessionSQLiteConnector) Connect(ctx context.Context) (driver.Conn, erro
 	if err != nil {
 		return nil, err
 	}
-	databaseID, err := verifySessionDBOwnerWithImmutableDriver(ctx, c.driver, cleanPath, c.owner)
+	databaseID, err := verifySessionDBOwnerWithDriver(ctx, c.driver, cleanPath, c.owner)
 	if err != nil {
 		return nil, pinned.closeWithError(err)
 	}
@@ -117,30 +117,36 @@ func (c *sessionSQLiteConnector) verifyOpenedConnection(
 	return querier, nil
 }
 
-func verifySessionDBOwnerWithImmutableDriver(
+func verifySessionDBOwnerOnce(
 	ctx context.Context,
 	sqliteDriver driver.Driver,
 	path string,
 	owner store.SessionDBOwner,
-) (string, error) {
-	connection, err := sqliteDriver.Open(sessionDBOwnerGuardDSN(path))
+) (databaseID string, retErr error) {
+	dsn, cleanup, err := ownerGuardSnapshot(ctx, path)
 	if err != nil {
-		return "", fmt.Errorf("store: open immutable session database owner guard %q: %w", path, err)
+		return "", err
+	}
+	defer func() { retErr = errors.Join(retErr, cleanup()) }()
+	connection, err := sqliteDriver.Open(dsn)
+	if err != nil {
+		return "", fmt.Errorf("store: open session database owner guard %q: %w", path, err)
 	}
 	querier, ok := connection.(sqlite.ExecQuerierContext)
 	if !ok {
 		return "", closeSessionSQLiteDriverConnection(
 			connection,
-			errors.New("store: immutable sqlite owner guard does not support contextual queries"),
+			errors.New("store: sqlite owner guard does not support contextual queries"),
 		)
 	}
 	if err := verifySessionDBOwnerConnection(ctx, querier, owner); err != nil {
+		err = classifyOwnerGuardFailure(ctx, querier, err)
 		return "", closeSessionSQLiteDriverConnection(
 			connection,
 			fmt.Errorf("store: refuse session database %q before operational open: %w", path, err),
 		)
 	}
-	databaseID, err := readSessionDBIdentityConnection(ctx, querier)
+	databaseID, err = readSessionDBIdentityConnection(ctx, querier)
 	if errors.Is(err, errSessionDBIdentityMissing) {
 		databaseID = ""
 		err = nil
@@ -149,7 +155,7 @@ func verifySessionDBOwnerWithImmutableDriver(
 		return "", closeSessionSQLiteDriverConnection(connection, err)
 	}
 	if err := connection.Close(); err != nil {
-		return "", fmt.Errorf("store: close immutable session database owner guard %q: %w", path, err)
+		return "", fmt.Errorf("store: close session database owner guard %q: %w", path, err)
 	}
 	return databaseID, nil
 }

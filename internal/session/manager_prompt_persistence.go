@@ -13,9 +13,14 @@ func (m *Manager) promptPersistenceFailure(
 	turnID string,
 	err error,
 ) (*store.SessionFailure, string) {
+	kind := store.FailureTransport
+	if store.IsStorageUnavailable(err) {
+		kind = store.FailurePrompt
+		err = fmt.Errorf("session storage failed: %w", err)
+	}
 	failure := sessionFailureFromError(
 		fmt.Errorf("prompt event persistence failed: %w", err),
-		store.FailureTransport,
+		kind,
 	)
 	summary := failureSummary(failure, "prompt event persistence failed")
 	m.sessionLogger(session).Error(

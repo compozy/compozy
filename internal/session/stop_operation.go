@@ -101,7 +101,7 @@ func (m *Manager) claimSessionStopRun(id string) (*sessionStopRun, bool) {
 		select {
 		case <-previous.done:
 			if previous.outcome.Verified && previous.outcome.FinalState == StateStopped &&
-				previous.recoveredSettlement == nil {
+				previous.recoveredSettlement == nil && !errors.Is(previous.err, ErrRecoveryPersistence) {
 				return previous, false
 			}
 			if previous.outcome.Verified {

@@ -116,7 +116,7 @@ func (m *Manager) catchUpDurablePromptDelivery(
 	defer ticker.Stop()
 	recorder := session.recorderHandle()
 	if recorder == nil {
-		m.deliverPromptProjectionFailure(ctx, turnID, out)
+		m.deliverPromptProjectionFailure(ctx, session, turnID, out)
 		return
 	}
 
@@ -148,7 +148,7 @@ func (m *Manager) catchUpDurablePromptDelivery(
 			continue
 		}
 		if persistenceComplete {
-			m.deliverPromptProjectionFailure(ctx, turnID, out)
+			m.deliverPromptProjectionFailure(ctx, session, turnID, out)
 			return
 		}
 
@@ -193,7 +193,7 @@ func (m *Manager) deliverPersistedPromptEvent(
 			"sequence", persisted.Sequence,
 			"error", err,
 		)
-		m.deliverPromptProjectionFailure(ctx, turnID, out)
+		m.deliverPromptProjectionFailure(ctx, session, turnID, out)
 		return true, true
 	}
 	// The decoded event drops the persisted tool result; carry the card the
@@ -260,11 +260,17 @@ func isPromptOutputEventType(eventType string) bool {
 
 func (m *Manager) deliverPromptProjectionFailure(
 	ctx context.Context,
+	session *Session,
 	turnID string,
 	out chan<- acp.AgentEvent,
 ) {
 	event := acp.PromptStreamIncompleteEvent()
 	event.TurnID = turnID
+	if info := session.Info(); info.State != StateActive && info.Failure != nil &&
+		info.Failure.Kind == store.FailurePrompt {
+		event.Failure = store.CloneSessionFailure(info.Failure)
+		event.Error = info.Failure.Summary
+	}
 	select {
 	case out <- event:
 	case <-ctx.Done():

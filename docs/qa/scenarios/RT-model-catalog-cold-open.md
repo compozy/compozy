@@ -103,3 +103,11 @@ usable, and preserve the provider/model/effort in the created session. The exist
 render reproduced an 8px model viewport and an intercepted click before the fix;
 the bounded guidance region is verified through the same rendered story after the fix.
 Full daemon and desktop validation remains CI-owned.
+
+QA impact 2026-10-19, issue #827: provider guidance moved out of the selector body. With one or
+more providers reporting discovery problems, open the session composer selector and confirm the
+model list starts directly under the provider chips. A warning mark sits before refresh; its
+popover lists each provider and message. Escape or a press elsewhere in the selector closes only
+that popover and returns focus to the mark; a second Escape closes the selector. With every
+provider healthy, no mark renders. Targeted Web tests and rendered Storybook (light/dark, one and
+many issues) verify presentation and dismissal; a live signed-out provider walk remains CI/QA-owned.

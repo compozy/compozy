@@ -115,6 +115,10 @@ The event store and materialized transcript are the durable source of truth for 
 Each `events.db` is bound to one exact session and workspace. Session reads and writes through CLI,
 HTTP/UDS, or native tools must match that persisted owner. A missing or mismatched owner refuses the
 open before migration or data mutation; CompozyOS does not adopt, rebind, or repair the database.
+Owner inspection includes committed WAL contents without modifying an unverified database's
+sidecars. A partially checkpointed main file is not evidence of corruption by itself. Transient
+owner-read corruption errors are retried only after SQLite verifies integrity; confirmed corruption
+is refused. Keep the complete database family intact when diagnosing storage failures.
 
 History migrated from the former operator-home registration appears in the catalog as Global
 (`workspace_id` is empty). Its database still belongs to the original workspace recorded in the
@@ -801,8 +805,16 @@ If an active session's stop classification cannot persist, it remains `stopping`
 process exit is verified. Restore persistence and retry stop: the original termination phase
 is retained, process signals are not repeated, and the post-stop hook runs only once.
 Terminal-event writes reuse one identity during retry. If both the prompt recorder and the
-stored-session writer fail, the session retains `stopping` until the event can persist. A healthy
+stored-session writer fail because storage is unavailable, a verified process exit becomes
+`stopped` with `stop_reason: "error"` and a storage failure summary, provided metadata/catalog
+persistence succeeds. The durable settlement receipt remains pending; no canonical stopped event
+is announced before its history append succeeds. Retry stop after storage recovers; resume and
+deletion also attempt settlement first, and boot replays pending receipts. The retained event
+identity prevents duplication. Other event-contract failures retain `stopping`. A healthy
 stored-session writer can complete the event while preserving the failed recorder's diagnostic.
+Once storage recovers, settlement restores the original stop reason and failure from the retained
+receipt; a temporary storage diagnostic does not permanently relabel cancellation or an agent crash.
+Resume settles the existing stop without initiating another parent-stop cascade.
 Missing local PID/start identity also retains stopping with verification-failed attention,
 including interrupted startup metadata. Recovery preserves history while exit remains unproven.
 After verified recovery, the saved ACP session ID remains available for normal resume/load;

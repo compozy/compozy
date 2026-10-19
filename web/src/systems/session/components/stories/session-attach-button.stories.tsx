@@ -10,7 +10,8 @@ const meta: Meta<typeof SessionAttachButtonView> = {
     layout: "centered",
     docs: {
       description: {
-        component: "26×26 paperclip control that opens the composer file picker.",
+        component:
+          '28 px square paperclip tool (`InputGroupButton size="tool-icon"`) that opens the composer file picker.',
       },
     },
   },

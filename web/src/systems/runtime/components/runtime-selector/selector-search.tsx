@@ -1,5 +1,5 @@
 import { Plus, RefreshCw, Search, X } from "lucide-react";
-import type { ComponentProps, KeyboardEventHandler, RefObject } from "react";
+import type { ComponentProps, KeyboardEventHandler, ReactNode, RefObject } from "react";
 
 import { cn } from "@compozy/ui";
 
@@ -16,6 +16,8 @@ interface SelectorSearchProps {
   onCancelExactEntry: () => void;
   onRefreshCatalog?: () => void;
   refreshing: boolean;
+  /** Model list issues mark, placed before the trailing refresh/return control. */
+  catalogIssues?: ReactNode;
 }
 
 export function SelectorSearch({
@@ -31,6 +33,7 @@ export function SelectorSearch({
   onCancelExactEntry,
   onRefreshCatalog,
   refreshing,
+  catalogIssues,
 }: SelectorSearchProps) {
   const fieldProps: ComponentProps<"input"> = exactEntry
     ? {
@@ -72,6 +75,7 @@ export function SelectorSearch({
         data-testid="runtime-selector-search"
         className="min-w-0 flex-1 bg-transparent text-small-body text-fg outline-none placeholder:text-subtle"
       />
+      {catalogIssues}
       {exactEntry ? (
         <button
           type="button"

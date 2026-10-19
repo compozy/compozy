@@ -164,7 +164,8 @@ export function SubagentComposerControl({
         render={
           <InputGroupButton
             type="button"
-            size="tool"
+            // Icon-only while idle; the live count widens it into the tool pill.
+            size={live ? "tool" : "tool-icon"}
             aria-label={signal.ariaLabel}
             data-testid="composer-subagents-button"
             data-state={signal.state}

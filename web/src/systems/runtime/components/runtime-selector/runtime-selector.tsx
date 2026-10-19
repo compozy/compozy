@@ -1,8 +1,9 @@
-import { useRef, type ReactNode } from "react";
+import { useRef } from "react";
 
 import { type RuntimeSpeed } from "@/lib/api-contract";
 import { Popover, PopoverContent } from "@compozy/ui";
 
+import { RuntimeCatalogIssues } from "./catalog-issues";
 import { ModelList } from "./model-list";
 import { ProviderChips } from "./provider-chips";
 import { RuntimeAdvancedOptions } from "./runtime-advanced-options";
@@ -18,6 +19,8 @@ import type {
   RuntimeSelectorValue,
   RuntimeSelectorVariant,
 } from "./types";
+
+const NO_PROVIDER_CATALOG_ISSUES: Readonly<Record<string, string>> = {};
 
 export interface RuntimeSelectorProps {
   value: RuntimeSelectorValue;
@@ -36,9 +39,10 @@ export interface RuntimeSelectorProps {
   /** Catalog refresh affordance absorbed from the legacy CatalogStatusLine block. */
   onRefreshCatalog?: () => void;
   refreshing?: boolean;
-  /** Rendered under the search header (stale/error/count status). */
-  catalogStatus?: ReactNode;
-  providerCatalogIssues?: Record<string, string>;
+  /** Catalog-wide problem (load/refresh error, stale list); listed first behind the header warning mark. */
+  catalogStatus?: string | null;
+  /** Per-provider model list problems keyed by provider id, listed behind the header warning mark. */
+  providerCatalogIssues?: Readonly<Record<string, string>>;
   /** Allows an exact `provider/model` value when the provider catalog has no matching row. */
   allowCustomProvider?: boolean;
   onOpenProviderSettings?: () => void;
@@ -71,7 +75,7 @@ export function RuntimeSelector({
   onRefreshCatalog,
   refreshing = false,
   catalogStatus,
-  providerCatalogIssues = {},
+  providerCatalogIssues = NO_PROVIDER_CATALOG_ISSUES,
   allowCustomProvider = false,
   onOpenProviderSettings,
   speed,
@@ -174,6 +178,13 @@ export function RuntimeSelector({
             onCancelExactEntry={handleCancelExactEntry}
             onRefreshCatalog={onRefreshCatalog}
             refreshing={refreshing}
+            catalogIssues={
+              <RuntimeCatalogIssues
+                status={catalogStatus}
+                providers={providers}
+                providerIssues={providerCatalogIssues}
+              />
+            }
           />
           <ProviderChips
             providers={providers}
@@ -182,34 +193,6 @@ export function RuntimeSelector({
             onRail={controller.changeRail}
             onOpenSettings={handleOpenSettings}
           />
-          {catalogStatus ? (
-            <div
-              className="shrink-0 border-b border-line-soft px-3 py-1.5 text-badge text-subtle"
-              data-testid="runtime-selector-status"
-            >
-              {catalogStatus}
-            </div>
-          ) : null}
-          {/* Keep provider guidance readable without consuming the models viewport. */}
-          <div className="max-h-24 shrink-0 overflow-y-auto overscroll-contain">
-            {providers.map(provider =>
-              providerCatalogIssues[provider.id] &&
-              (controller.railFilter === "all" ||
-                controller.railFilter === "fav" ||
-                controller.railFilter === provider.id ||
-                controller.listModel.searching) ? (
-                <p
-                  key={provider.id}
-                  role="status"
-                  className="px-3 py-1.5 text-form-hint text-subtle"
-                >
-                  <span className="font-medium">{provider.name}</span>
-                  {" · "}
-                  {providerCatalogIssues[provider.id]}
-                </p>
-              ) : null
-            )}
-          </div>
           <ModelList
             listId={popup.listId}
             optionId={popup.optionId}

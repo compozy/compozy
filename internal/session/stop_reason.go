@@ -25,6 +25,9 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 		return classifyUserRequestedStopReason(trimmedDetail), trimmedDetail
 	case CauseProcessExited:
 		if waitErr != nil {
+			if failure := sessionFailureFromError(waitErr, store.FailureProcess); failure.Kind == store.FailurePrompt {
+				return store.StopError, failure.Summary
+			}
 			return store.StopAgentCrashed, waitErr.Error()
 		}
 		return store.StopError, "process exited unexpectedly"
@@ -204,7 +207,7 @@ func (m *Manager) prepareStopWithCauseMode(
 		return nil, nil, false, false, false, fmt.Errorf("session: prepare stop prompt setup wait for %q: %w", id, err)
 	}
 
-	if session.Info().State == StateStopped {
+	if session.Info().State == StateStopped && !session.pendingStopState() {
 		return session, nil, true, stopWasAlreadyRequested, observedProcessExit, nil
 	}
 	process = session.processHandle()

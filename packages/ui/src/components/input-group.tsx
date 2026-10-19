@@ -91,10 +91,16 @@ const inputGroupButtonVariants = cva("flex items-center gap-2 text-small-body", 
       "icon-xs": "size-button-icon-xs! rounded-xxs p-0 has-[>svg]:p-0",
       "icon-sm": "size-button-icon-sm! p-0 has-[>svg]:p-0",
       // Composer toolbar row: every control is 28 px (the icon-button default)
-      // so tool pills, pickers and send share one edge. Open / pressed states
-      // stay plate-only — never `shadow-card`, which carries the line ring.
-      /** Composer tool pill (attach, agent, mode): quiet until hovered. */
+      // so tool pills, pickers and send share one edge. Icon-only controls are
+      // the 28 px square; controls that carry a label or count are the padded
+      // pill. Both use a 16 px glyph and the same `fg-2` → `fg` ink. Open /
+      // pressed states stay plate-only — never `shadow-card`, which carries the
+      // line ring.
+      /** Composer tool pill with a label or count (agent, live subagents, queue): quiet until hovered. */
       tool: "h-(--size-button-icon-default)! gap-1.5 px-2.5 text-small-body text-fg-2 hover:text-fg [&>svg:not([class*='size-'])]:size-4",
+      /** Composer icon-only tool (attach, environment, context): the 28 px square of the `tool` pill. */
+      "tool-icon":
+        "size-button-icon-default! p-0 text-fg-2 hover:text-fg has-[>svg]:p-0 [&>svg:not([class*='size-'])]:size-4",
       /** Composer send: a 28 px round inverted button at the row end. */
       send: "ml-auto size-button-icon-default! p-0 has-[>svg]:p-0 [&>svg:not([class*='size-'])]:size-4",
     },
