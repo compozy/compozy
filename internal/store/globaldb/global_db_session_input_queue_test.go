@@ -3702,6 +3702,10 @@ func TestGlobalDBSessionOriginMigration(t *testing.T) {
 		if after := readRows(); !reflect.DeepEqual(before, after) {
 			t.Fatalf("upgrade changed existing values: before=%v after=%v", before, after)
 		}
+		// The repository's queries target the head schema, so finish the upgrade before replaying.
+		if err := applyGlobalMigrationPrefix(t, db, MigrationStream()); err != nil {
+			t.Fatal(err)
+		}
 		// IT-030: the real upgrade preserves a v4 receipt for the store replay boundary.
 		repo := &SessionRepo{repoBase: newRepoBase(db, time.Now, new(atomic.Int32))}
 		replay, found, err := repo.ReplaySessionPromptAdmission(t.Context(), store.SessionPromptAdmissionRequest{
