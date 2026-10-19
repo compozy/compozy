@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { pruneSessionSidebarScopes } from "@/systems/session";
 import {
   pruneWorktreeScopes,
   SHELL_WORKTREE_SCOPE,
@@ -32,4 +33,20 @@ export function useDesktopWorktreeScope(listing: WorktreesResponse | undefined) 
   }, [liveWindowIds]);
 
   return { worktreeScopeId, worktreeSelection };
+}
+
+/**
+ * Keep persisted per-window sessions-rail state aligned with live windows. The
+ * window set is unknown until the first daemon snapshot lands; pruning against
+ * that empty pre-hydration projection would drop every window's rail state.
+ */
+export function useSessionSidebarScopePruning() {
+  const liveWindowIds = useDesktop(state =>
+    state.snapshot === null ? null : Object.keys(state.snapshot.windows).join(" ")
+  );
+
+  useEffect(() => {
+    if (liveWindowIds === null) return;
+    pruneSessionSidebarScopes(liveWindowIds === "" ? [] : liveWindowIds.split(" "));
+  }, [liveWindowIds]);
 }

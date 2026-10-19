@@ -1,5 +1,18 @@
 # Compozy Change Impact
 
+## Per-window session sidebar state — 2026-10-19
+
+Owner: issue #843, branch `fix/session-sidebar-per-window-state`. Web-only: the session-window
+sessions sidebar (open/closed, folder collapse, child-thread collapse) moves from one global client
+store to per-window entries keyed by window scope (`byScope[windowId]`, shell entry = last-used state
+new windows inherit). User state upgrades losslessly: the persisted `compozy:session:sidebar:v1`
+blob (schema 2) migrates into the shell scope as schema 3; closed windows are pruned once the
+daemon snapshot lands. ⌘B, palette `sidebar.toggle`, and session cycling act on the focused window.
+Native tools, CLI, HTTP/UDS DTOs, hooks, extension SDKs, config keys, the official skill, and
+workspace/profile isolation are unchanged. Site `docs/sessions/index.mdx` and QA scenario
+`ET-web-session-sidebar-per-window` record the behavior; sort order, list scope, and the All
+profiles lens stay global.
+
 ## Composer mentions — 2026-10-19
 
 Owner: spec `.compozy/tasks/composer-mentions/` (ADR-001..004); integration branch

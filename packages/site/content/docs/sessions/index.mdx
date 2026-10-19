@@ -102,6 +102,11 @@ profile inside one workspace, persist in the daemon, and appear in every open wi
 Right-click a folder header to start a **New session in folder**, rename the folder, move it, or
 delete it. Deleting a folder moves its sessions back to the list; no session is deleted.
 
+Which folders and threads are expanded is a view choice, not shared data. Each session window keeps
+its own sessions sidebar: whether it is open and which folders and threads are collapsed. A new
+window starts from the sidebar you used last, each window's sidebar survives a reload, and **⌘B**
+toggles the sidebar of the focused window.
+
 The same operations are available to agents and scripts:
 
 ```bash

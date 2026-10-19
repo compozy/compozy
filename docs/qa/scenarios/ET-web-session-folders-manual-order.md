@@ -22,3 +22,5 @@ Introduced for issue #781. The narrowed-list reorder guard, the folder load fail
 
 
 Issue #832 extension verified on 2026-10-19: focused E2E-032 proves owner-grouped folders, cross-profile drop rejection, owner-bound rename and reload persistence. Real Codex QA proves runtime/agent metadata for root and child rows, including never-bound, idle-released and stopped/unbound after daemon restart. Ordering and collapsed-folder navigation are covered by the owning unit suites. Evidence and exact scope: [issue #832 report](../reports/2026-10-19-issue-832-session-list.md).
+
+QA impact 2026-10-19 (issue #843): folder collapse is per session window, and the session-cycle shortcut skips sessions inside folders collapsed in the focused window. Folders, membership, and order stay daemon-owned and shared. See ET-web-session-sidebar-per-window.

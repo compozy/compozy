@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { notifyUser } from "@/lib/user-feedback";
 import {
-  toggleSessionSidebar,
   useSessionSidebarState,
   visibleSessionOrder,
   sessionCatalogOptions,
@@ -199,7 +198,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const { manager, coordinator } = useOsShell();
   const paletteRegistry = usePaletteRegistry();
   const switchProfile = useSwitchProfile();
-  const { collapsedThreadIds, collapsedFolderIds } = useSessionSidebarState();
+  // Shell chrome renders under the focused window's scope: ⌘B, the palette
+  // toggle, and session cycling act on the rail the operator is looking at.
+  const sessionSidebar = useSessionSidebarState();
+  const { collapsedThreadIds, collapsedFolderIds } = sessionSidebar;
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
     const platform = typeof navigator === "undefined" ? "" : navigator.platform;
@@ -249,7 +251,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     openWorkspaces: () => overlays.toggleOverlay("workspaces"),
     openNewSession: options.onNewSession,
     toggleSessions: () => overlays.toggleOverlay("sessions"),
-    toggleSidebar: toggleSessionSidebar,
+    toggleSidebar: sessionSidebar.toggle,
     toggleGlobalScope: model.toggleGlobalScope,
     useProfile: (profile, beforeSwitch) => {
       if (profile === "") return;
