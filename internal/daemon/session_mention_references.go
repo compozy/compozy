@@ -43,6 +43,14 @@ const (
 
 var mentionTextEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
+// mentionFieldEscaper escapes single-line reference fields (id, title, agent, provider, state): on top
+// of the markup escapes it encodes quotes and folds line breaks into spaces, so a field value can
+// neither close the quoted title nor start a line that imitates another reference entry.
+var mentionFieldEscaper = strings.NewReplacer(
+	"&", "&amp;", "<", "&lt;", ">", "&gt;", `"`, "&quot;",
+	"\r\n", " ", "\r", " ", "\n", " ", "\u2028", " ", "\u2029", " ",
+)
+
 // mentionReferenceSessions is the session read path the renderer shares with compozy__session_history.
 type mentionReferenceSessions interface {
 	nativeToolPolicySessionReader
@@ -269,10 +277,10 @@ func writeMentionReferenceLine(b *strings.Builder, info *session.Info) {
 	fmt.Fprintf(
 		b,
 		"- @session:%s · title \"%s\"%s · state %s · updated %s\n",
-		mentionTextEscaper.Replace(id),
-		mentionTextEscaper.Replace(title),
+		mentionFieldEscaper.Replace(id),
+		mentionFieldEscaper.Replace(title),
 		mentionAgentSegment(info),
-		mentionTextEscaper.Replace(string(session.BadgeForInfo(info))),
+		mentionFieldEscaper.Replace(string(session.BadgeForInfo(info))),
 		updated.UTC().Format(time.RFC3339),
 	)
 }
@@ -280,11 +288,11 @@ func writeMentionReferenceLine(b *strings.Builder, info *session.Info) {
 // mentionAgentSegment renders " · agent <name> (<provider>)", dropping the parentheses when the
 // provider is unknown and the whole segment when the agent is unknown.
 func mentionAgentSegment(info *session.Info) string {
-	agent := mentionTextEscaper.Replace(strings.TrimSpace(info.AgentName))
+	agent := mentionFieldEscaper.Replace(strings.TrimSpace(info.AgentName))
 	if agent == "" {
 		return ""
 	}
-	if provider := mentionTextEscaper.Replace(strings.TrimSpace(info.Provider)); provider != "" {
+	if provider := mentionFieldEscaper.Replace(strings.TrimSpace(info.Provider)); provider != "" {
 		return " · agent " + agent + " (" + provider + ")"
 	}
 	return " · agent " + agent

@@ -227,7 +227,8 @@ Inline history is bounded: the newest 20 user and assistant text messages per se
 characters per message (cut with `…[truncated]`), 8,000 characters per session, and 16,000 for the
 whole block. A session left without budget reads `history omitted: budget reached`, and a session
 with no user or assistant messages yet reads `no recent messages`. `<`, `>`, and `&`
-in titles and history are escaped, so a title cannot close the block early.
+in titles and history are escaped, so a title cannot close the block early. Quotes in a title
+become `&quot;` and its line breaks become spaces, so a title always stays on its own reference line.
 
 ## Step 7: Inspect mentions after the fact
 
