@@ -7481,6 +7481,32 @@ func TestDaemonNativeTools(t *testing.T) {
 		if len(tail) != 1 || tail[0].TurnID != "turn-298" || lastPage.HasMore {
 			t.Fatalf("tail = %#v, %#v; want to exclude the old turn's late event", tail, lastPage)
 		}
+		newest, newestPage, err := readNativeSessionHistoryPage(ctx, read, "sess-forward", store.EventQuery{Limit: 1})
+		if err != nil {
+			t.Fatalf("read newest: %v", err)
+		}
+		if len(newest) != 1 || newest[0].TurnID != "turn-298" || newestPage.NextBeforeSequence != 299 {
+			t.Fatalf("newest = %#v, %#v; want the newest turn by its true start", newest, newestPage)
+		}
+		backward, backwardPage, err := readNativeSessionHistoryPage(ctx, read, "sess-forward", store.EventQuery{
+			BeforeSequence: 3, Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("read backward: %v", err)
+		}
+		if len(backward) != 1 || backward[0].TurnID != "turn-1" || backwardPage.NextBeforeSequence != 2 {
+			t.Fatalf("backward = %#v, %#v; want the newer overlapping turn", backward, backwardPage)
+		}
+		oldest, oldestPage, err := readNativeSessionHistoryPage(ctx, read, "sess-forward", store.EventQuery{
+			BeforeSequence: backwardPage.NextBeforeSequence, Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("read oldest: %v", err)
+		}
+		if len(oldest) != 1 || oldest[0].TurnID != "turn-0" || len(oldest[0].Events) != 2 ||
+			oldest[0].Events[1].Sequence != 300 || oldestPage.HasMore {
+			t.Fatalf("oldest = %#v, %#v; want the complete turn across the backward cursor", oldest, oldestPage)
+		}
 	})
 
 	t.Run("Should page native session events and history with bounded defaults", func(t *testing.T) {
@@ -7639,12 +7665,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				gotEventQueries,
 			)
 		}
-		if len(gotHistoryQueries) != 1 || gotHistoryQueries[0].Limit != 11 {
-			t.Fatalf("history store queries = %#v, want only the backward default probe", gotHistoryQueries)
+		if len(gotHistoryQueries) != 0 {
+			t.Fatalf("history store queries = %#v, want event-based complete-turn paging", gotHistoryQueries)
 		}
 		for _, query := range gotEventQueries[3:] {
-			if query.Limit <= 0 || !query.Forward {
-				t.Fatalf("forward history event query = %#v, want bounded forward reads", query)
+			if query.Limit <= 0 {
+				t.Fatalf("history event query = %#v, want bounded reads", query)
 			}
 		}
 
@@ -8029,9 +8055,26 @@ func TestDaemonNativeTools(t *testing.T) {
 				}, nil
 			},
 			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
-				// The explicit limit 1 reaches the store with one probe row for page.has_more.
-				if id != "sess-1" || query.Limit != 2 {
-					t.Fatalf("Events query = %q %#v", id, query)
+				exactQueries := []store.EventQuery{
+					{Limit: 2, Archive: store.EventArchiveUnarchived},
+					{Limit: nativeSessionEventsDefaultLimit, Archive: store.EventArchiveUnarchived},
+					{Limit: 1, Forward: true, TurnID: "turn-1", Archive: store.EventArchiveUnarchived},
+					{
+						Limit:   nativeSessionEventsDefaultLimit,
+						Forward: true,
+						TurnID:  "turn-1",
+						Archive: store.EventArchiveUnarchived,
+					},
+				}
+				matched := slices.ContainsFunc(exactQueries, func(expected store.EventQuery) bool {
+					return reflect.DeepEqual(query, expected)
+				})
+				if id != "sess-1" || !matched {
+					t.Fatalf(
+						"Events query = %q %#v, want an exact event probe, turn scan, start lookup or hydration query",
+						id,
+						query,
+					)
 				}
 				return []store.SessionEvent{{
 					ID:        "event-1",

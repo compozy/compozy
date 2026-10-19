@@ -1,8 +1,10 @@
 package daemon
 
 import (
+	"cmp"
 	"context"
 	"math"
+	"slices"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -85,18 +87,66 @@ func readNativeSessionHistoryPage(
 	if query.AfterSequence > 0 || query.Forward {
 		return readNativeSessionHistoryForwardPage(ctx, reader, sessionID, query)
 	}
-	history, err := reader.History(ctx, sessionID, nativeSessionPageProbe(query))
-	if err != nil {
-		return nil, nativeSessionPage{}, err
+	return readNativeSessionHistoryBackwardPage(ctx, reader, sessionID, query)
+}
+
+func readNativeSessionHistoryBackwardPage(
+	ctx context.Context,
+	reader nativeSessionPageReader,
+	sessionID string,
+	query store.EventQuery,
+) ([]store.TurnHistory, nativeSessionPage, error) {
+	turns := make([]store.TurnHistory, 0)
+	seen := make(map[string]bool)
+	scan := query
+	scan.Limit = nativeSessionEventsDefaultLimit
+	for {
+		chunk, err := reader.Events(ctx, sessionID, scan)
+		if err != nil {
+			return nil, nativeSessionPage{}, err
+		}
+		for _, event := range chunk {
+			if seen[event.TurnID] {
+				continue
+			}
+			seen[event.TurnID] = true
+			firstQuery := query
+			firstQuery.Forward, firstQuery.BeforeSequence = true, 0
+			firstQuery.TurnID, firstQuery.Limit = event.TurnID, 1
+			first, err := reader.Events(ctx, sessionID, firstQuery)
+			if err != nil {
+				return nil, nativeSessionPage{}, err
+			}
+			if len(first) != 0 {
+				turns = append(turns, store.TurnHistory{TurnID: event.TurnID, Events: first})
+			}
+		}
+		slices.SortFunc(turns, func(left, right store.TurnHistory) int {
+			return cmp.Compare(left.Events[0].Sequence, right.Events[0].Sequence)
+		})
+		if len(chunk) < scan.Limit || (len(turns) > query.Limit &&
+			chunk[0].Sequence <= turns[len(turns)-query.Limit].Events[0].Sequence) {
+			break
+		}
+		scan.BeforeSequence = chunk[0].Sequence
 	}
 	page := nativeSessionPage{Limit: query.Limit}
-	if len(history) <= query.Limit {
-		return history, page, nil
+	if len(turns) > query.Limit {
+		turns = turns[len(turns)-query.Limit:]
+		page.HasMore = true
+		page.NextBeforeSequence = nativeTurnFirstSequence(turns[0])
 	}
-	page.HasMore = true
-	history = history[len(history)-query.Limit:]
-	page.NextBeforeSequence = nativeTurnFirstSequence(history[0])
-	return history, page, nil
+	for index := range turns {
+		turnQuery := query
+		turnQuery.Forward, turnQuery.BeforeSequence = true, 0
+		turnQuery.TurnID, turnQuery.Limit = turns[index].TurnID, nativeSessionEventsDefaultLimit
+		events, err := readNativeSessionTurnEvents(ctx, reader, sessionID, turnQuery)
+		if err != nil {
+			return nil, nativeSessionPage{}, err
+		}
+		turns[index].Events = events
+	}
+	return turns, page, nil
 }
 
 // Forward history is ordered by turn start, even when events from different turns interleave.

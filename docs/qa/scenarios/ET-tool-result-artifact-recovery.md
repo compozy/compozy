@@ -70,3 +70,7 @@ the next cursor must continue by turn start without skipping the overlapping tur
 regression in `TestDaemonNativeTools` passes with bounded event reads and excludes late events
 from turns that started before the cursor. Hosted-schema validation also covers a nested `$id`
 resource with local references. Current-head CI owns the remaining integration gate.
+
+The same complete-turn invariant applies when walking backward with `next_before_sequence`:
+late events of the selected turn must remain present even if they occur beyond that turn-start
+cursor. The real-SQLite regression follows both cursor directions and checks the full old turn.

@@ -99,7 +99,9 @@ honored. Every page returns `page` with `limit`, `has_more`, and a continuation 
 `after_sequence` (for example `0`) and continue with `page.next_after_sequence`; forward history pages
 hold the oldest turns that start after the cursor. The forward history cursor is the first
 event sequence of the last returned turn, so interleaved turns are not skipped. Forward reads
-scan bounded event chunks and hydrate only the returned turns. `before_sequence`
+scan bounded event chunks and hydrate only the returned turns. Backward history also selects
+turns by their first sequence and returns their complete matching events, including later events
+interleaved beyond the cursor. `before_sequence`
 cannot be combined with `after_sequence`. `compozy__session_describe` applies the same defaults and
 returns `events_page` and `history_page`; page further through the dedicated tools.
 
