@@ -583,6 +583,58 @@ test("E2E-136 / ENG-136: Session menu owns the catalog while the dock creates or
   await expect(windowFrame(seededWindow)).toHaveAttribute("data-focused", "");
 });
 
+test("E2E-825: a new session lands in the existing Session window instead of opening another", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const seeded = await createNamedSession(runtime, workspace.id, "Reused window seed");
+  await appPage.goto(
+    runtime.url(
+      `/agents/${encodeURIComponent(browserLifecycleAgent)}/sessions/${encodeURIComponent(seeded.id)}`
+    ),
+    { waitUntil: "domcontentloaded" }
+  );
+  const seededWindow = sessionWindow(appPage, seeded.id);
+  await expect(seededWindow).toBeVisible();
+  const hostID = await windowID(seededWindow);
+  const sessionWindows = appPage.locator('[data-slot="os-window-surface"][data-app="session"]');
+  const hostWindow = appPage.getByTestId(`os-window-${hostID}`);
+
+  // Focused Session window: the new session replaces the conversation in place, focus stays.
+  const first = await createSessionFromMenubar(appPage);
+  await expect(sessionWindow(appPage, first)).toBeVisible();
+  expect(await windowID(sessionWindow(appPage, first))).toBe(hostID);
+  await expect(sessionWindow(appPage, seeded.id)).toHaveCount(0);
+  await expect(sessionWindows).toHaveCount(1);
+  await expect(windowFrame(hostWindow)).toHaveAttribute("data-focused", "");
+
+  // Unfocused Session window: it comes forward with the new session.
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  await expect(windowFrame(tasks)).toHaveAttribute("data-focused", "");
+  const second = await createSessionFromMenubar(appPage);
+  await expect(sessionWindow(appPage, second)).toBeVisible();
+  expect(await windowID(sessionWindow(appPage, second))).toBe(hostID);
+  await expect(sessionWindows).toHaveCount(1);
+  await expect(windowFrame(hostWindow)).toHaveAttribute("data-focused", "");
+
+  // Minimized Session window: it is restored with the new session.
+  await hostWindow.getByRole("button", { name: "Minimize window" }).click();
+  await expect(hostWindow).toBeHidden();
+  const third = await createSessionFromMenubar(appPage);
+  await expect(sessionWindow(appPage, third)).toBeVisible();
+  expect(await windowID(sessionWindow(appPage, third))).toBe(hostID);
+  await expect(sessionWindows).toHaveCount(1);
+  await expect(windowFrame(hostWindow)).toHaveAttribute("data-focused", "");
+  await expect
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      const host = snapshot.windows[hostID];
+      return { instance: host?.instance_key, minimized: host?.minimized };
+    })
+    .toEqual({ instance: third, minimized: false });
+});
+
 test("E2E-005: a direct task detail deep link returns to the catalog with Back", async ({
   appPage,
   runtime,
@@ -4228,6 +4280,29 @@ async function openMenu(page: Page, name: MenubarMenu): Promise<void> {
   await page.getByRole("menuitem", { name, exact: true }).click();
   const menuTestID = name === "CompozyOS" ? "os-menu-compozy" : `os-menu-${name.toLowerCase()}`;
   await expect(page.getByTestId(menuTestID)).toBeVisible();
+}
+
+/** Creates a session through Session > New session and resolves its id. */
+async function createSessionFromMenubar(page: Page): Promise<string> {
+  await openMenu(page, "Session");
+  await page.getByRole("menuitem", { name: /^New session/ }).click();
+  const createDialog = page.getByTestId("session-create-dialog");
+  await expect(createDialog).toBeVisible();
+  await createDialog.getByTestId("session-create-mode-advanced").click();
+  await createDialog.getByTestId("session-create-agent-select").click();
+  await page.getByTestId(`agent-command-item-${browserLifecycleAgent}`).click();
+  const created = page.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
+  );
+  await createDialog.getByTestId("session-create-submit").click();
+  const response = await created;
+  expect(response.ok()).toBeTruthy();
+  const payload = (await response.json()) as { session?: { id?: string } };
+  const sessionId = payload.session?.id ?? "";
+  expect(sessionId).not.toBe("");
+  await expect(createDialog).toHaveCount(0);
+  return sessionId;
 }
 
 async function openSessionsCatalog(page: Page): Promise<void> {

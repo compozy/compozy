@@ -1037,4 +1037,177 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).toHaveBeenCalledWith(empty);
     expect(store.getState().windows[current.id]?.instanceKey).toBe("");
   });
+
+  describe("new session landing (#825)", () => {
+    const created = {
+      app: "session" as const,
+      instanceKey: "sess-new",
+      route: route("/agents/coder/sessions/sess-new"),
+    };
+    const sessionWindow = (key: string | null, overrides: Partial<OsWindow> = {}): OsWindow => ({
+      ...windowFixture("session", key ? `/agents/coder/sessions/${key}` : "/sessions", key),
+      stackActive: true,
+      ...overrides,
+    });
+
+    it("Should select the new session in the focused Session window and keep it focused", async () => {
+      const tasks = windowFixture("tasks", "/tasks");
+      const focused = sessionWindow("sess-a");
+      const { coordinator, router, store } = createCoordinator([tasks, focused]);
+      coordinator.completeHydration();
+      vi.mocked(router.replace).mockClear();
+
+      await expect(coordinator.userOpenCreatedSession(created)).resolves.toBe(focused.id);
+
+      expect(store.spies.retargetWindow).toHaveBeenCalledWith(
+        focused.id,
+        created.instanceKey,
+        created.route
+      );
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+      expect(store.spies.focusWindow).not.toHaveBeenCalled();
+      expect(store.getState().focusedId).toBe(focused.id);
+      expect(router.navigate).toHaveBeenCalledOnce();
+      expect(router.navigate).toHaveBeenCalledWith(created.route);
+    });
+
+    it.each([
+      ["visible", false, "focusWindow"],
+      ["minimized", true, "restoreWindow"],
+    ] as const)(
+      "Should bring a %s unfocused Session window forward with the new session",
+      async (_label, minimized, activation) => {
+        const session = sessionWindow("sess-a", { minimized });
+        const tasks = windowFixture("tasks", "/tasks");
+        const { coordinator, router, store } = createCoordinator([session, tasks]);
+        coordinator.completeHydration();
+        vi.mocked(router.replace).mockClear();
+
+        await expect(coordinator.userOpenCreatedSession(created)).resolves.toBe(session.id);
+
+        expect(store.spies[activation]).toHaveBeenCalledWith(session.id);
+        expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+        const landed = store.getState().windows[session.id];
+        expect(landed?.instanceKey).toBe(created.instanceKey);
+        expect(landed?.minimized).toBe(false);
+        expect(store.getState().focusedId).toBe(session.id);
+        expect(router.navigate).toHaveBeenCalledOnce();
+        expect(router.navigate).toHaveBeenCalledWith(created.route);
+      }
+    );
+
+    it("Should prefer an empty Session window, then the most recently focused one", async () => {
+      const older = sessionWindow("sess-a", { id: "w-session-older" });
+      const empty = sessionWindow(null, { id: "w-session-empty" });
+      const recent = sessionWindow("sess-b", { id: "w-session-recent" });
+      const tasks = windowFixture("tasks", "/tasks");
+      const withEmpty = createCoordinator([empty, older, recent, tasks]);
+      withEmpty.coordinator.completeHydration();
+
+      await expect(withEmpty.coordinator.userOpenCreatedSession(created)).resolves.toBe(empty.id);
+
+      const withoutEmpty = createCoordinator([recent, older, tasks]);
+      withoutEmpty.coordinator.completeHydration();
+
+      await expect(withoutEmpty.coordinator.userOpenCreatedSession(created)).resolves.toBe(
+        older.id
+      );
+      expect(withoutEmpty.store.getState().windows[recent.id]?.instanceKey).toBe("sess-b");
+    });
+
+    it.each([
+      ["no Session window exists", [windowFixture("tasks", "/tasks")], {}],
+      [
+        "the only Session window is on another desktop",
+        [sessionWindow("sess-a", { desktopId: "desktop:other" }), windowFixture("tasks", "/tasks")],
+        {},
+      ],
+      ["the only Session window is pinned", [sessionWindow("sess-a", { pinned: true })], {}],
+      [
+        "the launcher asked for a split",
+        [sessionWindow("sess-a")],
+        { placement: "split" as const },
+      ],
+      [
+        "the launcher asked for a new instance",
+        [sessionWindow("sess-a")],
+        { forceNewInstance: true },
+      ],
+    ])("Should open a new Session window when %s", async (_label, windows, options) => {
+      const { coordinator, router, store } = createCoordinator(windows);
+      coordinator.completeHydration();
+      vi.mocked(router.replace).mockClear();
+      const target = { ...created, ...options };
+
+      await coordinator.userOpenCreatedSession(target);
+
+      expect(store.spies.retargetWindow).not.toHaveBeenCalled();
+      expect(store.spies.openOrFocus).toHaveBeenCalledWith(target);
+      expect(router.navigate).toHaveBeenCalledOnce();
+    });
+
+    it("Should focus the window that already owns the new session", async () => {
+      const owner = sessionWindow("sess-new");
+      const focused = sessionWindow("sess-a");
+      const { coordinator, store } = createCoordinator([owner, focused]);
+      coordinator.completeHydration();
+
+      await expect(coordinator.userOpenCreatedSession(created)).resolves.toBe(owner.id);
+
+      expect(store.spies.retargetWindow).not.toHaveBeenCalled();
+      expect(store.getState().windows[focused.id]?.instanceKey).toBe("sess-a");
+      expect(store.getState().focusedId).toBe(owner.id);
+    });
+
+    it("Should land a dialog-created session's route in the Session window without writing history", async () => {
+      const session = sessionWindow("sess-a");
+      const tasks = windowFixture("tasks", "/tasks");
+      const { coordinator, router, store } = createCoordinator([session, tasks]);
+      coordinator.completeHydration();
+      vi.mocked(router.replace).mockClear();
+
+      coordinator.noteCreatedSession(created.instanceKey);
+      coordinator.reportRouteMatch(created.route);
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe(session.id));
+
+      expect(store.spies.retargetWindow).toHaveBeenCalledWith(
+        session.id,
+        created.instanceKey,
+        created.route
+      );
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+      expect(router.navigate).not.toHaveBeenCalled();
+    });
+
+    it("Should keep the created-session intent through a workspace switch", async () => {
+      const { coordinator, store } = createCoordinator([windowFixture("tasks", "/tasks")]);
+      coordinator.completeHydration();
+
+      coordinator.noteCreatedSession(created.instanceKey);
+      coordinator.beginWorkspaceSwitch();
+      coordinator.reportRouteMatch(created.route);
+      store.resetWorkspace();
+      const target = sessionWindow(null, { id: "w-session-target" });
+      store.getState().windows[target.id] = target;
+      coordinator.completeHydration();
+      await vi.waitFor(() => expect(store.getState().focusedId).toBe(target.id));
+
+      expect(store.getState().windows[target.id]?.instanceKey).toBe(created.instanceKey);
+      expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+    });
+
+    it("Should keep opening a deep link to an unopened session in its own window", () => {
+      const session = sessionWindow("sess-a");
+      const { coordinator, store } = createCoordinator([session]);
+      coordinator.completeHydration();
+
+      coordinator.noteCreatedSession("sess-other");
+      coordinator.reportRouteMatch(created.route);
+      coordinator.reportRouteMatch(route("/agents/coder/sessions/sess-other"));
+
+      expect(store.spies.retargetWindow).not.toHaveBeenCalled();
+      expect(store.spies.openOrFocus).toHaveBeenCalledTimes(2);
+      expect(store.getState().windows[session.id]?.instanceKey).toBe("sess-a");
+    });
+  });
 });

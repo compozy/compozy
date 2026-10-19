@@ -70,6 +70,25 @@ Use `--cursor` to continue with the same filters and sort. A cursor from another
 is rejected instead of crossing catalog boundaries. See the generated
 [`compozy session list`](/docs/cli/session/list) reference for every flag.
 
+## Where a new session opens
+
+In the web shell, a new session reuses a Session window you already have instead of opening another
+one. This applies to every way of starting a session: the dock, **Session > New session**, the
+command palette and its shortcut, the **+** in a sessions list or folder, a Session window's sidebar,
+an agent page, the empty-desktop composer, and a prompt sent from the command palette.
+
+1. If the focused window is a Session window, the new session replaces the conversation in that
+   window and the window keeps focus.
+2. Otherwise Compozy picks a Session window on the current desktop: one showing the empty session
+   list first, then the one you used most recently. A minimized window is restored. The window keeps
+   its tab, split, and position.
+3. If the current desktop has no Session window, a new one opens.
+
+Pinned Session windows and windows on other desktops are never reused. The conversation that was on
+screen keeps running and keeps its unsent draft; pick it again from the window's sessions sidebar.
+A session that already has its own window focuses that window. When you fork or continue a session,
+choose **New window** to keep both conversations on screen side by side.
+
 ## Organize sessions into folders
 
 Group sessions into named folders and keep them in your own order. Folders and order belong to your
