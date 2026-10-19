@@ -71,30 +71,35 @@ func TestDaemonSearchSessionFilesWorktreeBoundIT005(t *testing.T) {
 		t.Fatalf("bound session worktree = %q, want %q", bound.WorktreeID, created.ID)
 	}
 
-	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" +
-		url.PathEscape(bound.ID) + "/files?q=" + url.QueryEscape("only") + "&limit=5"
-	var httpPayload, udsPayload compozycontract.SessionFilesResponse
-	if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &httpPayload); err != nil {
-		t.Fatalf("HTTP searchSessionFiles error = %v", err)
-	}
-	if err := harness.UDSJSON(ctx, http.MethodGet, path, nil, &udsPayload); err != nil {
-		t.Fatalf("UDS searchSessionFiles error = %v", err)
-	}
-	assertWorktreeE2EJSONParity(t, "searchSessionFiles", udsPayload, httpPayload)
-	want := compozycontract.SessionFileEntryPayload{
-		Path: "worktree_only.go", Name: "worktree_only.go", Kind: compozycontract.SessionFileKindFile,
-	}
-	if len(httpPayload.Entries) != 1 || httpPayload.Entries[0] != want {
-		t.Fatalf("entries = %#v, want only the bound worktree file %#v", httpPayload.Entries, want)
+	filesPath := func(query string) string {
+		return "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" +
+			url.PathEscape(bound.ID) + "/files?q=" + url.QueryEscape(query) + "&limit=5"
 	}
 
-	var mainPayload compozycontract.SessionFilesResponse
-	mainPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) + "/sessions/" +
-		url.PathEscape(bound.ID) + "/files?q=main&limit=5"
-	if err := harness.HTTPJSON(ctx, http.MethodGet, mainPath, nil, &mainPayload); err != nil {
-		t.Fatalf("HTTP searchSessionFiles(main) error = %v", err)
-	}
-	if len(mainPayload.Entries) == 0 || mainPayload.Entries[0].Path != "cmd/main.go" {
-		t.Fatalf("entries = %#v, want committed cmd/main.go from the worktree first", mainPayload.Entries)
-	}
+	t.Run("Should list the bound worktree instead of the workspace root over HTTP and UDS", func(t *testing.T) {
+		var httpPayload, udsPayload compozycontract.SessionFilesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, filesPath("only"), nil, &httpPayload); err != nil {
+			t.Fatalf("HTTP searchSessionFiles error = %v", err)
+		}
+		if err := harness.UDSJSON(ctx, http.MethodGet, filesPath("only"), nil, &udsPayload); err != nil {
+			t.Fatalf("UDS searchSessionFiles error = %v", err)
+		}
+		assertWorktreeE2EJSONParity(t, "searchSessionFiles", udsPayload, httpPayload)
+		want := compozycontract.SessionFileEntryPayload{
+			Path: "worktree_only.go", Name: "worktree_only.go", Kind: compozycontract.SessionFileKindFile,
+		}
+		if len(httpPayload.Entries) != 1 || httpPayload.Entries[0] != want {
+			t.Fatalf("entries = %#v, want only the bound worktree file %#v", httpPayload.Entries, want)
+		}
+	})
+
+	t.Run("Should rank committed files of the bound worktree", func(t *testing.T) {
+		var payload compozycontract.SessionFilesResponse
+		if err := harness.HTTPJSON(ctx, http.MethodGet, filesPath("main"), nil, &payload); err != nil {
+			t.Fatalf("HTTP searchSessionFiles(main) error = %v", err)
+		}
+		if len(payload.Entries) == 0 || payload.Entries[0].Path != "cmd/main.go" {
+			t.Fatalf("entries = %#v, want committed cmd/main.go from the worktree first", payload.Entries)
+		}
+	})
 }
