@@ -395,7 +395,7 @@ func TestExitPlan(t *testing.T) {
 				case "config --get branch.feature/prefill.gh-merge-base":
 					return gitResponse{stdout: []byte("main\n")}
 				case "rev-list --count main..HEAD",
-					"rev-list --count HEAD --not --remotes --exclude=refs/heads/feature/prefill --branches":
+					"rev-list --count HEAD --not --remotes --exclude=feature/prefill --branches":
 					return gitResponse{stdout: []byte("1\n")}
 				case "branch -r --list */feature/prefill":
 					return gitResponse{}
