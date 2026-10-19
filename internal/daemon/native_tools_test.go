@@ -7419,6 +7419,168 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should page native session events and history with bounded defaults", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+		info := &session.Info{
+			ID:          "sess-1",
+			ProfileID:   store.DefaultProfileID,
+			AgentName:   "coder",
+			WorkspaceID: "ws-1",
+			State:       session.StateActive,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		stored := make([]store.SessionEvent, 0, 250)
+		for sequence := int64(1); sequence <= 250; sequence++ {
+			stored = append(stored, store.SessionEvent{
+				ID:        fmt.Sprintf("event-%d", sequence),
+				SessionID: info.ID,
+				Sequence:  sequence,
+				TurnID:    fmt.Sprintf("turn-%d", (sequence+4)/5),
+				Type:      "agent_message",
+				AgentName: "coder",
+				Content:   `{"text":"hello"}`,
+				Timestamp: now,
+			})
+		}
+		window := func(query store.EventQuery) []store.SessionEvent {
+			matched := make([]store.SessionEvent, 0, len(stored))
+			for _, event := range stored {
+				if event.Sequence > query.AfterSequence &&
+					(query.BeforeSequence == 0 || event.Sequence < query.BeforeSequence) {
+					matched = append(matched, event)
+				}
+			}
+			if query.Limit <= 0 || len(matched) <= query.Limit {
+				return matched
+			}
+			if query.AfterSequence > 0 || query.Forward {
+				return matched[:query.Limit]
+			}
+			return matched[len(matched)-query.Limit:]
+		}
+		var seenEvents, seenHistory []store.EventQuery
+		manager := &nativeSessionPageHealthManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				if id != info.ID {
+					return nil, session.ErrSessionNotFound
+				}
+				return info, nil
+			},
+			EventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+				seenEvents = append(seenEvents, query)
+				return window(query), nil
+			},
+			HistoryFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.TurnHistory, error) {
+				seenHistory = append(seenHistory, query)
+				bounded := query
+				bounded.Limit = 0
+				turns := make([]store.TurnHistory, 0, 50)
+				for _, event := range window(bounded) {
+					if len(turns) == 0 || turns[len(turns)-1].TurnID != event.TurnID {
+						turns = append(turns, store.TurnHistory{TurnID: event.TurnID})
+					}
+					turns[len(turns)-1].Events = append(turns[len(turns)-1].Events, event)
+				}
+				if query.Limit > 0 && len(turns) > query.Limit {
+					turns = turns[len(turns)-query.Limit:]
+				}
+				return turns, nil
+			},
+		}
+		workspaces := apitest.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws-1"}, nil
+			},
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{ID: "ws-1", WorkspaceID: "ws-stable"}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: workspaces,
+			Sessions:   manager,
+		}, nativeApproveAllPolicyInputs())
+		type pagedEvents struct {
+			Events []struct {
+				Sequence int64 `json:"sequence"`
+			} `json:"events"`
+			History []struct {
+				TurnID string `json:"turn_id"`
+			} `json:"history"`
+			Page nativeSessionPage `json:"page"`
+		}
+		call := func(t *testing.T, id toolspkg.ToolID, input string) pagedEvents {
+			t.Helper()
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(input)},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(%s, %s) error = %v", id, input, err)
+			}
+			var page pagedEvents
+			if err := json.Unmarshal(result.Structured, &page); err != nil {
+				t.Fatalf("json.Unmarshal(%s) error = %v", id, err)
+			}
+			return page
+		}
+
+		newest := call(t, toolspkg.ToolIDSessionEvents, `{"workspace":"ws-stable","session_id":"sess-1"}`)
+		if len(newest.Events) != nativeSessionEventsDefaultLimit || newest.Events[0].Sequence != 201 ||
+			newest.Page != (nativeSessionPage{Limit: 50, HasMore: true, NextBeforeSequence: 201}) {
+			t.Fatalf("default events page = %d events from %#v, page %#v; want newest 50 with older cursor",
+				len(newest.Events), newest.Events[:1], newest.Page)
+		}
+		older := call(t, toolspkg.ToolIDSessionEvents,
+			`{"workspace":"ws-stable","session_id":"sess-1","before_sequence":201,"limit":250}`)
+		if len(older.Events) != 200 || older.Events[0].Sequence != 1 || older.Events[199].Sequence != 200 ||
+			older.Page != (nativeSessionPage{Limit: 250}) {
+			t.Fatalf(
+				"older events page = %d events, page %#v; want the remaining 200 events",
+				len(older.Events),
+				older.Page,
+			)
+		}
+		forward := call(t, toolspkg.ToolIDSessionEvents,
+			`{"workspace":"ws-stable","session_id":"sess-1","after_sequence":0,"limit":5}`)
+		if len(forward.Events) != 5 || forward.Events[0].Sequence != 1 ||
+			forward.Page != (nativeSessionPage{Limit: 5, HasMore: true, NextAfterSequence: 5}) {
+			t.Fatalf("forward events page = %#v, page %#v; want first 5 with next cursor", forward.Events, forward.Page)
+		}
+		history := call(t, toolspkg.ToolIDSessionHistory, `{"workspace":"ws-stable","session_id":"sess-1"}`)
+		if len(history.History) != nativeSessionHistoryDefaultLimit || history.History[0].TurnID != "turn-41" ||
+			history.Page != (nativeSessionPage{Limit: 10, HasMore: true, NextBeforeSequence: 201}) {
+			t.Fatalf("default history page = %d turns, page %#v; want newest 10 turns with older cursor",
+				len(history.History), history.Page)
+		}
+		gotEventQueries, gotHistoryQueries := seenEvents, seenHistory
+		if len(gotEventQueries) != 3 || gotEventQueries[0].Limit != 51 ||
+			gotEventQueries[1].BeforeSequence != 201 || gotEventQueries[1].Limit != 251 ||
+			!gotEventQueries[2].Forward || gotEventQueries[2].Limit != 6 {
+			t.Fatalf(
+				"event store queries = %#v, want bounded probes honoring explicit limits and cursors",
+				gotEventQueries,
+			)
+		}
+		if len(gotHistoryQueries) != 1 || gotHistoryQueries[0].Limit != 11 {
+			t.Fatalf("history store queries = %#v, want bounded default probe", gotHistoryQueries)
+		}
+
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionEvents,
+			Input: json.RawMessage(
+				`{"workspace":"ws-stable","session_id":"sess-1","after_sequence":3,"before_sequence":9}`,
+			),
+		})
+		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
+		if !toolErrMatched || toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+			t.Fatalf("Registry.Call(after+before) error = %v, want invalid input", err)
+		}
+	})
+
 	t.Run("Should route session tools through the existing session manager boundary", func(t *testing.T) {
 		t.Parallel()
 
@@ -7788,7 +7950,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				}, nil
 			},
 			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
-				if id != "sess-1" || query.Limit != 1 {
+				// The explicit limit 1 reaches the store with one probe row for page.has_more.
+				if id != "sess-1" || query.Limit != 2 {
 					t.Fatalf("Events query = %q %#v", id, query)
 				}
 				return []store.SessionEvent{{
@@ -7803,7 +7966,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				}}, nil
 			},
 			HistoryFn: func(_ context.Context, id string, query store.EventQuery) ([]store.TurnHistory, error) {
-				if id != "sess-1" || query.Limit != 1 {
+				if id != "sess-1" || query.Limit != 2 {
 					t.Fatalf("History query = %q %#v", id, query)
 				}
 				return []store.TurnHistory{{
@@ -7858,7 +8021,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
 			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1"}`), []byte(`"max_attempts":3`)},
 			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"runtime_recovery_started"`)},
+			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"page":{"limit":1,"has_more":false}`)},
 			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
+			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"page":{"limit":1,"has_more":false}`)},
 			{toolspkg.ToolIDSessionDescribe, json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"history"`)},
 		} {
 			t.Run(tc.id.String(), func(t *testing.T) {

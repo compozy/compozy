@@ -188,13 +188,14 @@ func reconcileHostedTools(
 		if fingerprint != "" && previous[name] == fingerprint {
 			continue
 		}
+		declaresOutput := tool.OutputSchema != nil
 		registry.AddTool(
 			&tool,
 			func(
 				ctx context.Context,
 				req *sdkmcp.CallToolRequest,
 			) (*sdkmcp.CallToolResult, error) {
-				return callHostedTool(ctx, client, bindID, req)
+				return callHostedTool(ctx, client, bindID, declaresOutput, req)
 			},
 		)
 	}
@@ -220,7 +221,7 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 		Title:        descriptor.Presentation().DisplayTitle,
 		Description:  hostedToolDescription(descriptor),
 		InputSchema:  cloneRaw(descriptor.InputSchema),
-		OutputSchema: hostedOptionalSchema(descriptor.OutputSchema),
+		OutputSchema: hostedOutputSchema(descriptor.OutputSchema),
 		Annotations: &sdkmcp.ToolAnnotations{
 			Title:           descriptor.Presentation().DisplayTitle,
 			ReadOnlyHint:    readOnly,
@@ -230,13 +231,6 @@ func hostedMCPTool(descriptor tools.Descriptor) sdkmcp.Tool {
 		},
 		Meta: hostedToolMeta(descriptor),
 	}
-}
-
-func hostedOptionalSchema(schema json.RawMessage) any {
-	if len(schema) == 0 {
-		return nil
-	}
-	return cloneRaw(schema)
 }
 
 func hostedToolFingerprint(tool *sdkmcp.Tool) string {
@@ -254,6 +248,7 @@ func callHostedTool(
 	ctx context.Context,
 	client HostedProxyClient,
 	bindID string,
+	declaresOutput bool,
 	req *sdkmcp.CallToolRequest,
 ) (*sdkmcp.CallToolResult, error) {
 	rawInput, err := rawArguments(req.Params.Arguments)
@@ -291,6 +286,9 @@ func callHostedTool(
 			StructuredContent: hostedToolErrorStructuredContent(err),
 			IsError:           true,
 		}, nil
+	}
+	if declaresOutput {
+		return hostedDeclaredToolResult(response.Result)
 	}
 	return hostedToolResult(response.Result)
 }

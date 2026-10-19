@@ -54,7 +54,8 @@ var sessionTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDSessionHistory,
 		"session_history",
 		"Session History",
-		"Read grouped turn history for one runtime session.",
+		"Read one bounded page of grouped turn history for one runtime session: the newest 10 turns by default; "+
+			"continue to older turns with page.next_before_sequence.",
 		sessionEventQueryInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -71,7 +72,8 @@ var sessionTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDSessionDescribe,
 		"session_describe",
 		"Session Describe",
-		"Read a composite read-only session description with status, events, and history.",
+		"Read a composite read-only session description with status, the newest event and turn history pages, "+
+			"and their page cursors (events_page, history_page).",
 		sessionEventQueryInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -470,23 +472,6 @@ const sessionIDInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string"}
-	},
-	"additionalProperties":false
-}`
-
-const sessionEventQueryInputSchema = `{
-	"type":"object",
-	"required":["session_id"],
-	"properties":{
-		"workspace":{"type":"string"},
-		"session_id":{"type":"string"},
-		"type":{"type":"string"},
-		"agent_name":{"type":"string"},
-		"turn_id":{"type":"string"},
-		"after_sequence":{"type":"integer"},
-		"limit":{"type":"integer"},
-		"since":{"type":"string"},
-		"archive":{"type":"string","enum":["active","archived","all"]}
 	},
 	"additionalProperties":false
 }`

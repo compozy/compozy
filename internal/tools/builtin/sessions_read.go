@@ -30,7 +30,9 @@ func sessionEventsDescriptor() toolspkg.Descriptor {
 		toolspkg.ToolIDSessionEvents,
 		"session_events",
 		"Session Events",
-		"Read persisted events for one runtime session, including automatic runtime recovery.",
+		"Read one bounded page of persisted events for one runtime session, including automatic runtime recovery: "+
+			"the newest 50 events by default. Page forward with after_sequence and page.next_after_sequence, "+
+			"or backward with before_sequence and page.next_before_sequence.",
 		sessionEventQueryInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -104,7 +106,7 @@ const sessionStatusOutputSchema = `{
 
 const sessionEventsOutputSchema = `{
 	"type":"object",
-	"required":["events"],
+	"required":["events","page"],
 	"properties":{
 		"events":{
 			"type":"array",
@@ -129,7 +131,46 @@ const sessionEventsOutputSchema = `{
 				},
 				"additionalProperties":true
 			}
-		}
+		},
+		"page":` + sessionReadPageSchema + `
+	},
+	"additionalProperties":false
+}`
+
+// sessionReadPageSchema describes the bounded page metadata of session event and history reads.
+const sessionReadPageSchema = `{
+	"type":"object",
+	"required":["limit","has_more"],
+	"properties":{
+		"limit":{"type":"integer","minimum":1},
+		"has_more":{"type":"boolean"},
+		"next_after_sequence":{"type":"integer","minimum":1,
+			"description":"Pass as after_sequence to read the next forward page."},
+		"next_before_sequence":{"type":"integer","minimum":1,
+			"description":"Pass as before_sequence to read the next older page."}
+	},
+	"additionalProperties":false
+}`
+
+const sessionEventQueryInputSchema = `{
+	"type":"object",
+	"required":["session_id"],
+	"properties":{
+		"workspace":{"type":"string"},
+		"session_id":{"type":"string"},
+		"type":{"type":"string"},
+		"agent_name":{"type":"string"},
+		"turn_id":{"type":"string"},
+		"after_sequence":{"type":"integer",
+			"description":"Read the oldest events after this sequence, ascending (forward paging)."},
+		"before_sequence":{"type":"integer","minimum":1,
+			"description":"Read the newest events or turns before this sequence (backward paging). ` +
+	`Cannot be combined with after_sequence."},
+		"limit":{"type":"integer",
+			"description":"Page size: events for session_events (default 50), turns for session_history ` +
+	`(default 10). Omitted or 0 uses the default."},
+		"since":{"type":"string"},
+		"archive":{"type":"string","enum":["active","archived","all"]}
 	},
 	"additionalProperties":false
 }`

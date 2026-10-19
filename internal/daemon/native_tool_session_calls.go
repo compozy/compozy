@@ -255,7 +255,12 @@ func (n *daemonNativeTools) sessionEvents(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	events, err := n.deps.Sessions.Events(ctx, input.SessionID, query)
+	events, page, err := readNativeSessionEventPage(
+		ctx,
+		n.deps.Sessions,
+		input.SessionID,
+		withNativeSessionLimit(query, nativeSessionEventsDefaultLimit),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -263,7 +268,10 @@ func (n *daemonNativeTools) sessionEvents(
 	for _, event := range events {
 		payload = append(payload, core.SessionEventPayloadFromEvent(event, info))
 	}
-	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d events", len(payload)))
+	return structuredResult(
+		map[string]any{nativeToolsEventsKey: payload, nativeToolsPageKey: page},
+		fmt.Sprintf("%d events", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) sessionHistory(
@@ -287,12 +295,20 @@ func (n *daemonNativeTools) sessionHistory(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	history, err := n.deps.Sessions.History(ctx, input.SessionID, query)
+	history, page, err := readNativeSessionHistoryPage(
+		ctx,
+		n.deps.Sessions,
+		input.SessionID,
+		withNativeSessionLimit(query, nativeSessionHistoryDefaultLimit),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	payload := sessionHistoryPayload(history, info)
-	return structuredResult(map[string]any{nativeToolsHistoryKey: payload}, fmt.Sprintf("%d turns", len(payload)))
+	return structuredResult(
+		map[string]any{nativeToolsHistoryKey: payload, nativeToolsPageKey: page},
+		fmt.Sprintf("%d turns", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) sessionDescribe(
@@ -326,11 +342,21 @@ func (n *daemonNativeTools) sessionDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	events, err := n.deps.Sessions.Events(ctx, input.SessionID, query)
+	events, eventsPage, err := readNativeSessionEventPage(
+		ctx,
+		n.deps.Sessions,
+		input.SessionID,
+		withNativeSessionLimit(query, nativeSessionEventsDefaultLimit),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	history, err := n.deps.Sessions.History(ctx, input.SessionID, query)
+	history, historyPage, err := readNativeSessionHistoryPage(
+		ctx,
+		n.deps.Sessions,
+		input.SessionID,
+		withNativeSessionLimit(query, nativeSessionHistoryDefaultLimit),
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -343,8 +369,10 @@ func (n *daemonNativeTools) sessionDescribe(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{
-		nativeToolsSessionKey: payload,
-		nativeToolsEventsKey:  eventPayload,
-		nativeToolsHistoryKey: sessionHistoryPayload(history, info),
+		nativeToolsSessionKey:     payload,
+		nativeToolsEventsKey:      eventPayload,
+		nativeToolsEventsPageKey:  eventsPage,
+		nativeToolsHistoryKey:     sessionHistoryPayload(history, info),
+		nativeToolsHistoryPageKey: historyPage,
 	}, info.ID)
 }

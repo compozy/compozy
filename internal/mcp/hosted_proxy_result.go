@@ -21,7 +21,7 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 		return nil, err
 	}
 	if len(result.Structured) > 0 {
-		if structured, err := decodeHostedJSON(result.Structured); err == nil {
+		if structured, err := decodeHostedJSON(result.Structured); err == nil && hostedStructuredObject(structured) {
 			content := []sdkmcp.Content{&sdkmcp.TextContent{Text: hostedResultFallback(result)}}
 			previewValue, previewErr := decodeHostedJSON([]byte(result.Preview))
 			if strings.TrimSpace(result.Preview) != "" &&
@@ -64,6 +64,20 @@ func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
 	return finishHostedToolResult(&sdkmcp.CallToolResult{Content: content}, result, isError)
 }
 
+// hostedDeclaredToolResult projects a result for a tool that advertises an output schema. MCP
+// clients reject a successful result without structuredContent, so a result lacking an object
+// payload carries the structured result envelope the widened schema accepts.
+func hostedDeclaredToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
+	converted, err := hostedToolResult(result)
+	if err != nil {
+		return nil, err
+	}
+	if !converted.IsError && converted.StructuredContent == nil {
+		converted.StructuredContent = newHostedResultEnvelope(result)
+	}
+	return converted, nil
+}
+
 // decodeHostedJSON retains exact numbers and rejects trailing values before comparing MCP payloads.
 func decodeHostedJSON(raw []byte) (any, error) {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -87,6 +101,9 @@ func finishHostedToolResult(
 		return nil, errors.New("mcp: hosted tool result is required")
 	}
 	converted.IsError = isError
+	if converted.StructuredContent == nil && result.Truncated {
+		converted.StructuredContent = newHostedResultEnvelope(result)
+	}
 	if result.Trust != "" {
 		if converted.Meta == nil {
 			converted.Meta = sdkmcp.Meta{}

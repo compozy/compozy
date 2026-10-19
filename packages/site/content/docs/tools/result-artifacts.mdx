@@ -61,6 +61,29 @@ tool reference exposed by the harness. Pass:
 The native reader belongs to the bootstrap and tool-artifacts toolsets, so an agent can recover a
 large result without shell access. Hosted MCP returns the same page envelope as the native registry.
 
+## Hosted MCP clients
+
+MCP clients reject a successful call that omits `structuredContent` when the tool advertises an
+output schema. A truncated hosted result therefore still returns `structuredContent`, carrying a
+continuation envelope instead of the declared payload:
+
+```json
+{
+  "truncated": true,
+  "truncated_from_bytes": 541203,
+  "preview": "{\"events\":[...",
+  "artifacts": [{ "uri": "compozy://tool-artifacts/art_<sha256>", "bytes": 541520 }],
+  "read_tool": "compozy__tool_artifact_read"
+}
+```
+
+Each hosted tool's advertised output schema accepts its declared payload, this envelope, and the typed
+`{"error": {...}}` payload of a failed call. Check `truncated` first, then page the artifact with
+`read_tool` as described above. The retained artifact holds the complete canonical result, including
+the original structured payload. A harness that caps tool output size, such as Claude Code's MCP
+output token limit, needs smaller pages: request `limit: 32768` or less so each base64 page stays
+inline.
+
 ## HTTP and UDS reads
 
 HTTP and UDS share the generated route:
