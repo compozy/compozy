@@ -117,7 +117,11 @@ func resolveExecutableCandidate(candidate string, pathExt string, base string) (
 			continue
 		}
 		if runtime.GOOS != subprocessWindowsKey && info.Mode().Perm()&0o111 == 0 {
-			return "", fmt.Errorf("subprocess: executable candidate is not executable: %w", os.ErrPermission)
+			return "", fmt.Errorf(
+				"subprocess: executable candidate %q is not executable: %w",
+				executable,
+				os.ErrPermission,
+			)
 		}
 		return filepath.Clean(executable), nil
 	}

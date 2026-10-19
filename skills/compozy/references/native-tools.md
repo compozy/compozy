@@ -401,8 +401,9 @@ private launch bindings. OpenCode discovery detects the installed major with `--
 `models --verbose` (v1) or `api --standalone GET /api/model` scoped to the workspace directory (v2);
 the inherited launch prefers an installed `opencode acp` and uses the `npx -y opencode-ai@latest acp`
 runner only when no native executable exists. Explicit commands keep their installation selector and
-never gain an npm fallback; refresh re-detects the version and never replaces an active session. Live sources refresh periodically and after their five-minute TTL; failed
-refreshes keep the last successful rows as stale data. An explicit curated set may keep a new live model
+never gain an npm fallback; refresh re-detects the version and never replaces an active session.
+Live sources refresh periodically and after their five-minute TTL; failed refreshes keep the last
+successful rows as stale data. An explicit curated set may keep a new live model
 out of the default view, so use `view=all` before concluding it is absent. Refresh through `compozy__provider_models_refresh` or
 `compozy provider models refresh <provider>`.
 Changing `providers.<id>.models.discovery.*` refreshes that provider source; model metadata-only

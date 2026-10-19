@@ -1273,11 +1273,12 @@ describe("RuntimeSelector browse, search and ranking", () => {
       renderSelector({
         value: { provider, model: "", reasoning_effort: "" },
         providers: [{ id: provider, name: provider }],
+        // Seeded out of rank order so a lost favorite/featured hoist cannot pass.
         models: [
-          model(ids[0]!, { provider, name: "Model Alpha" }),
-          model(ids[1]!, { provider, name: "Model Zeta", featured: true }),
           model(ids[2]!, { provider, name: "Model Beta" }),
+          model(ids[0]!, { provider, name: "Model Alpha" }),
           model(ids[3]!, { provider, name: "Model Omega" }),
+          model(ids[1]!, { provider, name: "Model Zeta", featured: true }),
         ],
       });
 

@@ -905,9 +905,7 @@ func integrationTime(offset int) time.Time {
 	return time.Date(2026, 5, 7, 13, offset, 0, 0, time.UTC)
 }
 
-// writeOpenCodeNativeFixture creates a native-executable placeholder whose
-// version and catalog output change between requests. Only the external CLI is
-// replaced; production resolution, decoders, and SQLite stay authoritative.
+// writeOpenCodeNativeFixture creates a native placeholder whose output changes per request.
 func writeOpenCodeNativeFixture(t *testing.T) string {
 	t.Helper()
 
@@ -958,8 +956,7 @@ func openCodeFixtureCalls(t *testing.T, dir string) []string {
 	return calls
 }
 
-// liveRowRefreshedAt snapshots persisted live-row timestamps without merging
-// config-source rows into the projection.
+// liveRowRefreshedAt snapshots persisted live-row timestamps without config-source rows.
 func liveRowRefreshedAt(t *testing.T, dbPath string) map[string]string {
 	t.Helper()
 

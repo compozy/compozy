@@ -28,11 +28,12 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session provider startup failed", err)
 	}
+	preHookCommand := strings.TrimSpace(startOpts.Command)
 	startOpts, err = m.dispatchAgentPreStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
-	if strings.TrimSpace(startOpts.Command) != strings.TrimSpace(runtime.agent.Command) {
+	if strings.TrimSpace(startOpts.Command) != preHookCommand {
 		runtime.configuredCommand = strings.TrimSpace(runtime.agent.Command)
 		runtime.agent.Command = strings.TrimSpace(startOpts.Command)
 		runtime.agent.CommandIsBuiltin = false

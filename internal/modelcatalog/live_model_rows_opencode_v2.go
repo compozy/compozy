@@ -9,9 +9,7 @@ import (
 	"time"
 )
 
-// openCodeV2Model decodes the minimal selectable subset of the native v2 model
-// API. Unrelated native settings, tiered costs, and service details are ignored
-// rather than decoded.
+// openCodeV2Model decodes the minimal selectable subset of the native v2 model API.
 type openCodeV2Model struct {
 	ProviderID string `json:"providerID"`
 	ID         string `json:"id"`
@@ -31,10 +29,7 @@ type openCodeV2Model struct {
 	Status string `json:"status"`
 }
 
-// parseOpenCodeV2ModelRows decodes one v2 model.list generation. Malformed,
-// incomplete, unsafe, or empty generations fail wholly; only advertised enabled
-// models become rows. Native transport aliases, costs, and settings never
-// become selectable identity, prices, or diagnostics.
+// parseOpenCodeV2ModelRows decodes enabled v2 rows; malformed or empty generations fail wholly.
 func parseOpenCodeV2ModelRows(providerID, output string, now time.Time) ([]ModelRow, error) {
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(output), &envelope); err != nil {
@@ -138,8 +133,7 @@ func openCodeV2ModelRow(providerID string, entry *openCodeV2Model, now time.Time
 	return row, true, nil
 }
 
-// openCodeV2TokenLimit keeps positive reported limits, treats zero as unknown,
-// and fails the generation on negative values.
+// openCodeV2TokenLimit keeps positive limits, treats zero as unknown, and rejects negatives.
 func openCodeV2TokenLimit(value *int64) (*int64, error) {
 	if value == nil || *value == 0 {
 		return nil, nil

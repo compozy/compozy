@@ -16,6 +16,41 @@ import (
 
 const noDiscoveryDiagnostic = "no diagnostic output"
 
+// discoveryFailure returns the redacted discovery failure diagnostic, or nil on success.
+func discoveryFailure(
+	providerID string,
+	result DiscoveryCommandResult,
+	runErr error,
+	stdoutDetail bool,
+) error {
+	if runErr != nil {
+		detail := firstNonEmptyLine(result.Stderr)
+		if detail == "" && stdoutDetail {
+			detail = firstNonEmptyLine(result.Stdout)
+		}
+		if detail != "" {
+			return fmt.Errorf("%w: %s", runErr, RedactString(detail))
+		}
+		return runErr
+	}
+	if result.ExitCode != 0 {
+		detail := firstNonEmptyLine(result.Stderr)
+		if detail == "" && stdoutDetail {
+			detail = firstNonEmptyLine(result.Stdout)
+		}
+		if detail == "" {
+			detail = noDiscoveryDiagnostic
+		}
+		return fmt.Errorf(
+			"model catalog: discovery command for %q exited %d: %s",
+			providerID,
+			result.ExitCode,
+			RedactString(detail),
+		)
+	}
+	return nil
+}
+
 func (s *LiveProviderSource) listCommand(
 	ctx context.Context,
 	command string,
@@ -35,30 +70,8 @@ func (s *LiveProviderSource) listCommand(
 		Env:        env,
 		Timeout:    timeout,
 	})
-	if err != nil {
-		detail := firstNonEmptyLine(result.Stderr)
-		if detail == "" {
-			detail = firstNonEmptyLine(result.Stdout)
-		}
-		if detail != "" {
-			return nil, fmt.Errorf("%w: %s", err, RedactString(detail))
-		}
-		return nil, err
-	}
-	if result.ExitCode != 0 {
-		detail := firstNonEmptyLine(result.Stderr)
-		if detail == "" {
-			detail = firstNonEmptyLine(result.Stdout)
-		}
-		if detail == "" {
-			detail = noDiscoveryDiagnostic
-		}
-		return nil, fmt.Errorf(
-			"model catalog: discovery command for %q exited %d: %s",
-			s.providerID,
-			result.ExitCode,
-			RedactString(detail),
-		)
+	if failure := discoveryFailure(s.providerID, result, err, true); failure != nil {
+		return nil, failure
 	}
 	rows, err := parseLiveModelPayload(s.providerID, []byte(result.Stdout), now)
 	if err == nil {

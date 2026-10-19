@@ -477,7 +477,15 @@ The runtime picker lists the exact advertised Antigravity IDs — on the verifie
 IDs (`gemini-4-argon`, `gemini-3.8-flash`) with effort selected through the first-class
 `thinking_level` option (`low`/`medium`/`high`), not an ID suffix; the superseded 1.3.0 suffixed IDs
 are no longer advertised and prompt as `model_unavailable` — and the resulting session is attributed to provider `agy` with that exact model.
-Cursor uses `cursor-agent models`; advertised reasoning, thinking, and Fast variants remain selectable through their exact launch bindings. Reasoning support alone does not imply an adjustable effort. Effort IDs are provider-owned strings: known values such as `ultra` receive friendly labels, and new advertised values survive discovery, persistence, and selection without a release. The active provider validates membership. OpenCode discovery probes the installed major with `opencode --version`, then reads v1 `models --verbose` or the workspace-scoped v2 `model.list` operation through `opencode api --standalone` to retain each model's capabilities and effort variants. This is [OpenCode's native API](https://opencode.ai/v2/docs/api/), not a CompozyOS route. Configured discovery uses its declared command or endpoint, and
+Cursor uses `cursor-agent models`; advertised reasoning, thinking, and Fast variants remain
+selectable through their exact launch bindings. Reasoning support alone does not imply an adjustable
+effort. Effort IDs are provider-owned strings: known values such as `ultra` receive friendly labels,
+and new advertised values survive discovery, persistence, and selection without a release. The
+active provider validates membership. OpenCode discovery probes the installed major with `opencode
+--version`, then reads v1 `models --verbose` or the workspace-scoped v2 `model.list` operation
+through `opencode api --standalone` to retain each model's capabilities and effort variants. This is
+[OpenCode's native API](https://opencode.ai/v2/docs/api/), not a CompozyOS route. Configured
+discovery uses its declared command or endpoint, and
 extension sources call their `models/list` capability. Dynamic sources fail closed by recording source
 status; an explicit Cursor model is accepted only when a fresh Cursor catalog row advertises its logical
 identity. Stale rows remain visible as fallback metadata but cannot authorize that explicit selection.

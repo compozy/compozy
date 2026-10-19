@@ -295,19 +295,21 @@ Missing effort metadata is unconfirmed capability, not proof that the provider m
 Confirm a requested effort through effective runtime and ACP current-value readback after a prompt;
 selected intent alone is not evidence that the provider applied it.
 
-For OpenCode, discovery follows the installed major: `opencode --version`, then `models --verbose`
-(v1) or `api --standalone GET /api/model` scoped to the workspace directory (v2). The inherited
-command is `opencode acp` and prefers the installed CLI; the `npx -y opencode-ai@latest acp` runner
-applies only when no native executable exists, and a selected installation's failure never falls back
-to another one. Explicit `command` values (including `VAR=value` prefixes and wrapper commands) keep
-their selector; when no `models.discovery.command` overrides it, the automatic version probe and
-catalog method run through that command, and opaque wrappers cannot prove installation equivalence,
-so actual ACP negotiation stays authoritative. Refresh re-detects the
-version without replacing an active session; a fresh bind or restart re-resolves the current
-configuration. Treat `model_unavailable`/`reasoning_effort_unsupported` as terminal input
-diagnostics: the provider rejected the selection before inference, and no silent substitution
-occurred. Executable presence alone is not authenticated status; run
-`compozy provider auth status opencode` for the selected installation.
+For OpenCode, discovery follows the installed major and runs that major's catalog method; the
+mechanics live in `references/native-tools.md#runtime-and-workspace-tools`. The inherited command is
+`opencode acp` and prefers the installed CLI; the `npx -y opencode-ai@latest acp` runner applies
+only when no native executable exists, and a selected installation's failure never falls back to
+another one. A derivable explicit command (`opencode acp`, optionally with `VAR=value` prefixes)
+keeps its selector and still gets automatic version dispatch; configure
+`models.discovery.command`/`endpoint` only for opaque wrappers, and such an override bypasses the
+`--version` probe and runs that command unchanged, so a needlessly pinned v1 command cannot serve a
+v2 installation. Opaque wrappers cannot prove installation equivalence, so actual ACP negotiation
+stays authoritative. Refresh re-detects the version without replacing an active session; a fresh
+bind or restart re-resolves the current configuration. Treat
+`model_unavailable`/`reasoning_effort_unsupported` as terminal input diagnostics: the provider
+rejected the selection before inference, and no silent substitution occurred. Executable presence
+alone is not authenticated status: `compozy provider auth status opencode` reports the declared
+native-CLI classification and login guidance, and the ACP session is the authentication authority.
 
 Use structured output when agents need to inspect or route results.
 

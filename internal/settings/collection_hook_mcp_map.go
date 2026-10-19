@@ -106,6 +106,18 @@ func mcpAuthMap(auth compozyconfig.MCPAuthConfig) map[string]any {
 	return values
 }
 
+// providerLaunchAvailable reports resolvability of the command the start path would launch.
+func (s *service) providerLaunchAvailable(name string, provider compozyconfig.ProviderConfig) bool {
+	if provider.CommandIsBuiltin && compozyconfig.CanonicalProviderName(name) == "opencode" {
+		if _, err := s.commandLookPath("opencode"); err == nil {
+			return true
+		}
+		_, err := s.commandLookPath("npx")
+		return err == nil
+	}
+	return s.commandAvailable(provider.Command)
+}
+
 func (s *service) commandAvailable(command string) bool {
 	binary := firstCommandToken(command)
 	if binary == "" {

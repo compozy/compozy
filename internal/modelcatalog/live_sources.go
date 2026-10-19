@@ -383,7 +383,7 @@ func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) (
 		return rows, nil
 	case liveDiscoveryCommand:
 		if isAutomaticOpenCodeDiscovery(s.providerID, provider) {
-			rows, err := s.listOpenCode(
+			return s.listOpenCode(
 				runCtx,
 				provider,
 				env,
@@ -391,10 +391,6 @@ func (s *LiveProviderSource) ListModels(ctx context.Context, opts ListOptions) (
 				timeout,
 				now,
 			)
-			if err != nil {
-				return nil, err
-			}
-			return rows, nil
 		}
 		rows, err := s.listCommand(runCtx, target.command, env, timeout, now)
 		if err != nil {

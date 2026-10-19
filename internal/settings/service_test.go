@@ -5396,3 +5396,50 @@ func TestPersonaSectionPersistsSessionRuntimeDefaults(t *testing.T) {
 		}
 	})
 }
+
+func TestProviderListCommandAvailableHonorsOpenCodeNPMLaunchFallback(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name      string
+		lookPath  map[string]string
+		wantAvail bool
+	}{
+		{
+			name:      "Should report the inherited builtin available through the npx fallback",
+			lookPath:  map[string]string{"npx": "/bin/npx"},
+			wantAvail: true,
+		},
+		{
+			name:      "Should report the inherited builtin unavailable without any launch candidate",
+			lookPath:  map[string]string{},
+			wantAvail: false,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			service := testService(t, homePaths, Dependencies{
+				CommandLookPath: func(command string) (string, error) {
+					if resolved, ok := test.lookPath[command]; ok {
+						return resolved, nil
+					}
+					return "", os.ErrNotExist
+				},
+			})
+
+			envelope, err := service.ListCollection(t.Context(), CollectionRequest{
+				Collection: CollectionProviders,
+			})
+			if err != nil {
+				t.Fatalf("ListCollection(providers) error = %v", err)
+			}
+			opencodeItem := mustFindProviderItem(t, envelope.Providers, "opencode")
+			if got := opencodeItem.CommandAvailable; got != test.wantAvail {
+				t.Fatalf("opencode command available = %v, want %v", got, test.wantAvail)
+			}
+		})
+	}
+}

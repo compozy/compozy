@@ -78,14 +78,14 @@ discovery state was rewritten to fix the symptom. The change is version-independ
 - Live browser replay against `make dev`: opened the existing session selector and clicked
   OpenCode with an empty search. Chromium rendered 174 catalog rows, including every one of the
   92 `available=true` model IDs returned by the same HTTP catalog (`missingLive=[]`), and no empty
-  state. Screenshot: `/tmp/opencode/opencode-model-selector-fixed.png`. This was a read-only picker
+  state. Screenshot: `.compozy/tasks/opencode-model-discovery/evidence/task_05/opencode-model-selector-fixed.png`. This was a read-only picker
   walk; no new vendor inference or session-runtime mutation was performed. All 92 live rows were
   enabled; Home/End reached both list edges and Escape restored trigger focus.
 - Daemon-served `session-provider-override.spec.ts`: **4/4 passed**, including the OpenCode v1→v2
   journey with retired curation, empty-search selection, first/restarted prompts, and CLI/HTTP/UDS
   runtime agreement. The isolated fixture holds an interrupted turn open, confirms the daemon is
   stopped before sending again, and locates the composer across active/stopped accessible labels.
-  Focused OpenCode replay: **1/1 passed**. Logs: `/tmp/opencode/opencode-selector-e2e{,-full}.log`.
+  Focused OpenCode replay: **1/1 passed**. Logs: `.compozy/tasks/opencode-model-discovery/evidence/task_05/opencode-selector-e2e{,-full}.log`.
 - Race-enabled `internal/modelcatalog`, `internal/providerexec`, and `internal/session` suites
   passed, as did `TestManagerIntegrationOpenCodeInvocation` with integration tags and the race
   detector. The v1 parser and native discovery behavior remain unchanged. React Doctor reported
@@ -113,7 +113,7 @@ text omitted safely. Other CLI labels/ranking, pinned recents/favorites, and exa
 - Existing selector suite: **104/104 passed**; nullable/blank identities, sorting, selection, and
   Codex/Claude/Antigravity isolation are covered. Root Turbo typecheck/build passed.
 - Daemon-served provider-override suite: **4/4 passed**, including v1/v2 provider-label assertions
-  and ascending native-provider order. Log: `/tmp/opencode/opencode-provider-label-e2e.log`.
+  and ascending native-provider order. Log: `.compozy/tasks/opencode-model-discovery/evidence/task_05/opencode-provider-label-e2e.log`.
 - Wide/narrow picker inspection: **pass**, 1280×720 and 390×844; no row wrapping or picker overflow.
-  Captures: `.impeccable/review/opencode-provider-{desktop,mobile}.png`.
+  Captures: `.compozy/tasks/opencode-model-discovery/evidence/task_05/opencode-provider-{desktop,mobile}.png`.
 - React Doctor: **100/100**. No discovery, backend contract, or vendor-inference behavior changed.

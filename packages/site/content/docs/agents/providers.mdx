@@ -230,7 +230,9 @@ installation with `--version`, then lists v1 models with `models --verbose` or v
 installed `opencode acp` and uses the `npx -y opencode-ai@latest acp` runner only when no native
 executable exists. An explicit `command` (including `VAR=value` prefixes and wrapper commands) keeps
 its installation selector and never gains an npm fallback; refresh re-detects the version without
-replacing an active session. At launch, CompozyOS resolves the selected
+replacing an active session. An opaque wrapper has no derivable discovery command: configure
+`models.discovery.command` or `models.discovery.endpoint` so its catalog can refresh. At launch,
+CompozyOS resolves the selected
 logical model plus Reasoning, Fast, and Thinking back to one alias and starts
 `cursor-agent --model <alias> acp`. When discovery fails, the catalog records source status and keeps the
 last successful rows as stale data. Cursor uses the operator home required by its native login.

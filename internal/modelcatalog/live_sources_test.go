@@ -758,7 +758,7 @@ func TestLiveProviderSources(t *testing.T) {
 		provider.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
 		source := newLiveSourceForTest(t, "opencode", provider, &LiveProviderSourcesConfig{
 			HomePaths:       homePaths,
-			BaseEnv:         append(openCodeFixtureEnv(t), "OPENAI_API_KEY=ambient-secret"),
+			BaseEnv:         openCodeFixtureEnv(t, "OPENAI_API_KEY=ambient-secret"),
 			CommandExecutor: executor,
 		})
 
@@ -1031,8 +1031,15 @@ opencode/provider-managed
 					if !slices.Equal(listReq.Args, []string{"models", "--verbose"}) {
 						t.Fatalf("v1 args = %#v, want [models --verbose]", listReq.Args)
 					}
-					if rowModelIDs(rows) != nil && rows[0].ModelID != "openrouter/acme/coding-default" {
-						t.Fatalf("v1 rows = %#v", rows)
+					if got, want := rowModelIDs(
+						rows,
+					), []string{
+						"openrouter/acme/coding-default",
+					}; !slices.Equal(
+						got,
+						want,
+					) {
+						t.Fatalf("v1 rows = %#v, want %#v", rows, want)
 					}
 					return
 				}
@@ -2544,9 +2551,7 @@ func (e *fakeDiscoveryExecutor) allRequests(t *testing.T) []DiscoveryCommandRequ
 	return append([]DiscoveryCommandRequest(nil), e.requests...)
 }
 
-// writeOpenCodeFixture creates a resolvable native executable placeholder. The
-// fake executor stands in for the subprocess boundary, so the fixture only
-// proves selector resolution without executing anything.
+// writeOpenCodeFixture creates a resolvable native placeholder that nothing executes.
 func writeOpenCodeFixture(t *testing.T) string {
 	t.Helper()
 

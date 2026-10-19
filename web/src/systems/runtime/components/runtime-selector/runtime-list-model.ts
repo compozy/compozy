@@ -89,8 +89,8 @@ function matchesQuery(model: RuntimeModelOption, providerName: string, tokens: s
 
 /** OpenCode IDs are provider/model; unqualified or missing identities have no provider label. */
 export function openCodeModelProvider(model: {
-  provider?: string | null;
-  id?: string | null;
+  provider: string | null | undefined;
+  id: string | null | undefined;
 }): string {
   if (model.provider !== "opencode") return "";
   const [provider, id] = model.id?.split("/", 2) ?? [];

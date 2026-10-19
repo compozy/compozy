@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	burnttoml "github.com/BurntSushi/toml"
 )
 
 func TestCommandIsBuiltinOrigin(t *testing.T) {
@@ -77,6 +79,14 @@ func TestCommandIsBuiltinOrigin(t *testing.T) {
 		if strings.Contains(string(payload), "CommandIsBuiltin") ||
 			strings.Contains(string(payload), "commandIsBuiltin") {
 			t.Fatalf("payload = %s, want origin hidden", payload)
+		}
+		tomlPayload, err := burnttoml.Marshal(provider)
+		if err != nil {
+			t.Fatalf("toml.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(tomlPayload), "CommandIsBuiltin") ||
+			strings.Contains(string(tomlPayload), "commandisbuiltin") {
+			t.Fatalf("toml = %s, want origin hidden", tomlPayload)
 		}
 		agent, err := cfg.ResolveAgent(AgentDef{Name: "a", Provider: "opencode", Prompt: "p"})
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -71,7 +72,7 @@ func TestResolveOpenCodeCommand(t *testing.T) {
 			t.Fatalf("Executable = %q, want %q", got.Executable, npx)
 		}
 		want := []string{"-y", "opencode-ai@latest", "acp"}
-		if strings.Join(got.Args, "\x1f") != strings.Join(want, "\x1f") {
+		if !slices.Equal(got.Args, want) {
 			t.Fatalf("Args = %#v, want %#v", got.Args, want)
 		}
 	})
@@ -143,7 +144,7 @@ func TestResolveOpenCodeCommand(t *testing.T) {
 			t.Fatalf("pinned Executable = %q, want %q", pinned.Executable, npx)
 		}
 		want := []string{"-y", "opencode-ai@1.18.33", "acp"}
-		if strings.Join(pinned.Args, "\x1f") != strings.Join(want, "\x1f") {
+		if !slices.Equal(pinned.Args, want) {
 			t.Fatalf("pinned Args = %#v, want %#v", pinned.Args, want)
 		}
 	})
@@ -198,7 +199,7 @@ func TestDeriveOpenCodeDiscoveryBase(t *testing.T) {
 			t.Fatalf("Derive error = %v", err)
 		}
 		want := []string{"-y", "opencode-ai@1.18.33"}
-		if strings.Join(base.Args, "\x1f") != strings.Join(want, "\x1f") {
+		if !slices.Equal(base.Args, want) {
 			t.Fatalf("base Args = %#v, want %#v", base.Args, want)
 		}
 		if len(base.Environment) != 1 {
@@ -235,7 +236,7 @@ func TestDeriveOpenCodeDiscoveryBase(t *testing.T) {
 			if base.Executable != executable {
 				t.Fatalf("Derive(%q) executable = %q, want %q", test.name, base.Executable, executable)
 			}
-			if got := strings.Join(base.Args, "\x1f"); got != strings.Join(test.wantPrefix, "\x1f") {
+			if !slices.Equal(base.Args, test.wantPrefix) {
 				t.Fatalf("Derive(%q) args = %#v, want %#v", test.name, base.Args, test.wantPrefix)
 			}
 		}
@@ -249,10 +250,7 @@ func TestDeriveOpenCodeDiscoveryBase(t *testing.T) {
 			{Executable: "/usr/bin/custom-acp-wrapper", Args: []string{"acp"}},
 		} {
 			_, err := DeriveOpenCodeDiscoveryBase(cmd)
-			if err == nil || !strings.Contains(
-				err.Error(),
-				"requires an explicit models.discovery.command or models.discovery.endpoint",
-			) {
+			if !errors.Is(err, errOpenCodeDiscoveryOverrideRequired) {
 				t.Fatalf("Derive(%#v) error = %v, want explicit-override guidance", cmd, err)
 			}
 		}

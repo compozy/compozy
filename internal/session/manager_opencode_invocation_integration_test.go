@@ -30,9 +30,7 @@ const (
 	opencodeRejectionAgent       = "opencode-reject"
 )
 
-// openCodeInvocationFixture is one temporary native installation serving both
-// version-specific discovery and actual ACP from the same absolute executable.
-// It rejects wrong-version operations and records only safe markers.
+// openCodeInvocationFixture is one temporary native installation serving discovery and ACP.
 type openCodeInvocationFixture struct {
 	dir string
 	bin string
@@ -142,9 +140,7 @@ func newOpenCodeInvocationManager(t *testing.T, agents []compozyconfig.AgentDef)
 	t.Helper()
 
 	h := newHarness(t)
-	// The harness rewrites native-bridge provider commands to a fake driver.
-	// Drop the entry so OpenCode resolves through the pure built-in registry
-	// ("opencode acp", inherited origin), exactly like production.
+	// Drop the harness driver rewrite so OpenCode resolves through the built-in registry.
 	delete(h.cfg.Providers, "opencode")
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 		ID:      h.workspaceID,
@@ -539,8 +535,7 @@ func TestManagerIntegrationOpenCodeInvocation(t *testing.T) {
 		stopOpenCodeInvocationSession(t, h.manager, sess)
 
 		rejectDiagnostics := filepath.Join(t.TempDir(), "reject-diagnostics.jsonl")
-		rejectFx := writeOpenCodeInvocationFixture(t, driver, opencodeRejectionAgent, rejectDiagnostics, false)
-		_ = rejectFx
+		writeOpenCodeInvocationFixture(t, driver, opencodeRejectionAgent, rejectDiagnostics, false)
 		rejectHarness := newOpenCodeInvocationManager(t, []compozyconfig.AgentDef{{
 			Name: "rejector", Provider: "opencode", Prompt: "You are a coding assistant.",
 		}})

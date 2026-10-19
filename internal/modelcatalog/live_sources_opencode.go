@@ -12,9 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/providerexec"
 )
 
-// isAutomaticOpenCodeDiscovery reports whether the built-in OpenCode discovery
-// path owns this source. Explicit discovery commands bypass version detection;
-// explicit endpoints and disabled discovery never reach the command branch.
+// isAutomaticOpenCodeDiscovery reports whether the automatic OpenCode discovery path owns the source.
 func isAutomaticOpenCodeDiscovery(providerID string, provider compozyconfig.ProviderConfig) bool {
 	if compozyconfig.CanonicalProviderName(providerID) != liveSourcesOpencodeKey {
 		return false
@@ -22,8 +20,7 @@ func isAutomaticOpenCodeDiscovery(providerID string, provider compozyconfig.Prov
 	return strings.TrimSpace(provider.Models.Discovery.Command) == ""
 }
 
-// parseOpenCodeMajorVersion detects one complete semantic version from
-// `--version` output. It never scans diagnostic text for a version number.
+// parseOpenCodeMajorVersion detects exactly one semantic version from `--version` output.
 func parseOpenCodeMajorVersion(output string) (uint64, error) {
 	trimmed := strings.TrimSpace(output)
 	if rest, ok := strings.CutPrefix(trimmed, "opencode "); ok {
@@ -95,8 +92,7 @@ func (s *LiveProviderSource) listOpenCode(
 			"api", "--standalone", "GET", "/api/model?"+values.Encode(),
 		)
 		decode = parseOpenCodeV2ModelRows
-		// The v2 envelope may carry provider-specific settings; its raw
-		// output never becomes a diagnostic, even redacted.
+		// The v2 envelope may carry provider-specific settings; it never becomes a diagnostic.
 		stdoutDetail = false
 	}
 	listOutput, err := s.runOpenCodeList(ctx, base.Executable, listArgs, runEnv, timeout, stdoutDetail)
@@ -151,8 +147,7 @@ func (s *LiveProviderSource) runOpenCodeVersion(
 	return result.Stdout, nil
 }
 
-// runOpenCodeList runs one version-selected catalog command with the shared
-// execution/redaction handling used by the generic command path.
+// runOpenCodeList runs one version-selected catalog command with shared redaction.
 func (s *LiveProviderSource) runOpenCodeList(
 	ctx context.Context,
 	command string,
@@ -165,30 +160,8 @@ func (s *LiveProviderSource) runOpenCodeList(
 		ctx,
 		s.openCodeDiscoveryRequest(command, args, env, timeout),
 	)
-	if err != nil {
-		detail := firstNonEmptyLine(result.Stderr)
-		if detail == "" && stdoutDetail {
-			detail = firstNonEmptyLine(result.Stdout)
-		}
-		if detail != "" {
-			return "", fmt.Errorf("%w: %s", err, RedactString(detail))
-		}
-		return "", err
-	}
-	if result.ExitCode != 0 {
-		detail := firstNonEmptyLine(result.Stderr)
-		if detail == "" && stdoutDetail {
-			detail = firstNonEmptyLine(result.Stdout)
-		}
-		if detail == "" {
-			detail = noDiscoveryDiagnostic
-		}
-		return "", fmt.Errorf(
-			"model catalog: discovery command for %q exited %d: %s",
-			s.providerID,
-			result.ExitCode,
-			RedactString(detail),
-		)
+	if failure := discoveryFailure(s.providerID, result, err, stdoutDetail); failure != nil {
+		return "", failure
 	}
 	return result.Stdout, nil
 }

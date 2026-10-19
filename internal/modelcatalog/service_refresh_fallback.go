@@ -101,10 +101,7 @@ func failureHistoryExecutionContext(
 			"model catalog: previous execution context must match the current ownership scope",
 		)
 	}
-	// A changed OpenCode invocation selector partitions rows: prior rows stay
-	// stored but never prove availability for the new invocation. Explicit
-	// discovery commands on other providers retain their established stale
-	// behavior.
+	// Cross-selector stale rows stay stored, but never prove availability for the new invocation.
 	if denyCrossInvocationTransfer &&
 		strings.TrimSpace(previous.CommandFingerprint) != strings.TrimSpace(current.CommandFingerprint) {
 		return current, nil
@@ -112,10 +109,7 @@ func failureHistoryExecutionContext(
 	return previous, nil
 }
 
-// denyCrossInvocationTransfer reports whether stale rows must never cross an
-// invocation-selector change. Only the automatic OpenCode partition embeds
-// the resolved selector; other providers keep their established stale
-// transfer behavior.
+// denyCrossInvocationTransfer keeps stale rows from crossing an invocation-selector change.
 func denyCrossInvocationTransfer(source Source) bool {
 	if source == nil {
 		return false

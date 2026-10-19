@@ -18,7 +18,7 @@ func resolveProviderNativeCLI(
 	provider := providerConfigFromResolvedAgent(resolved)
 	provider.Command = opts.Command
 	if compozyconfig.CanonicalProviderName(resolved.Provider) == "opencode" {
-		return resolveOpenCodeFinalLaunch(resolved, opts)
+		return resolveOpenCodeFinalLaunch(provider, resolved, opts)
 	}
 	strategy := providerexec.StrategyFor(provider)
 	if strategy.Kind != providerexec.StrategyNativeCLIBridge {
@@ -43,13 +43,10 @@ func resolveProviderNativeCLIPath(command string, opts acp.StartOpts) (string, e
 }
 
 func resolveOpenCodeFinalLaunch(
+	provider compozyconfig.ProviderConfig,
 	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, error) {
-	provider := compozyconfig.ProviderConfig{
-		Command:          opts.Command,
-		CommandIsBuiltin: resolved.CommandIsBuiltin,
-	}
 	launch, err := providerexec.ResolveOpenCodeCommand(provider, opts.Env, opts.Cwd)
 	if err != nil {
 		return acp.StartOpts{}, fmt.Errorf(

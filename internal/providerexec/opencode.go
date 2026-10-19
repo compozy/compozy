@@ -14,11 +14,14 @@ import (
 
 const openCodeNativeCommand = "opencode"
 
+var errOpenCodeDiscoveryOverrideRequired = errors.New(
+	"model catalog: OpenCode launch command requires an explicit models.discovery.command " +
+		"or models.discovery.endpoint",
+)
+
 var openCodeNPMFallbackPrefix = []string{"-y", "opencode-ai@latest"}
 
-// ResolveOpenCodeCommand returns the existing LaunchCommand with an absolute
-// executable, preserved args including the acp operation, and private leading
-// environment assignments. It performs no version probe, installation, or login.
+// ResolveOpenCodeCommand resolves an absolute launch command; only an absent builtin falls back to npx.
 func ResolveOpenCodeCommand(
 	provider compozyconfig.ProviderConfig,
 	env []string,
@@ -33,17 +36,6 @@ func ResolveOpenCodeCommand(
 		return compozyconfig.LaunchCommand{}, fmt.Errorf("providerexec: resolve OpenCode command: %w", err)
 	}
 	effectiveEnv := ApplyOpenCodeAssignments(env, parsed.Environment)
-	if !provider.CommandIsBuiltin {
-		resolved, err := subprocess.ResolveExecutable(parsed.Executable, effectiveEnv, dir)
-		if err != nil {
-			return compozyconfig.LaunchCommand{}, err
-		}
-		return compozyconfig.LaunchCommand{
-			Executable:  resolved,
-			Args:        append([]string(nil), parsed.Args...),
-			Environment: append([]string(nil), parsed.Environment...),
-		}, nil
-	}
 	resolved, err := subprocess.ResolveExecutable(parsed.Executable, effectiveEnv, dir)
 	if err == nil {
 		return compozyconfig.LaunchCommand{
@@ -52,12 +44,21 @@ func ResolveOpenCodeCommand(
 			Environment: append([]string(nil), parsed.Environment...),
 		}, nil
 	}
-	if !errors.Is(err, exec.ErrNotFound) {
+	if !provider.CommandIsBuiltin || !errors.Is(err, exec.ErrNotFound) {
 		return compozyconfig.LaunchCommand{}, err
 	}
-	npxResolved, npxErr := subprocess.ResolveExecutable("npx", effectiveEnv, dir)
-	if npxErr != nil {
-		return compozyconfig.LaunchCommand{}, npxErr
+	return resolveOpenCodeNPMLaunch(parsed, effectiveEnv, dir)
+}
+
+// resolveOpenCodeNPMLaunch selects the npm runner for a genuinely absent native executable.
+func resolveOpenCodeNPMLaunch(
+	parsed compozyconfig.LaunchCommand,
+	env []string,
+	dir string,
+) (compozyconfig.LaunchCommand, error) {
+	npxResolved, err := subprocess.ResolveExecutable("npx", env, dir)
+	if err != nil {
+		return compozyconfig.LaunchCommand{}, err
 	}
 	fallbackArgs := append(append([]string(nil), openCodeNPMFallbackPrefix...), parsed.Args...)
 	return compozyconfig.LaunchCommand{
@@ -67,14 +68,10 @@ func ResolveOpenCodeCommand(
 	}, nil
 }
 
-// DeriveOpenCodeDiscoveryBase strips a safely derivable terminal acp operation,
-// preserving the installation selector and private assignments for Task 02 to
-// substitute version/list operations. Opaque wrappers fail actionably.
+// DeriveOpenCodeDiscoveryBase strips a derivable terminal acp operation while keeping the selector.
 func DeriveOpenCodeDiscoveryBase(cmd compozyconfig.LaunchCommand) (compozyconfig.LaunchCommand, error) {
 	if len(cmd.Args) == 0 || cmd.Args[len(cmd.Args)-1] != "acp" {
-		return compozyconfig.LaunchCommand{}, errors.New(
-			"model catalog: OpenCode launch command requires an explicit models.discovery.command or models.discovery.endpoint",
-		)
+		return compozyconfig.LaunchCommand{}, errOpenCodeDiscoveryOverrideRequired
 	}
 	base := strings.ToLower(strings.TrimSpace(filepath.Base(cmd.Executable)))
 	// Mirror subprocess PATHEXT defaults so .cmd/.bat npm shims derive like their Unix names.
@@ -84,20 +81,14 @@ func DeriveOpenCodeDiscoveryBase(cmd compozyconfig.LaunchCommand) (compozyconfig
 	switch base {
 	case openCodeNativeCommand:
 		if len(cmd.Args) != 1 {
-			return compozyconfig.LaunchCommand{}, errors.New(
-				"model catalog: OpenCode launch command requires an explicit models.discovery.command or models.discovery.endpoint",
-			)
+			return compozyconfig.LaunchCommand{}, errOpenCodeDiscoveryOverrideRequired
 		}
 	case "npx":
 		if !openCodeNPMPrefixHasPackage(cmd.Args[:len(cmd.Args)-1]) {
-			return compozyconfig.LaunchCommand{}, errors.New(
-				"model catalog: OpenCode launch command requires an explicit models.discovery.command or models.discovery.endpoint",
-			)
+			return compozyconfig.LaunchCommand{}, errOpenCodeDiscoveryOverrideRequired
 		}
 	default:
-		return compozyconfig.LaunchCommand{}, errors.New(
-			"model catalog: OpenCode launch command requires an explicit models.discovery.command or models.discovery.endpoint",
-		)
+		return compozyconfig.LaunchCommand{}, errOpenCodeDiscoveryOverrideRequired
 	}
 	return compozyconfig.LaunchCommand{
 		Executable:  cmd.Executable,
@@ -141,22 +132,7 @@ func ApplyOpenCodeAssignments(env []string, assignments []string) []string {
 		if !ok {
 			continue
 		}
-		key = strings.TrimSpace(key)
-		if key == "" {
-			continue
-		}
-		entry := key + "=" + value
-		replaced := false
-		for i, current := range effective {
-			if currentKey, _, ok := strings.Cut(current, "="); ok && currentKey == key {
-				effective[i] = entry
-				replaced = true
-				break
-			}
-		}
-		if !replaced {
-			effective = append(effective, entry)
-		}
+		effective = subprocess.SetEnvValue(effective, key, value)
 	}
 	return effective
 }
