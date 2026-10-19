@@ -14,6 +14,7 @@ import (
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -41,7 +42,10 @@ type InputRequest struct {
 	Generation       int64
 	Runtime          store.SessionInputRuntime
 	SkillInvocations []commandpkg.Invocation
-	Attachments      []store.SessionInputAttachment
+	Mentions         []mention.Mention
+	// HumanIngress records human operator authorship; it selects the session-references form at dispatch.
+	HumanIngress bool
+	Attachments  []store.SessionInputAttachment
 }
 
 // ErrInputTextRequired reports a queued input without text or attachments.
@@ -65,7 +69,11 @@ type insertSpec struct {
 	generation       int64
 	runtime          store.SessionInputRuntime
 	skillInvocations []commandpkg.Invocation
-	attachments      []store.SessionInputAttachment
+	mentions         []mention.Mention
+	// mentionsJSON carries an admission's persisted mentions verbatim; it wins over mentions.
+	mentionsJSON string
+	humanIngress bool
+	attachments  []store.SessionInputAttachment
 }
 
 // Option customizes a Service.
@@ -150,6 +158,8 @@ func (s *Service) PrepareQueue(req InputRequest) (store.SessionInputQueueInsert,
 		generation:       req.Generation,
 		runtime:          req.Runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
+		mentions:         cloneMentions(req.Mentions),
+		humanIngress:     req.HumanIngress,
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	insert.MessageID = req.MessageID
@@ -205,6 +215,8 @@ func (s *Service) EnqueueInterrupt(
 		targetTurnID:     req.TargetTurnID,
 		runtime:          req.Runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
+		mentions:         cloneMentions(req.Mentions),
+		humanIngress:     req.HumanIngress,
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	if err != nil {
@@ -245,6 +257,8 @@ func (s *Service) StageSteer(
 		generation:       req.Generation,
 		runtime:          req.Runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), req.SkillInvocations...),
+		mentions:         cloneMentions(req.Mentions),
+		humanIngress:     req.HumanIngress,
 		attachments:      append([]store.SessionInputAttachment(nil), req.Attachments...),
 	})
 	if err != nil {
@@ -291,6 +305,8 @@ func (s *Service) prepareAdmittedEntry(
 	spec.text = admission.AuthoredText
 	spec.runtime = admission.Runtime
 	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	spec.mentionsJSON = admission.MentionsJSON
+	spec.humanIngress = admission.HumanIngress
 	spec.attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	insert, err := s.newInsert(spec)
 	if err != nil {
@@ -401,6 +417,14 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 			s.cfg.MaxTextBytes,
 		)
 	}
+	mentionsJSON := spec.mentionsJSON
+	if strings.TrimSpace(mentionsJSON) == "" {
+		encoded, err := EncodeMentions(spec.mentions)
+		if err != nil {
+			return store.SessionInputQueueInsert{}, err
+		}
+		mentionsJSON = encoded
+	}
 	entryID, err := s.newID()
 	if err != nil {
 		return store.SessionInputQueueInsert{}, fmt.Errorf("inputqueue: generate entry id: %w", err)
@@ -419,6 +443,8 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 		Text:              message,
 		Runtime:           spec.runtime,
 		SkillInvocations:  append([]commandpkg.Invocation(nil), spec.skillInvocations...),
+		MentionsJSON:      mentionsJSON,
+		HumanIngress:      spec.humanIngress,
 		Attachments:       append([]store.SessionInputAttachment(nil), spec.attachments...),
 		SessionGeneration: spec.generation,
 		QueueCap:          s.cfg.QueueCap,
@@ -462,4 +488,11 @@ func queueFullError(sessionID string, queueCap int, cause error) error {
 		}),
 	)
 	return diagnostics.NewStructuredError(item, cause)
+}
+
+func cloneMentions(mentions []mention.Mention) []mention.Mention {
+	if len(mentions) == 0 {
+		return nil
+	}
+	return append([]mention.Mention(nil), mentions...)
 }

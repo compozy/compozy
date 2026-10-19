@@ -37,6 +37,7 @@ import {
   unarchiveSession,
 } from "../session-api";
 import { fetchSessionCommands } from "../session-command-api";
+import { searchSessionFiles } from "../session-files-api";
 import { createMswFetch } from "@/test/msw-fetch";
 import { sessionContextHandlers } from "../../mocks/context-handlers";
 import { primarySessionFixture } from "../../mocks/fixtures";
@@ -1321,6 +1322,16 @@ describe("session context HTTP adapters", () => {
     await expect(
       fetchSessionUsageTurns("foreign-workspace", primarySessionFixture.id)
     ).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe("searchSessionFiles", () => {
+  it("Should search a session's files across profiles so non-default profile sessions resolve", async () => {
+    mockJsonResponse({ entries: [], truncated: false });
+    await searchSessionFiles(WORKSPACE_ID, "sess-001", { q: "main", limit: 50 });
+    await expectFetchRequest({
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/files?q=main&limit=50&all_profiles=true",
+    });
   });
 });
 

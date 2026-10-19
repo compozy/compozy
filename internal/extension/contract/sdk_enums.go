@@ -22,6 +22,7 @@ func SDKEnumContracts() []SDKEnumContract {
 		{Value: CommandFlagType(""), Values: CommandFlagTypeValues()},
 		{Value: ModelSourceOptionKind(""), Values: ModelSourceOptionKindValues()},
 		{Value: hooks.LoopGenerationOrigin(""), Values: hooks.LoopGenerationOriginValues()},
+		{Value: hooks.InputMentionKind(""), Values: hooks.InputMentionKindValues()},
 		{Value: apicontract.LoopProvenanceRole(""), Values: apicontract.LoopProvenanceRoleValues()},
 	}
 }

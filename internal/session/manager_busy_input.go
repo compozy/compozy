@@ -188,6 +188,8 @@ func (m *Manager) prepareSendPrompt(
 			return sendPromptPreparation{}, nil, err
 		}
 	}
+	req.humanIngress = humanPromptCaller(opts.Caller)
+	m.prepareMentions(ctx, &req)
 	if err := req.validatePromptAdmissionIdentity(); err != nil {
 		return sendPromptPreparation{}, nil, err
 	}
@@ -326,6 +328,8 @@ func (m *Manager) stageSteerPrompt(
 			Generation:       generation,
 			Runtime:          storeRuntimeSelection(req.runtime),
 			SkillInvocations: req.skillInvocations,
+			Mentions:         req.mentions,
+			HumanIngress:     req.humanIngress,
 			Attachments:      storeAttachments(req.attachments),
 		},
 	)
@@ -363,6 +367,8 @@ func (m *Manager) interruptAndSubmitPrompt(
 			TargetTurnID:     previousTurnID,
 			Runtime:          storeRuntimeSelection(req.runtime),
 			SkillInvocations: req.skillInvocations,
+			Mentions:         req.mentions,
+			HumanIngress:     req.humanIngress,
 			Attachments:      storeAttachments(req.attachments),
 		},
 	)

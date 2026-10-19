@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 )
 
 func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
@@ -47,9 +48,10 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 	goal := event.GoalPromptMeta()
 	origin := event.PromptOrigin()
 	invocations := inputUISkillInvocations(event.SkillInvocations())
+	mentions := inputUIMentions(event.Mentions())
 	attachments := event.Attachments()
 	if event.Synthetic == nil && turnID == "" && messageID == "" && goal == nil && origin == nil &&
-		len(invocations) == 0 &&
+		len(invocations) == 0 && len(mentions) == 0 &&
 		len(attachments) == 0 {
 		return nil
 	}
@@ -65,11 +67,12 @@ func inputUIMessageMetadata(event acp.AgentEvent) json.RawMessage {
 		Origin           *acp.PromptOriginMeta    `json:"origin,omitempty"`
 		Goal             *acp.GoalPromptMeta      `json:"goal,omitempty"`
 		SkillInvocations []inputUISkillInvocation `json:"skill_invocations,omitempty"`
+		Mentions         []inputUIMention         `json:"mentions,omitempty"`
 		Attachments      []acp.EventAttachment    `json:"attachments,omitempty"`
 	}{
 		Synthetic: inputUISynthetic(event.Synthetic),
 		TurnID:    turnID, Timestamp: timestamp, MessageID: messageID, Goal: goal, Origin: origin,
-		SkillInvocations: invocations, Attachments: attachments,
+		SkillInvocations: invocations, Mentions: mentions, Attachments: attachments,
 	})
 	if err != nil {
 		return nil
@@ -100,6 +103,28 @@ func inputUISkillInvocations(invocations []commandpkg.Invocation) []inputUISkill
 			Source:    source,
 			Start:     invocation.Start,
 			End:       invocation.End,
+		})
+	}
+	return result
+}
+
+// inputUIMention is the transcript wire shape of a verified mention. Target is
+// relative to the session working directory or a session id; never absolute.
+type inputUIMention struct {
+	Kind   string `json:"kind"`
+	Token  string `json:"token"`
+	Target string `json:"target"`
+	Label  string `json:"label"`
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
+}
+
+func inputUIMentions(mentions []mention.Mention) []inputUIMention {
+	result := make([]inputUIMention, 0, len(mentions))
+	for _, item := range mentions {
+		result = append(result, inputUIMention{
+			Kind: string(item.Kind), Token: item.Token, Target: item.Target,
+			Label: item.Label, Start: item.Start, End: item.End,
 		})
 	}
 	return result

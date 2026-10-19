@@ -398,6 +398,8 @@ func bindQueueAdmission(
 	req.Text = admission.AuthoredText
 	req.Runtime = admission.Runtime
 	req.SkillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	req.MentionsJSON = admission.MentionsJSON
+	req.HumanIngress = admission.HumanIngress
 	req.Origin = append(req.Origin[:0:0], admission.Origin...)
 	// The bound admission origin decides the dispatch class and sender.
 	req.OriginClass, req.OriginSessionID = "", ""

@@ -224,6 +224,8 @@ func sameSessionInputMutation(
 	replacement store.SessionInputQueueInsert,
 ) bool {
 	// A promoted agent row answers with the sender's message id, not the operator's.
+	// Mentions are excluded: they derive from the compared text plus filesystem state at
+	// admission, so a replay may re-resolve differently while the stored row keeps its mentions.
 	return entry.SessionID == replacement.SessionID &&
 		(entry.MessageID == replacement.MessageID || len(entry.Origin) > 0) &&
 		entry.IdempotencyKey == replacement.IdempotencyKey &&

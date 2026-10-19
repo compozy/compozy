@@ -30,6 +30,7 @@ type mutationSpec struct {
 	mode             string
 	delivery         string
 	skillInvocations []commandpkg.Invocation
+	admission        MentionAdmission
 	apply            mutationApply
 }
 
@@ -42,6 +43,7 @@ func (s *Service) Replace(
 	messageID string,
 	idempotencyKey string,
 	skillInvocations []commandpkg.Invocation,
+	admission MentionAdmission,
 ) (store.SessionInputQueueEntry, bool, error) {
 	return s.mutate(ctx, mutationSpec{
 		sessionID:        sessionID,
@@ -50,6 +52,7 @@ func (s *Service) Replace(
 		messageID:        messageID,
 		idempotencyKey:   idempotencyKey,
 		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
+		admission:        admission.clone(),
 		mode:             store.SessionInputQueueModeQueue,
 		delivery:         store.SessionInputDeliveryAfterTurn,
 		apply:            s.store.ReplaceSessionInput,
@@ -66,6 +69,7 @@ func (s *Service) PromoteToSteer(
 	messageID string,
 	idempotencyKey string,
 	skillInvocations []commandpkg.Invocation,
+	admission MentionAdmission,
 ) (store.SessionInputQueueEntry, bool, error) {
 	return s.mutate(ctx, mutationSpec{
 		sessionID:        sessionID,
@@ -75,6 +79,7 @@ func (s *Service) PromoteToSteer(
 		messageID:        messageID,
 		idempotencyKey:   idempotencyKey,
 		skillInvocations: append([]commandpkg.Invocation(nil), skillInvocations...),
+		admission:        admission.clone(),
 		mode:             store.SessionInputQueueModeSteer,
 		delivery:         store.SessionInputDeliveryInterruptThenPrompt,
 		apply:            s.store.PromoteSessionInputToSteer,
@@ -116,6 +121,8 @@ func (s *Service) mutate(
 		generation:       existing.SessionGeneration,
 		runtime:          existing.Runtime,
 		skillInvocations: append([]commandpkg.Invocation(nil), spec.skillInvocations...),
+		mentions:         cloneMentions(spec.admission.Mentions),
+		humanIngress:     spec.admission.HumanIngress,
 		attachments:      attachments,
 	})
 	if err != nil {
@@ -215,7 +222,9 @@ func sameMutation(
 	targetTurnID string,
 	skillInvocations []commandpkg.Invocation,
 ) bool {
-	// A promoted agent row keeps the sender's message id instead of the operator's.
+	// A promoted agent row keeps the sender's message id instead of the operator's. Mentions are not
+	// compared: they derive from the compared text plus filesystem state, and the replayed row keeps the
+	// mentions verified when the mutation was first applied.
 	return entry.Text == strings.TrimSpace(text) &&
 		(entry.MessageID == strings.TrimSpace(messageID) || len(entry.Origin) > 0) &&
 		entry.IdempotencyKey == strings.TrimSpace(idempotencyKey) &&

@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -48,6 +49,7 @@ type canonicalEventPayload struct {
 	Goal               *acp.GoalPromptMeta              `json:"goal,omitempty"`
 	AvailableCommands  []store.SessionAdvertisedCommand `json:"available_commands,omitempty"`
 	SkillInvocations   []commandpkg.Invocation          `json:"skill_invocations,omitempty"`
+	Mentions           []mention.Mention                `json:"mentions,omitempty"`
 	Attachments        []acp.EventAttachment            `json:"attachments,omitempty"`
 	Delivery           *acp.DeliveryManifest            `json:"delivery,omitzero"`
 	Usage              *acp.TokenUsage                  `json:"usage,omitempty"`

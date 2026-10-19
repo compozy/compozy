@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// SkillExposureErrorPayload is a daemon API value.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposurePayload is a daemon API value.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
 // SkillExposureRequest is a daemon API value.
 type SkillExposureRequest struct {
 	Targets     []string `json:"targets"`
@@ -431,19 +445,3 @@ type SupportBundleOperationResponse struct {
 
 // TargetKind is a daemon API value.
 type TargetKind string
-
-// TaskBlockPayload is a daemon API value.
-type TaskBlockPayload struct {
-	ID          string          `json:"id"`
-	TaskID      string          `json:"task_id"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Kind        BlockKind       `json:"kind"`
-	Reason      string          `json:"reason"`
-	Details     json.RawMessage `json:"details,omitempty"`
-	CreatedAt   time.Time       `json:"created_at"`
-	CreatedBy   ActorIdentity   `json:"created_by"`
-	ExpiresAt   *time.Time      `json:"expires_at,omitempty"`
-	ClearedAt   *time.Time      `json:"cleared_at,omitempty"`
-	ClearedBy   *ActorIdentity  `json:"cleared_by,omitempty"`
-	ClearNote   string          `json:"clear_note,omitempty"`
-}

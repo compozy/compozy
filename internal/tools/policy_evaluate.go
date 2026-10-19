@@ -38,39 +38,14 @@ func (e *EffectivePolicyEvaluator) evaluateIndexed(
 
 	if e.inputs.ToolsDisabled {
 		denyDecision(&decision, ReasonSourceDisabled)
+		// The restrictions below still apply when tools are disabled: their reasons let callers tell a
+		// plain disabled source apart from one that policy would also deny.
+		e.applyRestrictions(d, &decision)
 		decision.RegistryPolicyResult = policyResultDisabled
 		return decision, nil
 	}
-	if !isSessionVisible(d.Visibility) {
-		denyDecision(&decision, ReasonVisibilityDenied)
-		decision.RegistryPolicyResult = policyResultDenied
+	if e.applyRestrictions(d, &decision) {
 		return decision, nil
-	}
-	if e.matchesAny(e.inputs.DenyTools, d.ID) {
-		denyDecision(&decision, ReasonPolicyDenied)
-		decision.RegistryPolicyResult = policyResultDenied
-		return decision, nil
-	}
-	if e.matchesAny(e.inputs.Agent.DenyTools, d.ID) {
-		denyDecision(&decision, ReasonPolicyDenied)
-		decision.AgentPolicyResult = policyResultDenied
-		return decision, nil
-	}
-	if e.inputs.Session.Enforced {
-		if _, ok := e.sessionAllowed[d.ID]; !ok {
-			denyDecision(&decision, ReasonSessionDenied)
-			decision.SessionPolicyResult = policyResultDenied
-			return decision, nil
-		}
-		decision.SessionPolicyResult = policyResultAllowed
-	}
-	if e.agentPolicyRestricts() {
-		if _, ok := e.agentAllowed[d.ID]; !ok && !e.matchesAny(e.inputs.Agent.Tools, d.ID) {
-			denyDecision(&decision, ReasonPolicyDenied)
-			decision.AgentPolicyResult = policyResultDenied
-			return decision, nil
-		}
-		decision.AgentPolicyResult = policyResultAllowed
 	}
 
 	sourceAllowed, requiresSourceApproval := e.evaluateSourcePolicy(d, &decision)
@@ -82,6 +57,43 @@ func (e *EffectivePolicyEvaluator) evaluateIndexed(
 	}
 	e.applyPermissionCeiling(d, &decision)
 	return decision, nil
+}
+
+// applyRestrictions applies visibility, deny-list, session, and agent restrictions in order and
+// reports whether one denied the tool.
+func (e *EffectivePolicyEvaluator) applyRestrictions(d Descriptor, decision *EffectiveToolDecision) bool {
+	if !isSessionVisible(d.Visibility) {
+		denyDecision(decision, ReasonVisibilityDenied)
+		decision.RegistryPolicyResult = policyResultDenied
+		return true
+	}
+	if e.matchesAny(e.inputs.DenyTools, d.ID) {
+		denyDecision(decision, ReasonPolicyDenied)
+		decision.RegistryPolicyResult = policyResultDenied
+		return true
+	}
+	if e.matchesAny(e.inputs.Agent.DenyTools, d.ID) {
+		denyDecision(decision, ReasonPolicyDenied)
+		decision.AgentPolicyResult = policyResultDenied
+		return true
+	}
+	if e.inputs.Session.Enforced {
+		if _, ok := e.sessionAllowed[d.ID]; !ok {
+			denyDecision(decision, ReasonSessionDenied)
+			decision.SessionPolicyResult = policyResultDenied
+			return true
+		}
+		decision.SessionPolicyResult = policyResultAllowed
+	}
+	if e.agentPolicyRestricts() {
+		if _, ok := e.agentAllowed[d.ID]; !ok && !e.matchesAny(e.inputs.Agent.Tools, d.ID) {
+			denyDecision(decision, ReasonPolicyDenied)
+			decision.AgentPolicyResult = policyResultDenied
+			return true
+		}
+		decision.AgentPolicyResult = policyResultAllowed
+	}
+	return false
 }
 
 // evaluateIndexedDescriptor isolates custom evaluators from the registry's immutable descriptors.

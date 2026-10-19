@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type SessionInputTargetParams struct {
+	WorkspaceID  string `json:"workspace_id"`
+	SessionID    string `json:"session_id"`
+	QueueEntryID string `json:"queue_entry_id"`
+}
+
+type SessionInputsListParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
 type SessionInspectResponse struct {
 	SessionID    string                             `json:"session_id"`
 	Health       SessionHealthPayload               `json:"health"`
@@ -349,38 +360,4 @@ type SessionRuntimeRecoveryStartedPayload struct {
 	Generation     int64     `json:"generation"`
 	FailureKind    string    `json:"failure_kind,omitempty"`
 	FailureDetail  string    `json:"failure_detail,omitempty"`
-}
-
-type SessionRuntimeRecoverySucceededPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	RunID          string    `json:"run_id"`
-	Attempt        int       `json:"attempt"`
-	MaxAttempts    int       `json:"max_attempts"`
-	Generation     int64     `json:"generation"`
-	FailureKind    string    `json:"failure_kind,omitempty"`
-	FailureDetail  string    `json:"failure_detail,omitempty"`
-}
-
-type SessionRuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }

@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// TaskTimelineResponse is a daemon API value.
+type TaskTimelineResponse struct {
+	Timeline []TaskTimelineItemPayload `json:"timeline"`
+}
+
+// TaskTreeNodePayload is a daemon API value.
+type TaskTreeNodePayload struct {
+	Task           TaskReferencePayload   `json:"task"`
+	ParentTaskID   string                 `json:"parent_task_id,omitempty"`
+	Depth          int                    `json:"depth"`
+	ChildCount     int                    `json:"child_count,omitempty"`
+	ActiveRun      *TaskRunSummaryPayload `json:"active_run,omitempty"`
+	LastActivityAt time.Time              `json:"last_activity_at"`
+}
+
+// TaskTreePayload is a daemon API value.
+type TaskTreePayload struct {
+	Root        TaskTreeNodePayload   `json:"root"`
+	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
+}
+
 // TaskTreeResponse is a daemon API value.
 type TaskTreeResponse struct {
 	Tree TaskTreePayload `json:"tree"`
@@ -421,27 +442,4 @@ type TokenUsagePayload struct {
 type ToolApprovalGrantListResponse struct {
 	Grants []ToolApprovalGrantPayload `json:"grants"`
 	Total  int                        `json:"total"`
-}
-
-// ToolApprovalGrantPayload is a daemon API value.
-type ToolApprovalGrantPayload struct {
-	ID              string                `json:"id"`
-	ProfileID       string                `json:"profile_id"`
-	ProfileName     string                `json:"profile_name"`
-	ProfileColor    string                `json:"profile_color"`
-	ProfileIcon     string                `json:"profile_icon,omitempty"`
-	ProfileEmoji    string                `json:"profile_emoji,omitempty"`
-	ProfileArchived bool                  `json:"profile_archived"`
-	WorkspaceID     string                `json:"workspace_id"`
-	AgentName       string                `json:"agent_name,omitempty"`
-	ToolID          ToolID                `json:"tool_id"`
-	InputDigest     string                `json:"input_digest,omitempty"`
-	Decision        ApprovalGrantDecision `json:"decision"`
-	CreatedAt       time.Time             `json:"created_at"`
-	LastUsedAt      time.Time             `json:"last_used_at"`
-}
-
-// ToolApprovalGrantResponse is a daemon API value.
-type ToolApprovalGrantResponse struct {
-	Grant ToolApprovalGrantPayload `json:"grant"`
 }

@@ -1,6 +1,6 @@
 import { memo } from "react";
 
-import { StreamMarkdown, type StreamMarkdownProps } from "@compozy/ui";
+import { StreamMarkdown, type StreamMarkdownProps, type StreamMarkdownSlots } from "@compozy/ui";
 
 import { usePrefersReducedMotion } from "@/components/assistant-ui/hooks/use-prefers-reduced-motion";
 import { useSmoothStreamedText } from "../hooks/use-smooth-streamed-text";
@@ -20,6 +20,8 @@ export interface MessageMarkdownProps {
   reveal?: boolean;
   /** Prose density; the reasoning panel uses `"relaxed"` to keep small headings with prose breaks. */
   compact?: StreamMarkdownProps["compact"];
+  /** Inline nodes the content places with `composeMarkdownSlots` (transcript chips). */
+  slots?: StreamMarkdownSlots;
 }
 
 // The reveal is presentation only: reduced motion and the client-local
@@ -53,12 +55,13 @@ export const MessageMarkdown = memo(
     streaming = false,
     reveal = false,
     compact = false,
+    slots,
   }: MessageMarkdownProps) {
     if (reveal) {
       return <RevealedMarkdown content={content} streaming={streaming} compact={compact} />;
     }
     return (
-      <StreamMarkdown streaming={streaming} compact={compact}>
+      <StreamMarkdown streaming={streaming} compact={compact} slots={slots}>
         {content}
       </StreamMarkdown>
     );
@@ -67,5 +70,6 @@ export const MessageMarkdown = memo(
     prev.content === next.content &&
     prev.streaming === next.streaming &&
     prev.reveal === next.reveal &&
-    prev.compact === next.compact
+    prev.compact === next.compact &&
+    prev.slots === next.slots
 );

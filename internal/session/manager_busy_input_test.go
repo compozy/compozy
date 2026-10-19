@@ -6,8 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
+	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -22,6 +26,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -5734,3 +5739,770 @@ func TestManagerAgentQueueDelivery(t *testing.T) {
 type managedInputAdmissionFunc func(context.Context) error
 
 func (f managedInputAdmissionFunc) Check(ctx context.Context) error { return f(ctx) }
+
+// Invariant: @-mentions resolve on every admission path for every caller against the target session's
+// working directory and workspace, independent of command ingress, and reach the agent as resource links
+// and a session-references block only after the dispatch containment re-check.
+// Owner: session manager admission suite.
+func TestManagerPromptMentions(t *testing.T) {
+	t.Run("Should deliver file and folder links for a human prompt and persist mentions", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		writeMentionFixture(t, h.workspace, "README.md", "src/main.go")
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+			Message: "Review @README.md and @src then @README.md again",
+			Caller:  PromptCaller{Kind: "human", ID: "operator", Source: "test"}, AllowCommands: true,
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		calls := managerPromptCalls(h)
+		if len(calls) != 1 {
+			t.Fatalf("prompt calls = %d, want 1", len(calls))
+		}
+		workingDir, err := h.manager.WorkingDir(t.Context(), sess.ID)
+		if err != nil {
+			t.Fatalf("WorkingDir() error = %v", err)
+		}
+		wantLinks := []acp.PromptResourceLink{
+			acp.NewPromptResourceLink("README.md", filepath.Join(workingDir, "README.md"), false),
+			acp.NewPromptResourceLink("src/", filepath.Join(workingDir, "src"), true),
+		}
+		if !slices.Equal(calls[0].MentionLinks, wantLinks) {
+			t.Fatalf("MentionLinks = %#v, want %#v", calls[0].MentionLinks, wantLinks)
+		}
+		if calls[0].SessionReferences != "" ||
+			!reflect.DeepEqual(calls[0].MentionDelivery, acp.PromptMentionDelivery{}) {
+			t.Fatalf("references = %q delivery = %#v, want none", calls[0].SessionReferences, calls[0].MentionDelivery)
+		}
+		mentions := storedInputMentions(t, sess)
+		wantTargets := []string{"README.md", "src/", "README.md"}
+		if got := mentionTargets(mentions); !slices.Equal(got, wantTargets) {
+			t.Fatalf("persisted mention targets = %v, want %v", got, wantTargets)
+		}
+		if mentions[1].Kind != mention.KindFolder || mentions[1].Label != "src/" || mentions[0].Label != "README.md" {
+			t.Fatalf("persisted mentions = %#v", mentions)
+		}
+		// The transcript renders a chip only where the persisted token still matches the authored text at
+		// its offsets, so the stored token must survive persistence redaction verbatim.
+		wantTokens := []string{"@README.md", "@src", "@README.md"}
+		for i, item := range mentions {
+			if item.Token != wantTokens[i] {
+				t.Fatalf("persisted mention %d token = %q, want %q", i, item.Token, wantTokens[i])
+			}
+		}
+		if mentions[0].Start != 7 || mentions[0].End != 17 {
+			t.Fatalf("persisted mention offsets = [%d,%d), want [7,17)", mentions[0].Start, mentions[0].End)
+		}
+		for _, item := range mentions {
+			if filepath.IsAbs(item.Target) || strings.Contains(item.Target, workingDir) {
+				t.Fatalf("persisted mention target %q is absolute", item.Target)
+			}
+		}
+	})
+
+	t.Run("Should resolve mentions for an agent caller without command ingress", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		writeMentionFixture(t, h.workspace, "README.md")
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+			Message: "run /skill-x and read @README.md",
+			Caller:  PromptCaller{Kind: "agent", ID: "coder", Source: "compozy__session_prompt"},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt(agent) error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		calls := managerPromptCalls(h)
+		if len(calls) != 1 || len(calls[0].MentionLinks) != 1 || calls[0].MentionLinks[0].Name != "README.md" {
+			t.Fatalf("agent prompt calls = %#v, want one README.md link", calls)
+		}
+		stored := storedInputEvent(t, sess)
+		if invocations := stored.SkillInvocations(); len(invocations) != 0 {
+			t.Fatalf("agent caller skill invocations = %#v, want none", invocations)
+		}
+	})
+
+	t.Run("Should leave tokens outside the working directory as text", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		writeMentionFixture(t, h.workspace, "a.go", "sub/keep.txt")
+		outside := filepath.Join(filepath.Dir(h.workspace), "outside.txt")
+		writeMentionFile(t, outside)
+		message := "@../outside.txt @/etc/hosts @missing.go @sub/../a.go `@a.go`"
+		// Windows may refuse symlinks; the escaping link is then the only token left out.
+		if err := os.Symlink(outside, filepath.Join(h.workspace, "escape.txt")); err == nil {
+			message = "@escape.txt " + message
+		} else if runtime.GOOS != "windows" {
+			t.Fatalf("Symlink() error = %v", err)
+		}
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: message})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		calls := managerPromptCalls(h)
+		if len(calls) != 1 {
+			t.Fatalf("prompt calls = %d, want the prompt accepted", len(calls))
+		}
+		if got := mentionTargets(storedInputMentions(t, sess)); !slices.Equal(got, []string{"a.go"}) {
+			t.Fatalf("mention targets = %v, want only the contained a.go", got)
+		}
+		if len(calls[0].MentionLinks) != 1 || calls[0].MentionLinks[0].Name != "a.go" {
+			t.Fatalf("MentionLinks = %#v, want only a.go", calls[0].MentionLinks)
+		}
+	})
+
+	t.Run("Should resolve against a creation-profile working directory below the workspace root", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		writeMentionFixture(t, h.workspace, "root.txt", "pkg/main.go")
+		sess, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "coder", Name: "pkg session", Workspace: h.workspaceID, CWD: "pkg",
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+			Message: "@main.go @../root.txt @../pkg/main.go @root.txt",
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		if got := mentionTargets(storedInputMentions(t, sess)); !slices.Equal(got, []string{"main.go"}) {
+			t.Fatalf("mention targets = %v, want only pkg's main.go", got)
+		}
+		workingDir, err := h.manager.WorkingDir(t.Context(), sess.ID)
+		if err != nil || filepath.Base(workingDir) != "pkg" {
+			t.Fatalf("WorkingDir() = %q, %v; want the pkg creation cwd", workingDir, err)
+		}
+		want := acp.NewPromptResourceLink("main.go", filepath.Join(workingDir, "main.go"), false)
+		if links := managerPromptCalls(h)[0].MentionLinks; len(links) != 1 || links[0].URI != want.URI {
+			t.Fatalf("links = %#v, want %#v", links, want)
+		}
+	})
+
+	t.Run("Should cap distinct path targets and report the over-cap tokens", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		tokens := make([]string, 0, mention.MaxPathMentions+1)
+		for index := range mention.MaxPathMentions + 1 {
+			name := fmt.Sprintf("f%02d.txt", index)
+			writeMentionFixture(t, h.workspace, name)
+			tokens = append(tokens, "@"+name)
+		}
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+			Message: strings.Join(tokens, " ") + " @f00.txt",
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		calls := managerPromptCalls(h)
+		if len(calls) != 1 || len(calls[0].MentionLinks) != mention.MaxPathMentions {
+			t.Fatalf("prompt calls = %d, want one with %d links", len(calls), mention.MaxPathMentions)
+		}
+		if got := calls[0].MentionDelivery.DroppedOverCap; got != 1 {
+			t.Fatalf("DroppedOverCap = %d, want 1", got)
+		}
+		if got := len(storedInputMentions(t, sess)); got != mention.MaxPathMentions+1 {
+			t.Fatalf("persisted mentions = %d, want the repeated f00 token kept as a chip", got)
+		}
+	})
+
+	t.Run("Should drop a queued link whose target became an outward symlink before dispatch", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		writeMentionFixture(t, h.workspace, "a.go", "b.go")
+		outside := filepath.Join(filepath.Dir(h.workspace), "secret.go")
+		writeMentionFile(t, outside)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		release := holdMentionActiveTurn(t, h)
+
+		active, err := h.manager.Prompt(t.Context(), sess.ID, "active")
+		if err != nil {
+			t.Fatal(err)
+		}
+		queued, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+			Message: "compare @a.go with @b.go", Mode: BusyInputModeQueue,
+		})
+		if err != nil || queued.Status != store.SessionPromptResultStatusQueued {
+			t.Fatalf("queued = %#v, %v", queued, err)
+		}
+		inputs, err := h.manager.ListPendingInputs(t.Context(), sess.ID)
+		if err != nil || len(inputs) != 1 ||
+			!slices.Equal(mentionTargets(inputs[0].Mentions), []string{"a.go", "b.go"}) {
+			t.Fatalf("pending inputs = %#v, %v; want both mentions", inputs, err)
+		}
+		target := filepath.Join(h.workspace, "a.go")
+		if err := os.Remove(target); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, target); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skipf("Symlink() unsupported here: %v", err)
+			}
+			t.Fatal(err)
+		}
+		release()
+		collectEvents(t, active)
+		waitForCondition(t, "queued mention dispatched", func() bool { return len(managerPromptCalls(h)) == 2 })
+		dispatched := managerPromptCalls(h)[1]
+		if len(dispatched.MentionLinks) != 1 || dispatched.MentionLinks[0].Name != "b.go" {
+			t.Fatalf("dispatched links = %#v, want only b.go", dispatched.MentionLinks)
+		}
+		if dispatched.MentionDelivery.DroppedAtDispatch != 1 {
+			t.Fatalf("DroppedAtDispatch = %d, want 1", dispatched.MentionDelivery.DroppedAtDispatch)
+		}
+	})
+
+	t.Run("Should resolve replace and promote text against the target session", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		writeMentionFixture(t, h.workspace, "a.go", "b.go", "c.go")
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		holdMentionActiveTurn(t, h)
+
+		if _, err := h.manager.Prompt(t.Context(), sess.ID, "active"); err != nil {
+			t.Fatal(err)
+		}
+		queued, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+			Message: "look at @a.go", Mode: BusyInputModeQueue,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		replaced, err := h.manager.ReplacePendingInput(
+			t.Context(),
+			sess.ID,
+			queued.QueueEntryID,
+			ReplacePendingInputOpts{
+				Text: "look at @b.go", MessageID: "replace-1", IdempotencyKey: "replace-key",
+			},
+		)
+		if err != nil {
+			t.Fatalf("ReplacePendingInput() error = %v", err)
+		}
+		if got := mentionTargets(replaced.Mentions); !slices.Equal(got, []string{"b.go"}) {
+			t.Fatalf("replaced mentions = %v, want b.go", got)
+		}
+		promoted, err := h.manager.PromotePendingInputToSteer(
+			t.Context(),
+			sess.ID,
+			replaced.ID,
+			PromotePendingInputOpts{
+				Text: "now @c.go", MessageID: "promote-1", IdempotencyKey: "promote-key",
+				ExpectedTurnID: sess.CurrentTurnID(),
+			},
+		)
+		if err != nil {
+			t.Fatalf("PromotePendingInputToSteer() error = %v", err)
+		}
+		waitForCondition(t, "promoted mention dispatched", func() bool { return len(managerPromptCalls(h)) == 2 })
+		dispatched := managerPromptCalls(h)[1]
+		if dispatched.TurnID == "" || len(dispatched.MentionLinks) != 1 || dispatched.MentionLinks[0].Name != "c.go" {
+			t.Fatalf("promoted %#v dispatched links = %#v, want only c.go", promoted, dispatched.MentionLinks)
+		}
+	})
+
+	t.Run("Should resolve steer text for an agent caller and deliver it on the steering turn", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		writeMentionFixture(t, h.workspace, "c.go")
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		holdMentionActiveTurn(t, h)
+
+		if _, err := h.manager.Prompt(t.Context(), sess.ID, "active"); err != nil {
+			t.Fatal(err)
+		}
+		steered, err := h.manager.SteerPrompt(t.Context(), sess.ID, SteerPromptOpts{
+			Message: "switch to @c.go", MessageID: "steer-1", IdempotencyKey: "steer-key",
+			ExpectedTurnID: sess.CurrentTurnID(),
+			Caller:         PromptCaller{Kind: "agent", ID: "coder", Source: "compozy__session_prompt"},
+		})
+		if err != nil {
+			t.Fatalf("SteerPrompt() error = %v", err)
+		}
+		entry, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, steered.QueueEntryID)
+		if err != nil || !slices.Equal(mentionTargets(storedMentions(entry.MentionsJSON)), []string{"c.go"}) {
+			t.Fatalf("steer entry mentions = %s, %v; want c.go", entry.MentionsJSON, err)
+		}
+		waitForCondition(t, "steered mention dispatched", func() bool { return len(managerPromptCalls(h)) == 2 })
+		dispatched := managerPromptCalls(h)[1]
+		if len(dispatched.MentionLinks) != 1 || dispatched.MentionLinks[0].Name != "c.go" {
+			t.Fatalf("steered links = %#v, want only c.go", dispatched.MentionLinks)
+		}
+	})
+
+	t.Run("Should probe only the first candidate tokens of a prompt", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		writeMentionFixture(t, h.workspace, "a.go", "b.go")
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		var probes atomic.Int64
+		h.manager.mentionPathProbe = func(workingDir string, relative string) (mention.Kind, bool) {
+			probes.Add(1)
+			return probeMentionPath(workingDir, relative)
+		}
+
+		// 250 distinct candidates: a.go, 248 missing paths, then b.go past the candidate cap.
+		tokens := []string{"@a.go"}
+		for index := range 248 {
+			tokens = append(tokens, fmt.Sprintf("@missing-%03d.go", index))
+		}
+		tokens = append(tokens, "@b.go")
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: strings.Join(tokens, " ")})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		if got := probes.Load(); got != mention.MaxCandidateTokens {
+			t.Fatalf("filesystem probes = %d, want %d", got, mention.MaxCandidateTokens)
+		}
+		if got := mentionTargets(storedInputMentions(t, sess)); !slices.Equal(got, []string{"a.go"}) {
+			t.Fatalf("mention targets = %v, want b.go past the candidate cap left as text", got)
+		}
+		if got := managerPromptCalls(h)[0].MentionDelivery.DroppedOverCap; got != 50 {
+			t.Fatalf("DroppedOverCap = %d, want the 50 candidates past the cap", got)
+		}
+	})
+
+	t.Run("Should dispatch a queued mention with the same links and ingress after a manager restart",
+		func(t *testing.T) {
+			t.Parallel()
+			renderer := &recordingMentionRenderer{}
+			h, database := newMentionHarness(t, WithMentionReferenceRenderer(renderer.render))
+			writeMentionFixture(t, h.workspace, "a.go")
+			registerMentionCatalogSession(t, database, "sess-ref", h.workspaceID)
+			sess := createSession(t, h)
+			holdMentionActiveTurn(t, h)
+
+			if _, err := h.manager.Prompt(t.Context(), sess.ID, "active"); err != nil {
+				t.Fatal(err)
+			}
+			queued, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+				Message: "read @a.go with @session:sess-ref", Mode: BusyInputModeQueue,
+				Caller: PromptCaller{Kind: "human", ID: "operator", Source: "test"},
+			})
+			if err != nil || queued.Status != store.SessionPromptResultStatusQueued {
+				t.Fatalf("queued = %#v, %v", queued, err)
+			}
+			workingDir, err := h.manager.WorkingDir(t.Context(), sess.ID)
+			if err != nil {
+				t.Fatalf("WorkingDir() error = %v", err)
+			}
+
+			if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+				t.Fatalf("Stop(before restart) error = %v", err)
+			}
+			entry, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, queued.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusQueued || !entry.HumanIngress {
+				t.Fatalf("queued row before restart = %#v, %v; want still queued with human ingress", entry, err)
+			}
+			before := len(managerPromptCalls(h))
+
+			// A fresh manager over the same home and store: only durable state carries over.
+			restarted := newManagerWithHarness(t, h, WithSessionInputQueueStore(database),
+				WithSessionCatalog(database), WithMentionReferenceRenderer(renderer.render))
+			// Resume dispatches the durable queue head; a direct Prompt would race it and
+			// report the session busy.
+			if _, err := restarted.Resume(t.Context(), sess.ID); err != nil {
+				t.Fatalf("Resume(after restart) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := restarted.Stop(testutil.Context(t), sess.ID); err != nil {
+					t.Errorf("Stop(restarted) error = %v", err)
+				}
+			})
+			want := []acp.PromptResourceLink{
+				acp.NewPromptResourceLink("a.go", filepath.Join(workingDir, "a.go"), false),
+			}
+			waitForCondition(t, "queued mention dispatched after restart", func() bool {
+				for _, call := range managerPromptCalls(h)[before:] {
+					if slices.Equal(call.MentionLinks, want) {
+						return true
+					}
+				}
+				return false
+			})
+			calls := renderer.snapshot()
+			if len(calls) != 1 || !calls[0].human || calls[0].refs[0].Target != "sess-ref" {
+				t.Fatalf("renderer calls = %#v, want one human-ingress reference to sess-ref", calls)
+			}
+		})
+
+	t.Run("Should cap distinct session references", func(t *testing.T) {
+		t.Parallel()
+		renderer := &recordingMentionRenderer{}
+		h, database := newMentionHarness(t, WithMentionReferenceRenderer(renderer.render))
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		tokens := make([]string, 0, mention.MaxSessionMentions+1)
+		for index := range mention.MaxSessionMentions + 1 {
+			id := fmt.Sprintf("sess-ref-%02d", index)
+			registerMentionCatalogSession(t, database, id, h.workspaceID)
+			tokens = append(tokens, "@session:"+id)
+		}
+
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: strings.Join(tokens, " ")})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		calls := renderer.snapshot()
+		if len(calls) != 1 || len(calls[0].refs) != mention.MaxSessionMentions {
+			t.Fatalf("renderer calls = %#v, want one with %d refs", calls, mention.MaxSessionMentions)
+		}
+		if got := managerPromptCalls(h)[0].MentionDelivery.DroppedOverCap; got != 1 {
+			t.Fatalf("DroppedOverCap = %d, want the 17th session token", got)
+		}
+	})
+
+	t.Run("Should resolve only sessions of the target workspace that still exist", func(t *testing.T) {
+		t.Parallel()
+		renderer := &recordingMentionRenderer{}
+		logs := &mentionLogSink{}
+		h, database := newMentionHarness(
+			t,
+			WithMentionReferenceRenderer(renderer.render),
+			WithLogger(slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+		)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		registerMentionCatalogSession(t, database, "sess-same", h.workspaceID)
+		registerMentionCatalogSession(t, database, "sess-deleted", h.workspaceID)
+		if err := database.DeleteSession(t.Context(), "sess-deleted"); err != nil {
+			t.Fatalf("DeleteSession() error = %v", err)
+		}
+		const foreignWorkspace = "ws-foreign"
+		if err := database.InsertWorkspace(t.Context(), workspacepkg.Workspace{
+			ID: foreignWorkspace, RootDir: t.TempDir(), Name: "foreign",
+			CreatedAt: time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
+			UpdatedAt: time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("InsertWorkspace(foreign) error = %v", err)
+		}
+		registerMentionCatalogSession(t, database, "sess-foreign", foreignWorkspace)
+
+		message := fmt.Sprintf("@session:sess-same @session:%s @session:sess-deleted @session:sess-foreign "+
+			"@session:sess-missing @session:sess-same", sess.ID)
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: message})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		collectEvents(t, result.Events)
+		if got := mentionTargets(storedInputMentions(t, sess)); !slices.Equal(got, []string{"sess-same", "sess-same"}) {
+			t.Fatalf("session mention targets = %v, want both sess-same chips only", got)
+		}
+		stored := storedInputMentions(t, sess)
+		if stored[0].Label != "Mention sess-same" || stored[0].Kind != mention.KindSession {
+			t.Fatalf("session mention = %#v, want the catalog title", stored[0])
+		}
+		calls := renderer.snapshot()
+		if len(calls) != 1 || len(calls[0].refs) != 1 || calls[0].refs[0].Target != "sess-same" {
+			t.Fatalf("renderer calls = %#v, want one distinct sess-same reference", calls)
+		}
+		delivery := managerPromptCalls(h)[0]
+		if delivery.SessionReferences != "<refs/>" || delivery.MentionDelivery.Sessions != 1 ||
+			!slices.Equal(delivery.MentionDelivery.SessionIDs, []string{"sess-same"}) ||
+			delivery.MentionDelivery.ReferencesForm != string(MentionReferenceFormReference) {
+			t.Fatalf("references = %q delivery = %#v", delivery.SessionReferences, delivery.MentionDelivery)
+		}
+		// US-006.AC-4: the references block reaches the agent only; the persisted user event
+		// keeps the authored message.
+		if text := storedInputEvent(t, sess).Text; text != message || strings.Contains(text, "<refs/>") {
+			t.Fatalf("persisted user text = %q, want the authored message %q", text, message)
+		}
+		// One debug record per admitted prompt carries counts only: no titles, no paths.
+		record := logs.record(t, "mention.resolved")
+		want := map[string]any{
+			"level": "DEBUG", "session_id": sess.ID, "files": float64(0), "folders": float64(0),
+			"sessions": float64(1), "candidates_skipped": float64(0), "unresolved": float64(4),
+			"dropped": float64(0),
+		}
+		for key, value := range want {
+			if record[key] != value {
+				t.Fatalf("mention.resolved %s = %#v, want %#v in %v", key, record[key], value, record)
+			}
+		}
+		if output := logs.String(); strings.Contains(output, "Mention sess-same") {
+			t.Fatalf("logs = %s, want no session titles", output)
+		}
+	})
+
+	t.Run("Should carry human ingress durably through the queue to the renderer", func(t *testing.T) {
+		t.Parallel()
+		renderer := &recordingMentionRenderer{}
+		h, database := newMentionHarness(t, WithMentionReferenceRenderer(renderer.render))
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		registerMentionCatalogSession(t, database, "sess-ref", h.workspaceID)
+		release := holdMentionActiveTurn(t, h)
+
+		active, err := h.manager.Prompt(t.Context(), sess.ID, "active")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, caller := range []PromptCaller{
+			{Kind: "human", ID: "operator", Source: "test"},
+			{Kind: "agent", ID: "coder", Source: "cli"},
+		} {
+			queued, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+				Message: "check @session:sess-ref", Mode: BusyInputModeQueue, Caller: caller,
+			})
+			if err != nil || queued.Status != store.SessionPromptResultStatusQueued {
+				t.Fatalf("queued %s = %#v, %v", caller.Kind, queued, err)
+			}
+			entry, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, queued.QueueEntryID)
+			if err != nil || entry.HumanIngress != (caller.Kind == "human") {
+				t.Fatalf("%s queue row human_ingress = %v, %v", caller.Kind, entry.HumanIngress, err)
+			}
+		}
+		release()
+		collectEvents(t, active)
+		waitForCondition(t, "queued mentions dispatched", func() bool { return len(renderer.snapshot()) == 2 })
+		calls := renderer.snapshot()
+		if !calls[0].human || calls[1].human {
+			t.Fatalf("renderer human ingress = %v, %v; want the human row first and the agent row denied",
+				calls[0].human, calls[1].human)
+		}
+	})
+
+	t.Run("Should resolve daemon-local prompts without human ingress", func(t *testing.T) {
+		t.Parallel()
+		renderer := &recordingMentionRenderer{}
+		h, database := newMentionHarness(t, WithMentionReferenceRenderer(renderer.render))
+		writeMentionFixture(t, h.workspace, "a.go")
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		registerMentionCatalogSession(t, database, "sess-ref", h.workspaceID)
+
+		events, err := h.manager.PromptWithOpts(t.Context(), sess.ID, PromptOpts{
+			Message: "automation reads @a.go and @session:sess-ref", TurnSource: TurnSourceUser,
+		})
+		if err != nil {
+			t.Fatalf("PromptWithOpts() error = %v", err)
+		}
+		collectEvents(t, events)
+		call := managerPromptCalls(h)[0]
+		if len(call.MentionLinks) != 1 || call.MentionLinks[0].Name != "a.go" {
+			t.Fatalf("links = %#v, want a.go", call.MentionLinks)
+		}
+		if calls := renderer.snapshot(); len(calls) != 1 || calls[0].human {
+			t.Fatalf("renderer calls = %#v, want one without human ingress", calls)
+		}
+	})
+
+	t.Run("Should omit the references block without a renderer", func(t *testing.T) {
+		t.Parallel()
+		h, database := newMentionHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		registerMentionCatalogSession(t, database, "sess-ref", h.workspaceID)
+
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: "@session:sess-ref"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, result.Events)
+		if call := managerPromptCalls(h)[0]; call.SessionReferences != "" || call.MentionDelivery.Sessions != 0 {
+			t.Fatalf("references = %q delivery = %#v, want none", call.SessionReferences, call.MentionDelivery)
+		}
+		if got := mentionTargets(storedInputMentions(t, sess)); !slices.Equal(got, []string{"sess-ref"}) {
+			t.Fatalf("persisted mentions = %v, want the session chip", got)
+		}
+	})
+}
+
+// newMentionHarness wires a real global DB as input queue, prompt admission store, and session catalog,
+// so session mentions resolve through the workspace-scoped catalog lookup.
+func newMentionHarness(t *testing.T, opts ...Option) (*harness, *globaldb.GlobalDB) {
+	t.Helper()
+	database := openManagerInputQueueStore(t)
+	h := newHarness(t, append([]Option{WithSessionInputQueueStore(database), WithSessionCatalog(database)}, opts...)...)
+	registerManagerInputQueueWorkspace(t, database, h)
+	return h, database
+}
+
+func registerMentionCatalogSession(t *testing.T, database *globaldb.GlobalDB, id string, workspaceID string) {
+	t.Helper()
+	if err := database.RegisterSession(t.Context(), store.SessionInfo{
+		ProfileID: store.DefaultProfileID, ID: id, Name: "Mention " + id, AgentName: "coder", Provider: "claude",
+		WorkspaceID: workspaceID, SessionType: string(SessionTypeUser), State: string(StateActive),
+		RuntimeStatus: store.SessionRuntimeReady,
+		CreatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("RegisterSession(%s) error = %v", id, err)
+	}
+}
+
+type mentionRenderCall struct {
+	refs  []mention.Mention
+	human bool
+}
+
+// recordingMentionRenderer stands in for the daemon renderer at the session layer's I/O boundary.
+type recordingMentionRenderer struct {
+	mu    sync.Mutex
+	calls []mentionRenderCall
+}
+
+func (r *recordingMentionRenderer) render(
+	_ context.Context, _ *Session, refs []mention.Mention, human bool,
+) (MentionReferences, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, mentionRenderCall{refs: slices.Clone(refs), human: human})
+	ids := make([]string, 0, len(refs))
+	for _, ref := range refs {
+		ids = append(ids, ref.Target)
+	}
+	return MentionReferences{
+		Text: "<refs/>", Form: MentionReferenceFormReference, Sessions: len(refs), SessionIDs: ids,
+	}, nil
+}
+
+func (r *recordingMentionRenderer) snapshot() []mentionRenderCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.calls)
+}
+
+func writeMentionFixture(t *testing.T, root string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		writeMentionFile(t, filepath.Join(root, filepath.FromSlash(name)))
+	}
+}
+
+func writeMentionFile(t *testing.T, path string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll(%q) error = %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+// holdMentionActiveTurn keeps the "active" prompt running until the returned release runs.
+func holdMentionActiveTurn(t *testing.T, h *harness) func() {
+	t.Helper()
+	release := make(chan struct{})
+	var once sync.Once
+	releaseFn := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(releaseFn)
+	h.driver.cancelHook = func(*fakeProcess) error {
+		releaseFn()
+		return nil
+	}
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		if req.Message != "active" {
+			return completedSyntheticPromptEvents(req.TurnID), nil
+		}
+		events := make(chan acp.AgentEvent, 1)
+		go func() {
+			<-release
+			events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+			close(events)
+		}()
+		return events, nil
+	}
+	return releaseFn
+}
+
+// mentionLogSink is a concurrency-safe JSON log sink for mention log assertions.
+type mentionLogSink struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (s *mentionLogSink) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.Write(p)
+}
+
+func (s *mentionLogSink) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.buf.String()
+}
+
+// record returns the only JSON log record with msg, failing on none or several.
+func (s *mentionLogSink) record(t *testing.T, msg string) map[string]any {
+	t.Helper()
+	var found []map[string]any
+	for line := range strings.SplitSeq(strings.TrimSpace(s.String()), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode log line %q: %v", line, err)
+		}
+		if record["msg"] == msg {
+			found = append(found, record)
+		}
+	}
+	if len(found) != 1 {
+		t.Fatalf("%s records = %v, want exactly one", msg, found)
+	}
+	return found[0]
+}
+
+func storedInputEvent(t *testing.T, sess *Session) acp.AgentEvent {
+	t.Helper()
+	var found acp.AgentEvent
+	for _, stored := range readStoredEvents(t, sess) {
+		if stored.Type != acp.EventTypeUserMessage {
+			continue
+		}
+		event, err := transcript.UnmarshalAgentEvent(stored.Content)
+		if err != nil {
+			t.Fatalf("decode input event: %v", err)
+		}
+		found = event
+	}
+	return found
+}
+
+func storedInputMentions(t *testing.T, sess *Session) []mention.Mention {
+	t.Helper()
+	return storedInputEvent(t, sess).Mentions()
+}
+
+func mentionTargets(mentions []mention.Mention) []string {
+	targets := make([]string, 0, len(mentions))
+	for _, item := range mentions {
+		targets = append(targets, item.Target)
+	}
+	return targets
+}
