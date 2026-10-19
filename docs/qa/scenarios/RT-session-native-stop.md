@@ -235,3 +235,17 @@ budget so the foreground stop receipt can persist through the already-open write
 guard leaves, maintenance retries normally. Real write and drain failures remain visible, and
 Stop/Delete retain their current deadlines. The canonical passive-checkpoint regression owns
 this I/O ordering; the Windows lifecycle job verifies the reported platform path.
+
+QA 2026-10-19 (#834), focused storage recovery: PASS in the existing manager integration suite
+with a real ACP subprocess and temporary SQLite state. Reproduce a checkpoint paused after main
+page one with committed schema pages still in WAL. Restore stopped-process metadata to `stopping`
+and independently exercise stop, boot recovery, and removal. Stop/boot reach `stopped` and retain
+all previous event IDs; removal succeeds only after settlement. Command:
+`CGO_ENABLED=1 go test -race -tags=integration ./internal/session -run '^TestManagerIntegrationFullStopResumeStopPersistsStopReasons$' -count=1 -timeout=120s`.
+
+For unavailable event storage, the shared-stop contract suite separately verifies a proven exit
+is reported as `stopped`/`error` with a storage summary while its durable history receipt remains
+pending. Restore storage and exercise stop, resume, deletion, and manager restart: each settles the
+same terminal event once. Metadata/catalog failures and unverified exits retain their existing
+recovery obligations. These focused runs do not claim a fresh Web, CLI/HTTP/UDS, or real-provider
+persona walk; the broader scenario status above remains unchanged. No live user data was accessed.

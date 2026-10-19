@@ -830,6 +830,70 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 }
 
 func TestSharedSessionStopOperation(t *testing.T) {
+	// Invariant: verified exit remains terminal during storage loss; retained receipts settle before reuse or deletion.
+	for _, action := range []string{"stop", "resume", "delete", "restart"} {
+		t.Run("Should recover a storage-failed stop through "+action, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			active := createSession(t, h)
+			var fail atomic.Bool
+			fail.Store(true)
+			openStore := h.manager.openStore
+			h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+				if fail.Load() {
+					return nil, os.ErrPermission
+				}
+				return openStore(ctx, owner, path)
+			}
+			active.setRecorder(&terminalWriteFailingRecorder{
+				EventRecorder: active.recorderHandle(), fail: &fail, writeErr: os.ErrPermission,
+			})
+			if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+				t.Fatal(err)
+			}
+			first, err := h.manager.AwaitStopped(t.Context(), active.ID)
+			if !errors.Is(err, ErrRecoveryPersistence) || !first.Verified || first.FinalState != StateStopped {
+				t.Fatalf("storage failure stop = %#v, %v", first, err)
+			}
+			meta := readMeta(t, active.MetaPath())
+			if meta.State != string(StateStopped) || meta.StopReason == nil || *meta.StopReason != store.StopError ||
+				meta.Failure == nil || meta.Failure.Kind != store.FailurePrompt {
+				t.Fatalf("storage failure metadata = %+v", meta)
+			}
+			if !h.manager.hasPendingStopSettlement(active.ID) || h.notifier.stoppedCount() != 0 {
+				t.Fatal("uncommitted history lost its recovery obligation or published a terminal event")
+			}
+			fail.Store(false)
+			switch action {
+			case "stop":
+				err = h.manager.Stop(t.Context(), active.ID)
+			case "resume":
+				_, err = h.manager.Resume(t.Context(), active.ID)
+			case "delete":
+				err = h.manager.Delete(t.Context(), active.ID)
+			case "restart":
+				if err := h.manager.closeSessionRecorder(active); err != nil {
+					t.Fatal(err)
+				}
+				h.manager.removeActive(active.ID)
+				manager := newManagerWithHarness(t, h)
+				cleanupTestManager(t, manager)
+				err = manager.RecoverPendingStops(t.Context())
+			}
+			if err != nil {
+				t.Fatalf("recover through %s: %v", action, err)
+			}
+			if action == "delete" {
+				if _, err := os.Stat(active.MetaPath()); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("deleted metadata remains: %v", err)
+				}
+				return
+			}
+			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 {
+				t.Fatal("recovery duplicated or omitted the retained terminal event")
+			}
+		})
+	}
 	// Invariants: persistence shares the termination phase budget; actual write failures remain visible.
 	// Owner: termination ladder; canonical suite: shared session stop operations.
 	for _, observation := range []struct {

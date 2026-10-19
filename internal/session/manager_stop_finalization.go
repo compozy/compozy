@@ -3,6 +3,9 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 func (m *Manager) finalizeStopped(ctx context.Context, session *Session, waitErr error) error {
@@ -49,7 +52,7 @@ func (m *Manager) finalizeStoppedOwned(
 			}
 		}
 	}()
-	if session.pendingStopState() {
+	if session.pendingStopState() && session.stopTerminalRecorded {
 		return m.finishStoppedPersistence(ctx, session)
 	}
 
@@ -67,7 +70,10 @@ func (m *Manager) finalizeStoppedOwned(
 			return errors.Join(append(errs, ctx.Err())...)
 		}
 	}
-	classificationErr := m.persistStopClassification(ctx, session, waitErr)
+	var classificationErr error
+	if !session.pendingStopState() {
+		classificationErr = m.persistStopClassification(ctx, session, waitErr)
+	}
 	errs = appendLifecycleErr(errs, classificationErr)
 	if errors.Is(classificationErr, ErrRecoveryPersistence) {
 		m.dispatchSessionPostStop(ctx, session)
@@ -86,6 +92,9 @@ func (m *Manager) finalizeStoppedOwned(
 	); terminalErr != nil {
 		errs = appendLifecycleErr(errs, terminalErr)
 		if !session.stopTerminalRecorded {
+			if store.IsStorageUnavailable(terminalErr) && !errors.Is(terminalErr, errStopReceiptPersistence) {
+				errs = appendLifecycleErr(errs, m.markStorageStopped(ctx, session, terminalErr))
+			}
 			m.dispatchSessionPostStop(ctx, session)
 			return errors.Join(append(errs, ErrRecoveryPersistence)...)
 		}
@@ -95,6 +104,21 @@ func (m *Manager) finalizeStoppedOwned(
 	errs = appendLifecycleErr(errs, m.closeSessionRecorder(session))
 	session.stopFinalizationErr = errors.Join(errs...)
 	return m.finishStoppedPersistence(ctx, session)
+}
+
+// Keep the durable receipt pending while reporting the verified process exit truthfully.
+func (m *Manager) markStorageStopped(ctx context.Context, session *Session, cause error) error {
+	failure := sessionFailureFromError(
+		fmt.Errorf("session storage failed; stop history pending: %w", cause),
+		store.FailurePrompt,
+	)
+	session.setStopClassification(store.StopError, failure.Summary)
+	session.setFailure(failure)
+	if err := m.markSessionStopped(ctx, session); err != nil {
+		return err
+	}
+	session.setPendingStopState(true, false)
+	return nil
 }
 
 // finishStoppedPersistence retains the receipt until stop history, Goal cancellation

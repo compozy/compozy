@@ -50,3 +50,14 @@ The same-owner physical-open and ABA races are covered separately by the canonic
 `TestOpenSessionDBReadOnly` storage fault-injection suite with real SQLite and race detection; this is
 not a claim that the public persona walk controlled that sub-connection timing. The full SessionDB
 suite and `make gate` pass. Strict targeted audit passes; teardown is clean with no lab survivor.
+
+QA 2026-10-19 (#834), focused WAL guard regression: PASS with real SQLite and race detection in
+`TestOpenSessionDBCreatesSchemaAndEnablesWAL`. A synthetic database family models a partially
+applied checkpoint: main page one is updated while committed schema pages remain in WAL. The old
+immutable guard returns SQLITE_CORRUPT; WAL-aware inspection accepts the correct owner, passes
+`quick_check`, and retains the original event. A foreign owner is refused without changing any
+source database/sidecar digest. The complete `internal/store/sessiondb` race suite also passed.
+The owning retry test admits a transient owner-read failure only after a successful integrity
+probe and continues to refuse actual corruption. This is scoped storage evidence, not a new
+public-surface persona walk. Only generated temporary fixtures were used; live user files were
+not opened or copied.

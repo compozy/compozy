@@ -4,6 +4,8 @@ package session
 
 import (
 	"context"
+	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -613,6 +615,55 @@ func TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment(t *testing.
 }
 
 func TestManagerIntegrationFullStopResumeStopPersistsStopReasons(t *testing.T) {
+	// Invariant: a stopped process with a healthy, partially checkpointed WAL can settle or be removed.
+	// Owner: manager recovery integration; the storage suite owns owner/sidecar isolation.
+	for _, action := range []string{"stop", "boot", "remove"} {
+		t.Run("Should recover partial checkpoint through "+action, func(t *testing.T) {
+			h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
+			active := createSession(t, h)
+			meta := readMeta(t, active.MetaPath())
+			if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+				t.Fatal(err)
+			}
+			before := readStoredEvents(t, active)
+			leavePartialCheckpointFixture(t, active.DBPath())
+			meta.State = string(StateStopping)
+			meta.StopReason = new(store.StopAgentCrashed)
+			meta.StopDetail = "agent process exited"
+			if err := store.WriteSessionMeta(active.MetaPath(), &meta); err != nil {
+				t.Fatal(err)
+			}
+			restarted := newManagerWithHarness(t, h)
+			cleanupTestManager(t, restarted)
+			var err error
+			switch action {
+			case "stop":
+				err = restarted.Stop(t.Context(), active.ID)
+			case "boot":
+				err = restarted.RecoverPendingStops(t.Context())
+			case "remove":
+				err = restarted.Delete(t.Context(), active.ID)
+			}
+			if err != nil {
+				t.Fatalf("%s with partial checkpoint: %v", action, err)
+			}
+			if action == "remove" {
+				if _, err := os.Stat(active.MetaPath()); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("session remains after removal: %v", err)
+				}
+				return
+			}
+			if got := readMeta(t, active.MetaPath()).State; got != string(StateStopped) {
+				t.Fatalf("recovered state = %s", got)
+			}
+			after := readStoredEvents(t, active)
+			for _, retained := range before {
+				if !slices.ContainsFunc(after, func(event store.SessionEvent) bool { return event.ID == retained.ID }) {
+					t.Fatalf("recovery lost event %s", retained.ID)
+				}
+			}
+		})
+	}
 	h := newRealACPIntegrationHarness(t, sessionStopHelperCommand(t))
 
 	session := createSession(t, h)
@@ -656,6 +707,55 @@ func TestManagerIntegrationFullStopResumeStopPersistsStopReasons(t *testing.T) {
 	for index, reason := range stopReasons {
 		if reason != string(store.StopUserCanceled) {
 			t.Fatalf("stop reason payload %d = %q, want %q", index, reason, store.StopUserCanceled)
+		}
+	}
+}
+
+func leavePartialCheckpointFixture(t *testing.T, path string) {
+	t.Helper()
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	db.SetMaxOpenConns(1)
+	for _, query := range []string{"PRAGMA journal_mode=WAL", "PRAGMA wal_autocheckpoint=0", "PRAGMA wal_checkpoint(TRUNCATE)"} {
+		if _, err := db.ExecContext(t.Context(), query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := range 100 {
+		if _, err := db.ExecContext(
+			t.Context(),
+			fmt.Sprintf("CREATE TABLE checkpoint_fixture_%d (value BLOB)", i),
+		); err != nil {
+			t.Fatal(err)
+		}
+	}
+	main, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wal, err := os.ReadFile(path + "-wal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	pageSize := int(binary.BigEndian.Uint32(wal[8:12]))
+	for offset := 32; offset+24+pageSize <= len(wal); offset += 24 + pageSize {
+		if binary.BigEndian.Uint32(wal[offset:offset+4]) == 1 {
+			copy(main[:pageSize], wal[offset+24:offset+24+pageSize])
+		}
+	}
+	for suffix, contents := range map[string][]byte{"": main, "-wal": wal} {
+		if err := os.WriteFile(path+suffix, contents, 0o600); err != nil {
+			t.Fatal(err)
 		}
 	}
 }

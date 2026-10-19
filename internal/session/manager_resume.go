@@ -36,7 +36,9 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 		}
 	}()
 	if m.hasPendingStopSettlement(target) {
-		return nil, fmt.Errorf("%w: recovered stop for %s has pending persistence", ErrRecoveryPersistence, target)
+		if err := m.StopWithCause(ctx, target, CauseFailed, ""); err != nil {
+			return nil, fmt.Errorf("%w: settle recovered stop for %s: %w", ErrRecoveryPersistence, target, err)
+		}
 	}
 	if session, ok := m.Get(target); ok && session.Info().State == StateActive {
 		return m.waitForResumedSession(ctx, target, session)

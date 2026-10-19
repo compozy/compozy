@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -282,6 +283,25 @@ func IsSQLiteBusy(err error) bool {
 	}
 	code := sqliteErr.Code() & sqlitePrimaryResultCodeMask
 	return code == sqlite3.SQLITE_BUSY || code == sqlite3.SQLITE_LOCKED
+}
+
+// IsStorageUnavailable identifies storage failures independently of provider or SQL contract failures.
+func IsStorageUnavailable(err error) bool {
+	if errors.Is(err, os.ErrPermission) {
+		return true
+	}
+	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+	if !ok {
+		return false
+	}
+	switch sqliteErr.Code() & sqlitePrimaryResultCodeMask {
+	case sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY,
+		sqlite3.SQLITE_IOERR, sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_FULL,
+		sqlite3.SQLITE_CANTOPEN, sqlite3.SQLITE_NOTADB:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsSQLiteIdentityConstraint reports whether err is a primary-key or unique-key collision.
