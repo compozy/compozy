@@ -99,37 +99,76 @@ func readNativeSessionHistoryPage(
 	return history, page, nil
 }
 
-// readNativeSessionHistoryForwardPage cuts the oldest turns after the cursor from the store's
-// unbounded after-cursor read, the same read an omitted limit performed before paging existed: the
-// store excludes every turn that began at or before the cursor only when it sees the whole log.
+// Forward history is ordered by turn start, even when events from different turns interleave.
 func readNativeSessionHistoryForwardPage(
 	ctx context.Context,
 	reader nativeSessionPageReader,
 	sessionID string,
 	query store.EventQuery,
 ) ([]store.TurnHistory, nativeSessionPage, error) {
-	unbounded := query
-	unbounded.Limit = 0
-	history, err := reader.History(ctx, sessionID, unbounded)
-	if err != nil {
-		return nil, nativeSessionPage{}, err
-	}
 	page := nativeSessionPage{Limit: query.Limit}
-	if len(history) <= query.Limit {
-		return history, page, nil
+	turns := make([]store.TurnHistory, 0)
+	seen := make(map[string]bool)
+	scan := query
+	scan.Forward = true
+	scan.Limit = nativeSessionEventsDefaultLimit
+	for {
+		events, err := reader.Events(ctx, sessionID, scan)
+		if err != nil {
+			return nil, nativeSessionPage{}, err
+		}
+		for _, event := range events {
+			if seen[event.TurnID] {
+				continue
+			}
+			seen[event.TurnID] = true
+			firstQuery := scan
+			firstQuery.TurnID, firstQuery.AfterSequence, firstQuery.Limit = event.TurnID, 0, 1
+			first, err := reader.Events(ctx, sessionID, firstQuery)
+			if err != nil {
+				return nil, nativeSessionPage{}, err
+			}
+			if len(first) == 0 || first[0].Sequence <= query.AfterSequence {
+				continue
+			}
+			if len(turns) == query.Limit {
+				page.HasMore = true
+				page.NextAfterSequence = nativeTurnFirstSequence(turns[len(turns)-1])
+				return turns, page, nil
+			}
+			turnQuery := scan
+			turnQuery.TurnID, turnQuery.AfterSequence = event.TurnID, 0
+			turnEvents, err := readNativeSessionTurnEvents(ctx, reader, sessionID, turnQuery)
+			if err != nil {
+				return nil, nativeSessionPage{}, err
+			}
+			turns = append(turns, store.TurnHistory{TurnID: event.TurnID, Events: turnEvents})
+		}
+		if len(events) < scan.Limit {
+			return turns, page, nil
+		}
+		scan.AfterSequence = events[len(events)-1].Sequence
 	}
-	history = history[:query.Limit]
-	page.HasMore = true
-	page.NextAfterSequence = nativeTurnLastSequence(history[len(history)-1])
-	return history, page, nil
 }
 
-func nativeTurnLastSequence(turn store.TurnHistory) int64 {
-	var last int64
-	for _, event := range turn.Events {
-		last = max(last, event.Sequence)
+func readNativeSessionTurnEvents(
+	ctx context.Context,
+	reader nativeSessionPageReader,
+	sessionID string,
+	query store.EventQuery,
+) ([]store.SessionEvent, error) {
+	events := make([]store.SessionEvent, 0)
+	for {
+		chunk, err := reader.Events(ctx, sessionID, query)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, chunk...)
+		if len(chunk) < query.Limit {
+			return events, nil
+		}
+		query.AfterSequence = chunk[len(chunk)-1].Sequence
 	}
-	return last
 }
 
 func nativeTurnFirstSequence(turn store.TurnHistory) int64 {

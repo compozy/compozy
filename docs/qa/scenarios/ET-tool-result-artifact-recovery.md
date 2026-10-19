@@ -63,3 +63,10 @@ Forensic evidence contract (SD-006) — each item cites timestamp, exact command
   fabricated durable URI.
 
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-002-oversized-tool-results
+
+2026-10-19 merge-train review follow-up: page forward through interleaved turns (one turn's
+last event occurs after the next turn starts). Each page must include complete returned turns;
+the next cursor must continue by turn start without skipping the overlapping turn. A real-SQLite
+regression in `TestDaemonNativeTools` passes with bounded event reads and excludes late events
+from turns that started before the cursor. Hosted-schema validation also covers a nested `$id`
+resource with local references. Current-head CI owns the remaining integration gate.

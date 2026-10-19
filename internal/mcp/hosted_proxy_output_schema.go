@@ -90,6 +90,9 @@ func hostedOutputSchema(schema json.RawMessage) any {
 // rebaseHostedSchemaRefs rewrites local "#" and "#/..." references of one schema object in place.
 // Plain-name anchors ("#name") are location-independent and stay unchanged.
 func rebaseHostedSchemaRefs(schema map[string]any) {
+	if _, embedded := schema["$id"]; embedded {
+		return
+	}
 	for keyword, value := range schema {
 		switch keyword {
 		case "$ref", "$dynamicRef":

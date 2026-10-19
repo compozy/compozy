@@ -97,7 +97,9 @@ Session reads are paged. `compozy__session_events` returns the newest 50 events 
 honored. Every page returns `page` with `limit`, `has_more`, and a continuation cursor: pass
 `page.next_before_sequence` as `before_sequence` to read older rows, or start a forward walk with
 `after_sequence` (for example `0`) and continue with `page.next_after_sequence`; forward history pages
-hold the oldest turns that start after the cursor. `before_sequence`
+hold the oldest turns that start after the cursor. The forward history cursor is the first
+event sequence of the last returned turn, so interleaved turns are not skipped. Forward reads
+scan bounded event chunks and hydrate only the returned turns. `before_sequence`
 cannot be combined with `after_sequence`. `compozy__session_describe` applies the same defaults and
 returns `events_page` and `history_page`; page further through the dedicated tools.
 

@@ -43,6 +43,7 @@ import (
 	"github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
@@ -7419,6 +7420,69 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should page overlapping turns without scanning unrelated history", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+			SessionID: "sess-forward", WorkspaceID: "ws-forward",
+		}, filepath.Join(t.TempDir(), "events.db"))
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Errorf("Close() error = %v", err)
+			}
+		})
+		for i := range 300 {
+			turnID := fmt.Sprintf("turn-%d", i)
+			if i == 299 {
+				turnID = "turn-0"
+			}
+			if err := db.Record(ctx, store.SessionEvent{
+				TurnID: turnID, Type: "agent_message", AgentName: "coder", Content: `{"text":"hello"}`,
+			}); err != nil {
+				t.Fatalf("Record() error = %v", err)
+			}
+		}
+		read := &nativeSessionPageHealthManager{
+			EventsFn: func(ctx context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if query.Limit <= 0 {
+					t.Fatalf("unbounded query: %#v", query)
+				}
+				return db.Query(ctx, query)
+			},
+		}
+		first, page, err := readNativeSessionHistoryPage(ctx, read, "sess-forward", store.EventQuery{
+			Forward: true, Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("read first page: %v", err)
+		}
+		if len(first) != 1 || first[0].TurnID != "turn-0" || len(first[0].Events) != 2 ||
+			first[0].Events[1].Sequence != 300 || !page.HasMore || page.NextAfterSequence != 1 {
+			t.Fatalf("first page = %#v, %#v; want complete interleaved turn and its start cursor", first, page)
+		}
+		next, _, err := readNativeSessionHistoryPage(ctx, read, "sess-forward", store.EventQuery{
+			Forward: true, AfterSequence: page.NextAfterSequence, Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("read next page: %v", err)
+		}
+		if len(next) != 1 || next[0].TurnID != "turn-1" {
+			t.Fatalf("next page = %#v; want the overlapping turn", next)
+		}
+		tail, lastPage, err := readNativeSessionHistoryPage(ctx, read, "sess-forward", store.EventQuery{
+			Forward: true, AfterSequence: 298, Limit: 1,
+		})
+		if err != nil {
+			t.Fatalf("read tail: %v", err)
+		}
+		if len(tail) != 1 || tail[0].TurnID != "turn-298" || lastPage.HasMore {
+			t.Fatalf("tail = %#v, %#v; want to exclude the old turn's late event", tail, lastPage)
+		}
+	})
+
 	t.Run("Should page native session events and history with bounded defaults", func(t *testing.T) {
 		t.Parallel()
 
@@ -7448,7 +7512,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		window := func(query store.EventQuery) []store.SessionEvent {
 			matched := make([]store.SessionEvent, 0, len(stored))
 			for _, event := range stored {
-				if event.Sequence > query.AfterSequence &&
+				if (query.TurnID == "" || event.TurnID == query.TurnID) && event.Sequence > query.AfterSequence &&
 					(query.BeforeSequence == 0 || event.Sequence < query.BeforeSequence) {
 					matched = append(matched, event)
 				}
@@ -7559,15 +7623,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		forwardHistory := call(t, toolspkg.ToolIDSessionHistory,
 			`{"workspace":"ws-stable","session_id":"sess-1","after_sequence":0,"limit":3}`)
 		nextHistory := call(t, toolspkg.ToolIDSessionHistory,
-			`{"workspace":"ws-stable","session_id":"sess-1","after_sequence":15,"limit":3}`)
+			`{"workspace":"ws-stable","session_id":"sess-1","after_sequence":11,"limit":3}`)
 		if len(forwardHistory.History) != 3 || forwardHistory.History[0].TurnID != "turn-1" ||
-			forwardHistory.Page != (nativeSessionPage{Limit: 3, HasMore: true, NextAfterSequence: 15}) ||
+			forwardHistory.Page != (nativeSessionPage{Limit: 3, HasMore: true, NextAfterSequence: 11}) ||
 			len(nextHistory.History) != 3 || nextHistory.History[0].TurnID != "turn-4" {
 			t.Fatalf("forward history pages = %#v %#v / %#v; want oldest turns with a forward cursor",
 				forwardHistory.History, forwardHistory.Page, nextHistory.History)
 		}
 		gotEventQueries, gotHistoryQueries := seenEvents, seenHistory
-		if len(gotEventQueries) != 3 || gotEventQueries[0].Limit != 51 ||
+		if len(gotEventQueries) < 3 || gotEventQueries[0].Limit != 51 ||
 			gotEventQueries[1].BeforeSequence != 201 || gotEventQueries[1].Limit != 251 ||
 			!gotEventQueries[2].Forward || gotEventQueries[2].Limit != 6 {
 			t.Fatalf(
@@ -7575,10 +7639,13 @@ func TestDaemonNativeTools(t *testing.T) {
 				gotEventQueries,
 			)
 		}
-		if len(gotHistoryQueries) != 3 || gotHistoryQueries[0].Limit != 11 ||
-			!gotHistoryQueries[1].Forward || gotHistoryQueries[1].Limit != 0 ||
-			gotHistoryQueries[2].AfterSequence != 15 {
-			t.Fatalf("history store queries = %#v, want bounded default probe", gotHistoryQueries)
+		if len(gotHistoryQueries) != 1 || gotHistoryQueries[0].Limit != 11 {
+			t.Fatalf("history store queries = %#v, want only the backward default probe", gotHistoryQueries)
+		}
+		for _, query := range gotEventQueries[3:] {
+			if query.Limit <= 0 || !query.Forward {
+				t.Fatalf("forward history event query = %#v, want bounded forward reads", query)
+			}
 		}
 
 		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{

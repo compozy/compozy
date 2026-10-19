@@ -124,6 +124,13 @@ func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {
 				invalid: `{"name":"root","children":[{"children":[]}]}`,
 			},
 			{
+				name: "a nested embedded schema resource",
+				schema: `{"type":"object","required":["nested"],"properties":{"nested":` +
+					`{"$id":"https://compozy.test/nested.json","type":"object",` + propertyRef + `}}}`,
+				valid:   `{"nested":{"value":"a","copy":"b"}}`,
+				invalid: `{"nested":{"copy":7}}`,
+			},
+			{
 				name:    "an embedded schema resource",
 				schema:  `{"$id":"https://compozy.test/output.json","type":"object",` + propertyRef + `}`,
 				valid:   `{"value":"a","copy":"b"}`,
