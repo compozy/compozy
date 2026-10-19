@@ -284,3 +284,36 @@ func TestEnsureBootstrapAgentCreatesAndPreservesManagedAgent(t *testing.T) {
 		}
 	})
 }
+
+func TestSaveBootstrapConfigReplacesSessionRuntimeDefaults(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	writeFile(t, homePaths.ConfigFile, `
+[defaults]
+agent = "general"
+provider = "codex"
+model = "gpt-5.6-terra"
+reasoning_effort = "high"
+`)
+
+	// Install's model choice lands on the provider default; a session default
+	// saved earlier would otherwise keep overriding it.
+	cfg, err := SaveBootstrapConfig(homePaths, "codex", "gpt-5.6-luna")
+	if err != nil {
+		t.Fatalf("SaveBootstrapConfig() error = %v", err)
+	}
+	if cfg.Defaults.Model != "" || cfg.Defaults.ReasoningEffort != "" {
+		t.Fatalf("SaveBootstrapConfig() Defaults = %#v, want no session model or reasoning", cfg.Defaults)
+	}
+	resolved, err := cfg.ResolveAgent(AgentDef{Name: DefaultAgentName, Prompt: "prompt"})
+	if err != nil {
+		t.Fatalf("ResolveAgent() error = %v", err)
+	}
+	if resolved.Model != "gpt-5.6-luna" {
+		t.Fatalf("ResolveAgent() Model = %q, want the installed gpt-5.6-luna", resolved.Model)
+	}
+}

@@ -2016,3 +2016,36 @@ func TestLoadPersistedConfigArchivesRetiredMemory(t *testing.T) {
 		}
 	})
 }
+
+func TestOverlayEditorKeepsSessionRuntimeDefaultsWithTheirProvider(t *testing.T) {
+	t.Parallel()
+
+	const saved = "[defaults]\nagent = \"general\"\nprovider = \"codex\"\n" +
+		"model = \"gpt-5.6-terra\"\nreasoning_effort = \"high\"\n"
+	for _, testCase := range []struct {
+		name      string
+		provider  string
+		wantModel bool
+	}{
+		{name: "Should drop the saved model when the provider changes", provider: "claude"},
+		{name: "Should drop the saved model when the provider clears", provider: ""},
+		{name: "Should keep the saved model when the provider is rewritten unchanged", provider: "codex", wantModel: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			editor, err := newOverlayEditor(ConfigName, []byte(saved))
+			if err != nil {
+				t.Fatalf("newOverlayEditor() error = %v", err)
+			}
+			if err := editor.SetValue(defaultsProviderPath, testCase.provider); err != nil {
+				t.Fatalf("editor.SetValue(defaults.provider) error = %v", err)
+			}
+			for _, path := range [][]string{defaultsModelPath, defaultsReasoningEffortPath} {
+				if got := editor.HasPath(path); got != testCase.wantModel {
+					t.Fatalf("HasPath(%v) = %t, want %t", path, got, testCase.wantModel)
+				}
+			}
+		})
+	}
+}

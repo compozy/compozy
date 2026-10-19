@@ -5313,3 +5313,86 @@ auth_acp_method = "oauth-personal"
 		}
 	})
 }
+
+func TestPersonaSectionPersistsSessionRuntimeDefaults(t *testing.T) {
+	t.Parallel()
+
+	updatePersona := func(t *testing.T, service Service, scope SectionRequest, persona compozyconfig.DefaultsConfig) {
+		t.Helper()
+		if _, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+			SectionRequest: withSettingsSection(scope, SectionPersona),
+			Persona:        &persona,
+		}); err != nil {
+			t.Fatalf("UpdateSection(persona) error = %v", err)
+		}
+	}
+	readPersona := func(t *testing.T, service Service, scope SectionRequest) compozyconfig.DefaultsConfig {
+		t.Helper()
+		envelope, err := service.GetSection(t.Context(), withSettingsSection(scope, SectionPersona))
+		if err != nil {
+			t.Fatalf("GetSection(persona) error = %v", err)
+		}
+		return envelope.Persona.Config
+	}
+
+	t.Run("Should save and reread the provider, model and reasoning together", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		user := SectionRequest{Scope: ScopeUser}
+
+		saved := compozyconfig.DefaultsConfig{
+			Agent: "writer", Provider: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "high",
+		}
+		updatePersona(t, service, user, saved)
+		if got := readPersona(t, service, user); got != saved {
+			t.Fatalf("persona after save = %#v, want %#v", got, saved)
+		}
+
+		// Switching provider without a model must not run the old model on it.
+		updatePersona(t, service, user, compozyconfig.DefaultsConfig{Agent: "writer", Provider: "claude"})
+		if got, want := readPersona(t, service, user), (compozyconfig.DefaultsConfig{
+			Agent: "writer", Provider: "claude",
+		}); got != want {
+			t.Fatalf("persona after provider switch = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should keep a profile's session runtime off the user layer", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		profile := SectionRequest{Scope: ScopeProfile, ProfileName: "marketing"}
+
+		saved := compozyconfig.DefaultsConfig{
+			Agent: "writer", Provider: "claude", Model: "claude-opus-5", ReasoningEffort: "max",
+		}
+		updatePersona(t, service, profile, saved)
+		if got := readPersona(t, service, profile); got != saved {
+			t.Fatalf("profile persona = %#v, want %#v", got, saved)
+		}
+		user := readPersona(t, service, SectionRequest{Scope: ScopeUser})
+		if user.Model != "" || user.Provider != "codex" {
+			t.Fatalf("user persona = %#v, want the untouched codex default without a model", user)
+		}
+	})
+
+	t.Run("Should reject a model saved without a provider", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		service := testService(t, homePaths, Dependencies{})
+		_, err := service.UpdateSection(t.Context(), SectionUpdateRequest{
+			SectionRequest: withSettingsSection(SectionRequest{Scope: ScopeUser}, SectionPersona),
+			Persona:        &compozyconfig.DefaultsConfig{Agent: "writer", Model: "gpt-5.6-terra"},
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "defaults.model") {
+			t.Fatalf("UpdateSection(model without provider) error = %v, want defaults.model validation", err)
+		}
+	})
+}

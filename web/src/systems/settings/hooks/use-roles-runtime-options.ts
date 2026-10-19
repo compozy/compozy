@@ -1,23 +1,11 @@
-import { settingsProviderToOption } from "../lib/provider-runtime-option";
-import { useSettingsProviders } from "./use-settings-collections";
+import {
+  type SettingsRuntimeCatalog,
+  useSettingsRuntimeCatalog,
+} from "./use-settings-runtime-catalog";
 import { type AgentPayload, useAgents } from "@/systems/agent";
-import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
-import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
 
-export interface RolesRuntimeOptions {
-  providers: RuntimeProviderOption[];
-  models: RuntimeModelOption[];
+export interface RolesRuntimeOptions extends SettingsRuntimeCatalog {
   agents: AgentPayload[];
-  /** Catalog read in flight; drives the selector's list loading state. */
-  loading: boolean;
-  catalogError: string | null;
-  catalogStale: boolean;
-  refresh: () => void;
-  refreshing: boolean;
-}
-
-function toCatalogProviders(providers: RuntimeProviderOption[]): RuntimeCatalogProvider[] {
-  return providers.map(provider => ({ id: provider.id, needsAuth: provider.needs_auth }));
 }
 
 /**
@@ -26,20 +14,7 @@ function toCatalogProviders(providers: RuntimeProviderOption[]): RuntimeCatalogP
  * through props; no selector fetches on its own.
  */
 export function useRolesRuntimeOptions(): RolesRuntimeOptions {
-  const providersQuery = useSettingsProviders();
+  const catalog = useSettingsRuntimeCatalog();
   const agentsQuery = useAgents();
-
-  const providers = (providersQuery.data?.providers ?? []).map(settingsProviderToOption);
-  const catalog = useRuntimeModelCatalog(toCatalogProviders(providers));
-
-  return {
-    providers,
-    models: catalog.models,
-    agents: agentsQuery.data ?? [],
-    loading: catalog.loading || providersQuery.isLoading,
-    catalogError: catalog.error,
-    catalogStale: catalog.stale,
-    refresh: catalog.refresh,
-    refreshing: catalog.refreshing,
-  };
+  return { ...catalog, agents: agentsQuery.data ?? [] };
 }

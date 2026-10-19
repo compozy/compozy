@@ -104,6 +104,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		providerName,
 		provider,
 		agent,
+		defaults.sessionRuntimeFor(providerSource),
 	)
 	if err != nil {
 		return ResolvedAgent{}, err
@@ -181,9 +182,14 @@ func resolveAgentModelRuntime(
 	providerName string,
 	provider ProviderConfig,
 	agent AgentDef,
+	session sessionRuntimeDefaults,
 ) (string, string, RuntimeValueSource, RuntimeValueSource, error) {
 	model := strings.TrimSpace(agent.Model)
 	modelSource := RuntimeValueSourceAgent
+	if model == "" {
+		model = session.model
+		modelSource = RuntimeValueSourceProjectDefault
+	}
 	if model == "" {
 		model = strings.TrimSpace(provider.Models.Default)
 		modelSource = RuntimeValueSourceProviderDefault
@@ -198,6 +204,12 @@ func resolveAgentModelRuntime(
 
 	reasoningEffort := strings.TrimSpace(agent.ReasoningEffort)
 	reasoningSource := RuntimeValueSourceAgent
+	// The default effort belongs to the default model: an agent-authored model
+	// keeps its own curated default instead.
+	if reasoningEffort == "" && modelSource != RuntimeValueSourceAgent && providerAcceptsReasoningEffort(provider) {
+		reasoningEffort = session.reasoningEffort
+		reasoningSource = RuntimeValueSourceProjectDefault
+	}
 	if reasoningEffort == "" {
 		reasoningEffort = defaultReasoningEffortForModel(provider, model)
 		reasoningSource = RuntimeValueSourceModelDefault

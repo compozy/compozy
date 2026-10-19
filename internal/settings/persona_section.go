@@ -8,12 +8,18 @@ import (
 )
 
 func diffPersonaSettings(current compozyconfig.DefaultsConfig, desired compozyconfig.DefaultsConfig) []string {
-	changed := make([]string, 0, 3)
+	changed := make([]string, 0, 4)
 	if current.Agent != desired.Agent {
 		changed = append(changed, "defaults.agent")
 	}
 	if current.Provider != desired.Provider {
 		changed = append(changed, "defaults.provider")
+	}
+	if current.Model != desired.Model {
+		changed = append(changed, "defaults.model")
+	}
+	if current.ReasoningEffort != desired.ReasoningEffort {
+		changed = append(changed, "defaults.reasoning_effort")
 	}
 	return changed
 }
@@ -24,7 +30,11 @@ func applyPersonaSettings(editor *compozyconfig.OverlayEditor, desired compozyco
 		value any
 	}{
 		{path: []string{sectionsDefaultsKey, "agent"}, value: desired.Agent},
+		// The provider goes first: changing it clears the stored model and
+		// reasoning, which the next two writes then replace.
 		{path: []string{sectionsDefaultsKey, sectionsProviderKey}, value: desired.Provider},
+		{path: []string{sectionsDefaultsKey, "model"}, value: desired.Model},
+		{path: []string{sectionsDefaultsKey, "reasoning_effort"}, value: desired.ReasoningEffort},
 	})
 }
 

@@ -39,7 +39,7 @@ CompozyOS archives them on load instead of failing; see
 | `[shell.sessions]`                   | Live operator preferences for the session list.                                        | creation order, this workspace                                                                        |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                      | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.          | windows tile beside focus, flush gaps, adaptive stacks, 50-entry history                              |
-| `[defaults]`                         | Default agent and provider resolution.                                                 | `agent = "general"`, `provider = ""`                                                                  |
+| `[defaults]`                         | Default agent and session runtime (provider, model, reasoning effort) resolution.      | `agent = "general"`, `provider = ""`                                                                  |
 | `[roles.coordinator]`                | Coordinator routing plus coordinator-owned session limits.                             | disabled, builtin `coordinator`, TTL 2 hours, 5 children, 5 active sessions/workspace                 |
 | `[roles.auto_title]`                 | Automatic-title session routing.                                                       | enabled, inherits the invoking agent                                                                  |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                           | `max_concurrent_agents = 20`                                                                          |
@@ -264,6 +264,9 @@ bottom_center = "zoom"
 agent = "general"
 # Provider used by AGENT.md files that omit provider.
 provider = "claude"
+# Optional: model and reasoning effort for sessions that resolve that provider.
+model = "claude-opus-5"
+reasoning_effort = "high"
 
 [roles.coordinator]
 # Coordinator is a virtual builtin when agent is omitted. It is disabled by default.
@@ -1044,10 +1047,26 @@ browser-mode behavior.
 
 ## `[defaults]`
 
-| Field      | Type   | Default   | Valid values                                                                  | Description                                                                                                        |
-| ---------- | ------ | --------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `agent`    | string | `general` | Empty, or after trimming `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). | Agent selected when a command or API request omits an agent. Empty keeps the next resolution fallback available.   |
-| `provider` | string | empty     | Built-in provider name or configured provider key.                            | Provider selected when an `AGENT.md` omits `provider`. Empty is valid until an agent without provider is resolved. |
+| Field              | Type   | Default   | Valid values                                                                         | Description                                                                                                                                                              |
+| ------------------ | ------ | --------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `agent`            | string | `general` | Empty, or after trimming `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters).        | Agent selected when a command or API request omits an agent. Empty keeps the next resolution fallback available.                                                         |
+| `provider`         | string | empty     | Built-in provider name or configured provider key.                                   | Provider selected when an `AGENT.md` omits `provider`. Empty is valid until an agent without provider is resolved.                                                       |
+| `model`            | string | empty     | A model ID of `provider`. Requires `provider`.                                       | Model for sessions whose provider comes from `defaults.provider` and whose agent omits `model`. Empty uses the provider's `models.default`.                              |
+| `reasoning_effort` | string | empty     | An effort identifier such as `low`, `medium`, `high`, or `max`. Requires `provider`. | Reasoning for those same sessions when the model is not agent-authored. Empty uses the model's curated default. Skipped for a provider that applies no reasoning effort. |
+
+`model` and `reasoning_effort` belong to `provider`. An agent that names its own provider never
+inherits them, and an explicit session runtime (`--provider`, `--model`, `--reasoning-effort`, or the
+API `runtime` fields) wins over them. A config layer that changes `provider` drops the `model` and
+`reasoning_effort` inherited from lower layers, and writing a different `provider` with
+`compozy config set defaults.provider` or Settings removes that layer's saved model and reasoning, so a
+model chosen for one provider never runs on another. `compozy install` replaces both with its own model
+choice. Existing configs without these keys resolve exactly as before.
+
+Settings → General → **Session defaults** edits this section for the active profile: the agent, a
+runtime selector for provider, model and reasoning (**Automatic (recommended)** stores an empty
+provider), and the browser-local **Smooth streaming** preference. The former Settings → Defaults page
+and its `/settings/defaults` links redirect there. Changes need a daemon restart, like every
+`defaults.*` key.
 
 ## `[roles.<role>]`
 

@@ -374,10 +374,21 @@ provider's command. Parsing is the only validation (no route-count or length lim
 
 ## Persona Defaults
 
-Persona defaults select the agent and provider used for new work. Read them through
+Persona defaults select the agent and session runtime used for new work: `[defaults] agent`,
+`provider`, and the optional `model` and `reasoning_effort` that refine that provider. Read them through
 `GET /api/settings/persona` and update them through `PATCH /api/settings/persona`. Omit `scope` for
 the user layer; use `scope=profile&profile=<name>` for a personal profile layer. The response names
-the effective scope, profile owner, available scopes, write target, and the `agent` and `provider` defaults. Profile updates affect only later work started under that profile.
+the effective scope, profile owner, available scopes, write target, and the `agent`, `provider`,
+`model`, and `reasoning_effort` defaults (empty fields are omitted). Profile updates affect only later
+work started under that profile, after the daemon restart every `defaults.*` change requires.
+
+`model` and `reasoning_effort` require `provider` and apply only to sessions whose provider comes from
+`defaults.provider` and whose agent omits `model`; an explicit session runtime wins. A layer or write
+that changes `defaults.provider` drops the model and reasoning saved for the previous provider, and
+`compozy install` replaces them with its own model choice. Scalar writes use
+`compozy config set defaults.model <id>` and `compozy config set defaults.reasoning_effort <effort>`
+(or `compozy__config_set`); set the provider first. Web Settings → General → Session defaults edits the
+same keys; the retired `/settings/defaults` route redirects there.
 
 ## Command Palette
 

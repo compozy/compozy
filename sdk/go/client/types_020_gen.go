@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// SkillExposureRequest is a daemon API value.
+type SkillExposureRequest struct {
+	Targets     []string `json:"targets"`
+	WorkspaceID string   `json:"workspace_id,omitempty"`
+}
+
+// SkillExposureStatus is a daemon API value.
+type SkillExposureStatus string
+
+// SkillExposureTargetResultPayload is a daemon API value.
+type SkillExposureTargetResultPayload struct {
+	Target       string                     `json:"target"`
+	OK           bool                       `json:"ok"`
+	Exposure     *SkillExposurePayload      `json:"exposure,omitzero"`
+	Error        *SkillExposureErrorPayload `json:"error,omitzero"`
+	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitzero"`
+}
+
 // SkillPayload is a daemon API value.
 type SkillPayload struct {
 	Name        string                   `json:"name"`
@@ -428,20 +446,4 @@ type TaskBlockPayload struct {
 	ClearedAt   *time.Time      `json:"cleared_at,omitempty"`
 	ClearedBy   *ActorIdentity  `json:"cleared_by,omitempty"`
 	ClearNote   string          `json:"clear_note,omitempty"`
-}
-
-// TaskBlockResponse is a daemon API value.
-type TaskBlockResponse struct {
-	Block TaskBlockPayload `json:"block"`
-}
-
-// TaskBlocksResponse is a daemon API value.
-type TaskBlocksResponse struct {
-	Blocks []TaskBlockPayload `json:"blocks"`
-}
-
-// TaskCatalogFacetsPayload is a daemon API value.
-type TaskCatalogFacetsPayload struct {
-	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
-	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
 }

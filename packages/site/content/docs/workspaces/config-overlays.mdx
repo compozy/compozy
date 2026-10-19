@@ -210,6 +210,11 @@ Effective result for the workspace:
 | `limits.max_concurrent_agents` | `20`                                    | Workspace omitted the table, so global remains. |
 | `skills.disabled_skills`       | `["deploy-production", "legacy-notes"]` | Workspace slice replaces the global slice.      |
 
+`defaults.model` and `defaults.reasoning_effort` follow `defaults.provider`: a layer that sets a
+different `defaults.provider` drops the model and reasoning inherited from lower layers, so a model
+chosen for one provider never reaches another. A layer that repeats the same provider, or sets only
+`defaults.model`, keeps refining the inherited choice.
+
 ## `.env` And `COMPOZY_HOME`
 
 If a workspace root contains `.env`, CompozyOS loads it before resolving the CompozyOS home layout for that

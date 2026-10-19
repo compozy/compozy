@@ -1729,3 +1729,56 @@ func (p subagentSituationStub) GetSubagentByChild(context.Context, string) (stor
 func (p subagentSituationStub) Summaries(_ context.Context, ids []string) (map[string]store.SubagentSummary, error) {
 	return map[string]store.SubagentSummary{ids[0]: {Live: p.live}}, nil
 }
+
+func TestContextForSessionReportsTheSessionDefaultModel(t *testing.T) {
+	t.Parallel()
+
+	contextFor := func(t *testing.T, agent compozyconfig.AgentDef, provider string) contract.AgentIdentityPayload {
+		t.Helper()
+		service := NewService(Deps{
+			Now: fixedNow,
+			WorkspaceResolver: workspaceResolverFunc(
+				func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						ID: "ws-1", Name: "Compozy", RootDir: "/work/compozy",
+						Config: compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{
+							Provider: "codex", Model: "gpt-5.6-terra", ReasoningEffort: "high",
+						}},
+					}, nil
+				},
+			),
+			AgentResolver: agentResolverFunc(
+				func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+					return agent, nil
+				},
+			),
+		})
+		payload, err := service.ContextForSession(t.Context(), &session.Info{
+			ID: "sess-1", ProfileID: store.DefaultProfileID, AgentName: agent.Name, Provider: provider,
+			WorkspaceID: "ws-1", Workspace: "/work/compozy", Type: session.SessionTypeUser,
+			State: session.StateActive, CreatedAt: fixedTime(), UpdatedAt: fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession() error = %v", err)
+		}
+		return payload.Self
+	}
+
+	t.Run("Should report the saved model for a default-provider session", func(t *testing.T) {
+		t.Parallel()
+
+		self := contextFor(t, compozyconfig.AgentDef{Name: "general"}, "codex")
+		if self.Provider != "codex" || self.Model != "gpt-5.6-terra" {
+			t.Fatalf("Self = %s/%s, want codex/gpt-5.6-terra", self.Provider, self.Model)
+		}
+	})
+
+	t.Run("Should keep the saved model off an agent-authored provider", func(t *testing.T) {
+		t.Parallel()
+
+		self := contextFor(t, compozyconfig.AgentDef{Name: "coder", Provider: "claude"}, "claude")
+		if self.Provider != "claude" || self.Model == "gpt-5.6-terra" {
+			t.Fatalf("Self = %s/%s, want claude without the codex session model", self.Provider, self.Model)
+		}
+	})
+}

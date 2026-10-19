@@ -1355,7 +1355,9 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				settingspkg.ScopeWorkspace,
 			},
 			Persona: &settingspkg.PersonaSection{
-				Config: compozyconfig.DefaultsConfig{Agent: "coder", Provider: "openai"},
+				Config: compozyconfig.DefaultsConfig{
+					Agent: "coder", Provider: "openai", Model: "gpt-5.6-terra", ReasoningEffort: "high",
+				},
 			},
 		},
 		{
@@ -1638,7 +1640,9 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					t.Fatalf("persona response = %T, want SettingsPersonaResponse", response)
 				}
 				if payload.Profile != "marketing" || payload.Scope != contract.SettingsLayeredScopeProfile ||
-					payload.Config.Agent != "coder" || payload.Config.Provider != "openai" {
+					payload.Config != (contract.SettingsDefaultsPayload{
+						Agent: "coder", Provider: "openai", Model: "gpt-5.6-terra", ReasoningEffort: "high",
+					}) {
 					t.Fatalf("persona response = %#v, want marketing persona settings", payload)
 				}
 				return
@@ -2615,11 +2619,12 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 			name: "Should forward a profile-scoped persona request",
 			path: "/api/settings/persona?scope=profile&profile=marketing",
 			body: contract.UpdateSettingsPersonaRequest{Config: contract.SettingsDefaultsPayload{
-				Agent: "coder", Provider: "openai",
+				Agent: "coder", Provider: "openai", Model: " gpt-5.6-terra ", ReasoningEffort: "high",
 			}},
 			assert: func(t *testing.T, req settingspkg.SectionUpdateRequest) {
 				t.Helper()
-				if req.Persona == nil || req.Persona.Agent != "coder" || req.ProfileName != "marketing" {
+				if req.Persona == nil || req.Persona.Agent != "coder" || req.ProfileName != "marketing" ||
+					req.Persona.Model != "gpt-5.6-terra" || req.Persona.ReasoningEffort != "high" {
 					t.Fatalf("req = %#v, want profile persona payload", req)
 				}
 			},

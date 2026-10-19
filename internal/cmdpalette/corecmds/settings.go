@@ -14,7 +14,7 @@ var settingsDestinations = []settingsDestination{
 		Slug:     "general",
 		Title:    "General",
 		Icon:     "sliders-horizontal",
-		Keywords: []string{"defaults", "permissions", "updates"},
+		Keywords: []string{"defaults", "agent", "provider", "model", "reasoning", "permissions", "updates"},
 	},
 	{
 		Slug:     "appearance",

@@ -1400,6 +1400,167 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 	})
 }
 
+func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
+	t.Parallel()
+
+	sessionDefaultsConfig := func(t *testing.T, defaults DefaultsConfig) Config {
+		t.Helper()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Defaults = defaults
+		return cfg
+	}
+	codexDefaults := DefaultsConfig{
+		Agent: DefaultAgentName, Provider: "codex", Model: modelGPT56TerraID, ReasoningEffort: providerHighKey,
+	}
+
+	t.Run("Should start a default-provider session on the saved model and reasoning", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := sessionDefaultsConfig(t, codexDefaults)
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "general", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Provider != "codex" || resolved.Model != modelGPT56TerraID ||
+			resolved.ReasoningEffort != providerHighKey {
+			t.Fatalf("resolved runtime = %s/%s/%s, want codex/%s/%s",
+				resolved.Provider, resolved.Model, resolved.ReasoningEffort, modelGPT56TerraID, providerHighKey)
+		}
+		sources := resolved.RuntimeSources
+		if sources.Model != RuntimeValueSourceProjectDefault ||
+			sources.ReasoningEffort != RuntimeValueSourceProjectDefault {
+			t.Fatalf("runtime sources = %#v, want project defaults for model and reasoning", sources)
+		}
+	})
+
+	t.Run("Should keep the provider defaults when no session model is saved", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := sessionDefaultsConfig(t, DefaultsConfig{Agent: DefaultAgentName, Provider: "codex"})
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "general", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Model != modelGPT56SolID || resolved.ReasoningEffort != providerMediumKey {
+			t.Fatalf("resolved runtime = %s/%s, want the unchanged codex defaults %s/%s",
+				resolved.Model, resolved.ReasoningEffort, modelGPT56SolID, providerMediumKey)
+		}
+		if got, want := resolved.RuntimeSources.Model, RuntimeValueSourceProviderDefault; got != want {
+			t.Fatalf("model source = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should refine the provider default model with a saved reasoning effort", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := sessionDefaultsConfig(t, DefaultsConfig{
+			Agent: DefaultAgentName, Provider: "codex", ReasoningEffort: providerReasoningLowKey,
+		})
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "general", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Model != modelGPT56SolID || resolved.ReasoningEffort != providerReasoningLowKey {
+			t.Fatalf("resolved runtime = %s/%s, want %s/%s",
+				resolved.Model, resolved.ReasoningEffort, modelGPT56SolID, providerReasoningLowKey)
+		}
+	})
+
+	t.Run("Should never apply the saved model to an agent-authored provider", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := sessionDefaultsConfig(t, codexDefaults)
+		claude, err := cfg.ResolveProvider("claude")
+		if err != nil {
+			t.Fatalf("ResolveProvider(claude) error = %v", err)
+		}
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Provider: "claude", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Provider != "claude" || resolved.Model != claude.Models.Default ||
+			resolved.RuntimeSources.Model != RuntimeValueSourceProviderDefault {
+			t.Fatalf("resolved runtime = %#v, want the claude provider default", resolved)
+		}
+		if resolved.RuntimeSources.ReasoningEffort == RuntimeValueSourceProjectDefault {
+			t.Fatalf("reasoning = %q from the session defaults, want none on claude", resolved.ReasoningEffort)
+		}
+	})
+
+	t.Run("Should keep an agent-authored model on its own reasoning default", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := sessionDefaultsConfig(t, codexDefaults)
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Model: modelGPT56LunaID, Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Model != modelGPT56LunaID || resolved.ReasoningEffort != providerMediumKey ||
+			resolved.RuntimeSources.ReasoningEffort != RuntimeValueSourceModelDefault {
+			t.Fatalf("resolved runtime = %s/%s from %q, want %s/%s from the model default",
+				resolved.Model, resolved.ReasoningEffort, resolved.RuntimeSources.ReasoningEffort,
+				modelGPT56LunaID, providerMediumKey)
+		}
+	})
+
+	t.Run("Should let explicit session runtime choices win over the saved defaults", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := sessionDefaultsConfig(t, codexDefaults)
+		agent := AgentDef{Name: "general", Prompt: "prompt"}
+		for _, testCase := range []struct {
+			name          string
+			overrides     RuntimeOverrides
+			wantProvider  string
+			wantModel     string
+			wantReasoning string
+		}{
+			{
+				name:          "reasoning only keeps the saved model",
+				overrides:     RuntimeOverrides{Reasoning: providerReasoningLowKey},
+				wantProvider:  "codex",
+				wantModel:     modelGPT56TerraID,
+				wantReasoning: providerReasoningLowKey,
+			},
+			{
+				name:          "another model on the same provider uses its own default",
+				overrides:     RuntimeOverrides{Provider: "codex", Model: modelGPT56LunaID},
+				wantProvider:  "codex",
+				wantModel:     modelGPT56LunaID,
+				wantReasoning: providerMediumKey,
+			},
+		} {
+			resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, testCase.overrides)
+			if err != nil {
+				t.Fatalf("%s: ResolveSessionAgentWithRuntime() error = %v", testCase.name, err)
+			}
+			if resolved.Provider != testCase.wantProvider || resolved.Model != testCase.wantModel ||
+				resolved.ReasoningEffort != testCase.wantReasoning {
+				t.Fatalf("%s: resolved runtime = %s/%s/%s, want %s/%s/%s", testCase.name,
+					resolved.Provider, resolved.Model, resolved.ReasoningEffort,
+					testCase.wantProvider, testCase.wantModel, testCase.wantReasoning)
+			}
+		}
+
+		claude, err := cfg.ResolveProvider("claude")
+		if err != nil {
+			t.Fatalf("ResolveProvider(claude) error = %v", err)
+		}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{Provider: "claude"})
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime(claude) error = %v", err)
+		}
+		if resolved.Provider != "claude" || resolved.Model != claude.Models.Default {
+			t.Fatalf("provider override runtime = %s/%s, want claude/%s",
+				resolved.Provider, resolved.Model, claude.Models.Default)
+		}
+	})
+}
+
 func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
 	t.Parallel()
 

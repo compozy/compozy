@@ -143,6 +143,7 @@ let pageState: {
   lastAppliedLabel: string | null;
   handleReset: ReturnType<typeof vi.fn>;
   handleSave: ReturnType<typeof vi.fn>;
+  handleRetry: ReturnType<typeof vi.fn>;
   restart: RestartBanner;
   update: {
     data: UpdateStatus | null;
@@ -195,12 +196,69 @@ const mockMutation: Mutation = {
   data: undefined,
 };
 
+type PersonaConfig = {
+  agent: string;
+  provider?: string;
+  model?: string;
+  reasoning_effort?: string;
+};
+
+let personaState: {
+  draft: PersonaConfig | null;
+  error: Error | null;
+  isDirty: boolean;
+  isLoading: boolean;
+  isSaving: boolean;
+  profileName: string;
+  saveError: string | null;
+  warnings: string[] | undefined;
+  setDraft: ReturnType<typeof vi.fn>;
+  handleSave: ReturnType<typeof vi.fn>;
+  handleReset: ReturnType<typeof vi.fn>;
+  handleRetry: ReturnType<typeof vi.fn<() => void>>;
+};
+
+let providersState: {
+  data: { providers: Array<{ name: string }> };
+  error: Error | null;
+  isLoading: boolean;
+  refetch: ReturnType<typeof vi.fn<() => void>>;
+};
+
+const runtimeCatalog = {
+  providers: [
+    {
+      id: "claude",
+      name: "Claude",
+      runtime_provider: "claude",
+      runtime_strategy: "configured",
+      needs_auth: false,
+    },
+  ],
+  models: [],
+  loading: false,
+  catalogError: null,
+  catalogStale: false,
+  refresh: vi.fn(),
+  refreshing: false,
+};
+
 vi.mock("@/systems/settings", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/settings")>();
   return {
     ...actual,
     useSettingsGeneral: () => ({ data: envelope, isLoading: false, error: null }),
     useUpdateSettingsGeneral: () => mockMutation,
+    useSettingsSessionDefaults: () => ({
+      persona: personaState,
+      runtime: runtimeCatalog,
+      isLoading: personaState.isLoading || providersState.isLoading,
+      error: personaState.error ?? providersState.error,
+      retry: () => {
+        personaState.handleRetry();
+        void providersState.refetch();
+      },
+    }),
     SettingsApiError: class SettingsApiError extends Error {},
   };
 });
@@ -213,6 +271,26 @@ vi.mock("@/systems/tool-approvals", () => ({
 }));
 
 beforeEach(() => {
+  personaState = {
+    draft: { agent: "general" },
+    error: null,
+    isDirty: false,
+    isLoading: false,
+    isSaving: false,
+    profileName: "default",
+    saveError: null,
+    warnings: undefined,
+    setDraft: vi.fn(),
+    handleSave: vi.fn(),
+    handleReset: vi.fn(),
+    handleRetry: vi.fn(),
+  };
+  providersState = {
+    data: { providers: [{ name: "claude" }] },
+    error: null,
+    isLoading: false,
+    refetch: vi.fn(),
+  };
   pageState = {
     isLoading: false,
     error: null,
@@ -226,6 +304,7 @@ beforeEach(() => {
     lastAppliedLabel: null,
     handleReset: vi.fn(),
     handleSave: vi.fn(),
+    handleRetry: vi.fn(),
     restart: { ...restartBanner, trigger: vi.fn(), dismiss: vi.fn() },
     update: {
       data: settingsUpdateBothAvailableFixture,
@@ -502,6 +581,98 @@ describe("GeneralSettingsPage", () => {
     const button = screen.getByRole("button", { name: "Restart CompozyOS" });
     fireEvent.click(button);
     expect(pageState.restart.trigger).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should wait for the provider catalog before rendering session defaults", () => {
+    // Invariant (from the retired Defaults page): an unloaded provider list is never
+    // presented as "no providers". Owning layer: General route.
+    providersState.isLoading = true;
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-page-general-session-defaults")).toBeNull();
+  });
+
+  it("Should surface a session-defaults failure and retry every General dependency", () => {
+    providersState.error = new Error("Provider catalog unavailable");
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByText("Couldn't load General")).toBeInTheDocument();
+    expect(screen.getByText("Provider catalog unavailable")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(pageState.handleRetry).toHaveBeenCalledOnce();
+    expect(personaState.handleRetry).toHaveBeenCalledOnce();
+    expect(providersState.refetch).toHaveBeenCalledOnce();
+  });
+
+  it("Should open with the session defaults as the first group", () => {
+    pageState.update.data = settingsUpdateStagedFixture;
+    personaState.profileName = "work";
+    render(<GeneralSettingsPage />);
+
+    const group = screen.getByTestId("settings-page-general-session-defaults");
+    const frame = group.parentElement;
+    expect.assert(frame !== null);
+    expect(frame.querySelector("section")).toBe(group);
+    expect(within(group).getByText("Agent")).toBeInTheDocument();
+    expect(within(group).getByText("Model")).toBeInTheDocument();
+    expect(within(group).getByRole("switch", { name: "Smooth streaming" })).toBeInTheDocument();
+    expect(screen.getByTestId("settings-page-general-session-defaults-scope")).toHaveTextContent(
+      "New sessions in the work profile start with these."
+    );
+  });
+
+  it("Should edit the default agent and offer Automatic only once a provider is chosen", () => {
+    const { rerender } = render(<GeneralSettingsPage />);
+    expect(screen.getByTestId("settings-page-general-default-agent")).toHaveValue("general");
+    expect(screen.getByTestId("settings-page-general-default-runtime-select")).toHaveTextContent(
+      "Automatic (recommended)"
+    );
+    expect(screen.queryByTestId("settings-page-general-default-runtime-clear")).toBeNull();
+
+    fireEvent.change(screen.getByTestId("settings-page-general-default-agent"), {
+      target: { value: "reviewer" },
+    });
+    const [agentUpdate] = personaState.setDraft.mock.calls.at(-1) ?? [];
+    expect.assert(typeof agentUpdate === "function");
+    expect(agentUpdate({ agent: "general" })).toEqual({ agent: "reviewer" });
+
+    personaState.draft = {
+      agent: "general",
+      provider: "claude",
+      model: "claude-opus",
+      reasoning_effort: "high",
+    };
+    rerender(<GeneralSettingsPage />);
+    fireEvent.click(screen.getByTestId("settings-page-general-default-runtime-clear"));
+    const [runtimeUpdate] = personaState.setDraft.mock.calls.at(-1) ?? [];
+    expect.assert(typeof runtimeUpdate === "function");
+    // Automatic drops the provider-bound model and reasoning with the provider.
+    expect(runtimeUpdate(personaState.draft)).toEqual({ agent: "general" });
+  });
+
+  it("Should save only the dirty draft and reset both through one save bar", () => {
+    personaState.isDirty = true;
+    render(<GeneralSettingsPage />);
+
+    fireEvent.click(screen.getByTestId("settings-page-general-save"));
+    expect(personaState.handleSave).toHaveBeenCalledOnce();
+    expect(pageState.handleSave).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByTestId("settings-page-general-reset"));
+    expect(personaState.handleReset).toHaveBeenCalledOnce();
+    expect(pageState.handleReset).toHaveBeenCalledOnce();
+  });
+
+  it("Should report a session-defaults save failure on the shared save bar", () => {
+    personaState.isDirty = true;
+    personaState.saveError = "defaults.model requires defaults.provider";
+    render(<GeneralSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-general-save-bar")).toHaveTextContent(
+      "defaults.model requires defaults.provider"
+    );
   });
 
   it("wires the save bar buttons to the page-level handlers", () => {

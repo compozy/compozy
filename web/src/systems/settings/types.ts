@@ -234,7 +234,6 @@ export interface SettingsSectionDescriptor {
 export type SettingsSectionSlug =
   | "general"
   | "terminal"
-  | "defaults"
   | "appearance"
   | "layouts"
   | "palette"

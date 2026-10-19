@@ -25300,7 +25300,13 @@
             "pattern": "^(?:|[a-z][a-z0-9_-]{0,105})$",
             "type": "string"
           },
+          "model": {
+            "type": "string"
+          },
           "provider": {
+            "type": "string"
+          },
+          "reasoning_effort": {
             "type": "string"
           }
         },

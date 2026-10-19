@@ -48,7 +48,6 @@ describe("useSettingsPage", () => {
     expect(result.current.sections.map(section => section.slug)).toEqual([
       "general",
       "terminal",
-      "defaults",
       "appearance",
       "layouts",
       "profiles",
