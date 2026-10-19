@@ -26,6 +26,14 @@ interface SessionSidebarContext {
    * window with no entry of its own starts from it.
    */
   byScope: Record<string, SessionSidebarScopeState>;
+  /**
+   * The window-manager partition (workspace + profile) whose snapshot listed
+   * each window scope. A snapshot only lists its own partition's windows, so a
+   * prune may drop only entries it owns: switching workspace or profile must
+   * not erase the other partition's windows, which are still saved. An entry
+   * no snapshot has listed yet is never pruned.
+   */
+  partitionByScope: Record<string, string>;
 }
 
 export const SESSION_SIDEBAR_STORAGE_KEY = "compozy:session:sidebar:v1";
@@ -84,7 +92,15 @@ function mergeSessionSidebarPreferences(
   for (const [scopeId, state] of Object.entries(persisted.byScope)) {
     byScope[scopeId] = normalizedScopeState(state);
   }
-  return { byScope };
+  const partitionByScope = { ...current.partitionByScope };
+  if (isRecord(persisted.partitionByScope)) {
+    for (const [scopeId, partition] of Object.entries(persisted.partitionByScope)) {
+      if (typeof partition === "string" && scopeId !== SHELL_WORKTREE_SCOPE) {
+        partitionByScope[scopeId] = partition;
+      }
+    }
+  }
+  return { byScope, partitionByScope };
 }
 
 /** Writes one scope and makes it the last-used state new windows inherit. */
@@ -95,6 +111,7 @@ function withScopeState(
 ): SessionSidebarContext {
   const next = update(resolveSessionSidebarScope(context.byScope, scopeId));
   return {
+    ...context,
     byScope: { ...context.byScope, [scopeId]: next, [SHELL_WORKTREE_SCOPE]: next },
   };
 }
@@ -104,7 +121,7 @@ function toggledFlag(flags: Record<string, boolean>, id: string): Record<string,
 }
 
 export const sessionSidebarLogic = createStoreLogic({
-  context: (): SessionSidebarContext => ({ byScope: {} }),
+  context: (): SessionSidebarContext => ({ byScope: {}, partitionByScope: {} }),
   on: {
     sidebarToggled: (context, event: { scopeId: string }) =>
       withScopeState(context, event.scopeId, state => ({ ...state, open: !state.open })),
@@ -137,6 +154,7 @@ export const sessionSidebarLogic = createStoreLogic({
         return;
       }
       return {
+        ...context,
         byScope: {
           ...context.byScope,
           [event.scopeId]: resolveSessionSidebarScope(context.byScope, event.scopeId),
@@ -146,14 +164,33 @@ export const sessionSidebarLogic = createStoreLogic({
     /**
      * Windows close from any client, so no single owner can release a scope
      * deterministically — the shell prunes against the live window set instead.
+     * Live scopes are claimed for the snapshot's partition; a closed scope is
+     * dropped only when that same partition claimed it.
      */
-    scopesPruned: (context, event: { liveScopeIds: readonly string[] }) => {
-      const live = new Set<string>([SHELL_WORKTREE_SCOPE, ...event.liveScopeIds]);
-      const entries = Object.entries(context.byScope);
-      if (entries.every(([scopeId]) => live.has(scopeId))) {
+    scopesPruned: (context, event: { partition: string; liveScopeIds: readonly string[] }) => {
+      const live = new Set(event.liveScopeIds);
+      const byScope = { ...context.byScope };
+      const partitionByScope = { ...context.partitionByScope };
+      let changed = false;
+      // Claim before seeding: a window can appear in the snapshot a commit
+      // before its rail mounts and seeds an entry.
+      for (const scopeId of live) {
+        if (partitionByScope[scopeId] !== event.partition) {
+          partitionByScope[scopeId] = event.partition;
+          changed = true;
+        }
+      }
+      for (const [scopeId, owner] of Object.entries(partitionByScope)) {
+        if (owner === event.partition && !live.has(scopeId)) {
+          delete partitionByScope[scopeId];
+          delete byScope[scopeId];
+          changed = true;
+        }
+      }
+      if (!changed) {
         return;
       }
-      return { byScope: Object.fromEntries(entries.filter(([scopeId]) => live.has(scopeId))) };
+      return { byScope, partitionByScope };
     },
   },
 });
@@ -182,6 +219,7 @@ function migrateSessionSidebarPreferences(
       : { collapsedThreads: normalizedCollapsedFlags(legacy.collapsedThreads) };
   return {
     byScope: { [SHELL_WORKTREE_SCOPE]: shell as unknown as SessionSidebarScopeState },
+    partitionByScope: {},
   };
 }
 
@@ -197,9 +235,16 @@ export const sessionSidebarStore = sessionSidebarLogic.createStore().with(
   })
 );
 
-/** Drops rail state for windows that no longer exist; the shell entry stays. */
-export function pruneSessionSidebarScopes(liveScopeIds: readonly string[]): void {
-  sessionSidebarStore.trigger.scopesPruned({ liveScopeIds });
+/**
+ * Drops rail state for closed windows of one window-manager partition (the
+ * workspace + profile whose snapshot lists `liveScopeIds`); other partitions'
+ * windows and the shell entry stay.
+ */
+export function pruneSessionSidebarScopes(
+  partition: string,
+  liveScopeIds: readonly string[]
+): void {
+  sessionSidebarStore.trigger.scopesPruned({ partition, liveScopeIds });
 }
 
 if (typeof window !== "undefined") {

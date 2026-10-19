@@ -29,6 +29,7 @@ import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
+import { useSessionSidebarScopePruning } from "./use-session-sidebar-scope-pruning";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
@@ -79,6 +80,7 @@ export function useDesktopChrome(
   const profileId = useProfileReadScope().destination;
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? "", profileId));
   const client = useWindowManagerClient(activeWorkspaceId, profileId);
+  useSessionSidebarScopePruning(profileId, query.data);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
   // to reach the shell's own keymap, or the chord would not dispatch until a
   // reload (US-022.AC-3).

@@ -2,8 +2,10 @@
 // Invariant: rail state is owned per window scope — two session windows never
 // share a toggle; a window without its own entry starts from the last-used
 // (shell) state; a persisted entry survives a reload; closed windows' entries
-// are pruned; every older global blob upgrades into the shell scope without
-// loss, and a pre-default blob's incidental `open: false` never masks the default.
+// are pruned only by the workspace/profile snapshot that listed them, so a
+// switch away and back keeps them; every older global blob upgrades into the
+// shell scope without loss, and a pre-default blob's incidental `open: false`
+// never masks the default.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -14,6 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const STORAGE_KEY = "compozy:session:sidebar:v1";
 const WINDOW_ONE = "win_one";
 const WINDOW_TWO = "win_two";
+const PARTITION_A = "ws_a\u0000default";
+const PARTITION_B = "ws_b\u0000default";
 
 /** A reload: fresh store and fresh scope context from the same module graph. */
 async function loadFreshSidebarState() {
@@ -138,15 +142,48 @@ describe("useSessionSidebarState", () => {
       two.current.toggleFolder("sfold-b");
     });
 
+    act(() => {
+      sidebar.pruneSessionSidebarScopes(PARTITION_A, [WINDOW_ONE, WINDOW_TWO]);
+    });
     // Closing a window unmounts its rail before the shell sees the new window set.
     one.unmount();
     act(() => {
-      sidebar.pruneSessionSidebarScopes([WINDOW_TWO]);
+      sidebar.pruneSessionSidebarScopes(PARTITION_A, [WINDOW_TWO]);
     });
 
     const byScope = sidebar.sessionSidebarStore.getSnapshot().context.byScope;
     expect(Object.keys(byScope).sort()).toEqual(["shell", WINDOW_TWO].sort());
     expect(byScope[WINDOW_TWO]?.collapsedFolders).toEqual({ "sfold-b": true });
+  });
+
+  it("Should keep another workspace's windows when switching away and back", async () => {
+    const sidebar = await loadFreshSidebarState();
+    const one = renderInScopeMounted(sidebar, WINDOW_ONE);
+    act(() => {
+      one.result.current.toggle();
+      one.result.current.toggleFolder("sfold-a");
+    });
+    act(() => {
+      sidebar.pruneSessionSidebarScopes(PARTITION_A, [WINDOW_ONE]);
+    });
+
+    // Switching to workspace B unmounts A's windows and lists only B's.
+    one.unmount();
+    const two = renderInScope(sidebar, WINDOW_TWO);
+    act(() => {
+      sidebar.pruneSessionSidebarScopes(PARTITION_B, [WINDOW_TWO]);
+      two.current.toggle();
+    });
+
+    // Back in A after a reload: window one keeps its own rail, not the last-used one.
+    const reloaded = await loadFreshSidebarState();
+    act(() => {
+      reloaded.pruneSessionSidebarScopes(PARTITION_A, [WINDOW_ONE]);
+    });
+    expect(renderInScope(reloaded, WINDOW_ONE).current).toMatchObject({
+      open: false,
+      collapsedFolderIds: ["sfold-a"],
+    });
   });
 
   it("Should move the old global rail into the shell scope without loss", async () => {

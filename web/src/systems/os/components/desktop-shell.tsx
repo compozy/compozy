@@ -10,11 +10,7 @@ import { useDesktopChromeController } from "../hooks/use-desktop-chrome-controll
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
-import {
-  useDesktopWorktreeScope,
-  useSessionSidebarScopePruning,
-  WindowScopeContext,
-} from "../hooks/use-worktree-scope";
+import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
 import type { WindowManagerRegisteredClientView } from "../lib/window-manager-types";
@@ -150,7 +146,6 @@ type DesktopWorktreeScope = ReturnType<typeof useDesktopWorktreeScope>;
 
 function DesktopShellBody(props: DesktopShellBodyProps) {
   const worktreeScope = useDesktopWorktreeScope(props.model.worktreeListing);
-  useSessionSidebarScopePruning();
 
   return (
     <WindowScopeContext value={worktreeScope.worktreeScopeId}>
