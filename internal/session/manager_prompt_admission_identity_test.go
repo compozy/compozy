@@ -387,21 +387,24 @@ func TestPromptAdmissionMentions(t *testing.T) {
 			want      []mention.Mention
 		}{
 			{
-				name: "admitted mentions",
+				name: "Should restore the admitted mentions",
 				raw:  `[{"kind":"file","token":"@a.go","target":"a.go","label":"a.go","start":5,"end":10}]`,
 				want: admitted,
 			},
-			{name: "row recorded before mentions existed", raw: store.EmptyMentionsJSON},
+			{name: "Should restore no mentions for a row recorded before mentions existed", raw: store.EmptyMentionsJSON},
 		} {
-			// Fresh resolution against a changed filesystem must not leak into the replayed request.
-			req := promptRequest{mentions: []mention.Mention{{Kind: mention.KindFile, Target: "fresh.go"}}}
-			bound, err := bindPromptAdmissionRequest(req, store.SessionPromptAdmission{MentionsJSON: tc.raw})
-			if err != nil {
-				t.Fatalf("%s: bindPromptAdmissionRequest() error = %v", tc.name, err)
-			}
-			if !slices.Equal(bound.mentions, tc.want) {
-				t.Fatalf("%s: bound mentions = %#v, want %#v", tc.name, bound.mentions, tc.want)
-			}
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				// Fresh resolution against a changed filesystem must not leak into the replayed request.
+				req := promptRequest{mentions: []mention.Mention{{Kind: mention.KindFile, Target: "fresh.go"}}}
+				bound, err := bindPromptAdmissionRequest(req, store.SessionPromptAdmission{MentionsJSON: tc.raw})
+				if err != nil {
+					t.Fatalf("bindPromptAdmissionRequest() error = %v", err)
+				}
+				if !slices.Equal(bound.mentions, tc.want) {
+					t.Fatalf("bound mentions = %#v, want %#v", bound.mentions, tc.want)
+				}
+			})
 		}
 	})
 
