@@ -14,6 +14,7 @@ const (
 	reasonNoChanges        = "No uncommitted changes to commit."
 	reasonCommitFirst      = "Commit changes before pushing branches."
 	reasonNoPendingPush    = "No commits pending push."
+	reasonUpstreamGone     = "Upstream is unavailable. Refresh forge status to check whether the PR was merged."
 	reasonPushFirst        = "Push commits before opening pull requests."
 	reasonDiverged         = "Branch has diverged from upstream. Rebase/merge first."
 	reasonBehind           = "Branch is behind upstream. Pull before creating a PR."
@@ -216,7 +217,21 @@ func buildExitActions(
 		dirty: dirty, detached: detached, hasRemote: hasRemote, hasUpstream: hasUpstream,
 		pendingPush: pendingPush, ahead: ahead, behind: behind, baseAhead: baseAhead, pause: pause,
 	})
+	blockGoneUpstreamActions(rows, status, pause)
 	return rows
+}
+
+func blockGoneUpstreamActions(rows []ExitActionPlan, status *Status, pause string) {
+	if pause != "" || status.HasUpstream == nil || !*status.HasUpstream || status.Ahead != nil {
+		return
+	}
+	for index := range rows {
+		action := &rows[index]
+		switch action.Action {
+		case ExitActionCommitPush, ExitActionPush, ExitActionOpenPR:
+			action.Enabled, action.BlockedReason = false, reasonUpstreamGone
+		}
+	}
 }
 
 type exitActionBlockState struct {

@@ -4,6 +4,16 @@ Fixtures use version `2`, named `agents`, and prompt-matched `turns` containing 
 `steps`. Use typed `match.turn_source` and `match.user_text` to select a turn. The mock
 driver runs as an ACP agent subprocess; see `testdata/` for complete fixtures.
 
+## Preparing the driver
+
+The Go CI shards build `cmd/acpmock-driver` once per job before running scenarios,
+with a separate five-minute setup budget. `COMPOZY_TEST_ACPMOCK_DRIVER_BIN` points
+every package and integration step in that job at the same executable. This keeps
+cold compilation out of scenario setup without changing any assertion or test
+deadline. The local fallback still builds lazily with its existing bounded context
+and shares the result across concurrent callers in each package process; its
+owning test clears the CI override so that fallback remains exercised.
+
 ## Calling hosted native tools
 
 `native_tool_call` executes a real native tool from the agent process through the
