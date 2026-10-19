@@ -283,14 +283,26 @@ func writeMentionReferenceLine(b *strings.Builder, info *session.Info) {
 	}
 	fmt.Fprintf(
 		b,
-		"- @session:%s · title \"%s\" · agent %s (%s) · state %s · updated %s\n",
+		"- @session:%s · title \"%s\"%s · state %s · updated %s\n",
 		mentionTextEscaper.Replace(id),
 		mentionTextEscaper.Replace(title),
-		mentionTextEscaper.Replace(strings.TrimSpace(info.AgentName)),
-		mentionTextEscaper.Replace(strings.TrimSpace(info.Provider)),
+		mentionAgentSegment(info),
 		mentionTextEscaper.Replace(string(session.BadgeForInfo(info))),
 		updated.UTC().Format(time.RFC3339),
 	)
+}
+
+// mentionAgentSegment renders " · agent <name> (<provider>)", dropping the parentheses when the
+// provider is unknown and the whole segment when the agent is unknown.
+func mentionAgentSegment(info *session.Info) string {
+	agent := mentionTextEscaper.Replace(strings.TrimSpace(info.AgentName))
+	if agent == "" {
+		return ""
+	}
+	if provider := mentionTextEscaper.Replace(strings.TrimSpace(info.Provider)); provider != "" {
+		return " · agent " + agent + " (" + provider + ")"
+	}
+	return " · agent " + agent
 }
 
 // writeMentionHistory writes one session's history within min(per-session, remaining block) budget,
