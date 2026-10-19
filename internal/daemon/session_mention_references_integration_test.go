@@ -35,6 +35,7 @@ type mentionIntegrationDaemon struct {
 	daemon      *Daemon
 	manager     *session.Manager
 	workspace   string
+	root        string
 	diagnostics string
 }
 
@@ -127,7 +128,9 @@ func newMentionIntegrationDaemon(t *testing.T, toolsEnabled bool) mentionIntegra
 	if !ok {
 		t.Fatal("real session manager missing")
 	}
-	return mentionIntegrationDaemon{daemon: d, manager: manager, workspace: workspace.ID, diagnostics: diagnostics}
+	return mentionIntegrationDaemon{
+		daemon: d, manager: manager, workspace: workspace.ID, root: root, diagnostics: diagnostics,
+	}
 }
 
 // registerMentionDeniedHistoryAgent writes a second agent for the shared fixture whose
