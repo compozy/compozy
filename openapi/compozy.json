@@ -23217,6 +23217,37 @@
         ],
         "type": "object"
       },
+      "SessionInputMentionPayload": {
+        "properties": {
+          "end": {
+            "type": "integer"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer"
+          },
+          "target": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "end",
+          "kind",
+          "label",
+          "start",
+          "target",
+          "token"
+        ],
+        "type": "object"
+      },
       "SessionInputPayload": {
         "properties": {
           "attachments": {
@@ -23237,6 +23268,12 @@
           },
           "idempotency_key": {
             "type": "string"
+          },
+          "mentions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionInputMentionPayload"
+            },
+            "type": "array"
           },
           "message_id": {
             "type": "string"

@@ -6388,12 +6388,22 @@ export type SessionInputListResponse = {
   queue?: SessionQueueSummaryPayload | null;
 };
 
+export type SessionInputMentionPayload = {
+  end: number;
+  kind: string;
+  label: string;
+  start: number;
+  target: string;
+  token: string;
+};
+
 export type SessionInputPayload = {
   attachments?: Array<PromptAttachmentRef>;
   delivery: string;
   enqueued_at: string;
   id: string;
   idempotency_key?: string;
+  mentions?: Array<SessionInputMentionPayload>;
   message_id?: string;
   mode: string;
   origin?: PromptOriginMeta | null;

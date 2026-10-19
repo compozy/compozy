@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskRunSessionPayload struct {
+	SessionID   string    `json:"session_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	State       string    `json:"state,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 type TaskRunStartParams struct {
 	ID             string `json:"id"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
@@ -294,10 +304,4 @@ type TerminalCommandStartedPayload struct {
 	Command     string    `json:"command"`
 	Cwd         string    `json:"cwd"`
 	DetectedBy  string    `json:"detected_by"`
-}
-
-type TerminalExit struct {
-	Cause  string  `json:"cause"`
-	Code   *int    `json:"code,omitempty"`
-	Signal *string `json:"signal,omitempty"`
 }

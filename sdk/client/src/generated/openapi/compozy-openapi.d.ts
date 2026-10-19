@@ -13113,6 +13113,14 @@ export interface components {
       inputs: components["schemas"]["SessionInputPayload"][];
       queue?: components["schemas"]["SessionQueueSummaryPayload"] | null;
     };
+    SessionInputMentionPayload: {
+      end: number;
+      kind: string;
+      label: string;
+      start: number;
+      target: string;
+      token: string;
+    };
     SessionInputPayload: {
       attachments?: components["schemas"]["PromptAttachmentRef"][];
       delivery: string;
@@ -13120,6 +13128,7 @@ export interface components {
       enqueued_at: string;
       id: string;
       idempotency_key?: string;
+      mentions?: components["schemas"]["SessionInputMentionPayload"][];
       message_id?: string;
       mode: string;
       origin?: components["schemas"]["PromptOriginMeta"] | null;

@@ -62,6 +62,16 @@ type SessionInputListResponse struct {
 	Queue  *SessionQueueSummaryPayload `json:"queue,omitzero"`
 }
 
+// SessionInputMentionPayload is a daemon API value.
+type SessionInputMentionPayload struct {
+	Kind   string `json:"kind"`
+	Token  string `json:"token"`
+	Target string `json:"target"`
+	Label  string `json:"label"`
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
+}
+
 // SessionInputPayload is a daemon API value.
 type SessionInputPayload struct {
 	Origin           *PromptOriginMeta               `json:"origin,omitzero"`
@@ -81,6 +91,7 @@ type SessionInputPayload struct {
 	EnqueuedAt       time.Time                       `json:"enqueued_at"`
 	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitzero"`
 	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
+	Mentions         []SessionInputMentionPayload    `json:"mentions,omitempty"`
 	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
 }
 
@@ -433,16 +444,4 @@ type SessionWaitResponse struct {
 	Until     []string `json:"until,omitempty"`
 	Revision  int64    `json:"revision"`
 	ResumeID  string   `json:"resume_id,omitempty"`
-}
-
-// SessionWorkspaceFacetsPayload is a daemon API value.
-type SessionWorkspaceFacetsPayload struct {
-	WorkspaceID string                      `json:"workspace_id"`
-	Facets      SessionCatalogFacetsPayload `json:"facets"`
-}
-
-// SetExtensionEnablementRequest is a daemon API value.
-type SetExtensionEnablementRequest struct {
-	Profile string `json:"profile"`
-	Enabled bool   `json:"enabled"`
 }

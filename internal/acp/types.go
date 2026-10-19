@@ -195,6 +195,9 @@ type PromptRequest struct {
 	Maintenance               bool
 	Sections                  []PromptSection
 	Attachments               []PromptAttachment
+	SessionReferences         string               // rendered session-references block; empty when none
+	MentionLinks              []PromptResourceLink // distinct file/folder targets, first-mention order
+	MentionDelivery           PromptMentionDelivery
 	Meta                      PromptMeta
 	ActivityReporter          PromptActivityReporter
 	ActivityHeartbeatInterval time.Duration

@@ -2688,6 +2688,7 @@ export type {
   SessionHistoryResponse,
   SessionInputClearResponse,
   SessionInputListResponse,
+  SessionInputMentionPayload,
   SessionInputPayload,
   SessionInputResponse,
   SessionInspectResponse,

@@ -2233,6 +2233,15 @@ export interface InputAttachmentMetadata {
   kind: string;
 }
 
+export interface InputMentionMetadata {
+  kind: string;
+  token: string;
+  target: string;
+  label: string;
+  start: number;
+  end: number;
+}
+
 export interface InputPreSubmitPayload {
   event: HookEvent;
   timestamp: ISODateTime;
@@ -2255,6 +2264,7 @@ export interface InputPreSubmitPayload {
   message?: string;
   context_blocks?: ContextBlock[];
   attachments?: InputAttachmentMetadata[];
+  mentions?: InputMentionMetadata[];
 }
 
 export interface ListLogsParams {
