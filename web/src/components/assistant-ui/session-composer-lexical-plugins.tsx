@@ -12,10 +12,13 @@ import {
   COMMAND_PRIORITY_CRITICAL,
   COMMAND_PRIORITY_HIGH,
   KEY_ENTER_COMMAND,
+  KEY_ESCAPE_COMMAND,
   PASTE_COMMAND,
   type RangeSelection,
 } from "lexical";
 import { useEffect, useEffectEvent } from "react";
+
+import { detectMentionTrigger, type SessionMentionTrigger } from "./session-mention-model";
 
 export interface SessionComposerInputHandle {
   clear: () => void;
@@ -254,6 +257,55 @@ export function SessionCommandScopePlugin({
         updateScope(prefix.trim().length === 0 ? "standalone" : "inline");
       });
     });
+  }, [editor]);
+
+  return null;
+}
+
+/**
+ * Publishes the live `@` occurrence before the caret (or `null`) so the
+ * mention picker searches what the operator is typing, and lets Esc dismiss
+ * that occurrence — above the library's handlers, so the `@` stays closed
+ * while typing continues after it (US-004.AC-1). Lexical drops key commands
+ * during IME composition, so composition always wins (US-004.EC-1).
+ */
+export function SessionMentionTriggerPlugin({
+  onTrigger,
+  onEscape,
+}: {
+  onTrigger: (trigger: SessionMentionTrigger | null) => void;
+  /** Returns true when an open picker consumed the key. */
+  onEscape: () => boolean;
+}) {
+  const [editor] = useLexicalComposerContext();
+  const publish = useEffectEvent(onTrigger);
+  const escape = useEffectEvent(onEscape);
+
+  useEffect(() => {
+    const unregisterUpdate = editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection) || !selection.isCollapsed()) {
+          publish(null);
+          return;
+        }
+        const snapshot = readCursorSnapshot(selection);
+        publish(snapshot ? detectMentionTrigger(snapshot.text, snapshot.cursor) : null);
+      });
+    });
+    const unregisterEscape = editor.registerCommand(
+      KEY_ESCAPE_COMMAND,
+      event => {
+        if (!escape()) return false;
+        event?.preventDefault();
+        return true;
+      },
+      COMMAND_PRIORITY_CRITICAL
+    );
+    return () => {
+      unregisterUpdate();
+      unregisterEscape();
+    };
   }, [editor]);
 
   return null;
