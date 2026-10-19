@@ -16,6 +16,10 @@ import { expectFetchRequest } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
 import { providerListOptions, type ProviderSummary } from "@/systems/providers";
 
+import { primaryAgentFixture } from "@/systems/agent/testing";
+import { agentsListOptions } from "@/systems/agent";
+import { sessionFoldersOptions } from "../../lib/session-catalog-options";
+
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionPayload } from "../../types";
@@ -744,7 +748,7 @@ describe("SessionList provider marks", () => {
   });
   const rowButton = (id: string) => screen.getByTestId(`session-sidebar-session-${id}`);
 
-  it("names root and nested rows in catalog display names and shows none before the first bind", () => {
+  it("names root and nested rows and identifies an unselected runtime", () => {
     renderList({
       sessions: [
         row("root", { runtime: runtime("codex", "gpt-6.1-sol") }),
@@ -774,13 +778,76 @@ describe("SessionList provider marks", () => {
       )
     ).toHaveAttribute("data-kind", "claude");
     expect(rowButton("child")).toHaveAccessibleName(/Session child\s*Claude Code/);
-    expect(screen.queryByTestId("session-provider-mark-unbound")).not.toBeInTheDocument();
-    expect(rowButton("unbound")).toHaveAccessibleName(/Session unbound\s*frontend-engineer-agent/);
+    expect(screen.getByTestId("session-provider-mark-unbound")).toHaveAttribute(
+      "data-kind",
+      "unknown"
+    );
+    expect(rowButton("unbound")).toHaveAccessibleName(
+      /Session unbound\s*Runtime not selected frontend-engineer-agent/
+    );
   });
 
-  // Invariant: a child running its root's agent on its root's provider and model drops
-  // the repeated who line, yet still names its runtime and agent; any difference keeps it.
-  it("collapses a child that repeats its root's agent, provider, and model, keeping its spoken runtime", () => {
+  it.each(["released", "detached", "stopped"])(
+    "shows the recorded runtime for %s sessions",
+    state => {
+      renderList({
+        sessions: [
+          row(state, {
+            state: state === "stopped" ? "stopped" : "active",
+            runtime: {
+              status: "unbound",
+              selection_revision: 1,
+              last_known: { provider: "codex", model: "gpt-6.1-sol" },
+              selected: { provider: "claude" },
+            },
+          }),
+        ],
+      });
+      expect(screen.getByTestId(`session-provider-mark-${state}`)).toHaveAttribute(
+        "data-kind",
+        "codex"
+      );
+      expect(rowButton(state)).toHaveAccessibleName(/Codex · GPT-6\.1 Sol frontend-engineer-agent/);
+    }
+  );
+
+  it("uses the selected runtime before defaults and resolves never-bound defaults in the owner scope", async () => {
+    const unbound = row("fresh", {
+      workspace_id: "ws",
+      profile_name: "marketing",
+      runtime: { status: "unbound", selection_revision: 0 },
+    });
+    const { queryClient } = renderList({
+      sessions: [
+        unbound,
+        row("selected", {
+          runtime: {
+            status: "unbound",
+            selection_revision: 1,
+            selected: { provider: "claude", model: "claude-opus-5-5" },
+          },
+        }),
+      ],
+    });
+    act(() =>
+      queryClient.setQueryData(agentsListOptions("ws", "marketing").queryKey, [
+        {
+          ...primaryAgentFixture,
+          name: unbound.agent_name,
+          effective_runtime: {
+            provider: "codex",
+            model: "gpt-6.1-sol",
+            sources: { provider: "project_default", model: "provider_default" },
+          },
+        },
+      ])
+    );
+    await waitFor(() => expect(rowButton("fresh")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol/));
+    expect(rowButton("selected")).toHaveAccessibleName(/Claude Code · Claude Opus 5.5/);
+  });
+
+  // Invariant: every child retains its runtime and agent, even when they match its root.
+  it("shows a child's runtime even when it repeats its root", () => {
     const lineage = (parent: string): SessionPayload["lineage"] => ({
       parent_session_id: parent,
       root_session_id: parent,
@@ -799,7 +866,7 @@ describe("SessionList provider marks", () => {
       ],
     });
 
-    expect(screen.queryByTestId("session-provider-mark-same")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-provider-mark-same")).toHaveAttribute("data-kind", "codex");
     expect(rowButton("same")).toHaveAccessibleName(
       /Session same\s*Codex · GPT-6\.1 Sol frontend-engineer-agent/
     );
@@ -947,6 +1014,58 @@ describe("SessionList folders and manual order", () => {
     renderList({ sessions: layoutRows, view: { ...view, sort, layout }, onNewSession });
     return { layout, onNewSession };
   }
+
+  it("Should keep folders and moves inside their owning profile in the aggregate", async () => {
+    const groups = [
+      {
+        owner: { id: "default", name: "default", archived: false },
+        workspaceId: "ws",
+        folders: [folderA],
+        canCreateSession: true,
+      },
+      {
+        owner: { id: "other", name: "other", archived: false },
+        workspaceId: "ws",
+        folders: [{ ...folderB, profile_id: "other" }],
+        canCreateSession: false,
+      },
+    ];
+    const { queryClient } = renderList({
+      sessions: [
+        { ...layoutRows[1]!, profile_id: "default", profile_name: "default" },
+        {
+          ...layoutRows[0]!,
+          id: "foreign",
+          folder_id: "fb",
+          profile_id: "other",
+          profile_name: "other",
+        },
+      ],
+      view: {
+        ...view,
+        aggregate: true,
+        profileFolderGroups: groups,
+        ownerOf: session => groups.find(group => group.owner.id === session.profile_id)!.owner,
+      },
+    });
+    act(() => {
+      for (const group of groups)
+        queryClient.setQueryData(
+          sessionFoldersOptions({ workspaceId: "ws", profile: group.owner.name }).queryKey,
+          group.folders
+        );
+    });
+    const alpha = await screen.findByTestId("session-sidebar-folder-fa");
+    const beta = await screen.findByTestId("session-sidebar-folder-fb");
+    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+    expect(within(beta).getByTestId("session-sidebar-session-foreign")).toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-folder-fb-new-session")).toBeDisabled();
+    const source = screen.getByTestId("session-sidebar-session-f1");
+    fireEvent.dragStart(source, { dataTransfer: { setData: vi.fn() } });
+    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
+    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
+    fireEvent.dragEnd(source);
+  });
 
   it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
     const user = userEvent.setup();

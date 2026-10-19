@@ -60,7 +60,21 @@ export function useSessionListFolderLayout(
     /** Threads on screen in order; bulk selection and range picks follow it. */
     visibleThreads: sections
       ? sectionsVisibleThreads(sections, collapsedFolders, filtering)
-      : threads,
+      : view.profileFolderGroups?.length
+        ? view.profileFolderGroups.flatMap(group => {
+            const owned = threads.filter(thread => thread.session.profile_id === group.owner.id);
+            return group.folders
+              ? sectionsVisibleThreads(
+                  buildSessionListSections(owned, group.folders, {
+                    filtering,
+                    archived: view.archived,
+                  }),
+                  collapsedFolders,
+                  filtering
+                )
+              : owned;
+          })
+        : threads,
     dnd,
     dialog,
     setDialog,

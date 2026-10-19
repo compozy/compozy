@@ -23965,6 +23965,19 @@
             "format": "int64",
             "type": "integer"
           },
+          "last_known": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RuntimeSelectionPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "recovery": {
             "oneOf": [
               {

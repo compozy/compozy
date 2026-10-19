@@ -129,8 +129,10 @@ type SessionRuntimePayload struct {
 	Selected          *PromptRuntimeSelectionPayload    `json:"selected,omitempty"`
 	SelectionRevision int64                             `json:"selection_revision"`
 	Effective         *RuntimeSelectionPayload          `json:"effective,omitempty"`
-	ACPSessionID      string                            `json:"acp_session_id,omitempty"`
-	ACPCaps           *ACPCapsPayload                   `json:"acp_caps,omitempty"`
+	// LastKnown preserves the recorded runtime identity independently of the current ACP binding.
+	LastKnown    *RuntimeSelectionPayload `json:"last_known,omitempty"`
+	ACPSessionID string                   `json:"acp_session_id,omitempty"`
+	ACPCaps      *ACPCapsPayload          `json:"acp_caps,omitempty"`
 }
 
 // SessionRuntimeRecoveryPayload reports bounded automatic recovery progress.

@@ -96,7 +96,6 @@ export function SessionListThread({
       <div key={child.id} className={CHILD_NODE}>
         <SessionListRow
           session={child}
-          parent={session}
           // A child in its root's profile repeats nothing; only a different owner is tagged.
           owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}
           current={child.id === currentSessionId}

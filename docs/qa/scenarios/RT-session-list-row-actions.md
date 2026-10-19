@@ -43,3 +43,6 @@ returns successfully, and a terminal 404/410 does not cause recurring control po
 A failed cold roster page must stop automatic pagination until an explicit retry.
 Record the session slice separately from this scenario's broader coverage in
 `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
+
+
+Issue #832 verification extension (pending): every root and child row retains its runtime mark and agent in active, released, detached, never-bound and stopped states. All profiles in workspace scope groups folders by owning profile; rename and reorder target that owner, cross-profile moves are unavailable, and session cycling skips collapsed folders. Compare against the single-profile view and reload after mutations.

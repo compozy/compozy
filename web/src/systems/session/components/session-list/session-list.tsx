@@ -14,6 +14,7 @@ import { emptyForScope } from "@/systems/profiles";
 import { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
+import { SessionListProfileGroup } from "./session-list-profile-group";
 import { SessionListSections } from "./session-list-sections";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
 import { SessionListThreadList } from "./session-list-thread-list";
@@ -140,7 +141,28 @@ export function SessionList({
           </AlertActions>
         </Alert>
       ) : null}
-      {sections && layout ? (
+      {view.profileFolderGroups?.length ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5">
+          {view.profileFolderGroups.map(group => (
+            <SessionListProfileGroup
+              key={group.owner.id}
+              group={group}
+              view={view}
+              threads={threads.filter(thread => thread.session.profile_id === group.owner.id)}
+              filtering={filtering}
+              collapsedThreads={collapsedThreads}
+              currentSessionId={currentSessionId}
+              onToggleThread={onToggleThread}
+              onSelectSession={onSelectSession}
+              onNewSessionInFolder={folderId => onNewSession({ folderId })}
+              selection={bulk.rowSelection}
+              sessionActions={sessionActions}
+              testIdPrefix={testIdPrefix}
+            />
+          ))}
+          {view.catalog ? <SessionListCatalogNavigation catalog={view.catalog} /> : null}
+        </div>
+      ) : sections && layout ? (
         <SessionListFolderBody
           sections={sections}
           layout={layout}

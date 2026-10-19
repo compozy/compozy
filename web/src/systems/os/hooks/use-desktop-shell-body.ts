@@ -276,6 +276,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
           collapsedThreadIds: new Set(collapsedThreadIds),
           collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
           folders: options.sessionListView.layout?.folders,
+          profileFolderGroups: options.sessionListView.profileFolderGroups,
           collapsedFolderIds: new Set(collapsedFolderIds),
           archived: options.sessionListView.archived,
           filtering: (options.sessionListView.search ?? "").trim() !== "",

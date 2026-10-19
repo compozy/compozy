@@ -261,9 +261,15 @@ compozy session runtime set sess-1234 \
   --acp-toggle thinking=true
 ```
 
-Session reads expose `runtime.selected`, `runtime.selection_revision`, and `runtime.effective`.
+Session reads expose `runtime.selected`, `runtime.selection_revision`, `runtime.effective`, and
+`runtime.last_known`.
 `selected` survives stops and daemon restarts; `effective` describes the runtime already applied to
-the current process. Runtime fields resolve from provider/project and agent defaults, then durable
+the current process. `last_known` preserves the recorded provider, model, reasoning effort and speed
+after idle release, detachment or stop. It is absent before any runtime identity has been recorded
+and does not imply a live process. Session-list rows prefer `effective`, then `last_known`, then the
+selected runtime or the owning agent’s configured defaults.
+
+Runtime fields resolve from provider/project and agent defaults, then durable
 `selected`, then the prompt snapshot. Each higher layer replaces only the fields or option IDs it sets.
 
 HTTP and UDS use `PUT /api/workspaces/:workspace/sessions/:id/runtime` with the complete `runtime`

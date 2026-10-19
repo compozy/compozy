@@ -13275,6 +13275,7 @@ export interface components {
       failure?: string;
       /** Format: int64 */
       generation?: number;
+      last_known?: components["schemas"]["RuntimeSelectionPayload"] | null;
       recovery?: components["schemas"]["SessionRuntimeRecoveryPayload"] | null;
       selected?: components["schemas"]["PromptRuntimeSelectionPayload"] | null;
       /** Format: int64 */

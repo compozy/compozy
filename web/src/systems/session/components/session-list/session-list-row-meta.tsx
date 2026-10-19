@@ -13,7 +13,7 @@ import type { SessionPayload } from "../../types";
  */
 export function SessionListRowWho({ session, meta }: { session: SessionPayload; meta: RowMeta }) {
   const parts: { key: string; kind: "agent" | "attention" | "note"; text: string }[] = [];
-  if (!meta.inherits) parts.push({ key: "agent", kind: "agent", text: session.agent_name });
+  parts.push({ key: "agent", kind: "agent", text: session.agent_name });
   meta.attention.forEach((text, index) =>
     parts.push({ key: `attention-${index}`, kind: "attention", text })
   );

@@ -55,8 +55,10 @@ without starting a provider process: its nested status is `runtime.status="unbou
 `runtime.effective` selection. Send the first prompt to bind a provider. Read the nested `runtime`
 object from `session status -o json` (or any session read), rather than inferring process state from
 the top-level session state: it reports `status`, `transition`, redacted `failure`, `selected`,
-`selection_revision`, `effective`, ACP session ID, and advertised ACP capabilities. `selected` is
-durable next-prompt intent; `effective` is the runtime already bound to the current process.
+`selection_revision`, `effective`, `last_known`, ACP session ID, and advertised ACP capabilities.
+`selected` is durable next-prompt intent; `effective` is the runtime already bound to the current
+process. `last_known` retains recorded runtime identity after release, detachment or stop; it does
+not prove a live binding and is absent when no runtime identity has been recorded.
 Authenticated `/agent/context.self.model` and the fresh situation supplied with each prompt use
 the session's effective model when present, ahead of the configured agent default. A pending
 next-prompt selection does not replace that identity before it is applied.

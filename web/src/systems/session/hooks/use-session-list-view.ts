@@ -1,9 +1,19 @@
+import { useQueries } from "@tanstack/react-query";
+
 import { useState } from "react";
 
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
-import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
+import {
+  useProfileReadScope,
+  useProfiles,
+  type ProfileOwner,
+  type ProfileOwnerLabel,
+} from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
+
+import { sessionFoldersOptions } from "../lib/session-catalog-options";
+import type { SessionFolderPayload } from "../types";
 
 import { useSessionListPreferences } from "./use-session-list-preferences";
 import {
@@ -19,7 +29,15 @@ import {
   type SessionListSort,
 } from "../lib/session-list-preferences";
 
+export interface SessionProfileFolderGroup {
+  owner: ProfileOwner;
+  workspaceId: string;
+  folders?: SessionFolderPayload[];
+  canCreateSession: boolean;
+}
+
 export interface SessionListViewModel {
+  profileFolderGroups?: SessionProfileFolderGroup[];
   catalog?: ReturnType<typeof useSessionCatalog>;
   search?: string;
   setSearch?: (search: string) => void;
@@ -46,7 +64,7 @@ export interface SessionListViewModel {
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
   /**
    * Folders and manual order of this workspace for the acting profile. Absent in
-   * the widest scope and under the profile aggregate, where rows stay flat.
+   * the widest scope; the profile aggregate carries one layout group per owner.
    */
   layout?: SessionListLayout;
   /** The worktree the catalog is narrowed to; other worktrees' sessions are hidden. */
@@ -104,6 +122,11 @@ export function useSessionListView(
     workspaceScoped && (scope === "global" || workspaceId !== null)
   );
 
+  const profileFolderGroups = useProfileFolderGroups(
+    workspaceScoped && profile.aggregate ? workspaceId : null,
+    profile.destination
+  );
+
   const folders = useSessionFolders({
     workspaceId,
     profile: profile.destination,
@@ -111,6 +134,7 @@ export function useSessionListView(
   });
 
   return {
+    profileFolderGroups: workspaceScoped && profile.aggregate ? profileFolderGroups : undefined,
     layout: folders.layout,
     layoutError: folders.loadError,
     worktreeId: options.worktreeId,
@@ -141,4 +165,23 @@ export function useSessionListView(
         return next;
       }),
   };
+}
+
+function useProfileFolderGroups(
+  workspaceId: string | null,
+  destination: string
+): SessionProfileFolderGroup[] {
+  const profiles = useProfiles(workspaceId !== null);
+  const owners = workspaceId ? (profiles.data ?? []) : [];
+  const folderQueries = useQueries({
+    queries: owners.map(owner =>
+      sessionFoldersOptions({ workspaceId: workspaceId ?? "", profile: owner.name })
+    ),
+  });
+  return owners.map((owner, index) => ({
+    owner: { ...owner, archived: owner.archived_at != null },
+    workspaceId: workspaceId ?? "",
+    folders: folderQueries[index]?.data,
+    canCreateSession: owner.name === destination,
+  }));
 }

@@ -75,7 +75,10 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		UpdatedAt:           info.UpdatedAt,
 	}
 	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
-		payload.Runtime.Effective = runtime
+		payload.Runtime.LastKnown = runtime
+		if runtimeHasEffectiveSelection(info) {
+			payload.Runtime.Effective = runtime
+		}
 	}
 	if caps := contract.ACPCapsPayloadFromACP(info.ACPCaps, info.ACPCapsKnown); caps != nil {
 		payload.Runtime.ACPCaps = caps
@@ -166,7 +169,7 @@ func PendingInteractionPayloadsFromStore(values []store.PendingInteraction) []co
 }
 
 func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelectionPayload {
-	if info == nil || !runtimeHasEffectiveSelection(info) || strings.TrimSpace(info.Provider) == "" {
+	if info == nil || strings.TrimSpace(info.Provider) == "" {
 		return nil
 	}
 	return &contract.RuntimeSelectionPayload{

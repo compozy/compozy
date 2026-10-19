@@ -67,3 +67,6 @@ cache. Wait for the remembered Global selection before preloading profile-specif
 creation still targets marketing while listings remain all-profiles. A failed selection read blocks
 those preloads instead of falling back to default. The canonical route-preloading integration suite
 owns scope, destination, failure and cache-reuse assertions.
+
+
+Issue #832 verification extension (pending): every root and child row retains its runtime mark and agent in active, released, detached, never-bound and stopped states. All profiles in workspace scope groups folders by owning profile; rename and reorder target that owner, cross-profile moves are unavailable, and session cycling skips collapsed folders. Compare against the single-profile view and reload after mutations.

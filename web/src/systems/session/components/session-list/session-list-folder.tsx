@@ -22,7 +22,7 @@ export interface SessionListFolderProps {
   count: number;
   expanded: boolean;
   onToggle: () => void;
-  onNewSession: () => void;
+  onNewSession?: () => void;
   onRename: () => void;
   onDelete: () => void;
   onMoveUp?: () => void;
@@ -108,7 +108,11 @@ export function SessionListFolder({
           onKeyDown={openContextMenuFromKeyboard}
         />
         <ContextMenuContent className="min-w-52">
-          <ContextMenuItem data-testid={`${testId}-menu-new-session`} onClick={onNewSession}>
+          <ContextMenuItem
+            data-testid={`${testId}-menu-new-session`}
+            disabled={!onNewSession}
+            onClick={onNewSession}
+          >
             <Plus aria-hidden="true" className="size-3" />
             New session in folder
           </ContextMenuItem>
@@ -153,6 +157,7 @@ export function SessionListFolder({
           <button
             type="button"
             data-testid={`${testId}-new-session`}
+            disabled={!onNewSession}
             onClick={onNewSession}
             className="flex items-center gap-2 rounded-md px-2 py-1 text-left text-small-body text-subtle transition-colors hover:bg-surface-2 hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
           >

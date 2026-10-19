@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
 import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
-import { useSessionRuntimeLabel } from "../../hooks/use-session-runtime-label";
+import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
@@ -28,11 +28,6 @@ export interface SessionListRowProps {
    * child in its root's profile repeats it (US-011.AC-1).
    */
   owner?: ProfileOwner;
-  /**
-   * The thread root of a child row. A child running the same agent on the same
-   * provider and model inherits the root's meta line and renders as a single line.
-   */
-  parent?: SessionPayload;
   current?: boolean;
   onSelect: () => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -93,7 +88,6 @@ export function SessionListRow(props: SessionListRowProps) {
 function SessionListRowBody({
   session,
   owner,
-  parent,
   current = false,
   onSelect,
   sessionActions,
@@ -106,11 +100,11 @@ function SessionListRowBody({
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
   const subagentCounts = sessionSubagentCounts(session);
-  const runtime = useSessionRuntimeLabel(session.runtime?.effective);
+  const runtime = useSessionRowRuntimeLabel(session);
   const signal = sessionBadgeSignal(session.badge);
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
   const actionsVisible = showActions && !selection?.mode;
-  const meta = rowMeta({ session, parent, owner, runtime, signal, orphanedSubagent });
+  const meta = rowMeta({ session, runtime, signal, orphanedSubagent });
   const hasTrailing = subagentCounts !== null || trailing !== undefined;
   return (
     <>
@@ -141,14 +135,12 @@ function SessionListRowBody({
           owner={owner}
           meta={meta}
           mark={
-            meta.inherits ? null : (
-              <SessionListProviderMark
-                sessionId={session.id}
-                runtime={runtime}
-                keyboardFocus={keyboardFocus}
-                onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
-              />
-            )
+            <SessionListProviderMark
+              sessionId={session.id}
+              runtime={runtime}
+              keyboardFocus={keyboardFocus}
+              onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
+            />
           }
           trailing={
             hasTrailing ? (
