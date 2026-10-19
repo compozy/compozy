@@ -1037,11 +1037,11 @@ func TestNewPromptResourceLink(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		rel     string
-		abs     string
-		folder  bool
-		want    PromptResourceLink
+		name   string
+		rel    string
+		abs    string
+		folder bool
+		want   PromptResourceLink
 	}{
 		{
 			name: "Should percent-encode spaces and reserved characters in the URI only",

@@ -143,6 +143,15 @@ type InputAttachmentMetadata struct {
 	Kind  string `json:"kind"`
 }
 
+type InputMentionMetadata struct {
+	Kind   string `json:"kind"`
+	Token  string `json:"token"`
+	Target string `json:"target"`
+	Label  string `json:"label"`
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
+}
+
 type InputPreSubmitPatch struct {
 	Deny          bool           `json:"deny,omitempty"`
 	DenyReason    string         `json:"deny_reason,omitempty"`
@@ -172,6 +181,7 @@ type InputPreSubmitPayload struct {
 	Message        string                    `json:"message,omitempty"`
 	ContextBlocks  []ContextBlock            `json:"context_blocks,omitempty"`
 	Attachments    []InputAttachmentMetadata `json:"attachments,omitempty"`
+	Mentions       []InputMentionMetadata    `json:"mentions,omitempty"`
 }
 
 type IssueSeverity string
@@ -181,23 +191,3 @@ const (
 	IssueSeverityWarning IssueSeverity = "warning"
 	IssueSeverityWarn    IssueSeverity = "warn"
 )
-
-type Job struct {
-	ID          string          `json:"id"`
-	ProfileID   string          `json:"profile_id"`
-	Scope       Scope           `json:"scope"`
-	Name        string          `json:"name"`
-	TargetKind  TargetKind      `json:"target_kind"`
-	AgentName   string          `json:"agent_name"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Prompt      string          `json:"prompt"`
-	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
-	Task        *JobTaskConfig  `json:"task,omitempty"`
-	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
-	Enabled     bool            `json:"enabled"`
-	Retry       RetryConfig     `json:"retry"`
-	FireLimit   FireLimitConfig `json:"fire_limit"`
-	Source      JobSource       `json:"source"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
-}

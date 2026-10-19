@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -24,6 +25,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -2820,8 +2822,11 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 	pending := session.PendingInput{
 		ID: "inq-1", SessionID: "sess-123", MessageID: "msg-1", IdempotencyKey: "idem-1",
 		Status: store.SessionInputQueueStatusQueued, Mode: session.BusyInputModeQueue,
-		Delivery: store.SessionInputDeliveryAfterTurn, Text: "queued input",
+		Delivery: store.SessionInputDeliveryAfterTurn, Text: "queued input @web/src",
 		QueueGeneration: 4, EnqueuedAt: now,
+		Mentions: []mention.Mention{{
+			Kind: mention.KindFolder, Token: "@web/src", Target: "web/src/", Label: "src/", Start: 13, End: 21,
+		}},
 	}
 	var replaceOpts session.ReplacePendingInputOpts
 	var promoteOpts session.PromotePendingInputOpts
@@ -2892,6 +2897,12 @@ func TestSessionInputHandlersExposeAuthoritativeQueueMutations(t *testing.T) {
 		if len(response.Inputs) != 1 || response.Inputs[0].ID != pending.ID ||
 			response.Inputs[0].Delivery != contract.PromptDeliveryAfterTurn {
 			t.Fatalf("inputs = %#v, want authoritative pending input", response.Inputs)
+		}
+		wantMentions := []contract.SessionInputMentionPayload{{
+			Kind: "folder", Token: "@web/src", Target: "web/src/", Label: "src/", Start: 13, End: 21,
+		}}
+		if !reflect.DeepEqual(response.Inputs[0].Mentions, wantMentions) {
+			t.Fatalf("input mentions = %#v, want %#v", response.Inputs[0].Mentions, wantMentions)
 		}
 	})
 

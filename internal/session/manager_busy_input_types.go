@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -29,6 +30,7 @@ type PendingInput struct {
 	EnqueuedAt       time.Time
 	Runtime          *RuntimeSelection
 	SkillInvocations []commandpkg.Invocation
+	Mentions         []mention.Mention
 	Attachments      []AttachmentMeta
 }
 

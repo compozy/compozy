@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type TaskRunAttachSessionParams struct {
+	ID        string `json:"id"`
+	SessionID string `json:"session_id"`
+}
+
 type TaskRunCancelParams struct {
 	ID       string          `json:"id"`
 	Reason   string          `json:"reason,omitempty"`
@@ -443,14 +448,4 @@ type TaskRunResultParams struct {
 	ID     string `json:"id"`
 	Offset int64  `json:"offset,omitempty"`
 	Limit  int64  `json:"limit,omitempty"`
-}
-
-type TaskRunSessionPayload struct {
-	SessionID   string    `json:"session_id"`
-	WorkspaceID string    `json:"workspace_id,omitempty"`
-	AgentName   string    `json:"agent_name,omitempty"`
-	Name        string    `json:"name,omitempty"`
-	State       string    `json:"state,omitempty"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
 }

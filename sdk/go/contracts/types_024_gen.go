@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type TerminalExit struct {
+	Cause  string  `json:"cause"`
+	Code   *int    `json:"code,omitempty"`
+	Signal *string `json:"signal,omitempty"`
+}
+
 type TerminalInputProvidedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -324,9 +330,4 @@ type Trigger struct {
 	CreatedAt            time.Time                 `json:"created_at"`
 	UpdatedAt            time.Time                 `json:"updated_at"`
 	LastRun              *AutomationLastRunPayload `json:"last_run,omitzero"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
 }

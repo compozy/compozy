@@ -4,6 +4,17 @@ package client
 
 import "time"
 
+// SetExtensionEnablementRequest is a daemon API value.
+type SetExtensionEnablementRequest struct {
+	Profile string `json:"profile"`
+	Enabled bool   `json:"enabled"`
+}
+
+// SetExtensionSecretsRequest is a daemon API value.
+type SetExtensionSecretsRequest struct {
+	Bindings []ExtensionSecretBindingInput `json:"bindings"`
+}
+
 // SetSessionRuntimeRequest is a daemon API value.
 type SetSessionRuntimeRequest struct {
 	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`
