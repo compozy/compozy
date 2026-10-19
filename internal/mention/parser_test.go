@@ -158,6 +158,22 @@ func TestParse(t *testing.T) {
 			t.Fatalf("Parse() first/last = %q/%q, want x0/x199", got[0].Path, got[len(got)-1].Path)
 		}
 	})
+
+	t.Run("Should count the candidate tokens past MaxCandidateTokens", func(t *testing.T) {
+		t.Parallel()
+		words := make([]string, 250)
+		for index := range words {
+			words[index] = fmt.Sprintf("@x%d", index)
+		}
+		got, skipped := mention.ParseCounted(strings.Join(words, " ") + " `@code` me@example.com")
+		if len(got) != mention.MaxCandidateTokens || skipped != 50 {
+			t.Fatalf("ParseCounted() = %d tokens, %d skipped; want %d and 50", len(got), skipped,
+				mention.MaxCandidateTokens)
+		}
+		if tokens, skipped := mention.ParseCounted("read @a.go"); len(tokens) != 1 || skipped != 0 {
+			t.Fatalf("ParseCounted(one token) = %#v, %d skipped", tokens, skipped)
+		}
+	})
 }
 
 func TestReconcile(t *testing.T) {

@@ -30,6 +30,21 @@ const sessionPrefix = "session:"
 // Start and End are UTF-16 code-unit offsets into text, matching the offset
 // model the web composer and internal/command use.
 func Parse(text string) []Token {
+	tokens, _ := ParseCounted(text)
+	return tokens
+}
+
+// ParseCounted is Parse plus the number of candidate tokens past MaxCandidateTokens that were left
+// as plain text without being returned.
+func ParseCounted(text string) ([]Token, int) {
+	tokens := parseAll(text)
+	if len(tokens) <= MaxCandidateTokens {
+		return tokens, 0
+	}
+	return tokens[:MaxCandidateTokens:MaxCandidateTokens], len(tokens) - MaxCandidateTokens
+}
+
+func parseAll(text string) []Token {
 	if !strings.Contains(text, "@") {
 		return nil
 	}
@@ -37,7 +52,7 @@ func Parse(text string) []Token {
 	var tokens []Token
 	cursor := utf16Cursor{text: text}
 	regionIndex := 0
-	for offset := 0; offset < len(text) && len(tokens) < MaxCandidateTokens; {
+	for offset := 0; offset < len(text); {
 		for regionIndex < len(code) && code[regionIndex].end <= offset {
 			regionIndex++
 		}
