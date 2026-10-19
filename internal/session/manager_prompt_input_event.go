@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -32,8 +33,13 @@ type promptRequest struct {
 	resumeStopped          bool
 	commitDispatch         func(context.Context) error
 	skillInvocations       []commandpkg.Invocation
-	attachments            []AttachmentMeta
-	notifyOnComplete       bool
+	// mentions are the verified @-mentions of authoredMessage, resolved against the target session.
+	mentions []mention.Mention
+	// humanIngress records that the human operator authored the prompt at admission; it persists on the
+	// admission and queue rows, and unknown authorship stays false so session references fail closed.
+	humanIngress     bool
+	attachments      []AttachmentMeta
+	notifyOnComplete bool
 	// supersede replaces the same sender's older undispatched message to this target.
 	supersede bool
 	// Accepted steering retries retain the complete normalized event, including its timestamp and correlation.
@@ -72,6 +78,7 @@ func (m *Manager) recordPromptInputEvent(
 	event = event.WithPromptOrigin(req.meta.Origin)
 	event = event.WithPromptRuntime(promptRuntimeFromSelectionPointer(req.runtime))
 	event = event.WithSkillInvocations(req.skillInvocations)
+	event = event.WithMentions(req.mentions)
 	event = event.WithAttachments(promptEventAttachments(req.attachments))
 	if messageID := strings.TrimSpace(req.messageID); messageID != "" {
 		event = event.WithMessageID(messageID)

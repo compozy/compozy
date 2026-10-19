@@ -36,6 +36,7 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[hooks.HookMode]():                               hookModeValues(),
 	reflect.TypeFor[hooks.HookRunOutcome]():                         hookOutcomeValues(),
 	reflect.TypeFor[hooks.LoopGenerationOrigin]():                   hooks.LoopGenerationOriginValues(),
+	reflect.TypeFor[hooks.InputMentionKind]():                       hooks.InputMentionKindValues(),
 	reflect.TypeFor[hooks.HookSkillSource]():                        hookSkillSourceValues(),
 	reflect.TypeFor[hooks.HookExecutorKind]():                       hookExecutorKindValues(),
 	reflect.TypeFor[hooks.HookSource]():                             hookSourceValues(),

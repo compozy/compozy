@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -175,6 +176,73 @@ func TestToUIMessagesPreservesUserMessageIdentity(t *testing.T) {
 			metadata.SkillInvocations[0].Start != 7 ||
 			metadata.SkillInvocations[0].End != 18 {
 			t.Fatalf("skill invocation metadata = %#v", metadata.SkillInvocations)
+		}
+	})
+
+	t.Run("Should project verified mentions with relative targets onto user metadata", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+		authoredText := "Review @internal/acp/client_prompt.go and compare with @session:sess-9f8e7d"
+		event := (acp.AgentEvent{
+			Type: acp.EventTypeUserMessage, TurnID: "turn-mentions", Timestamp: timestamp, Text: authoredText,
+		}).WithMentions([]mention.Mention{
+			{
+				Kind: mention.KindFile, Token: "@internal/acp/client_prompt.go",
+				Target: "internal/acp/client_prompt.go", Label: "client_prompt.go", Start: 7, End: 37,
+			},
+			{
+				Kind: mention.KindSession, Token: "@session:sess-9f8e7d", Target: "sess-9f8e7d",
+				Label: "Fix login bug", Start: 55, End: 75,
+			},
+		})
+		payload, err := MarshalPromptInputEvent(event, authoredText)
+		if err != nil {
+			t.Fatalf("MarshalPromptInputEvent() error = %v", err)
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{{
+			ID: "ev-mentions", SessionID: "sess-mentions", TurnID: event.TurnID,
+			Sequence: 1, Type: event.Type, Content: payload, Timestamp: timestamp,
+		}})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if len(messages) != 1 {
+			t.Fatalf("messages = %#v, want one user message", messages)
+		}
+		var metadata struct {
+			Mentions json.RawMessage `json:"mentions"`
+		}
+		if err := json.Unmarshal(messages[0].Metadata, &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+		}
+		const want = `[` +
+			`{"kind":"file","token":"@internal/acp/client_prompt.go","target":"internal/acp/client_prompt.go",` +
+			`"label":"client_prompt.go","start":7,"end":37},` +
+			`{"kind":"session","token":"@session:sess-9f8e7d","target":"sess-9f8e7d",` +
+			`"label":"Fix login bug","start":55,"end":75}]`
+		if string(metadata.Mentions) != want {
+			t.Fatalf("metadata.mentions = %s, want %s", metadata.Mentions, want)
+		}
+	})
+
+	t.Run("Should omit mentions metadata for input events stored without mentions", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+		legacy := `{"type":"user_message","turn_id":"turn-legacy","text":"@notes.md hello"}`
+		messages, err := ToUIMessages([]store.SessionEvent{{
+			ID: "ev-legacy", SessionID: "sess-legacy", TurnID: "turn-legacy",
+			Sequence: 1, Type: acp.EventTypeUserMessage, Content: legacy, Timestamp: timestamp,
+		}})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if len(messages) != 1 || messages[0].Parts[len(messages[0].Parts)-1].Text != "@notes.md hello" {
+			t.Fatalf("messages = %#v, want the legacy text unchanged", messages)
+		}
+		if strings.Contains(string(messages[0].Metadata), `"mentions"`) {
+			t.Fatalf("metadata = %s, want no mentions key", messages[0].Metadata)
 		}
 	})
 }

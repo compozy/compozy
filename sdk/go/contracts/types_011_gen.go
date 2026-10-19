@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+type IssueSeverity string
+
+const (
+	IssueSeverityError   IssueSeverity = "error"
+	IssueSeverityWarning IssueSeverity = "warning"
+	IssueSeverityWarn    IssueSeverity = "warn"
+)
+
+type Job struct {
+	ID          string          `json:"id"`
+	ProfileID   string          `json:"profile_id"`
+	Scope       Scope           `json:"scope"`
+	Name        string          `json:"name"`
+	TargetKind  TargetKind      `json:"target_kind"`
+	AgentName   string          `json:"agent_name"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Prompt      string          `json:"prompt"`
+	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
+	Task        *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
+	Enabled     bool            `json:"enabled"`
+	Retry       RetryConfig     `json:"retry"`
+	FireLimit   FireLimitConfig `json:"fire_limit"`
+	Source      JobSource       `json:"source"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
 type JobSource string
 
 type JobTaskConfig struct {
@@ -349,39 +377,6 @@ type LoopTerminalPayload struct {
 }
 
 type MessageDeltaPatch struct {
-	Deny       bool    `json:"deny,omitempty"`
-	DenyReason string  `json:"deny_reason,omitempty"`
-	Role       *string `json:"role,omitempty"`
-	DeltaType  *string `json:"delta_type,omitempty"`
-	Text       *string `json:"text,omitempty"`
-}
-
-type MessageDeltaPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	ProfileID      string          `json:"profile_id,omitempty"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	MessageID      string          `json:"message_id,omitempty"`
-	Role           string          `json:"role,omitempty"`
-	DeltaType      string          `json:"delta_type,omitempty"`
-	Text           string          `json:"text,omitempty"`
-	Raw            json.RawMessage `json:"raw,omitempty"`
-}
-
-type MessageEndPatch struct {
 	Deny       bool    `json:"deny,omitempty"`
 	DenyReason string  `json:"deny_reason,omitempty"`
 	Role       *string `json:"role,omitempty"`

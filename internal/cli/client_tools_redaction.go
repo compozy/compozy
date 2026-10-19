@@ -130,7 +130,7 @@ func publicToolSchemaPattern(path []string) bool {
 	return path[0] == "pattern"
 }
 
-func publicToolResultObject(_ string, value any) bool {
+func publicToolResultObject(_ []string, value any) bool {
 	return toolspkg.IsPublicInputDeclaration(value)
 }
 

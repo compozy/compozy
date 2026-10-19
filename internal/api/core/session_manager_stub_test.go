@@ -29,6 +29,7 @@ type sessionManagerStub struct {
 	transcriptPage      func(context.Context, string, transcript.PageQuery) (transcript.Page, error)
 	transcriptChanges   func(context.Context, string, transcript.ChangeQuery) (transcript.ChangePage, error)
 	inputQueueSummary   func(context.Context, string) (session.InputQueueSummary, error)
+	workingDir          func(context.Context, string) (string, error)
 	repairSession       func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	delete              func(context.Context, string) error
 	stop                func(context.Context, string) error
@@ -445,4 +446,11 @@ func (s sessionManagerStub) LatestSettledTurn(ctx context.Context, id string) (s
 		return s.LatestSettledTurnFn(ctx, id)
 	}
 	return session.SettledTurn{}, nil
+}
+
+func (s sessionManagerStub) WorkingDir(ctx context.Context, id string) (string, error) {
+	if s.workingDir != nil {
+		return s.workingDir(ctx, id)
+	}
+	return "", session.ErrSessionNotFound
 }

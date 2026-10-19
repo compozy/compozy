@@ -64,6 +64,9 @@ type SessionManager interface {
 	CancelPrompt(ctx context.Context, id string) (session.PromptCancelResult, error)
 	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) (session.ApprovalResult, error)
 	InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error)
+	// WorkingDir returns the directory the session's agent runs in, the root
+	// mention resolution and file search share.
+	WorkingDir(ctx context.Context, id string) (string, error)
 }
 
 // SessionAcceptanceManager durably accepts user-created sessions without

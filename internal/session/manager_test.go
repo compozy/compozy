@@ -152,6 +152,9 @@ func TestSessionWorktreeBinding(t *testing.T) {
 		}; !reflect.DeepEqual(got, want) {
 			t.Fatalf("worktree resolver calls = %#v, want %#v", got, want)
 		}
+		if got, err := h.manager.WorkingDir(testutil.Context(t), created.ID); err != nil || got != canonicalRoot {
+			t.Fatalf("WorkingDir(bound) = %q, %v; want the worktree root %q", got, err, canonicalRoot)
+		}
 	})
 
 	t.Run("Should reject a bound cwd outside the worktree without falling back to the workspace", func(t *testing.T) {
@@ -291,6 +294,58 @@ func TestSessionWorktreeBinding(t *testing.T) {
 			t.Fatalf("fork child = %#v, want wt-fork binding", child)
 		}
 		t.Cleanup(func() { reportSessionStop(t, h, child.ID) })
+	})
+}
+
+// Invariant: WorkingDir follows the launch precedence (creation-profile cwd, else persisted cwd, else
+// execution root), so mention resolution and file search see the directory the agent runs in.
+// Owner: session manager start-cwd suite (IT-010).
+func TestManagerWorkingDir(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should prefer the creation-profile cwd over a differing persisted cwd", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		if err := os.MkdirAll(filepath.Join(h.workspace, "pkg"), 0o755); err != nil {
+			t.Fatalf("MkdirAll(pkg) error = %v", err)
+		}
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID, CWD: "pkg",
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+		meta := readMeta(t, created.MetaPath())
+		meta.SetCWD(h.workspace)
+		if err := store.WriteSessionMeta(created.MetaPath(), &meta); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
+		want, err := canonicalDirectory(filepath.Join(h.workspace, "pkg"))
+		if err != nil {
+			t.Fatalf("canonicalDirectory(pkg) error = %v", err)
+		}
+		if got, err := h.manager.WorkingDir(testutil.Context(t), created.ID); err != nil || got != want {
+			t.Fatalf("WorkingDir() = %q, %v; want the creation-profile cwd %q", got, err, want)
+		}
+	})
+
+	t.Run("Should default to the workspace root", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		created := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+		want, err := canonicalDirectory(h.workspace)
+		if err != nil {
+			t.Fatalf("canonicalDirectory(workspace) error = %v", err)
+		}
+		if got, err := h.manager.WorkingDir(testutil.Context(t), created.ID); err != nil || got != want {
+			t.Fatalf("WorkingDir() = %q, %v; want %q", got, err, want)
+		}
 	})
 }
 

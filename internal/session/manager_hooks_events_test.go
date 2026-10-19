@@ -156,8 +156,9 @@ func TestPromptInputHookReconcilesSkillInvocations(t *testing.T) {
 		got := storedInvocations[0]
 		want := wantAdmitted[1]
 		if got.Ref.CommandID != want.Ref.CommandID || got.Ref.Name != want.Ref.Name ||
-			got.Ref.Source != want.Ref.Source || got.Start != want.Start || got.End != want.End {
-			t.Fatalf("stored surviving invocation = %#v, want authored docs identity and offsets %#v", got, want)
+			got.Ref.Source != want.Ref.Source || got.Token != want.Token || got.Start != want.Start ||
+			got.End != want.End {
+			t.Fatalf("stored surviving invocation = %#v, want authored docs identity, token and offsets %#v", got, want)
 		}
 	})
 }

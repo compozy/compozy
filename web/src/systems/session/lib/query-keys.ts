@@ -72,6 +72,9 @@ export const sessionKeys = {
     [...sessionKeys.detail(workspace, id), "transcript-search"] as const,
   transcriptSearch: (workspace: string, id: string, query: string, limit: number) =>
     [...sessionKeys.transcriptSearchRoot(workspace, id), { limit, q: query }] as const,
+  /** Mention-picker file search over the session's working directory; one entry per query. */
+  fileSearch: (workspace: string, id: string, query: string, limit: number) =>
+    [...sessionKeys.detail(workspace, id), "files", { limit, q: query }] as const,
   goal: (workspace: string, id: string) => [...sessionKeys.detail(workspace, id), "goal"] as const,
   clarifications: (workspace: string, id: string) =>
     [...sessionKeys.detail(workspace, id), "clarifications"] as const,

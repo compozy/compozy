@@ -3,6 +3,8 @@ package hooks
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/compozy/compozy/internal/mention"
 )
 
 // InputAttachmentMetadata is the byte-free attachment view exposed to hooks.
@@ -23,6 +25,52 @@ type InputPreSubmitPayload struct {
 	Message       string                    `json:"message,omitempty"`
 	ContextBlocks []ContextBlock            `json:"context_blocks,omitempty"`
 	Attachments   []InputAttachmentMetadata `json:"attachments,omitempty"`
+	Mentions      []InputMentionMetadata    `json:"mentions,omitempty"`
+}
+
+// InputMentionKind is the closed mention kind vocabulary exposed to hooks.
+type InputMentionKind string
+
+const (
+	InputMentionKindFile    InputMentionKind = "file"
+	InputMentionKindFolder  InputMentionKind = "folder"
+	InputMentionKindSession InputMentionKind = "session"
+)
+
+// InputMentionKindValues returns the mention kind wire vocabulary in declaration order.
+func InputMentionKindValues() []string {
+	return []string{
+		string(InputMentionKindFile),
+		string(InputMentionKindFolder),
+		string(InputMentionKindSession),
+	}
+}
+
+// InputMentionMetadata is the verified @-mention view exposed to hooks. Target is
+// relative to the session working directory (folders end in "/") or a session id;
+// offsets are UTF-16 code units in Message, end exclusive.
+type InputMentionMetadata struct {
+	Kind   InputMentionKind `json:"kind"`
+	Token  string           `json:"token"`
+	Target string           `json:"target"`
+	Label  string           `json:"label"`
+	Start  int              `json:"start"`
+	End    int              `json:"end"`
+}
+
+// InputMentionsFromDomain converts verified mentions into the hook wire DTO.
+func InputMentionsFromDomain(mentions []mention.Mention) []InputMentionMetadata {
+	if len(mentions) == 0 {
+		return nil
+	}
+	items := make([]InputMentionMetadata, 0, len(mentions))
+	for _, item := range mentions {
+		items = append(items, InputMentionMetadata{
+			Kind: InputMentionKind(item.Kind), Token: item.Token, Target: item.Target,
+			Label: item.Label, Start: item.Start, End: item.End,
+		})
+	}
+	return items
 }
 
 // InputPreSubmitPatch mutates or denies the submitted input.

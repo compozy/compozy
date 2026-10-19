@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/mention"
 )
 
 func (m *Manager) reservePromptSlot(
@@ -165,11 +166,14 @@ func (m *Manager) preparePromptRequestMessage(
 		req.turnSource,
 		req.message,
 		req.attachments,
+		req.mentions,
 	)
 	if err != nil {
 		return "", err
 	}
 	req.skillInvocations = commandpkg.ReconcileInvocations(message, req.skillInvocations)
+	// A hook rewrite keeps only admitted mentions whose exact token is still present; it never adds one.
+	req.mentions = mention.Reconcile(message, req.mentions)
 	return message, nil
 }
 
@@ -205,18 +209,8 @@ func (m *Manager) submitPromptInReservedSlot(
 		}
 	}()
 	turnState.recovery = &promptRecoveryState{originalMessage: dispatchInput.message}
-	recoveryRequest := acp.PromptRequest{
-		Maintenance:               req.delivery == PromptDeliveryMaintenance,
-		TurnID:                    req.turnID,
-		RunID:                     req.runID,
-		Generation:                session.Info().RuntimeGeneration,
-		Message:                   dispatchMessage,
-		Sections:                  dispatchInput.sections,
-		Attachments:               attachments,
-		Meta:                      req.meta,
-		ActivityReporter:          activity.report,
-		ActivityHeartbeatInterval: m.supervision.ActivityHeartbeatInterval,
-	}
+	recoveryRequest := m.newDispatchPromptRequest(ctx, session, &req, dispatchMessage, dispatchInput, attachments,
+		activity)
 	source, err := m.startHostedPromptRun(ctx, session, proc, turnState, recoveryRequest)
 	if err != nil {
 		delivery.cancel()
@@ -255,6 +249,33 @@ func (m *Manager) submitPromptInReservedSlot(
 	)
 	pumpStarted = true
 	return delivery.events, nil
+}
+
+// newDispatchPromptRequest builds the ACP request for one dispatch, including the request's mention
+// links and session references after the dispatch containment re-check.
+func (m *Manager) newDispatchPromptRequest(
+	ctx context.Context,
+	session *Session,
+	req *promptRequest,
+	dispatchMessage string,
+	dispatchInput preparedPromptInput,
+	attachments []acp.PromptAttachment,
+	activity *promptActivitySupervisor,
+) acp.PromptRequest {
+	request := acp.PromptRequest{
+		Maintenance:               req.delivery == PromptDeliveryMaintenance,
+		TurnID:                    req.turnID,
+		RunID:                     req.runID,
+		Generation:                session.Info().RuntimeGeneration,
+		Message:                   dispatchMessage,
+		Sections:                  dispatchInput.sections,
+		Attachments:               attachments,
+		Meta:                      req.meta,
+		ActivityReporter:          activity.report,
+		ActivityHeartbeatInterval: m.supervision.ActivityHeartbeatInterval,
+	}
+	m.promptMentionInputs(ctx, session, req).apply(&request)
+	return request
 }
 
 // startPromptActivity publishes the running badge and returns its snapshot for failed setup cleanup.

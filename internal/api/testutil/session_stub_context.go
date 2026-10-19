@@ -27,3 +27,10 @@ func (s StubSessionManager) ContextEvents(ctx context.Context, id string) (sessi
 	result.Settled, err = s.LatestSettledTurn(ctx, id)
 	return result, err
 }
+
+func (s StubSessionManager) WorkingDir(ctx context.Context, id string) (string, error) {
+	if s.WorkingDirFn != nil {
+		return s.WorkingDirFn(ctx, id)
+	}
+	return "", session.ErrSessionNotFound
+}

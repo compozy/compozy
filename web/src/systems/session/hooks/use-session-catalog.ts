@@ -40,6 +40,8 @@ export function useSessionCatalog(
     facets: facets.data?.facets,
     total: facets.data?.facets.all,
     loading: page.isLoading,
+    /** The page shown belongs to a previous search while the current one loads. */
+    placeholder: page.isPlaceholderData,
     failed: page.isError || (withFacets && facets.isError),
     next: !page.isPlaceholderData && page.hasNextPage,
     previous: !page.isPlaceholderData && page.hasPreviousPage,

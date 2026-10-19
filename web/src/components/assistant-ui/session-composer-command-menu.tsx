@@ -4,7 +4,7 @@ import {
   type Unstable_TriggerItem,
   unstable_useTriggerPopoverScopeContext as useTriggerPopoverScopeContext,
 } from "@assistant-ui/react";
-import { createElement, Fragment, useEffect, useEffectEvent, useRef } from "react";
+import { Fragment, useEffect, useEffectEvent } from "react";
 import { useStore } from "@xstate/store-react";
 
 import { Pill } from "@compozy/ui";
@@ -20,6 +20,17 @@ import {
   type SessionComposerCommandSection,
 } from "./session-command-menu-model";
 import { sessionCommandOpenLogic } from "./session-command-open-store";
+import {
+  TriggerMenuDivider,
+  TriggerMenuGroupHeader,
+  TriggerMenuMessage,
+  TriggerMenuRow,
+  TriggerMenuRowSecondary,
+} from "./session-composer-trigger-menu";
+import {
+  TRIGGER_MENU_ITEMS_CLASS,
+  TRIGGER_MENU_POPOVER_CLASS,
+} from "./session-composer-trigger-menu-classes";
 
 export type {
   SessionCommandLane,
@@ -53,92 +64,60 @@ function CommandMenuItemRow({
   item: Unstable_TriggerItem;
   flatIndex: number;
 }) {
-  const { highlightedIndex } = useTriggerPopoverScopeContext();
-  const isHighlighted = highlightedIndex === flatIndex;
-  const rowRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (isHighlighted) rowRef.current?.scrollIntoView({ block: "nearest" });
-  }, [isHighlighted]);
-
   const presentation = commandItemPresentation(item);
-  const CommandIcon = commandIcon(presentation.token, presentation.lane);
   const trailing = commandTrailing(presentation);
 
   return (
-    <ComposerPrimitive.Unstable_TriggerPopoverItem
-      ref={rowRef}
+    <TriggerMenuRow
       item={item}
-      index={flatIndex}
+      flatIndex={flatIndex}
+      icon={commandIcon(presentation.token, presentation.lane)}
       data-command-token={presentation.token}
       data-testid="composer-command-item"
       data-unavailable={presentation.available ? undefined : ""}
       disabled={!presentation.available}
       title={presentation.unavailableReason}
-      className={cn(
-        "group/command-row flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left",
-        "text-small-body text-fg outline-none select-none",
-        "transition-colors duration-fast ease-out",
-        "data-[highlighted]:bg-surface-2 data-[highlighted]:text-fg",
-        // Unavailable commands stay listed: hiding one would erase the daemon's
-        // reason for why it cannot run right now.
-        "data-[unavailable]:cursor-not-allowed data-[unavailable]:opacity-55"
-      )}
-    >
-      <span
-        className={cn(
-          "flex size-4 shrink-0 items-center justify-center text-muted",
-          "group-data-[highlighted]/command-row:text-fg"
-        )}
-      >
-        {createElement(CommandIcon, { className: "size-3.5", "aria-hidden": "true" })}
-      </span>
-      <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-        <span className="shrink-0 font-medium">{presentation.menuTitle}</span>
-        {presentation.available && item.description ? (
-          <span className="truncate text-transcript-caption text-subtle">{item.description}</span>
-        ) : null}
-        {presentation.available ? null : (
+      // Unavailable commands stay listed: hiding one would erase the daemon's
+      // reason for why it cannot run right now.
+      className="data-[unavailable]:cursor-not-allowed data-[unavailable]:opacity-55"
+      trailing={
+        <>
+          {/* Where a skill came from is a fact, not a warning: neutral, never toned. */}
+          {trailing.origin ? (
+            <Pill
+              className="max-w-28 truncate"
+              data-slot="composer-command-origin"
+              mono
+              size="xs"
+              title={trailing.origin}
+            >
+              {trailing.origin}
+            </Pill>
+          ) : null}
           <span
-            className="truncate text-transcript-caption text-warning"
-            data-slot="composer-command-unavailable-reason"
+            className={cn(
+              "text-badge text-faint",
+              trailing.mono ? "font-mono tracking-mono" : null
+            )}
           >
-            {presentation.unavailableReason ?? item.description}
+            {trailing.text}
           </span>
-        )}
-      </span>
-      <span className="ml-auto flex shrink-0 items-center gap-1.5">
-        {/* Where a skill came from is a fact, not a warning: neutral, never toned. */}
-        {trailing.origin ? (
-          <Pill
-            className="max-w-28 truncate"
-            data-slot="composer-command-origin"
-            mono
-            size="xs"
-            title={trailing.origin}
-          >
-            {trailing.origin}
-          </Pill>
-        ) : null}
-        <span
-          className={cn("text-badge text-faint", trailing.mono ? "font-mono tracking-mono" : null)}
-        >
-          {trailing.text}
-        </span>
-      </span>
-    </ComposerPrimitive.Unstable_TriggerPopoverItem>
-  );
-}
-
-function CommandMenuGroupHeader({ label }: { label: string }) {
-  return (
-    <div
-      data-testid="composer-command-section"
-      role="presentation"
-      className="eyebrow px-2 pt-2 pb-1 text-muted"
+        </>
+      }
     >
-      {label}
-    </div>
+      <span className="shrink-0 font-medium">{presentation.menuTitle}</span>
+      {presentation.available && item.description ? (
+        <TriggerMenuRowSecondary>{item.description}</TriggerMenuRowSecondary>
+      ) : null}
+      {presentation.available ? null : (
+        <TriggerMenuRowSecondary
+          className="text-warning"
+          data-slot="composer-command-unavailable-reason"
+        >
+          {presentation.unavailableReason ?? item.description}
+        </TriggerMenuRowSecondary>
+      )}
+    </TriggerMenuRow>
   );
 }
 
@@ -149,14 +128,7 @@ function CommandMenuEmptyState() {
     : query.length > 0
       ? "No matching commands"
       : "No commands available";
-  return (
-    <p
-      data-testid="composer-command-empty"
-      className="px-2 py-4 text-center text-small-body text-muted"
-    >
-      {message}
-    </p>
-  );
+  return <TriggerMenuMessage data-testid="composer-command-empty">{message}</TriggerMenuMessage>;
 }
 
 /**
@@ -223,24 +195,22 @@ export function SessionComposerCommandMenu({
       isLoading={isCatalogLoading}
       aria-label="Session commands"
       data-testid="composer-command-menu"
-      className={cn(
-        "absolute inset-x-0 bottom-full z-20 mb-2 overflow-hidden",
-        "rounded-lg bg-popover shadow-pop"
-      )}
+      className={TRIGGER_MENU_POPOVER_CLASS}
     >
       <CommandCatalogOpenReporter onOpen={onOpen} />
       <CommandDirectiveBehavior />
-      <ComposerPrimitive.Unstable_TriggerPopoverItems className="max-h-72 overflow-y-auto overscroll-contain p-1">
+      <ComposerPrimitive.Unstable_TriggerPopoverItems className={TRIGGER_MENU_ITEMS_CLASS}>
         {items =>
           items.length === 0 ? (
             <CommandMenuEmptyState />
           ) : (
             groupCommandItems(items).map((group, groupIndex) => (
               <Fragment key={group.sectionId}>
-                {groupIndex > 0 ? (
-                  <div role="presentation" className="-mx-1 my-1 h-px bg-line" />
-                ) : null}
-                <CommandMenuGroupHeader label={group.sectionLabel} />
+                {groupIndex > 0 ? <TriggerMenuDivider /> : null}
+                <TriggerMenuGroupHeader
+                  data-testid="composer-command-section"
+                  label={group.sectionLabel}
+                />
                 {group.entries.map(entry => (
                   <CommandMenuItemRow
                     key={entry.item.id}

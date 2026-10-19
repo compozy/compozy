@@ -156,6 +156,10 @@ root or configured `additional_dirs`, or existing workspace/session-scoped `att_
 submission; use `compozy session attachments upload <session-id> <file> -o json` for a durable ID.
 The store enforces `session.attachments.max_file_bytes`, `session.attachments.max_files_per_prompt`,
 and `session.attachments.allowed_mime` (see `references/configuration.md`).
+`message` may carry `@` mention tokens (`@path`, `@dir/`, `@"path with spaces"`, `@session:<id>`);
+they resolve against the receiving session, not the caller, and are not gated like slash commands.
+Syntax, caps, and delivery: the "Prompt text may carry mentions" paragraph in
+`references/runtime-operations.md`.
 The first prompt to a never-bound session requires `runtime.provider`; a session whose idle runtime
 was released keeps its selection and rebinds without it. Model, reasoning effort, speed, and typed
 `acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or

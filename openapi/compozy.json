@@ -22874,6 +22874,47 @@
         ],
         "type": "object"
       },
+      "SessionFileEntryPayload": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "file",
+              "folder"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "path"
+        ],
+        "type": "object"
+      },
+      "SessionFilesResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/SessionFileEntryPayload"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entries",
+          "truncated"
+        ],
+        "type": "object"
+      },
       "SessionFolderPayload": {
         "properties": {
           "created_at": {
@@ -23176,6 +23217,42 @@
         ],
         "type": "object"
       },
+      "SessionInputMentionPayload": {
+        "properties": {
+          "end": {
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "file",
+              "folder",
+              "session"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer"
+          },
+          "target": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "end",
+          "kind",
+          "label",
+          "start",
+          "target",
+          "token"
+        ],
+        "type": "object"
+      },
       "SessionInputPayload": {
         "properties": {
           "attachments": {
@@ -23196,6 +23273,12 @@
           },
           "idempotency_key": {
             "type": "string"
+          },
+          "mentions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionInputMentionPayload"
+            },
+            "type": "array"
           },
           "message_id": {
             "type": "string"
@@ -81507,6 +81590,112 @@
           }
         },
         "summary": "List persisted session events",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/files": {
+      "get": {
+        "operationId": "searchSessionFiles",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search text; empty returns the shallowest entries",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum entries returned",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionFilesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid limit"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session working directory no longer exists"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Search files and folders under a session's working directory",
         "tags": [
           "sessions"
         ],

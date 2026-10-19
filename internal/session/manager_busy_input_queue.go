@@ -30,6 +30,8 @@ func (m *Manager) enqueueBusyPrompt(
 			Generation:       generation,
 			Runtime:          storeRuntimeSelection(req.runtime),
 			SkillInvocations: req.skillInvocations,
+			Mentions:         req.mentions,
+			HumanIngress:     req.humanIngress,
 			Attachments:      storeAttachments(req.attachments),
 		},
 	)

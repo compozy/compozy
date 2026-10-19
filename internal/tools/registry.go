@@ -245,26 +245,32 @@ func (r *RuntimeRegistry) DiagnosticSearch(ctx context.Context, scope Scope, q S
 }
 
 // DiagnosticGet returns one diagnostic projection row even when the tool is not callable.
+//
+// It indexes every provider (so cross-provider conflicts and toolset-scoped policy still apply) but
+// resolves availability and evaluates policy only for the requested descriptor.
 func (r *RuntimeRegistry) DiagnosticGet(ctx context.Context, scope Scope, id ToolID) (ToolView, error) {
 	if err := id.Validate(); err != nil {
 		return ToolView{}, err
 	}
-	views, err := r.DiagnosticProjection(ctx, scope)
+	index, err := r.buildIndex(ctx, scope)
 	if err != nil {
 		return ToolView{}, err
 	}
-	for i := range views {
-		if views[i].Descriptor.ID == id {
-			return views[i], nil
-		}
+	entry, ok := index.byID[id]
+	if !ok {
+		return ToolView{}, NewToolError(
+			ErrorCodeNotFound,
+			id,
+			fmt.Sprintf("tool %q not found", id),
+			ErrToolNotFound,
+			ReasonToolUnknown,
+		)
 	}
-	return ToolView{}, NewToolError(
-		ErrorCodeNotFound,
-		id,
-		fmt.Sprintf("tool %q not found", id),
-		ErrToolNotFound,
-		ReasonToolUnknown,
-	)
+	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
+	if err != nil {
+		return ToolView{}, err
+	}
+	return r.viewFor(ctx, scope, evaluator, entry)
 }
 
 // Call runs the central provider-agnostic registry dispatch pipeline.
