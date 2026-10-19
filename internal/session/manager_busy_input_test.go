@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -5835,13 +5836,16 @@ func TestManagerPromptMentions(t *testing.T) {
 		writeMentionFixture(t, h.workspace, "a.go", "sub/keep.txt")
 		outside := filepath.Join(filepath.Dir(h.workspace), "outside.txt")
 		writeMentionFile(t, outside)
-		if err := os.Symlink(outside, filepath.Join(h.workspace, "escape.txt")); err != nil {
+		message := "@../outside.txt @/etc/hosts @missing.go @sub/../a.go `@a.go`"
+		// Windows may refuse symlinks; the escaping link is then the only token left out.
+		if err := os.Symlink(outside, filepath.Join(h.workspace, "escape.txt")); err == nil {
+			message = "@escape.txt " + message
+		} else if runtime.GOOS != "windows" {
 			t.Fatalf("Symlink() error = %v", err)
 		}
 		sess := createSession(t, h)
 		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
 
-		message := "@../outside.txt @escape.txt @/etc/hosts @missing.go @sub/../a.go `@a.go`"
 		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{Message: message})
 		if err != nil {
 			t.Fatalf("SendPrompt() error = %v", err)
@@ -5955,6 +5959,9 @@ func TestManagerPromptMentions(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := os.Symlink(outside, target); err != nil {
+			if runtime.GOOS == "windows" {
+				t.Skipf("Symlink() unsupported here: %v", err)
+			}
 			t.Fatal(err)
 		}
 		release()
