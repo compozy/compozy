@@ -1069,6 +1069,68 @@ describe("SessionList folders and manual order", () => {
     fireEvent.dragEnd(source);
   });
 
+  // Invariants: stale aggregate rows cannot navigate; empty owners expose failed folder reads.
+  // Owner: SessionList composition; canonical suite: SessionList folders and manual order.
+  it.each([true, false])("Should gate aggregate selection while paging is %s", async paging => {
+    const rows = [{ ...layoutRows[0]!, profile_id: "default", profile_name: "default" }];
+    const { onSelect } = renderList({
+      sessions: rows,
+      view: {
+        ...view,
+        aggregate: true,
+        profileFolderGroups: [
+          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
+        ],
+        catalog: {
+          sessions: rows,
+          facets: undefined,
+          total: undefined,
+          loading: false,
+          failed: false,
+          next: false,
+          previous: false,
+          paging,
+          nextPage: vi.fn(),
+          previousPage: vi.fn(),
+          retry: vi.fn(),
+        },
+      },
+    });
+    await userEvent.setup().click(screen.getByTestId("session-sidebar-session-r1"));
+    expect(onSelect).toHaveBeenCalledTimes(paging ? 0 : 1);
+  });
+
+  it("Should retry a failed aggregate folder read for an owner with no sessions", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("folder read failed"));
+    try {
+      renderList({
+        sessions: [],
+        view: {
+          ...view,
+          aggregate: true,
+          profileFolderGroups: [
+            { owner: view.ownerOf(sessions[0]!), workspaceId: "ws", canCreateSession: true },
+          ],
+        },
+      });
+      expect(await screen.findByText("Couldn’t load folders.")).toBeVisible();
+      const calls = fetcher.mock.calls.length;
+      fetcher.mockResolvedValue(
+        new Response(JSON.stringify({ folders: [folderA] }), {
+          headers: { "content-type": "application/json" },
+        })
+      );
+      await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
+      expect(await screen.findByTestId("session-sidebar-folder-fa")).toBeVisible();
+      expect(fetcher.mock.calls.length).toBeGreaterThan(calls);
+      expect(screen.queryByText("Couldn’t load folders.")).not.toBeInTheDocument();
+    } finally {
+      fetcher.mockRestore();
+    }
+  });
+
   it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
     const user = userEvent.setup();
     const { layout, onNewSession } = renderLayout();

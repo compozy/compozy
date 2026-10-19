@@ -153,7 +153,9 @@ export function SessionList({
               collapsedThreads={collapsedThreads}
               currentSessionId={currentSessionId}
               onToggleThread={onToggleThread}
-              onSelectSession={onSelectSession}
+              onSelectSession={session => {
+                if (!view.catalog?.paging) onSelectSession(session);
+              }}
               onNewSessionInFolder={folderId => onNewSession({ folderId })}
               selection={bulk.rowSelection}
               sessionActions={sessionActions}

@@ -44,7 +44,8 @@ export function SessionListProfileGroup({
     props.filtering
   );
   const { layout, sections } = folders;
-  if (threads.length === 0 && (!sections || sections.folders.length === 0)) return null;
+  if (!state.loadError && threads.length === 0 && (!sections || sections.folders.length === 0))
+    return null;
   return (
     <section
       aria-label={group.owner.name}

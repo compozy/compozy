@@ -3414,6 +3414,10 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #832: last_known has the existing optional RuntimeSelectionPayload contract.
+	if addLastKnownRuntimeSchema(baseline) == 0 {
+		t.Fatal("approved session runtime addition: no historical runtime schemas found")
+	}
 	// #804: optional additive field; no required/type/removal change.
 	// The pre-components fixture inlines SettingsUpdateRuntimePayload in the GET response.
 	properties := baseline
@@ -3492,6 +3496,31 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			parameters[last],
 		)
 	}
+}
+
+// The historical baseline inlines SessionRuntimePayload at every response site.
+// Preserve its complete existing shape and add only the explicitly approved field.
+func addLastKnownRuntimeSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addLastKnownRuntimeSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addLastKnownRuntimeSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["acp_session_id"] == nil || properties["selection_revision"] == nil {
+			return count
+		}
+		if effective, exists := properties["effective"]; exists {
+			properties["last_known"] = effective
+			count++
+		}
+	}
+	return count
 }
 
 func correctLegacySessionStreamSchemas(t *testing.T, baseline map[string]any) {

@@ -55,6 +55,19 @@ actual stopped/unbound state after restart). Browser captures are alongside thos
 - [All profiles with owner folders](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-832/all-profile-folders.png)
 - [Stopped root and child with retained runtime](https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-832/stopped-runtime.png)
 
+## Review remediation
+
+Greptile findings #4318697437 and #4318697462 are addressed: aggregate navigation is gated while
+catalog paging is pending, and an empty profile retains its folder-read error and Retry control.
+The existing list suite now has 54 passing tests, including both paging states and a failed read
+followed by a successful retry. Affected Web typecheck/build and E2E-032 passed again.
+
+The first CI run found an unregistered additive field in the historical OpenAPI compatibility
+baseline. The existing approved-addition adapter now adds only `last_known`, using the historical
+`effective` runtime-selection schema at each inline site. All existing schema comparisons remain.
+`CGO_ENABLED=1 go test -race ./internal/api/spec -run '^TestDocumentPreservesSchemaSemantics$' -count=1`
+passed.
+
 ## Final status
 
 Targeted QA passed. PR delivery remains conditional on current-head required CI and reviewer feedback.
