@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -49,6 +51,189 @@ func testSessionDBOwner(sessionID string) store.SessionDBOwner {
 }
 
 func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
+	t.Run("Should classify snapshot creation failure as unavailable storage", func(t *testing.T) {
+		source := openTestSessionDB(t, "sess-snapshot-storage-failure")
+		if _, err := source.db.ExecContext(t.Context(), "CREATE TABLE snapshot_fixture (value TEXT)"); err != nil {
+			t.Fatal(err)
+		}
+		missing := filepath.Join(t.TempDir(), "missing")
+		for _, key := range []string{"TMPDIR", "TMP", "TEMP"} {
+			t.Setenv(key, missing)
+		}
+		_, cleanup, err := ownerGuardSnapshot(t.Context(), source.path)
+		if cleanup != nil {
+			if cleanupErr := cleanup(); cleanupErr != nil {
+				t.Error(cleanupErr)
+			}
+		}
+		if err == nil || !store.IsStorageUnavailable(err) ||
+			!strings.Contains(err.Error(), "create owner guard snapshot") {
+			t.Fatalf("snapshot creation error = %v, want classified storage failure", err)
+		}
+	})
+	t.Run("Should reopen after last connection close removes WAL during inspection", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		source := openTestSessionDB(t, "sess-snapshot-close")
+		if _, err := source.db.ExecContext(ctx, "CREATE TABLE snapshot_fixture (value TEXT)"); err != nil {
+			t.Fatal(err)
+		}
+		copies := 0
+		dsn, cleanup, err := ownerGuardSnapshotWithCopy(
+			ctx,
+			source.path,
+			func(ctx context.Context, path, snapshot string) error {
+				copies++
+				if err := source.Close(ctx); err != nil {
+					return err
+				}
+				return copyOwnerGuardFamily(ctx, path, snapshot)
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := cleanup(); err != nil {
+				t.Error(err)
+			}
+		})
+		if copies == 0 {
+			t.Fatal("fixture did not exercise last-connection close during snapshot copying")
+		}
+		db, err := sql.Open("sqlite", dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := verifySessionDBOwner(ctx, db, source.owner); err != nil {
+			t.Fatalf("owner after concurrent close: %v", err)
+		}
+	})
+	// Invariant: an owner-read corruption error is retried only after a successful SQLite integrity probe.
+	t.Run("Should retry an owner read only when integrity is verified", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		damaged := openTestSessionDB(t, "sess-corrupt-fixture")
+		var ownerPage, pageSize int
+		if err := damaged.db.QueryRowContext(ctx, "SELECT rootpage FROM sqlite_master WHERE name = 'session_db_owner'").
+			Scan(&ownerPage); err != nil {
+			t.Fatal(err)
+		}
+		if err := damaged.db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize); err != nil {
+			t.Fatal(err)
+		}
+		if err := damaged.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		contents, err := os.ReadFile(damaged.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		contents[(ownerPage-1)*pageSize] = 0
+		if err := os.WriteFile(damaged.path, contents, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := (&sqlite.Driver{}).Open(sessionDBOwnerGuardDSN(damaged.path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		querier, ok := raw.(sqlite.ExecQuerierContext)
+		if !ok {
+			t.Fatal("SQLite contextual queries unavailable")
+		}
+		_, corruptErr := querySessionSQLiteConnectionRow(ctx, querier, "SELECT COUNT(*) FROM session_db_owner", 1)
+		if err := raw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if typed, ok := errors.AsType[*sqlite.Error](corruptErr); !ok || typed.Code()&0xff != 11 {
+			t.Fatalf("corruption fixture error = %v", corruptErr)
+		}
+		healthy := openTestSessionDB(t, "sess-owner-retry")
+		driver := &ownerReadFaultDriver{fault: corruptErr}
+		if _, err := verifySessionDBOwnerWithDriver(ctx, driver, healthy.path, healthy.owner); err != nil {
+			t.Fatalf("retry healthy owner = %v", err)
+		}
+		if driver.checks.Load() != 1 || driver.opens.Load() != 2 {
+			t.Fatalf("integrity checks=%d, opens=%d", driver.checks.Load(), driver.opens.Load())
+		}
+		_, err = verifySessionDBOwnerWithDriver(ctx, &sqlite.Driver{}, damaged.path, damaged.owner)
+		typed, corrupt := errors.AsType[*sqlite.Error](err)
+		if !corrupt || typed.Code()&0xff != 11 || errors.Is(err, errTransientOwnerGuard) ||
+			!strings.Contains(err.Error(), "corruption confirmed by integrity check") {
+			t.Fatalf("corrupt database verdict = %v, want confirmed corruption", err)
+		}
+	})
+	t.Run("Should open a healthy WAL family during a partially applied checkpoint", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		owner := testSessionDBOwner("sess-partial-checkpoint")
+		source := openTestSessionDB(t, owner.SessionID)
+		if err := source.Record(
+			ctx,
+			SessionEvent{ID: "retained", TurnID: "turn", Type: acp.EventTypeDone, AgentName: "coder"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		for i := range 100 {
+			if _, err := source.db.ExecContext(
+				ctx,
+				fmt.Sprintf("CREATE TABLE checkpoint_fixture_%d (value BLOB)", i),
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		main, err := os.ReadFile(source.path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		wal, err := os.ReadFile(source.path + "-wal")
+		if err != nil {
+			t.Fatal(err)
+		}
+		pageSize := int(binary.BigEndian.Uint32(wal[8:12]))
+		// Model a checkpoint paused after page one, with the committed remainder still in WAL.
+		for offset := 32; offset+24+pageSize <= len(wal); offset += 24 + pageSize {
+			if binary.BigEndian.Uint32(wal[offset:offset+4]) == 1 {
+				copy(main[:pageSize], wal[offset+24:offset+24+pageSize])
+			}
+		}
+		for suffix, contents := range map[string][]byte{"": main, "-wal": wal} {
+			if err := os.WriteFile(path+suffix, contents, 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		before := readOnlySessionDatabaseFamilyDigest(t, path)
+		foreign := testSessionDBOwner("sess-other")
+		if _, err := OpenSessionDB(ctx, foreign, path); !errors.Is(err, ErrSessionDBOwnerMismatch) {
+			t.Fatalf("foreign open = %v, want owner mismatch", err)
+		}
+		assertReadOnlySessionDatabaseUnchanged(t, path, before)
+		reopened, err := OpenSessionDB(ctx, owner, path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB(healthy WAL) = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		var integrity string
+		if err := reopened.db.QueryRowContext(ctx, "PRAGMA quick_check").
+			Scan(&integrity); err != nil ||
+			integrity != "ok" {
+			t.Fatalf("quick_check = %q, %v", integrity, err)
+		}
+		events, err := reopened.Query(ctx, EventQuery{})
+		if err != nil || len(events) != 1 || events[0].ID != "retained" {
+			t.Fatalf("retained events = %+v, %v", events, err)
+		}
+	})
 	t.Parallel()
 
 	t.Run("Should create schema and enable WAL", func(t *testing.T) {
@@ -3260,6 +3445,51 @@ type interceptSessionSQLiteDriver struct {
 	mu         sync.Mutex
 	openCount  int
 	err        error
+}
+
+type ownerReadFaultDriver struct {
+	opens  atomic.Int32
+	checks atomic.Int32
+	fault  error
+}
+
+func (d *ownerReadFaultDriver) Open(name string) (driver.Conn, error) {
+	connection, err := (&sqlite.Driver{}).Open(name)
+	if err != nil {
+		return nil, err
+	}
+	querier, ok := connection.(sqlite.ExecQuerierContext)
+	if !ok {
+		return nil, closeSessionSQLiteDriverConnection(connection, errors.New("missing contextual queries"))
+	}
+	return &ownerReadFaultConnection{
+		Conn:               connection,
+		ExecQuerierContext: querier,
+		owner:              d,
+		fail:               d.opens.Add(1) == 1,
+	}, nil
+}
+
+type ownerReadFaultConnection struct {
+	driver.Conn
+	sqlite.ExecQuerierContext
+	owner *ownerReadFaultDriver
+	fail  bool
+}
+
+func (c *ownerReadFaultConnection) QueryContext(
+	ctx context.Context,
+	query string,
+	args []driver.NamedValue,
+) (driver.Rows, error) {
+	if strings.HasPrefix(query, "PRAGMA quick_check") {
+		c.owner.checks.Add(1)
+	}
+	if c.fail {
+		c.fail = false
+		return nil, c.owner.fault
+	}
+	return c.ExecQuerierContext.QueryContext(ctx, query, args)
 }
 
 func (d *interceptSessionSQLiteDriver) Open(name string) (driver.Conn, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -305,74 +306,95 @@ func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 func TestPromptPersistenceFailureStopsSessionBeforeLiveDelivery(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should keep a failed single event out of live reload and turn completion", func(t *testing.T) {
-		t.Parallel()
+	// Invariant: failed persistence is never delivered as successful output, and storage failures are not agent crashes.
+	// Owner: prompt lifecycle; canonical suite: prompt persistence failure.
+	for _, tc := range []struct {
+		name string
+		err  error
+		kind store.FailureKind
+	}{
+		{"projection", errors.New("projection failed token=super-secret"), store.FailureTransport},
+		{"storage", os.ErrPermission, store.FailurePrompt},
+	} {
+		t.Run(
+			"Should keep a failed single event out of live reload and turn completion for "+tc.name,
+			func(t *testing.T) {
+				t.Parallel()
 
-		recordErr := errors.New("projection failed token=super-secret")
-		recorder := &failingSinglePromptRecorder{failErr: recordErr}
-		h := newHarness(t, WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
-			return recorder, nil
-		}))
-		turnEnds := 0
-		h.manager.SetTurnEndNotifier(func(context.Context, PromptRunIdentity) { turnEnds++ })
-		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			events := make(chan acp.AgentEvent, 1)
-			go func() {
-				defer close(events)
-				events <- acp.AgentEvent{
-					Type:       acp.EventTypeToolCall,
-					SessionID:  proc.handle.SessionID,
-					TurnID:     req.TurnID,
-					ToolCallID: "call-failed",
-					Title:      "Read",
+				recordErr := tc.err
+				recorder := &failingSinglePromptRecorder{failErr: recordErr}
+				h := newHarness(
+					t,
+					WithStore(func(context.Context, store.SessionDBOwner, string) (EventRecorder, error) {
+						return recorder, nil
+					}),
+				)
+				turnEnds := 0
+				h.manager.SetTurnEndNotifier(func(context.Context, PromptRunIdentity) { turnEnds++ })
+				h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					events := make(chan acp.AgentEvent, 1)
+					go func() {
+						defer close(events)
+						events <- acp.AgentEvent{
+							Type:       acp.EventTypeToolCall,
+							SessionID:  proc.handle.SessionID,
+							TurnID:     req.TurnID,
+							ToolCallID: "call-failed",
+							Title:      "Read",
+						}
+					}()
+					return events, nil
 				}
-			}()
-			return events, nil
-		}
-		session := createSession(t, h)
-		t.Cleanup(func() {
-			if _, active := h.manager.Get(session.ID); active {
-				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
-					!errors.Is(err, ErrSessionNotFound) {
-					t.Errorf("Stop() cleanup error = %v", err)
-				}
-			}
-		})
+				session := createSession(t, h)
+				t.Cleanup(func() {
+					if _, active := h.manager.Get(session.ID); active {
+						if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+							!errors.Is(err, ErrSessionNotFound) {
+							t.Errorf("Stop() cleanup error = %v", err)
+						}
+					}
+				})
 
-		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
-		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
-		}
-		delivered := collectEvents(t, eventsCh)
-		if len(delivered) != 1 || delivered[0].Type != acp.EventTypeError ||
-			delivered[0].Failure == nil || delivered[0].Failure.Kind != store.FailureTransport {
-			t.Fatalf("Prompt() delivered = %#v, want only projection failure", delivered)
-		}
-		if got := countAgentEvents(h.notifier.eventsForSession(session.ID), acp.EventTypeToolCall); got != 0 {
-			t.Fatalf("tool call notifier events = %d, want zero", got)
-		}
-		if turnEnds != 0 {
-			t.Fatalf("turn end notifications = %d, want zero", turnEnds)
-		}
-		h.notifier.waitForStopped(t, session.ID)
-		if _, active := h.manager.Get(session.ID); active {
-			t.Fatalf("Get(%q) found session after stopped notification", session.ID)
-		}
-		meta := readMeta(t, session.MetaPath())
-		if meta.Failure == nil || meta.Failure.Kind != store.FailureTransport {
-			t.Fatalf("stopped session failure = %#v, want transport failure", meta.Failure)
-		}
-		if strings.Contains(meta.Failure.Summary, "super-secret") {
-			t.Fatalf("stopped session failure leaked secret: %q", meta.Failure.Summary)
-		}
-		reloaded, queryErr := recorder.Query(testutil.Context(t), store.EventQuery{})
-		if queryErr != nil {
-			t.Fatalf("Query(reload) error = %v", queryErr)
-		}
-		if got := countEventType(reloaded, acp.EventTypeToolCall); got != 0 {
-			t.Fatalf("reloaded tool_call rows = %d, want zero", got)
-		}
-	})
+				eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+				if err != nil {
+					t.Fatalf("Prompt() error = %v", err)
+				}
+				delivered := collectEvents(t, eventsCh)
+				if len(delivered) != 1 || delivered[0].Type != acp.EventTypeError ||
+					delivered[0].Failure == nil || delivered[0].Failure.Kind != tc.kind {
+					t.Fatalf("Prompt() delivered = %#v, want only projection failure", delivered)
+				}
+				if got := countAgentEvents(h.notifier.eventsForSession(session.ID), acp.EventTypeToolCall); got != 0 {
+					t.Fatalf("tool call notifier events = %d, want zero", got)
+				}
+				if turnEnds != 0 {
+					t.Fatalf("turn end notifications = %d, want zero", turnEnds)
+				}
+				h.notifier.waitForStopped(t, session.ID)
+				if _, active := h.manager.Get(session.ID); active {
+					t.Fatalf("Get(%q) found session after stopped notification", session.ID)
+				}
+				meta := readMeta(t, session.MetaPath())
+				if meta.Failure == nil || meta.Failure.Kind != tc.kind {
+					t.Fatalf("stopped session failure = %#v, want %s failure", meta.Failure, tc.kind)
+				}
+				if tc.kind == store.FailurePrompt && (meta.StopReason == nil || *meta.StopReason != store.StopError ||
+					!strings.Contains(meta.Failure.Summary, "session storage failed")) {
+					t.Fatalf("storage failure classification = %+v", meta)
+				}
+				if strings.Contains(meta.Failure.Summary, "super-secret") {
+					t.Fatalf("stopped session failure leaked secret: %q", meta.Failure.Summary)
+				}
+				reloaded, queryErr := recorder.Query(testutil.Context(t), store.EventQuery{})
+				if queryErr != nil {
+					t.Fatalf("Query(reload) error = %v", queryErr)
+				}
+				if got := countEventType(reloaded, acp.EventTypeToolCall); got != 0 {
+					t.Fatalf("reloaded tool_call rows = %d, want zero", got)
+				}
+			},
+		)
+	}
 }
 
 func TestPromptDeadlineDeliversRuntimeWarningBeforeError(t *testing.T) {

@@ -170,6 +170,9 @@ func (m *Manager) persistRecoveredStop(
 				meta.Failure = interruptedSessionFailure(meta.Failure, store.FailureStartup, detail)
 			}
 			meta.State = string(StateStopped)
+			if err := restoreStopReceiptClassification(&meta, &settlement.receipt); err != nil {
+				return err
+			}
 			if settlement.receipt.TerminalEvent == nil {
 				reason, stopDetail := classifyStopReason(outcome.Cause, nil, detail)
 				if outcome.Cause == CauseProcessExited {

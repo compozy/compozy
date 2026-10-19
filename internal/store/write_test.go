@@ -5,10 +5,13 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -17,6 +20,27 @@ import (
 )
 
 func TestExecuteWrite(t *testing.T) {
+	// Invariant: storage failures remain distinguishable from cancellation and transaction contract errors.
+	for _, tc := range []struct {
+		name        string
+		err         error
+		unavailable bool
+	}{
+		{"snapshot disk full", fmt.Errorf("create snapshot: %w", &os.PathError{Op: "mkdir", Path: "snapshot", Err: syscall.ENOSPC}), true},
+		{"filesystem IO", syscall.EIO, true},
+		{"read only filesystem", syscall.EROFS, true},
+		{"permission", os.ErrPermission, true},
+		{"cancellation", context.Canceled, false},
+		{"deadline", context.DeadlineExceeded, false},
+		{"contract", errWriteReentry, false},
+	} {
+		t.Run("Should classify "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := IsStorageUnavailable(tc.err); got != tc.unavailable {
+				t.Fatalf("IsStorageUnavailable(%v) = %t, want %t", tc.err, got, tc.unavailable)
+			}
+		})
+	}
 	t.Run("Should cancel an external lock without waiting for the native busy timeout", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
