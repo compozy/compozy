@@ -1,9 +1,11 @@
 package workspacefiles
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -157,6 +159,86 @@ func TestIndexSearchGitRepository(t *testing.T) {
 			t.Fatalf("Search(pkg) = %v, want [main.go]", got)
 		}
 	})
+
+	t.Run("Should classify listed symlinks like the walk", func(t *testing.T) {
+		t.Parallel()
+		runner := realGitRunner(t)
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatalf("resolve temp dir: %v", err)
+		}
+		outside := t.TempDir()
+		writeFiles(t, root, map[string]string{"pkg/main.go": "x", "notes.md": "x"})
+		writeFiles(t, outside, map[string]string{"secret.txt": "x"})
+		linkSymlinks(t, root, map[string]string{
+			"pkg-link":    "pkg",
+			"notes-link":  "notes.md",
+			"escape-dir":  outside,
+			"escape-file": filepath.Join(outside, "secret.txt"),
+			"broken":      "missing.go",
+		})
+		for _, args := range [][]string{
+			{"init", "-q"},
+			{"add", "-A"},
+			{"-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-q", "-m", "init"},
+		} {
+			if _, stderr, err := runner.Run(t.Context(), root, args...); err != nil {
+				t.Fatalf("git %v: %v: %s", args, err, stderr)
+			}
+		}
+
+		result, err := New(runner).Search(t.Context(), root, "", 100)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		assertSymlinkEntries(t, result.Entries)
+	})
+}
+
+// linkSymlinks creates root/name -> target for each entry, skipping where symlinks are unsupported.
+func linkSymlinks(t *testing.T, root string, links map[string]string) {
+	t.Helper()
+	for name, target := range links {
+		if err := os.Symlink(target, filepath.Join(root, name)); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+	}
+}
+
+// assertSymlinkEntries checks the fixture of linkSymlinks: an inner directory link is a folder,
+// an inner file link is a file, and escaping or broken links are absent.
+func assertSymlinkEntries(t *testing.T, entries []Entry) {
+	t.Helper()
+	kinds := make(map[string]EntryKind, len(entries))
+	for _, entry := range entries {
+		kinds[entry.Path] = entry.Kind
+	}
+	if kinds["pkg-link/"] != KindFolder || kinds["notes-link"] != KindFile {
+		t.Fatalf("entries = %#v, want pkg-link/ folder and notes-link file", entries)
+	}
+	for _, absent := range []string{"pkg-link", "escape-dir", "escape-dir/", "escape-file", "broken"} {
+		if _, ok := kinds[absent]; ok {
+			t.Fatalf("entries = %#v, want %q absent", entries, absent)
+		}
+	}
+}
+
+// lockedBuffer is a concurrency-safe log sink.
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
 
 func TestIndexSearchWalkFallback(t *testing.T) {
@@ -201,34 +283,87 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fall back to the walk when git fails", func(t *testing.T) {
+	t.Run("Should cap the index at the default 25,000 files", func(t *testing.T) {
 		t.Parallel()
-		root := t.TempDir()
-		writeFiles(t, root, map[string]string{"walked.go": "x"})
-		runner := &fakeGitRunner{err: errors.New("git exploded")}
+		files := make([]string, 0, DefaultMaxFiles+1)
+		for i := range DefaultMaxFiles + 1 {
+			files = append(files, fmt.Sprintf("f%05d.go", i))
+		}
+		runner := &fakeGitRunner{files: files}
 
-		result, err := New(runner).Search(t.Context(), root, "", 10)
+		idx := New(runner)
+		result, err := idx.Search(t.Context(), t.TempDir(), "", DefaultMaxFiles+10)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
-		if got := entryPaths(result.Entries); !slices.Equal(got, []string{"walked.go"}) {
-			t.Fatalf("Search() = %v, want [walked.go]", got)
+		if len(result.Entries) != DefaultMaxFiles || !result.Truncated {
+			t.Fatalf(
+				"Search() = %d entries truncated=%v, want %d truncated",
+				len(result.Entries), result.Truncated, DefaultMaxFiles,
+			)
+		}
+		last := files[DefaultMaxFiles]
+		if slices.Contains(entryPaths(result.Entries), last) {
+			t.Fatalf("Search() indexed %q past the cap", last)
 		}
 	})
 
-	t.Run("Should fall back to the walk when git exceeds its deadline", func(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		runner *fakeGitRunner
+		opts   []Option
+	}{
+		{name: "fails", runner: &fakeGitRunner{err: errors.New("git exploded")}},
+		{
+			name:   "exceeds its deadline",
+			runner: &fakeGitRunner{blockUntilDone: true},
+			opts:   []Option{WithGitTimeout(20 * time.Millisecond)},
+		},
+	} {
+		t.Run("Should fall back to the walk inside a repository when git "+test.name, func(t *testing.T) {
+			t.Parallel()
+			root := initGitRepo(t, realGitRunner(t), map[string]string{"walked.go": "x"})
+			logs := &lockedBuffer{}
+			logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+			opts := append([]Option{WithLogger(logger)}, test.opts...)
+			result, err := New(test.runner, opts...).Search(t.Context(), root, "", 10)
+			if err != nil {
+				t.Fatalf("Search() error = %v", err)
+			}
+			if got := entryPaths(result.Entries); !slices.Equal(got, []string{"walked.go"}) {
+				t.Fatalf("Search() = %v, want [walked.go] without .git", got)
+			}
+			output := logs.String()
+			if !strings.Contains(output, `"msg":"workspacefiles.git_fallback"`) ||
+				!strings.Contains(output, `"level":"WARN"`) {
+				t.Fatalf("logs = %s, want a workspacefiles.git_fallback warning", output)
+			}
+			if !strings.Contains(output, `"source":"walk"`) {
+				t.Fatalf("logs = %s, want the index built from the walk", output)
+			}
+		})
+	}
+
+	t.Run("Should classify walked symlinks by their target inside the root", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
-		writeFiles(t, root, map[string]string{"walked.go": "x"})
-		runner := &fakeGitRunner{blockUntilDone: true}
+		outside := t.TempDir()
+		writeFiles(t, root, map[string]string{"pkg/main.go": "x", "notes.md": "x"})
+		writeFiles(t, outside, map[string]string{"secret.txt": "x"})
+		linkSymlinks(t, root, map[string]string{
+			"pkg-link":    "pkg",
+			"notes-link":  "notes.md",
+			"escape-dir":  outside,
+			"escape-file": filepath.Join(outside, "secret.txt"),
+			"broken":      "missing.go",
+		})
 
-		result, err := New(runner, WithGitTimeout(20*time.Millisecond)).Search(t.Context(), root, "", 10)
+		result, err := New(nil).Search(t.Context(), root, "", 100)
 		if err != nil {
 			t.Fatalf("Search() error = %v", err)
 		}
-		if got := entryPaths(result.Entries); !slices.Equal(got, []string{"walked.go"}) {
-			t.Fatalf("Search() = %v, want [walked.go]", got)
-		}
+		assertSymlinkEntries(t, result.Entries)
 	})
 
 	t.Run("Should fail when the root does not exist", func(t *testing.T) {

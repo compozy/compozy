@@ -38,6 +38,7 @@ func (idx *index) gitFiles(ctx context.Context, root string) ([]string, bool, er
 		return nil, false, err
 	}
 	collector := fileCollector{
+		root:    root,
 		limit:   idx.maxFiles,
 		deleted: deleted,
 		seen:    make(map[string]struct{}),
@@ -53,8 +54,9 @@ func (idx *index) gitFiles(ctx context.Context, root string) ([]string, bool, er
 }
 
 // fileCollector accepts listed paths up to limit, dropping deleted, duplicate,
-// and non-indexable ones.
+// and non-indexable ones, and classifying symlinks by their target.
 type fileCollector struct {
+	root      string
 	limit     int
 	deleted   map[string]struct{}
 	seen      map[string]struct{}
@@ -71,11 +73,15 @@ func (c *fileCollector) add(name string) bool {
 		return true
 	}
 	c.seen[name] = struct{}{}
+	listed, keep := classifyListed(c.root, name)
+	if !keep {
+		return true
+	}
 	if len(c.files) == c.limit {
 		c.truncated = true
 		return false
 	}
-	c.files = append(c.files, name)
+	c.files = append(c.files, listed)
 	return true
 }
 
