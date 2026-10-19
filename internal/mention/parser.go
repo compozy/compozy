@@ -36,20 +36,16 @@ func Parse(text string) []Token {
 
 // ParseCounted is Parse plus the number of candidate tokens past MaxCandidateTokens that were left
 // as plain text without being returned.
+//
+// Only the first MaxCandidateTokens tokens are stored; later candidates are scanned and counted
+// without retaining them, so memory stays bounded however many `@` tokens text carries.
 func ParseCounted(text string) ([]Token, int) {
-	tokens := parseAll(text)
-	if len(tokens) <= MaxCandidateTokens {
-		return tokens, 0
-	}
-	return tokens[:MaxCandidateTokens:MaxCandidateTokens], len(tokens) - MaxCandidateTokens
-}
-
-func parseAll(text string) []Token {
 	if !strings.Contains(text, "@") {
-		return nil
+		return nil, 0
 	}
 	code := codeRegions(text)
 	var tokens []Token
+	overflow := 0
 	cursor := utf16Cursor{text: text}
 	regionIndex := 0
 	for offset := 0; offset < len(text); {
@@ -78,14 +74,18 @@ func parseAll(text string) []Token {
 			continue
 		}
 		token, end, ok := scanToken(text[:limit], at)
-		if ok {
+		switch {
+		case !ok:
+		case len(tokens) < MaxCandidateTokens:
 			token.Start = cursor.offset(at)
 			token.End = cursor.offset(at + len(token.Raw))
 			tokens = append(tokens, token)
+		default:
+			overflow++
 		}
 		offset = max(end, at+1)
 	}
-	return tokens
+	return tokens[:len(tokens):len(tokens)], overflow
 }
 
 // scanToken reads the token whose `@` sits at byte offset at. It returns the
