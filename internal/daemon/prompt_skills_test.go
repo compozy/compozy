@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
@@ -533,6 +534,54 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		}
 	})
 
+	t.Run("Should expand an admitted root skill after an unrelated registry reload", func(t *testing.T) {
+		t.Parallel()
+
+		skillDir := filepath.Join(t.TempDir(), "orchestrate")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll() error = %v", err)
+		}
+		skillFile := filepath.Join(skillDir, "SKILL.md")
+		content := "---\nname: orchestrate\ndescription: Orchestrate the issue.\n---\nOrchestration body."
+		if err := os.WriteFile(skillFile, []byte(content), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		records := []resources.Record[skillspkg.SkillResourceSpec]{{
+			ID: "agents:orchestrate", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+			Spec: skillspkg.SkillResourceSpec{
+				Name: "orchestrate", Description: "Orchestrate the issue.", Source: "user",
+				Origin: "agents", RootID: "root_agents", FilePath: skillFile, Enabled: true,
+			},
+		}}
+		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
+		if err := registry.ApplyResourceRecords(t.Context(), 1, records); err != nil {
+			t.Fatalf("ApplyResourceRecords(1) error = %v", err)
+		}
+		service := newSessionCommandService(registry, nil, nil, nil)
+		info := &session.Info{ID: "sess-reload", AgentName: "coder"}
+		agent := compozyconfig.AgentDef{Name: "coder"}
+		catalog, err := service.Catalog(t.Context(), info, agent)
+		if err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		invocations, err := commandpkg.ParseSkillInvocations("/agents:orchestrate go", catalog)
+		if err != nil || len(invocations) != 1 {
+			t.Fatalf("ParseSkillInvocations() = %#v, %v; want one admitted invocation", invocations, err)
+		}
+
+		// Any reload (profile selection, resource sync) lands between admission and dispatch.
+		if err := registry.ApplyResourceRecords(t.Context(), 2, records); err != nil {
+			t.Fatalf("ApplyResourceRecords(2) error = %v", err)
+		}
+		expanded, err := service.Expand(t.Context(), info, agent, invocations, "/agents:orchestrate go")
+		if err != nil {
+			t.Fatalf("Expand(after reload) error = %v, want the admitted skill expanded", err)
+		}
+		if !strings.Contains(expanded, "Orchestration body.") {
+			t.Fatalf("Expand(after reload) = %q, want the skill body", expanded)
+		}
+	})
+
 	t.Run("Should keep every physical homonym invocable by its qualified root identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -550,16 +599,16 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			candidates: []skillspkg.CommandCandidate{
 				{
 					Skill: claudeSkill, SourceKind: "workspace", SourceID: "claude",
-					SourceKey: "root_claude@generation:9", Scope: "workspace", Origin: "claude", Available: true,
+					SourceKey: "root_claude", Scope: "workspace", Origin: "claude", Available: true,
 				},
 				{
 					Skill: agentsSkill, SourceKind: "user", SourceID: "agents",
-					SourceKey: "root_agents@generation:9", Scope: "global", Origin: "agents",
+					SourceKey: "root_agents", Scope: "global", Origin: "agents",
 					Qualified: true, Available: true,
 				},
 				{
 					Skill: claudeSkill, SourceKind: "workspace", SourceID: "claude",
-					SourceKey: "root_claude@generation:9", Scope: "workspace", Origin: "claude",
+					SourceKey: "root_claude", Scope: "workspace", Origin: "claude",
 					Qualified: true, Available: true,
 				},
 			},
@@ -591,8 +640,8 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		}
 
 		staleCatalog := catalog
-		registry.candidates[0].SourceKey = "root_claude@generation:10"
-		registry.candidates[2].SourceKey = "root_claude@generation:10"
+		registry.candidates[0].SourceKey = "root_claude_relocated"
+		registry.candidates[2].SourceKey = "root_claude_relocated"
 		stale, err := commandpkg.ParseSkillInvocations("Use /review", staleCatalog)
 		if err != nil {
 			t.Fatalf("ParseSkillInvocations(stale) error = %v", err)
@@ -607,7 +656,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			err,
 			commandpkg.ErrUnavailable,
 		) {
-			t.Fatalf("Expand(stale generation) error = %v, want ErrUnavailable", err)
+			t.Fatalf("Expand(relocated source root) error = %v, want ErrUnavailable", err)
 		}
 	})
 

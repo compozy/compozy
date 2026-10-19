@@ -53,13 +53,12 @@ func (r *Registry) CommandCandidatesForAgentDefSession(
 		return nil, err
 	}
 
-	generation := r.globalVersion.Load()
 	candidates := make([]CommandCandidate, 0, len(effective)*2)
 	for _, skill := range effective {
 		if skill == nil {
 			continue
 		}
-		candidates = append(candidates, commandCandidateFromSkill(skill, false, generation))
+		candidates = append(candidates, commandCandidateFromSkill(skill, false))
 	}
 
 	allByKey := r.commandCandidateSnapshot(resolved)
@@ -88,12 +87,12 @@ func (r *Registry) CommandCandidatesForAgentDefSession(
 			nameCounts[commandpkg.Slug(skill.Meta.Name)]++
 		}
 	}
-	qualifiedSourceIDs := collisionSafeQualifiedSourceIDs(all, generation)
+	qualifiedSourceIDs := collisionSafeQualifiedSourceIDs(all)
 	for _, skill := range all {
 		if skill == nil || !shouldProjectQualifiedSkill(skill, nameCounts) {
 			continue
 		}
-		candidate := commandCandidateFromSkill(skill, true, generation)
+		candidate := commandCandidateFromSkill(skill, true)
 		if sourceID := qualifiedSourceIDs[commandCandidateIdentity(skill)]; sourceID != "" {
 			candidate.SourceID = sourceID
 		}
@@ -216,8 +215,8 @@ func appendCommandResourceCandidate(
 	return nil
 }
 
-func commandCandidateFromSkill(skill *Skill, qualified bool, generation int64) CommandCandidate {
-	source := commandSourceForCandidate(skill, generation)
+func commandCandidateFromSkill(skill *Skill, qualified bool) CommandCandidate {
+	source := CommandSourceForSkill(skill)
 	return CommandCandidate{
 		Skill:      cloneSkill(skill),
 		SourceKind: source.Kind,
@@ -228,16 +227,13 @@ func commandCandidateFromSkill(skill *Skill, qualified bool, generation int64) C
 		Available:  skill != nil && skill.Enabled && skillIsActive(skill),
 		Origin:     strings.TrimSpace(skill.Origin),
 		RootID:     strings.TrimSpace(skill.RootID),
-		Generation: generation,
 	}
 }
 
 // CommandSourceForSkill returns the opaque exact-source identity used by slash command refs.
+// A root-scoped skill is keyed by its physical root alone: registry reloads that leave the
+// root in place must not invalidate an invocation admitted before them (issue #815).
 func CommandSourceForSkill(skill *Skill) commandpkg.Source {
-	return commandSourceForCandidate(skill, 0)
-}
-
-func commandSourceForCandidate(skill *Skill, generation int64) commandpkg.Source {
 	kind, id, key := commandSkillSource(skill)
 	if rootID := strings.TrimSpace(skill.RootID); rootID != "" {
 		kind = SkillPrecedenceTierName(skill.Source)
@@ -245,7 +241,7 @@ func commandSourceForCandidate(skill *Skill, generation int64) commandpkg.Source
 		if id == "" {
 			id = compozyconfig.SkillSourceCompozy
 		}
-		key = fmt.Sprintf("%s@generation:%d", rootID, generation)
+		key = rootID
 	}
 	return commandpkg.Source{
 		Kind: kind, ID: id, Key: key, Scope: commandSkillScope(skill),
@@ -339,7 +335,7 @@ func shouldProjectQualifiedSkill(skill *Skill, nameCounts map[string]int) bool {
 	return strings.TrimSpace(skill.Origin) != "" || isExternalCommandSkill(skill) || nameCounts[name] > 1
 }
 
-func collisionSafeQualifiedSourceIDs(skills []*Skill, generation int64) map[string]string {
+func collisionSafeQualifiedSourceIDs(skills []*Skill) map[string]string {
 	type sourceIdentity struct {
 		candidateKey string
 		sourceID     string
@@ -355,7 +351,7 @@ func collisionSafeQualifiedSourceIDs(skills []*Skill, generation int64) map[stri
 		if candidateKey == "" {
 			continue
 		}
-		source := commandSourceForCandidate(skill, generation)
+		source := CommandSourceForSkill(skill)
 		groupKey := commandpkg.Slug(source.ID) + "\x00" + commandpkg.Slug(skill.Meta.Name)
 		groups[groupKey] = append(groups[groupKey], sourceIdentity{
 			candidateKey: candidateKey,

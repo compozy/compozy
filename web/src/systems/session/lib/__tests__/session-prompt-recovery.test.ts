@@ -1,7 +1,9 @@
 // Suite: session prompt recovery
 // Invariant: only a locally rejected prompt restores its latest annotation,
 // quote identity, and files once; the editor text never contains the envelope.
-// Accepted prompts and unsubscribed listeners cannot restore a draft.
+// Accepted prompts and unsubscribed listeners cannot restore a draft; a
+// rejection with no composer mounted waits for that session's next composer;
+// overlapping prompts of one session settle only their own identity.
 // Owning layer: systems/session/lib prompt recovery lifecycle.
 import { describe, expect, it, vi } from "vitest";
 
@@ -30,9 +32,9 @@ describe("SessionPromptRecovery", () => {
     const file = new File(["notes"], "notes.txt", { type: "text/plain" });
     recovery.subscribe(SCOPE, listener);
 
-    recovery.stage(SCOPE, { messages });
-    recovery.recover(SCOPE, [file]);
-    recovery.recover(SCOPE, [file]);
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    recovery.recover(SCOPE, "prompt-1", [file]);
+    recovery.recover(SCOPE, "prompt-1", [file]);
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledWith({
@@ -52,7 +54,7 @@ describe("SessionPromptRecovery", () => {
     });
     recovery.subscribe(SCOPE, listener);
 
-    recovery.stage(SCOPE, {
+    recovery.stage(SCOPE, "prompt-1", {
       messages: [
         {
           id: "prompt-quote",
@@ -61,7 +63,7 @@ describe("SessionPromptRecovery", () => {
         },
       ],
     });
-    recovery.recover(SCOPE, []);
+    recovery.recover(SCOPE, "prompt-1", []);
 
     expect(listener).toHaveBeenCalledWith({
       files: [],
@@ -76,12 +78,12 @@ describe("SessionPromptRecovery", () => {
     const listener = vi.fn();
     const unsubscribe = recovery.subscribe(SCOPE, listener);
 
-    recovery.stage(SCOPE, { messages });
-    recovery.acknowledge(SCOPE);
-    recovery.recover(SCOPE, []);
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    recovery.acknowledge(SCOPE, "prompt-1");
+    recovery.recover(SCOPE, "prompt-1", []);
     unsubscribe();
-    recovery.stage(SCOPE, { messages });
-    recovery.recover(SCOPE, []);
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    recovery.recover(SCOPE, "prompt-1", []);
 
     expect(listener).not.toHaveBeenCalled();
   });
@@ -94,8 +96,8 @@ describe("SessionPromptRecovery", () => {
     recovery.subscribe(SCOPE, originalListener);
     recovery.subscribe(nextScope, nextListener);
 
-    recovery.stage(SCOPE, { messages });
-    recovery.stage(nextScope, {
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    recovery.stage(nextScope, "prompt-next", {
       messages: [
         {
           id: "prompt-next",
@@ -104,13 +106,91 @@ describe("SessionPromptRecovery", () => {
         },
       ],
     });
-    recovery.recover(SCOPE, []);
+    recovery.recover(SCOPE, "prompt-1", []);
 
     expect(originalListener).toHaveBeenCalledOnce();
     expect(nextListener).not.toHaveBeenCalled();
 
-    recovery.recover(nextScope, []);
+    recovery.recover(nextScope, "prompt-next", []);
     expect(nextListener).toHaveBeenCalledOnce();
     expect(nextListener).toHaveBeenCalledWith({ files: [], quote: null, text: "Next session" });
+  });
+
+  it("Should hand a rejection that landed with no composer to the session's next composer", () => {
+    const recovery = new SessionPromptRecovery();
+    const departed = vi.fn();
+    const unsubscribe = recovery.subscribe(SCOPE, departed);
+    const file = new File(["shot"], "shot.png", { type: "image/png" });
+
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    unsubscribe();
+    recovery.recover(SCOPE, "prompt-1", [file]);
+    const returned = vi.fn();
+    recovery.subscribe(SCOPE, returned);
+    recovery.subscribe(SCOPE, vi.fn());
+
+    expect(departed).not.toHaveBeenCalled();
+    expect(returned).toHaveBeenCalledOnce();
+    expect(returned).toHaveBeenCalledWith({
+      files: [file],
+      quote: null,
+      text: "First line\nSecond line",
+    });
+  });
+
+  it("Should restore a rejected draft into exactly one composer of its session", () => {
+    const recovery = new SessionPromptRecovery();
+    const first = vi.fn();
+    const second = vi.fn();
+    recovery.subscribe(SCOPE, first);
+    recovery.subscribe(SCOPE, second);
+
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    recovery.recover(SCOPE, "prompt-1", []);
+
+    expect(first.mock.calls.length + second.mock.calls.length).toBe(1);
+  });
+
+  it("Should settle overlapping prompts of one session only by their own identity", () => {
+    const recovery = new SessionPromptRecovery();
+    const listener = vi.fn();
+    const earlierFile = new File(["a"], "earlier.png", { type: "image/png" });
+    const laterFile = new File(["b"], "later.png", { type: "image/png" });
+    const prompt = (id: string, text: string) => ({
+      messages: [{ id, parts: [{ text, type: "text" as const }], role: "user" as const }],
+    });
+    recovery.subscribe(SCOPE, listener);
+
+    recovery.stage(SCOPE, "prompt-earlier", prompt("prompt-earlier", "Earlier"));
+    recovery.stage(SCOPE, "prompt-later", prompt("prompt-later", "Later"));
+    recovery.acknowledge(SCOPE, "prompt-earlier");
+    recovery.recover(SCOPE, "prompt-later", [laterFile]);
+    recovery.stage(SCOPE, "prompt-third", prompt("prompt-third", "Third"));
+    recovery.recover(SCOPE, "prompt-earlier", [earlierFile]);
+
+    expect(listener).toHaveBeenCalledOnce();
+    expect(listener).toHaveBeenCalledWith({ files: [laterFile], quote: null, text: "Later" });
+  });
+
+  it("Should keep a delivered draft until a composer settles it", () => {
+    const recovery = new SessionPromptRecovery();
+    const departing = vi.fn();
+    const unsubscribe = recovery.subscribe(SCOPE, departing);
+
+    recovery.stage(SCOPE, "prompt-1", { messages });
+    recovery.recover(SCOPE, "prompt-1", []);
+    unsubscribe();
+    const next = vi.fn();
+    const unsubscribeNext = recovery.subscribe(SCOPE, next);
+    const restored = next.mock.calls[0]?.[0];
+    recovery.settle(SCOPE, restored);
+    unsubscribeNext();
+    const later = vi.fn();
+    recovery.subscribe(SCOPE, later);
+
+    expect(departing).toHaveBeenCalledOnce();
+    expect(next).toHaveBeenCalledOnce();
+    expect(restored).toEqual(departing.mock.calls[0]?.[0]);
+    expect(later).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,13 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
+)
+
+const (
+	// promptDispatchIndeterminateCode matches the public prompt_dispatch_indeterminate error code.
+	promptDispatchIndeterminateCode = "prompt_dispatch_indeterminate"
+	promptEvidenceMessageIDKey      = "message_id"
 )
 
 func bindReplyWatchResult(admission store.SessionPromptAdmission, result *SendPromptResult) error {
@@ -81,7 +88,40 @@ func (m *Manager) promptDispatchIndeterminate(
 		m.now(),
 	)
 	indeterminate := fmt.Errorf("%w: %s", store.ErrSessionPromptDispatchIndeterminate, reason)
+	m.reportPromptDispatchIndeterminate(cleanupCtx, admission, cause)
 	return errors.Join(indeterminate, markErr)
+}
+
+// reportPromptDispatchIndeterminate leaves a durable, operator-visible trace of a prompt whose
+// dispatch failed after the at-most-once boundary; the HTTP answer alone is lost when the
+// caller has already gone away (issue #815).
+func (m *Manager) reportPromptDispatchIndeterminate(
+	ctx context.Context,
+	admission store.SessionPromptAdmission,
+	cause error,
+) {
+	session, _ := m.Get(admission.SessionID)
+	attrs := []any{promptEvidenceMessageIDKey, admission.MessageID, "turn_id", admission.TurnID, "error", cause}
+	if session == nil {
+		// sessionLogger names the session itself only when it is live.
+		attrs = append([]any{"session_id", admission.SessionID}, attrs...)
+	}
+	m.sessionLogger(session).WarnContext(ctx, "session: prompt dispatch indeterminate", attrs...)
+	if session == nil {
+		return
+	}
+	m.emitTranscriptMarker(
+		ctx,
+		session,
+		admission.TurnID,
+		transcript.MarkerPromptDropped,
+		"Prompt delivery could not be confirmed: "+cause.Error(),
+		map[string]any{
+			"code":                     promptDispatchIndeterminateCode,
+			promptEvidenceMessageIDKey: admission.MessageID,
+			"operation":                admission.Operation,
+		},
+	)
 }
 
 // refreshReplyWatchResult reports the persisted watch state on a send receipt. A read failure after

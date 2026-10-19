@@ -68,6 +68,7 @@ import {
   peekPendingTerminalQuote,
   takePendingTerminalQuote,
 } from "@/systems/terminal/parts";
+import { resetSessionPromptRecovery } from "@/systems/session";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -536,6 +537,11 @@ function renderThreadState(
       result.rerender(threadStateElement(queryClient, { ...options, ...next })),
   };
 }
+
+// The recovery owner is app-scoped: a draft one test leaves pending must not reach the next.
+afterEach(() => {
+  resetSessionPromptRecovery();
+});
 
 describe("SessionThread transcript states", () => {
   // Invariant: a supplied context action reaches the composer in its host thread; owner: thread/composer composition.
@@ -6048,6 +6054,41 @@ describe("SessionThread composer attachments", () => {
     await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
     expect(composerText()).toBe("");
     expect(send).toBeEnabled();
+  });
+
+  // Invariant (issue #815): Enter honors the same send blocker as the disabled
+  // Send control and answers with its reason; nothing leaves and the draft stays.
+  it("Should hold Enter while a tile is uploading and name the reason", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const fetchMock = createFetchMock({ beforeAttachmentUpload: () => hold });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await setComposerText("Ship it with the screenshot");
+    let add!: Promise<void>;
+    act(() => {
+      add = requireComposerAui().composer.addAttachment(pngFile());
+    });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveAttribute("data-state", "uploading");
+
+    await user.click(screen.getByRole("textbox", { name: "Session prompt" }));
+    await user.keyboard("{Enter}");
+
+    expect(vi.mocked(toast.warning)).toHaveBeenCalledWith("Saving shot.png");
+    expect(composerText()).toBe("Ship it with the screenshot");
+    expect(fetchMock.mock.calls.some(([input]) => getPathname(input).endsWith("/prompt"))).toBe(
+      false
+    );
+    await act(async () => {
+      release();
+      await add;
+    });
+    await waitFor(() => expect(tile).toHaveAttribute("data-state", "ready"));
   });
 
   it("Should refuse unsupported files in place and keep send disabled", async () => {

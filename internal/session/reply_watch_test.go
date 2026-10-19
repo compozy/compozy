@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -785,6 +786,26 @@ func TestReplyWatchAdmissionFaults(t *testing.T) {
 			}
 			if len(rows) != wantInputs {
 				t.Fatalf("inputs = %d, want %d", len(rows), wantInputs)
+			}
+			// The refused send leaves a durable trace even when its HTTP answer is lost (issue #815).
+			markers, err := h.manager.Events(
+				t.Context(),
+				target.ID,
+				store.EventQuery{Type: events.TranscriptMarkerCreated, Limit: 100},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dropped := 0
+			for _, marker := range markers {
+				if strings.Contains(marker.Content, transcript.MarkerPromptDropped) &&
+					strings.Contains(marker.Content, "prompt_dispatch_indeterminate") &&
+					strings.Contains(marker.Content, "fault-message") {
+					dropped++
+				}
+			}
+			if dropped != 1 {
+				t.Fatalf("prompt_dropped indeterminate markers = %d, want 1 in %#v", dropped, markers)
 			}
 			if err := h.manager.Stop(t.Context(), target.ID); err != nil {
 				t.Fatal(err)

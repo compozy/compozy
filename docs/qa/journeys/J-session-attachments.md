@@ -73,3 +73,5 @@ e2e_backbone:
   manual:
     - "Verify image and PDF capability admission against the bound ACP agent separately from Markdown/plain-text fallback."
 ```
+
+QA impact 2026-10-19 (GH-815): a prompt's text and files return to their session's composer whenever the daemon refuses the prompt or never answers. That includes the case where the session window closed while the POST was in flight. The draft is consumed only by the daemon's acceptance, and the refusal is announced with the daemon's reason. Enter is held, like the Send control, while a file is still saving. Scenario: `RT-session-first-prompt-refusal-recovery`.

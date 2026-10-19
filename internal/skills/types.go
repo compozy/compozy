@@ -52,7 +52,6 @@ type CommandCandidate struct {
 	Available  bool
 	Origin     string
 	RootID     string
-	Generation int64
 }
 
 // ActivationGates declares offer-time constraints from metadata.compozy.when.

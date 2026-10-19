@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 import { InputGroup } from "@compozy/ui";
 
+import { notifyUser } from "@/lib/user-feedback";
 import { cn } from "@/lib/utils";
 import {
   SessionQueueStrip,
@@ -225,7 +226,12 @@ function SessionComposerInput() {
         onHandle={actions.setComposerInputElement}
         editableAriaLabel="Session prompt"
       />
-      <SessionBusyEnterPlugin active={state.busyEnterActive} onEnter={actions.handleEnterAction} />
+      <SessionBusyEnterPlugin
+        active={state.busyEnterActive}
+        blocker={state.sendBlocker}
+        onBlocked={reason => notifyUser({ message: reason, tone: "warning" })}
+        onEnter={actions.handleEnterAction}
+      />
       <SessionCommandScopePlugin setScope={actions.setCommandScope} />
       <SessionDirectiveBoundaryPlugin />
       {meta.attachments ? <SessionComposerPastePlugin /> : null}

@@ -43,8 +43,17 @@ import {
   useClearSessionConversation,
   useSessionTranscriptThreadState,
 } from "@/systems/session";
+import { sessionPromptRecovery } from "@/systems/session/lib/session-prompt-recovery";
+import { toast } from "sonner";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
+
+// The recovery owner and sonner's toast list are app-scoped: nothing one test leaves
+// pending may reach the next.
+afterEach(() => {
+  sessionPromptRecovery.reset();
+  toast.dismiss();
+});
 
 describe("formatMessageError", () => {
   it("extracts provider failure detail from JSON-RPC error envelopes", () => {
@@ -900,6 +909,15 @@ describe("SessionChatRuntimeProvider", () => {
       }
 
       if (
+        (input instanceof Request ? input.method : init?.method) === "DELETE" &&
+        pathname.startsWith(
+          `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments/`
+        )
+      ) {
+        return new Response(null, { status: 204 });
+      }
+
+      if (
         pathname ===
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`
       ) {
@@ -1656,6 +1674,8 @@ describe("SessionChatRuntimeProvider", () => {
       await user.click(screen.getByTestId("composer-send-button"));
 
       await waitFor(() => expect(signals).toEqual(["revoked"]));
+      // The refusal returns the draft; let that settle before cleanup unmounts the composer.
+      await waitFor(() => expect(composerText()).toBe("Prompt from a revoked device"));
     } finally {
       unsubscribe();
     }
@@ -1698,7 +1718,10 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
   });
 
-  it("Should preserve a newer draft when a rejected prompt restores its files", async () => {
+  // Invariant (issue #815): a refused draft returns whole — its own text and files — and
+  // never overwrites or merges into a newer draft the operator is writing; it waits for
+  // the composer to be free.
+  it("Should hold a refused draft while a newer draft occupies the composer, then restore it whole", async () => {
     const rejection = createDeferred<Response>();
     promptResponsePromise = rejection.promise;
     const user = userEvent.setup();
@@ -1716,7 +1739,14 @@ describe("SessionChatRuntimeProvider", () => {
     await setComposerText("Newer draft");
     rejection.resolve(jsonResponse({ error: "prompt rejected" }, { status: 422 }));
 
-    await waitFor(() => expect(composerText()).toBe("Newer draft"));
+    await act(async () => {
+      await new Promise(resolve => window.setTimeout(resolve, 50));
+    });
+    expect(composerText()).toBe("Newer draft");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+
+    await setComposerText("");
+    await waitFor(() => expect(composerText()).toBe("Rejected attachment"));
     expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
   });
 
@@ -1770,6 +1800,167 @@ describe("SessionChatRuntimeProvider", () => {
           .attachments.map(attachment => attachment.name)
       ).toEqual(["first.txt", "second.txt"])
     );
+  });
+
+  // Invariant (issue #815): a prompt's draft is consumed only by the daemon's
+  // acceptance. A runtime torn down mid-POST (navigation, a profile switch)
+  // neither aborts the admission nor drops the draft: a refusal names its
+  // reason and returns the text and files to that session's next composer.
+  // Owning layer: chat-runtime provider integration. Canonical suite: this file.
+  it("Should return a refused prompt's draft and files to its session after the runtime closed mid-request", async () => {
+    const refusal = createDeferred<Response>();
+    promptResponsePromise = refusal.promise;
+    render(<Toaster duration={5_000} />);
+    const user = userEvent.setup();
+    const first = renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Orchestrate issue 815");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(
+        new File(["shot"], "shot.png", { type: "image/png" })
+      );
+    });
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const promptRequest = fetchMock.mock.calls.find(([input]) =>
+      getPathname(input as RequestInfo | URL).endsWith("/prompt")
+    );
+
+    first.unmount();
+    expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(false);
+    refusal.resolve(
+      jsonResponse(
+        {
+          error: "command: unavailable: /cy-orquestrate-issue",
+          code: "prompt_dispatch_indeterminate",
+        },
+        { status: 409 }
+      )
+    );
+    expect(
+      await screen.findByText(
+        "Message not sent: command: unavailable: /cy-orquestrate-issue. Your draft was kept."
+      )
+    ).toBeInTheDocument();
+
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+    await waitFor(() => expect(composerText()).toBe("Orchestrate issue 815"));
+    expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+  });
+
+  it("Should restore two refused drafts separately instead of folding the later one into the first", async () => {
+    const scope = { workspaceId: fixtureWorkspaceId(), sessionId: primarySessionFixture.id };
+    const prompt = (id: string, text: string) => ({
+      messages: [{ id, parts: [{ text, type: "text" as const }], role: "user" as const }],
+    });
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+
+    sessionPromptRecovery.stage(scope, "refused-first", prompt("refused-first", "First refused"));
+    sessionPromptRecovery.stage(
+      scope,
+      "refused-second",
+      prompt("refused-second", "Second refused")
+    );
+    act(() => {
+      sessionPromptRecovery.recover(scope, "refused-first", [
+        new File(["a"], "first.txt", { type: "text/plain" }),
+      ]);
+      sessionPromptRecovery.recover(scope, "refused-second", [
+        new File(["b"], "second.txt", { type: "text/plain" }),
+      ]);
+    });
+
+    await waitFor(() => expect(composerText()).toBe("First refused"));
+    await waitFor(() =>
+      expect(
+        requireComposerAui()
+          .composer.getState()
+          .attachments.map(attachment => attachment.name)
+      ).toEqual(["first.txt"])
+    );
+
+    await act(async () => {
+      requireComposerAui().composer.setText("");
+      await requireComposerAui().composer.clearAttachments();
+    });
+    await waitFor(() => expect(composerText()).toBe("Second refused"));
+    await waitFor(() =>
+      expect(
+        requireComposerAui()
+          .composer.getState()
+          .attachments.map(attachment => attachment.name)
+      ).toEqual(["second.txt"])
+    );
+  });
+
+  it("Should keep the draft as unconfirmed, not refused, when a closed runtime's prompt gets a 5xx", async () => {
+    const answer = createDeferred<Response>();
+    promptResponsePromise = answer.promise;
+    render(<Toaster duration={5_000} />);
+    const user = userEvent.setup();
+    const first = renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Maybe recorded");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+
+    first.unmount();
+    answer.resolve(jsonResponse({ error: "gateway timeout" }, { status: 504 }));
+    expect(
+      await screen.findByText("Couldn't confirm the message was sent. Your draft was kept.")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Message not sent/)).not.toBeInTheDocument();
+
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+    await waitFor(() => expect(composerText()).toBe("Maybe recorded"));
+  });
+
+  it("Should consume the draft when a prompt left by a closed runtime is accepted", async () => {
+    const acceptance = createDeferred<Response>();
+    promptResponsePromise = acceptance.promise;
+    const user = userEvent.setup();
+    const first = renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Accepted after leaving");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+
+    first.unmount();
+    acceptance.resolve(sseResponse([]));
+    await act(async () => {
+      await acceptance.promise;
+    });
+
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await new Promise(resolve => window.setTimeout(resolve, 0));
+    });
+    expect(composerText()).toBe("");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+  });
+
+  it("Should name the daemon's reason when it refuses a prompt", async () => {
+    promptResponsePromise = Promise.resolve(
+      jsonResponse({ error: "session is archived" }, { status: 409 })
+    );
+    const user = userEvent.setup();
+    renderSessionThread({ includeToaster: true });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Refused in place");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    expect(
+      await screen.findByText("Message not sent: session is archived. Your draft was kept.")
+    ).toBeInTheDocument();
+    await waitFor(() => expect(composerText()).toBe("Refused in place"));
   });
 
   // Invariant (UT-105, US-019.EC-1 / US-009.EC-4): cancelling a prompt never

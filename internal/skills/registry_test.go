@@ -2747,9 +2747,10 @@ func TestRegistryCommandCandidatesPreservePreOverlayRootIdentity(t *testing.T) {
 				name: candidate.Skill.Meta.Name, sourceID: candidate.SourceID,
 				rootID: candidate.RootID, qualified: candidate.Qualified,
 			})
-			if candidate.RootID != "" && !strings.HasPrefix(candidate.SourceKey, candidate.RootID+"@generation:") {
+			// The key names the physical root alone so registry reloads keep admitted refs valid.
+			if candidate.RootID != "" && candidate.SourceKey != candidate.RootID {
 				t.Fatalf(
-					"candidate source key = %q, want opaque generation under RootID %q",
+					"candidate source key = %q, want the stable RootID %q",
 					candidate.SourceKey,
 					candidate.RootID,
 				)

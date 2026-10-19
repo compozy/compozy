@@ -39,46 +39,111 @@ function latestUserPromptText(messages: readonly UIMessage[]): string {
   return "";
 }
 
+function stagedDraftKey(scope: SessionPromptRecoveryScope, messageId: string): string {
+  return JSON.stringify([scope.workspaceId, scope.sessionId, messageId]);
+}
+
 /**
- * Holds only the in-flight composer draft until the daemon either accepts the
- * prompt or rejects it. The adapter supplies the original Files on rejection,
- * allowing the public composer API to restore previews and editable text.
+ * Holds each in-flight composer draft, by prompt identity, until the daemon
+ * either accepts that prompt or rejects it. The adapter supplies the original
+ * Files on rejection, allowing the public composer API to restore previews and
+ * editable text.
+ *
+ * Prompts of one session can overlap once a runtime closes mid-request and a
+ * new one sends again, so every outcome settles only its own `message_id`. A
+ * rejection can land after its composer is gone (navigation, a profile
+ * switch), or the composer can go away before it finished restoring: the
+ * restored draft stays owned here, in arrival order, until a composer of that
+ * session settles it. One composer receives it at a time, so a session open
+ * twice never restores the same files into both.
  */
 export class SessionPromptRecovery {
   private readonly drafts = new Map<string, RejectedSessionPromptDraft>();
+  private readonly restored = new Map<string, RestoredSessionPromptDraft[]>();
   private readonly listeners = new Map<string, Set<RecoveryListener>>();
+
+  /** Forgets staged and pending drafts; suites sharing the app-scoped owner start clean. */
+  public reset(): void {
+    this.drafts.clear();
+    this.restored.clear();
+  }
 
   public stage(
     scope: SessionPromptRecoveryScope,
+    messageId: string,
     { messages }: { messages: readonly UIMessage[] }
   ): void {
     const { annotation, quote } = splitQuotedPrompt(latestUserPromptText(messages));
-    this.drafts.set(recoveryScopeKey(scope), { quote, text: annotation });
+    this.drafts.set(stagedDraftKey(scope, messageId), { quote, text: annotation });
   }
 
-  public acknowledge(scope: SessionPromptRecoveryScope): void {
-    this.drafts.delete(recoveryScopeKey(scope));
+  public acknowledge(scope: SessionPromptRecoveryScope, messageId: string): void {
+    this.drafts.delete(stagedDraftKey(scope, messageId));
   }
 
-  public recover(scope: SessionPromptRecoveryScope, files: readonly File[]): void {
-    const key = recoveryScopeKey(scope);
+  public recover(
+    scope: SessionPromptRecoveryScope,
+    messageId: string,
+    files: readonly File[]
+  ): void {
+    const key = stagedDraftKey(scope, messageId);
     const draft = this.drafts.get(key);
     this.drafts.delete(key);
     if (!draft) return;
-    const restored = { files, quote: draft.quote, text: draft.text };
-    for (const listener of this.listeners.get(key) ?? []) {
-      listener(restored);
-    }
+    this.deliver(recoveryScopeKey(scope), { files, quote: draft.quote, text: draft.text });
   }
 
   public subscribe(scope: SessionPromptRecoveryScope, listener: RecoveryListener): () => void {
     const key = recoveryScopeKey(scope);
     const listeners = this.listeners.get(key) ?? new Set<RecoveryListener>();
+    const owner = listeners.size === 0;
     listeners.add(listener);
     this.listeners.set(key, listeners);
+    if (owner) this.handOver(key, listener);
     return () => {
+      const wasOwner = this.owner(key) === listener;
       listeners.delete(listener);
-      if (listeners.size === 0) this.listeners.delete(key);
+      if (listeners.size === 0) {
+        this.listeners.delete(key);
+        return;
+      }
+      // Drafts the departing composer never settled go to the next one.
+      const next = this.owner(key);
+      if (wasOwner && next) this.handOver(key, next);
     };
   }
+
+  /** A composer confirms it restored this draft; only then does recovery let go of it. */
+  public settle(scope: SessionPromptRecoveryScope, draft: RestoredSessionPromptDraft): void {
+    const key = recoveryScopeKey(scope);
+    const pending = (this.restored.get(key) ?? []).filter(candidate => candidate !== draft);
+    if (pending.length === 0) this.restored.delete(key);
+    else this.restored.set(key, pending);
+  }
+
+  private deliver(key: string, draft: RestoredSessionPromptDraft): void {
+    this.restored.set(key, [...(this.restored.get(key) ?? []), draft]);
+    this.owner(key)?.(draft);
+  }
+
+  private owner(key: string): RecoveryListener | undefined {
+    const [listener] = this.listeners.get(key) ?? [];
+    return listener;
+  }
+
+  private handOver(key: string, listener: RecoveryListener): void {
+    for (const draft of this.restored.get(key) ?? []) listener(draft);
+  }
+}
+
+/**
+ * The browser's one recovery owner. A session runtime is rebuilt whenever its
+ * workspace or session identity changes, but the outcome of a prompt already on
+ * the wire must still reach that session's composer.
+ */
+export const sessionPromptRecovery = new SessionPromptRecovery();
+
+/** Clears the app-scoped recovery owner; test suites outside the session system use this seam. */
+export function resetSessionPromptRecovery(): void {
+  sessionPromptRecovery.reset();
 }
