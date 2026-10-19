@@ -13,6 +13,12 @@ import { cn } from "@/lib/utils";
  * `/` command menu and the `@` mention menu — so both speak one grammar.
  */
 
+/** Overrides the primitive's highlight for a row the keyboard cannot reach. */
+const UNHIGHLIGHTABLE_ROW_PROPS = {
+  "aria-selected": false,
+  "data-highlighted": undefined,
+} as const;
+
 export function TriggerMenuRow({
   item,
   flatIndex,
@@ -20,17 +26,24 @@ export function TriggerMenuRow({
   className,
   children,
   trailing,
+  highlightable = true,
   ...props
 }: Omit<ComponentProps<typeof ComposerPrimitive.Unstable_TriggerPopoverItem>, "item" | "index"> & {
   item: Unstable_TriggerItem;
   flatIndex: number;
   icon: LucideIcon;
+  /**
+   * False keeps the row on screen and clickable but out of keyboard reach: it
+   * is never highlighted, so Enter/Tab cannot commit it. The `@` menu uses it
+   * for rows that answer an earlier query.
+   */
+  highlightable?: boolean;
   /** Title and secondary text, laid out on one baseline. */
   children: ReactNode;
   trailing?: ReactNode;
 }) {
   const { highlightedIndex } = useTriggerPopoverScopeContext();
-  const isHighlighted = highlightedIndex === flatIndex;
+  const isHighlighted = highlightable && highlightedIndex === flatIndex;
   const rowRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -50,6 +63,7 @@ export function TriggerMenuRow({
         className
       )}
       {...props}
+      {...(highlightable ? {} : UNHIGHLIGHTABLE_ROW_PROPS)}
     >
       <span
         className={cn(

@@ -70,18 +70,24 @@ export function SessionMentionChip({ kind, target, label, onOpen }: SessionMenti
       onClick={(event: MouseEvent<HTMLButtonElement>) =>
         onOpen({ newWindow: event.metaKey || event.ctrlKey })
       }
-    />
+    >
+      {content}
+    </button>
   ) : (
     <span
       data-testid="session-mention-chip"
       data-mention-kind={kind}
       data-mention-target={target}
       className={className}
-    />
+    >
+      {content}
+    </span>
   );
+  // The trigger element owns its content, so the button's accessible name is
+  // the hidden description it renders, never an empty control.
   return (
     <Tooltip>
-      <TooltipTrigger render={trigger}>{content}</TooltipTrigger>
+      <TooltipTrigger render={trigger} />
       <TooltipContent className="max-w-[360px] font-mono text-micro font-normal [overflow-wrap:anywhere]">
         {target}
       </TooltipContent>

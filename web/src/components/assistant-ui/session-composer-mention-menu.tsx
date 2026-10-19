@@ -54,58 +54,62 @@ function MatchedText({ text, query }: { text: string; query: string }) {
   );
 }
 
-function MentionMenuRow({
-  item,
-  flatIndex,
-  query,
-}: {
+interface MentionRowProps {
   item: Unstable_TriggerItem;
   flatIndex: number;
   query: string;
-}) {
-  const kind = item.metadata?.kind;
-  if (kind === "session") {
-    const titled = item.metadata?.titled === true;
-    const updatedAt = typeof item.metadata?.updatedAt === "string" ? item.metadata.updatedAt : "";
-    const agent = item.description ?? "";
-    const updated = updatedAt ? formatRelativeTime(updatedAt) : "";
-    return (
-      <TriggerMenuRow
-        item={item}
-        flatIndex={flatIndex}
-        icon={MessagesSquare}
-        data-testid="composer-mention-item"
-        data-mention-kind="session"
+  /** False while the row answers an earlier query: shown and clickable, never highlighted. */
+  highlightable: boolean;
+}
+
+function SessionMentionRow({ item, flatIndex, query, highlightable }: MentionRowProps) {
+  const titled = item.metadata?.titled === true;
+  const updatedAt = typeof item.metadata?.updatedAt === "string" ? item.metadata.updatedAt : "";
+  const agent = item.description ?? "";
+  const updated = updatedAt ? formatRelativeTime(updatedAt) : "";
+  return (
+    <TriggerMenuRow
+      item={item}
+      flatIndex={flatIndex}
+      highlightable={highlightable}
+      icon={MessagesSquare}
+      data-testid="composer-mention-item"
+      data-mention-kind="session"
+    >
+      <span
+        className={
+          titled
+            ? "max-w-[70%] shrink-0 truncate font-medium"
+            : "max-w-[70%] shrink-0 truncate font-mono text-meta font-medium"
+        }
       >
-        <span
-          className={
-            titled
-              ? "max-w-[70%] shrink-0 truncate font-medium"
-              : "max-w-[70%] shrink-0 truncate font-mono text-meta font-medium"
-          }
-        >
-          <MatchedText text={item.label} query={query} />
-        </span>
-        {/* Agent and update time tell same-titled sessions apart (US-003.EC-4);
-            the separator only joins two present parts. */}
-        {agent || updated ? (
-          <TriggerMenuRowSecondary>
-            <MatchedText text={agent} query={query} />
-            {agent && updated ? " · " : null}
-            {updated}
-          </TriggerMenuRowSecondary>
-        ) : null}
-      </TriggerMenuRow>
-    );
-  }
+        <MatchedText text={item.label} query={query} />
+      </span>
+      {/* Agent and update time tell same-titled sessions apart (US-003.EC-4);
+          the separator only joins two present parts. */}
+      {agent || updated ? (
+        <TriggerMenuRowSecondary>
+          <MatchedText text={agent} query={query} />
+          {agent && updated ? " · " : null}
+          {updated}
+        </TriggerMenuRowSecondary>
+      ) : null}
+    </TriggerMenuRow>
+  );
+}
+
+function PathMentionRow({ item, flatIndex, query, highlightable }: MentionRowProps) {
+  const folder = item.metadata?.kind === "folder";
+  // The match is emphasized where it hit: the name first, else the parent path.
   const nameMatches = emphasizeMatch(item.label, query).some(segment => segment.match);
   return (
     <TriggerMenuRow
       item={item}
       flatIndex={flatIndex}
-      icon={kind === "folder" ? Folder : File}
+      highlightable={highlightable}
+      icon={folder ? Folder : File}
       data-testid="composer-mention-item"
-      data-mention-kind={kind === "folder" ? "folder" : "file"}
+      data-mention-kind={folder ? "folder" : "file"}
     >
       <span className="max-w-[70%] shrink-0 truncate font-medium">
         <MatchedText text={item.label} query={nameMatches ? query : ""} />
@@ -119,7 +123,23 @@ function MentionMenuRow({
   );
 }
 
-function MentionMenuGroupView({ group, query }: { group: MentionMenuGroup; query: string }) {
+function MentionMenuRow(props: MentionRowProps) {
+  return props.item.metadata?.kind === "session" ? (
+    <SessionMentionRow {...props} />
+  ) : (
+    <PathMentionRow {...props} />
+  );
+}
+
+function MentionMenuGroupView({
+  group,
+  query,
+  highlightable,
+}: {
+  group: MentionMenuGroup;
+  query: string;
+  highlightable: boolean;
+}) {
   return (
     <div role="group" aria-label={group.label} data-testid={`composer-mention-group-${group.id}`}>
       <TriggerMenuGroupHeader label={group.label} />
@@ -130,6 +150,7 @@ function MentionMenuGroupView({ group, query }: { group: MentionMenuGroup; query
             item={row.item}
             flatIndex={row.flatIndex}
             query={query}
+            highlightable={highlightable}
           />
         ))
       ) : (
@@ -148,7 +169,7 @@ function MentionMenuGroups({ model, query }: { model: MentionMenuModel; query: s
       {model.groups.map((group, index) => (
         <Fragment key={group.id}>
           {index > 0 ? <TriggerMenuDivider /> : null}
-          <MentionMenuGroupView group={group} query={query} />
+          <MentionMenuGroupView group={group} query={query} highlightable={!model.stale} />
         </Fragment>
       ))}
     </div>
@@ -227,9 +248,11 @@ export function SessionComposerMentionMenu({
   const files = useSessionFileSearch({ workspaceId, sessionId, query, enabled: active });
   const sessions = useSessionMentionSessions({ workspaceId, sessionId, query, enabled: active });
   const model = buildMentionMenuModel({ query, files, sessions, recents });
-  // Only pickable rows open the listbox: an open listbox with no item would
-  // swallow Enter during the first load (US-004.AC-3, VC-04).
-  const listboxOpen = active && model.items.length > 0;
+  // Only rows open the listbox: an open listbox with no row would swallow
+  // Enter during the first load (US-004.AC-3, VC-04). Stale rows keep it open
+  // with nothing highlightable, so Enter waits for the current query's rows
+  // instead of sending the prompt or picking a row from an earlier query.
+  const listboxOpen = active && model.rowCount > 0;
   const adapter = listboxOpen
     ? {
         categories: () => NO_CATEGORIES,
@@ -244,6 +267,7 @@ export function SessionComposerMentionMenu({
       adapter={adapter}
       isLoading={model.loading}
       aria-label="Mentions"
+      aria-busy={model.stale || undefined}
       data-testid="composer-mention-menu"
       className={TRIGGER_MENU_POPOVER_CLASS}
     >

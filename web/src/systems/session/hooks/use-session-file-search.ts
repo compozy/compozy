@@ -17,6 +17,12 @@ export interface SessionFileSearchView {
   entries: readonly SessionFileEntry[];
   truncated: boolean;
   status: SessionMentionSourceStatus;
+  /**
+   * The rows answer an earlier query: the debounce has not caught up with the
+   * typed text yet, or the current query's answer has not landed and the
+   * previous rows are kept on screen.
+   */
+  stale: boolean;
 }
 
 /**
@@ -49,5 +55,6 @@ export function useSessionFileSearch({
     entries,
     truncated: search.data?.truncated ?? false,
     status,
+    stale: debounced !== trimmed || search.isPlaceholderData,
   };
 }

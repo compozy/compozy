@@ -306,6 +306,10 @@ test.describe("composer mentions", () => {
     const row = picker.getByRole("option", { name: /client_prompt\.go/ });
     await expect(row).toBeVisible();
     await expect(row).toContainText("internal/acp");
+    // Rows from an earlier query stay visible but the keyboard never picks them; Enter commits
+    // only once the typed query's own rows have landed and the target is highlighted.
+    await expect(picker).not.toHaveAttribute("aria-busy", "true");
+    await expect(row).toHaveAttribute("aria-selected", "true");
     await ui.composerTextarea.press("Enter");
 
     const composerChip = window.getByTestId("composer-input").getByTestId("session-mention-chip");

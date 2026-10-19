@@ -7218,7 +7218,8 @@ describe("SessionThread composer mentions", () => {
     const menu = await screen.findByRole("listbox", { name: "Mentions" });
     const first = await within(menu).findByRole("option", { name: /README\.md/ });
     const second = await within(menu).findByRole("option", { name: /readme-notes\.md/ });
-    expect(first).toHaveAttribute("data-highlighted");
+    // The "read" rows have landed: the first one is highlighted.
+    await waitFor(() => expect(first).toHaveAttribute("data-highlighted"));
 
     await act(async () => {
       fireEvent.compositionStart(editable, { data: "" });
@@ -7304,6 +7305,17 @@ describe("SessionThread composer mentions", () => {
     await waitFor(() => expect(fileQueries.some(q => q.get("q") === "client_")).toBe(true));
     expect(within(menu).getByRole("option", { name: /^client\.go/ })).toBeInTheDocument();
     expect(menu).not.toHaveTextContent("Loading files…");
+    // Those rows answer "client", not "client_": none is highlighted, and Enter neither picks
+    // one nor sends the prompt while the current answer is pending.
+    expect(menu).toHaveAttribute("aria-busy", "true");
+    for (const option of within(menu).getAllByRole("option")) {
+      expect(option).toHaveAttribute("aria-selected", "false");
+    }
+    await act(async () => {
+      fireEvent.keyDown(await findComposerEditable(), { key: "Enter" });
+    });
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+    expect(composerText()).toBe("@client_");
 
     // A newer fast query answers first.
     await setComposerText("@client_p");
@@ -7320,7 +7332,19 @@ describe("SessionThread composer mentions", () => {
     expect(
       within(menu).queryByRole("option", { name: /client_steer\.go/ })
     ).not.toBeInTheDocument();
-    expect(within(menu).getByRole("option", { name: /client_prompt\.go/ })).toBeInTheDocument();
+    const current = within(menu).getByRole("option", { name: /client_prompt\.go/ });
+    // The current query's own row is highlighted, and Enter picks exactly it.
+    expect(menu).not.toHaveAttribute("aria-busy");
+    expect(current).toHaveAttribute("aria-selected", "true");
+    await act(async () => {
+      fireEvent.keyDown(await findComposerEditable(), { key: "Enter" });
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("session-mention-chip")).toHaveAttribute(
+        "data-mention-target",
+        "internal/acp/client_prompt.go"
+      )
+    );
   });
 
   // UT-042: the search waits out the 120 ms debounce before asking the daemon.

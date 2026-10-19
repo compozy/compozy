@@ -13,6 +13,8 @@ export const SESSION_MENTION_SESSION_LIMIT = 5;
 export interface SessionMentionSessionsView {
   sessions: readonly SessionPayload[];
   status: SessionMentionSourceStatus;
+  /** The rows answer an earlier query while the current one is debounced or loading. */
+  stale: boolean;
 }
 
 /**
@@ -32,7 +34,8 @@ export function useSessionMentionSessions({
   query: string;
   enabled: boolean;
 }): SessionMentionSessionsView {
-  const debounced = useDebouncedValue(query.trim(), SESSION_MENTION_DEBOUNCE_MS);
+  const trimmed = query.trim();
+  const debounced = useDebouncedValue(trimmed, SESSION_MENTION_DEBOUNCE_MS);
   const catalog = useSessionCatalog(
     workspaceId,
     { q: debounced, limit: SESSION_MENTION_SESSION_LIMIT + 1 },
@@ -46,5 +49,5 @@ export function useSessionMentionSessions({
     : catalog.loading
       ? "loading"
       : "ready";
-  return { sessions, status };
+  return { sessions, status, stale: debounced !== trimmed || catalog.placeholder };
 }

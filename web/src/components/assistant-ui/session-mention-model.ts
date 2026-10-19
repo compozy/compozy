@@ -164,10 +164,18 @@ export interface MentionMenuGroup {
 
 export interface MentionMenuModel {
   groups: MentionMenuGroup[];
-  /** Every selectable row in display order — the trigger adapter's list. */
+  /**
+   * Every keyboard-reachable row in display order — the trigger adapter's
+   * list. Empty while the shown rows are stale, so Enter/Tab can never commit
+   * a row that answers an earlier query.
+   */
   items: Unstable_TriggerItem[];
   /** True while any group is still resolving its first answer. */
   loading: boolean;
+  /** True when rows answering an earlier query are on screen (US-001.EC-6). */
+  stale: boolean;
+  /** Rows on screen across both groups, selectable or not. */
+  rowCount: number;
 }
 
 export interface MentionMenuSources {
@@ -176,10 +184,14 @@ export interface MentionMenuSources {
     entries: readonly Pick<SessionFileEntry, "path" | "kind">[];
     status: SessionMentionSourceStatus;
     truncated: boolean;
+    /** The entries answer an earlier query than `query`. */
+    stale?: boolean;
   };
   sessions: {
     sessions: readonly Pick<SessionPayload, "id" | "name" | "agent_name" | "updated_at">[];
     status: SessionMentionSourceStatus;
+    /** The sessions answer an earlier query than `query`. */
+    stale?: boolean;
   };
   recents: readonly SessionMentionRecent[];
 }
@@ -247,10 +259,19 @@ export function buildMentionMenuModel(sources: MentionMenuSources): MentionMenuM
       truncated: false,
     },
   ];
+  // Rows answering an earlier query stay visible, undimmed and clickable, but
+  // the keyboard reaches none until the current query's rows land: an Enter
+  // racing the debounce or the request must not pick a row the typed text no
+  // longer names.
+  const stale =
+    (sources.files.stale === true && files.length > 0) ||
+    (sources.sessions.stale === true && sessions.length > 0);
   return {
     groups,
-    items,
+    items: stale ? [] : items,
     loading: groups.some(group => group.status === "loading" && group.rows.length === 0),
+    stale,
+    rowCount: items.length,
   };
 }
 
