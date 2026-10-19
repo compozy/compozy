@@ -797,6 +797,7 @@ describe("SessionList provider marks", () => {
             runtime: {
               status: "unbound",
               selection_revision: 1,
+              generation: 1,
               last_known: { provider: "codex", model: "gpt-6.1-sol" },
               selected: { provider: "claude" },
             },
@@ -824,6 +825,7 @@ describe("SessionList provider marks", () => {
           runtime: {
             status: "unbound",
             selection_revision: 1,
+            last_known: { provider: "codex", model: "gpt-5.6-sol" },
             selected: { provider: "claude", model: "claude-opus-5-5" },
           },
         }),
