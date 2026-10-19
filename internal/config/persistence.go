@@ -276,7 +276,7 @@ func (e *OverlayEditor) Delete(path []string) error {
 		return err
 	}
 	e.content = updated
-	return nil
+	return e.dropStaleDefaultsRuntime(cleanPath, "")
 }
 
 // DeleteArrayTableItem removes one named entry from an array-of-tables.

@@ -91,7 +91,7 @@ export function SessionDefaultsGroup({
         label={<span id={runtimeLabelId}>Model</span>}
         helpLabel="About model"
         control={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {value.provider ? (
               <Button
                 data-testid="settings-page-general-default-runtime-clear"
@@ -102,6 +102,18 @@ export function SessionDefaultsGroup({
                 variant="ghost"
               >
                 Use automatic
+              </Button>
+            ) : null}
+            {value.provider && (value.model || value.reasoning_effort) ? (
+              <Button
+                data-testid="settings-page-general-provider-default"
+                disabled={disabled}
+                onClick={() => setRuntime({ ...AUTOMATIC_RUNTIME, provider: value.provider })}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                Use provider default
               </Button>
             ) : null}
             <RuntimeSelector

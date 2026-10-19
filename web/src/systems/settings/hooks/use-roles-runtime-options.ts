@@ -16,5 +16,9 @@ export interface RolesRuntimeOptions extends SettingsRuntimeCatalog {
 export function useRolesRuntimeOptions(): RolesRuntimeOptions {
   const catalog = useSettingsRuntimeCatalog();
   const agentsQuery = useAgents();
-  return { ...catalog, agents: agentsQuery.data ?? [] };
+  return {
+    ...catalog,
+    loading: catalog.loading || agentsQuery.isLoading,
+    agents: agentsQuery.data ?? [],
+  };
 }

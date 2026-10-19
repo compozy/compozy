@@ -2023,10 +2023,12 @@ func TestOverlayEditorKeepsSessionRuntimeDefaultsWithTheirProvider(t *testing.T)
 	const saved = "[defaults]\nagent = \"general\"\nprovider = \"codex\"\n" +
 		"model = \"gpt-5.6-terra\"\nreasoning_effort = \"high\"\n"
 	for _, testCase := range []struct {
-		name      string
-		provider  string
-		wantModel bool
+		name           string
+		provider       string
+		wantModel      bool
+		removeProvider bool
 	}{
+		{name: "Should drop the saved model when the provider is deleted", removeProvider: true},
 		{name: "Should drop the saved model when the provider changes", provider: "claude"},
 		{name: "Should drop the saved model when the provider clears", provider: ""},
 		{name: "Should keep the saved model when the provider is rewritten unchanged", provider: "codex", wantModel: true},
@@ -2038,7 +2040,11 @@ func TestOverlayEditorKeepsSessionRuntimeDefaultsWithTheirProvider(t *testing.T)
 			if err != nil {
 				t.Fatalf("newOverlayEditor() error = %v", err)
 			}
-			if err := editor.SetValue(defaultsProviderPath, testCase.provider); err != nil {
+			if testCase.removeProvider {
+				if err := editor.Delete(defaultsProviderPath); err != nil {
+					t.Fatalf("editor.Delete(defaults.provider) error = %v", err)
+				}
+			} else if err := editor.SetValue(defaultsProviderPath, testCase.provider); err != nil {
 				t.Fatalf("editor.SetValue(defaults.provider) error = %v", err)
 			}
 			for _, path := range [][]string{defaultsModelPath, defaultsReasoningEffortPath} {

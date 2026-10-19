@@ -384,7 +384,7 @@ work started under that profile, after the daemon restart every `defaults.*` cha
 
 `model` and `reasoning_effort` require `provider` and apply only to sessions whose provider comes from
 `defaults.provider` and whose agent omits `model`; an explicit session runtime wins. A layer or write
-that changes `defaults.provider` drops the model and reasoning saved for the previous provider, and
+that changes or deletes `defaults.provider` drops the model and reasoning saved for the previous provider, and
 `compozy install` replaces them with its own model choice. Scalar writes use
 `compozy config set defaults.model <id>` and `compozy config set defaults.reasoning_effort <effort>`
 (or `compozy__config_set`); set the provider first. Web Settings → General → Session defaults edits the

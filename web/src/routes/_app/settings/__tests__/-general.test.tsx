@@ -645,6 +645,10 @@ describe("GeneralSettingsPage", () => {
       reasoning_effort: "high",
     };
     rerender(<GeneralSettingsPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Use provider default" }));
+    const [providerUpdate] = personaState.setDraft.mock.calls.at(-1) ?? [];
+    expect.assert(typeof providerUpdate === "function");
+    expect(providerUpdate(personaState.draft)).toEqual({ agent: "general", provider: "claude" });
     fireEvent.click(screen.getByTestId("settings-page-general-default-runtime-clear"));
     const [runtimeUpdate] = personaState.setDraft.mock.calls.at(-1) ?? [];
     expect.assert(typeof runtimeUpdate === "function");

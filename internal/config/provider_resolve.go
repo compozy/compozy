@@ -206,7 +206,8 @@ func resolveAgentModelRuntime(
 	reasoningSource := RuntimeValueSourceAgent
 	// The default effort belongs to the default model: an agent-authored model
 	// keeps its own curated default instead.
-	if reasoningEffort == "" && modelSource != RuntimeValueSourceAgent && providerAcceptsReasoningEffort(provider) {
+	if reasoningEffort == "" && modelSource != RuntimeValueSourceAgent &&
+		providerAcceptsReasoningEffort(provider, model, session.reasoningEffort) {
 		reasoningEffort = session.reasoningEffort
 		reasoningSource = RuntimeValueSourceProjectDefault
 	}

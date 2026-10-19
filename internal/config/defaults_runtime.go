@@ -52,9 +52,16 @@ func (c DefaultsConfig) validateSessionRuntime() error {
 // providerAcceptsReasoningEffort reports whether a resolved provider can apply
 // a reasoning effort. A default effort is skipped for providers that cannot,
 // rather than failing every session that inherits it.
-func providerAcceptsReasoningEffort(provider ProviderConfig) bool {
-	return providerModelsConfigIsZero(provider.Models) ||
-		provider.Models.EffectiveReasoningApply() != ReasoningApplyNone
+func providerAcceptsReasoningEffort(provider ProviderConfig, modelID, effort string) bool {
+	if !providerModelsConfigIsZero(provider.Models) && provider.Models.EffectiveReasoningApply() == ReasoningApplyNone {
+		return false
+	}
+	for _, model := range provider.Models.Curated {
+		if strings.TrimSpace(model.ID) == modelID {
+			return len(model.ReasoningEfforts) == 0 || slices.Contains(model.ReasoningEfforts, effort)
+		}
+	}
+	return true
 }
 
 // dropStaleDefaultsRuntime removes this document's defaults.model and

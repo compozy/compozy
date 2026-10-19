@@ -18,3 +18,11 @@ overlaps: MS-web-settings-takeover-redesign; MS-settings-roles-panel
 
 QA impact 2026-10-19 (#814): the Defaults page was retired into General. This scenario owns the
 session-defaults save and resolution path; the retired route is a redirect only.
+
+2026-10-19 merge-train review follow-up: after selecting a model and reasoning, choose **Use
+provider default**. Saving must retain the provider and omit its model/reasoning refinements;
+**Use automatic** must also omit the provider. Deleting `defaults.provider` through config editing
+removes both refinements. A saved effort unsupported by the resolved model falls back to that
+model's curated default instead of breaking session creation. Owning General and config suites
+cover these regressions. The exact Web/Desktop navigation E2E expectations now follow #814's
+explicit removal of Defaults; CI re-runs both real journeys on the current head.
