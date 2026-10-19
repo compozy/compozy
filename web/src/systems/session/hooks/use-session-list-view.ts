@@ -123,8 +123,9 @@ export function useSessionListView(
   );
 
   const profileFolderGroups = useProfileFolderGroups(
-    workspaceScoped && profile.aggregate ? workspaceId : null,
-    profile.destination
+    workspaceId,
+    profile.destination,
+    workspaceScoped && profile.aggregate
   );
 
   const folders = useSessionFolders({
@@ -134,7 +135,7 @@ export function useSessionListView(
   });
 
   return {
-    profileFolderGroups: workspaceScoped && profile.aggregate ? profileFolderGroups : undefined,
+    profileFolderGroups,
     layout: folders.layout,
     layoutError: folders.loadError,
     worktreeId: options.worktreeId,
@@ -169,10 +170,11 @@ export function useSessionListView(
 
 function useProfileFolderGroups(
   workspaceId: string | null,
-  destination: string
+  destination: string,
+  enabled: boolean
 ): SessionProfileFolderGroup[] {
-  const profiles = useProfiles(workspaceId !== null);
-  const owners = workspaceId ? (profiles.data ?? []) : [];
+  const profiles = useProfiles(enabled && workspaceId !== null);
+  const owners = enabled && workspaceId ? (profiles.data ?? []) : [];
   const folderQueries = useQueries({
     queries: owners.map(owner =>
       sessionFoldersOptions({ workspaceId: workspaceId ?? "", profile: owner.name })

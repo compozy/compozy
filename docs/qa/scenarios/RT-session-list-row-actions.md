@@ -45,4 +45,4 @@ Record the session slice separately from this scenario's broader coverage in
 `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
 
 
-Issue #832 verification extension (pending): every root and child row retains its runtime mark and agent in active, released, detached, never-bound and stopped states. All profiles in workspace scope groups folders by owning profile; rename and reorder target that owner, cross-profile moves are unavailable, and session cycling skips collapsed folders. Compare against the single-profile view and reload after mutations.
+Issue #832 extension verified on 2026-10-19: focused E2E-032 proves owner-grouped folders, cross-profile drop rejection, owner-bound rename and reload persistence. Real Codex QA proves runtime/agent metadata for root and child rows, including never-bound, idle-released and stopped/unbound after daemon restart. Ordering and collapsed-folder navigation are covered by the owning unit suites. Evidence and exact scope: [issue #832 report](../reports/2026-10-19-issue-832-session-list.md).
