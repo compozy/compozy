@@ -5,6 +5,7 @@ import { Streamdown, type Components } from "streamdown";
 
 import { cn } from "../../lib/utils";
 import { STREAMDOWN_SAFE_CONFIG } from "./markdown-config";
+import type { SafeMarkdownPlugins } from "./markdown-plugins";
 import { MARKDOWN_PROSE_COMPONENTS } from "./markdown-components";
 import { PROSE_TYPE } from "./markdown-prose-constants";
 
@@ -44,6 +45,8 @@ export interface MarkdownProps extends Omit<React.ComponentProps<"div">, "childr
   streaming?: boolean;
   /** Merge extra component overrides on top of the safe-mode defaults. */
   components?: Partial<Components>;
+  /** Trusted parser plugins from `extendSafeMarkdownPlugins`; the safe-mode defaults still run. */
+  plugins?: SafeMarkdownPlugins;
 }
 
 const PROSE_BASE = [
@@ -113,6 +116,7 @@ function MarkdownInner({
   compact = false,
   streaming = false,
   components,
+  plugins,
   className,
   ...props
 }: MarkdownProps) {
@@ -132,7 +136,13 @@ function MarkdownInner({
       className={cn(PROSE_BASE, proseRecipe(compact), className)}
       {...props}
     >
-      <Streamdown {...STREAMDOWN_SAFE_CONFIG} {...streamingProps} components={mergedComponents}>
+      <Streamdown
+        {...STREAMDOWN_SAFE_CONFIG}
+        {...streamingProps}
+        remarkPlugins={plugins?.remark}
+        rehypePlugins={plugins?.rehype}
+        components={mergedComponents}
+      >
         {children}
       </Streamdown>
     </div>

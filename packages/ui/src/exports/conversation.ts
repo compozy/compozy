@@ -6,7 +6,8 @@ export {
 } from "../components/custom/markdown";
 export { StreamMarkdown, type StreamMarkdownProps } from "../components/custom/stream-markdown";
 export {
-  markdownSlotSource,
+  composeMarkdownSlots,
+  type MarkdownSlotPlacement,
   type StreamMarkdownSlot,
   type StreamMarkdownSlots,
 } from "../components/custom/markdown-slots";

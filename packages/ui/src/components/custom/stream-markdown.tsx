@@ -7,9 +7,15 @@ import { normalizeCompozyCodeLanguage } from "../../lib/code-theme";
 import { cn } from "../../lib/utils";
 import { CodeBlock } from "./code-block";
 import { Markdown, type MarkdownProps } from "./markdown";
+import { extendSafeMarkdownPlugins } from "./markdown-plugins";
 import { INLINE_CODE_CLASS } from "./markdown-components";
-import { MarkdownAnchor } from "./markdown-prose-parts";
-import { restoreSlotText, type StreamMarkdownSlots } from "./markdown-slots";
+import {
+  MARKDOWN_SLOT_TAG,
+  rehypeMarkdownSlots,
+  remarkMarkdownSlotLiterals,
+  restoreSlotText,
+  type StreamMarkdownSlots,
+} from "./markdown-slots";
 
 type StreamMarkdownCodeProps = React.ComponentProps<"code"> & {
   node?: unknown;
@@ -67,37 +73,50 @@ const STREAM_MARKDOWN_COMPONENTS: Partial<Components> = {
   inlineCode: StreamMarkdownCode,
 };
 
-function slotComponents(slots: StreamMarkdownSlots): Partial<Components> {
-  function StreamMarkdownSlotAnchor(props: React.ComponentProps<typeof MarkdownAnchor>) {
-    const id =
-      typeof props.href === "string" && props.href.startsWith("#") ? props.href.slice(1) : "";
-    if (id !== "" && Object.hasOwn(slots, id)) {
-      return <>{slots[id]?.node}</>;
-    }
-    return <MarkdownAnchor {...props} />;
-  }
-  // Markdown parses no links inside code, so a slot placed there arrives as its
-  // raw source; it reads as the slot's literal text instead.
-  function StreamMarkdownSlotCode({ children, ...props }: StreamMarkdownCodeProps) {
-    const restored = React.Children.map(children, child =>
-      typeof child === "string" ? restoreSlotText(child, slots) : child
-    );
-    return <StreamMarkdownCode {...props}>{restored}</StreamMarkdownCode>;
-  }
-  return {
-    ...STREAM_MARKDOWN_COMPONENTS,
-    a: StreamMarkdownSlotAnchor,
-    code: StreamMarkdownSlotCode,
-    inlineCode: StreamMarkdownSlotCode,
-  };
+const NO_SLOTS: StreamMarkdownSlots = {};
+const StreamMarkdownSlotsContext = React.createContext<StreamMarkdownSlots>(NO_SLOTS);
+
+function StreamMarkdownSlotNode({
+  "data-markdown-slot": id,
+  "data-markdown-slot-literal": literal,
+}: {
+  "data-markdown-slot"?: string;
+  "data-markdown-slot-literal"?: string;
+}) {
+  const slots = React.use(StreamMarkdownSlotsContext);
+  const slot = id !== undefined && Object.hasOwn(slots, id) ? slots[id] : undefined;
+  if (!slot) return null;
+  // A link label or raw HTML holds only text, so the slot reads as its literal there.
+  return <>{literal === "true" ? slot.text : slot.node}</>;
 }
+
+// Code text keeps each slot's sentinel; it reads as the slot's literal text.
+function StreamMarkdownSlotCode({ children, ...props }: StreamMarkdownCodeProps) {
+  const slots = React.use(StreamMarkdownSlotsContext);
+  const restored = React.Children.map(children, child =>
+    typeof child === "string" ? restoreSlotText(child, slots) : child
+  );
+  return <StreamMarkdownCode {...props}>{restored}</StreamMarkdownCode>;
+}
+
+const SLOT_COMPONENTS = {
+  ...STREAM_MARKDOWN_COMPONENTS,
+  code: StreamMarkdownSlotCode,
+  inlineCode: StreamMarkdownSlotCode,
+  [MARKDOWN_SLOT_TAG]: StreamMarkdownSlotNode,
+} as Partial<Components>;
+
+const SLOT_PLUGINS = extendSafeMarkdownPlugins({
+  remark: [remarkMarkdownSlotLiterals],
+  rehype: [rehypeMarkdownSlots],
+});
 
 export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "children"> {
   children: string;
   streaming?: boolean;
   /** Density forwarded to `<Markdown>`; see `MarkdownProps["compact"]`. */
   compact?: MarkdownProps["compact"];
-  /** Inline nodes rendered where the source places them with `markdownSlotSource`. */
+  /** Inline nodes rendered where a `composeMarkdownSlots` source places them. */
   slots?: StreamMarkdownSlots;
 }
 
@@ -114,21 +133,25 @@ function StreamMarkdown({
   className,
   ...props
 }: StreamMarkdownProps) {
-  const components = React.useMemo(
-    () => (slots ? slotComponents(slots) : STREAM_MARKDOWN_COMPONENTS),
-    [slots]
-  );
-  return (
+  const markdown = (
     <Markdown
       data-slot="stream-markdown"
       streaming={streaming}
       compact={compact}
-      components={components}
+      components={slots ? SLOT_COMPONENTS : STREAM_MARKDOWN_COMPONENTS}
+      plugins={slots ? SLOT_PLUGINS : undefined}
       className={cn("max-w-[72ch]", className)}
       {...props}
     >
       {children}
     </Markdown>
+  );
+  if (!slots) return markdown;
+  // Slots flow through context so the component map keeps one identity.
+  return (
+    <StreamMarkdownSlotsContext.Provider value={slots}>
+      {markdown}
+    </StreamMarkdownSlotsContext.Provider>
   );
 }
 

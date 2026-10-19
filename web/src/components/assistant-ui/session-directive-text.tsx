@@ -1,6 +1,6 @@
 import { use, type ClipboardEvent } from "react";
 
-import { markdownSlotSource, type StreamMarkdownSlot } from "@compozy/ui";
+import { composeMarkdownSlots, type StreamMarkdownSlot } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 import { SubagentNavigationContext } from "@/systems/session/contexts/session-subagents-context-value";
@@ -160,11 +160,10 @@ export function SessionDirectiveText({
 
   // Each verified token becomes an inline slot of one markdown document, so the
   // markdown around a chip (bold, lists, headings) forms as written (VC-18).
-  // A token the markdown renders inside code reads as its literal text there.
+  // A token the markdown renders inside code, a link label, or raw HTML reads
+  // as its literal text there.
   const slots: Record<string, StreamMarkdownSlot> = {};
-  let source = "";
-  let cursor = 0;
-  ordered.forEach((directive, index) => {
+  const placements = ordered.map((directive, index) => {
     const id = `compozy-directive-${index}`;
     slots[id] = {
       node:
@@ -175,10 +174,9 @@ export function SessionDirectiveText({
         ),
       text: directive.token,
     };
-    source += text.slice(cursor, directive.start) + markdownSlotSource(id);
-    cursor = directive.end;
+    return { id, start: directive.start, end: directive.end };
   });
-  source += text.slice(cursor);
+  const source = composeMarkdownSlots(text, placements);
 
   return (
     <div className="contents" onCopy={copySelectionWithMentionTokens}>

@@ -13,7 +13,7 @@ export function SessionMessageText({
   streaming?: boolean;
   /** Assistant prose: smooth reveal while streaming (ADR-008). */
   reveal?: boolean;
-  /** Inline nodes `text` places with `markdownSlotSource`. */
+  /** Inline nodes `text` places with `composeMarkdownSlots`. */
   slots?: StreamMarkdownSlots;
 }) {
   return <MessageMarkdown content={text} streaming={streaming} reveal={reveal} slots={slots} />;

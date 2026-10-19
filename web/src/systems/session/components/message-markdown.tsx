@@ -20,7 +20,7 @@ export interface MessageMarkdownProps {
   reveal?: boolean;
   /** Prose density; the reasoning panel uses `"relaxed"` to keep small headings with prose breaks. */
   compact?: StreamMarkdownProps["compact"];
-  /** Inline nodes the content places with `markdownSlotSource` (transcript chips). */
+  /** Inline nodes the content places with `composeMarkdownSlots` (transcript chips). */
   slots?: StreamMarkdownSlots;
 }
 
