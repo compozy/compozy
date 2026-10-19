@@ -11,6 +11,7 @@ import type {
   RoutingManager,
 } from "./routing-coordinator-contract";
 import {
+  carriesDesktopDefaultViewIntent,
   isDesktopDefaultViewIntent,
   withoutDesktopDefaultViewIntent,
 } from "./routing-default-view-intent";
@@ -238,11 +239,10 @@ export class RoutingCoordinator {
       if (isCurrent()) this.pushRoute(target.route);
       return host.id;
     }
-    // A newer gesture owns focus now; leave it alone.
+    // Unless a newer gesture owns focus: a host another client closed means choose again (a new
+    // window when none is left); a surviving host that refused the landing opens it the usual way.
     if (!isCurrent()) return null;
-    // Another client closed the host first: choose again (a new window when none is left).
     if (!this.manager.getState().windows[host.id]) return this.userOpenCreatedSession(target);
-    // The host survived but refused the landing: open the session the ordinary way.
     return this.userOpen(target);
   }
 
@@ -416,14 +416,11 @@ export class RoutingCoordinator {
    */
   private queueRouteReconciliation(route: OsWindowRoute): void {
     const current = this.routeReconciliation;
-    const normalizedRoute = withoutDesktopDefaultViewIntent(route);
-    const preserveDesktopDefaultView =
-      current?.desktopDefaultView === true &&
-      sameOsWindowRoute(withoutDesktopDefaultViewIntent(current.route), normalizedRoute);
-    const desktopDefaultView =
-      isDesktopDefaultViewIntent(route) ||
-      (this.desktopDefaultViewIntentPending && normalizedRoute.pathname === "/") ||
-      preserveDesktopDefaultView;
+    const desktopDefaultView = carriesDesktopDefaultViewIntent(
+      route,
+      this.desktopDefaultViewIntentPending,
+      current
+    );
     if (current && sameOsWindowRoute(current.route, route)) {
       if (!current.inFlight) this.reconcilePendingRoute();
       return;
