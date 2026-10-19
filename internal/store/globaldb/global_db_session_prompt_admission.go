@@ -267,6 +267,7 @@ func claimSessionPromptAdmission(
 		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
 		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
 		SkillInvocationsJson: string(skillInvocationsJSON),
+		MentionsJson:         store.NormalizeMentionsJSON(req.MentionsJSON),
 		OriginJson:           sql.NullString{String: string(req.Origin), Valid: len(req.Origin) > 0},
 		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,

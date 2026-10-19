@@ -66,6 +66,7 @@ CREATE TABLE session_health (
 		dispatch_committed_at TEXT,
 		completed_at TEXT,
 		updated_at TEXT NOT NULL,
+		mentions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(mentions_json)),
 		FOREIGN KEY (workspace_id, session_id) REFERENCES sessions(workspace_id, id) ON DELETE CASCADE,
 		UNIQUE (workspace_id, session_id, idempotency_key),
 		UNIQUE (workspace_id, session_id, message_id)
@@ -112,7 +113,8 @@ CREATE TABLE session_health (
 				CHECK (terminal_tokens_reported IN (0,1)), terminal_tokens_used INTEGER
 				CHECK (terminal_tokens_used IS NULL OR terminal_tokens_used >= 0), terminal_at TIMESTAMP, priority INTEGER NOT NULL DEFAULT 0,
 			origin_class TEXT NOT NULL DEFAULT 'human' CHECK (origin_class IN ('human', 'agent', 'synthetic')),
-			origin_session_id TEXT NOT NULL DEFAULT '');
+			origin_session_id TEXT NOT NULL DEFAULT '',
+			mentions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(mentions_json)));
 
 CREATE TABLE sessions (
 		id             TEXT PRIMARY KEY,
