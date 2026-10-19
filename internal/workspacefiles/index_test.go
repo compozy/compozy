@@ -767,7 +767,7 @@ func (f *fakeStreamingRunner) RunStreaming(
 	ctx context.Context,
 	_ string,
 	onStdout func([]byte),
-	args ...string,
+	_ ...string,
 ) ([]byte, error) {
 	var listing strings.Builder
 	for _, file := range f.files {
@@ -796,7 +796,7 @@ type fakeGitRunner struct {
 	listCalls      atomic.Int32
 }
 
-func (f *fakeGitRunner) Run(ctx context.Context, _ string, args ...string) ([]byte, []byte, error) {
+func (f *fakeGitRunner) Run(ctx context.Context, _ string, _ ...string) ([]byte, []byte, error) {
 	f.listCalls.Add(1)
 	if f.release != nil {
 		<-f.release
