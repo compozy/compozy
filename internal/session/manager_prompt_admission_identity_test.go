@@ -2,11 +2,14 @@ package session
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
-
+	"github.com/compozy/compozy/internal/mention"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -319,4 +322,125 @@ func TestPromptAdmissionReplayOrigin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: admitted mentions persist on the admission row and are restored on replay, while the
+// fingerprint (and its version) stays independent of them because they derive from the authored text.
+// Owner: session admission identity suite (IT-008).
+func TestPromptAdmissionMentions(t *testing.T) {
+	t.Parallel()
+
+	admitted := []mention.Mention{{
+		Kind: mention.KindFile, Token: "@a.go", Target: "a.go", Label: "a.go", Start: 5, End: 10,
+	}}
+
+	t.Run("Should keep the fingerprint independent of admitted mentions", func(t *testing.T) {
+		t.Parallel()
+
+		plain := promptRequest{messageID: "msg-mentions", authoredMessage: "read @a.go"}
+		withMentions := plain
+		withMentions.mentions = admitted
+		first, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, plain)
+		if err != nil {
+			t.Fatalf("promptAdmissionFingerprint(plain) error = %v", err)
+		}
+		second, err := promptAdmissionFingerprint(store.SessionPromptOperationPrompt, BusyInputModeQueue, withMentions)
+		if err != nil {
+			t.Fatalf("promptAdmissionFingerprint(mentions) error = %v", err)
+		}
+		if first != second || sessionPromptFingerprintVersion != "session-prompt/v5" {
+			t.Fatalf("fingerprint = %q vs %q (version %s), want mention-independent v5", first, second,
+				sessionPromptFingerprintVersion)
+		}
+	})
+
+	t.Run("Should persist admitted mentions on the admission request", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		req := promptRequest{target: "sess-mentions", messageID: "msg-1", authoredMessage: "read @a.go"}
+		req.mentions = admitted
+		admissionReq, err := h.manager.newPromptAdmissionRequest(
+			"ws-mentions", req, store.SessionPromptOperationPrompt, BusyInputModeQueue,
+		)
+		if err != nil {
+			t.Fatalf("newPromptAdmissionRequest() error = %v", err)
+		}
+		want := `[{"kind":"file","token":"@a.go","target":"a.go","label":"a.go","start":5,"end":10}]`
+		if admissionReq.MentionsJSON != want {
+			t.Fatalf("MentionsJSON = %s, want %s", admissionReq.MentionsJSON, want)
+		}
+		req.mentions = nil
+		plain, err := h.manager.newPromptAdmissionRequest(
+			"ws-mentions", req, store.SessionPromptOperationPrompt, BusyInputModeQueue,
+		)
+		if err != nil || plain.MentionsJSON != store.EmptyMentionsJSON {
+			t.Fatalf("mention-free MentionsJSON = %q, %v; want []", plain.MentionsJSON, err)
+		}
+	})
+
+	t.Run("Should restore admitted mentions when binding a replayed admission", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name, raw string
+			want      []mention.Mention
+		}{
+			{
+				name: "admitted mentions",
+				raw:  `[{"kind":"file","token":"@a.go","target":"a.go","label":"a.go","start":5,"end":10}]`,
+				want: admitted,
+			},
+			{name: "row recorded before mentions existed", raw: store.EmptyMentionsJSON},
+		} {
+			// Fresh resolution against a changed filesystem must not leak into the replayed request.
+			req := promptRequest{mentions: []mention.Mention{{Kind: mention.KindFile, Target: "fresh.go"}}}
+			bound, err := bindPromptAdmissionRequest(req, store.SessionPromptAdmission{MentionsJSON: tc.raw})
+			if err != nil {
+				t.Fatalf("%s: bindPromptAdmissionRequest() error = %v", tc.name, err)
+			}
+			if !slices.Equal(bound.mentions, tc.want) {
+				t.Fatalf("%s: bound mentions = %#v, want %#v", tc.name, bound.mentions, tc.want)
+			}
+		}
+	})
+
+	t.Run("Should replay an admitted queued prompt with the mentions it was admitted with", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		writeMentionFixture(t, h.workspace, "a.go")
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		holdMentionActiveTurn(t, h)
+
+		if _, err := h.manager.Prompt(t.Context(), sess.ID, "active"); err != nil {
+			t.Fatal(err)
+		}
+		opts := SendPromptOpts{
+			Message: "read @a.go", Mode: BusyInputModeQueue, MessageID: "msg-1", IdempotencyKey: "key-1",
+		}
+		first, err := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(filepath.Join(h.workspace, "a.go")); err != nil {
+			t.Fatal(err)
+		}
+		replayed, err := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+		if err != nil || !replayed.Replayed || replayed.QueueEntryID != first.QueueEntryID {
+			t.Fatalf("replay = %#v, %v; want the first admission", replayed, err)
+		}
+		admission, found, err := database.LookupSessionPromptAdmission(t.Context(), h.workspaceID, sess.ID, "key-1")
+		if err != nil || !found ||
+			!slices.Equal(mentionTargets(storedMentions(admission.MentionsJSON)), []string{"a.go"}) {
+			t.Fatalf("admission mentions = %s, %v, %v; want a.go from admission", admission.MentionsJSON, found, err)
+		}
+		entry, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, first.QueueEntryID)
+		if err != nil || !slices.Equal(mentionTargets(storedMentions(entry.MentionsJSON)), []string{"a.go"}) {
+			t.Fatalf("queued entry mentions = %s, %v; want a.go from admission", entry.MentionsJSON, err)
+		}
+	})
 }
