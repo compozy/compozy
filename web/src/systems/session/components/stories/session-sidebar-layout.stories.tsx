@@ -5,6 +5,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { Empty } from "@compozy/ui";
 
 import { CenteredSurface } from "@/storybook/story-layout";
+import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
 import { sessionSidebarStore } from "../../hooks/use-session-sidebar-state";
 import { SESSION_SIDEBAR_DEFAULT_WIDTH } from "../../lib/session-sidebar-width";
@@ -14,18 +15,25 @@ import { PROVENANCE_FAMILY } from "./session-sidebar-fixtures";
 
 type StoryArgs = { open: boolean; width: number | null; frameWidth: number };
 
-/** Seed the shared rail preference before mount; restore the default after. */
+/** Stories render outside an OS window, so the rail reads the shell scope. */
+const scopeId = SHELL_WORKTREE_SCOPE;
+
+function storedWidth(): number | null | undefined {
+  return sessionSidebarStore.getSnapshot().context.byScope[scopeId]?.width;
+}
+
+/** Seed the shell rail preference before mount; restore the default after. */
 function seedRail({ open, width }: Pick<StoryArgs, "open" | "width">) {
   return () => {
-    sessionSidebarStore.trigger.sidebarVisibilityChanged({ open });
+    sessionSidebarStore.trigger.sidebarVisibilityChanged({ scopeId, open });
     if (width === null) {
-      sessionSidebarStore.trigger.widthReset();
+      sessionSidebarStore.trigger.widthReset({ scopeId });
     } else {
-      sessionSidebarStore.trigger.widthChanged({ width });
+      sessionSidebarStore.trigger.widthChanged({ scopeId, width });
     }
     return () => {
-      sessionSidebarStore.trigger.sidebarVisibilityChanged({ open: true });
-      sessionSidebarStore.trigger.widthReset();
+      sessionSidebarStore.trigger.sidebarVisibilityChanged({ scopeId, open: true });
+      sessionSidebarStore.trigger.widthReset({ scopeId });
     };
   };
 }
@@ -149,16 +157,12 @@ export const KeyboardResize: Story = {
     await waitFor(() =>
       expect(railWidth(canvasElement)).toBeGreaterThan(SESSION_SIDEBAR_DEFAULT_WIDTH)
     );
-    await waitFor(() =>
-      expect(sessionSidebarStore.getSnapshot().context.width).toBe(
-        Math.round(railWidth(canvasElement))
-      )
-    );
+    await waitFor(() => expect(storedWidth()).toBe(Math.round(railWidth(canvasElement))));
 
     await userEvent.dblClick(handle);
     await waitFor(() =>
       expect(railWidth(canvasElement)).toBeCloseTo(SESSION_SIDEBAR_DEFAULT_WIDTH, 0)
     );
-    await expect(sessionSidebarStore.getSnapshot().context.width).toBeNull();
+    await expect(storedWidth()).toBeNull();
   },
 };
