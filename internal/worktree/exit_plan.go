@@ -227,7 +227,8 @@ func blockGoneUpstreamActions(rows []ExitActionPlan, status *Status, pause strin
 	}
 	for index := range rows {
 		action := &rows[index]
-		if action.Action == ExitActionPush || action.Action == ExitActionOpenPR {
+		switch action.Action {
+		case ExitActionCommitPush, ExitActionPush, ExitActionOpenPR:
 			action.Enabled, action.BlockedReason = false, reasonUpstreamGone
 		}
 	}

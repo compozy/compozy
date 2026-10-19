@@ -1098,8 +1098,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 					t.Fatalf("exit plan = (%#v, %v), want merged evidence %v", plan, err, wantMerged)
 				}
 				for _, action := range plan.Actions {
-					if action.Action == ExitActionPush && (action.Enabled || action.BlockedReason != reasonUpstreamGone) {
-						t.Fatalf("gone upstream push = %#v", action)
+					if scenario == "dirty" && action.Action == ExitActionCommit && !action.Enabled {
+						t.Fatalf("local commit must remain available: %#v", action)
+					}
+					if (action.Action == ExitActionPush || action.Action == ExitActionCommitPush) &&
+						(action.Enabled || action.BlockedReason != reasonUpstreamGone) {
+						t.Fatalf("gone upstream action = %#v", action)
 					}
 				}
 				refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
