@@ -14,6 +14,7 @@ func cloneInputPreSubmitPayload(payload InputPreSubmitPayload) InputPreSubmitPay
 	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)
 	payload.Attachments = cloneInputAttachmentMetadata(payload.Attachments)
+	payload.Mentions = cloneInputMentionMetadata(payload.Mentions)
 	return payload
 }
 

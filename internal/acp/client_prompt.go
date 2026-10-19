@@ -93,10 +93,13 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 		message, spans = proc.compactPromptSections(message, req.Sections)
 	}
 	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message, req.Maintenance)
-	prompt := make([]acpsdk.ContentBlock, 0, 1+len(req.Attachments))
+	mentionBlocks := mentionContentBlocks(req)
+	prompt := make([]acpsdk.ContentBlock, 0, 1+len(mentionBlocks)+len(attachmentBlocks))
 	if promptText != "" {
 		prompt = append(prompt, textBlockWithPromptCacheControl(promptText, proc.promptCacheControl))
 	}
+	// Business Rule 12: prompt text, session references, resource links, attachments.
+	prompt = append(prompt, mentionBlocks...)
 	prompt = append(prompt, attachmentBlocks...)
 	promptRequest := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(proc.SessionID),

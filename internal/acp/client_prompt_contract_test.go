@@ -940,6 +940,143 @@ func TestBuildWirePromptRequestAppendsAttachments(t *testing.T) {
 	})
 }
 
+func TestBuildWirePromptRequestDeliversMentions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should order text, session references, resource links, then attachments", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{SessionID: "sess-mentions"}
+		proc.setCaps(Caps{PromptImage: true})
+		references := "<compozy_session_references>\n- @session:sess-9f8e7d\n</compozy_session_references>"
+		request, manifest, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID:            "turn-mentions",
+			Message:           "Review @internal/acp/client_prompt.go and @web/src",
+			SessionReferences: references,
+			MentionLinks: []PromptResourceLink{
+				NewPromptResourceLink(
+					"internal/acp/client_prompt.go",
+					"/Users/ana/code/shop/internal/acp/client_prompt.go",
+					false,
+				),
+				NewPromptResourceLink("web/src", "/Users/ana/code/shop/web/src", true),
+			},
+			MentionDelivery: PromptMentionDelivery{
+				Sessions: 1, ReferencesForm: "reference", DroppedOverCap: 2, DroppedAtDispatch: 1,
+			},
+			Attachments: []PromptAttachment{{Name: "diagram.png", MIMEType: "image/png", Data: []byte("image")}},
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		wire, err := json.Marshal(request.Prompt)
+		if err != nil {
+			t.Fatalf("marshal prompt: %v", err)
+		}
+		var blocks []map[string]any
+		if err := json.Unmarshal(wire, &blocks); err != nil {
+			t.Fatalf("unmarshal prompt: %v", err)
+		}
+		want := []map[string]any{
+			{"type": "text", "text": "Review @internal/acp/client_prompt.go and @web/src"},
+			{"type": "text", "text": references},
+			{
+				"type": "resource_link", "name": "internal/acp/client_prompt.go",
+				"uri": "file:///Users/ana/code/shop/internal/acp/client_prompt.go",
+			},
+			{"type": "resource_link", "name": "web/src/", "uri": "file:///Users/ana/code/shop/web/src/"},
+			{"type": "image", "data": base64.StdEncoding.EncodeToString([]byte("image")), "mimeType": "image/png"},
+		}
+		if !reflect.DeepEqual(blocks, want) {
+			t.Fatalf("prompt blocks = %#v, want %#v", blocks, want)
+		}
+		wantMentions := &DeliveredMentions{
+			Links: 2, Sessions: 1, ReferencesForm: "reference", DroppedOverCap: 2, DroppedAtDispatch: 1,
+		}
+		if !reflect.DeepEqual(manifest.Mentions, wantMentions) {
+			t.Fatalf("manifest.Mentions = %#v, want %#v", manifest.Mentions, wantMentions)
+		}
+		encoded, err := json.Marshal(manifest.Mentions)
+		if err != nil {
+			t.Fatalf("marshal mentions: %v", err)
+		}
+		const wantJSON = `{"links":2,"sessions":1,"references_form":"reference",` +
+			`"dropped_over_cap":2,"dropped_at_dispatch":1}`
+		if string(encoded) != wantJSON {
+			t.Fatalf("manifest mentions JSON = %s, want %s", encoded, wantJSON)
+		}
+	})
+
+	t.Run("Should omit mention blocks and manifest counts when the prompt has none", func(t *testing.T) {
+		t.Parallel()
+
+		request, manifest, err := buildWirePromptRequest(&AgentProcess{SessionID: "sess-plain"}, PromptRequest{
+			TurnID:  "turn-plain",
+			Message: "plain prompt",
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		if len(request.Prompt) != 1 || request.Prompt[0].Text == nil {
+			t.Fatalf("Prompt = %#v, want one text block", request.Prompt)
+		}
+		if manifest.Mentions != nil {
+			t.Fatalf("manifest.Mentions = %#v, want nil", manifest.Mentions)
+		}
+		encoded, err := json.Marshal(manifest)
+		if err != nil {
+			t.Fatalf("marshal manifest: %v", err)
+		}
+		if strings.Contains(string(encoded), `"mentions"`) {
+			t.Fatalf("manifest JSON = %s, want no mentions key", encoded)
+		}
+	})
+}
+
+func TestNewPromptResourceLink(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		rel     string
+		abs     string
+		folder  bool
+		want    PromptResourceLink
+	}{
+		{
+			name: "Should percent-encode spaces and reserved characters in the URI only",
+			rel:  "docs/My Notes #1.md", abs: "/Users/ana/code/shop/docs/My Notes #1.md",
+			want: PromptResourceLink{
+				Name: "docs/My Notes #1.md",
+				URI:  "file:///Users/ana/code/shop/docs/My%20Notes%20%231.md",
+			},
+		},
+		{
+			name: "Should end folder name and URI in a slash",
+			rel:  "web/src", abs: "/Users/ana/code/shop/web/src", folder: true,
+			want: PromptResourceLink{Name: "web/src/", URI: "file:///Users/ana/code/shop/web/src/"},
+		},
+		{
+			name: "Should not double a folder trailing slash",
+			rel:  "web/src/", abs: "/Users/ana/code/shop/web/src/", folder: true,
+			want: PromptResourceLink{Name: "web/src/", URI: "file:///Users/ana/code/shop/web/src/"},
+		},
+		{
+			name: "Should percent-encode non-ASCII path segments",
+			rel:  "notas/café.md", abs: "/srv/notas/café.md",
+			want: PromptResourceLink{Name: "notas/café.md", URI: "file:///srv/notas/caf%C3%A9.md"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := NewPromptResourceLink(tc.rel, tc.abs, tc.folder); got != tc.want {
+				t.Fatalf("NewPromptResourceLink() = %#v, want %#v", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestPromptAttachmentBuildFailurePreservesFirstTurnSystemPrompt(t *testing.T) {
 	t.Parallel()
 
