@@ -74,20 +74,30 @@ export function SessionComposerHandleBridge({
  * performs the opposite for that one send (ADR-002). Shift+Enter still breaks
  * the line. The command popover wins when open — its key plugin consumes
  * Enter first via the delegation pass.
+ *
+ * A send blocker (a file still saving, a rejected or unsupported file) holds
+ * Enter exactly like the disabled Send control, idle or busy, and answers with
+ * its reason instead of leaving silently (issue #815).
  */
 export function SessionBusyEnterPlugin({
   active,
+  blocker = null,
+  onBlocked,
   onEnter,
 }: {
   active: boolean;
+  blocker?: string | null;
+  onBlocked?: (reason: string) => void;
   onEnter: (variant: "default" | "opposite") => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const pluginRegistry = INTERNAL.useComposerInputPluginRegistryOptional();
   const enter = useEffectEvent(onEnter);
+  const blocked = useEffectEvent((reason: string) => onBlocked?.(reason));
+  const blocking = blocker !== null;
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !blocking) return;
     return editor.registerCommand(
       KEY_ENTER_COMMAND,
       event => {
@@ -100,12 +110,16 @@ export function SessionBusyEnterPlugin({
           }
         }
         event.preventDefault();
+        if (blocker !== null) {
+          blocked(blocker);
+          return true;
+        }
         enter(opposite ? "opposite" : "default");
         return true;
       },
       COMMAND_PRIORITY_CRITICAL
     );
-  }, [editor, pluginRegistry, active]);
+  }, [editor, pluginRegistry, active, blocking, blocker]);
 
   return null;
 }

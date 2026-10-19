@@ -177,6 +177,7 @@ export function useSessionComposerController({
       hasStagedQuote: Boolean(stagedQuote),
       queueFull,
       runtimeRunning,
+      sendBlocker: attachmentBlocker,
       showBusyControls,
       showQueuedStrip,
       stopping: isStopping,

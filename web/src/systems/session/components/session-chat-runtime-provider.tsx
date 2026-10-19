@@ -15,8 +15,9 @@ import { CompozyEventDataUI, CompozyPermissionDataUI } from "@/systems/session/l
 import { sessionToolkit } from "@/systems/session/lib/session-toolkit";
 import { SessionRuntimeRenderProvider } from "@/systems/session/lib/session-runtime-render-context";
 import {
-  SessionPromptRecovery,
+  sessionPromptRecovery,
   type RestoredSessionPromptDraft,
+  type SessionPromptRecovery,
 } from "@/systems/session/lib/session-prompt-recovery";
 import { stageChosenSessionTerminalQuote } from "@/systems/session/lib/session-terminal-quote";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
@@ -215,14 +216,13 @@ function SessionChatRuntimeBinding({
  */
 export function SessionChatRuntimeProvider(props: SessionChatRuntimeProviderProps) {
   const promptDispatch = useStore(sessionPromptDispatchLogic);
-  const [promptRecovery] = useState(() => new SessionPromptRecovery());
 
   return (
     <SessionChatRuntimeBinding
       {...props}
       key={`${props.workspaceId}:${props.sessionId}`}
       promptDispatch={promptDispatch}
-      promptRecovery={promptRecovery}
+      promptRecovery={sessionPromptRecovery}
     />
   );
 }

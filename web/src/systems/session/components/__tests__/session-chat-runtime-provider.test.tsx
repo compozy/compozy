@@ -1772,6 +1772,97 @@ describe("SessionChatRuntimeProvider", () => {
     );
   });
 
+  // Invariant (issue #815): a prompt's draft is consumed only by the daemon's
+  // acceptance. A runtime torn down mid-POST (navigation, a profile switch)
+  // neither aborts the admission nor drops the draft: a refusal names its
+  // reason and returns the text and files to that session's next composer.
+  // Owning layer: chat-runtime provider integration. Canonical suite: this file.
+  it("Should return a refused prompt's draft and files to its session after the runtime closed mid-request", async () => {
+    const refusal = createDeferred<Response>();
+    promptResponsePromise = refusal.promise;
+    render(<Toaster duration={5_000} />);
+    const user = userEvent.setup();
+    const first = renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Orchestrate issue 815");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(
+        new File(["shot"], "shot.png", { type: "image/png" })
+      );
+    });
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+    const promptRequest = fetchMock.mock.calls.find(([input]) =>
+      getPathname(input as RequestInfo | URL).endsWith("/prompt")
+    );
+
+    first.unmount();
+    expect((promptRequest?.[1] as RequestInit | undefined)?.signal?.aborted).toBe(false);
+    refusal.resolve(
+      jsonResponse(
+        {
+          error: "command: unavailable: /cy-orquestrate-issue",
+          code: "prompt_dispatch_indeterminate",
+        },
+        { status: 409 }
+      )
+    );
+    expect(
+      await screen.findByText(
+        "Message not sent: command: unavailable: /cy-orquestrate-issue. Your draft was kept."
+      )
+    ).toBeInTheDocument();
+
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+    await waitFor(() => expect(composerText()).toBe("Orchestrate issue 815"));
+    expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+  });
+
+  it("Should consume the draft when a prompt left by a closed runtime is accepted", async () => {
+    const acceptance = createDeferred<Response>();
+    promptResponsePromise = acceptance.promise;
+    const user = userEvent.setup();
+    const first = renderSessionThread();
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Accepted after leaving");
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(1));
+
+    first.unmount();
+    acceptance.resolve(sseResponse([]));
+    await act(async () => {
+      await acceptance.promise;
+    });
+
+    renderSessionThread();
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await new Promise(resolve => window.setTimeout(resolve, 0));
+    });
+    expect(composerText()).toBe("");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+  });
+
+  it("Should name the daemon's reason when it refuses a prompt", async () => {
+    promptResponsePromise = Promise.resolve(
+      jsonResponse({ error: "session is archived" }, { status: 409 })
+    );
+    const user = userEvent.setup();
+    renderSessionThread({ includeToaster: true });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Refused in place");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    expect(
+      await screen.findByText("Message not sent: session is archived. Your draft was kept.")
+    ).toBeInTheDocument();
+    await waitFor(() => expect(composerText()).toBe("Refused in place"));
+  });
+
   // Invariant (UT-105, US-019.EC-1 / US-009.EC-4): cancelling a prompt never
   // changes the runtime identity — no remount — so the transport settles while
   // the composer draft and the runtime subtree stay in place. Owning layer:

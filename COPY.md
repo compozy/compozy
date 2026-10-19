@@ -507,6 +507,8 @@ zoomed to return to the saved placement and size. These labels describe internal
 CompozyOS windows, not native browser or application fullscreen. Resizing a zoomed
 window adopts the resized geometry instead of restoring its saved placement.
 
+Composer send feedback: a prompt the daemon refuses reads "Message not sent: {daemon reason}. Your draft was kept." A prompt that never got an answer after its session window closed reads "Couldn't confirm the message was sent. Your draft was kept." Either way the text and files return to that session's composer. Enter held by a send blocker answers with the blocker itself ("Saving {file}", "Remove files that are not supported", "This agent does not accept images").
+
 Use:
 
 - current state, next action, and consequence.

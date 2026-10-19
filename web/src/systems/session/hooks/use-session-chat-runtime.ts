@@ -21,7 +21,11 @@ import {
 } from "../lib/session-unconfirmed-send";
 import { discardSessionTerminalQuote } from "../lib/session-terminal-quote";
 import { applyTerminalQuoteToPromptMessage } from "../lib/session-terminal-quote-prompt";
-import { SessionPromptRecovery } from "../lib/session-prompt-recovery";
+import type { SessionPromptRecovery } from "../lib/session-prompt-recovery";
+import {
+  notifySessionPromptNotSent,
+  sessionPromptRefusalReason,
+} from "../lib/session-prompt-refusal";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { getSessionPromptRuntimeSnapshot } from "./use-session-prompt-runtime";
@@ -75,6 +79,43 @@ function completeWhenResponseBodySettles(response: Response, onComplete: () => v
 }
 
 /**
+ * Settles the composer draft a prompt POST took. The draft is consumed only
+ * once the daemon accepts the prompt; a refusal, or a request that never got
+ * an answer, gives it back to its session.
+ */
+interface SessionPromptOutcome {
+  accepted: () => void;
+  canceled: () => void;
+  /** The prompt never left this browser; its draft returns without a notice. */
+  returned: () => void;
+  /** The daemon refused it, or never answered: the draft returns with the reason. */
+  notSent: (reason: string | null) => void;
+}
+
+function promptRuntimeClosedError(): DOMException {
+  return new DOMException("The session runtime closed before the daemon answered.", "AbortError");
+}
+
+/**
+ * Runtime teardown (navigation, a profile switch) stops the chat while a POST
+ * may still be waiting for admission. The daemon keeps executing it either
+ * way, so the request runs on detached and its answer decides the draft.
+ */
+function settleDetachedPrompt(request: Promise<Response>, outcome: SessionPromptOutcome): void {
+  void request.then(
+    async response => {
+      if (response.ok) {
+        outcome.accepted();
+        await response.body?.cancel().catch(() => undefined);
+        return;
+      }
+      outcome.notSent(sessionPromptRefusalReason(await response.text().catch(() => "")));
+    },
+    () => outcome.notSent(null)
+  );
+}
+
+/**
  * The identity and content of the prompt on the wire, retained so a POST that
  * loses its acknowledgment mid-turn stays retryable by the same identity.
  */
@@ -104,6 +145,7 @@ function buildSessionRuntimeConfig(
   sessionId: string,
   promptDispatch: SessionPromptDispatchStore,
   promptRecovery: SessionPromptRecovery,
+  promptOutcome: SessionPromptOutcome,
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null,
   idempotencyKeys?: Map<string, string>,
   preparedUserMessages?: Map<string, UIMessage>,
@@ -140,12 +182,30 @@ function buildSessionRuntimeConfig(
     if (readOnly) throw new Error("This session history is read-only");
     const controller = new AbortController();
     const upstreamSignal = init?.signal;
-    const abortFromUpstream = () => controller.abort(upstreamSignal?.reason);
+    let answered = false;
+    let detached = false;
+    let request: Promise<Response> | null = null;
+    let detach = () => {};
+    const runtimeClosed = new Promise<never>((_resolve, reject) => {
+      detach = () => {
+        detached = true;
+        reject(promptRuntimeClosedError());
+      };
+    });
+    // Observed only through the races below; teardown after the answer must not surface it.
+    runtimeClosed.catch(() => undefined);
+    const abortFromUpstream = () => {
+      if (answered) {
+        controller.abort(upstreamSignal?.reason);
+        return;
+      }
+      detach();
+    };
     if (upstreamSignal?.aborted) {
-      abortFromUpstream();
-    } else {
-      upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
+      promptOutcome.returned();
+      throw promptRuntimeClosedError();
     }
+    upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
     promptDispatch.trigger.requestStarted({ at: Date.now(), controller });
     let responseOwnsCompletion = false;
     let requestCompleted = false;
@@ -162,16 +222,33 @@ function buildSessionRuntimeConfig(
       // catalog. Prompt dispatch is the user-driven operation, so release any
       // optional catalog reads first; the selector's explicit refresh remains
       // available when the operator next needs discovery.
-      await queryClient.cancelQueries({ queryKey: modelCatalogKeys.all });
+      await Promise.race([
+        queryClient.cancelQueries({ queryKey: modelCatalogKeys.all }),
+        runtimeClosed,
+      ]);
       // The prompt POST streams its response, so a remote gateway session
       // authenticates it with a fresh single-use ticket like any other stream.
-      const target = await authorizeStreamFetchInput(input, controller.signal);
-      const response = await goalAwareFetch(target, { ...init, signal: controller.signal });
+      const target = await Promise.race([
+        authorizeStreamFetchInput(input, controller.signal),
+        runtimeClosed,
+      ]);
+      request = goalAwareFetch(target, { ...init, signal: controller.signal });
+      const response = await Promise.race([request, runtimeClosed]);
+      answered = true;
       promptDispatch.trigger.promptAnswered({ status: response.status });
       await reportGatewayResponse(response);
-      if (response.ok) promptRecovery.acknowledge(recoveryScope);
+      if (response.ok) promptOutcome.accepted();
       responseOwnsCompletion = true;
       return completeWhenResponseBodySettles(response, completeRequest);
+    } catch (error) {
+      if (detached) {
+        if (request) settleDetachedPrompt(request, promptOutcome);
+        else promptOutcome.returned();
+      } else if (!answered && controller.signal.aborted) {
+        // An operator cancel aborts the request before any answer: nothing comes back to restore.
+        promptOutcome.canceled();
+      }
+      throw error;
     } finally {
       if (!responseOwnsCompletion) {
         completeRequest();
@@ -222,12 +299,30 @@ export function useSessionChatRuntime({
   const [preparedUserMessages] = useState(() => new Map<string, UIMessage>());
   const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
   const recoveryScope = { workspaceId, sessionId };
+  const restoreDraft = () =>
+    promptRecovery.recover(recoveryScope, attachmentAdapter.recoverSentFiles());
+  const promptOutcome: SessionPromptOutcome = {
+    accepted: () => {
+      promptRecovery.acknowledge(recoveryScope);
+      attachmentAdapter.acknowledgeSentFiles();
+    },
+    canceled: () => {
+      promptRecovery.acknowledge(recoveryScope);
+      attachmentAdapter.acknowledgeSentFiles();
+    },
+    returned: restoreDraft,
+    notSent: reason => {
+      restoreDraft();
+      notifySessionPromptNotSent(reason);
+    },
+  };
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
     workspaceId,
     sessionId,
     promptDispatch,
     promptRecovery,
+    promptOutcome,
     promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined,
     idempotencyKeys,
     preparedUserMessages,
@@ -255,14 +350,20 @@ export function useSessionChatRuntime({
         attachmentAdapter.acknowledgeSentFiles();
         return;
       }
-      promptRecovery.recover(recoveryScope, attachmentAdapter.recoverSentFiles());
-    },
-    /** Emits a draft handoff only for the matching successful operator prompt. */
-    onFinish: ({ isError, isAbort, isDisconnect, finishReason, message, messages }) => {
-      if (!isError) {
-        promptRecovery.acknowledge(recoveryScope);
-        attachmentAdapter.acknowledgeSentFiles();
+      if (answered !== null && answered >= 400 && answered < 500) {
+        promptOutcome.notSent(
+          sessionPromptRefusalReason(error instanceof Error ? error.message : "")
+        );
+        return;
       }
+      restoreDraft();
+    },
+    /**
+     * Emits a draft handoff only for the matching successful operator prompt.
+     * The draft itself settles with the POST's answer (see trackedFetch): an
+     * abort here can be a runtime teardown whose prompt is still awaiting one.
+     */
+    onFinish: ({ isError, isAbort, isDisconnect, finishReason, message, messages }) => {
       const prompt = promptDispatch.getSnapshot().context.prompt;
       const submitted = messages.filter(item => item.role === "user").at(-1);
       if (

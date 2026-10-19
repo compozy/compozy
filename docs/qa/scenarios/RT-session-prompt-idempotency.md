@@ -33,3 +33,5 @@ Planning impact 2026-07-31: new cross-surface at-most-once admission and exact m
 2026-08-01 boundary retest: after a logical session's first provider bind, the exact CLI retry preserved
 `msg-qa-sandbox-first-bind-1` and `turn-abd6e5c31301aee8` with `replayed=true`; an independent HTTP
 transcript read still contained one authored message and one provider response.
+
+QA impact 2026-10-19 (GH-815): a dispatch that fails after the at-most-once boundary still answers `prompt_dispatch_indeterminate` and is never resent. It now also records a `transcript_marker.prompt_dropped` marker (evidence `code=prompt_dispatch_indeterminate`, `message_id`, `operation`) and a daemon WARN log line, so the refusal is visible even when the HTTP answer is lost. Skill invocations admitted before a registry reload keep expanding at dispatch, because skill command identity no longer embeds the registry generation. Walked in `RT-session-first-prompt-refusal-recovery`.

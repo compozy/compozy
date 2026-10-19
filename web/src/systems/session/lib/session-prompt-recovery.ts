@@ -43,9 +43,15 @@ function latestUserPromptText(messages: readonly UIMessage[]): string {
  * Holds only the in-flight composer draft until the daemon either accepts the
  * prompt or rejects it. The adapter supplies the original Files on rejection,
  * allowing the public composer API to restore previews and editable text.
+ *
+ * A rejection can land after its composer is gone (navigation, a profile
+ * switch): the restored draft then waits for the next composer of that
+ * session instead of being dropped. One composer receives it, so a session
+ * open twice never restores the same files into both.
  */
 export class SessionPromptRecovery {
   private readonly drafts = new Map<string, RejectedSessionPromptDraft>();
+  private readonly restored = new Map<string, RestoredSessionPromptDraft>();
   private readonly listeners = new Map<string, Set<RecoveryListener>>();
 
   public stage(
@@ -65,10 +71,7 @@ export class SessionPromptRecovery {
     const draft = this.drafts.get(key);
     this.drafts.delete(key);
     if (!draft) return;
-    const restored = { files, quote: draft.quote, text: draft.text };
-    for (const listener of this.listeners.get(key) ?? []) {
-      listener(restored);
-    }
+    this.deliver(key, { files, quote: draft.quote, text: draft.text });
   }
 
   public subscribe(scope: SessionPromptRecoveryScope, listener: RecoveryListener): () => void {
@@ -76,9 +79,30 @@ export class SessionPromptRecovery {
     const listeners = this.listeners.get(key) ?? new Set<RecoveryListener>();
     listeners.add(listener);
     this.listeners.set(key, listeners);
+    const pending = this.restored.get(key);
+    if (pending) {
+      this.restored.delete(key);
+      listener(pending);
+    }
     return () => {
       listeners.delete(listener);
       if (listeners.size === 0) this.listeners.delete(key);
     };
   }
+
+  private deliver(key: string, draft: RestoredSessionPromptDraft): void {
+    const [listener] = this.listeners.get(key) ?? [];
+    if (!listener) {
+      this.restored.set(key, draft);
+      return;
+    }
+    listener(draft);
+  }
 }
+
+/**
+ * The browser's one recovery owner. A session runtime is rebuilt whenever its
+ * workspace or session identity changes, but the outcome of a prompt already on
+ * the wire must still reach that session's composer.
+ */
+export const sessionPromptRecovery = new SessionPromptRecovery();
