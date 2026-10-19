@@ -384,6 +384,25 @@ describe("singular cleanup branch outcome", () => {
     });
   });
 
+  it("Should report branch deletion failure when the branch name could not be read", async () => {
+    mocks.removeWorktree.mockResolvedValueOnce({
+      name: "",
+      deleted: false,
+      reason: "delete_failed",
+    });
+    const { result } = renderHook(() => useRemoveWorktree("ws_alpha", "default"), {
+      wrapper: createWrapper(new QueryClient()),
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ worktreeID: "wt_a", deleteBranch: true });
+    });
+    expect(mocks.notifyUser).toHaveBeenCalledWith({
+      message: "Branch deletion failed. The branch result is unconfirmed.",
+      tone: "warning",
+      action: undefined,
+    });
+  });
+
   it("Should keep plain dismissal silent and never offer force for protected branches", async () => {
     mocks.dismissWorktree
       .mockResolvedValueOnce(null)

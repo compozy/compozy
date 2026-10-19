@@ -47,3 +47,9 @@ missing dismissal with branch deletion, archived-owner disabled reason, single r
 unmerged refusal then forced retry, and a mixed ready+missing bulk batch with per-row branch outcomes
 all passed; Git state was verified after each step and the lab teardown was clean. Evidence is in
 the PR description.
+
+2026-10-19 merge-train review follow-up: when the post-cleanup branch read fails and the
+response has `reason: delete_failed` without a branch name, single and bulk cleanup must report
+that branch deletion failed and its result is unconfirmed. It must never report that the worktree
+had no branch. The lifecycle notification regression passes in the existing `use-worktrees` suite;
+full integration validation remains owned by current-head PR CI.

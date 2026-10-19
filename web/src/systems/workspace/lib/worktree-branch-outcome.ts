@@ -13,6 +13,8 @@ const KEPT_REASONS: Record<string, string> = {
 
 /** One sentence reporting what happened to the local branch. */
 export function describeBranchOutcome(outcome: WorktreeBranchOutcome): string {
+  if (outcome.reason === "delete_failed" && !outcome.name)
+    return "Branch deletion failed. The branch result is unconfirmed.";
   if (!outcome.name || outcome.reason === "no_branch")
     return "The worktree had no branch to delete.";
   const name = outcome.name;
