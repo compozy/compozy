@@ -704,6 +704,131 @@ func TestCatalogServiceGlobalDBIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain custom OpenCode discovery partitions without transferring stale rows", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("OpenCode integration fixture requires /bin/sh")
+		}
+		ctx := t.Context()
+		store, _ := openCatalogGlobalDB(t)
+		const providerID = "opencode-work"
+		execution := modelcatalog.CatalogExecutionContext{
+			Scope:       modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:   "custom-opencode-profile",
+			WorkspaceID: "custom-opencode-workspace",
+		}
+		type installation struct {
+			dir     string
+			source  *modelcatalog.LiveProviderSource
+			service *modelcatalog.CatalogService
+			context modelcatalog.CatalogExecutionContext
+		}
+		installations := make([]installation, 3)
+		workDir, homeDir := t.TempDir(), t.TempDir()
+		for index := range installations {
+			dir := writeOpenCodeNativeFixture(t)
+			writeOpenCodeFixtureFile(t, dir, "v1.txt", fmt.Sprintf("vendor/model-%d\n", index))
+			provider := compozyconfig.BuiltinProviders()["opencode"]
+			provider.RuntimeProvider = "opencode"
+			provider.Models.Discovery.Command = filepath.Join(dir, "bin", "opencode") + " models --verbose"
+			source, err := modelcatalog.NewLiveProviderSource(
+				providerID,
+				provider,
+				&modelcatalog.LiveProviderSourcesConfig{
+					WorkingDir: workDir,
+					BaseEnv: []string{
+						"PATH=" + os.Getenv("PATH"), "HOME=" + homeDir,
+						"OPENCODE_FIXTURE_DIR=" + dir,
+						"OPENCODE_FIXTURE_LOG=" + filepath.Join(dir, "calls.log"),
+					},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service, err := modelcatalog.NewService(store, []modelcatalog.Source{source}, modelcatalog.MergeOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fingerprint, err := source.CatalogExecutionFingerprint()
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err := execution.WithCommandFingerprint(fingerprint)
+			if err != nil {
+				t.Fatal(err)
+			}
+			installations[index] = installation{dir: dir, source: source, service: service, context: resolved}
+		}
+		a, b, c := installations[0], installations[1], installations[2]
+		if _, err := a.service.Refresh(ctx, modelcatalog.RefreshOptions{
+			ProviderID: providerID, ExecutionContext: execution, Force: true, Now: integrationTime(50),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		plan, err := b.service.NewRefreshPlan()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := plan.Refresh(ctx, b.source, modelcatalog.RefreshOptions{
+			ProviderID: providerID, ExecutionContext: execution, Force: true, Now: integrationTime(51),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.service.CommitRefreshPlan(ctx, plan); err != nil {
+			t.Fatal(err)
+		}
+
+		// Provider-wide refresh wraps the source and must preserve its retention policy.
+		writeOpenCodeFixtureFile(t, c.dir, "v1.txt", "vendor/model-2\n{broken json")
+		statuses, refreshErr := c.service.Refresh(ctx, modelcatalog.RefreshOptions{
+			ExecutionContext: execution, PreviousExecutionContext: b.context,
+			Force: true, Now: integrationTime(52),
+		})
+		if refreshErr == nil || len(statuses) != 1 || statuses[0].RowCount != 0 || !statuses[0].LastSuccess.IsZero() {
+			t.Fatalf(
+				"new invocation statuses = %#v, error = %v; want failure without stale transfer",
+				statuses,
+				refreshErr,
+			)
+		}
+		rows, err := store.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: providerID, SourceID: c.source.ID(), ExecutionContext: c.context, IncludeStale: true,
+		})
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("new invocation rows = %#v, error = %v; want no transferred rows", rows, err)
+		}
+
+		writeOpenCodeFixtureFile(t, a.dir, "v1.txt", "vendor/model-0\n{broken json")
+		statuses, refreshErr = a.service.Refresh(ctx, modelcatalog.RefreshOptions{
+			ExecutionContext: execution, PreviousExecutionContext: b.context,
+			Force: true, Now: integrationTime(53),
+		})
+		if refreshErr == nil || len(statuses) != 1 || statuses[0].RowCount != 1 || !statuses[0].Stale ||
+			!statuses[0].LastSuccess.Equal(integrationTime(50)) {
+			t.Fatalf(
+				"returning invocation statuses = %#v, error = %v; want its own stale generation",
+				statuses,
+				refreshErr,
+			)
+		}
+		models, err := a.service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID: providerID, ExecutionContext: execution, View: modelcatalog.CatalogViewAll,
+			IncludeStale: true, Now: integrationTime(53),
+		})
+		if err != nil || len(models) != 1 || models[0].ModelID != "vendor/model-0" ||
+			models[0].AvailabilityState != modelcatalog.AvailabilityStateAvailableStale ||
+			!models[0].RefreshedAt.Equal(integrationTime(50)) {
+			t.Fatalf("returning invocation models = %#v, error = %v; want its preserved stale row", models, err)
+		}
+		rows, err = store.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: providerID, SourceID: b.source.ID(), ExecutionContext: b.context, IncludeStale: true,
+		})
+		if err != nil || len(rows) != 1 || rows[0].ModelID != "vendor/model-1" || rows[0].Stale {
+			t.Fatalf("other invocation rows = %#v, error = %v; want its unchanged fresh row", rows, err)
+		}
+	})
+
 	t.Run("Should refresh and list rows by provider with global DB store", func(t *testing.T) {
 		t.Parallel()
 

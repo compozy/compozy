@@ -33,18 +33,19 @@ func (m *Manager) prepareSessionLaunch(
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook failed", err)
 	}
+	launchAgent := runtime.agent
 	if strings.TrimSpace(startOpts.Command) != preHookCommand {
-		runtime.agent.CommandIsBuiltin = false
+		launchAgent.CommandIsBuiltin = false
 	}
 	startOpts.Cwd, err = normalizeSessionLaunchCWD(spec, startOpts.Cwd)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session pre-start hook cwd is invalid", err)
 	}
-	startOpts, err = resolveProviderNativeCLI(runtime.agent, startOpts)
+	startOpts, err = resolveProviderNativeCLI(launchAgent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session native provider startup failed", err)
 	}
-	startOpts = m.finalizeProviderProbeEnvForStart(session, runtime.agent, startOpts)
+	startOpts = m.finalizeProviderProbeEnvForStart(session, launchAgent, startOpts)
 	if spec.resumeReplay || spec.resumeReplayBlock != "" {
 		if err := m.prepareSessionReplay(ctx, spec, session, runtime); err != nil {
 			return acp.StartOpts{}, err

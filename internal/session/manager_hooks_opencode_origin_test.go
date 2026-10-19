@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -38,11 +39,10 @@ func TestAgentPreStartHookOpenCodeLaunchOrigin(t *testing.T) {
 			RootDir: h.workspace,
 			Name:    h.workspaceName,
 			Config:  h.cfg,
-			Agents: []compozyconfig.AgentDef{{
-				Name:     "opencode-native",
-				Provider: "opencode",
-				Prompt:   "You are a coding assistant.",
-			}},
+			Agents: []compozyconfig.AgentDef{
+				{Name: "opencode-native", Provider: "opencode", Prompt: "You are a coding assistant."},
+				{Name: "opencode-child", Provider: "opencode", Prompt: "You are a coding assistant."},
+			},
 		})
 		return h
 	}
@@ -130,6 +130,62 @@ func TestAgentPreStartHookOpenCodeLaunchOrigin(t *testing.T) {
 
 		if got := h.driver.startCalls[0].Command; !strings.Contains(got, "opencode-ai@latest") {
 			t.Fatalf("start command = %q, want the npm fallback runner", got)
+		}
+	})
+
+	// not parallel: PATH must stay scoped to this subtest.
+	t.Run("Should preserve npm fallback for a child without the parent hook", func(t *testing.T) {
+		binDir := openCodeHookFixture(t, "npx")
+		openCodeHookFixtureIn(t, binDir, "hook-wrapper")
+		t.Setenv("PATH", binDir)
+		h := openCodeHookHarness(t, func(payload *hookspkg.AgentPreStartPayload) {
+			if payload.AgentName == "opencode-native" {
+				payload.Command = "hook-wrapper"
+			}
+		})
+		cleanupTestManager(t, h.manager)
+		created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "opencode-native", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		events, err := h.manager.Prompt(t.Context(), created.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, events)
+
+		child, err := h.manager.Spawn(t.Context(), SpawnOpts{
+			ParentSessionID: created.ID,
+			AgentName:       "opencode-child",
+			TTL:             time.Minute,
+			ChainOwner:      ChainOwnerCaller,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v, want the builtin npm fallback", err)
+		}
+		if got := len(h.driver.startCalls); got != 2 {
+			t.Fatalf("driver start calls = %d, want 2", got)
+		}
+		parentStart, childStart := h.driver.startCalls[0], h.driver.startCalls[1]
+		if !strings.Contains(parentStart.Command, "hook-wrapper") ||
+			parentStart.ProviderConfig == nil || parentStart.ProviderConfig.CommandIsBuiltin {
+			t.Fatalf("parent launch = %#v, want a non-builtin hook wrapper", parentStart)
+		}
+		if !strings.Contains(childStart.Command, "-y opencode-ai@latest acp") ||
+			childStart.ProviderConfig == nil || !childStart.ProviderConfig.CommandIsBuiltin {
+			t.Fatalf("child launch = %#v, want the builtin npm fallback", childStart)
+		}
+		parent, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find the parent", created.ID)
+		}
+		for _, session := range []*Session{parent, child} {
+			route := session.providerRoutingSnapshot()
+			if route.Command != "opencode acp" || !route.CommandIsBuiltin {
+				t.Fatalf("session %q route = %#v, want the configured builtin command and origin", session.ID, route)
+			}
 		}
 	})
 

@@ -198,6 +198,10 @@ func (s *sourceRefreshSnapshot) TTL() time.Duration {
 	return provider.TTL()
 }
 
+func (s *sourceRefreshSnapshot) RetainContextPartitions() bool {
+	return sourceRetainsContextPartitions(s.Source)
+}
+
 func (s *sourceRefreshSnapshot) ListModels(ctx context.Context, opts ListOptions) ([]ModelRow, error) {
 	s.once.Do(func() {
 		globalOpts := opts

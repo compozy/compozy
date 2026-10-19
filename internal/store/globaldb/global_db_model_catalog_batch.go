@@ -88,15 +88,13 @@ func replaceModelCatalogSourceRows(
 	if err != nil {
 		return err
 	}
-	// OpenCode partitions must survive installation switches for same-invocation stale fallback.
-	if len(rows) > 0 && status.SourceID != modelcatalog.SourceKindProviderLiveID("opencode") {
+	if len(rows) > 0 || status.RetainContextPartitions {
 		if err := pruneSupersededModelCatalogSourceContexts(
 			ctx,
 			exec,
 			executionContext,
 			contextID,
-			status.SourceID,
-			status.ProviderID,
+			status,
 		); err != nil {
 			return err
 		}

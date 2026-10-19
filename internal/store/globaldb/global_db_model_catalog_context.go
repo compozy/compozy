@@ -16,6 +16,8 @@ type modelCatalogContextQuery struct {
 	sourceID  string
 }
 
+const maxRetainedModelCatalogContextPartitions = 8
+
 func upsertModelCatalogExecutionContext(
 	ctx context.Context,
 	exec modelCatalogSQLExecutor,
@@ -49,32 +51,21 @@ func pruneSupersededModelCatalogSourceContexts(
 	exec modelCatalogSQLExecutor,
 	executionContext modelcatalog.CatalogExecutionContext,
 	contextID string,
-	sourceID string,
-	providerID string,
+	status modelcatalog.SourceStatus,
 ) error {
 	if executionContext.Scope == modelcatalog.ExecutionScopeGlobal {
 		return nil
 	}
-	if _, err := exec.ExecContext(
-		ctx,
-		`DELETE FROM model_catalog_sources
-		 WHERE source_id = ?
-		   AND provider_id = ?
-		   AND context_id <> ?
-		   AND context_id IN (
-			SELECT context_id
-			  FROM model_catalog_execution_contexts
-			 WHERE scope = ?
-			   AND profile_id = ?
-			   AND workspace_id = ?
-		   )`,
-		strings.TrimSpace(sourceID),
-		strings.TrimSpace(providerID),
-		contextID,
-		string(executionContext.Scope),
-		executionContext.ProfileID,
-		executionContext.WorkspaceID,
-	); err != nil {
+	retainedSiblings := int64(0)
+	if status.RetainContextPartitions {
+		retainedSiblings = maxRetainedModelCatalogContextPartitions - 1
+	}
+	if err := sqlcgen.New(exec).PruneModelCatalogSourceContexts(ctx, sqlcgen.PruneModelCatalogSourceContextsParams{
+		SourceID: strings.TrimSpace(status.SourceID), ProviderID: strings.TrimSpace(status.ProviderID),
+		ContextID: contextID, Scope: string(executionContext.Scope),
+		ProfileID: executionContext.ProfileID, WorkspaceID: executionContext.WorkspaceID,
+		RetainedSiblings: retainedSiblings,
+	}); err != nil {
 		return fmt.Errorf("store: prune superseded model catalog source contexts: %w", err)
 	}
 	return nil

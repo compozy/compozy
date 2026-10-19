@@ -33,17 +33,18 @@ const (
 )
 
 type liveProviderAdapter struct {
-	defaultKind       liveDiscoveryKind
-	defaultEndpoint   string
-	defaultCommand    string
-	bootstrapOnList   bool
-	commandOnly       bool
-	parseCommandRows  liveCommandRowsParser
-	parseACPModelRows liveACPModelRowsParser
-	authScheme        liveAuthScheme
-	authRequired      bool
-	credentialEnvKeys []string
-	headers           map[string]string
+	defaultKind             liveDiscoveryKind
+	defaultEndpoint         string
+	defaultCommand          string
+	bootstrapOnList         bool
+	commandOnly             bool
+	retainContextPartitions bool
+	parseCommandRows        liveCommandRowsParser
+	parseACPModelRows       liveACPModelRowsParser
+	authScheme              liveAuthScheme
+	authRequired            bool
+	credentialEnvKeys       []string
+	headers                 map[string]string
 }
 
 type liveCommandRowsParser func(string, string, time.Time) ([]ModelRow, error)
@@ -120,10 +121,11 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultEndpoint: "http://localhost:11434/api/tags",
 	},
 	liveSourcesOpencodeKey: {
-		defaultKind:      liveDiscoveryCommand,
-		defaultCommand:   "opencode models --verbose",
-		bootstrapOnList:  true,
-		parseCommandRows: parseOpenCodeV1ModelRows,
+		defaultKind:             liveDiscoveryCommand,
+		defaultCommand:          "opencode models --verbose",
+		bootstrapOnList:         true,
+		parseCommandRows:        parseOpenCodeV1ModelRows,
+		retainContextPartitions: true,
 	},
 	liveSourcesCursorKey: {
 		defaultKind:      liveDiscoveryCommand,

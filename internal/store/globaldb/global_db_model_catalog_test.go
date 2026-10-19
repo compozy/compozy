@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"math"
 	"path/filepath"
 	"reflect"
@@ -432,6 +433,121 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			}
 		},
 	)
+
+	for _, test := range []struct {
+		name  string
+		empty bool
+		batch bool
+	}{
+		{name: "Should bound retained row partitions on single replacement"},
+		{name: "Should bound retained row partitions on batch replacement", batch: true},
+		{name: "Should bound retained empty failure partitions on single replacement", empty: true},
+		{name: "Should bound retained empty failure partitions on batch replacement", empty: true, batch: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			const providerID = "opencode-work"
+			sourceID := modelcatalog.SourceKindProviderLiveID(providerID)
+			execution := modelcatalog.CatalogExecutionContext{
+				Scope: modelcatalog.ExecutionScopeWorkspace, ProfileID: "profile-a", WorkspaceID: "workspace-a",
+			}
+			persist := func(execution modelcatalog.CatalogExecutionContext, provider string, at time.Time) {
+				t.Helper()
+				status := modelCatalogStatus(sourceID, provider, modelcatalog.SourceKindProviderLive, 110)
+				status.RetainContextPartitions = true
+				status.LastRefresh = at
+				row := modelCatalogRow(sourceID, provider, "model", modelcatalog.SourceKindProviderLive, 110)
+				row.ReasoningEfforts = []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh}
+				rows := []modelcatalog.ModelRow{row}
+				if test.empty {
+					rows = nil
+					status.RefreshState = modelcatalog.RefreshStateFailed
+					status.LastSuccess = time.Time{}
+				}
+				var err error
+				if test.batch {
+					err = db.ReplaceSourceRowsBatch(ctx, []modelcatalog.SourceRowsReplacement{
+						{
+							ExecutionContext: execution,
+							SourceID:         sourceID,
+							ProviderID:       provider,
+							Rows:             rows,
+							Status:           status,
+						},
+					})
+				} else {
+					err = db.ReplaceSourceRows(ctx, execution, sourceID, provider, rows, status)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			at := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+			otherWorkspace, otherProfile := execution, execution
+			otherWorkspace.WorkspaceID = "workspace-b"
+			otherProfile.ProfileID = "profile-b"
+			for _, other := range []modelcatalog.CatalogExecutionContext{otherWorkspace, otherProfile} {
+				other.CommandFingerprint = "other-command"
+				persist(other, providerID, at)
+			}
+			otherProvider := execution
+			otherProvider.CommandFingerprint = "other-provider-command"
+			persist(otherProvider, "opencode-other", at)
+
+			for index := range maxRetainedModelCatalogContextPartitions + 2 {
+				execution.CommandFingerprint = fmt.Sprintf("command-%d", index)
+				persist(execution, providerID, at.Add(time.Duration(index)*time.Second))
+			}
+			// The current partition survives even when its timestamp predates every sibling.
+			execution.CommandFingerprint = "command-0"
+			persist(execution, providerID, at)
+			persist(execution, providerID, at)
+			for index := range maxRetainedModelCatalogContextPartitions + 2 {
+				execution.CommandFingerprint = fmt.Sprintf("command-%d", index)
+				statuses, err := db.ListSourceStatus(ctx, modelcatalog.StatusOptions{
+					ProviderID: providerID, ExecutionContext: execution,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				want := 1
+				if index == 1 || index == 2 {
+					want = 0
+				}
+				if len(statuses) != want {
+					t.Fatalf("partition %d statuses = %#v, want %d", index, statuses, want)
+				}
+			}
+			for _, table := range []string{"model_catalog_sources", "model_catalog_execution_contexts"} {
+				var count int
+				if err := db.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				want := maxRetainedModelCatalogContextPartitions + 3
+				if table == "model_catalog_execution_contexts" {
+					want++ // The canonical global context is never pruned.
+				}
+				if count != want {
+					t.Fatalf("%s count = %d, want %d with other owners preserved", table, count, want)
+				}
+			}
+			for _, table := range []string{"model_catalog_rows", "model_catalog_reasoning_efforts"} {
+				var count int
+				if err := db.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				want := maxRetainedModelCatalogContextPartitions + 3
+				if test.empty {
+					want = 0
+				}
+				if count != want {
+					t.Fatalf("%s count = %d, want %d after cascaded pruning", table, count, want)
+				}
+			}
+		})
+	}
 
 	t.Run("Should isolate live rows and prune superseded fingerprints within one workspace", func(t *testing.T) {
 		t.Parallel()

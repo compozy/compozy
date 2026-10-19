@@ -278,6 +278,11 @@ func (s *LiveProviderSource) ProviderIDs() []string {
 	return []string{s.providerID}
 }
 
+// RetainContextPartitions keeps invocation-local history for adapters that forbid stale transfer.
+func (s *LiveProviderSource) RetainContextPartitions() bool {
+	return s.adapter.retainContextPartitions
+}
+
 // ReplaceProvider atomically applies the provider config used by subsequent discovery calls.
 func (s *LiveProviderSource) ReplaceProvider(provider compozyconfig.ProviderConfig) bool {
 	next := compozyconfig.CloneProviderConfig(provider)

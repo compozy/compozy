@@ -21,7 +21,7 @@ func (s *CatalogService) recordEmptySourceFailure(
 	historyExecutionContext, err := failureHistoryExecutionContext(
 		executionContext,
 		previousExecutionContext,
-		denyCrossInvocationTransfer(source),
+		sourceRetainsContextPartitions(source),
 	)
 	if err != nil {
 		return nil, refreshOutcomeEmpty, err
@@ -107,12 +107,4 @@ func failureHistoryExecutionContext(
 		return current, nil
 	}
 	return previous, nil
-}
-
-// denyCrossInvocationTransfer keeps stale rows from crossing an invocation-selector change.
-func denyCrossInvocationTransfer(source Source) bool {
-	if source == nil {
-		return false
-	}
-	return strings.TrimSpace(source.ID()) == SourceKindProviderLiveID(liveSourcesOpencodeKey)
 }

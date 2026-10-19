@@ -714,6 +714,47 @@ func (q *Queries) ListModelCatalogTransportBindings(ctx context.Context, arg Lis
 	return items, nil
 }
 
+const pruneModelCatalogSourceContexts = `-- name: PruneModelCatalogSourceContexts :exec
+DELETE FROM model_catalog_sources
+WHERE model_catalog_sources.source_id = ?1
+  AND model_catalog_sources.provider_id = ?2
+  AND model_catalog_sources.context_id IN (
+    SELECT s.context_id
+    FROM model_catalog_sources s
+    JOIN model_catalog_execution_contexts c ON c.context_id = s.context_id
+    WHERE s.source_id = ?1 AND s.provider_id = ?2
+      AND s.context_id <> ?3
+      AND c.scope = ?4
+      AND c.profile_id = ?5
+      AND c.workspace_id = ?6
+    ORDER BY s.last_refresh_at DESC, s.context_id ASC
+    LIMIT -1 OFFSET ?7
+  )
+`
+
+type PruneModelCatalogSourceContextsParams struct {
+	SourceID         string `json:"source_id"`
+	ProviderID       string `json:"provider_id"`
+	ContextID        string `json:"context_id"`
+	Scope            string `json:"scope"`
+	ProfileID        string `json:"profile_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	RetainedSiblings int64  `json:"retained_siblings"`
+}
+
+func (q *Queries) PruneModelCatalogSourceContexts(ctx context.Context, arg PruneModelCatalogSourceContextsParams) error {
+	_, err := q.db.ExecContext(ctx, pruneModelCatalogSourceContexts,
+		arg.SourceID,
+		arg.ProviderID,
+		arg.ContextID,
+		arg.Scope,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.RetainedSiblings,
+	)
+	return err
+}
+
 const upsertModelCatalogExecutionContext = `-- name: UpsertModelCatalogExecutionContext :exec
 INSERT INTO model_catalog_execution_contexts (
   context_id, scope, profile_id, workspace_id, command_fingerprint

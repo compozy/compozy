@@ -76,3 +76,15 @@ its own last complete live generation as `available_stale`, preserving its live-
 and last-success time; B must retain its fresh generation. The existing
 `TestCatalogServiceGlobalDBIntegration/Should_transition_OpenCode_versions_and_isolate_invocation_partitions`
 case verifies this sequence. No live-provider or browser re-walk is claimed.
+
+Custom-provider regression: repeat the switch with provider ID `opencode-work`,
+`runtime_provider = "opencode"`, and an explicit `models.discovery.command` per installation.
+Publish B through a staged refresh plan, then fail an unseen installation C with B as the previous
+context: C must have no borrowed live/stale rows or last-success timestamp. Fail A after returning
+from B: A must recover only its own stale generation, while B remains fresh. The existing
+`TestCatalogServiceGlobalDBIntegration/Should_retain_custom_OpenCode_discovery_partitions_without_transferring_stale_rows`
+case owns this executable-fixture/SQLite check, including provider-wide refresh policy forwarding.
+The store suite also exercises more than eight fingerprints through single and batch publication,
+with populated and empty failed generations: keep the current partition plus seven most recently
+refreshed siblings, cascade evicted rows, reclaim unused contexts, and preserve other profiles,
+workspaces, and providers. This is automated fixture evidence, not a live-provider/browser re-walk.

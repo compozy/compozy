@@ -427,15 +427,16 @@ func sourceStatus(
 	state RefreshState,
 ) SourceStatus {
 	status := SourceStatus{
-		SourceID:     source.ID(),
-		SourceKind:   source.Kind(),
-		ProviderID:   providerID,
-		Priority:     source.Priority(),
-		LastRefresh:  now,
-		RefreshState: state,
-		RowCount:     rowCount,
-		Stale:        stale,
-		LastError:    RedactString(lastError),
+		SourceID:                source.ID(),
+		SourceKind:              source.Kind(),
+		ProviderID:              providerID,
+		Priority:                source.Priority(),
+		LastRefresh:             now,
+		RefreshState:            state,
+		RowCount:                rowCount,
+		Stale:                   stale,
+		LastError:               RedactString(lastError),
+		RetainContextPartitions: sourceRetainsContextPartitions(source),
 	}
 	if state == RefreshStateSucceeded {
 		status.LastSuccess = now
