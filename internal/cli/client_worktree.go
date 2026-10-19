@@ -206,7 +206,7 @@ func (c *daemonClient) cleanupWorktree(
 	if err := c.doJSON(ctx, method, path, opts.query(), nil, &response); err != nil {
 		return nil, err
 	}
-	return &response.Branch, nil
+	return response.Branch, nil
 }
 
 func worktreeCollectionPath(workspaceRef string) string {

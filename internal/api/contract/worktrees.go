@@ -139,9 +139,10 @@ type WorktreeBranchOutcomePayload struct {
 }
 
 // WorktreeCleanupResponse answers a removal or dismissal that requested
-// delete_branch; requests without it keep their 204 response.
+// delete_branch; requests without it keep their 204 response, which clients
+// decode as an absent (nil) branch outcome.
 type WorktreeCleanupResponse struct {
-	Branch WorktreeBranchOutcomePayload `json:"branch"`
+	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
 }
 
 type WorktreeCatalogEventPayload struct {

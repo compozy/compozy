@@ -42137,12 +42137,19 @@
       "WorktreeCleanupResponse": {
         "properties": {
           "branch": {
-            "$ref": "#/components/schemas/WorktreeBranchOutcomePayload"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorktreeBranchOutcomePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           }
         },
-        "required": [
-          "branch"
-        ],
         "type": "object"
       },
       "WorktreeExitActionPlan": {

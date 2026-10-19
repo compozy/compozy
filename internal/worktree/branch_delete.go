@@ -36,7 +36,8 @@ type BranchOutcome struct {
 // DeleteLocalBranch deletes the recorded local branch of a removed or dismissed
 // worktree. It refuses the root checkout's HEAD and default branches, never
 // touches a path that reappeared, and uses Git's merged-only delete unless force
-// is set. Refusals are outcomes; errors are reserved for unreadable state.
+// is set. Refusals are outcomes; errors are reserved for unreadable state, and
+// errors after the record is read still return the outcome with its branch name.
 func (s *Service) DeleteLocalBranch(
 	ctx context.Context,
 	workspaceID string,
@@ -53,29 +54,30 @@ func (s *Service) DeleteLocalBranch(
 	if item.State != StateRemoved && item.State != StateDismissed {
 		return BranchOutcome{}, ErrNotReady
 	}
+	// Once the record is read, failures still name the branch they concern.
+	branch := strings.TrimSpace(item.Branch)
+	outcome := BranchOutcome{Name: branch}
 	release, acquired := s.usage.tryAcquireExclusive(worktreeUsageKey(item.WorkspaceID, item.ID))
 	if !acquired {
-		return BranchOutcome{}, ErrOperationInProgress
+		return outcome, ErrOperationInProgress
 	}
 	defer release()
 
-	branch := strings.TrimSpace(item.Branch)
-	outcome := BranchOutcome{Name: branch}
 	if branch == "" {
 		outcome.Reason = BranchKeptNoBranch
 		return outcome, nil
 	}
 	workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID)
 	if err != nil {
-		return BranchOutcome{}, err
+		return outcome, err
 	}
 	commonDir, err := s.commonDir(ctx, workspace.Root)
 	if err != nil {
-		return BranchOutcome{}, err
+		return outcome, err
 	}
 	unlock, err := s.locks.Acquire(ctx, commonDir)
 	if err != nil {
-		return BranchOutcome{}, err
+		return outcome, err
 	}
 	defer unlock()
 

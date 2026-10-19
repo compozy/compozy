@@ -18690,7 +18690,7 @@ export interface components {
       worktree_id: string;
     };
     WorktreeCleanupResponse: {
-      branch: components["schemas"]["WorktreeBranchOutcomePayload"];
+      branch?: components["schemas"]["WorktreeBranchOutcomePayload"] | null;
     };
     WorktreeExitActionPlan: {
       action: string;

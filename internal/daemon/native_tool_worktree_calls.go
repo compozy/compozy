@@ -135,11 +135,15 @@ func (n *daemonNativeTools) worktreeRemove(
 	}
 	result := map[string]any{"worktree_id": worktreeID, nativePayloadStateKey: string(worktree.StateRemoved)}
 	if input.DeleteBranch {
-		branch, err := n.deps.Worktrees.DeleteLocalBranch(ctx, workspaceID, worktreeID, input.Force)
+		branch, err := core.CleanupBranchOutcome(ctx, n.deps.Worktrees, workspaceID, worktreeID, input.Force)
 		if err != nil {
-			return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
+			partial, marshalErr := structuredResult(result, worktreeID)
+			if marshalErr != nil {
+				return toolspkg.ToolResult{}, marshalErr
+			}
+			return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err).WithPartialResult(partial)
 		}
-		result["branch"] = core.WorktreeBranchOutcomePayload(branch)
+		result["branch"] = branch
 	}
 	return structuredResult(result, worktreeID)
 }

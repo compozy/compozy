@@ -11276,7 +11276,7 @@ export type WorktreeBranchOutcomePayload = {
 };
 
 export type WorktreeCleanupResponse = {
-  branch: WorktreeBranchOutcomePayload;
+  branch?: WorktreeBranchOutcomePayload | null;
 };
 
 export type WorktreeExitActionPlan = {

@@ -354,12 +354,12 @@ func (h *BaseHandlers) respondWorktreeCleanup(c *gin.Context, workspaceID, id st
 		c.Status(http.StatusNoContent)
 		return
 	}
-	outcome, err := h.Worktrees.DeleteLocalBranch(c.Request.Context(), workspaceID, id, force)
+	branch, err := CleanupBranchOutcome(c.Request.Context(), h.Worktrees, workspaceID, id, force)
 	if err != nil {
 		h.respondError(c, StatusForWorktreeError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, contract.WorktreeCleanupResponse{Branch: WorktreeBranchOutcomePayload(outcome)})
+	c.JSON(http.StatusOK, contract.WorktreeCleanupResponse{Branch: branch})
 }
 
 func (h *BaseHandlers) worktreeWorkspaceScope(c *gin.Context) (workspaceScope, bool) {

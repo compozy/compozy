@@ -1237,9 +1237,11 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 		for _, tc := range []struct {
 			name, method, suffix, query string
 			refuse                      bool
+			branchErr                   error
 			wantStatus                  int
 			wantBody                    string
 			wantForce                   bool
+			wantDeletions               int
 		}{
 			{
 				name: "Should keep plain removal on 204", method: http.MethodDelete,
@@ -1258,6 +1260,17 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 			{
 				name: "Should not touch the branch when removal is refused", method: http.MethodDelete,
 				query: "?delete_branch=true", refuse: true, wantStatus: http.StatusConflict,
+			},
+			{
+				name: "Should report a failed branch step as kept without failing the cleanup", method: http.MethodDelete,
+				query: "?delete_branch=true", branchErr: worktree.ErrOperationInProgress, wantStatus: http.StatusOK,
+				wantBody: `{"branch":{"name":"fix/a","deleted":false,"reason":"delete_failed",` +
+					`"detail":"worktree_operation_in_progress"}}`,
+			},
+			{
+				name: "Should keep a branch precondition failure as an error", method: http.MethodDelete,
+				query: "?delete_branch=true", branchErr: worktree.ErrNotReady, wantStatus: http.StatusConflict,
+				wantDeletions: 1,
 			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -1294,6 +1307,9 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 							if workspaceID != "registry-alpha" || id != "wt-a" || force != tc.wantForce {
 								t.Fatalf("DeleteLocalBranch() args = %q, %q, %t", workspaceID, id, force)
 							}
+							if tc.branchErr != nil {
+								return worktree.BranchOutcome{Name: "fix/a"}, tc.branchErr
+							}
 							if tc.method == http.MethodPost {
 								return worktree.BranchOutcome{
 									Name: "fix/a", Reason: worktree.BranchKeptNotFullyMerged,
@@ -1316,7 +1332,11 @@ func TestRemoveWorktreeRefusal(t *testing.T) {
 				if tc.wantBody != "" && response.Body.String() != tc.wantBody {
 					t.Fatalf("body = %s, want %s", response.Body.String(), tc.wantBody)
 				}
-				if wantDeletions := map[bool]int{true: 1, false: 0}[tc.wantBody != ""]; deletions != wantDeletions {
+				wantDeletions := tc.wantDeletions
+				if tc.wantBody != "" {
+					wantDeletions = 1
+				}
+				if deletions != wantDeletions {
 					t.Fatalf("branch deletions = %d, want %d", deletions, wantDeletions)
 				}
 			})

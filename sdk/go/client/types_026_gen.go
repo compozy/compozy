@@ -220,7 +220,7 @@ type WorktreeCatalogEventPayload struct {
 
 // WorktreeCleanupResponse is a daemon API value.
 type WorktreeCleanupResponse struct {
-	Branch WorktreeBranchOutcomePayload `json:"branch"`
+	Branch *WorktreeBranchOutcomePayload `json:"branch,omitempty"`
 }
 
 // WorktreeExitAction is a daemon API value.

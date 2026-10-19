@@ -106,7 +106,7 @@ with unmerged commits as well. Some branches are always kept, and the outcome na
 | `registration_present`  | Git still registers the worktree (for example, it is locked).                |
 | `branch_absent`         | The branch no longer exists, for example after per-run reclamation.          |
 | `no_branch`             | The worktree had no recorded branch.                                         |
-| `delete_failed`         | Git refused the deletion; `detail` carries its bounded message.              |
+| `delete_failed`         | Git refused the deletion or the branch step could not run; see `detail`.     |
 
 A kept branch is an outcome, not an error: the checkout removal or record dismissal has still
 succeeded. Repeating the same command on the already-removed or dismissed record retries only the
