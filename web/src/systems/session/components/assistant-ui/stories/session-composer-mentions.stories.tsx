@@ -92,6 +92,33 @@ export const Recents: Story = {
   },
 };
 
+/**
+ * VC-03 — the query moved on and its answer is slow: the previous rows stay,
+ * with no loading row; a stale answer for an older query is discarded.
+ */
+export const LoadingWithPreviousRows: Story = {
+  parameters: mentionParameters(
+    compozyApiMock.get(FILES_ROUTE, async ({ request }) => {
+      const query = new URL(request.url).searchParams.get("q") ?? "";
+      if (query === "client_p") await delay("infinite");
+      return HttpResponse.json({
+        entries: searchSessionFileEntriesFixture(query, 50),
+        truncated: false,
+      });
+    })
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = await typeMention(canvasElement, "Review @client");
+    // Wait for the "client" answer itself, not the bare-@ rows that preceded it.
+    await waitFor(() => expect(canvas.queryByRole("option", { name: /go\.mod/ })).toBeNull());
+    await canvas.findByRole("option", { name: /client_steer\.go/ });
+    await userEvent.type(await canvas.findByLabelText("Session prompt"), "_p");
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await expect(canvas.getByRole("option", { name: /client_steer\.go/ })).toBeVisible();
+    await expect(canvas.queryByText("Loading files…")).not.toBeInTheDocument();
+  },
+};
+
 /** VC-04 — the first answer is still loading: the group shows its loading row. */
 export const Loading: Story = {
   parameters: mentionParameters(
@@ -146,6 +173,91 @@ export const Truncated: Story = {
   play: async ({ canvasElement }) => {
     const canvas = await typeMention(canvasElement, "@client");
     await canvas.findByText("Showing results from the first 25,000 files");
+  },
+};
+
+const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+/**
+ * VC-09 — two sessions share a title; the always-present "agent · relative
+ * time" secondary tells them apart, newest first.
+ */
+export const DuplicateTitles: Story = {
+  parameters: mentionParameters(
+    compozyApiMock.get("/api/sessions", () => {
+      const sessions = [
+        {
+          ...primarySessionFixture,
+          id: "sess-1a2b3c",
+          name: "Fix login bug",
+          agent_name: "codex",
+          updated_at: minutesAgo(4),
+        },
+        {
+          ...primarySessionFixture,
+          id: "sess-c04d55",
+          name: "Fix login bug",
+          agent_name: "claude",
+          updated_at: minutesAgo(120),
+        },
+      ];
+      return HttpResponse.json({
+        sessions,
+        page: { has_more: false, limit: 6, total: sessions.length },
+      });
+    })
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = await typeMention(canvasElement, "Review @login");
+    const group = await canvas.findByTestId("composer-mention-group-sessions");
+    const rows = await within(group).findAllByRole("option", { name: /Fix login bug/ });
+    await expect(rows).toHaveLength(2);
+    await expect(rows[0]).toHaveTextContent("codex · 4m ago");
+    await expect(rows[1]).toHaveTextContent("claude · 2h ago");
+  },
+};
+
+/**
+ * VC-10 — Esc closed the picker for `@Override`; typing after it, or coming
+ * back to it, never reopens it. A new `@` after whitespace opens again.
+ */
+export const Dismissed: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = await typeMention(canvasElement, "The @Over");
+    const input = await canvas.findByLabelText("Session prompt");
+    await userEvent.keyboard("{Escape}");
+    await userEvent.type(input, "ride annotation on the handler, and @Deprecated");
+    await waitFor(() => expect(canvas.getByTestId("composer-mention-menu")).toBeVisible());
+    await userEvent.type(input, " ");
+    await waitFor(() =>
+      expect(canvas.queryByTestId("composer-mention-menu")).not.toBeInTheDocument()
+    );
+  },
+};
+
+/** VC-17 — the composer placeholder advertises both triggers. */
+export const Placeholder: Story = {
+  play: async ({ canvasElement }) => {
+    const input = await within(canvasElement).findByLabelText("Session prompt");
+    await expect(input).toHaveAttribute(
+      "aria-placeholder",
+      "Send a message — type / for commands, @ to mention"
+    );
+  },
+};
+
+/** VC-16 — with the caret right after a chip, one Backspace removes the whole chip. */
+export const BackspaceRemovesChip: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = await typeMention(canvasElement, "Review @client_p");
+    await userEvent.click(await canvas.findByRole("option", { name: /client_prompt\.go/ }));
+    await canvas.findByTestId("session-mention-chip");
+    // The first Backspace takes the boundary space, the second the chip as a unit.
+    await userEvent.keyboard("{Backspace}{Backspace}");
+    await waitFor(() =>
+      expect(canvas.queryByTestId("session-mention-chip")).not.toBeInTheDocument()
+    );
+    await expect(await canvas.findByLabelText("Session prompt")).toHaveTextContent(/^Review\s*$/);
   },
 };
 

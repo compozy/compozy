@@ -17,8 +17,6 @@ export interface SessionFileSearchView {
   entries: readonly SessionFileEntry[];
   truncated: boolean;
   status: SessionMentionSourceStatus;
-  /** A newer query is in flight while the previous rows stay on screen. */
-  refreshing: boolean;
 }
 
 /**
@@ -41,7 +39,6 @@ export function useSessionFileSearch({
   const trimmed = query.trim();
   const debounced = useDebouncedValue(trimmed, SESSION_MENTION_DEBOUNCE_MS);
   const search = useQuery(sessionFileSearchOptions(workspaceId, sessionId, debounced, enabled));
-  const settling = debounced !== trimmed;
   const entries = search.data?.entries ?? NO_ENTRIES;
   const status: SessionMentionSourceStatus = search.isError
     ? "error"
@@ -52,6 +49,5 @@ export function useSessionFileSearch({
     entries,
     truncated: search.data?.truncated ?? false,
     status,
-    refreshing: settling || search.isPlaceholderData || search.isFetching,
   };
 }

@@ -38,7 +38,34 @@ export const QuotedPath: Story = {
   args: { kind: "file", target: "docs/My Notes.md", label: "My Notes.md" },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByLabelText("File docs/My Notes.md")).toHaveTextContent("My Notes.md");
+    const chip = canvas.getByTestId("session-mention-chip");
+    await expect(chip).toHaveTextContent("My Notes.md");
+    // Screen readers get the full path as hidden text inside the chip.
+    await expect(within(chip).getByText("File docs/My Notes.md")).toBeInTheDocument();
+  },
+};
+
+/**
+ * VC-14 — hovering a chip opens the `@compozy/ui` Tooltip with the full path
+ * relative to the working directory; a long unspaced path wraps.
+ */
+export const TooltipOpen: Story = {
+  args: {
+    kind: "file",
+    target: "web/src/components/assistant-ui/session-composer-trigger-menu-classes.ts",
+    label: "session-composer-trigger-menu-classes.ts",
+  },
+  render: args => (
+    <p className="max-w-md pt-16 text-small-body leading-relaxed text-fg">
+      Review <SessionMentionChip {...args} /> first
+    </p>
+  ),
+  play: async ({ canvasElement, args }) => {
+    await userEvent.hover(within(canvasElement).getByTestId("session-mention-chip"));
+    const tooltip = await within(canvasElement.ownerDocument.body).findByText(args.target, {
+      selector: "[data-slot='tooltip-content']",
+    });
+    await expect(tooltip).toBeVisible();
   },
 };
 
@@ -81,7 +108,7 @@ export const History: Story = {
     const openSession = fn();
     return (
       <SubagentNavigationContext value={{ openSession }}>
-        <div className="w-fit max-w-md rounded-xl bg-chat-fill-user px-3.5 py-2 text-transcript-message leading-relaxed text-fg">
+        <div className="w-md rounded-xl bg-chat-fill-user px-3.5 py-2 text-transcript-message leading-relaxed text-fg">
           <SessionDirectiveText text={historyText} directives={[]} mentions={historyMentions} />
         </div>
       </SubagentNavigationContext>
@@ -92,5 +119,59 @@ export const History: Story = {
     const session = canvas.getByRole("button", { name: "Session Fix login bug (sess-1a2b3c)" });
     await userEvent.hover(session);
     await expect(canvas.getAllByTestId("session-mention-chip")).toHaveLength(3);
+  },
+};
+
+/**
+ * VC-21 — the session was renamed to "ACP contract — final" after the send;
+ * the chip keeps the title recorded in the message's `mentions` metadata.
+ */
+export const RenamedSession: Story = {
+  args: { kind: "session", target: "sess-7f9e21", label: "Review ACP prompt contract" },
+  render: function RenamedSessionStory(args) {
+    return (
+      <SubagentNavigationContext value={{ openSession: fn() }}>
+        <div className="w-md rounded-xl bg-chat-fill-user px-3.5 py-2 text-transcript-message leading-relaxed text-fg">
+          <SessionDirectiveText
+            text="What did @session:sess-7f9e21 conclude?"
+            directives={[]}
+            mentions={[
+              {
+                kind: args.kind,
+                target: args.target,
+                label: args.label,
+                token: "@session:sess-7f9e21",
+                start: 9,
+                end: 29,
+              },
+            ]}
+          />
+        </div>
+      </SubagentNavigationContext>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByTestId("session-mention-chip")).toHaveTextContent(
+      "Review ACP prompt contract"
+    );
+  },
+};
+
+/**
+ * VC-22 — a message sent before the feature has no `mentions` metadata and
+ * renders exactly as before, even where the text looks like a path.
+ */
+export const PreFeatureMessage: Story = {
+  args: { kind: "file", target: "internal/acp/client.go", label: "client.go" },
+  render: () => (
+    <div className="w-md rounded-xl bg-chat-fill-user px-3.5 py-2 text-transcript-message leading-relaxed text-fg">
+      <SessionDirectiveText
+        text="It started after we touched the @Override handler in internal/acp/client.go"
+        directives={[]}
+      />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByTestId("session-mention-chip")).toBeNull();
   },
 };

@@ -20,7 +20,7 @@ const KIND_NAMES: Record<SessionMentionKind, string> = {
 
 export interface SessionMentionChipProps {
   kind: SessionMentionKind;
-  /** Relative path (folders end in `/`) or session id: the tooltip and accessible name. */
+  /** Relative path (folders end in `/`) or session id: the tooltip and screen-reader text. */
   target: string;
   /** File name, folder name ending in `/`, or session title (id when untitled). */
   label: string;
@@ -32,28 +32,29 @@ export interface SessionMentionChipProps {
  * Inline mention chip for the composer and the transcript (S2, S4): the skill
  * chip's text-weight anatomy in neutral ink, so a mention points without ever
  * reading as a runnable command. The icon carries the kind; the tooltip and
- * accessible name carry the full relative path or session id.
+ * visually hidden text carry the full relative path or session id.
  */
 export function SessionMentionChip({ kind, target, label, onOpen }: SessionMentionChipProps) {
   const Icon = MENTION_ICONS[kind];
-  const accessibleName =
-    kind === "session"
-      ? `${KIND_NAMES[kind]} ${label} (${target})`
-      : `${KIND_NAMES[kind]} ${target}`;
+  // Screen readers get the kind and the full path or session id as hidden
+  // text inside the chip, so the name holds on a plain span too.
+  const hiddenDescription =
+    kind === "session" ? `Session ${label} (${target})` : `${KIND_NAMES[kind]} ${target}`;
   const content = (
     <>
       <Icon
         className="mr-1 inline-block size-[1em] -translate-y-px align-middle text-muted"
         aria-hidden="true"
       />
-      {label}
+      <span aria-hidden="true">{label}</span>
+      <span className="sr-only">{hiddenDescription}</span>
     </>
   );
   const className = cn(
-    "mx-0.5 inline max-w-full align-baseline font-medium text-fg select-none",
+    "mx-0.5 inline max-w-full align-baseline font-medium whitespace-nowrap text-fg select-none",
     onOpen
       ? cn(
-          "cursor-pointer rounded-xs underline-offset-3 decoration-line-focus",
+          "cursor-pointer rounded-xxs underline-offset-3 decoration-line-focus decoration-1",
           "hover:underline focus-visible:underline",
           "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-line-focus"
         )
@@ -65,7 +66,6 @@ export function SessionMentionChip({ kind, target, label, onOpen }: SessionMenti
       data-testid="session-mention-chip"
       data-mention-kind={kind}
       data-mention-target={target}
-      aria-label={accessibleName}
       className={className}
       onClick={(event: MouseEvent<HTMLButtonElement>) =>
         onOpen({ newWindow: event.metaKey || event.ctrlKey })
@@ -76,14 +76,15 @@ export function SessionMentionChip({ kind, target, label, onOpen }: SessionMenti
       data-testid="session-mention-chip"
       data-mention-kind={kind}
       data-mention-target={target}
-      aria-label={accessibleName}
       className={className}
     />
   );
   return (
     <Tooltip>
       <TooltipTrigger render={trigger}>{content}</TooltipTrigger>
-      <TooltipContent className="font-mono">{target}</TooltipContent>
+      <TooltipContent className="max-w-[360px] font-mono text-micro font-normal [overflow-wrap:anywhere]">
+        {target}
+      </TooltipContent>
     </Tooltip>
   );
 }
