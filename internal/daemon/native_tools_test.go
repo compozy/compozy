@@ -10469,7 +10469,11 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			root := t.TempDir()
 
 			statusCalls := make([]string, 0, 8)
-			eventCalls := make([]string, 0, 1)
+			type eventRead struct {
+				sessionID string
+				query     store.EventQuery
+			}
+			eventCalls := make([]eventRead, 0, 2)
 			historyCalls := make([]string, 0, 1)
 			sessions := apitest.StubSessionManager{
 				StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
@@ -10510,11 +10514,11 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 						return nil, session.ErrSessionNotFound
 					}
 				},
-				EventsFn: func(ctx context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
+				EventsFn: func(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
 					if err := ctx.Err(); err != nil {
 						return nil, err
 					}
-					eventCalls = append(eventCalls, id)
+					eventCalls = append(eventCalls, eventRead{sessionID: id, query: query})
 					return nil, nil
 				},
 				HistoryFn: func(ctx context.Context, id string, _ store.EventQuery) ([]store.TurnHistory, error) {
@@ -10593,12 +10597,32 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 				t.Fatalf("Registry.Call(session_describe) error = %v", err)
 			}
 			requireNativeStructuredContains(t, describeResult, []byte(`"id":"sess-coord"`))
-			if len(eventCalls) != 1 || eventCalls[0] != "sess-coord" {
-				t.Fatalf("Sessions.Events calls = %#v, want only sess-coord", eventCalls)
+			expectedReads := []eventRead{
+				{
+					sessionID: "sess-coord",
+					query: store.EventQuery{
+						Limit: nativeSessionEventsDefaultLimit + 1, Archive: store.EventArchiveUnarchived,
+					},
+				},
+				{
+					sessionID: "sess-coord",
+					query: store.EventQuery{
+						Limit: nativeSessionEventsDefaultLimit, Archive: store.EventArchiveUnarchived,
+					},
+				},
 			}
-			if len(historyCalls) != 1 || historyCalls[0] != "sess-coord" {
-				t.Fatalf("Sessions.History calls = %#v, want only sess-coord", historyCalls)
+			if !reflect.DeepEqual(eventCalls, expectedReads) {
+				t.Fatalf(
+					"Sessions.Events calls = %#v, want exact caller-bound page reads %#v",
+					eventCalls,
+					expectedReads,
+				)
 			}
+			if len(historyCalls) != 0 {
+				t.Fatalf("Sessions.History calls = %#v, want no legacy history reads", historyCalls)
+			}
+			requireNativeStructuredContains(t, describeResult, []byte(`"events_page":{"limit":50,"has_more":false}`))
+			requireNativeStructuredContains(t, describeResult, []byte(`"history_page":{"limit":10,"has_more":false}`))
 
 			if slices.Contains(statusCalls, "sess-foreign") {
 				t.Fatalf("Sessions.Status calls = %#v, want caller session only", statusCalls)
