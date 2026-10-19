@@ -166,3 +166,25 @@ export const KeyboardResize: Story = {
     await expect(storedWidth()).toBeNull();
   },
 };
+
+/**
+ * A width saved elsewhere (another tab resizing or resetting the same window)
+ * moves the rail while it stays open.
+ */
+export const FollowsSavedWidth: Story = {
+  tags: ["play-fn"],
+  beforeEach: seedRail({ open: true, width: null }),
+  play: async ({ canvasElement }) => {
+    await waitFor(() =>
+      expect(railWidth(canvasElement)).toBeCloseTo(SESSION_SIDEBAR_DEFAULT_WIDTH, 0)
+    );
+
+    sessionSidebarStore.trigger.widthChanged({ scopeId, width: 360 });
+    await waitFor(() => expect(railWidth(canvasElement)).toBeCloseTo(360, 0));
+
+    sessionSidebarStore.trigger.widthReset({ scopeId });
+    await waitFor(() =>
+      expect(railWidth(canvasElement)).toBeCloseTo(SESSION_SIDEBAR_DEFAULT_WIDTH, 0)
+    );
+  },
+};

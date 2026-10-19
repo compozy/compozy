@@ -80,7 +80,7 @@ export function useDesktopChrome(
   const profileId = useProfileReadScope().destination;
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? "", profileId));
   const client = useWindowManagerClient(activeWorkspaceId, profileId);
-  useSessionSidebarScopePruning(profileId, query.data);
+  useSessionSidebarScopePruning(profileId, query);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
   // to reach the shell's own keymap, or the chord would not dispatch until a
   // reload (US-022.AC-3).

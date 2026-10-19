@@ -98,15 +98,22 @@ export function useSessionSidebarLayout() {
   // drag in another session window never moves this one.
   const [mountSize] = useState(() => (open ? width : 0));
 
-  // The topbar toggle and ⌘B drive `open`; the panel follows.
+  // The topbar toggle and ⌘B drive `open`; the panel follows. A width saved
+  // elsewhere (another tab, or a reset there) moves an already-open rail too.
   useEffect(() => {
     const panel = panelRef.current;
-    if (panel === null || panel.isCollapsed() !== open) return;
-    animateToggle(groupRef.current);
-    if (open) {
+    if (panel === null) return;
+    if (panel.isCollapsed() === open) {
+      animateToggle(groupRef.current);
+      if (open) {
+        panel.resize(width);
+      } else {
+        panel.collapse();
+      }
+      return;
+    }
+    if (open && Math.abs(panel.getSize().inPixels - width) >= 1) {
       panel.resize(width);
-    } else {
-      panel.collapse();
     }
   }, [open, width, panelRef]);
 
