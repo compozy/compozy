@@ -55,19 +55,21 @@ type SessionPromptAdmissionResult struct {
 
 // SessionPromptAdmission is the durable command receipt for one external prompt or steer request.
 type SessionPromptAdmission struct {
-	ID                  string
-	WorkspaceID         string
-	SessionID           string
-	MessageID           string
-	IdempotencyKey      string
-	Operation           string
-	FingerprintVersion  string
-	RequestFingerprint  string
-	State               string
-	Mode                string
-	AuthoredText        string
-	Runtime             SessionInputRuntime
-	SkillInvocations    []commandpkg.Invocation
+	ID                 string
+	WorkspaceID        string
+	SessionID          string
+	MessageID          string
+	IdempotencyKey     string
+	Operation          string
+	FingerprintVersion string
+	RequestFingerprint string
+	State              string
+	Mode               string
+	AuthoredText       string
+	Runtime            SessionInputRuntime
+	SkillInvocations   []commandpkg.Invocation
+	// MentionsJSON is the JSON array of resolved composer mentions; blank persists as [].
+	MentionsJSON        string
 	Origin              json.RawMessage
 	Attachments         []SessionInputAttachment
 	TurnID              string
@@ -95,11 +97,13 @@ type SessionPromptAdmissionRequest struct {
 	AuthoredText             string
 	Runtime                  SessionInputRuntime
 	SkillInvocations         []commandpkg.Invocation
-	Origin                   json.RawMessage
-	Attachments              []SessionInputAttachment
-	TurnID                   string
-	EventID                  string
-	Now                      time.Time
+	// MentionsJSON is the JSON array of resolved composer mentions; blank persists as [].
+	MentionsJSON string
+	Origin       json.RawMessage
+	Attachments  []SessionInputAttachment
+	TurnID       string
+	EventID      string
+	Now          time.Time
 }
 
 // Normalize trims scalar and attachment fields, clones slices, and normalizes the request clock to UTC.
@@ -117,6 +121,7 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 	normalized.AuthoredText = strings.TrimSpace(normalized.AuthoredText)
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
+	normalized.MentionsJSON = NormalizeMentionsJSON(normalized.MentionsJSON)
 	normalized.Origin = append(json.RawMessage(nil), normalized.Origin...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
@@ -133,6 +138,9 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 func (r SessionPromptAdmissionRequest) Validate() error {
 	normalized := r.Normalize()
 	if err := validateSessionPromptOrigin(normalized.Origin); err != nil {
+		return err
+	}
+	if err := ValidateMentionsJSON(normalized.MentionsJSON); err != nil {
 		return err
 	}
 	if err := ValidateSessionInputRuntime(normalized.Runtime); err != nil {
@@ -218,6 +226,27 @@ type SessionPromptAdmissionStore interface {
 func validateSessionPromptOrigin(origin json.RawMessage) error {
 	if len(origin) > 0 && (!json.Valid(origin) || strings.TrimSpace(string(origin)) == "null") {
 		return errors.New("store: invalid prompt origin")
+	}
+	return nil
+}
+
+// EmptyMentionsJSON is the persisted mentions_json of an input without composer mentions.
+const EmptyMentionsJSON = "[]"
+
+// NormalizeMentionsJSON trims raw and maps a blank value to EmptyMentionsJSON.
+func NormalizeMentionsJSON(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return EmptyMentionsJSON
+	}
+	return trimmed
+}
+
+// ValidateMentionsJSON rejects a normalized mentions_json value that is not a JSON array.
+func ValidateMentionsJSON(raw string) error {
+	normalized := NormalizeMentionsJSON(raw)
+	if normalized[0] != '[' || !json.Valid([]byte(normalized)) {
+		return errors.New("store: mentions json must be a JSON array")
 	}
 	return nil
 }

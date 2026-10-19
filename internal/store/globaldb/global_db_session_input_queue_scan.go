@@ -99,6 +99,7 @@ func scanSessionInputOrigin(row *sqlcgen.SessionInputQueue, entry *store.Session
 		entry.Origin = json.RawMessage(row.OriginJson.String)
 	}
 	entry.OriginClass = strings.TrimSpace(row.OriginClass)
+	entry.MentionsJSON = store.NormalizeMentionsJSON(row.MentionsJson)
 	entry.OriginSessionID = strings.TrimSpace(row.OriginSessionID)
 }
 
