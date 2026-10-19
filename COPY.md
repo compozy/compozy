@@ -279,7 +279,7 @@ A mention is an `@` token that points the agent at a file, folder, or session; t
 - Composer placeholder: "Send a message — type / for commands, @ to mention".
 - Picker (listbox aria "Mentions"): groups "Files" and "Sessions"; empty rows "No matching files" / "No matching sessions"; first-load row "Loading files…"; errors "Couldn't search files" / "Couldn't load sessions"; truncation footer "Showing results from the first 25,000 files". File and folder rows show the parent directory as secondary text; session rows show "{agent} · {relative time}", and an untitled session shows its id.
 - Chips: the file name, the folder name ending in `/`, or the session title (its id when untitled); the tooltip shows the full relative path or the session id. In the transcript a session chip opens that session; file and folder chips are not interactive.
-- Never in this feature's copy: "tag", "attach" (attachments send contents; mentions send a link), or "thread".
+- Never in this feature's copy: "tag", "reference chip", "attach" (attachments send contents; mentions send a link), or "thread" (a session is never a thread).
 
 ### Surface Aliases
 

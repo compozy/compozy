@@ -1,17 +1,3 @@
-## Daemon idle-cost and renderer batching — 2026-10-18
-
-Branch `perf/daemon-load-mitigations`. Hosted MCP projection streams wait on a `ProjectionEpoch`
-change channel (3s fallback) instead of a 100ms poll, cache shared immutable snapshots, and Goal tool
-availability uses a cheap per-session check invalidated on Goal/Loop transitions; the hosted MCP wire
-(SSE names, digests) is unchanged. Model-catalog refresh reads owner IDs with `SELECT DISTINCT`, checks
-TTL before ownership, honours TTL for providerless sources, skips row rewrites for unchanged content,
-backs off failed probes, and bounds sweep parallelism; no schema change. Goal outbox and Loop effect
-relays drain on post-commit store nudges; public config `goals.outbox_poll_interval` keeps its key but
-now means the fallback sweep and its default moves 100ms → 2s (explicit values keep their cadence;
-site config reference and official skill updated). Web live tail applies queued frames in one batch per
-animation frame; smooth reveal pauses while hidden; desktop windows set `backgroundThrottling: true`.
-Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile isolation are unchanged.
-
 # Compozy Change Impact
 
 ## Composer mentions — 2026-10-19
@@ -52,6 +38,20 @@ row, and the `input.pre_submit` note in `hooks/event-catalog`; regenerated API r
 `ET-session-mention-folder-quoted`, `ET-session-mention-session`, `ET-session-mention-session-inline`,
 `ET-session-mention-containment`, `ET-session-mention-typed-token`, `ET-session-mention-queued-input`,
 `ET-session-mention-hook-rewrite`, `ET-session-mention-history-chips` (untested until the QA tail).
+
+## Daemon idle-cost and renderer batching — 2026-10-18
+
+Branch `perf/daemon-load-mitigations`. Hosted MCP projection streams wait on a `ProjectionEpoch`
+change channel (3s fallback) instead of a 100ms poll, cache shared immutable snapshots, and Goal tool
+availability uses a cheap per-session check invalidated on Goal/Loop transitions; the hosted MCP wire
+(SSE names, digests) is unchanged. Model-catalog refresh reads owner IDs with `SELECT DISTINCT`, checks
+TTL before ownership, honours TTL for providerless sources, skips row rewrites for unchanged content,
+backs off failed probes, and bounds sweep parallelism; no schema change. Goal outbox and Loop effect
+relays drain on post-commit store nudges; public config `goals.outbox_poll_interval` keeps its key but
+now means the fallback sweep and its default moves 100ms → 2s (explicit values keep their cadence;
+site config reference and official skill updated). Web live tail applies queued frames in one batch per
+animation frame; smooth reveal pauses while hidden; desktop windows set `backgroundThrottling: true`.
+Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile isolation are unchanged.
 
 ## Transcript survives a tool call crossing a Goal turn — 2026-10-18
 
