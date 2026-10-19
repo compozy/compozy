@@ -16,7 +16,7 @@ last_report:
 overlaps: ET-session-mention-history-chips; ET-session-mention-folder-quoted; ET-session-mention-dismiss
 ---
 
-Golden path (E2E-001, US-001, US-002, US-005, US-001.EC-4/EC-5/EC-8). In a real Claude session and again in a real Codex
+Golden path (CM-E2E-001, US-001, US-002, US-005, US-001.EC-4/EC-5/EC-8). In a real Claude session and again in a real Codex
 session: click the composer and confirm the placeholder "Send a message — type / for commands, @ to
 mention". Type `Review @clie`: the picker opens above the composer, focus stays in the editor,
 "Files" lists `client_prompt.go` (secondary `internal/acp`) above deeper matches, and "Sessions"
