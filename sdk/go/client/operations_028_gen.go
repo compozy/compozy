@@ -8,6 +8,27 @@ import (
 	"strings"
 )
 
+// UnregisterWindowManagerClient Unregister a window-manager client view
+func (c *Client) UnregisterWindowManagerClient(ctx context.Context, params UnregisterWindowManagerClientParams) error {
+	path := "/api/workspaces/{workspace_id}/window-manager/clients/{client_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{client_id}", url.PathEscape(params.ClientID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// UpdateAgentParams carries the path, query, and header parameters.
+type UpdateAgentParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
 // UpdateAgent Replace one effective AGENT.md definition with digest CAS
 func (c *Client) UpdateAgent(ctx context.Context, params UpdateAgentParams, body UpdateAgentRequest) (*AgentResponse, error) {
 	path := "/api/agents/{name}"
@@ -424,26 +445,4 @@ func (c *Client) UpdateTask(ctx context.Context, params UpdateTaskParams, body U
 		return nil, err
 	}
 	return &out, nil
-}
-
-// UpdateWorkspaceParams carries the path, query, and header parameters.
-type UpdateWorkspaceParams struct {
-	ID string `url:"id"`
-}
-
-// UpdateWorkspace Update a registered workspace
-func (c *Client) UpdateWorkspace(ctx context.Context, params UpdateWorkspaceParams, body UpdateWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UploadSessionAttachmentParams carries the path, query, and header parameters.
-type UploadSessionAttachmentParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

@@ -4,6 +4,14 @@ package client
 
 import "time"
 
+// SessionGoalResponse is a daemon API value.
+type SessionGoalResponse struct {
+	Goal *GoalSnapshot `json:"goal"`
+}
+
+// SessionHealthIneligibilityReason is a daemon API value.
+type SessionHealthIneligibilityReason string
+
 // SessionHealthPayload is a daemon API value.
 type SessionHealthPayload struct {
 	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
@@ -437,9 +445,4 @@ type SessionWorkspaceFacetsPayload struct {
 type SetExtensionEnablementRequest struct {
 	Profile string `json:"profile"`
 	Enabled bool   `json:"enabled"`
-}
-
-// SetExtensionSecretsRequest is a daemon API value.
-type SetExtensionSecretsRequest struct {
-	Bindings []ExtensionSecretBindingInput `json:"bindings"`
 }

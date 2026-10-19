@@ -10,6 +10,7 @@ func registrySessionOperations() []OperationSpec {
 		getSessionOperationSpec(),
 		renameSessionOperationSpec(),
 		getSessionCommandsOperationSpec(),
+		searchSessionFilesOperationSpec(),
 		compactSessionOperationSpec(),
 		deleteSessionOperationSpec(),
 		stopSessionOperationSpec(),

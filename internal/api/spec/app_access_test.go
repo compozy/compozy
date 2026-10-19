@@ -172,6 +172,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"rewindSessionConversation",
 			"runLoop",
 			"searchGlobalSessionTranscript",
+			"searchSessionFiles",
 			"searchSessionTools",
 			"searchSessionTranscript",
 			"sendSessionPrompt",
