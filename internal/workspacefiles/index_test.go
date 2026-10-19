@@ -312,6 +312,43 @@ func TestIndexSearchGitRepository(t *testing.T) {
 		}
 		assertSymlinkEntries(t, result.Entries)
 	})
+
+	t.Run("Should list a submodule directory as a folder", func(t *testing.T) {
+		t.Parallel()
+		runner := realGitRunner(t)
+		root := initGitRepo(t, runner, map[string]string{"top.go": "x\n"})
+		head, stderr, err := runner.Run(t.Context(), root, "rev-parse", "HEAD")
+		if err != nil {
+			t.Fatalf("git rev-parse HEAD: %v: %s", err, stderr)
+		}
+		// A gitlink entry is what `git submodule add` records; its checkout directory lists without a slash.
+		gitlink := "160000," + strings.TrimSpace(string(head)) + ",vendor/lib"
+		if _, stderr, err := runner.Run(
+			t.Context(),
+			root,
+			"update-index",
+			"--add",
+			"--cacheinfo",
+			gitlink,
+		); err != nil {
+			t.Fatalf("git update-index gitlink: %v: %s", err, stderr)
+		}
+		if err := os.MkdirAll(filepath.Join(root, "vendor", "lib"), 0o755); err != nil {
+			t.Fatalf("create submodule dir: %v", err)
+		}
+
+		result, err := New(runner).Search(t.Context(), root, "lib", 10)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		want := Entry{Path: "vendor/lib/", Name: "lib", Kind: KindFolder}
+		if !slices.Contains(result.Entries, want) {
+			t.Fatalf("Search(lib) = %#v, want %#v", result.Entries, want)
+		}
+		if got := entryPaths(result.Entries); slices.Contains(got, "vendor/lib") {
+			t.Fatalf("Search(lib) = %v, want no file entry for the submodule", got)
+		}
+	})
 }
 
 // linkSymlinks creates root/name -> target for each entry, skipping where symlinks are unsupported.

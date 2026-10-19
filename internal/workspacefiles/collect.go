@@ -112,17 +112,25 @@ func (idx *index) walkFiles(ctx context.Context, root string) ([]string, bool, e
 }
 
 // classifyListed applies the symlink rule to one git-listed path. A path that
-// no longer exists (a deleted tracked file) is skipped; paths that are not
-// symlinks, or cannot otherwise be inspected, are kept as listed.
+// no longer exists (a deleted tracked file) is skipped; a listed directory (a
+// submodule gitlink, listed without a trailing slash) is a folder, as mention
+// resolution classifies it; other paths that are not symlinks, or cannot
+// otherwise be inspected, are kept as listed.
 func classifyListed(root string, rel string) (string, bool) {
 	info, err := os.Lstat(filepath.Join(root, filepath.FromSlash(rel)))
 	if errors.Is(err, fs.ErrNotExist) {
 		return "", false
 	}
-	if err != nil || info.Mode()&fs.ModeSymlink == 0 {
+	switch {
+	case err != nil:
 		return rel, true
+	case info.IsDir():
+		return strings.TrimSuffix(rel, "/") + "/", true
+	case info.Mode()&fs.ModeSymlink == 0:
+		return rel, true
+	default:
+		return resolveSymlink(root, rel)
 	}
-	return resolveSymlink(root, rel)
 }
 
 // resolveSymlink classifies a symlink by its target, as mention resolution
