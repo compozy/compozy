@@ -89,11 +89,13 @@ function reportDeletedSessions(results: readonly SessionBatchResult[]): void {
  * Owns the mutation and confirmation state behind session-list lifecycle menus.
  * Lists stay presentational and their host keeps one shared delete confirmation.
  */
-export function useSessionLifecycleActions(): UseSessionLifecycleActionsResult {
+export function useSessionLifecycleActions(
+  options: Parameters<typeof useDeleteSession>[0] = {}
+): UseSessionLifecycleActionsResult {
   const stop = useStopSession();
   const archive = useArchiveSession();
   const unarchive = useUnarchiveSession();
-  const remove = useDeleteSession();
+  const remove = useDeleteSession(options);
   const rename = useRenameSession();
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];

@@ -9,6 +9,7 @@ import {
   useArchiveSession,
   useCreateSession,
   useDeleteSession,
+  useSessionDeletionPending,
   useRepairSession,
   useRenameSession,
   useSendSessionPrompt,
@@ -413,6 +414,32 @@ describe("session actions", () => {
         queryKey: sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
       })
     );
+  });
+
+  // Invariant: deletion ownership spans async host reconciliation, scoped to the target ID.
+  // Owner: session mutation cache; canonical suite: session actions.
+  it("tracks deletion until the host finishes retiring its windows", async () => {
+    let retire!: () => void;
+    const onDeleteSuccess = () =>
+      new Promise<void>(resolve => {
+        retire = resolve;
+      });
+    vi.mocked(deleteSession).mockResolvedValue(undefined);
+    const client = new QueryClient();
+    const { result } = renderHook(
+      () => ({
+        remove: useDeleteSession({ onDeleteSuccess }),
+        pending: useSessionDeletionPending(createdSession.id),
+        otherPending: useSessionDeletionPending("another-session"),
+      }),
+      { wrapper: createWrapper(client) }
+    );
+    act(() => result.current.remove.mutate(createdSession));
+    await waitFor(() => expect(retire).toBeTypeOf("function"));
+    expect(result.current.pending).toBe(true);
+    expect(result.current.otherPending).toBe(false);
+    act(() => retire());
+    await waitFor(() => expect(result.current.pending).toBe(false));
   });
 
   it("useDeleteSession removes cached session data and clears the draft", async () => {
@@ -1199,12 +1226,33 @@ describe("session actions", () => {
 // and retries only failures. Adapter I/O remains this suite's existing mock boundary.
 describe("session lifecycle batches", () => {
   beforeEach(() => vi.resetAllMocks());
-  function lifecycle() {
+  function lifecycle(options: Parameters<typeof useSessionLifecycleActions>[0] = {}) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    return renderHook(() => useSessionLifecycleActions(), { wrapper: createWrapper(client) });
+    return renderHook(() => useSessionLifecycleActions(options), {
+      wrapper: createWrapper(client),
+    });
   }
+
+  // Invariant: both list flows notify their host only after successful owner-scoped deletion.
+  // Owner: session lifecycle mutation; canonical suite: session lifecycle batches.
+  it.each([false, true])("reconciles only successful deletes with bulk=%s", async bulk => {
+    const onDeleteSuccess = vi.fn();
+    vi.mocked(deleteSession).mockRejectedValueOnce(new Error("Busy"));
+    const { result } = lifecycle({ onDeleteSuccess });
+    act(() => {
+      if (bulk) result.current.actions.onDeleteMany?.([createdSession]);
+      else result.current.actions.onDelete(createdSession);
+    });
+    act(() => result.current.deleteDialog.onConfirm());
+    await waitFor(() => expect(result.current.deleteDialog.isDeleting).toBe(false));
+    expect(onDeleteSuccess).not.toHaveBeenCalled();
+    vi.mocked(deleteSession).mockResolvedValue(undefined);
+    act(() => result.current.deleteDialog.onRetry?.());
+    await waitFor(() => expect(result.current.deleteDialog.open).toBe(false));
+    expect(onDeleteSuccess).toHaveBeenCalledExactlyOnceWith(createdSession);
+  });
 
   it("deletes each target in its owning profile and workspace", async () => {
     const targets = [

@@ -296,7 +296,7 @@ export class RoutingCoordinator {
     const route = { pathname: SESSION_EMPTY_PATH, search: {} };
     const outcome = this.manager.retargetWindow(windowId, "", route);
     if (!(await outcome.completion)) return false;
-    this.pushRoute(route);
+    if (this.manager.getState().focusedId === windowId) this.pushRoute(route);
     return true;
   }
 
