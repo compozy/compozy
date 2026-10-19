@@ -243,6 +243,41 @@ describe("worktree batch lifecycle", () => {
     expect(mocks.removeWorktree).toHaveBeenCalledTimes(1);
   });
 
+  it("Should keep an unconfirmed branch step failed and retry only that step", async () => {
+    const row = buildWorktreeFixture({ workspace_id: "ws_alpha" });
+    mocks.inspectWorktree
+      .mockResolvedValueOnce({ worktree: row })
+      .mockResolvedValue({ worktree: { ...row, state: "removed" } });
+    mocks.removeWorktree
+      .mockRejectedValueOnce(new Error("worktree_operation_in_progress"))
+      .mockResolvedValueOnce({ name: row.branch, deleted: true });
+    const { result } = renderHook(
+      () => useWorktreeRemovalBatch({ workspaceId: "ws_alpha", worktrees: [row] }),
+      { wrapper: createWrapper(new QueryClient()) }
+    );
+    act(() => result.current.setDeleteBranch(true));
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.results[0]).toMatchObject({
+      status: "failed",
+      message:
+        "Worktree cleaned up, but the branch result is unconfirmed. Retry repeats only the branch step.",
+    });
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.results[0]).toMatchObject({
+      status: "success",
+      message: `Already removed or dismissed; confirmed by CompozyOS. Branch ${row.branch} deleted.`,
+    });
+    expect(mocks.removeWorktree).toHaveBeenLastCalledWith("ws_alpha", row.id, {
+      profile: "default",
+      force: false,
+      deleteBranch: true,
+    });
+  });
+
   it("Should refuse changed ownership and state before a mutation", async () => {
     const row = buildWorktreeFixture({ workspace_id: "ws_alpha", state: "missing" });
     const { result } = renderHook(

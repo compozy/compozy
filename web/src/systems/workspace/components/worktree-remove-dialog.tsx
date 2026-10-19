@@ -18,6 +18,7 @@ import type { WorktreePayload } from "../types";
 import {
   boundIdleNote,
   DELETE_BRANCH_HINT,
+  FORCE_DELETE_BRANCH_HINT,
   REMOVE_BRANCH_HISTORY_NOTE,
   REMOVE_DOWNGRADE_NOTE,
   REMOVE_HISTORY_NOTE,
@@ -84,7 +85,7 @@ export function WorktreeRemoveDialog({
         <div className="grid gap-1">
           <FieldLabel htmlFor="worktree-remove-delete-branch">Also delete local branch</FieldLabel>
           <FieldDescription id="worktree-remove-delete-branch-hint">
-            {DELETE_BRANCH_HINT}
+            {stage === "force" ? FORCE_DELETE_BRANCH_HINT : DELETE_BRANCH_HINT}
           </FieldDescription>
         </div>
       </Field>

@@ -76,6 +76,10 @@ export const REMOVE_HISTORY_NOTE = "Branch and run history stay in the workspace
 
 export const REMOVE_BRANCH_HISTORY_NOTE = "Run history stays in the workspace.";
 
+/** Force remove deletes with `git branch -D`, so the hint must not promise to keep unmerged commits. */
+export const FORCE_DELETE_BRANCH_HINT =
+  "Kept if it is the main checkout’s branch or the default branch. Force remove also deletes the branch’s unmerged commits.";
+
 /** Shown under the opt-in; the daemon refuses these branches and reports why. */
 export const DELETE_BRANCH_HINT =
   "Kept if it is the main checkout’s branch or the default branch. A branch with unmerged commits is kept until you choose Delete anyway.";

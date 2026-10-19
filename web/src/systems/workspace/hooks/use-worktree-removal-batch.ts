@@ -45,14 +45,17 @@ const batchLogic = createStoreLogic({
   },
 });
 
+type TerminalState = "removed" | "dismissed";
+
 /**
  * Confirms terminal receipts or rejects drift in a frozen target before mutation.
  * Owner/path/state changes require fresh selection rather than changing the confirmed action.
+ * Resolves the terminal state when the record is already cleaned up, otherwise `null`.
  */
 async function reconcileTarget(
   batch: WorktreeRemovalBatch,
   row: WorktreePayload
-): Promise<boolean> {
+): Promise<TerminalState | null> {
   const current = (await inspectWorktree(batch.workspaceId, row.id)).worktree;
   if (
     current.id !== row.id ||
@@ -62,25 +65,40 @@ async function reconcileTarget(
   ) {
     throw new Error("Ownership changed. Refresh the list before selecting this worktree again.");
   }
-  if (current.state === "removed" || current.state === "dismissed") return true;
+  if (current.state === "removed" || current.state === "dismissed") return current.state;
   if (current.state !== row.state || current.path !== row.path) {
     throw new Error("Worktree state changed. Refresh and confirm a new selection.");
   }
   if (current.agent_activity !== "idle") throw new Error("Worktree has an active session.");
-  return false;
+  return null;
 }
 
-/** Runs one confirmed target with its owner's authority and describes the receipt. */
-async function cleanupTarget(row: WorktreePayload, workspaceId: string, deleteBranch: boolean) {
+/**
+ * Runs one confirmed target with its owner's authority and describes the receipt.
+ * Repeating cleanup on an already-terminal record re-runs only the branch step.
+ */
+async function cleanupTarget(
+  row: WorktreePayload,
+  workspaceId: string,
+  deleteBranch: boolean,
+  terminal: TerminalState | null
+) {
   const options = { profile: row.profile_name, force: false, deleteBranch };
-  if (row.state === "missing") {
-    const branch = await dismissWorktree(workspaceId, row.id, options);
-    const record = "Record dismissed. Files and history preserved.";
-    return branch ? `${record} ${describeBranchOutcome(branch)}` : record;
-  }
-  const branch = await removeWorktree(workspaceId, row.id, options);
-  return branch ? `Worktree removed. ${describeBranchOutcome(branch)}` : "Worktree removed.";
+  const dismiss = terminal ? terminal === "dismissed" : row.state === "missing";
+  const branch = dismiss
+    ? await dismissWorktree(workspaceId, row.id, options)
+    : await removeWorktree(workspaceId, row.id, options);
+  const record = terminal
+    ? "Already removed or dismissed; confirmed by CompozyOS."
+    : dismiss
+      ? "Record dismissed. Files and history preserved."
+      : "Worktree removed.";
+  return branch ? `${record} ${describeBranchOutcome(branch)}` : record;
 }
+
+/** Cleanup succeeded but the requested branch step is unconfirmed; retry repeats only it. */
+const BRANCH_UNCONFIRMED =
+  "Worktree cleaned up, but the branch result is unconfirmed. Retry repeats only the branch step.";
 
 /**
  * Executes one confirmed batch through the singular lifecycle APIs in repository-queue order.
@@ -106,25 +124,28 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
             store.trigger.outcome({ id: row.id, status: "running", message: "Checking…" });
             let message = "Already removed or dismissed; confirmed by CompozyOS.";
             try {
-              if (!(await reconcileTarget(batch, row))) {
-                message = await cleanupTarget(row, batch.workspaceId, deleteBranch);
+              const terminal = await reconcileTarget(batch, row);
+              // A terminal record still owes its branch outcome when the opt-in was confirmed.
+              if (!terminal || deleteBranch) {
+                message = await cleanupTarget(row, batch.workspaceId, deleteBranch, terminal);
               }
             } catch (error) {
-              let confirmed = false;
+              let confirmed: TerminalState | null = null;
               try {
                 confirmed = await reconcileTarget(batch, row);
               } catch {
                 /* Keep the original refusal visible. */
               }
-              if (!confirmed) {
+              if (!confirmed || deleteBranch) {
                 store.trigger.outcome({
                   id: row.id,
                   status: "failed",
-                  message:
-                    decodeWorktreeRefusal(error)?.message ??
-                    (error instanceof Error
-                      ? error.message
-                      : "Result unconfirmed. Retry checks CompozyOS before acting."),
+                  message: confirmed
+                    ? BRANCH_UNCONFIRMED
+                    : (decodeWorktreeRefusal(error)?.message ??
+                      (error instanceof Error
+                        ? error.message
+                        : "Result unconfirmed. Retry checks CompozyOS before acting.")),
                 });
                 return;
               }
