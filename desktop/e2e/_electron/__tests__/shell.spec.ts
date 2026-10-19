@@ -597,6 +597,7 @@ test("E2E-007: quitting drains shell resources even when renderer unload cannot 
   try {
     await desktop.closeShell();
     expect(desktop.shellProcess.signalCode).toBeNull();
+    expect(desktop.shellProcess.exitCode).toBe(0);
     const alive = await jsonCommand(desktop, ["status", "-o", "json"]);
     expect(alive).toMatchObject({
       daemon: { status: "running", pid: (before.daemon as Record<string, unknown>).pid },
