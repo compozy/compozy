@@ -1047,6 +1047,8 @@ func TestBuildDriverBinaryHonorsContextCancellation(t *testing.T) {
 }
 
 func TestDefaultDriverPathSharesConcurrentBuildResult(t *testing.T) {
+	// not parallel: clears the CI override and mutates the shared driver cache.
+	t.Setenv(driverBinaryEnvVar, "")
 	driverBinaryMu.Lock()
 	cached := driverBinaryPath
 	driverBinaryPath = ""
