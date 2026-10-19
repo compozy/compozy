@@ -8,7 +8,6 @@ package core_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -171,25 +170,36 @@ func TestSearchSessionFilesHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("Should answer 500 with the standard payload when the index fails", func(t *testing.T) {
+	t.Run("Should answer 500 with a path-free message when a lookup or the index fails", func(t *testing.T) {
 		t.Parallel()
-		failing, _ := newSessionFilesHandlerEngine(t, root, failingSessionFileSearcher{})
-		response := serveSessionFilesRequest(t, failing, "/api/workspaces/workspace/sessions/sess-ok/files")
-		if response.Code != http.StatusInternalServerError {
-			t.Fatalf("status = %d, want 500; body=%s", response.Code, response.Body.String())
-		}
-		var payload contract.ErrorPayload
-		testutil.DecodeJSONResponse(t, response, &payload)
-		if payload.Error == "" || payload.Code == "session_directory_unavailable" {
-			t.Fatalf("error payload = %#v, want a standard internal error", payload)
+		failing, _ := newSessionFilesHandlerEngine(t, root, failingSessionFileSearcher{root: root})
+		for _, id := range []string{"sess-ok", "sess-broken"} {
+			response := serveSessionFilesRequest(t, failing, "/api/workspaces/workspace/sessions/"+id+"/files")
+			if response.Code != http.StatusInternalServerError {
+				t.Fatalf("%s status = %d, want 500; body=%s", id, response.Code, response.Body.String())
+			}
+			if body := response.Body.String(); strings.Contains(body, root) {
+				t.Fatalf("%s body = %s, want no absolute root", id, body)
+			}
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, response, &payload)
+			if payload.Error != "session file search failed" || payload.Code == "session_directory_unavailable" {
+				t.Fatalf("%s error payload = %#v, want the fixed internal error", id, payload)
+			}
 		}
 	})
 }
 
-type failingSessionFileSearcher struct{}
+type failingSessionFileSearcher struct {
+	root string
+}
 
-func (failingSessionFileSearcher) Search(context.Context, string, string, int) (workspacefiles.Result, error) {
-	return workspacefiles.Result{}, errors.New("workspacefiles: index root: git and walk failed")
+func (s failingSessionFileSearcher) Search(context.Context, string, string, int) (workspacefiles.Result, error) {
+	return workspacefiles.Result{}, fmt.Errorf(
+		"workspacefiles: index root: walk root: open %s: %w",
+		s.root,
+		fs.ErrPermission,
+	)
 }
 
 type workingDirCallLog struct {
@@ -222,6 +232,7 @@ func newSessionFilesHandlerEngine(
 		"sess-ok":               "registry-workspace",
 		"sess-gone":             "registry-workspace",
 		"sess-missing-worktree": "registry-workspace",
+		"sess-broken":           "registry-workspace",
 		"sess-other-profile":    "registry-workspace",
 		"sess-foreign":          "registry-other-workspace",
 	} {
@@ -251,6 +262,8 @@ func newSessionFilesHandlerEngine(
 				return gone, nil
 			case "sess-missing-worktree":
 				return "", fmt.Errorf("session: resolve working-directory worktree: %w", worktree.ErrMissing)
+			case "sess-broken":
+				return "", fmt.Errorf("session: resolve working directory %s: %w", root, fs.ErrPermission)
 			default:
 				return "", fmt.Errorf("unexpected working dir lookup for %s: %w", id, fs.ErrInvalid)
 			}

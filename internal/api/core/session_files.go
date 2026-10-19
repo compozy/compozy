@@ -23,7 +23,10 @@ const (
 	sessionDirectoryUnavailableCode = "session_directory_unavailable"
 )
 
-var errSessionDirectoryUnavailable = errors.New("session working directory no longer exists")
+var (
+	errSessionDirectoryUnavailable = errors.New("session working directory no longer exists")
+	errSessionFilesSearchFailed    = errors.New("session file search failed")
+)
 
 // SessionFileSearcher ranks files and folders under one directory root.
 type SessionFileSearcher interface {
@@ -64,12 +67,12 @@ func (h *BaseHandlers) SearchSessionFiles(c *gin.Context) {
 	ctx := c.Request.Context()
 	root, err := h.Sessions.WorkingDir(ctx, sessionID)
 	if err != nil {
-		h.respondSessionFilesRootError(c, StatusForSessionError(err), err)
+		h.respondSessionFilesRootError(c, sessionID, "", StatusForSessionError(err), err)
 		return
 	}
 	result, err := h.SessionFiles.Search(ctx, root, c.Query("q"), limit)
 	if err != nil {
-		h.respondSessionFilesRootError(c, http.StatusInternalServerError, err)
+		h.respondSessionFilesRootError(c, sessionID, root, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, sessionFilesResponse(result))
@@ -90,10 +93,18 @@ func parseSessionFilesLimit(raw string) (int, error) {
 }
 
 // respondSessionFilesRootError maps a vanished working directory (or bound
-// worktree) to 409 and every other failure to status. The 409 message names no
-// path: API responses never carry absolute paths (composer-mentions Safety
-// Invariant 6), and the cause error embeds the absolute root.
-func (h *BaseHandlers) respondSessionFilesRootError(c *gin.Context, status int, err error) {
+// worktree) to 409 and every other failure to status. API responses never carry
+// absolute paths (composer-mentions Safety Invariant 6), and the cause error of
+// a root lookup or search embeds the absolute root, so the 409 and every 5xx
+// answer with a fixed message; the 5xx cause reaches only the daemon log, with
+// root redacted.
+func (h *BaseHandlers) respondSessionFilesRootError(
+	c *gin.Context,
+	sessionID string,
+	root string,
+	status int,
+	err error,
+) {
 	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, worktree.ErrMissing) {
 		h.respondSessionFilesError(
 			c,
@@ -103,8 +114,31 @@ func (h *BaseHandlers) respondSessionFilesRootError(c *gin.Context, status int, 
 		)
 		return
 	}
+	if status >= http.StatusInternalServerError {
+		h.logSessionReadError("session.files.search", sessionID, redactSessionFilesRoot(root, err))
+		h.respondError(c, status, errSessionFilesSearchFailed)
+		return
+	}
 	h.respondError(c, status, err)
 }
+
+// redactSessionFilesRoot renders err for logs with root replaced, keeping the
+// cause chain so cancellation still logs at debug level.
+func redactSessionFilesRoot(root string, err error) error {
+	if strings.TrimSpace(root) == "" {
+		return err
+	}
+	return redactedRootError{message: strings.ReplaceAll(err.Error(), root, "<root>"), cause: err}
+}
+
+type redactedRootError struct {
+	message string
+	cause   error
+}
+
+func (e redactedRootError) Error() string { return e.message }
+
+func (e redactedRootError) Unwrap() error { return e.cause }
 
 func (h *BaseHandlers) respondSessionFilesError(c *gin.Context, status int, code string, err error) {
 	payload := ErrorPayloadForStatus(status, err, h.MaskInternalErrors)
