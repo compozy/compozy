@@ -1,5 +1,11 @@
 package contract
 
+// Session file search limit bounds for the searchSessionFiles limit query parameter.
+const (
+	SessionFilesDefaultLimit = 50
+	SessionFilesMaxLimit     = 200
+)
+
 // SessionFileKind distinguishes files from folders in session file search results.
 type SessionFileKind string
 
@@ -11,6 +17,24 @@ const (
 // SessionFileKindValues lists the public session file kinds.
 func SessionFileKindValues() []string {
 	return []string{string(SessionFileKindFile), string(SessionFileKindFolder)}
+}
+
+// SessionMentionKind is the closed kind vocabulary of verified @-mentions.
+type SessionMentionKind string
+
+const (
+	SessionMentionKindFile    SessionMentionKind = "file"
+	SessionMentionKindFolder  SessionMentionKind = "folder"
+	SessionMentionKindSession SessionMentionKind = "session"
+)
+
+// SessionMentionKindValues lists the public mention kinds.
+func SessionMentionKindValues() []string {
+	return []string{
+		string(SessionMentionKindFile),
+		string(SessionMentionKindFolder),
+		string(SessionMentionKindSession),
+	}
 }
 
 // SessionFileEntryPayload is one ranked file or folder under a session's working directory.

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type TaskRunResultParams struct {
+	ID     string `json:"id"`
+	Offset int64  `json:"offset,omitempty"`
+	Limit  int64  `json:"limit,omitempty"`
+}
+
 type TaskRunSessionPayload struct {
 	SessionID   string    `json:"session_id"`
 	WorkspaceID string    `json:"workspace_id,omitempty"`
@@ -286,22 +292,4 @@ type TerminalCommandFinishedPayload struct {
 	DurationMS  int64     `json:"duration_ms"`
 	DetectedBy  string    `json:"detected_by"`
 	Approval    string    `json:"approval"`
-}
-
-type TerminalCommandStartedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	CommandID   string    `json:"command_id"`
-	Command     string    `json:"command"`
-	Cwd         string    `json:"cwd"`
-	DetectedBy  string    `json:"detected_by"`
 }

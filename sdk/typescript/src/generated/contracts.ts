@@ -2233,8 +2233,10 @@ export interface InputAttachmentMetadata {
   kind: string;
 }
 
+export type InputMentionKind = "file" | "folder" | "session";
+
 export interface InputMentionMetadata {
-  kind: string;
+  kind: InputMentionKind;
   token: string;
   target: string;
   label: string;

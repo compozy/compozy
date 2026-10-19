@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type OpenURLEffect struct {
+	URL string `json:"url"`
+}
+
 type Origin struct {
 	Kind OriginKind `json:"kind"`
 	Ref  string     `json:"ref"`
@@ -222,5 +226,3 @@ type ProfileLens struct {
 	ID   ProfileLensID `json:"profile_lens_id"`
 	Name string        `json:"profile_name"`
 }
-
-type ProfileLensID string

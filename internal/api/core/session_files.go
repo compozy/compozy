@@ -15,8 +15,8 @@ import (
 )
 
 const (
-	defaultSessionFilesLimit = 50
-	maxSessionFilesLimit     = 200
+	defaultSessionFilesLimit = contract.SessionFilesDefaultLimit
+	maxSessionFilesLimit     = contract.SessionFilesMaxLimit
 
 	sessionFilesInvalidRequestCode  = "invalid_request"
 	sessionFilesSessionNotFoundCode = "session_not_found"

@@ -133,12 +133,12 @@ type SessionInputPayload struct {
 // relative to the session working directory (folders end in "/") or a session id;
 // offsets are UTF-16 code units in Text, end exclusive.
 type SessionInputMentionPayload struct {
-	Kind   string `json:"kind"`
-	Token  string `json:"token"`
-	Target string `json:"target"`
-	Label  string `json:"label"`
-	Start  int    `json:"start"`
-	End    int    `json:"end"`
+	Kind   SessionMentionKind `json:"kind"`
+	Token  string             `json:"token"`
+	Target string             `json:"target"`
+	Label  string             `json:"label"`
+	Start  int                `json:"start"`
+	End    int                `json:"end"`
 }
 
 // SessionInputListResponse returns current-generation pending input in dispatch order.

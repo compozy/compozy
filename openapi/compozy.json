@@ -23223,6 +23223,11 @@
             "type": "integer"
           },
           "kind": {
+            "enum": [
+              "file",
+              "folder",
+              "session"
+            ],
             "type": "string"
           },
           "label": {
@@ -81626,11 +81631,14 @@
             }
           },
           {
-            "description": "Maximum entries returned (1-200, default 50)",
+            "description": "Maximum entries returned",
             "in": "query",
             "name": "limit",
             "schema": {
+              "default": 50,
               "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
               "type": "integer"
             }
           }

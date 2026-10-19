@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type WindowManagerObservationPatch struct{}
+
 type WindowManagerStackActivatedPayload struct {
 	Event       HookEvent            `json:"event"`
 	Timestamp   time.Time            `json:"timestamp"`

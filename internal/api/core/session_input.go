@@ -166,7 +166,7 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 	}
 	for _, item := range input.Mentions {
 		payload.Mentions = append(payload.Mentions, contract.SessionInputMentionPayload{
-			Kind: string(item.Kind), Token: item.Token, Target: item.Target,
+			Kind: contract.SessionMentionKind(item.Kind), Token: item.Token, Target: item.Target,
 			Label: item.Label, Start: item.Start, End: item.End,
 		})
 	}

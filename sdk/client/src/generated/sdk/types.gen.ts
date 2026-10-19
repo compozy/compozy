@@ -6390,7 +6390,7 @@ export type SessionInputListResponse = {
 
 export type SessionInputMentionPayload = {
   end: number;
-  kind: string;
+  kind: "file" | "folder" | "session";
   label: string;
   start: number;
   target: string;
@@ -31676,7 +31676,7 @@ export type SearchSessionFilesData = {
      */
     q?: string;
     /**
-     * Maximum entries returned (1-200, default 50)
+     * Maximum entries returned
      */
     limit?: number;
   };

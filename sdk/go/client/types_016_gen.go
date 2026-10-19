@@ -64,12 +64,12 @@ type SessionInputListResponse struct {
 
 // SessionInputMentionPayload is a daemon API value.
 type SessionInputMentionPayload struct {
-	Kind   string `json:"kind"`
-	Token  string `json:"token"`
-	Target string `json:"target"`
-	Label  string `json:"label"`
-	Start  int    `json:"start"`
-	End    int    `json:"end"`
+	Kind   SessionMentionKind `json:"kind"`
+	Token  string             `json:"token"`
+	Target string             `json:"target"`
+	Label  string             `json:"label"`
+	Start  int                `json:"start"`
+	End    int                `json:"end"`
 }
 
 // SessionInputPayload is a daemon API value.
@@ -134,6 +134,9 @@ type SessionLineagePayload struct {
 	SpawnBudget      SpawnBudgetPayload           `json:"spawn_budget"`
 	PermissionPolicy SpawnPermissionPolicyPayload `json:"permission_policy"`
 }
+
+// SessionMentionKind is a daemon API value.
+type SessionMentionKind string
 
 // SessionOwner is a daemon API value.
 type SessionOwner struct {
