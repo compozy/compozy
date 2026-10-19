@@ -23,6 +23,8 @@ const (
 	sessionDirectoryUnavailableCode = "session_directory_unavailable"
 )
 
+var errSessionDirectoryUnavailable = errors.New("session working directory no longer exists")
+
 // SessionFileSearcher ranks files and folders under one directory root.
 type SessionFileSearcher interface {
 	Search(ctx context.Context, root string, query string, limit int) (workspacefiles.Result, error)
@@ -88,14 +90,16 @@ func parseSessionFilesLimit(raw string) (int, error) {
 }
 
 // respondSessionFilesRootError maps a vanished working directory (or bound
-// worktree) to 409 and every other failure to status.
+// worktree) to 409 and every other failure to status. The 409 message names no
+// path: API responses never carry absolute paths (composer-mentions Safety
+// Invariant 6), and the cause error embeds the absolute root.
 func (h *BaseHandlers) respondSessionFilesRootError(c *gin.Context, status int, err error) {
 	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, worktree.ErrMissing) {
 		h.respondSessionFilesError(
 			c,
 			http.StatusConflict,
 			sessionDirectoryUnavailableCode,
-			fmt.Errorf("session working directory no longer exists: %w", err),
+			errSessionDirectoryUnavailable,
 		)
 		return
 	}

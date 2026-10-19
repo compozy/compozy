@@ -2712,6 +2712,63 @@ describe("SessionThread transcript states", () => {
     }
   });
 
+  // US-008.AC-3: copying a message with mention chips copies the raw token text, not the
+  // chip labels. Owner: user message actions.
+  it("Should copy the raw token text of a message rendered with mention chips", async () => {
+    const writeText = vi.fn<(value: string) => Promise<void>>().mockResolvedValue(undefined);
+    const clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    const text = "Compare @internal/acp/client_prompt.go with @session:sess-a";
+    const transcript = [
+      {
+        id: "user-copy-with-mentions",
+        role: "user",
+        content: text,
+        metadata: {
+          mentions: [
+            {
+              kind: "file",
+              token: "@internal/acp/client_prompt.go",
+              target: "internal/acp/client_prompt.go",
+              label: "client_prompt.go",
+              start: 8,
+              end: 38,
+            },
+            {
+              kind: "session",
+              token: "@session:sess-a",
+              target: "sess-a",
+              label: "Fix login bug",
+              start: 44,
+              end: 59,
+            },
+          ],
+        },
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    try {
+      renderThreadState({
+        status: "success",
+        messages: toReadonlyThreadMessages(transcript),
+        subagentNavigation: { openSession: vi.fn() },
+      });
+
+      expect(await screen.findAllByTestId("session-mention-chip")).toHaveLength(2);
+      fireEvent.click(await screen.findByTestId("user-message-actions-copy"));
+      await waitFor(() => {
+        expect(writeText).toHaveBeenCalledWith(text);
+      });
+    } finally {
+      if (clipboardDescriptor) {
+        Object.defineProperty(navigator, "clipboard", clipboardDescriptor);
+      } else {
+        Reflect.deleteProperty(navigator as unknown as { clipboard?: unknown }, "clipboard");
+      }
+    }
+  });
+
   it("Should keep the message action visible without hover and report clipboard rejection", async () => {
     const writeText = vi
       .fn<(value: string) => Promise<void>>()
@@ -7246,6 +7303,50 @@ describe("SessionThread composer mentions", () => {
     expect(second).not.toHaveAttribute("data-highlighted");
     expect(composerText()).toBe("@read");
     expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+  });
+
+  // US-001.AC-5: ArrowUp/ArrowDown move the highlight and wrap at both ends.
+  it("Should move the highlight with the arrow keys and wrap at both ends", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [
+          { path: "README.md", name: "README.md", kind: "file" },
+          { path: "docs/readme-notes.md", name: "readme-notes.md", kind: "file" },
+          { path: "docs/readme-old.md", name: "readme-old.md", kind: "file" },
+        ],
+        sessions: [],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("@read");
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    const rows = [
+      await within(menu).findByRole("option", { name: /README\.md/ }),
+      await within(menu).findByRole("option", { name: /readme-notes\.md/ }),
+      await within(menu).findByRole("option", { name: /readme-old\.md/ }),
+    ];
+    const highlighted = () => rows.findIndex(row => row.hasAttribute("data-highlighted"));
+    const press = async (key: "ArrowDown" | "ArrowUp") => {
+      await act(async () => {
+        fireEvent.keyDown(editable, { key });
+      });
+    };
+    expect(highlighted()).toBe(0);
+
+    await press("ArrowDown");
+    await waitFor(() => expect(highlighted()).toBe(1));
+    await press("ArrowUp");
+    await waitFor(() => expect(highlighted()).toBe(0));
+    // Wrap at the top: ArrowUp from the first row lands on the last.
+    await press("ArrowUp");
+    await waitFor(() => expect(highlighted()).toBe(2));
+    // Wrap at the bottom: ArrowDown from the last row lands on the first.
+    await press("ArrowDown");
+    await waitFor(() => expect(highlighted()).toBe(0));
+    expect(composerText()).toBe("@read");
   });
 
   // VC-04 / US-004.AC-3: the first load has nothing to pick, so the listbox

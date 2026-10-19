@@ -16,7 +16,7 @@ last_report:
 overlaps: ET-session-mention-file
 ---
 
-E2E-003, US-007, US-002.EC-3. Paste `Check @README.md` into the composer without using the picker: it
+CM-E2E-003, US-007, US-002.EC-3. Paste `Check @README.md` into the composer without using the picker: it
 stays plain text in the editor, and after send the transcript renders a `README.md` chip from daemon
 metadata. From a terminal send to session B: ``Review @README.md and @session:<C>. see @README.md.
 `@Component` @scope/pkg``. The delivered prompt has one README.md link (trailing `.` trimmed, duplicate
