@@ -1,6 +1,7 @@
 package mention
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -85,7 +86,7 @@ func ParseCounted(text string) ([]Token, int) {
 		}
 		offset = max(end, at+1)
 	}
-	return tokens[:len(tokens):len(tokens)], overflow
+	return slices.Clip(tokens), overflow
 }
 
 // scanToken reads the token whose `@` sits at byte offset at. It returns the
