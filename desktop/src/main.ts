@@ -160,6 +160,8 @@ async function cleanup(): Promise<void> {
         if (controlServer) await controlServer.close();
       });
       await attempt("control token", async () => await deleteControlToken(paths.appToken));
+      // Shell resources are drained; a stuck renderer must not hold the final quit handshake.
+      await attempt("product window", async () => await product?.close());
       await attempt("clean marker", async () => await publisher?.markCleanShutdown());
       await attempt("logs", async () => await logger.flush());
       await logger.flush();

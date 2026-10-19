@@ -580,6 +580,35 @@ test("E2E-007: quitting during bootstrap completes cleanup and preserves the dae
   expect(record.state).not.toBe("product");
 });
 
+test("E2E-007: quitting drains shell resources even when renderer unload cannot respond", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop();
+  const product = await desktop.product();
+  const before = await jsonCommand(desktop, ["status", "-o", "json"]);
+  await product.evaluate(() => {
+    window.addEventListener("beforeunload", () => {
+      // Reproduce the renderer-side close handshake that can outlive shell cleanup.
+      for (;;) {
+        // The renderer cannot acknowledge closing; only this isolated process is blocked.
+      }
+    });
+  });
+  try {
+    await desktop.closeShell();
+    expect(desktop.shellProcess.signalCode).toBeNull();
+    const alive = await jsonCommand(desktop, ["status", "-o", "json"]);
+    expect(alive).toMatchObject({
+      daemon: { status: "running", pid: (before.daemon as Record<string, unknown>).pid },
+    });
+  } finally {
+    // A failed shutdown regression must not leak its intentionally blocked renderer.
+    if (desktop.shellProcess.exitCode === null && desktop.shellProcess.signalCode === null) {
+      desktop.shellProcess.kill("SIGKILL");
+    }
+  }
+});
+
 test("E2E-005 E2E-007 E2E-024: healthy diagnostics and shell relaunch preserve daemon ownership", async ({
   launchDesktop,
 }) => {

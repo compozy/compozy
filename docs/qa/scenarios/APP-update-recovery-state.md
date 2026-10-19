@@ -41,3 +41,14 @@ Staged recovery verifies the packaged runtime digest before any transition-clien
 A staged app installer can run before runtime readiness, after bundle verification. Before installer handoff or shell shutdown, the desktop cancels and awaits its bootstrap observer, preserves the detached daemon, and prevents late product-window publication. A later successful daemon startup reconciles superseded `starting` restart observations without changing the current restart operation or restoring an older binary. Verified by the issue #559 shell and daemon boot integration evidence in `../reports/2026-09-09-issue-559-safe-update-recovery.md`.
 
 Clean shell shutdown drains already queued app-state publications before removing the startup marker. Later runtime/update callbacks cannot rewrite the state record or recreate the marker. The existing desktop app-state publisher suite owns the concurrent-publication regression; the packaged bootstrap-quit and relaunch scenarios verify the shutdown integration.
+
+Shutdown follow-up (2026-10-19): after draining shell services, close the product window through
+its existing state-preserving close path before marking shutdown clean. The final app quit must
+not depend on a renderer answering its unload handshake. In the existing packaged E2E-007 suite,
+an intentionally blocked `beforeunload` reproduced completed cleanup followed by an unresponsive
+renderer and a live shell PID under the unchanged five-second shutdown deadline. The production
+fix passed that regression without a termination signal, preserving the same daemon PID. The
+focused macOS packaged run also passed bootstrap quit, cache-relaunch #742, and renderer
+crash recovery (four scenarios total). This proves the renderer-close failure mode; it does not
+identify why the renderer originally stalled in Linux CI. Full cross-platform CI remains the
+delivery gate, and prior update-recovery evidence above is retained.
