@@ -51,11 +51,82 @@ func testSessionDBOwner(sessionID string) store.SessionDBOwner {
 }
 
 func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
+	t.Run("Should classify snapshot creation failure as unavailable storage", func(t *testing.T) {
+		source := openTestSessionDB(t, "sess-snapshot-storage-failure")
+		if _, err := source.db.ExecContext(t.Context(), "CREATE TABLE snapshot_fixture (value TEXT)"); err != nil {
+			t.Fatal(err)
+		}
+		missing := filepath.Join(t.TempDir(), "missing")
+		for _, key := range []string{"TMPDIR", "TMP", "TEMP"} {
+			t.Setenv(key, missing)
+		}
+		_, cleanup, err := ownerGuardSnapshot(t.Context(), source.path)
+		if cleanup != nil {
+			if cleanupErr := cleanup(); cleanupErr != nil {
+				t.Error(cleanupErr)
+			}
+		}
+		if err == nil || !store.IsStorageUnavailable(err) ||
+			!strings.Contains(err.Error(), "create owner guard snapshot") {
+			t.Fatalf("snapshot creation error = %v, want classified storage failure", err)
+		}
+	})
+	t.Run("Should reopen after last connection close removes WAL during inspection", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		source := openTestSessionDB(t, "sess-snapshot-close")
+		if _, err := source.db.ExecContext(ctx, "CREATE TABLE snapshot_fixture (value TEXT)"); err != nil {
+			t.Fatal(err)
+		}
+		copies := 0
+		dsn, cleanup, err := ownerGuardSnapshotWithCopy(
+			ctx,
+			source.path,
+			func(ctx context.Context, path, snapshot string) error {
+				copies++
+				if err := source.Close(ctx); err != nil {
+					return err
+				}
+				return copyOwnerGuardFamily(ctx, path, snapshot)
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := cleanup(); err != nil {
+				t.Error(err)
+			}
+		})
+		if copies == 0 {
+			t.Fatal("fixture did not exercise last-connection close during snapshot copying")
+		}
+		db, err := sql.Open("sqlite", dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := verifySessionDBOwner(ctx, db, source.owner); err != nil {
+			t.Fatalf("owner after concurrent close: %v", err)
+		}
+	})
 	// Invariant: an owner-read corruption error is retried only after a successful SQLite integrity probe.
 	t.Run("Should retry an owner read only when integrity is verified", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
 		damaged := openTestSessionDB(t, "sess-corrupt-fixture")
+		var ownerPage, pageSize int
+		if err := damaged.db.QueryRowContext(ctx, "SELECT rootpage FROM sqlite_master WHERE name = 'session_db_owner'").
+			Scan(&ownerPage); err != nil {
+			t.Fatal(err)
+		}
+		if err := damaged.db.QueryRowContext(ctx, "PRAGMA page_size").Scan(&pageSize); err != nil {
+			t.Fatal(err)
+		}
 		if err := damaged.Close(ctx); err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +134,7 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		contents[100] = 0
+		contents[(ownerPage-1)*pageSize] = 0
 		if err := os.WriteFile(damaged.path, contents, 0o600); err != nil {
 			t.Fatal(err)
 		}
@@ -75,7 +146,7 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		if !ok {
 			t.Fatal("SQLite contextual queries unavailable")
 		}
-		_, corruptErr := querySessionSQLiteConnectionRow(ctx, querier, "SELECT COUNT(*) FROM sqlite_master", 1)
+		_, corruptErr := querySessionSQLiteConnectionRow(ctx, querier, "SELECT COUNT(*) FROM session_db_owner", 1)
 		if err := raw.Close(); err != nil {
 			t.Fatal(err)
 		}
@@ -90,8 +161,11 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		if driver.checks.Load() != 1 || driver.opens.Load() != 2 {
 			t.Fatalf("integrity checks=%d, opens=%d", driver.checks.Load(), driver.opens.Load())
 		}
-		if _, err := verifySessionDBOwnerWithDriver(ctx, &sqlite.Driver{}, damaged.path, damaged.owner); err == nil {
-			t.Fatal("corrupt database was admitted")
+		_, err = verifySessionDBOwnerWithDriver(ctx, &sqlite.Driver{}, damaged.path, damaged.owner)
+		typed, corrupt := errors.AsType[*sqlite.Error](err)
+		if !corrupt || typed.Code()&0xff != 11 || errors.Is(err, errTransientOwnerGuard) ||
+			!strings.Contains(err.Error(), "corruption confirmed by integrity check") {
+			t.Fatalf("corrupt database verdict = %v, want confirmed corruption", err)
 		}
 	})
 	t.Run("Should open a healthy WAL family during a partially applied checkpoint", func(t *testing.T) {

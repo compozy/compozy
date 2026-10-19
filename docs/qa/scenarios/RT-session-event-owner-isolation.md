@@ -61,3 +61,8 @@ The owning retry test admits a transient owner-read failure only after a success
 probe and continues to refuse actual corruption. This is scoped storage evidence, not a new
 public-surface persona walk. Only generated temporary fixtures were used; live user files were
 not opened or copied.
+
+Review regressions also cover the last SQLite connection closing during snapshot copying: the
+guard reselects a main-only read after WAL removal. A real temporary-directory creation failure
+is classified as unavailable storage. Actual owner-page corruption must return SQLite code 11,
+an integrity-confirmed refusal, and no transient-retry marker.

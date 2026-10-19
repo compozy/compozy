@@ -831,24 +831,41 @@ func TestStopRequiresVerifiedProcessExit(t *testing.T) {
 
 func TestSharedSessionStopOperation(t *testing.T) {
 	// Invariant: verified exit remains terminal during storage loss; retained receipts settle before reuse or deletion.
-	for _, action := range []string{"stop", "resume", "delete", "restart"} {
-		t.Run("Should recover a storage-failed stop through "+action, func(t *testing.T) {
+	for _, tc := range []struct {
+		action string
+		cause  StopCause
+	}{
+		{"stop", CauseUserRequested}, {"resume", CauseUserRequested},
+		{"delete", CauseUserRequested}, {"restart", CauseUserRequested},
+		{"stop", CauseProcessExited}, {"restart", CauseProcessExited},
+	} {
+		action := tc.action
+		t.Run("Should recover a storage-failed stop through "+action+" after "+tc.cause.String(), func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
 			active := createSession(t, h)
+			storageErr := os.ErrPermission
+			if action == "stop" {
+				storageErr = fmt.Errorf("create owner guard snapshot: %w", &os.PathError{
+					Op: "mkdir", Path: "snapshot", Err: syscall.ENOSPC,
+				})
+			}
 			var fail atomic.Bool
 			fail.Store(true)
 			openStore := h.manager.openStore
 			h.manager.openStore = func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
 				if fail.Load() {
-					return nil, os.ErrPermission
+					return nil, storageErr
 				}
 				return openStore(ctx, owner, path)
 			}
 			active.setRecorder(&terminalWriteFailingRecorder{
-				EventRecorder: active.recorderHandle(), fail: &fail, writeErr: os.ErrPermission,
+				EventRecorder: active.recorderHandle(), fail: &fail, writeErr: storageErr,
 			})
-			if err := h.manager.RequestStop(t.Context(), active.ID, CauseUserRequested); err != nil {
+			if tc.cause == CauseProcessExited {
+				active.processHandle().setWaitErrorOverride(errors.New("fixture agent crash"))
+			}
+			if err := h.manager.RequestStop(t.Context(), active.ID, tc.cause); err != nil {
 				t.Fatal(err)
 			}
 			first, err := h.manager.AwaitStopped(t.Context(), active.ID)
@@ -868,7 +885,16 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			case "stop":
 				err = h.manager.Stop(t.Context(), active.ID)
 			case "resume":
+				service, rows, _ := newSubagentTestService(t)
+				rows.rows["retained-native"] = store.SessionSubagent{
+					ID: "retained-native", ParentSessionID: active.ID, WorkspaceID: active.WorkspaceID,
+					Origin: store.SubagentOriginProviderNative, Status: store.SubagentStatusRunning,
+				}
+				h.manager.SetSubagentService(service)
 				_, err = h.manager.Resume(t.Context(), active.ID)
+				if rows.rows["retained-native"].Status != store.SubagentStatusRunning {
+					t.Fatal("resume settlement initiated a new parent-stop cascade")
+				}
 			case "delete":
 				err = h.manager.Delete(t.Context(), active.ID)
 			case "restart":
@@ -891,6 +917,17 @@ func TestSharedSessionStopOperation(t *testing.T) {
 			}
 			if countEventType(readStoredEvents(t, active), EventTypeSessionStopped) != 1 {
 				t.Fatal("recovery duplicated or omitted the retained terminal event")
+			}
+			if action != "resume" {
+				meta := readMeta(t, active.MetaPath())
+				wantReason, wantFailure := store.StopUserCanceled, store.FailureCanceled
+				if tc.cause == CauseProcessExited {
+					wantReason, wantFailure = store.StopAgentCrashed, store.FailureProcess
+				}
+				if meta.StopReason == nil || *meta.StopReason != wantReason || meta.Failure == nil ||
+					meta.Failure.Kind != wantFailure {
+					t.Fatalf("original stop classification not restored: %+v", meta)
+				}
 			}
 		})
 	}

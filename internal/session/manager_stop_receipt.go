@@ -4,11 +4,53 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/transcript"
 )
+
+// The existing receipt retains the original terminal event and classification detail.
+// Restore them before retrying an append so temporary storage diagnostics cannot replace them.
+func (m *Manager) restoreActiveStopClassification(session *Session) error {
+	content, err := os.ReadFile(m.recoveredStopReceiptPath(session.ID))
+	if err != nil {
+		return errors.Join(ErrRecoveryPersistence, err)
+	}
+	var receipt recoveredStopReceipt
+	if err := json.Unmarshal(content, &receipt); err != nil {
+		return errors.Join(ErrRecoveryPersistence, err)
+	}
+	meta := session.Meta()
+	if err := receipt.validate(&meta); err != nil {
+		return err
+	}
+	if err := restoreStopReceiptClassification(&meta, &receipt); err != nil {
+		return err
+	}
+	session.setStopClassification(sessionMetaStopReason(&meta), meta.StopDetail)
+	session.setFailure(meta.Failure)
+	return nil
+}
+
+func restoreStopReceiptClassification(meta *store.SessionMeta, receipt *recoveredStopReceipt) error {
+	if receipt.TerminalEvent == nil {
+		return nil
+	}
+	event, err := transcript.UnmarshalAgentEvent(receipt.TerminalEvent.Content)
+	if err != nil {
+		return fmt.Errorf("%w: decode original stop classification: %w", ErrRecoveryPersistence, err)
+	}
+	meta.StopReason = stopReasonPointer(store.StopReason(event.StopReason))
+	meta.StopDetail = receipt.Detail
+	meta.Failure = store.CloneSessionFailure(event.Failure)
+	if meta.Failure == nil {
+		meta.Failure = sessionFailureForStop(receipt.Outcome.Cause, nil, receipt.Detail)
+	}
+	return nil
+}
 
 func (s *Session) retainVerifiedStopOutcome(outcome StopOutcome) StopOutcome {
 	s.mu.Lock()
@@ -61,8 +103,8 @@ func (m *Manager) persistActiveStopReceipt(ctx context.Context, session *Session
 }
 
 func (m *Manager) replayActiveStopEvent(ctx context.Context, id string, row *store.SessionEvent) error {
-	var event acp.AgentEvent
-	if err := json.Unmarshal([]byte(row.Content), &event); err != nil {
+	event, err := transcript.UnmarshalAgentEvent(row.Content)
+	if err != nil {
 		return err
 	}
 	persisted, _, err := m.appendDurableSessionEvent(ctx, id, *row)

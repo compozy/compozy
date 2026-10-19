@@ -71,7 +71,9 @@ func (m *Manager) finalizeStoppedOwned(
 		}
 	}
 	var classificationErr error
-	if !session.pendingStopState() {
+	if session.pendingStopState() {
+		classificationErr = m.restoreActiveStopClassification(session)
+	} else {
 		classificationErr = m.persistStopClassification(ctx, session, waitErr)
 	}
 	errs = appendLifecycleErr(errs, classificationErr)

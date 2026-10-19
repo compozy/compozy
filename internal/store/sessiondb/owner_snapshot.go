@@ -13,6 +13,14 @@ import (
 
 // ownerGuardSnapshot keeps WAL recovery and shared-memory writes away from an unverified owner.
 func ownerGuardSnapshot(ctx context.Context, path string) (string, func() error, error) {
+	return ownerGuardSnapshotWithCopy(ctx, path, copyOwnerGuardFamily)
+}
+
+func ownerGuardSnapshotWithCopy(
+	ctx context.Context,
+	path string,
+	copyFamily func(context.Context, string, string) error,
+) (string, func() error, error) {
 	wal, err := os.Stat(path + "-wal")
 	if errors.Is(err, os.ErrNotExist) || (err == nil && wal.Size() == 0) {
 		return sessionDBOwnerGuardDSN(path), func() error { return nil }, nil
@@ -27,11 +35,20 @@ func ownerGuardSnapshot(ctx context.Context, path string) (string, func() error,
 	cleanup := func() error { return os.RemoveAll(directory) }
 	snapshot := filepath.Join(directory, "events.db")
 	for attempt := 1; attempt <= 20; attempt++ {
-		err = copyOwnerGuardFamily(ctx, path, snapshot)
+		err = copyFamily(ctx, path, snapshot)
 		if !errors.Is(err, errOwnerGuardSnapshotChanged) {
 			break
 		}
 		if err = waitForSessionDBOpenRetry(ctx, path, attempt); err != nil {
+			break
+		}
+		// Last-connection close checkpoints and removes WAL outside the family lease.
+		// Re-select the main-only path once that checkpoint completes.
+		wal, err = os.Stat(path + "-wal")
+		if errors.Is(err, os.ErrNotExist) || (err == nil && wal.Size() == 0) {
+			return sessionDBOwnerGuardDSN(path), cleanup, nil
+		}
+		if err != nil {
 			break
 		}
 		err = errOwnerGuardSnapshotChanged
@@ -53,6 +70,9 @@ func copyOwnerGuardFamily(ctx context.Context, path, snapshot string) error {
 	for _, suffix := range []string{"", "-wal"} {
 		info, err := copyOwnerGuardFile(ctx, path+suffix, snapshot+suffix)
 		if err != nil {
+			if suffix == "-wal" && errors.Is(err, os.ErrNotExist) {
+				return errors.Join(errOwnerGuardSnapshotChanged, err)
+			}
 			return err
 		}
 		files = append(files, copiedFile{path: path + suffix, info: info})
@@ -61,6 +81,9 @@ func copyOwnerGuardFamily(ctx context.Context, path, snapshot string) error {
 	for _, file := range files {
 		current, err := os.Stat(file.path)
 		if err != nil {
+			if file.path == path+"-wal" && errors.Is(err, os.ErrNotExist) {
+				return errors.Join(errOwnerGuardSnapshotChanged, err)
+			}
 			return err
 		}
 		if !os.SameFile(file.info, current) || file.info.Size() != current.Size() ||

@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"os"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"modernc.org/sqlite"
@@ -287,7 +288,14 @@ func IsSQLiteBusy(err error) bool {
 
 // IsStorageUnavailable identifies storage failures independently of provider or SQL contract failures.
 func IsStorageUnavailable(err error) bool {
-	if errors.Is(err, os.ErrPermission) {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	if _, ok := errors.AsType[*os.PathError](err); ok {
+		return true
+	}
+	if errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ENOSPC) ||
+		errors.Is(err, syscall.EIO) || errors.Is(err, syscall.EROFS) {
 		return true
 	}
 	sqliteErr, ok := errors.AsType[*sqlite.Error](err)

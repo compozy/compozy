@@ -788,6 +788,9 @@ is announced before its history append succeeds. Retry stop after storage recove
 deletion also attempt settlement first, and boot replays pending receipts. The retained event
 identity prevents duplication. Other event-contract failures retain `stopping`. A healthy
 stored-session writer can complete the event while preserving the failed recorder's diagnostic.
+Once storage recovers, settlement restores the original stop reason and failure from the retained
+receipt; a temporary storage diagnostic does not permanently relabel cancellation or an agent crash.
+Resume settles the existing stop without initiating another parent-stop cascade.
 Missing local PID/start identity also retains stopping with verification-failed attention,
 including interrupted startup metadata. Recovery preserves history while exit remains unproven.
 After verified recovery, the saved ACP session ID remains available for normal resume/load;

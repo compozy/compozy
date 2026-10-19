@@ -246,6 +246,8 @@ all previous event IDs; removal succeeds only after settlement. Command:
 For unavailable event storage, the shared-stop contract suite separately verifies a proven exit
 is reported as `stopped`/`error` with a storage summary while its durable history receipt remains
 pending. Restore storage and exercise stop, resume, deletion, and manager restart: each settles the
-same terminal event once. Metadata/catalog failures and unverified exits retain their existing
+same terminal event once. Include ENOSPC in the temporary snapshot filesystem. Confirm retry and
+restart restore the original user-cancel or agent-crash classification, and resume does not initiate
+another parent-stop cascade. Metadata/catalog failures and unverified exits retain their existing
 recovery obligations. These focused runs do not claim a fresh Web, CLI/HTTP/UDS, or real-provider
 persona walk; the broader scenario status above remains unchanged. No live user data was accessed.
