@@ -18,6 +18,23 @@ compozy worktree exit feature-auth --workspace . -o json
 Continue only when `cleanup.safe` is true and the evidence matches the intended branch or merged pull
 request.
 
+A deleted upstream is a readable Git state: `has_upstream` remains true while `ahead` and `behind`
+are unknown. This commonly follows squash merge and remote branch deletion. It does not prove that
+local commits were merged.
+
+Refresh forge status before cleanup:
+
+```bash
+compozy worktree status feature-auth --workspace . --refresh --forge -o json
+```
+
+A fresh merged PR whose head SHA matches the current checkout permits removal without `--force`,
+even when squash merge leaves that SHA absent from remote branches. The exit plan reports forge
+cleanup evidence, and removal excludes those merged commits from its unpushed risk. The persisted cache does not retain the PR head SHA, so cleanup queries the provider for that proof
+when the cached merge is fresh. Missing, expired,
+or mismatched evidence retains the unpushed-work refusal. Dirty files and active sessions still block
+removal. Removal rechecks evidence after pre-remove hooks; a later local commit requires new evidence.
+
 ### 2. Remove the linked checkout
 
 ```bash

@@ -3,6 +3,7 @@ package workspacefiles
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -146,6 +147,41 @@ func TestIndexSearchGitRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("Should log the index build with its counts and source but no root path", func(t *testing.T) {
+		t.Parallel()
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatalf("resolve temp dir: %v", err)
+		}
+		logs := &lockedBuffer{}
+		logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+		runner := &fakeGitRunner{files: []string{"a.go", "pkg/b.go"}}
+
+		result, err := New(runner, WithLogger(logger)).Search(t.Context(), root, "", 100)
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
+		}
+		record := requireLogRecord(t, logs.String(), "workspacefiles.index_built")
+		want := map[string]any{
+			"level":     "DEBUG",
+			"root_hash": rootHash(root),
+			"entries":   float64(len(result.Entries)),
+			"truncated": false,
+			"source":    sourceGit,
+		}
+		for key, value := range want {
+			if record[key] != value {
+				t.Fatalf("index_built %s = %#v, want %#v in %v", key, record[key], value, record)
+			}
+		}
+		if _, ok := record["duration_ms"].(float64); !ok || len(result.Entries) != 3 {
+			t.Fatalf("index_built = %v for %d entries, want duration_ms over 3 entries", record, len(result.Entries))
+		}
+		if strings.Contains(logs.String(), root) {
+			t.Fatalf("logs = %s, want no root path", logs.String())
+		}
+	})
+
 	t.Run("Should list paths relative to a repository subdirectory", func(t *testing.T) {
 		t.Parallel()
 		runner := realGitRunner(t)
@@ -221,6 +257,22 @@ func assertSymlinkEntries(t *testing.T, entries []Entry) {
 			t.Fatalf("entries = %#v, want %q absent", entries, absent)
 		}
 	}
+}
+
+// requireLogRecord decodes JSON log lines and returns the first record with msg.
+func requireLogRecord(t *testing.T, output string, msg string) map[string]any {
+	t.Helper()
+	for line := range strings.SplitSeq(strings.TrimSpace(output), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatalf("decode log line %q: %v", line, err)
+		}
+		if record["msg"] == msg {
+			return record
+		}
+	}
+	t.Fatalf("logs = %s, want a %s record", output, msg)
+	return nil
 }
 
 // lockedBuffer is a concurrency-safe log sink.
@@ -373,6 +425,35 @@ func TestIndexSearchWalkFallback(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "gone")
 		if _, err := New(nil).Search(t.Context(), missing, "", 10); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Search(missing) error = %v, want os.ErrNotExist", err)
+		}
+	})
+
+	t.Run("Should log index_failed when both git and the walk fail", func(t *testing.T) {
+		t.Parallel()
+		if os.Geteuid() == 0 {
+			t.Skip("root reads unreadable directories")
+		}
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatalf("resolve temp dir: %v", err)
+		}
+		if err := os.Chmod(root, 0o000); err != nil {
+			t.Fatalf("chmod root: %v", err)
+		}
+		t.Cleanup(func() { _ = os.Chmod(root, 0o700) })
+		logs := &lockedBuffer{}
+		logger := slog.New(slog.NewJSONHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+		runner := &fakeGitRunner{err: errors.New("git exploded")}
+		if _, err := New(runner, WithLogger(logger)).Search(t.Context(), root, "", 10); err == nil {
+			t.Fatal("Search(unreadable root) error = nil, want the index failure")
+		}
+		record := requireLogRecord(t, logs.String(), "workspacefiles.index_failed")
+		if record["level"] != "ERROR" || record["root_hash"] != rootHash(root) {
+			t.Fatalf("index_failed = %v, want an ERROR record with root_hash %s", record, rootHash(root))
+		}
+		if message, ok := record["error"].(string); !ok || !strings.Contains(message, "git exploded") {
+			t.Fatalf("index_failed error = %#v, want both source failures", record["error"])
 		}
 	})
 }

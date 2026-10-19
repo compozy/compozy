@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/store"
+	"modernc.org/sqlite"
 )
 
 type sessionDBParentDirectory interface {
@@ -171,22 +172,9 @@ func verifySessionDBOwnerReadOnly(
 	ctx context.Context,
 	owner store.SessionDBOwner,
 	path string,
-) (retErr error) {
-	db, err := sql.Open("sqlite", sessionDBOwnerGuardDSN(path))
-	if err != nil {
-		return fmt.Errorf("store: open session database owner guard %q: %w", path, err)
-	}
-	db.SetMaxOpenConns(1)
-	db.SetMaxIdleConns(1)
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			retErr = errors.Join(retErr, fmt.Errorf("store: close session database owner guard %q: %w", path, closeErr))
-		}
-	}()
-	if err := verifySessionDBOwner(ctx, db, owner); err != nil {
-		return fmt.Errorf("store: refuse session database %q before owned open: %w", path, err)
-	}
-	return nil
+) error {
+	_, err := verifySessionDBOwnerWithDriver(ctx, &sqlite.Driver{}, path, owner)
+	return err
 }
 
 func sessionDBOwnerGuardDSN(path string) string {

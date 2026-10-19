@@ -147,10 +147,9 @@ The same syntax works in:
 Mentions are not slash commands: they work for every sender, including other agents.
 
 <OperatorNote>
-  A mention always resolves against the session that **receives** the prompt —
-  its working directory and its project — never the sender's. When an agent in
-  session A sends `Review @README.md` to session B, the link points to B's
-  `README.md`.
+  A mention always resolves against the session that **receives** the prompt — its working directory
+  and its project — never the sender's. When an agent in session A sends `Review @README.md` to
+  session B, the link points to B's `README.md`.
 </OperatorNote>
 
 Mentions resolve when CompozyOS accepts the prompt: on send, when it is queued, when a queued message

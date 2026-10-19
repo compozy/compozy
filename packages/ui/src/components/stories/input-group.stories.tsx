@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { ArrowUp, Bot, CommandIcon, MailIcon, Paperclip, SearchIcon } from "lucide-react";
+import {
+  ArrowUp,
+  Bot,
+  CommandIcon,
+  FolderIcon,
+  MailIcon,
+  Paperclip,
+  SearchIcon,
+} from "lucide-react";
 
 import { Field, FieldDescription, FieldError, FieldLabel } from "../field";
 import {
@@ -119,7 +127,11 @@ export const TextareaWithActions: Story = {
   ),
 };
 
-/** Chat composer: canvas card, quiet tool pills, round inverted send. Focus lifts the card. */
+/**
+ * Chat composer: canvas card, quiet tools, round inverted send. Focus lifts the card.
+ * Icon-only tools are the 28 px `tool-icon` square; a tool with a label or count is
+ * the padded `tool` pill at the same height, so every control shares one edge.
+ */
 export const Composer: Story = {
   args: {},
   render: () => (
@@ -127,12 +139,15 @@ export const Composer: Story = {
       <InputGroup variant="composer">
         <InputGroupTextarea aria-label="Message" placeholder="Message the agent..." rows={1} />
         <InputGroupAddon align="block-end">
-          <InputGroupButton size="tool" aria-label="Attach files">
-            <Paperclip />
-          </InputGroupButton>
           <InputGroupButton size="tool">
             <Bot />
             codex · high
+          </InputGroupButton>
+          <InputGroupButton size="tool-icon" aria-label="Project folder">
+            <FolderIcon />
+          </InputGroupButton>
+          <InputGroupButton size="tool-icon" aria-label="Attach files">
+            <Paperclip />
           </InputGroupButton>
           <InputGroupButton size="send" aria-label="Send message">
             <ArrowUp />

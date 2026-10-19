@@ -13,7 +13,7 @@ export function SessionAttachButtonView({
 }: SessionAttachButtonViewProps) {
   return (
     <InputGroupButton
-      size="tool"
+      size="tool-icon"
       aria-label="Attach files"
       title={title}
       data-testid="composer-attach-button"

@@ -16,7 +16,7 @@ last_report:
 overlaps: ET-session-mention-session-inline; ET-session-mention-history-chips
 ---
 
-E2E-002, US-003 (incl. EC-3), US-006.AC-1/2/4. Create session A titled "Fix login bug" with a short exchange and
+CM-E2E-002, US-003 (incl. EC-3), US-006.AC-1/2/4. Create session A titled "Fix login bug" with a short exchange and
 session B in the same workspace, once with real Claude and once with real Codex. Also create a session
 in a second workspace and archive one session of the first. In B type `@`: Sessions shows the 5 most
 recently updated sessions of this workspace without B itself, the archived one, or the other

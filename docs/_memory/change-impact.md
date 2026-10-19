@@ -38,6 +38,10 @@ row, and the `input.pre_submit` note in `hooks/event-catalog`; regenerated API r
 `ET-session-mention-folder-quoted`, `ET-session-mention-session`, `ET-session-mention-session-inline`,
 `ET-session-mention-containment`, `ET-session-mention-typed-token`, `ET-session-mention-queued-input`,
 `ET-session-mention-hook-rewrite`, `ET-session-mention-history-chips` (untested until the QA tail).
+Data boundaries (`eng-data-boundaries` audit): `searchSessionFiles` scopes the session through
+`requireSessionInWorkspace` and the profile read scope (foreign workspace or profile → 404 before the
+working directory is resolved), HTTP and UDS share one handler with parity covering 404/409, and the
+picker's session catalog query is scoped by workspace and profile on the server.
 
 ## Daemon idle-cost and renderer batching — 2026-10-18
 
@@ -3759,3 +3763,19 @@ The terminal profile E2E now waits for the existing selection API's successful p
 before reloading the concrete terminal deep link. An optimistic switcher label cannot prove
 that write completed. ET-terminal-profile-segmentation records this validation-only correction;
 profile selection, input authorization, MCP keepalive, and timeout contracts are unchanged.
+
+
+## 2026-10-19 runtime selector model list issues mark — issue #827
+
+- Web: the runtime selector no longer renders catalog status or per-provider model list guidance
+  inline under the provider chips. A warning mark ("Model list issues") appears in the search
+  header before refresh only when problems exist; its nested popover lists the catalog-wide
+  message first, then each listed provider's message in provider order. Rail filters and search
+  no longer narrow the guidance. `catalogStatus` narrows from `ReactNode` to `string | null`;
+  every caller already passed text except the session composer, which now passes its message.
+- Native tools, CLI/HTTP/UDS shapes, hooks/extensions/config, persisted data, workspace/profile
+  isolation, official skills, and site docs are unchanged. No migration or codegen is needed.
+- QA owner: `RT-model-catalog-cold-open` (issue #827 impact note). Regression owners:
+  `runtime-selector.test.tsx` "model list issues" (content, ordering, nested Escape/outside
+  press, focus return) and the rendered `ProviderAuthRequired` story (nested dismissal plus the
+  healthy-model hit target from #745/#768).

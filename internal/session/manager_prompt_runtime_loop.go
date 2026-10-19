@@ -115,7 +115,11 @@ func (m *Manager) stopSessionAfterFatalPromptFailure(
 	stopCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()
 
-	if err := m.StopWithCause(stopCtx, session.ID, CauseProcessExited, summary); err != nil &&
+	cause := CauseProcessExited
+	if failure.Kind == store.FailurePrompt {
+		cause = CauseFailed
+	}
+	if err := m.StopWithCause(stopCtx, session.ID, cause, summary); err != nil &&
 		!errors.Is(err, ErrSessionNotFound) {
 		m.sessionLogger(session).Warn(
 			"session: stop after fatal prompt failure failed",

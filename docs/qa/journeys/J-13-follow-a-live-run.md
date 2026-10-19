@@ -18,7 +18,7 @@ flowchart TD
     MC --> Q
     MC --> SI
     MC --> STP
-    C -->|Enter| Q[Draft queued + visible hint; queued rows editable]
+    C -->|Enter| Q[Draft queued; screen-reader Enter hint, no visible shortcut badges; queued rows editable]
     C -->|Stop| STP[Turn stops; primary flips to Send; badge reflects immediately]
     STP --> READY[Stopped thread keeps its history and composer available]
     READY --> RESTART[Next normal prompt restarts the same logical session]
@@ -53,7 +53,7 @@ journey:
       expected_observable: "Changing focus does not pause either visible session; a hidden session suspends live reads and catches up when visible; expanded rows and scroll anchors remain stable"
     - step: 3
       verb: "Queue a prompt while the agent is busy"
-      expected_observable: "Enter queues the draft with a visible hint and an editable queued row; user, system, coordinator, and spawned sessions expose Queue, Steer, Interrupt, and Stop generation while managed-session lifecycle actions stay absent"
+      expected_observable: "Enter queues the draft (the Enter hint is screen-reader only; no visible shortcut badges) with an editable queued row; user, system, coordinator, and spawned sessions expose Queue, Steer, Interrupt, and Stop generation while managed-session lifecycle actions stay absent"
     - step: 4
       verb: "Stop the turn (or let it settle)"
       expected_observable: "Stop flips the primary back to Send and reflects the badge immediately; on natural settle the turn folds behind 'Worked for Xs' with the terminal message below, a changed-files roll-up if files were edited, and a hover copy+timestamp toolbar"

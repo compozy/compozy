@@ -855,9 +855,11 @@ test("E2E-012 / E2E-025: composer honors default steering, explicit queue action
     await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "send");
 
     await startBlockingTurn(ui, runtime, workspace.id, session.id);
-    // The hint mirrors the daemon default (steer) with the one-shot opposite.
+    // The hint mirrors the daemon default (steer) with the one-shot opposite,
+    // for assistive tech only: the busy row shows no shortcut badges (#826).
     await expect(ui.composerEnterHint).toHaveAttribute("data-enter", "steer");
     await expect(ui.composerEnterHint).toHaveAttribute("data-modifier", "queue");
+    await expect(ui.composerEnterHint).toHaveClass(/(^|\s)sr-only(\s|$)/);
 
     // Empty draft + Enter: nothing sent, no feedback noise (US-003.EC-3).
     const promptRequests: string[] = [];

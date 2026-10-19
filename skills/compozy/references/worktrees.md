@@ -106,6 +106,13 @@ branch step. Dismissal with the opt-in releases Git's stale registration only wh
 branch and saved Git administrative identity match the record;
 it never prunes other worktrees. Without the opt-in, callers keep the established `204` behavior.
 
+A configured but deleted upstream is readable: `has_upstream=true` with unknown `ahead`/`behind`.
+Refresh with `compozy worktree status <ref> --refresh --forge -o json` before cleanup. Fresh merged
+forge evidence matching the current HEAD permits removal after squash merge and remote branch
+deletion without `--force`. Missing, expired, or mismatched evidence does not excuse unpushed work;
+dirty files and active sessions still block removal. The exit plan describes an unavailable upstream
+instead of claiming that no push is pending. Removal checks evidence again after pre-remove hooks.
+
 ## Configuration And Errors
 
 `[worktrees]` controls new managed placement, per-run branch namespace, bootstrap copy/setup, and

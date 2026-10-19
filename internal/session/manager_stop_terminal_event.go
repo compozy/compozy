@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 )
 
+var errStopReceiptPersistence = errors.New("session: stop recovery receipt was not persisted")
+
 func (m *Manager) recordSessionStoppedEvent(
 	ctx context.Context,
 	session *Session,
@@ -33,7 +35,7 @@ func (m *Manager) recordSessionStoppedEvent(
 	var recorderErr error
 	write := func(ctx context.Context, recorder EventRecorder, event store.SessionEvent) (store.SessionEvent, error) {
 		if err := m.persistActiveStopReceipt(ctx, session, &event); err != nil {
-			return store.SessionEvent{}, err
+			return store.SessionEvent{}, errors.Join(errStopReceiptPersistence, err)
 		}
 		persisted, err := recordIdempotentSessionEvent(ctx, recorder, event)
 		if err == nil {

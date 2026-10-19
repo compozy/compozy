@@ -24,6 +24,9 @@ import (
 const (
 	mentionIntegrationAgent    = "mention-agent"
 	mentionIntegrationHoldText = "hold the turn"
+	// mentionDeniedHistoryAgent runs the same fixture with an operator-authored deny_tools
+	// entry for compozy__session_history.
+	mentionDeniedHistoryAgent = "mention-denied-agent"
 )
 
 // mentionIntegrationDaemon is a booted daemon whose session manager carries the real
@@ -32,6 +35,7 @@ type mentionIntegrationDaemon struct {
 	daemon      *Daemon
 	manager     *session.Manager
 	workspace   string
+	root        string
 	diagnostics string
 }
 
@@ -86,6 +90,7 @@ func newMentionIntegrationDaemon(t *testing.T, toolsEnabled bool) mentionIntegra
 	if err != nil {
 		t.Fatal(err)
 	}
+	registerMentionDeniedHistoryAgent(t, home, fixturePath, diagnostics)
 	cfg := e2etest.SeedConfig(t, home, e2etest.ConfigSeedOptions{
 		SocketPath:      home.DaemonSocket,
 		DefaultAgent:    mentionIntegrationAgent,
@@ -123,13 +128,53 @@ func newMentionIntegrationDaemon(t *testing.T, toolsEnabled bool) mentionIntegra
 	if !ok {
 		t.Fatal("real session manager missing")
 	}
-	return mentionIntegrationDaemon{daemon: d, manager: manager, workspace: workspace.ID, diagnostics: diagnostics}
+	return mentionIntegrationDaemon{
+		daemon: d, manager: manager, workspace: workspace.ID, root: root, diagnostics: diagnostics,
+	}
+}
+
+// registerMentionDeniedHistoryAgent writes a second agent for the shared fixture whose
+// definition denies compozy__session_history, the way an operator narrows an agent.
+func registerMentionDeniedHistoryAgent(
+	t *testing.T,
+	home compozyconfig.HomePaths,
+	fixturePath string,
+	diagnostics string,
+) {
+	t.Helper()
+	if _, err := acpmock.Register(home, acpmock.RegisterOptions{
+		FixturePath:     fixturePath,
+		FixtureAgent:    mentionIntegrationAgent,
+		AgentName:       mentionDeniedHistoryAgent,
+		ProviderName:    acpmock.ProviderName,
+		DiagnosticsPath: diagnostics,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(home.AgentsDir, mentionDeniedHistoryAgent, "AGENT.md")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header, body, ok := strings.Cut(strings.TrimPrefix(string(data), "---\n"), "---\n")
+	if !ok {
+		t.Fatalf("agent definition %s lacks frontmatter", path)
+	}
+	denied := "---\n" + header + "deny_tools:\n  - 'compozy__session_history'\n---\n" + body
+	if err := os.WriteFile(path, []byte(denied), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func (h mentionIntegrationDaemon) create(t *testing.T, name string) *session.Session {
 	t.Helper()
+	return h.createWithAgent(t, mentionIntegrationAgent, name)
+}
+
+func (h mentionIntegrationDaemon) createWithAgent(t *testing.T, agentName, name string) *session.Session {
+	t.Helper()
 	created, err := h.manager.Create(t.Context(), session.CreateOpts{
-		AgentName: mentionIntegrationAgent, Workspace: h.workspace, Name: name,
+		AgentName: agentName, Workspace: h.workspace, Name: name,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -296,6 +341,49 @@ func TestSessionMentionReferencesToolsDisabledIT003(t *testing.T) {
 		assertMentionReferencesDelivery(t, mentions, session.MentionReferenceFormUnavailable, []string{source.ID})
 		if !strings.Contains(prompt, "Session history is not available to you; ask the operator if you need it.") ||
 			strings.Contains(prompt, "<recent_history>") || strings.Contains(prompt, "returns 500") {
+			t.Fatalf("delivered references block = %q, want the unavailable form without history", prompt)
+		}
+	})
+}
+
+// IT-003 (policy half): when the receiving agent's tool policy denies compozy__session_history,
+// even a human prompt gets the unavailable form and no history.
+func TestSessionMentionReferencesPolicyDeniedIT003(t *testing.T) {
+	acpmock.RequireDriver(t)
+	h := newMentionIntegrationDaemon(t, true)
+	source := h.create(t, "Fix login bug")
+	h.send(t, source.ID, "The login form returns 500 after refresh.", humanMentionCaller(), "")
+	if _, prompt := h.lastDelivery(t, source.ID, 1); prompt == "" {
+		t.Fatal("source session history prompt was not delivered")
+	}
+	target := h.createWithAgent(t, mentionDeniedHistoryAgent, "Denied review")
+
+	t.Run("Should deny session history with policy_denied for the deny-listed agent", func(t *testing.T) {
+		registry, ok := h.daemon.toolRegistry.(mentionToolDecisionRegistry)
+		if !ok {
+			t.Fatal("daemon tool registry lacks diagnostic decisions")
+		}
+		view, err := registry.DiagnosticGet(t.Context(), toolspkg.Scope{
+			ProfileID: target.ProfileID, WorkspaceID: h.workspace, SessionID: target.ID,
+			AgentName: mentionDeniedHistoryAgent,
+		}, toolspkg.ToolIDSessionHistory)
+		if err != nil {
+			t.Fatalf("DiagnosticGet() error = %v", err)
+		}
+		if reasons := view.Decision.ReasonCodes; view.Decision.Callable || len(reasons) != 1 ||
+			reasons[0] != toolspkg.ReasonPolicyDenied {
+			t.Fatalf("session history decision = %#v, want denied by policy_denied", view.Decision)
+		}
+	})
+
+	t.Run("Should deliver the unavailable form without history to a human prompt", func(t *testing.T) {
+		h.send(t, target.ID, "Compare with @session:"+source.ID, humanMentionCaller(), "")
+
+		mentions, prompt := h.lastDelivery(t, target.ID, 1)
+		assertMentionReferencesDelivery(t, mentions, session.MentionReferenceFormUnavailable, []string{source.ID})
+		if !strings.Contains(prompt, "Session history is not available to you; ask the operator if you need it.") ||
+			strings.Contains(prompt, "<recent_history>") || strings.Contains(prompt, "returns 500") ||
+			strings.Contains(prompt, "[assistant] acknowledged") {
 			t.Fatalf("delivered references block = %q, want the unavailable form without history", prompt)
 		}
 	})

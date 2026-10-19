@@ -388,6 +388,31 @@ func TestMentionReferenceRenderer(t *testing.T) {
 			}
 		})
 
+	t.Run("Should inline an empty-history marker for a session with no user or assistant text",
+		func(t *testing.T) {
+			t.Parallel()
+
+			fixture := newMentionTestFixture()
+			fixture.addSession("sess-a", "Fix login bug", mentionTestWorkspace, mentionTestProfile)
+			fixture.events["sess-a"] = []store.SessionEvent{{
+				ID: "sess-a-t1", TurnID: "turn-1", Sequence: 1, Type: acp.EventTypeToolCall,
+			}}
+
+			got := fixture.render(t, toolsDisabledPolicyInputs(), sessionMentions("sess-a"), true)
+
+			want := mentionReferencesOpenTag + "\n" + mentionInlinePreamble + "\n" +
+				"- @session:sess-a · title \"Fix login bug\" · agent general (claude) · state stopped · " +
+				"updated 2026-10-18T00:04:11Z\n" +
+				"  <recent_history>\n  " + mentionHistoryEmpty + "\n  </recent_history>\n" +
+				"</compozy_session_references>"
+			if got.Text != want || got.Form != session.MentionReferenceFormInline || got.Sessions != 1 {
+				t.Fatalf("Render() = %#v\nwant text:\n%s", got, want)
+			}
+			if !strings.Contains(got.Text, "\n  no recent messages\n") {
+				t.Fatalf("inline block = %s, want the literal empty-history line", got.Text)
+			}
+		})
+
 	t.Run("Should truncate long messages and omit history once the block budget is spent", func(t *testing.T) {
 		t.Parallel()
 
