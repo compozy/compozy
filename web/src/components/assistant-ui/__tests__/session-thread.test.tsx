@@ -431,6 +431,7 @@ interface ThreadStateOptions {
   origin?: SessionOriginContextValue | null;
   /** The Fork dialog host's request; absent outside a host ("Fork from here" hides). */
   forkRequest?: SessionForkRequest | null;
+  subagentNavigation?: ComponentProps<typeof SessionThread>["subagentNavigation"];
 }
 
 function threadStateElement(
@@ -455,6 +456,7 @@ function threadStateElement(
     subagentControl,
     origin = null,
     forkRequest = null,
+    subagentNavigation = null,
   }: ThreadStateOptions
 ) {
   if (durableMessageIds.length > 0) {
@@ -516,6 +518,7 @@ function threadStateElement(
                 liveDataEnabled={liveDataEnabled}
                 contextControl={contextControl}
                 subagentControl={subagentControl}
+                subagentNavigation={subagentNavigation}
               />
             </SessionForkContext>
           </SessionOriginContext>
@@ -2288,6 +2291,94 @@ describe("SessionThread transcript states", () => {
 
     expect(await screen.findAllByTestId("session-skill-directive")).toHaveLength(2);
     expect(screen.getByTestId("user-message-bubble").textContent).toBe("/review /review");
+  });
+
+  // Invariant: only daemon-verified `mentions` render as chips, at their offsets;
+  // a session chip opens that session (US-008.AC-1/2, EC-1/3). Owner: user message.
+  it("Should render verified mentions as chips and open a mentioned session", async () => {
+    const user = userEvent.setup();
+    const openSession = vi.fn();
+    const text =
+      "Compare @internal/acp/client_prompt.go with @session:sess-a under @web/src/ and @nope.md";
+    const transcript = [
+      {
+        id: "user-mentions",
+        role: "user",
+        content: text,
+        metadata: {
+          mentions: [
+            {
+              kind: "file",
+              token: "@internal/acp/client_prompt.go",
+              target: "internal/acp/client_prompt.go",
+              label: "client_prompt.go",
+              start: 8,
+              end: 38,
+            },
+            {
+              kind: "session",
+              token: "@session:sess-a",
+              target: "sess-a",
+              label: "Fix login bug",
+              start: 44,
+              end: 59,
+            },
+            {
+              kind: "folder",
+              token: "@web/src/",
+              target: "web/src/",
+              label: "src/",
+              start: 66,
+              end: 75,
+            },
+            { kind: "file", token: "@broken", start: 3 },
+          ],
+        },
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      subagentNavigation: { openSession },
+    });
+
+    const chips = await screen.findAllByTestId("session-mention-chip");
+    expect(chips.map(chip => chip.getAttribute("data-mention-kind"))).toEqual([
+      "file",
+      "session",
+      "folder",
+    ]);
+    expect(chips[0]).toHaveTextContent("client_prompt.go");
+    expect(chips[0]).toHaveAccessibleName("File internal/acp/client_prompt.go");
+    expect(chips[0]!.tagName).toBe("SPAN");
+    expect(chips[2]).toHaveTextContent("src/");
+    // The unresolved token stays text: the UI never claims what the daemon did not verify.
+    expect(screen.getByTestId("user-message-bubble")).toHaveTextContent("and @nope.md");
+
+    await user.click(screen.getByRole("button", { name: "Session Fix login bug (sess-a)" }));
+    expect(openSession).toHaveBeenCalledWith(
+      { sessionId: "sess-a", agentName: "", workspaceId: fixtureWorkspaceId() },
+      { newWindow: false }
+    );
+  });
+
+  it("Should render a message without mention metadata exactly as before", async () => {
+    const text = "It started after the @Override handler in @internal/acp/client.go";
+    const transcript = [
+      {
+        id: "user-pre-mentions",
+        role: "user",
+        content: text,
+        parts: [{ type: "text", text, state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    expect(await screen.findByTestId("user-message-bubble")).toHaveTextContent(text);
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
   });
 
   it("Should render the attachment gallery above the user text bubble", async () => {
@@ -6841,5 +6932,225 @@ describe("SessionThread session messages", () => {
     expect(
       await screen.findByRole("article", { name: "Sent to Billing reviewer, replied" })
     ).toBeInTheDocument();
+  });
+});
+
+// Invariant: the `@` trigger lists the session's files and same-workspace
+// sessions through the daemon routes, inserts the picked target as its token,
+// dismisses per occurrence, and never traps Enter when nothing is pickable
+// (US-001..US-004). Owning layer: composer integration (owns `/` today).
+describe("SessionThread composer mentions", () => {
+  const workspaceId = fixtureWorkspaceId();
+  const filesPath = `/api/workspaces/${workspaceId}/sessions/${primarySessionFixture.id}/files`;
+  const otherSession = {
+    ...primarySessionFixture,
+    id: "sess-a",
+    name: "Fix login bug",
+    agent_name: "codex",
+    updated_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+  };
+
+  interface MentionFetchOptions {
+    files?: { path: string; name: string; kind: "file" | "folder" }[];
+    filesStatus?: number;
+    sessionsStatus?: number;
+    sessions?: (typeof primarySessionFixture)[];
+  }
+
+  function requestUrl(input: RequestInfo | URL): URL {
+    const href = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    return new URL(href, "http://localhost");
+  }
+
+  function createMentionFetchMock(
+    options: MentionFetchOptions = {},
+    fileQueries: URLSearchParams[] = [],
+    promptCalls: string[] = []
+  ) {
+    const base = createPromptRecordingFetchMock(promptCalls);
+    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      if (url.pathname === filesPath) {
+        fileQueries.push(url.searchParams);
+        if (options.filesStatus) {
+          return jsonResponse({ error: "boom" }, { status: options.filesStatus });
+        }
+        return jsonResponse({ entries: options.files ?? [], truncated: false });
+      }
+      if (
+        url.pathname === "/api/sessions" &&
+        url.searchParams.get("workspace_id") === workspaceId
+      ) {
+        if (options.sessionsStatus) {
+          return jsonResponse({ error: "boom" }, { status: options.sessionsStatus });
+        }
+        return jsonResponse({
+          sessions: options.sessions ?? [primarySessionFixture, otherSession],
+          page: { has_more: false, limit: 6 },
+        });
+      }
+      return base(input, init);
+    });
+  }
+
+  beforeEach(() => {
+    composerAui = null;
+    sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+  });
+
+  it("Should list files and other sessions and insert a picked file as its token", async () => {
+    const user = userEvent.setup();
+    const fileQueries: URLSearchParams[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock(
+        {
+          files: [
+            { path: "internal/acp/client_prompt.go", name: "client_prompt.go", kind: "file" },
+            { path: "web/src/", name: "src", kind: "folder" },
+          ],
+        },
+        fileQueries
+      )
+    );
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Review @clie");
+
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    const fileRow = await within(menu).findByRole("option", { name: /client_prompt\.go/ });
+    expect(within(menu).getByTestId("composer-mention-group-files")).toHaveTextContent("Files");
+    // The current session is never offered; the other one shows agent and time.
+    const sessions = within(menu).getByTestId("composer-mention-group-sessions");
+    await within(sessions).findByRole("option", { name: /Fix login bug/ });
+    expect(within(sessions).getAllByRole("option")).toHaveLength(1);
+    expect(sessions).toHaveTextContent("codex · 4m ago");
+    // Debounced: the settled query reaches the daemon with the picker's 50-row limit.
+    await waitFor(() => expect(fileQueries.at(-1)?.get("q")).toBe("clie"));
+    expect(fileQueries.at(-1)?.get("limit")).toBe("50");
+
+    await user.click(fileRow);
+
+    await waitFor(() => expect(composerText()).toBe("Review @internal/acp/client_prompt.go "));
+    const chip = await screen.findByTestId("session-mention-chip");
+    expect(chip).toHaveAttribute("data-mention-kind", "file");
+    expect(chip).toHaveTextContent("client_prompt.go");
+    expect(screen.queryByRole("listbox", { name: "Mentions" })).not.toBeInTheDocument();
+    expect(
+      JSON.parse(window.localStorage.getItem(`compozy.mentions.recent.${workspaceId}`) ?? "[]")
+    ).toEqual([{ path: "internal/acp/client_prompt.go", kind: "file" }]);
+  });
+
+  it("Should insert a picked session as a session token with its title chip", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createMentionFetchMock());
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("Ask @");
+
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    await user.click(await within(menu).findByRole("option", { name: /Fix login bug/ }));
+    expect(within(menu).getByTestId("composer-mention-group-files")).toHaveTextContent(
+      "No matching files"
+    );
+
+    await waitFor(() => expect(composerText()).toBe("Ask @session:sess-a "));
+    const chip = await screen.findByTestId("session-mention-chip");
+    expect(chip).toHaveAttribute("data-mention-kind", "session");
+    expect(chip).toHaveTextContent("Fix login bug");
+  });
+
+  it("Should keep a dismissed @ closed while typing and reopen for a new @", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [{ path: "Override.java", name: "Override.java", kind: "file" }],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("@Over");
+    expect(await screen.findByRole("listbox", { name: "Mentions" })).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Escape" });
+    });
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-mention-menu")).not.toBeInTheDocument()
+    );
+
+    await setComposerText("@Override");
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 200));
+    });
+    expect(screen.queryByTestId("composer-mention-menu")).not.toBeInTheDocument();
+
+    await setComposerText("@Override @");
+    expect(await screen.findByRole("listbox", { name: "Mentions" })).toBeInTheDocument();
+  });
+
+  it("Should report each failing source in its own group", async () => {
+    vi.stubGlobal("fetch", createMentionFetchMock({ filesStatus: 500, sessionsStatus: 500 }));
+    renderComposer({});
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("@login");
+
+    await waitFor(() => {
+      const menu = screen.getByTestId("composer-mention-menu");
+      expect(within(menu).getByTestId("composer-mention-group-files")).toHaveTextContent(
+        "Couldn't search files"
+      );
+      expect(within(menu).getByTestId("composer-mention-group-sessions")).toHaveTextContent(
+        "Couldn't load sessions"
+      );
+    });
+  });
+
+  it("Should send the prompt as typed when Enter meets a picker with no rows", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createMentionFetchMock({ sessions: [] }, [], promptCalls));
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("Check @zzq");
+    await waitFor(() => {
+      const menu = screen.getByTestId("composer-mention-menu");
+      expect(menu).toHaveTextContent("No matching files");
+      expect(menu).toHaveTextContent("No matching sessions");
+    });
+
+    await act(async () => {
+      fireEvent.keyDown(editable, { key: "Enter" });
+    });
+
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(promptCalls[0]).toContain("Check @zzq");
+  });
+
+  it("Should leave Enter to the IME while a composition is in progress", async () => {
+    vi.stubGlobal(
+      "fetch",
+      createMentionFetchMock({
+        files: [{ path: "README.md", name: "README.md", kind: "file" }],
+      })
+    );
+    renderComposer({});
+
+    const editable = await findComposerEditable();
+    await setComposerText("@read");
+    const menu = await screen.findByRole("listbox", { name: "Mentions" });
+    await within(menu).findByRole("option", { name: /README\.md/ });
+
+    await act(async () => {
+      fireEvent.compositionStart(editable, { data: "" });
+      fireEvent.keyDown(editable, { key: "Enter", isComposing: true, keyCode: 229 });
+    });
+
+    expect(composerText()).toBe("@read");
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
   });
 });

@@ -23,6 +23,13 @@ func cloneInputAttachmentMetadata(items []InputAttachmentMetadata) []InputAttach
 	return append([]InputAttachmentMetadata(nil), items...)
 }
 
+func cloneInputMentionMetadata(items []InputMentionMetadata) []InputMentionMetadata {
+	if items == nil {
+		return nil
+	}
+	return append([]InputMentionMetadata(nil), items...)
+}
+
 func cloneRawMessage(payload []byte) []byte {
 	if payload == nil {
 		return nil

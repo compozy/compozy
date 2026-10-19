@@ -53,6 +53,14 @@ A rebuild of a session into a new agent session is a **bounded replay** (`[sessi
 
 ---
 
+### Mention
+
+An `@` token in prompt text that points the receiving agent at a **file**, **folder**, or **session**: `@path`, `@"path with spaces"`, `@folder/`, `@session:<id>`. The daemon is the only authority that turns a token into a mention: it resolves tokens for every caller (web composer, CLI, `compozy__session_prompt`, queued input) against the receiving session's working directory and workspace, and an unresolved token stays plain text. A file or folder mention reaches the agent as its literal path plus an ACP `resource_link` (never its contents); a session mention reaches it as a reference to read with `compozy__session_history`. Verified mentions are recorded as `mentions` metadata on the user message.
+
+**UI label:** "mention" in prose and the placeholder ("@ to mention"); the picker groups read "Files" and "Sessions". **Say:** "mention a file", "a session mention". **Do not say:** "tag", "reference chip", or "attach" for a mention — an attachment sends file contents, a mention sends a link. A mention is not a slash command and grants no command authority.
+
+---
+
 ### Profile
 
 An operator-owned partition of work on one CompozyOS installation. Each work root — session, task, loop run, automation, automation run, worktree, notification cursor, tool approval grant, usage row — is stamped with exactly one profile at creation and never moves. Children inherit their parent's owner. Profile-aware owned-work reads run in one of exactly two modes — scoped to one profile, or the explicit owner-labeled aggregate — and the daemon enforces both, fail-closed. Ruled exceptions are documented, not implicit: worktrees are visible in every profile with an owner tag.

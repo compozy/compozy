@@ -211,6 +211,7 @@ type Manager struct {
 	profileNames                 ProfileNameResolver
 	modelCatalog                 modelcatalog.Service
 	skillRegistry                SkillRegistry
+	mentionRenderer              MentionReferenceRenderer
 	toolsetCatalog               toolspkg.ToolsetCatalog
 	toolUniverse                 []toolspkg.ToolID
 	mcpResolver                  MCPResolver
