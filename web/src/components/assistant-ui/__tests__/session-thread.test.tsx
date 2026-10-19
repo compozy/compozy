@@ -2437,6 +2437,22 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("user-message-bubble")).not.toHaveTextContent("**");
   });
 
+  // Invariant (BR-3): the daemon only skips inline and fenced code, so it can
+  // verify a token inside an indented block; there it reads as its literal
+  // token in code, never a chip or the slot placeholder. Owner: user message.
+  it("Should render a verified mention inside indented code as its literal token", async () => {
+    const text = "Run this:\n\n    cat @a.go\n";
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([mentionMessage("user-mention-code", text, "@a.go")]),
+    });
+
+    const bubble = await screen.findByTestId("user-message-bubble");
+    expect(bubble.querySelector("code")).toHaveTextContent("cat @a.go");
+    expect(screen.queryByTestId("session-mention-chip")).not.toBeInTheDocument();
+    expect(bubble).not.toHaveTextContent("compozy-directive");
+  });
+
   // Invariant (US-008): copying a selection across a chip yields its raw
   // token, so the pasted text still mentions the same target. Owner: user message.
   it("Should copy a selected mention chip as its raw token", async () => {

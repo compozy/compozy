@@ -29,7 +29,9 @@ describe("StreamMarkdown", () => {
 
   it("Should render slot nodes inside the markdown that surrounds them", () => {
     const { container } = render(
-      <StreamMarkdown slots={{ m0: <span data-testid="slot-m0">chip</span> }}>
+      <StreamMarkdown
+        slots={{ m0: { node: <span data-testid="slot-m0">chip</span>, text: "@m0" } }}
+      >
         {`**Read ${markdownSlotSource("m0")} now**\n\n- see [docs](#intro)`}
       </StreamMarkdown>
     );
@@ -38,5 +40,30 @@ describe("StreamMarkdown", () => {
     expect(container.querySelector('a[href="#m0"]')).toBeNull();
     // A link that names no slot stays an ordinary anchor.
     expect(screen.getByRole("link", { name: "docs" })).toHaveAttribute("href", "#intro");
+  });
+
+  it("Should render a slot placed inside any code as its literal text", () => {
+    const slot = markdownSlotSource("m0");
+    const { container } = render(
+      <StreamMarkdown
+        slots={{ m0: { node: <span data-testid="slot-m0">chip</span>, text: "@src/a.ts" } }}
+      >
+        {[
+          "Intro",
+          "",
+          `    indented ${slot} here`,
+          "",
+          `Run \`inline ${slot}\` now`,
+          "",
+          "```",
+          `fenced ${slot}`,
+          "```",
+        ].join("\n")}
+      </StreamMarkdown>
+    );
+    const code = Array.from(container.querySelectorAll("code"), node => node.textContent);
+    expect(code).toEqual(["indented @src/a.ts here", "inline @src/a.ts", "fenced @src/a.ts"]);
+    expect(screen.queryByTestId("slot-m0")).toBeNull();
+    expect(container).not.toHaveTextContent("](#m0)");
   });
 });

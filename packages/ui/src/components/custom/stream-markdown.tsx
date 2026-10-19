@@ -9,7 +9,7 @@ import { CodeBlock } from "./code-block";
 import { Markdown, type MarkdownProps } from "./markdown";
 import { INLINE_CODE_CLASS } from "./markdown-components";
 import { MarkdownAnchor } from "./markdown-prose-parts";
-import type { StreamMarkdownSlots } from "./markdown-slots";
+import { restoreSlotText, type StreamMarkdownSlots } from "./markdown-slots";
 
 type StreamMarkdownCodeProps = React.ComponentProps<"code"> & {
   node?: unknown;
@@ -72,11 +72,24 @@ function slotComponents(slots: StreamMarkdownSlots): Partial<Components> {
     const id =
       typeof props.href === "string" && props.href.startsWith("#") ? props.href.slice(1) : "";
     if (id !== "" && Object.hasOwn(slots, id)) {
-      return <>{slots[id]}</>;
+      return <>{slots[id]?.node}</>;
     }
     return <MarkdownAnchor {...props} />;
   }
-  return { ...STREAM_MARKDOWN_COMPONENTS, a: StreamMarkdownSlotAnchor };
+  // Markdown parses no links inside code, so a slot placed there arrives as its
+  // raw source; it reads as the slot's literal text instead.
+  function StreamMarkdownSlotCode({ children, ...props }: StreamMarkdownCodeProps) {
+    const restored = React.Children.map(children, child =>
+      typeof child === "string" ? restoreSlotText(child, slots) : child
+    );
+    return <StreamMarkdownCode {...props}>{restored}</StreamMarkdownCode>;
+  }
+  return {
+    ...STREAM_MARKDOWN_COMPONENTS,
+    a: StreamMarkdownSlotAnchor,
+    code: StreamMarkdownSlotCode,
+    inlineCode: StreamMarkdownSlotCode,
+  };
 }
 
 export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "children"> {
