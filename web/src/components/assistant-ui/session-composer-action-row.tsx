@@ -201,7 +201,8 @@ function SessionComposerSteerButton({
 
 /**
  * The busy-turn cluster: queue, steer, and interrupt as the session offers them,
- * then the stop control — one group on the same 4 px rhythm as the tool group.
+ * then the stop control — one group on the same 4 px rhythm as the tool group,
+ * held at the row end like the send disc when a narrow row wraps it.
  */
 function SessionComposerBusyActions({
   busyInputSteerDelivery,
@@ -226,7 +227,7 @@ function SessionComposerBusyActions({
   | "onSteerPrompt"
 > & { canSubmitBusyInput: boolean; stopping: boolean }) {
   return (
-    <div className="flex items-center gap-1">
+    <div className="ml-auto flex items-center gap-1">
       {onQueuePrompt ? (
         <InputGroupButton
           size="tool"
