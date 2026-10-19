@@ -6,6 +6,8 @@ import (
 
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/mention"
 )
 
 func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
@@ -115,6 +117,10 @@ func TestPayloadsAndPatchesJSONRoundTrip(t *testing.T) {
 		ContextBlocks:  sampleContextBlocks,
 		Attachments: []InputAttachmentMetadata{{
 			ID: "att_1", Name: "diagram.png", MIME: "image/png", Bytes: 42, Kind: "image",
+		}},
+		Mentions: []InputMentionMetadata{{
+			Kind: "file", Token: "@internal/acp/client_prompt.go", Target: "internal/acp/client_prompt.go",
+			Label: "client_prompt.go", Start: 7, End: 37,
 		}},
 	})
 	assertJSONRoundTrip(t, "InputPreSubmitPatch", InputPreSubmitPatch{
@@ -651,6 +657,54 @@ func assertJSONRoundTrip[T any](t *testing.T, name string, sample T) {
 }
 
 // UT-042: the hook boundary preserves delegation metadata on the wire.
+func TestInputMentionsFromDomain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map verified mentions to the documented hook wire shape", func(t *testing.T) {
+		t.Parallel()
+		items := InputMentionsFromDomain([]mention.Mention{
+			{
+				Kind: mention.KindFile, Token: "@internal/acp/client_prompt.go",
+				Target: "internal/acp/client_prompt.go", Label: "client_prompt.go", Start: 7, End: 37,
+			},
+			{
+				Kind: mention.KindSession, Token: "@session:sess-9f8e7d", Target: "sess-9f8e7d",
+				Label: "Fix login bug", Start: 55, End: 75,
+			},
+		})
+		encoded, err := json.Marshal(items)
+		if err != nil {
+			t.Fatalf("marshal mentions: %v", err)
+		}
+		const want = `[` +
+			`{"kind":"file","token":"@internal/acp/client_prompt.go","target":"internal/acp/client_prompt.go",` +
+			`"label":"client_prompt.go","start":7,"end":37},` +
+			`{"kind":"session","token":"@session:sess-9f8e7d","target":"sess-9f8e7d",` +
+			`"label":"Fix login bug","start":55,"end":75}]`
+		if string(encoded) != want {
+			t.Fatalf("mentions JSON = %s, want %s", encoded, want)
+		}
+	})
+
+	t.Run("Should omit mentions when none were admitted", func(t *testing.T) {
+		t.Parallel()
+		if items := InputMentionsFromDomain(nil); items != nil {
+			t.Fatalf("InputMentionsFromDomain(nil) = %#v, want nil", items)
+		}
+		encoded, err := json.Marshal(InputPreSubmitPayload{Message: "m"})
+		if err != nil {
+			t.Fatalf("marshal payload: %v", err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(encoded, &fields); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		if _, ok := fields["mentions"]; ok {
+			t.Fatalf("payload JSON = %s, want no mentions key", encoded)
+		}
+	})
+}
+
 func TestSubagentHookPayloads(t *testing.T) {
 	t.Run("Should serialize delegation and settlement payloads", func(t *testing.T) {
 		t.Parallel()

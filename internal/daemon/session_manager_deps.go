@@ -53,6 +53,7 @@ type SessionManagerDeps struct {
 	SoulStore               session.SoulSnapshotStore
 	SoulRunChecker          session.SoulRunActivityChecker
 	SessionHealthStore      session.HealthStore
+	MentionReferences       session.MentionReferenceRenderer
 	AgentNiceness           int
 }
 
@@ -113,6 +114,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SoulStore:               soulSnapshotStoreDependency(state.registry),
 		SoulRunChecker:          soulRunActivityCheckerDependency(state.registry),
 		SessionHealthStore:      sessionHealthStoreDependency(state.registry),
+		MentionReferences:       newMentionReferenceRendererForBoot(state),
 		AgentNiceness:           state.cfg.Daemon.Load.AgentNiceness,
 	}
 }

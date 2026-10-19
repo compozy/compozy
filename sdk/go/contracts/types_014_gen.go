@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type PromptDelivery string
+
 type PromptMode string
 
 type PromptPatch struct {
@@ -156,5 +158,3 @@ type ResourceScope struct {
 	Kind ResourceScopeKind `json:"kind"`
 	ID   string            `json:"id,omitempty"`
 }
-
-type ResourceScopeKind string

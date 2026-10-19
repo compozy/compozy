@@ -14,6 +14,45 @@ Native tool IDs, hooks, extension SDKs, persisted state, and workspace/profile i
 
 # Compozy Change Impact
 
+## Composer mentions — 2026-10-19
+
+Owner: spec `.compozy/tasks/composer-mentions/` (ADR-001..004); integration branch
+`feat/composer-mentions`. `@path`, `@"path with spaces"`, `@folder/`, and `@session:<id>` tokens in
+prompt text are resolved by the daemon on every admission path (send, queue, steer, replace,
+promote) for every caller, independent of command ingress, against the receiving session's working
+directory and workspace/profile. Files and folders reach the agent as literal text plus one ACP
+`resource_link` each (no contents); sessions as a `<compozy_session_references>` block in reference,
+inline (tools disabled + human ingress only), or unavailable form. Caps: 200 candidates, 50
+files/folders, 16 sessions. Additive across every public surface (SD-013); no delete targets.
+
+Native tools: no new IDs and no schema change — `compozy__session_prompt` accepts the tokens in its
+`message` text; `compozy__session_history` is the tool the reference form points to;
+`compozy__session_inputs_list` entries gain optional `mentions`. Extensibility/hooks/config:
+`input.pre_submit` payload gains read-only `mentions` (`hooks.InputMentionMetadata`: `kind`, `token`,
+`target`, `label`, `start`, `end`); a rewrite keeps only tokens still present and cannot add one;
+extension SDK named types regenerate; `prompt.*` payloads unchanged; no `config.toml` keys (limits
+fixed). Public wire: new `searchSessionFiles` route
+(`GET /api/workspaces/{workspace_id}/sessions/{session_id}/files`, HTTP and UDS; 400
+`invalid_request`, 404 `session_not_found`, 409 `session_directory_unavailable`), optional `mentions`
+on `SessionInputPayload` and on transcript user-message metadata; CLI verbs, flags, and prompt DTOs
+unchanged; OpenAPI and the generated Web client co-ship. User state: one additive Goose migration —
+`mentions_json TEXT NOT NULL DEFAULT '[]'` on `session_prompt_admissions` and `session_input_queue`;
+old event payloads simply lack `mentions`; the admission fingerprint version is unchanged. Workspace
+data isolation: path mentions must stay inside the receiving session's working directory (real path,
+at admission and again at dispatch); session mentions resolve only within the receiving session's
+workspace and profile, never itself, through the same scoped lookup as `compozy__session_history`;
+agent-origin prompts never receive inline history; persisted events, projections, hook payloads, and
+API responses carry relative paths only. Official skill: `references/runtime-operations.md`
+(session prompting: token syntax, resolution, delivery order, references forms, inspection).
+Web/Docs: `_uiux.md` S1–S4 against `docs/design/opendesign/composer-mentions/` (VC-01..VC-22) — `@`
+picker beside `/`, mention chip, placeholder, transcript chips; no new `@compozy/ui` primitive. Site:
+new tutorial `sessions/mentions` ("Mention files, folders, and sessions"), the sessions index route
+row, and the `input.pre_submit` note in `hooks/event-catalog`; regenerated API reference. Glossary
+**Mention**; `COPY.md` §6 "Composer Mention Terms". QA: new `ET-session-mention-file`,
+`ET-session-mention-folder-quoted`, `ET-session-mention-session`, `ET-session-mention-session-inline`,
+`ET-session-mention-containment`, `ET-session-mention-typed-token`, `ET-session-mention-queued-input`,
+`ET-session-mention-hook-rewrite`, `ET-session-mention-history-chips` (untested until the QA tail).
+
 ## Transcript survives a tool call crossing a Goal turn — 2026-10-18
 
 Owner: issues #800, #801, #802. The transcript projector routes an identity-less `tool_call`

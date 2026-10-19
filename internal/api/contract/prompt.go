@@ -125,7 +125,20 @@ type SessionInputPayload struct {
 	EnqueuedAt       time.Time                       `json:"enqueued_at"`
 	Runtime          *PromptRuntimeSelectionPayload  `json:"runtime,omitzero"`
 	SkillInvocations []SessionSkillInvocationPayload `json:"skill_invocations,omitempty"`
+	Mentions         []SessionInputMentionPayload    `json:"mentions,omitempty"`
 	Attachments      []PromptAttachmentRef           `json:"attachments,omitempty"`
+}
+
+// SessionInputMentionPayload is one verified @-mention on queued input. Target is
+// relative to the session working directory (folders end in "/") or a session id;
+// offsets are UTF-16 code units in Text, end exclusive.
+type SessionInputMentionPayload struct {
+	Kind   string `json:"kind"`
+	Token  string `json:"token"`
+	Target string `json:"target"`
+	Label  string `json:"label"`
+	Start  int    `json:"start"`
+	End    int    `json:"end"`
 }
 
 // SessionInputListResponse returns current-generation pending input in dispatch order.

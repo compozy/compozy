@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type Origin struct {
+	Kind OriginKind `json:"kind"`
+	Ref  string     `json:"ref"`
+}
+
 type OriginKind string
 
 type OwnerKind string
@@ -219,5 +224,3 @@ type ProfileLens struct {
 }
 
 type ProfileLensID string
-
-type PromptDelivery string

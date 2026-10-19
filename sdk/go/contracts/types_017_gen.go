@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type SessionInputsListParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
 type SessionInspectResponse struct {
 	SessionID    string                             `json:"session_id"`
 	Health       SessionHealthPayload               `json:"health"`
@@ -374,12 +379,4 @@ type SessionRuntimeRecoverySucceededPayload struct {
 	Generation     int64     `json:"generation"`
 	FailureKind    string    `json:"failure_kind,omitempty"`
 	FailureDetail  string    `json:"failure_detail,omitempty"`
-}
-
-type SessionRuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }
