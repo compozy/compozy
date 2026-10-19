@@ -45007,6 +45007,10 @@ export interface operations {
         q?: string;
         /** @description Maximum entries returned */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {

@@ -8,6 +8,32 @@ import (
 	"strings"
 )
 
+// UnpinCmdPaletteCommand Unpin one command palette command
+func (c *Client) UnpinCmdPaletteCommand(ctx context.Context, params UnpinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
+	path := "/api/cmd-palette/pins/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPalettePinResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UnregisterWindowManagerClientParams carries the path, query, and header parameters.
+type UnregisterWindowManagerClientParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ClientID    string  `url:"client_id"`
+	Profile     *string `url:"profile"`
+}
+
 // UnregisterWindowManagerClient Unregister a window-manager client view
 func (c *Client) UnregisterWindowManagerClient(ctx context.Context, params UnregisterWindowManagerClientParams) error {
 	path := "/api/workspaces/{workspace_id}/window-manager/clients/{client_id}"
@@ -417,30 +443,6 @@ func (c *Client) UpdateSettingsWindowManager(ctx context.Context, params UpdateS
 		path += "?" + query.Encode()
 	}
 	var out SettingsWindowManagerMutationResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateTaskParams carries the path, query, and header parameters.
-type UpdateTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateTask Update one task
-func (c *Client) UpdateTask(ctx context.Context, params UpdateTaskParams, body UpdateTaskRequest) (*TaskResponse, error) {
-	path := "/api/tasks/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskResponse
 	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

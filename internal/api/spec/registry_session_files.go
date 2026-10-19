@@ -11,12 +11,12 @@ func searchSessionFilesOperationSpec() OperationSpec {
 		Summary:     "Search files and folders under a session's working directory",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileScope(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 			queryParam("q", "Search text; empty returns the shallowest entries", false),
 			sessionFilesLimitParam(),
-		},
+		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionFilesResponse{}},
 			{Status: 400, Description: "Invalid limit", Body: contract.ErrorPayload{}},

@@ -790,6 +790,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				t.Helper()
 
 				search := operationFor(t, doc, "/api/workspaces/{workspace_id}/sessions/{session_id}/files", "GET")
+				// The handler reads the profile selectors; generated clients must be able to send them.
+				assertParameter(t, search, "profile", openapi3.ParameterInQuery, false)
+				assertParameter(t, search, "all_profiles", openapi3.ParameterInQuery, false)
 				limit := parameterSchema(t, search, "limit", openapi3.ParameterInQuery)
 				if limit.Min == nil || *limit.Min != 1 ||
 					limit.Max == nil || *limit.Max != float64(contract.SessionFilesMaxLimit) ||

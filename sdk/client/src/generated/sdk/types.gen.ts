@@ -31679,6 +31679,14 @@ export type SearchSessionFilesData = {
      * Maximum entries returned
      */
     limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/files";
 };
