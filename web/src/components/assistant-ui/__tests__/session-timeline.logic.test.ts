@@ -1301,6 +1301,40 @@ it.each([
 });
 
 describe("changed-files roll-up derivation", () => {
+  // Invariant: live children suppress only their spawning turn's file summary,
+  // even across row boundaries. Owner: pure timeline projection, canonical suite here.
+  it("Should track live subagents across intervening turn groups without hiding other turns' files", () => {
+    const rows = deriveSessionRows(
+      [
+        editTool(1, "/src/a.ts", "a", "a\nb"),
+        { ...editTool(2, "/src/b.ts", "a", "a\nc"), turnId: "turn-2" },
+        subagentPart("sub-live", "delegate-1"),
+      ],
+      { foldSettledTurns: true }
+    );
+    expect(rows.filter(row => row.kind === "changed-files").map(row => row.turnId)).toEqual([
+      "turn-2",
+    ]);
+  });
+
+  it.each([undefined, "turn-1"])(
+    "Should withhold edited files until subagents settle (active turn %s)",
+    activeTurnId => {
+      const parts = [
+        editTool(1, "/src/a.ts", "a", "a\nb"),
+        subagentPart("sub-live", "delegate-1"),
+        text("answer", "Waiting for the review.", "turn-1"),
+      ];
+      const live = deriveSessionRows(parts, { foldSettledTurns: true, activeTurnId });
+      expect(live.some(row => row.kind === "changed-files")).toBe(false);
+      const settled = deriveSessionRows(parts, {
+        foldSettledTurns: true,
+        settledSubagentIds: new Set(["sub-live"]),
+      });
+      expect(settled.filter(row => row.kind === "changed-files")).toHaveLength(1);
+    }
+  );
+
   function editTool(
     index: number,
     filePath: string,

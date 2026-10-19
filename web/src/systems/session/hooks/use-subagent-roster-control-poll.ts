@@ -13,6 +13,7 @@ import { applySubagentsSnapshot, type SubagentRoster } from "../lib/subagent-ros
  * cards, the banner and "N agents running" stay current mid-turn. The live
  * tail's own snapshot replaces it when the stream reopens on settle. Missing or
  * gone parents stop interval polling; transient failures retain recovery polls.
+ * Stopped history uses the same complete read once, with no interval: it has no SSE.
  */
 export function useSubagentRosterControlPoll({
   workspaceId,
@@ -23,7 +24,7 @@ export function useSubagentRosterControlPoll({
   workspaceId: string;
   sessionId: string;
   enabled: boolean;
-  intervalMs: number;
+  intervalMs: number | false;
 }): void {
   const queryClient = useQueryClient();
   const poll = useQuery({

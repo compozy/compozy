@@ -50,7 +50,7 @@ function row(id: string, status: string): SubagentPayload {
 }
 
 /** Isolates interval polling from query retries so terminal and transient failures are observable. */
-function setup(enabled: boolean) {
+function setup(enabled: boolean, intervalMs: number | false = 1_000) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
@@ -60,7 +60,7 @@ function setup(enabled: boolean) {
         workspaceId: WORKSPACE,
         sessionId: SESSION,
         enabled,
-        intervalMs: 1_000,
+        intervalMs,
       }),
     { wrapper }
   );
@@ -74,6 +74,29 @@ beforeEach(() => {
 });
 
 describe("subagent roster control poll", () => {
+  // Invariant: stopped history obtains authoritative child states without a live
+  // stream or repeated polling. Owner: roster feed; canonical suite: this file.
+  it("Should hydrate settled history once without interval polling", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionSubagents).mockResolvedValue({
+      subagents: [row("sub-native", "completed")],
+      next_cursor: null,
+    });
+    const queryClient = setup(true, false);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(
+      queryClient
+        .getQueryData<SubagentRoster>(sessionKeys.subagentRoster(WORKSPACE, SESSION))
+        ?.rows.map(view => [view.id, view.status])
+    ).toEqual([["sub-native", "completed"]]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(fetchSessionSubagents).toHaveBeenCalledTimes(1);
+    queryClient.clear();
+  });
   it("Should feed the roster from the list route while a prompt streams", async () => {
     vi.mocked(fetchSessionSubagents).mockResolvedValue({
       subagents: [row("sub-native", "running")],
