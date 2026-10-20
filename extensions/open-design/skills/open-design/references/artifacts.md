@@ -10,6 +10,10 @@ requested filename. One file with inline CSS and small local scripts is enough f
 a small request; use relative local assets when needed. The result must work
 without the installed extension, a build, a service, or a custom viewer.
 
+A library-target prototype applies the same composition guidance with the
+project's components; the open-design skill owns its files, preview, and
+rendered evidence instead of the HTML delivery rules above.
+
 ## Interfaces
 
 Start with the task and the existing product shell. A feature addition may need

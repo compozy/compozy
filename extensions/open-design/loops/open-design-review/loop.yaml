@@ -2,9 +2,9 @@ apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: open-design-review
-  description: Create or refine a workspace HTML design, lint it, and have an independent critic review it.
+  description: Create or refine a workspace HTML design or library prototype, lint it, and have an independent critic review it.
   catalog:
-    use_when: "The user explicitly requests a complete review of an OpenDesign HTML artifact."
+    use_when: "The user explicitly requests a complete review of an OpenDesign HTML artifact or library prototype."
     keywords: [design, html, review, accessibility, lint]
     category: Design
 
@@ -14,7 +14,12 @@ inputs:
   artifact_path:
     type: string
     required: true
-    description: Intended or existing workspace-relative HTML path under docs/design.
+    description: Intended or existing workspace-relative HTML path under docs/design; rendered evidence for a library prototype.
+  target:
+    type: string
+    enum: [auto, html, library]
+    default: auto
+    description: Design target; auto follows the open-design skill and docs/design/prototyping.md.
   brief:
     type: string
     required: true
@@ -26,14 +31,17 @@ inputs:
     default: open-design-critic
 
 contract:
-  goal: "Create or improve the HTML artifact at {{ .inputs.artifact_path }} for this brief: {{ .inputs.brief }}"
-  definition_of_done: "The requested HTML files exist, the design linter ran on every board, and the independent critic approved all applicable findings or documented source-backed exceptions."
+  goal: "Create or improve the design at {{ .inputs.artifact_path }} (target {{ .inputs.target }}) for this brief: {{ .inputs.brief }}"
+  definition_of_done: "The requested HTML files or library prototype with rendered evidence exist, the design linter ran on every board, and the independent critic approved all applicable findings or documented source-backed exceptions."
   stop_when:
     on_eval_error: fail
     expr: >-
       nodes.design.status == 'succeeded' && nodes.lint.status == 'succeeded' &&
       nodes.critique.status == 'succeeded' && nodes.verify.status == 'succeeded' &&
       nodes.design.output.primary_html_path == inputs.artifact_path &&
+      (inputs.target == 'auto' || nodes.design.output.target == inputs.target) &&
+      (nodes.design.output.target == 'html' ||
+        (has(nodes.design.output.source_paths) && size(nodes.design.output.source_paths) > 0)) &&
       inputs.artifact_path in nodes.design.output.artifact_paths &&
       nodes.critique.output.verdict == 'approved' &&
       size(nodes.critique.output.blocking_issues) == 0 &&
@@ -68,13 +76,23 @@ graph:
           Create or refine the requested OpenDesign artifact in the trusted workspace.
           Brief: {{ .inputs.brief }}
           Intended or existing path: {{ .inputs.artifact_path }}
+          Requested target: {{ .inputs.target }}
           This is generation {{ .generation }}.
 
-          Treat paths as workspace-relative and keep the HTML and its supporting assets under
-          docs/design/. If the intended path exists, inspect it and refine it in place; otherwise
-          create it. Keep the candidate self-contained with copied or inlined assets. Do not edit
-          application source. Read the open-design skill, its applicable craft and artifact
-          references, and the active project design authority before authoring.
+          Read the open-design skill, its applicable craft and artifact references, and the
+          active project design authority before authoring. Choose the target as the skill
+          describes; a requested target other than auto is binding. Treat paths as
+          workspace-relative and refine existing files in place.
+
+          For the html target, keep the HTML and its supporting assets under docs/design/ and
+          keep the candidate self-contained with copied or inlined assets. Do not edit
+          application source.
+
+          For the library target, follow docs/design/prototyping.md. If it is missing or
+          failing, stop and return the failure in summary instead of changing the repository
+          setup inside this loop. Write the prototype only under the recorded prototypes
+          directory, run the recorded typecheck, and refresh the rendered evidence at the
+          intended path. Do not edit other application source.
 
           {{ if .previous.generation }}
           {{ if .previous.nodes.critique.output.verdict }}
@@ -86,15 +104,31 @@ graph:
           Run ext__open_design__lint_artifact on the actual HTML path when available and inspect
           every finding. Return only the structured result requested below. `primary_html_path`
           must be an existing path when this node settles; `artifact_paths` must include every related
-          HTML file that the critic should consider.
+          HTML file that the critic should consider. Report the target used. For the library
+          target, list every prototype source file in `source_paths` and the reachable
+          `preview_url` when one exists.
         output_schema:
           type: object
           additionalProperties: false
-          required: [status, primary_html_path, artifact_paths, summary]
+          required: [status, target, primary_html_path, artifact_paths, summary]
           properties:
             status:
               type: string
               enum: [created, updated, unchanged]
+            target:
+              type: string
+              enum: [html, library]
+            source_paths:
+              type: array
+              maxItems: 64
+              uniqueItems: true
+              items:
+                type: string
+                minLength: 1
+                pattern: '^[^/\\].*'
+            preview_url:
+              type: string
+              pattern: '^https?://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]+)?(/.*)?$'
             primary_html_path:
               type: string
               minLength: 1
@@ -136,11 +170,18 @@ graph:
           and every path in {{ toJson .nodes.design.output.artifact_paths }} against this brief:
           {{ .inputs.brief }}
 
+          Designer result: {{ toJson .nodes.design.output }}
+          For the library target, the HTML is rendered evidence of the prototype. Also read
+          every source path, docs/design/prototyping.md, and the library catalog it records, and
+          inspect the preview URL when reachable. Judge library fidelity: UI only from the
+          recorded library through its public API, tokens instead of raw values, no copied or
+          restyled components, and no product API calls. Blocking issues may cite source paths.
+
           Deterministic lint for the exact candidate files:
           {{ toJson .nodes.lint.output.artifacts }}
 
           Read the actual files and the open-design skill's applicable references. Review only;
-          do not modify the HTML, its assets, project instructions, or application source. Load open-design-browser and use
+          do not modify the HTML, its assets, prototype sources, project instructions, or application source. Load open-design-browser and use
           the agent-browser CLI in a task-owned session for rendered inspection when useful and available.
           Load the actual screenshot before making a visual claim. A missing screenshot alone is
           not a rejection; disclose unavailable checks in limitations. Close your browser session.
@@ -223,7 +264,7 @@ graph:
                     pattern: "^[a-z][a-z0-9_]*$"
                   path:
                     type: string
-                    pattern: '^docs/design/.+\.html$'
+                    pattern: '\S'
                   severity:
                     type: string
                     enum: [P0, P1, P2]

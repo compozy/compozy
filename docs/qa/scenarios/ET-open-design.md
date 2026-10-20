@@ -5,11 +5,11 @@ title: Design workspace HTML with the built-in open-design extension
 persona: Ada
 journey: J-extension-kit-lifecycle
 expected: The open-design profile supports conversational HTML design and an explicitly requested independent review Loop using the OpenDesign-derived linter and curated local guidance, with workspace-contained files and accurate evidence.
-entry_points: Profile open-design; session agent open-design-designer; ext__open_design__lint_artifact; loop open-design-review; extension inventory open-design
-qa_status: pass
+entry_points: Profile open-design; session agent open-design-designer; skill open-design-setup; ext__open_design__lint_artifact; loop open-design-review; extension inventory open-design
+qa_status: untested
 bug_ids: none
 fix_status: fixed
-retest_status: pass
+retest_status: pending
 fix_commits: none
 evidence: /Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-lab/qa-artifacts/qa
 last_report: 2026-09-11
@@ -41,7 +41,21 @@ overlaps: ET-ext-inventory; LP-runtime-validation-preflight
    concrete correction is passed to the next complete generation, bounded to three passes, and
    that approval cites applicable checks and any source-backed exception. Terminal status and
    remaining findings must match durable run detail; no invented rollback or best-version claim.
-7. Run the lab's exact teardown and retain clean process evidence.
+7. Library target: in a workspace with a component library and no `docs/design/prototyping.md`,
+   ask for a prototype with the library. Confirm the designer loads `open-design-setup`, proposes
+   a host plan, and changes nothing before approval. After approval, verify the smoke prototype
+   renders real library components with project styles in a screenshot, typecheck passes, and the
+   record lists only verified commands. Request a feature prototype: sources stay in the recorded
+   folder and import only the library, the preview URL renders, rendered evidence under
+   `docs/design/` lints, and no product API is called. Asking for HTML in the same project still
+   produces HTML. Run `open-design-review` with `target: library` and confirm completion requires
+   prototype sources and approval of unchanged rendered evidence.
+8. Run the lab's exact teardown and retain clean process evidence.
+
+## Pending — 2026-10-20 library target
+
+Step 7 is new and not yet walked; steps 1–6 keep their 2026-09-11 evidence below. Package
+contract tests cover the review Loop's library completion rules and loopback preview schema.
 
 ## Current evidence — 2026-09-11
 
