@@ -64,12 +64,12 @@ func providerAcceptsReasoningEffort(provider ProviderConfig, modelID, effort str
 	return true
 }
 
-// builtinModelHasNoSelectableReasoning distinguishes complete builtin metadata
-// from partial operator curation, where a missing effort list means unknown.
+// builtinModelHasNoSelectableReasoning requires a declared reasoning capability;
+// name-only builtin entries and partial curation leave live ACP choices unknown.
 func builtinModelHasNoSelectableReasoning(providerName, modelID string) bool {
 	for _, model := range builtinProviders[providerName].Models.Curated {
 		if strings.TrimSpace(model.ID) == modelID {
-			return len(model.ReasoningEfforts) == 0
+			return model.SupportsReasoning != nil && len(model.ReasoningEfforts) == 0
 		}
 	}
 	return false

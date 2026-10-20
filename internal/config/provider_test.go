@@ -1459,6 +1459,25 @@ func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve live effort choices when builtin capability metadata is incomplete", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: absent capability metadata cannot override live ACP choices.
+		// Owner: shared runtime resolution; canonical suite: this function.
+		cfg := &Config{
+			Defaults: DefaultsConfig{Provider: providerGeminiKey},
+			Providers: map[string]ProviderConfig{providerGeminiKey: {Models: ProviderModelsConfig{
+				Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption},
+			}}},
+		}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(
+			AgentDef{Name: "general", Prompt: "prompt"},
+			RuntimeOverrides{Model: providerGemini31ProPreviewPath, Reasoning: "high"},
+		)
+		if err != nil || resolved.ReasoningEffort != "high" {
+			t.Fatalf("runtime = %#v, %v; want live ACP to negotiate explicit effort", resolved, err)
+		}
+	})
+
 	sessionDefaultsConfig := func(t *testing.T, defaults DefaultsConfig) Config {
 		t.Helper()
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
