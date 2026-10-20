@@ -40,6 +40,31 @@ function text(
 }
 
 describe("session timeline derivation", () => {
+  it("Should settle an acknowledged delegation with no output body", () => {
+    // Invariant: an explicit terminal receipt owns liveness, independent of its payload.
+    // Owner: transcript-to-timeline boundary; canonical suite: this file.
+    const [message] = toThreadMessageLikes([
+      {
+        id: "turn-1",
+        role: "assistant",
+        parts: [
+          {
+            type: "tool-compozy__subagent_delegate",
+            toolCallId: "delegate-1",
+            state: "output-available",
+            output: undefined,
+            input: { task: "Write documentation" },
+          },
+        ],
+      } as SessionMessage,
+    ]);
+    const parts = toTimelineParts({ id: "turn-1", content: message?.content });
+    expect(parts[0]).toMatchObject({ kind: "tool", status: "settled" });
+    expect(
+      deriveSessionRows(parts, { activeTurnId: "turn-1" }).some(row => row.kind === "live-tool")
+    ).toBe(false);
+  });
+
   // Captured Claude transcript_delta, before the Goal turn settled: Goal metadata
   // on invisible tool receipts/usage must not divide the completed work rail.
   it.each([true, false])("Should group captured Claude Goal work with active=%s", active => {
@@ -362,6 +387,28 @@ describe("session timeline derivation", () => {
     expect(workRows[0]?.summary?.failedCount).toBe(1);
   });
 
+  it("Should give separated parallel tool segments distinct live row identities", () => {
+    // Invariant: React can retain every live row across same-turn narrative boundaries.
+    // Owner: timeline projection; canonical suite: this file.
+    const rows = deriveSessionRows(
+      [
+        tool(1, { status: "running", result: undefined }),
+        text("boundary", "Continuing"),
+        tool(2, { status: "running", result: undefined }),
+      ],
+      { activeTurnId: "turn-1" }
+    );
+    const live = rows.filter(row => row.kind === "live-tool");
+    expect(live).toHaveLength(2);
+    expect(new Set(rows.map(row => row.id)).size).toBe(rows.length);
+    expect(live.flatMap(row => row.entries.map(entry => entry.id))).toEqual(["tool-1", "tool-2"]);
+    const next = deriveSessionRows(
+      [tool(1), text("boundary", "Continuing"), tool(2, { status: "running", result: undefined })],
+      { activeTurnId: "turn-1" }
+    );
+    expect(next.find(row => row.kind === "live-tool")?.id).toBe(live[1]?.id);
+  });
+
   it("Should keep text between work segments while grouping adjacent reasoning and tools", () => {
     const parts: SessionTimelinePart[] = [
       tool(1),
@@ -403,7 +450,7 @@ describe("session timeline derivation", () => {
     expect(single.map(row => row.kind)).toEqual(["work", "live-tool"]);
     const live = single[1];
     if (live?.kind !== "live-tool") throw new Error("expected live row");
-    expect(live.id).toBe("live:turn-1");
+    expect(live.id).toBe("live:turn-1:tool-call-1");
     expect(live.entries.map(entry => entry.id)).toEqual(["tool-3"]);
 
     const parallel = deriveSessionRows(
@@ -418,7 +465,7 @@ describe("session timeline derivation", () => {
     const row = parallel[0];
     if (row?.kind !== "live-tool") throw new Error("expected live row");
     expect(row.entries).toHaveLength(3);
-    expect(row.id).toBe("live:turn-1");
+    expect(row.id).toBe("live:turn-1:tool-call-1");
     expect(row.expanded).toBe(false);
     expect(
       deriveSessionRows(
@@ -426,7 +473,7 @@ describe("session timeline derivation", () => {
           tool(1, { status: "running", result: undefined }),
           tool(2, { status: "running", result: undefined }),
         ],
-        { activeTurnId: "turn-1", expandedWorkGroupIds: new Set(["live:turn-1"]) }
+        { activeTurnId: "turn-1", expandedWorkGroupIds: new Set(["live:turn-1:tool-call-1"]) }
       )[0]
     ).toMatchObject({ kind: "live-tool", expanded: true });
   });

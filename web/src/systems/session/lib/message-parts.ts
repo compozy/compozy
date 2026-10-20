@@ -274,6 +274,8 @@ export interface ToolRowStatusInput {
   toolError?: boolean;
   /** Normalized tool output; absent while the call is in flight or ended without a result. */
   toolResult?: ToolUseResult;
+  /** A terminal receipt can acknowledge a tool without an output body. */
+  resultReceived?: boolean;
   /** Whether the call already carries input args. */
   hasInput: boolean;
   /** True once the owning turn has settled — promotes neutral rows to success. */
@@ -298,6 +300,9 @@ export function deriveToolRowStatus(input: ToolRowStatusInput): ToolRowStatus {
   const { toolError, toolResult, hasInput, turnSettled } = input;
   if (toolError) {
     return { status: "failed", runtimeError: true };
+  }
+  if (toolResult === undefined && input.resultReceived) {
+    return { status: turnSettled ? "success" : "empty", runtimeError: false };
   }
   if (toolResult === undefined) {
     if (turnSettled) {

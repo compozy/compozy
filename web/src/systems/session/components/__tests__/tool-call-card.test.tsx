@@ -119,6 +119,22 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(preview?.className).toContain("truncate");
   });
 
+  it("Should keep an acknowledged empty delegation settled while the parent continues", () => {
+    // Invariant: receiving a result ends its spinner even without output content.
+    // Owner: tool-row presentation; canonical suite: this file.
+    render(
+      <SessionToolCallRow
+        message={makeToolMessage({
+          role: "tool_result",
+          toolName: "compozy__subagent_delegate",
+          toolInput: { task: "Write documentation" },
+          toolResult: undefined,
+        })}
+      />
+    );
+    expect(queryRoot()?.getAttribute("data-status")).toBe("empty");
+  });
+
   it("Should render the pending row state (muted, no glyph) for an in-flight tool with empty input", () => {
     render(<SessionToolCallRow message={makeToolMessage({ toolInput: {} })} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("pending");

@@ -15,9 +15,9 @@ import type {
   SessionWorkEntry,
 } from "./session-timeline.logic";
 
-/** Stable identity of the turn's one live row so its motion survives tool swaps. */
-export function liveToolRowId(turnId: string | undefined): string {
-  return `live:${turnId ?? "none"}`;
+/** A narrative segment retains its identity while its calls settle. */
+export function liveToolRowId(turnId: string | undefined, anchorToolCallId: string): string {
+  return `live:${turnId ?? "none"}:${anchorToolCallId}`;
 }
 
 /** Keep mixed activity ordered while leaving deliberate terminal interactions visible. */
@@ -152,7 +152,7 @@ function liveWorkRows(
 
   const parallel = running;
   if (parallel.length > 0) {
-    const id = liveToolRowId(first.turnId);
+    const id = liveToolRowId(first.turnId, first.toolCallId);
     rows.push({
       kind: "live-tool",
       id,

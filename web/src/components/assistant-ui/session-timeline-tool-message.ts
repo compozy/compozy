@@ -6,7 +6,10 @@ import type { SessionTimelineToolPart } from "./session-timeline.logic";
 export function toolMessageFromPart(part: SessionTimelineToolPart): UIMessage {
   return {
     id: part.toolCallId,
-    role: part.result !== undefined || part.isError ? "tool_result" : "tool_call",
+    role:
+      part.status === "settled" || part.result !== undefined || part.isError
+        ? "tool_result"
+        : "tool_call",
     content: "",
     toolName: part.toolName,
     toolTitle: part.toolTitle,

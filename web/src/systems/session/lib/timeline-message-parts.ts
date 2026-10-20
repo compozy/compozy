@@ -139,7 +139,10 @@ export function toTimelineParts(message: {
           isError,
           status: isInterruptedState(state)
             ? "interrupted"
-            : result === undefined && !isError
+            : result === undefined &&
+                !isError &&
+                state !== "output-available" &&
+                state !== "output-error"
               ? "running"
               : "settled",
           turnId,
