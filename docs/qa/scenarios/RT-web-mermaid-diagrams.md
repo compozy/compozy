@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-12
 expected: Completed Mermaid fences render as theme-aware diagrams; streaming, invalid syntax, and unavailable renderer chunks retain readable, copyable source without swallowing subsequent Markdown.
 entry_points: Session messages; shared StreamMarkdown stories
-qa_status: pending
+qa_status: pass
 bug_ids: 818
 fix_status: in_progress
-retest_status:
+retest_status: pass
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-10-19-issues-818-819-828.md
 overlaps: ET-web-session-thread-full-bleed
 ---
 
@@ -32,3 +32,10 @@ is displayed as an isolated image, without clickable script callbacks or externa
 
 Repeat in the desktop shell. Record browser-rendering evidence separately from the complete
 session journey and desktop verification; a passing story alone does not establish those journeys.
+
+2026-10-20 targeted re-walk: PASS in real Chromium and isolated Electron 44.5.1/macOS against a
+live Codex session. The assistant diagram rendered; View source exposed the original fence; following
+prose stayed separate. Blocking the renderer request retained readable code. Earlier Storybook probes
+covered light/dark, streaming, invalid syntax, directive security, and lazy loading. The Electron
+renderer used production security settings and a temporary profile, not the packaged application.
+Evidence and teardown are recorded in the issues verification report.

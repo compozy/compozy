@@ -1,9 +1,53 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { composeMarkdownSlots, type StreamMarkdownSlots } from "../markdown-slots";
 import { StreamMarkdown } from "../stream-markdown";
+import { MarkdownMermaid } from "../markdown-mermaid";
+
+const renderMermaid = vi.hoisted(() => vi.fn());
+vi.mock("../../../lib/mermaid-renderer", () => ({ renderMermaidImage: renderMermaid }));
+
+describe("MarkdownMermaid", () => {
+  const code = "flowchart LR\n A --> B";
+  beforeEach(() => {
+    renderMermaid.mockReset();
+  });
+
+  it("Should retain readable source while streaming without loading the renderer", () => {
+    const { container } = render(<MarkdownMermaid code={code} streaming />);
+    expect(container.querySelector("code")).toHaveTextContent("A --> B");
+    expect(renderMermaid).not.toHaveBeenCalled();
+  });
+
+  it("Should render the diagram and keep its source accessible", async () => {
+    renderMermaid.mockResolvedValue("data:image/svg+xml,test");
+    const { container } = render(<MarkdownMermaid code={code} streaming={false} />);
+    expect(await screen.findByRole("img", { name: "Mermaid diagram" })).toHaveAttribute(
+      "src",
+      "data:image/svg+xml,test"
+    );
+    fireEvent.click(screen.getByRole("button", { name: "View source" }));
+    expect(container.querySelector("code")).toHaveTextContent("A --> B");
+  });
+
+  it("Should retain readable source when rendering fails", async () => {
+    renderMermaid.mockRejectedValue(new Error("invalid diagram"));
+    const { container } = render(<MarkdownMermaid code={code} streaming={false} />);
+    await waitFor(() => expect(renderMermaid).toHaveBeenCalledOnce());
+    expect(container.querySelector("code")).toHaveTextContent("A --> B");
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
+  it("Should restore readable source when the diagram image cannot load", async () => {
+    renderMermaid.mockResolvedValue("data:image/svg+xml,test");
+    const { container } = render(<MarkdownMermaid code={code} streaming={false} />);
+    fireEvent.error(await screen.findByRole("img", { name: "Mermaid diagram" }));
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(container.querySelector("code")).toHaveTextContent("A --> B");
+  });
+});
 
 function proseRoot(container: HTMLElement): Element | null {
   return container.querySelector('[data-slot="stream-markdown"]');
