@@ -1,6 +1,6 @@
 ---
 name: open-design-review
-description: Run the explicitly requested independent review and refinement cycle for OpenDesign HTML through the native open-design-review loop. Use for a new brief or existing docs/design artifacts; ordinary edits and _uiux.md input alone do not trigger it.
+description: Run the explicitly requested independent review and refinement cycle for an OpenDesign HTML artifact or library prototype through the native open-design-review loop. Use for a new brief or existing docs/design artifacts; ordinary edits and _uiux.md input alone do not trigger it.
 ---
 
 # Review a design
@@ -12,6 +12,8 @@ Use this skill only for an explicit request for the independent review and refin
 Inspect `open-design-review` through `compozy__loop_inspect` and read the live descriptors for loop operations. Use the active workspace; the `open-design` profile provides the designer, critic, and linter. If operations are unavailable, report that limitation without claiming an independent cycle ran.
 
 Supply a concise `brief` and a workspace-relative `artifact_path` under `docs/design/`. Preserve existing or explicitly requested paths; otherwise use `docs/design/<slug>/index.html`. For related HTMLs, name the entry file and list the other boards or `_uiux.md` paths in the brief. The designer returns every HTML path for lint and review.
+
+Set `target` to `html` or `library` when the user chose one; otherwise omit it so the designer follows the `open-design` skill. For a library prototype, `artifact_path` names its rendered evidence, and `docs/design/prototyping.md` must already work: run `open-design-setup` with the user before starting the loop, because the loop never changes the prototyping environment. The designer also returns the prototype sources and preview URL; completion requires at least one source path for the library target.
 
 Pass the following `config_overrides` on both calls. CompozyOS runtime defaults override definition values, so the definition alone does not enforce this workflow's limit. `full_body` also reruns the complete workflow after an action failure. A rejected review always starts a fresh generation.
 
@@ -36,7 +38,7 @@ Optional `designer` and `critic` inputs select existing agent definitions. Provi
 
 ## Honor the bounded review contract
 
-Each pass runs designer → native lint → independent critic → native lint verification. The designer refines the same files; the linter reads every returned HTML; the critic evaluates craft, purpose and states, brand, accessibility, and copy. The critic runs as a separate agent session with filesystem and browser tools, owns judgment, and returns a schema-validated verdict with evidence for every file. The designer owns corrections and receives the previous critic verdict, blockers, evidence, and exceptions on the next generation.
+Each pass runs designer → native lint → independent critic → native lint verification. The designer refines the same files; the linter reads every returned HTML; the critic evaluates craft, purpose and states, brand, accessibility, and copy. For a library prototype, the critic also reads the prototype sources and judges library fidelity; the digest check covers the rendered evidence, so the designer must refresh it after every source change. The critic runs as a separate agent session with filesystem and browser tools, owns judgment, and returns a schema-validated verdict with evidence for every file. The designer owns corrections and receives the previous critic verdict, blockers, evidence, and exceptions on the next generation.
 
 The linter must run successfully. Its findings are heuristic: inspect each one, require applicable fixes, and document a specific source-backed exception where appropriate. A lint `passed` value only reports its P0 result; it does not establish visual quality or complete review.
 

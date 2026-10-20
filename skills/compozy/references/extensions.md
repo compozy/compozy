@@ -95,7 +95,7 @@ Direct GitHub updates retain their acquisition origin and do not depend on the c
 
 The bundled `open-design` extension creates or binds the `open-design` profile. Its default agent
 is `open-design-designer`; `open-design-critic` provides independent review. The profile includes
-`open-design`, `open-design-review`, and `open-design-browser` skills, the `open-design-review`
+`open-design`, `open-design-review`, `open-design-browser`, and `open-design-setup` skills, the `open-design-review`
 Loop, and the read-only `ext__open_design__lint_artifact` tool. Two local references cover craft
 and the four artifact formats; there is no upstream library, download, or synchronization step.
 
@@ -104,10 +104,18 @@ Use the designer for interface, site, HTML-slide, or visual-document requests. A
 preferred; the user opens HTML directly. This port uses native CompozyOS execution and does not
 require OpenDesign's app, daemon, or MCP server. It does not implement production application code.
 
+The designer has two targets. HTML is the default. The library target builds a prototype with the
+project's own component library and renders it through the project's toolchain. Its environment is
+recorded in `docs/design/prototyping.md`; when that record is missing or failing, the designer
+follows `open-design-setup` to inspect the project, reuse or add the smallest prototyping host, get
+the user's approval before changing the repository, prove a smoke prototype renders, and write the
+record. Library prototypes refresh rendered evidence HTML under `docs/design/` for lint and review.
+
 The lint tool accepts `paths: string[]` and obtains its root from authenticated workspace context.
 It requires Node.js, preserves original findings, reports file digests, and never writes artifacts.
 Its `passed` means zero original P0 findings. The optional review Loop uses an independent
-critic session and verifies the approved file digests before completion. Its skill passes per-run
+critic session and verifies the approved file digests before completion. Its optional `target`
+input (`auto`, `html`, `library`) binds the designer; a library result must list its prototype sources. Its skill passes per-run
 `config_overrides` of `iteration_cap: 3` and `reattempt_strategy: full_body` so runtime defaults
 cannot replace the workflow limits. Use the same overrides for direct invocations. The critic considers findings and
 specific source-backed exceptions. A normal design request does not start the Loop automatically.

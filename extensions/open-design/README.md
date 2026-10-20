@@ -16,7 +16,30 @@ The designer reads the workspace and project design authority and the curated cr
 then writes ordinary HTML under `docs/design/`. Explicit output paths within that directory win;
 otherwise it uses `docs/design/<slug>/index.html`. Related states can share one file. The user
 opens the HTML directly and requests changes in the same session. Drawing a feature does not
-authorize changing production application code.
+authorize changing production application code. The designer can also build a library prototype,
+described below.
+
+## Prototype with the project's component library
+
+HTML stays the default. Ask for the library target, or record it as the project default, to build
+prototypes from the project's real components rendered by its own toolchain:
+
+> Prototype the session bulk actions with our component library.
+
+The designer reads `docs/design/prototyping.md`. When the record is missing or fails, it loads the
+`open-design-setup` skill: it inspects the project (library, catalog, bundler, styles, providers,
+existing preview hosts), proposes the smallest host (reuse Storybook or another existing host, a
+development-only playground route, or a minimal prototype app), and asks for approval before
+changing the repository. It proves a smoke prototype renders and typechecks, then writes the
+record with the library import paths, catalog, prototype directory, dev, preview, typecheck, and
+evidence commands. No preview engine ships with the extension; the project's own toolchain renders.
+
+Library prototypes import UI only from the recorded library, use its tokens, and never call product
+APIs. Typecheck catches invented props. The designer refreshes rendered evidence at
+`docs/design/<slug>/index.html` (a single-file export or a script-free DOM snapshot) so the linter
+and critic inspect what users see.
+
+## Review
 
 For a complete independent review, ask the designer to use `open-design-review`. Its native Loop
 runs designer → OpenDesign-derived lint → independent critic → digest verification. It completes only
@@ -24,20 +47,22 @@ after the critic approves the exact checked files; rejection starts another full
 supplies a per-run limit of three passes, allowing at most two refinements.
 CompozyOS runtime defaults can override values declared by a Loop; when starting it directly,
 supply `iteration_cap: 3` and `reattempt_strategy: full_body` through
-`config_overrides` (or the CLI's `--config-file`). The critic covers craft, purpose/states, brand,
+`config_overrides` (or the CLI's `--config-file`). The optional `target` input (`auto`, `html`,
+`library`) binds the designer; a library result must list its prototype sources and is reviewed
+for library fidelity. The loop never changes the prototyping environment. The critic covers craft, purpose/states, brand,
 accessibility, and copy. It must resolve
 applicable findings and cite the source for intentional exceptions. An exhausted or failed run
 retains its actual outcome and latest files; it does not restore an earlier file version.
 
 ## Resources and prerequisites
 
-| Resource                                                          | Purpose                                                        |
-| ----------------------------------------------------------------- | -------------------------------------------------------------- |
-| Profile `open-design`                                             | Default designer and extension resource placement              |
-| Agents `open-design-designer`, `open-design-critic`               | Authoring and independent review                               |
-| Skills `open-design`, `open-design-review`, `open-design-browser` | Curated guidance, explicit review workflow, browser inspection |
-| Loop `open-design-review`                                         | Bounded, opt-in refinement                                     |
-| Tool `ext__open_design__lint_artifact`                            | Read-only original design lint on workspace HTML               |
+| Resource                                                                               | Purpose                                                                                   |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Profile `open-design`                                                                  | Default designer and extension resource placement                                         |
+| Agents `open-design-designer`, `open-design-critic`                                    | Authoring and independent review                                                          |
+| Skills `open-design`, `open-design-review`, `open-design-browser`, `open-design-setup` | Curated guidance, explicit review workflow, browser inspection, library prototyping setup |
+| Loop `open-design-review`                                                              | Bounded, opt-in refinement                                                                |
+| Tool `ext__open_design__lint_artifact`                                                 | Read-only original design lint on workspace HTML                                          |
 
 Use an authenticated agent provider configured in CompozyOS. This extension does not choose a
 provider/model or create credentials. The linter requires Node.js on the CompozyOS process PATH.

@@ -5,14 +5,14 @@ title: Design workspace HTML with the built-in open-design extension
 persona: Ada
 journey: J-extension-kit-lifecycle
 expected: The open-design profile supports conversational HTML design and an explicitly requested independent review Loop using the OpenDesign-derived linter and curated local guidance, with workspace-contained files and accurate evidence.
-entry_points: Profile open-design; session agent open-design-designer; ext__open_design__lint_artifact; loop open-design-review; extension inventory open-design
+entry_points: Profile open-design; session agent open-design-designer; skill open-design-setup; ext__open_design__lint_artifact; loop open-design-review; extension inventory open-design
 qa_status: pass
 bug_ids: none
 fix_status: fixed
 retest_status: pass
 fix_commits: none
 evidence: /Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-lab/qa-artifacts/qa
-last_report: 2026-09-11
+last_report: 2026-10-20
 overlaps: ET-ext-inventory; LP-runtime-validation-preflight
 ---
 
@@ -41,7 +41,49 @@ overlaps: ET-ext-inventory; LP-runtime-validation-preflight
    concrete correction is passed to the next complete generation, bounded to three passes, and
    that approval cites applicable checks and any source-backed exception. Terminal status and
    remaining findings must match durable run detail; no invented rollback or best-version claim.
-7. Run the lab's exact teardown and retain clean process evidence.
+7. Library target: in a workspace with a component library and no `docs/design/prototyping.md`,
+   ask for a prototype with the library. Confirm the designer loads `open-design-setup`, proposes
+   a host plan, and changes nothing before approval. After approval, verify the smoke prototype
+   renders real library components with project styles in a screenshot, typecheck passes, and the
+   record lists only verified commands. Request a feature prototype: sources stay in the recorded
+   folder and import only the library, the preview URL renders, rendered evidence under
+   `docs/design/` lints, and no product API is called. Asking for HTML in the same project still
+   produces HTML. Run `open-design-review` with `target: library` and confirm completion requires
+   prototype sources and approval of unchanged rendered evidence.
+8. Run the lab's exact teardown and retain clean process evidence.
+
+## Library target evidence — 2026-10-20
+
+Branch build in an isolated lab (`compozy-open-design-library-20261020-211528-779327-lab`), Claude
+Opus 5.5 designer sessions in the `open-design` profile, each project in its own git worktree.
+
+- Setup approval: with no `docs/design/prototyping.md`, all three designers loaded
+  `open-design-setup`, inspected the project, proposed a host plan, and changed nothing until
+  approval (reloaddev `sess-5914073fa8526694`, AdvOS `sess-b4b007bb3095541d`, Compozy
+  `sess-a65e70e3763a26b0`).
+- reloaddev (Astro site + `@reload/ui`, no preview host): new dev-only Vite app
+  `apps/prototypes`; member-dashboard prototype; typecheck, 1440/390 px screenshots, lint of
+  rendered evidence, and `bun run verify` passed.
+- Compozy `web/`: reused the existing Storybook with no dependency or config change;
+  session bulk-actions prototype composed from production components; typecheck rejected an
+  invented import in the smoke story; browser flow (select, archive, partial delete failure,
+  retry) checked; lint 0 P0.
+- AdvOS: reused the existing Storybook with MSW, no dependency; process-list bulk-actions
+  prototype; typecheck, `check:design-drift`, and `knip` passed; lint 0 P0.
+- Remaining lint P1s in all three come from library, Tailwind, or Storybook CSS inlined in the
+  snapshot, not prototype sources.
+- Review Loop `target: library`: run `looprun-a8c16361c3425c10` exhausted at the three-generation
+  cap; the critic read all sources and found a new real issue each pass (duplicate link names,
+  broken logo in the snapshot, unused import). It exposed two product defects, fixed in this
+  branch: the critic could not reach the preview after the designer stopped its server, and
+  snapshots kept root-relative dev-server asset URLs. After the fix, run
+  `looprun-39a3fe7f3577e271` completed `done` in one generation with an approved verdict; the
+  critic started the recorded dev server itself and exercised interactions live.
+- Other findings fixed in the setup skill: the reloaddev designer bypassed the operator's
+  minimum-release-age guard and added dependencies/config beyond the approved plan; two
+  designers proposed the Storybook manager URL instead of the isolated canvas; ignoring the
+  prototype folder disabled Tailwind detection and lint (AdvOS).
+- Evidence: the lab's `qa-artifacts/qa/evidence/` (records, git status, session histories).
 
 ## Current evidence — 2026-09-11
 

@@ -1,6 +1,6 @@
 ---
 name: open-design-browser
-description: Inspect and exercise local HTML design artifacts with the existing agent-browser CLI, including screenshots and keyboard or interaction checks. Use when rendered evidence helps author or review a design; excludes browser installation, remote services, and unrelated browser automation.
+description: Inspect and exercise local HTML design artifacts and library prototype previews with the existing agent-browser CLI, including screenshots, interaction checks, and rendered DOM snapshots. Use when rendered evidence helps author or review a design; excludes browser installation, remote services, and unrelated browser automation.
 ---
 
 # Inspect local HTML
@@ -9,7 +9,7 @@ This is a maintained local adaptation for OpenDesign artifacts. Use the installe
 
 ## Open and exercise
 
-Use a unique named session owned by this task with its own browser. Do not use `--auto-connect`, `--cdp`, the user's browser profile, or a different browser integration. If local configuration would attach to a shared browser, report the limitation instead. Substitute the actual absolute artifact path and URL-encode spaces in its `file://` URL. Start from the delivered file, without adding a preview server or dashboard:
+Use a unique named session owned by this task with its own browser. Do not use `--auto-connect`, `--cdp`, the user's browser profile, or a different browser integration. If local configuration would attach to a shared browser, report the limitation instead. Substitute the actual absolute artifact path and URL-encode spaces in its `file://` URL. Start from the delivered file, without adding a preview server or dashboard. For a library prototype, open the preview URL recorded in `docs/design/prototyping.md` instead; it is served on the local machine by the project's own development command, and `--allow-file-access` is unnecessary:
 
 ```bash
 agent-browser --session "od-<task-id>" --allow-file-access open "file:///absolute/workspace/docs/design/example/index.html"
@@ -40,6 +40,8 @@ agent-browser --session "od-<task-id>" screenshot /absolute/evidence/design.png
 Then load that exact image with the session's image-reading tool or equivalent image-capable harness. Capturing a file, reading an accessibility tree, or reporting an image path does not establish that its pixels were inspected. Without image-reading support, report source/interaction evidence and the unverified visual result separately.
 
 Judge the screenshot against the brief and project authority: hierarchy, wrapping, clipping, spacing, imagery, and the state being tested. Inspect changed states again after a relevant fix; do not repeat unaffected checks. Browser errors can be inspected with `agent-browser --session "od-<task-id>" errors` when needed.
+
+When a library prototype needs rendered evidence, capture the DOM snapshot described by the `open-design-setup` recipes from the same session after the prototype finishes rendering.
 
 Close the task-owned session on completion or failure:
 

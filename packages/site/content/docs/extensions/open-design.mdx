@@ -1,6 +1,6 @@
 ---
 title: Open design
-description: Create and refine HTML design references in your workspace with the built-in open-design extension.
+description: Create and refine HTML design references, or prototypes built with your own component library, with the built-in open-design extension.
 ---
 
 The built-in `open-design` extension brings curated OpenDesign design guidance
@@ -22,6 +22,46 @@ under `docs/design/`. Your explicit filename takes precedence; otherwise the def
 continue refining it in the same session. The designer creates a reference for implementation;
 it does not change your application's production code.
 
+## Prototype with your component library
+
+HTML is the default. When your project already has a component library, ask for a prototype that
+uses it:
+
+> Prototype the session bulk actions with our component library.
+
+The first time, the designer prepares a prototyping environment with the **open-design-setup**
+skill. It looks at your project: the component library and where its components are documented,
+your bundler and styles, the providers your components need, and any preview tool you already
+use. It then proposes the smallest setup, such as reusing your Storybook, adding a
+development-only playground route, or creating a small prototype app. **It asks before changing
+your repository.** After you approve, it renders a small test prototype, checks that it
+typechecks, and records the result in `docs/design/prototyping.md`:
+
+```markdown
+---
+target: library
+library: ["@acme/ui"]
+catalog: [packages/ui/src/components]
+prototypes: apps/prototypes/src/designs
+entry: "{slug}/index.tsx"
+dev: bun run --cwd apps/prototypes dev
+preview: "http://localhost:4400/{slug}"
+typecheck: bun run --cwd apps/prototypes typecheck
+evidence: snapshot
+verified: 2026-10-20
+---
+```
+
+Later sessions read this file and go straight to designing. Set `target: library` to make it the
+project default; asking for HTML still works for any request. The designer writes prototypes in
+the recorded folder, uses only your library's components and tokens, typechecks them, and gives you
+the preview URL served by your own development command. It also saves a rendered copy at
+`docs/design/<slug>/index.html` so the linter and the critic check what you see. Prototypes use
+sample data and never call your product's APIs.
+
+If the record stops working, for example after a dependency upgrade, the designer repairs it with
+the same skill and updates `verified`.
+
 ## Ask for independent review
 
 Ask the designer to use **open-design-review** when you want a complete review cycle. The native
@@ -37,6 +77,11 @@ override the definition's declared values. The Loop's status
 and findings use the existing CompozyOS run inspector. If it exhausts or fails, the latest HTML
 remains on disk with the unresolved outcome; there is no automatic version rollback. Ordinary
 design requests and `_uiux.md` input do not start the Loop automatically.
+
+The Loop also reviews library prototypes. Its optional `target` input accepts `auto`, `html`, or
+`library`. For a library prototype, the critic also reads the prototype sources and checks that
+they use only your library. Complete the prototyping setup before starting the Loop; the Loop
+never changes it.
 
 ## Lint and visual inspection
 
@@ -65,6 +110,6 @@ with attribution and licenses included in the extension. The references cover cr
 four artifact formats; your project's design authority determines visual choices. There is no
 upstream repository download, catalog, synchronization task, or OpenDesign service to run.
 
-The profile contributes two agents, three skills, one Loop, and one tool. It uses your configured
+The profile contributes two agents, four skills, one Loop, and one tool. It uses your configured
 CompozyOS agent provider and does not create credentials or pin a model. Manage enablement and
 inspect resources through the normal [extension lifecycle](/docs/extensions/install).

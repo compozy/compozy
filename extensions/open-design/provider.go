@@ -17,8 +17,9 @@ func newProvider(options ...compozysdk.Option) (*compozysdk.Extension, error) {
 	extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 		Name:    Name,
 		Version: "0.1.0",
-		Description: "Design interfaces, sites, slides, and visual documents as workspace HTML " +
-			"with curated design guidance and OpenDesign-derived lints.",
+		Description: "Design interfaces, sites, slides, and visual documents as workspace HTML or " +
+			"as prototypes built with the project's own component library, with curated design " +
+			"guidance and OpenDesign-derived lints.",
 		Profiles: []compozysdk.DescribeProfile{
 			{Name: Name, Icon: "palette", Defaults: compozysdk.DescribeProfileDefaults{Agent: "open-design-designer"}},
 		},
@@ -27,6 +28,7 @@ func newProvider(options ...compozysdk.Option) (*compozysdk.Extension, error) {
 				{Path: "skills/open-design/SKILL.md", Profile: Name},
 				{Path: "skills/open-design-review/SKILL.md", Profile: Name},
 				{Path: "skills/open-design-browser/SKILL.md", Profile: Name},
+				{Path: "skills/open-design-setup/SKILL.md", Profile: Name},
 			},
 			Agents: []compozysdk.DescribeResourcePath{{Path: "agents", Profile: Name}},
 			Loops:  []compozysdk.DescribeResourcePath{{Path: "loops", Profile: Name}},

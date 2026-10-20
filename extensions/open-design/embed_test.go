@@ -36,8 +36,8 @@ func TestEmbeddedResources(t *testing.T) {
 			manifest.Profiles[0].Defaults.Agent != "open-design-designer" {
 			t.Fatalf("profile defaults = %#v", manifest.Profiles)
 		}
-		// Explicit entrypoints expose only the three supported skills.
-		if len(manifest.Resources.Skills) != 3 {
+		// Explicit entrypoints expose only the four supported skills.
+		if len(manifest.Resources.Skills) != 4 {
 			t.Fatalf("skill declarations = %#v", manifest.Resources.Skills)
 		}
 		for _, resource := range manifest.Resources.Skills {
@@ -142,8 +142,15 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 	if condition == nil || resolved.Definition.Contract.StopWhen.OnEvalError != dsl.EvalErrorFail {
 		t.Fatal("review completion must have a fail-closed condition")
 	}
-	var criticSchema dsl.Schema
+	var criticSchema, designSchema dsl.Schema
 	for _, node := range resolved.Definition.Graph.Nodes {
+		if node.ID == "design" {
+			var params dsl.RunAgentParams
+			if err := node.Params.Decode(&params); err != nil {
+				t.Fatal(err)
+			}
+			designSchema = params.OutputSchema
+		}
 		if node.ID == "critique" {
 			var params dsl.RunAgentParams
 			if err := node.Params.Decode(&params); err != nil {
@@ -155,8 +162,8 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 			criticSchema = params.OutputSchema
 		}
 	}
-	if len(criticSchema) == 0 {
-		t.Fatal("critic output schema is missing")
+	if len(criticSchema) == 0 || len(designSchema) == 0 {
+		t.Fatal("designer or critic output schema is missing")
 	}
 	cases := []struct {
 		name        string
@@ -183,6 +190,17 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 		}},
 		{name: "Should reject a different requested entry path", patch: func(v map[string]any) {
 			reviewNodeOutput(v, "design")["primary_html_path"] = "docs/design/other.html"
+		}},
+		{name: "Should accept an evidenced library prototype approval", want: true, patch: func(v map[string]any) {
+			v["inputs"].(map[string]any)["target"] = "library"
+			setReviewLibraryResult(v, []any{"web/src/prototypes/selection/index.tsx"})
+		}},
+		{name: "Should reject a library result without prototype sources", patch: func(v map[string]any) {
+			setReviewLibraryResult(v, []any{})
+		}},
+		{name: "Should reject a target other than the requested one", patch: func(v map[string]any) {
+			v["inputs"].(map[string]any)["target"] = "html"
+			setReviewLibraryResult(v, []any{"web/src/prototypes/selection/index.tsx"})
 		}},
 		{name: "Should accept a matching source-backed lint exception", want: true, patch: func(v map[string]any) {
 			addReviewLintException(v)
@@ -221,15 +239,20 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 				tc.patch(variables)
 			}
 			if tc.want || tc.validSchema {
-				raw, err := json.Marshal(reviewNodeOutput(variables, "critique"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if _, err := loop.ValidateActionStructured(
-					criticSchema,
-					loop.ActionPromptResult{Structured: raw},
-				); err != nil {
-					t.Fatalf("valid review schema: %v", err)
+				for _, check := range []struct {
+					node   string
+					schema dsl.Schema
+				}{{"critique", criticSchema}, {"design", designSchema}} {
+					raw, err := json.Marshal(reviewNodeOutput(variables, check.node))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := loop.ValidateActionStructured(
+						check.schema,
+						loop.ActionPromptResult{Structured: raw},
+					); err != nil {
+						t.Fatalf("valid %s schema: %v", check.node, err)
+					}
 				}
 			}
 			result, err := condition.Evaluate(variables)
@@ -369,6 +392,31 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 			t.Fatal("missing critic output was accepted")
 		}
 	})
+	t.Run("Should accept library designer output only with a loopback preview", func(t *testing.T) {
+		t.Parallel()
+		variables := reviewLoopFixture(t)
+		setReviewLibraryResult(variables, []any{"web/src/prototypes/selection/index.tsx"})
+		design := reviewNodeOutput(variables, "design")
+		for preview, valid := range map[string]bool{
+			"http://localhost:4400/selection":                                    true,
+			"http://127.0.0.1:6006/iframe.html?id=prototypes-selection--default": true,
+			"https://example.com/selection":                                      false,
+			"http://example.com/selection":                                       false,
+		} {
+			design["preview_url"] = preview
+			raw, err := json.Marshal(design)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = loop.ValidateActionStructured(designSchema, loop.ActionPromptResult{Structured: raw})
+			if valid && err != nil {
+				t.Fatalf("preview %q rejected: %v", preview, err)
+			}
+			if !valid && (err == nil || !strings.Contains(err.Error(), "preview_url")) {
+				t.Fatalf("preview %q error = %v; want a preview_url rejection", preview, err)
+			}
+		}
+	})
 	t.Run("Should expose malformed completion input as an evaluation error", func(t *testing.T) {
 		t.Parallel()
 		variables := reviewLoopFixture(t)
@@ -405,9 +453,9 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 func reviewLoopFixture(t *testing.T) map[string]any {
 	t.Helper()
 	const raw = `{
-	  "inputs": {"artifact_path": "docs/design/index.html", "brief": "Review selection"},
+	  "inputs": {"artifact_path": "docs/design/index.html", "brief": "Review selection", "target": "auto"},
 	  "nodes": {
-	    "design": {"status": "succeeded", "output": {
+	    "design": {"status": "succeeded", "output": {"status": "updated", "summary": "Refined selection states", "target": "html",
 	      "primary_html_path": "docs/design/index.html", "artifact_paths": ["docs/design/index.html"]}},
 	    "lint": {"status": "succeeded", "output": {"artifacts": [{
 	      "path": "docs/design/index.html", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -434,6 +482,12 @@ func reviewNodeOutput(variables map[string]any, node string) map[string]any {
 
 func reviewArtifact(variables map[string]any, node string) map[string]any {
 	return reviewNodeOutput(variables, node)["artifacts"].([]any)[0].(map[string]any)
+}
+
+func setReviewLibraryResult(variables map[string]any, sources []any) {
+	design := reviewNodeOutput(variables, "design")
+	design["target"] = "library"
+	design["source_paths"] = sources
 }
 
 func addReviewLintFinding(variables map[string]any) {
