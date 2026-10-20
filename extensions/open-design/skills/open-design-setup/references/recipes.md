@@ -30,7 +30,7 @@ Static-site or server-rendered frameworks (for example Astro) can render React i
 
 The lint tool reads HTML under `docs/design/`. Library prototypes provide rendered evidence at `docs/design/<slug>/index.html`, refreshed after every change:
 
-- **Export (preferred when available):** a build that emits one self-contained HTML file for a prototype, for example Vite with `vite-plugin-singlefile` and the prototype as the only entry. Record the command with a `{slug}` placeholder as `evidence`.
+- **Export:** a build that emits one self-contained HTML file for a prototype, for example Vite with `vite-plugin-singlefile` and the prototype as the only entry, so the evidence opens without a server. Record the command with a `{slug}` placeholder as `evidence`. A client-rendered export holds an empty root until its JavaScript runs, and the linter reads only saved markup: open the exported file with `open-design-browser`, wait for it to render, and save the snapshot below as the evidence, keeping the export as the standalone deliverable.
 - **Snapshot:** open the preview URL with `open-design-browser`, wait for the prototype to render, and capture the DOM without scripts:
 
   ```bash
@@ -38,6 +38,8 @@ The lint tool reads HTML under `docs/design/`. Library prototypes provide render
   ```
 
   The script makes asset URLs absolute, because development servers emit root-relative paths (for example `/@fs/...`) that break in a saved file; those assets load only while the development server runs. Inline small images such as logos when the evidence must stand alone. Write the returned markup to the evidence file. Decode it first when the CLI prints a quoted JSON string. Development servers usually inject the compiled CSS as `<style>` elements, so the snapshot keeps the rendered styles; if styles are linked instead, inline them or use an export. A snapshot is lint and review evidence, not a standalone deliverable.
+
+  `cloneNode` and `outerHTML` omit shadow-root content, so components that render inside shadow roots would appear empty. When the library uses them, serialize with `document.documentElement.getHTML({ shadowRoots })`, passing the page's open shadow roots, which emits declarative `<template shadowrootmode>` content; then apply the same script and URL cleanup to that markup. If closed shadow roots hide content, record that the evidence is incomplete and rely on screenshots for those components.
 
 ## Pitfalls
 

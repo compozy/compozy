@@ -239,15 +239,20 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 				tc.patch(variables)
 			}
 			if tc.want || tc.validSchema {
-				raw, err := json.Marshal(reviewNodeOutput(variables, "critique"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if _, err := loop.ValidateActionStructured(
-					criticSchema,
-					loop.ActionPromptResult{Structured: raw},
-				); err != nil {
-					t.Fatalf("valid review schema: %v", err)
+				for _, check := range []struct {
+					node   string
+					schema dsl.Schema
+				}{{"critique", criticSchema}, {"design", designSchema}} {
+					raw, err := json.Marshal(reviewNodeOutput(variables, check.node))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := loop.ValidateActionStructured(
+						check.schema,
+						loop.ActionPromptResult{Structured: raw},
+					); err != nil {
+						t.Fatalf("valid %s schema: %v", check.node, err)
+					}
 				}
 			}
 			result, err := condition.Evaluate(variables)
@@ -392,11 +397,11 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 		variables := reviewLoopFixture(t)
 		setReviewLibraryResult(variables, []any{"web/src/prototypes/selection/index.tsx"})
 		design := reviewNodeOutput(variables, "design")
-		design["status"], design["summary"] = "created", "Selection prototype"
 		for preview, valid := range map[string]bool{
 			"http://localhost:4400/selection":                                    true,
 			"http://127.0.0.1:6006/iframe.html?id=prototypes-selection--default": true,
 			"https://example.com/selection":                                      false,
+			"http://example.com/selection":                                       false,
 		} {
 			design["preview_url"] = preview
 			raw, err := json.Marshal(design)
@@ -404,8 +409,11 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 				t.Fatal(err)
 			}
 			_, err = loop.ValidateActionStructured(designSchema, loop.ActionPromptResult{Structured: raw})
-			if (err == nil) != valid {
-				t.Fatalf("preview %q valid = %t, err = %v", preview, valid, err)
+			if valid && err != nil {
+				t.Fatalf("preview %q rejected: %v", preview, err)
+			}
+			if !valid && (err == nil || !strings.Contains(err.Error(), "preview_url")) {
+				t.Fatalf("preview %q error = %v; want a preview_url rejection", preview, err)
 			}
 		}
 	})
@@ -447,7 +455,7 @@ func reviewLoopFixture(t *testing.T) map[string]any {
 	const raw = `{
 	  "inputs": {"artifact_path": "docs/design/index.html", "brief": "Review selection", "target": "auto"},
 	  "nodes": {
-	    "design": {"status": "succeeded", "output": {"target": "html",
+	    "design": {"status": "succeeded", "output": {"status": "updated", "summary": "Refined selection states", "target": "html",
 	      "primary_html_path": "docs/design/index.html", "artifact_paths": ["docs/design/index.html"]}},
 	    "lint": {"status": "succeeded", "output": {"artifacts": [{
 	      "path": "docs/design/index.html", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
