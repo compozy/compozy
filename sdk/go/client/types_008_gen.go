@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+// JobPayload is a daemon API value.
+type JobPayload struct {
+	ID           string                           `json:"id"`
+	ProfileID    string                           `json:"profile_id"`
+	ProfileName  string                           `json:"profile_name"`
+	ProfileColor string                           `json:"profile_color,omitempty"`
+	ProfileIcon  string                           `json:"profile_icon,omitempty"`
+	Scope        Scope                            `json:"scope"`
+	Name         string                           `json:"name"`
+	TargetKind   TargetKind                       `json:"target_kind"`
+	AgentName    string                           `json:"agent_name"`
+	WorkspaceID  string                           `json:"workspace_id,omitempty"`
+	Prompt       string                           `json:"prompt"`
+	Schedule     *ScheduleSpec                    `json:"schedule,omitzero"`
+	Task         *JobTaskConfig                   `json:"task,omitzero"`
+	LoopTarget   *LoopTarget                      `json:"loop_target,omitzero"`
+	Enabled      bool                             `json:"enabled"`
+	Retry        RetryConfig                      `json:"retry"`
+	FireLimit    FireLimitConfig                  `json:"fire_limit"`
+	Source       JobSource                        `json:"source"`
+	CreatedAt    time.Time                        `json:"created_at"`
+	UpdatedAt    time.Time                        `json:"updated_at"`
+	NextRun      *time.Time                       `json:"next_run,omitempty"`
+	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
+	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
+}
+
+// JobResponse is a daemon API value.
+type JobResponse struct {
+	Job JobPayload `json:"job"`
+}
+
+// JobSource is a daemon API value.
+type JobSource string
+
 // JobTaskConfig is a daemon API value.
 type JobTaskConfig struct {
 	Title       string     `json:"title,omitempty"`
@@ -402,45 +437,4 @@ type LoopGateVerdictPayload struct {
 	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
 	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
 	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
-}
-
-// LoopGateVerdictRunEventPayload is a daemon API value.
-type LoopGateVerdictRunEventPayload struct {
-	ID          string                      `json:"id"`
-	LoopRunID   string                      `json:"loop_run_id"`
-	WorkspaceID string                      `json:"workspace_id"`
-	Seq         int64                       `json:"seq"`
-	Kind        RunEventKind                `json:"kind"`
-	Payload     LoopGateVerdictEventPayload `json:"payload"`
-	At          time.Time                   `json:"at"`
-}
-
-// LoopGenerationOrigin is a daemon API value.
-type LoopGenerationOrigin string
-
-// LoopGenerationOutput is a daemon API value.
-type LoopGenerationOutput struct {
-	Generation      int64                `json:"generation,omitzero"`
-	NodeID          string               `json:"node_id"`
-	ItemIndex       int                  `json:"item_index,omitzero"`
-	Status          string               `json:"status"`
-	OutputRef       string               `json:"output_ref,omitempty"`
-	TaskRunID       string               `json:"task_run_id,omitempty"`
-	SessionID       string               `json:"session_id,omitempty"`
-	ChildLoopRunID  string               `json:"child_loop_run_id,omitempty"`
-	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitzero"`
-	Attempt         int                  `json:"attempt,omitzero"`
-	NextAttemptAt   *time.Time           `json:"next_attempt_at,omitempty"`
-	FailureClass    string               `json:"failure_class,omitempty"`
-	Disposition     string               `json:"disposition,omitempty"`
-}
-
-// LoopGenerationPayload is a daemon API value.
-type LoopGenerationPayload struct {
-	Generation       int64                    `json:"generation"`
-	ParentGeneration int64                    `json:"parent_generation"`
-	Origin           LoopGenerationOrigin     `json:"origin"`
-	RouteCauses      []LoopRouteCausePayload  `json:"route_causes"`
-	Verdicts         []LoopGateVerdictPayload `json:"verdicts"`
-	Outputs          []LoopGenerationOutput   `json:"outputs"`
 }

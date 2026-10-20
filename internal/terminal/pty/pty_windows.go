@@ -49,7 +49,7 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("terminal pty: start context: %w", err)
 	}
-	environmentList := environment(spec.Env)
+	environmentList := environment(spec.Env, spec.UnsetEnv)
 	path, err := interp.LookPathDir(spec.Cwd, expand.ListEnviron(environmentList...), spec.Argv[0])
 	if err != nil {
 		return nil, fmt.Errorf("terminal pty: resolve %q: %w", spec.Argv[0], err)

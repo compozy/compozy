@@ -5,6 +5,7 @@ import "strings"
 // CloneAgentDef returns a normalized deep copy of an agent definition.
 func CloneAgentDef(agent AgentDef) AgentDef {
 	cloned := AgentDef{
+		SessionEnv:      MergeSessionEnv(nil, agent.SessionEnv),
 		Name:            strings.TrimSpace(agent.Name),
 		Provider:        strings.TrimSpace(agent.Provider),
 		Command:         strings.TrimSpace(agent.Command),

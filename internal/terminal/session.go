@@ -10,18 +10,19 @@ import (
 )
 
 type session struct {
-	manager     *Service
-	ctx         context.Context
-	cancel      context.CancelFunc
-	proc        Proc
-	filter      outputFilter
-	ring        *Ring
-	vt          *terminalvt.Actor
-	audit       *auditGate
-	nonce       string
-	profileName string
-	titlePinned bool
-	origin      Actor
+	manager            *Service
+	ctx                context.Context
+	cancel             context.CancelFunc
+	proc               Proc
+	filter             outputFilter
+	ring               *Ring
+	vt                 *terminalvt.Actor
+	audit              *auditGate
+	nonce              string
+	profileName        string
+	titlePinned        bool
+	origin             Actor
+	environmentRelease func()
 
 	mu                  sync.RWMutex
 	info                Info

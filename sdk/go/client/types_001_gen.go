@@ -179,12 +179,14 @@ type AgentDiagnosticPayload struct {
 
 // AgentEffectiveRuntimePayload is a daemon API value.
 type AgentEffectiveRuntimePayload struct {
-	Provider        string                       `json:"provider"`
-	Model           string                       `json:"model,omitempty"`
-	ReasoningEffort Effort                       `json:"reasoning_effort,omitempty"`
-	Speed           Speed                        `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection    `json:"acp_options,omitempty"`
-	Sources         AgentEffectiveRuntimeSources `json:"sources"`
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	SessionEnv       map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
+	Provider         string                                    `json:"provider"`
+	Model            string                                    `json:"model,omitempty"`
+	ReasoningEffort  Effort                                    `json:"reasoning_effort,omitempty"`
+	Speed            Speed                                     `json:"speed,omitempty"`
+	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	Sources          AgentEffectiveRuntimeSources              `json:"sources"`
 }
 
 // AgentEffectiveRuntimeSources is a daemon API value.
@@ -197,12 +199,13 @@ type AgentEffectiveRuntimeSources struct {
 
 // AgentFallbackRoutePayload is a daemon API value.
 type AgentFallbackRoutePayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	Command         string                    `json:"command,omitempty"`
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider"`
+	Model           string                              `json:"model"`
+	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command         string                              `json:"command,omitempty"`
 }
 
 // AgentIdentityPayload is a daemon API value.
@@ -266,29 +269,30 @@ type AgentOrigin string
 
 // AgentPayload is a daemon API value.
 type AgentPayload struct {
-	Name             string                         `json:"name"`
-	Provider         string                         `json:"provider"`
-	Command          string                         `json:"command,omitempty"`
-	Model            string                         `json:"model,omitempty"`
-	ReasoningEffort  Effort                         `json:"reasoning_effort,omitempty"`
-	Speed            Speed                          `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection      `json:"acp_options,omitempty"`
-	Tools            []string                       `json:"tools,omitempty"`
-	Toolsets         []string                       `json:"toolsets,omitempty"`
-	DenyTools        []string                       `json:"deny_tools,omitempty"`
-	Permissions      string                         `json:"permissions,omitempty"`
-	CategoryPath     []string                       `json:"category_path,omitempty"`
-	MCPServers       []AgentMCPServerJSON           `json:"mcp_servers,omitempty"`
-	Origin           AgentOrigin                    `json:"origin"`
-	WorkspaceID      string                         `json:"workspace_id,omitempty"`
-	Layer            string                         `json:"layer,omitempty"`
-	Shadows          []AgentDefinitionShadowPayload `json:"shadows,omitempty"`
-	Skills           *CreateAgentSkillsConfig       `json:"skills,omitzero"`
-	FallbackChain    []RoleFallbackStatus           `json:"fallback_chain,omitempty"`
-	DefinitionDigest string                         `json:"definition_digest"`
-	Prompt           string                         `json:"prompt"`
-	Diagnostics      []AgentDiagnosticPayload       `json:"diagnostics,omitempty"`
-	EffectiveRuntime *AgentEffectiveRuntimePayload  `json:"effective_runtime,omitzero"`
+	SessionEnv       map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Name             string                              `json:"name"`
+	Provider         string                              `json:"provider"`
+	Command          string                              `json:"command,omitempty"`
+	Model            string                              `json:"model,omitempty"`
+	ReasoningEffort  Effort                              `json:"reasoning_effort,omitempty"`
+	Speed            Speed                               `json:"speed,omitempty"`
+	ACPOptions       []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools            []string                            `json:"tools,omitempty"`
+	Toolsets         []string                            `json:"toolsets,omitempty"`
+	DenyTools        []string                            `json:"deny_tools,omitempty"`
+	Permissions      string                              `json:"permissions,omitempty"`
+	CategoryPath     []string                            `json:"category_path,omitempty"`
+	MCPServers       []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
+	Origin           AgentOrigin                         `json:"origin"`
+	WorkspaceID      string                              `json:"workspace_id,omitempty"`
+	Layer            string                              `json:"layer,omitempty"`
+	Shadows          []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`
+	Skills           *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	FallbackChain    []RoleFallbackStatus                `json:"fallback_chain,omitempty"`
+	DefinitionDigest string                              `json:"definition_digest"`
+	Prompt           string                              `json:"prompt"`
+	Diagnostics      []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
+	EffectiveRuntime *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
 }
 
 // AgentProbeHealthPayload is a daemon API value.
@@ -440,10 +444,4 @@ type AgentSoulSectionPayload struct {
 	Truncated        bool                     `json:"truncated,omitempty"`
 	MaxBytes         int64                    `json:"max_bytes,omitempty"`
 	MaxBodyBytes     int64                    `json:"max_body_bytes,omitempty"`
-}
-
-// AgentSoulValidateByPathRequest is a daemon API value.
-type AgentSoulValidateByPathRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Body        string `json:"body,omitempty"`
 }

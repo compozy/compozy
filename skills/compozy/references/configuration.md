@@ -64,13 +64,54 @@ metadata with `provider inspect`. For a non-default profile, `secret rm` falls b
 credential and requires `--yes` for non-interactive removal when the profile owns work.
 
 Protocol-authenticated providers (`native_cli` with `auth_acp_method`, such as the `agy` built-in)
-declare no credential slots and accept no secrets: their login state lives in the operator home the
+declare no credential slots: their login state lives in the operator home the
 provider owns, shared across profiles by design. Isolate clean-room logins with an explicitly
 authorized separate home, never by copying saved authentication. In Settings → Providers their
 native-auth editor offers an optional `Sign-in method` instead of key fields: empty uses the
 built-in default while the harness is `acp`. Switching to `pi_acp` with an empty method drops the
 inherited ACP method without changing `native_cli` ownership; an explicit nonempty method is rejected.
 Clearing a custom value under `acp` removes the local override so the built-in default applies again.
+
+### Declared Session Environment
+
+`[providers.<id>.session_env]` explicitly passes named environment variables to launched agents,
+including `native_cli` providers. Each value is an `env:NAME` or `vault:path` reference, or a table
+`{ ref = "env:NAME", required = false }`. Shorthand references are required by default. Literals
+are rejected. Missing required values fail launch; missing optional values are omitted with a
+diagnostic. Undeclared sensitive names and socket variables remain filtered. Declare
+`SSH_AUTH_SOCK = "env:SSH_AUTH_SOCK"` to opt into SSH agent socket access. `COMPOZY_` names are reserved.
+
+AGENT.md and fallback route `session_env` maps override provider declarations by name. Values resolve
+at launch within the selected profile's Vault namespace. Inspect declarations and presence/source
+metadata with `provider inspect`; resolved values are never configuration output. Agent-owned
+terminals use their active session's accepted declarations; human terminals use the selected
+workspace/profile default agent. System terminals do not inherit agent declarations.
+
+Use `compozy config set providers.codex.session_env.GH_TOKEN env:GH_TOKEN -o json` for one binding.
+For an optional binding, pass a quoted JSON object such as
+`'{"ref":"env:SSH_AUTH_SOCK","required":false}'`. The complete `providers.<id>.session_env` table
+also accepts a JSON object. The matching native config tool accepts structured objects directly.
+Read the same path back and inspect the apply lifecycle before starting a new session.
+
+### Vault Key Provider
+
+`vault.key_provider` is a machine-only key: `file` is the default and `os-keyring` is opt-in.
+The default Vault path never probes or accesses the OS credential store. Selecting `os-keyring`
+alone does not import a key: run `compozy vault key migrate -o json` explicitly in the intended
+local Compozy home. The command may prompt for OS permission. It imports the existing `vault.key`,
+reads it back, verifies every encrypted record, then switches the provider. Failures preserve the
+previous selection; an unavailable or locked keyring never falls back silently to the file.
+
+The migration retains `vault.key` and warns about this plaintext copy unless
+`--remove-file-key` is supplied. Repeating the migration is supported. With the file retained,
+rollback selects `file` through `compozy config set vault.key_provider file --scope user`.
+After removal, restore the original key from a secure backup before rollback; no key export
+command is provided. Changing the provider through generic config surfaces is restart-required.
+
+The OS key is cached in memory after the first access for the daemon process lifetime, including
+an initial read failure; after unlocking a failed store, restart the daemon deliberately.
+On macOS, go-keyring uses `/usr/bin/security`. An unlocked login keychain normally needs no prompt,
+but creation or a locked keychain can prompt. Do not promise prompt-free opt-in operation.
 
 For a declared extension environment name, use `compozy --profile <name> extension secrets set
 <extension> --env <ENV_NAME> --value-stdin`. This stores the value and creates the instance/profile-owned

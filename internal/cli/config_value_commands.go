@@ -388,7 +388,8 @@ func setConfigOverlayValue(
 	kind configSetValueKind,
 	value any,
 ) error {
-	if kind == configSetTable || kind == configSetLoopInput {
+	if kind == configSetTable || kind == configSetLoopInput || kind == configSetSessionEnv ||
+		kind == configSetSessionEnvBinding {
 		table, ok := value.(map[string]any)
 		if ok {
 			return editor.SetTable(path, table)

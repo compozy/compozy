@@ -149,6 +149,10 @@ export type AgentEffectiveRuntimePayload = {
   model?: string;
   provider: string;
   reasoning_effort?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
+  session_env_status?: Array<SettingsProviderCredentialStatusPayload>;
   sources: AgentEffectiveRuntimeSources;
   speed?: "normal" | "fast";
 };
@@ -166,6 +170,9 @@ export type AgentFallbackRoutePayload = {
   model: string;
   provider: string;
   reasoning_effort?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   speed?: "normal" | "fast";
 };
 
@@ -240,6 +247,9 @@ export type AgentPayload = {
   prompt: string;
   provider: string;
   reasoning_effort?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   shadows?: Array<AgentDefinitionShadowPayload>;
   skills?: CreateAgentSkillsConfig | null;
   speed?: "normal" | "fast";
@@ -1292,6 +1302,9 @@ export type CreateAgentPayload = {
   prompt: string;
   provider?: string;
   reasoning_effort?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   skills?: CreateAgentSkillsConfig | null;
   speed?: "normal" | "fast";
   tools?: Array<string>;
@@ -1576,6 +1589,9 @@ export type DuplicateAgentOverrides = {
   prompt?: string;
   provider?: string;
   reasoning_effort?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   skills?: CreateAgentSkillsConfig | null;
   speed?: "normal" | "fast";
   tools?: Array<string>;
@@ -5035,6 +5051,7 @@ export type ProviderSummaryPayload = {
   display_name?: string;
   name: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
+  session_env_status?: Array<SettingsProviderCredentialStatusPayload>;
 };
 
 export type PutLoopAnnotationsRequest = {
@@ -5454,6 +5471,9 @@ export type RoleFallbackStatus = {
   model: string;
   provider: string;
   reasoning_effort?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   speed?: "normal" | "fast";
 };
 
@@ -6229,6 +6249,11 @@ export type SessionDerivedPayload = {
   source_turn_in_progress: boolean;
   through_turn_id: string;
   truncated: boolean;
+};
+
+export type SessionEnvBindingPayload = {
+  ref: string;
+  required: boolean;
 };
 
 export type SessionEventPayload = {
@@ -7548,6 +7573,7 @@ export type SettingsProviderItemPayload = {
   fallback?: SettingsProviderFallbackPayload | null;
   name: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
+  session_env_status?: Array<SettingsProviderCredentialStatusPayload>;
   settings: SettingsProviderSettingsPayload;
   source_metadata: SettingsSourceMetadataPayload;
 };
@@ -7617,6 +7643,9 @@ export type SettingsProviderSettingsPayload = {
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
   runtime_provider?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
   transport?: string;
 };
@@ -7635,6 +7664,9 @@ export type SettingsProviderWritePayload = {
   home_policy?: string;
   models?: SettingsProviderModelsPayload | null;
   runtime_provider?: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
   transport?: string;
 };
@@ -7667,6 +7699,9 @@ export type SettingsRoleFallbackPayload = {
   model: string;
   provider: string;
   reasoning_effort: string;
+  session_env?: {
+    [key: string]: SessionEnvBindingPayload;
+  };
   speed?: "normal" | "fast";
 };
 

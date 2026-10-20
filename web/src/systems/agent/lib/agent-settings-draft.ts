@@ -31,6 +31,7 @@ const KNOWN_PERMISSIONS = new Set<AgentCreatePermission>(
 );
 
 export interface AgentSettingsDraft {
+  sessionEnv?: AgentPayload["session_env"];
   name: string;
   categoryPath: string;
   provider: string;
@@ -77,6 +78,7 @@ export function buildSettingsDraftFromAgent(agent: AgentPayload): AgentSettingsD
   const emptyOrInherit = rawPermissions.length === 0;
   return {
     name: agent.name,
+    sessionEnv: agent.session_env ? structuredClone(agent.session_env) : undefined,
     categoryPath: joinAgentCategorySegments(agent.category_path ?? []),
     provider: agent.provider ?? "",
     model: agent.model ?? "",
@@ -169,6 +171,7 @@ export function buildUpdateAgentParams(
     ...(draft.origin === "workspace" && workspace.length > 0 ? { workspace } : {}),
     agent: {
       name: draft.name,
+      ...(draft.sessionEnv ? { session_env: structuredClone(draft.sessionEnv) } : {}),
       prompt,
       ...(provider.length > 0 ? { provider } : {}),
       ...(model.length > 0 ? { model } : {}),
@@ -201,6 +204,7 @@ function toFallbackRouteInput(
   const command = route.command?.trim() ?? "";
   return {
     provider: route.provider,
+    ...(route.session_env ? { session_env: structuredClone(route.session_env) } : {}),
     model: route.model,
     ...(reasoningEffort.length > 0 ? { reasoning_effort: reasoningEffort } : {}),
     ...(route.speed ? { speed: route.speed } : {}),

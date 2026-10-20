@@ -33,6 +33,7 @@ func validateAgentResourceSpec(
 		Name:            strings.TrimSpace(spec.Name),
 		Provider:        strings.TrimSpace(spec.Provider),
 		Command:         strings.TrimSpace(spec.Command),
+		SessionEnv:      MergeSessionEnv(nil, spec.SessionEnv),
 		Model:           strings.TrimSpace(spec.Model),
 		ReasoningEffort: strings.TrimSpace(spec.ReasoningEffort),
 		Tools:           normalizeAgentToolPatterns(spec.Tools),

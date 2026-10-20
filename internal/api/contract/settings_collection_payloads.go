@@ -9,6 +9,7 @@ import (
 )
 
 type SettingsProviderSettingsPayload struct {
+	SessionEnv       map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
 	SteerCapability  config.SteerCapability                  `json:"steer_capability,omitempty"`
 	Command          string                                  `json:"command,omitempty"`
 	CommandInherited bool                                    `json:"command_inherited,omitempty"`
@@ -28,6 +29,7 @@ type SettingsProviderSettingsPayload struct {
 
 // SettingsProviderWritePayload accepts auth_login_command without exposing it on reads.
 type SettingsProviderWritePayload struct {
+	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
 	SteerCapability config.SteerCapability                  `json:"steer_capability,omitempty"`
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`
@@ -87,6 +89,7 @@ type SettingsProviderFallbackPayload struct {
 }
 
 type SettingsProviderItemPayload struct {
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
 	Name             string                                    `json:"name"`
 	Settings         SettingsProviderSettingsPayload           `json:"settings"`
 	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`

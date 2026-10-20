@@ -22,8 +22,12 @@ func providerCredentialStatuses(
 	if err != nil {
 		return nil, err
 	}
+	return providerCredentialStatusItems(statuses), nil
+}
+
+func providerCredentialStatusItems(statuses []authproviders.CredentialStatus) []providerCredentialStatusItem {
 	if len(statuses) == 0 {
-		return nil, nil
+		return nil
 	}
 	items := make([]providerCredentialStatusItem, 0, len(statuses))
 	for _, status := range statuses {
@@ -37,7 +41,7 @@ func providerCredentialStatuses(
 			Source:    status.Source,
 		})
 	}
-	return items, nil
+	return items
 }
 
 func labelProviderCredentialSources(statuses []providerCredentialStatusItem, profileName string) {
@@ -103,7 +107,7 @@ func (r cliProviderVaultMetadataResolver) GetMetadata(ctx context.Context, ref s
 	}
 	service, err := vault.NewService(
 		db,
-		vault.NewFileKeyProvider(r.homePaths.HomeDir, lookupEnv),
+		compozyconfig.NewVaultKeyProvider(r.homePaths.HomeDir, lookupEnv),
 		vault.WithLookupEnv(lookupEnv),
 	)
 	if err != nil {

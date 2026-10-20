@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -170,6 +171,7 @@ func agentFallbackChainFromRecord(chain []contract.RoleFallbackStatus) []contrac
 			Speed:           route.Speed,
 			ACPOptions:      cloneAgentACPOptions(route.ACPOptions),
 			Command:         route.Command,
+			SessionEnv:      maps.Clone(route.SessionEnv),
 		})
 	}
 	return converted

@@ -1,4 +1,4 @@
 {
     "title": "Vault",
-    "pages": ["index", "delete", "get", "list", "put"]
+    "pages": ["index", "delete", "get", "list", "put", "key"]
 }

@@ -51,7 +51,8 @@ type FallbackRoute struct {
 	ACPOptions      []acp.SessionConfigOptionSelection
 	// Command is the route's explicit launch command (its account); empty inherits the
 	// provider-aware resolution. It never leaves the resolver boundary as text.
-	Command string
+	Command    string
+	SessionEnv compozyconfig.SessionEnv
 }
 
 // label names the route for humans without its command: "<provider>/<model>".
@@ -88,6 +89,7 @@ func fallbackRoutesForAgent(def compozyconfig.AgentDef) []FallbackRoute {
 			Speed:           route.Speed,
 			ACPOptions:      ACPOptionSelectionsFromConfig(route.ACPOptions),
 			Command:         strings.TrimSpace(route.Command),
+			SessionEnv:      compozyconfig.MergeSessionEnv(nil, route.SessionEnv),
 		})
 	}
 	return routes

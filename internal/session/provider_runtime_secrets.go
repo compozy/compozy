@@ -5,6 +5,7 @@ import (
 
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"strings"
 
@@ -85,9 +86,6 @@ func (m *Manager) injectProviderSecrets(
 		env:                env,
 		injectedTargetEnvs: make(map[string]struct{}),
 	}
-	if len(resolved.CredentialSlots) == 0 {
-		return bindings, nil
-	}
 	for _, slot := range resolved.CredentialSlots {
 		updated, targetEnv, cleanup, err := m.injectProviderSecret(
 			ctx,
@@ -107,6 +105,35 @@ func (m *Manager) injectProviderSecrets(
 		if cleanup != nil {
 			bindings.redactionCleanups = append(bindings.redactionCleanups, cleanup)
 		}
+	}
+	return m.injectSessionEnvironment(ctx, resolved, bindings)
+}
+
+func (m *Manager) injectSessionEnvironment(
+	ctx context.Context,
+	resolved compozyconfig.ResolvedAgent,
+	bindings providerSecretBindings,
+) (providerSecretBindings, error) {
+	values, err := authproviders.ResolveSessionEnv(ctx, resolved.SessionEnv, resolved.ProfileName, m.providerSecrets)
+	if err != nil {
+		runProviderSecretRedactions(bindings.redactionCleanups)
+		return providerSecretBindings{}, err
+	}
+	for name := range resolved.SessionEnv {
+		bindings.env = unsetSessionStartEnvKeys(bindings.env, name)
+		value, present := values[name]
+		if !present {
+			logger := m.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.WarnContext(ctx, "session_env.optional_missing", "name", name, "provider", resolved.Provider)
+			delete(bindings.injectedTargetEnvs, name)
+			continue
+		}
+		bindings.redactionCleanups = append(bindings.redactionCleanups, diagnostics.RegisterRequiredSecret(value))
+		bindings.env = setSessionStartEnvValue(bindings.env, name, value)
+		bindings.injectedTargetEnvs[name] = struct{}{}
 	}
 	return bindings, nil
 }

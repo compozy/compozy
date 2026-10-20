@@ -1,6 +1,10 @@
 package terminal
 
-import "bytes"
+import (
+	"bytes"
+
+	"github.com/compozy/compozy/internal/redact"
+)
 
 func modelFacingOutput(input []byte) []byte {
 	output := make([]byte, 0, len(input))
@@ -25,7 +29,7 @@ func modelFacingOutput(input []byte) []byte {
 		}
 		offset = wholeEnd
 	}
-	return output
+	return redact.ExactBytes(output)
 }
 
 func blockedModelOSC(content []byte) bool {

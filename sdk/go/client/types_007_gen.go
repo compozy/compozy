@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+// GoalVerdictSummary is a daemon API value.
+type GoalVerdictSummary struct {
+	Outcome        GoalVerdictOutcome  `json:"outcome"`
+	BlockingIssues []GoalBlockingIssue `json:"blocking_issues"`
+	EvidenceRef    *string             `json:"evidence_ref"`
+	EvaluatedAt    time.Time           `json:"evaluated_at"`
+}
+
+// Graph is a daemon API value.
+type Graph struct {
+	Nodes []Node `json:"nodes"`
+	Edges []Edge `json:"edges"`
+}
+
+// GridBody is a daemon API value.
+type GridBody struct {
+	Sections []GridSection `json:"sections"`
+}
+
+// GridSection is a daemon API value.
+type GridSection struct {
+	Title string     `json:"title,omitempty"`
+	Tiles []GridTile `json:"tiles"`
+}
+
 // GridTile is a daemon API value.
 type GridTile struct {
 	ID       string            `json:"id"`
@@ -408,38 +433,3 @@ type InstallExtensionSource string
 
 // InvokeStatus is a daemon API value.
 type InvokeStatus string
-
-// JobPayload is a daemon API value.
-type JobPayload struct {
-	ID           string                           `json:"id"`
-	ProfileID    string                           `json:"profile_id"`
-	ProfileName  string                           `json:"profile_name"`
-	ProfileColor string                           `json:"profile_color,omitempty"`
-	ProfileIcon  string                           `json:"profile_icon,omitempty"`
-	Scope        Scope                            `json:"scope"`
-	Name         string                           `json:"name"`
-	TargetKind   TargetKind                       `json:"target_kind"`
-	AgentName    string                           `json:"agent_name"`
-	WorkspaceID  string                           `json:"workspace_id,omitempty"`
-	Prompt       string                           `json:"prompt"`
-	Schedule     *ScheduleSpec                    `json:"schedule,omitzero"`
-	Task         *JobTaskConfig                   `json:"task,omitzero"`
-	LoopTarget   *LoopTarget                      `json:"loop_target,omitzero"`
-	Enabled      bool                             `json:"enabled"`
-	Retry        RetryConfig                      `json:"retry"`
-	FireLimit    FireLimitConfig                  `json:"fire_limit"`
-	Source       JobSource                        `json:"source"`
-	CreatedAt    time.Time                        `json:"created_at"`
-	UpdatedAt    time.Time                        `json:"updated_at"`
-	NextRun      *time.Time                       `json:"next_run,omitempty"`
-	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
-	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
-}
-
-// JobResponse is a daemon API value.
-type JobResponse struct {
-	Job JobPayload `json:"job"`
-}
-
-// JobSource is a daemon API value.
-type JobSource string

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 const MaximumOutputTailBytes = 16 * 1024
@@ -35,7 +37,7 @@ func OutputTailFromBytes(output []byte) []OutputSegment {
 	if len(output) == 0 {
 		return nil
 	}
-	return BoundedOutputTail([]OutputSegment{{Kind: OutputSegmentBytes, Text: string(output)}})
+	return BoundedOutputTail([]OutputSegment{{Kind: OutputSegmentBytes, Text: string(redact.ExactBytes(output))}})
 }
 
 func BoundedOutputTail(segments []OutputSegment) []OutputSegment {

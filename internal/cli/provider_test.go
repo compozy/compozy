@@ -411,10 +411,20 @@ func TestProviderInspectCommand(t *testing.T) {
 			}},
 		}
 		deps := newTestDeps(t, client)
+		originalGetenv := deps.getenv
+		deps.getenv = func(name string) string {
+			if name == "GH_TOKEN" {
+				return "session-env-inspection-secret-canary"
+			}
+			return originalGetenv(name)
+		}
 		deps.loadConfig = func() (compozyconfig.Config, error) {
 			cfg := compozyconfig.DefaultWithHome(mustTestHomePaths(t))
 			cfg.Providers["custom"] = compozyconfig.ProviderConfig{
-				Command:  "custom acp",
+				Command: "custom acp",
+				SessionEnv: compozyconfig.SessionEnv{
+					"GH_TOKEN": {Ref: "env:GH_TOKEN", Required: true},
+				},
 				AuthMode: compozyconfig.ProviderAuthModeBoundSecret,
 				CredentialSlots: []compozyconfig.ProviderCredentialSlot{
 					{
@@ -449,6 +459,13 @@ func TestProviderInspectCommand(t *testing.T) {
 		}
 		if len(record.Credentials) != 1 || record.Credentials[0].Source != "user (default)" {
 			t.Fatalf("Credentials = %#v, want selected-profile source labels", record.Credentials)
+		}
+		if len(record.SessionEnv) != 1 || !record.SessionEnv[0].Present || record.SessionEnv[0].Source != "env" ||
+			record.SessionEnv[0].SecretRef != "env:GH_TOKEN" {
+			t.Fatalf("SessionEnv = %#v, want reference-only presence and source", record.SessionEnv)
+		}
+		if strings.Contains(stdout, "session-env-inspection-secret-canary") {
+			t.Fatal("provider inspect leaked the declared environment value")
 		}
 	})
 }

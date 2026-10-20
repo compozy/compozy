@@ -180,7 +180,7 @@ func derivePendingRoute(
 		Index: index, Provider: route.Provider, Model: route.Model,
 		ReasoningEffort: route.ReasoningEffort, Speed: route.Speed,
 		ACPOptions:         storeOptionSelectionsFromACP(route.ACPOptions),
-		CommandFingerprint: compozyconfig.CommandFingerprint(route.Command),
+		CommandFingerprint: fallbackRouteFingerprint(route),
 	}, &route, nil
 }
 

@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// Briefing is a daemon API value.
+type Briefing struct {
+	RunID     RunID         `json:"run_id"`
+	Status    Status        `json:"status"`
+	Tone      BriefingTone  `json:"tone"`
+	Headline  string        `json:"headline"`
+	Detail    string        `json:"detail,omitempty"`
+	Blockers  []Blocker     `json:"blockers"`
+	Outcome   *RunOutcome   `json:"outcome,omitzero"`
+	Artifacts []RunArtifact `json:"artifacts"`
+	Progress  StepProgress  `json:"progress"`
+	Usage     RunUsage      `json:"usage"`
+}
+
+// BriefingTone is a daemon API value.
+type BriefingTone string
+
 // Budget is a daemon API value.
 type Budget struct {
 	Tokens       int32          `json:"tokens"`
@@ -425,22 +442,3 @@ type Contract struct {
 	OnStalled        []EffectSpec       `json:"on_stalled,omitempty"`
 	OnCanceled       []EffectSpec       `json:"on_canceled,omitempty"`
 }
-
-// CoordinatorConfigPayload is a daemon API value.
-type CoordinatorConfigPayload struct {
-	Enabled                       bool                    `json:"enabled"`
-	AgentName                     string                  `json:"agent_name"`
-	Provider                      string                  `json:"provider,omitempty"`
-	Model                         string                  `json:"model,omitempty"`
-	DefaultTTLSeconds             int64                   `json:"default_ttl_seconds"`
-	MaxChildren                   int                     `json:"max_children"`
-	MaxActiveSessionsPerWorkspace int                     `json:"max_active_sessions_per_workspace"`
-	Source                        CoordinatorConfigSource `json:"source"`
-	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
-}
-
-// CoordinatorConfigSource is a daemon API value.
-type CoordinatorConfigSource string
-
-// CoordinatorMode is a daemon API value.
-type CoordinatorMode string

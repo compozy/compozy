@@ -4819,6 +4819,9 @@ display_name = "GPT-5 Mini"
 	secret_ref = "env:CUSTOM_API_KEY"
 	kind = "api_key"
 	required = true
+	[providers.custom.session_env]
+	GH_TOKEN = "vault:providers/custom/github"
+	SSH_AUTH_SOCK = { ref = "env:SSH_AUTH_SOCK", required = false }
 
 [[hooks.declarations]]
 name = "ship"
@@ -4851,7 +4854,15 @@ event = "session.post_create"
 command = "/bin/workspace-profile-ship"
 `)
 
+	secretStore := newFakeProviderSecretStore()
+	secretStore.metadata["vault:providers/custom/github"] = vault.Metadata{
+		Ref: "vault:providers/custom/github", Present: true,
+	}
+	secretStore.resolveErrors["vault:providers/custom/github"] = errors.New(
+		"plaintext must not be resolved by inspection",
+	)
 	service := testService(t, homePaths, Dependencies{
+		ProviderSecrets: secretStore,
 		ModelCatalog: &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
 			"codex": {
 				{ProviderID: "codex", ModelID: "gpt-5", DisplayName: "GPT-5", Curated: true},
@@ -4915,6 +4926,16 @@ command = "/bin/workspace-profile-ship"
 	}
 	if len(custom.Credentials) != 1 || custom.Credentials[0].Present {
 		t.Fatalf("custom credentials = %#v, want one missing credential status", custom.Credentials)
+	}
+	if len(custom.SessionEnvStatus) != 2 {
+		t.Fatalf("session environment statuses = %#v, want two declarations", custom.SessionEnvStatus)
+	}
+	github, socket := custom.SessionEnvStatus[0], custom.SessionEnvStatus[1]
+	if github.Name != "GH_TOKEN" || !github.Present || !github.Required || github.Source != "vault" {
+		t.Fatalf("GitHub declaration status = %#v, want present required Vault reference", github)
+	}
+	if socket.Name != "SSH_AUTH_SOCK" || socket.Present || socket.Required || socket.Source != "env" {
+		t.Fatalf("socket declaration status = %#v, want missing optional environment reference", socket)
 	}
 	claude := mustFindProviderItem(t, providers.Providers, "claude")
 	if got, want := claude.SourceMetadata.EffectiveSource.Kind, SourceKindBuiltinProvider; got != want {
@@ -4985,7 +5006,10 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		Collection: CollectionProviders,
 		Name:       "custom",
 		Provider: &ProviderSettings{
-			Command:   "custom-acp --stdio",
+			Command: "custom-acp --stdio",
+			SessionEnv: compozyconfig.SessionEnv{
+				"SSH_AUTH_SOCK": {Ref: "env:SSH_AUTH_SOCK", Required: false},
+			},
 			ModelsSet: true,
 			Models: compozyconfig.ProviderModelsConfig{
 				Default: "custom-model",
@@ -5029,6 +5053,33 @@ func TestCollectionMutationsProviderAndHook(t *testing.T) {
 		!strings.Contains(configPayload, `id = "custom-model"`) ||
 		!strings.Contains(configPayload, `reasoning_efforts = ["low", "high"]`) {
 		t.Fatalf("config payload missing provider overlay:\n%s", configPayload)
+	}
+	if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		Collection: CollectionProviders, Name: "custom",
+		Provider: &ProviderSettings{Command: "custom-acp --stdio", DisplayName: "Renamed provider"},
+	}); err != nil {
+		t.Fatalf("update provider without session_env: %v", err)
+	}
+	afterRename, err := compozyconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if binding := afterRename.Providers["custom"].SessionEnv["SSH_AUTH_SOCK"]; binding.Ref != "env:SSH_AUTH_SOCK" ||
+		binding.Required {
+		t.Fatalf("partial provider update lost optional session environment: %#v", binding)
+	}
+	if _, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		Collection: CollectionProviders, Name: "custom",
+		Provider: &ProviderSettings{Command: "custom-acp --stdio", SessionEnv: compozyconfig.SessionEnv{}},
+	}); err != nil {
+		t.Fatalf("clear provider session_env: %v", err)
+	}
+	afterClear, err := compozyconfig.LoadForHome(homePaths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterClear.Providers["custom"].SessionEnv) != 0 {
+		t.Fatal("explicit empty session_env did not remove declarations")
 	}
 	emptyCuratedResult, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
 		Collection: CollectionProviders,

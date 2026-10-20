@@ -44,6 +44,19 @@ export function AgentConfigurationTab({ agent, onEditSection }: AgentConfigurati
             </span>
           </ConfigRow>
           <ConfigRow label="Permissions">{permissionLabel(agent.permissions)}</ConfigRow>
+          {agent.effective_runtime?.session_env_status?.map(binding => (
+            <ConfigRow key={binding.name} label={binding.name}>
+              <span className="font-mono">{binding.secret_ref}</span>
+              <span className="text-muted">
+                {" · "}
+                {binding.source}
+                {" · "}
+                {binding.present ? "Present" : "Missing"}
+                {" · "}
+                {binding.required ? "Required" : "Optional"}
+              </span>
+            </ConfigRow>
+          ))}
         </MetadataList>
       </Panel>
 

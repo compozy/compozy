@@ -24,6 +24,50 @@ import (
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 	t.Parallel()
+	t.Run("Should persist reference-only session environment declarations", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		path := "providers.claude.session_env.GH_TOKEN"
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"config",
+			"set",
+			path,
+			"env:DECLARED_TOKEN",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("set declaration: %v", err)
+		}
+		if _, _, err := executeRootCommand(t, deps, "config", "set", "providers.claude.session_env.SSH_AUTH_SOCK",
+			`{"ref":"env:SSH_AUTH_SOCK","required":false}`, "-o", "json"); err != nil {
+			t.Fatalf("set optional socket: %v", err)
+		}
+		home, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := compozyconfig.LoadGlobalConfig(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		env := cfg.Providers["claude"].SessionEnv
+		if env["SSH_AUTH_SOCK"].Ref != "env:SSH_AUTH_SOCK" {
+			t.Fatal("optional socket declaration was not persisted")
+		}
+		if env["GH_TOKEN"].Ref != "env:DECLARED_TOKEN" || !env["GH_TOKEN"].Required || env["SSH_AUTH_SOCK"].Required {
+			t.Fatalf("persisted declarations: %#v", env)
+		}
+		const literal = "private-literal-canary"
+		out, stderr, err := executeRootCommand(t, deps, "config", "set", path, literal, "-o", "json")
+		if err == nil {
+			t.Fatal("literal accepted")
+		}
+		if strings.Contains(out+stderr+err.Error(), literal) {
+			t.Fatal("rejected literal leaked in diagnostic")
+		}
+	})
 	t.Run("Should mutate validate and inspect a temporary home [IT-016]", func(t *testing.T) {
 		t.Parallel()
 

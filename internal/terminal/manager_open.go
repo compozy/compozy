@@ -230,6 +230,7 @@ func (m *Service) removeInserted(key terminalKey, expected *session) {
 	defer m.mu.Unlock()
 	if m.terminals[key] == expected {
 		delete(m.terminals, key)
+		expected.releaseEnvironment()
 	}
 }
 

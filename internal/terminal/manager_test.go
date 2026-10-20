@@ -23,6 +23,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
@@ -2385,6 +2386,88 @@ func terminalExit(cause string, code *int, signal *string) terminalpty.Exit {
 func TestManagerExecShapesAndOutputContract(t *testing.T) {
 	t.Parallel()
 	actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+
+	t.Run("Should bind declared environment and retain redaction through command completion", func(t *testing.T) {
+		t.Parallel()
+		released := make(chan struct{})
+		journal := &fakeRecordingJournal{}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal), WithEnvironmentProvider(
+			func(_ context.Context, workspaceID string, owner Actor) (LaunchEnvironment, error) {
+				if workspaceID != "workspace-a" || owner != actor {
+					t.Error("environment resolved outside the terminal owner scope")
+				}
+				cleanup := redact.RegisterRequiredSecret("declared-token")
+				return LaunchEnvironment{
+					Values:  map[string]string{"GH_TOKEN": "declared-token", "SSH_AUTH_SOCK": "/tmp/test.sock"},
+					Unset:   []string{"GH_TOKEN", "SSH_AUTH_SOCK", "OPTIONAL_TOKEN"},
+					Release: func() { cleanup(); close(released) },
+				}, nil
+			},
+		))
+		finished := make(chan error, 1)
+		go func() {
+			result, err := manager.Exec(t.Context(), ExecRequest{
+				WS: "workspace-a", Command: "printf", Actor: actor,
+				Env: map[string]string{
+					"OPTIONAL_TOKEN": "stale", "optional_token": "distinct-unix-name",
+					"GH_TOKEN": "stale", "KEEP": "yes",
+				},
+			})
+			if err == nil &&
+				(strings.Contains(result.Output, "declared-token") || !strings.Contains(result.Output, "visible")) {
+				t.Error("exec output did not protect declared secret and preserve ordinary output")
+			}
+			finished <- err
+		}()
+		proc := receiveStartedProc(t, starter)
+		if proc.spec.Env["GH_TOKEN"] != "declared-token" || proc.spec.Env["SSH_AUTH_SOCK"] != "/tmp/test.sock" ||
+			proc.spec.Env["KEEP"] != "yes" {
+			t.Fatal("terminal did not apply declarations over caller environment")
+		}
+		if _, exists := proc.spec.Env["OPTIONAL_TOKEN"]; exists {
+			t.Fatal("optional target retained stale value")
+		}
+		if _, exists := proc.spec.Env["optional_token"]; exists != (runtime.GOOS != "windows") {
+			t.Fatal("declaration removal did not follow platform environment-name semantics")
+		}
+		select {
+		case <-released:
+			t.Fatal("redaction released while process active")
+		default:
+		}
+		if err := proc.emit([]byte("visible declared-token")); err != nil {
+			t.Fatal(err)
+		}
+		code := 0
+		proc.complete(terminalExit("exited", &code, nil))
+		if err := <-finished; err != nil {
+			t.Fatal(err)
+		}
+		journal.mu.Lock()
+		if len(journal.rows) != 1 ||
+			strings.Contains(RenderOutputSegments(journal.rows[0].OutputTail), "declared-token") ||
+			!strings.Contains(RenderOutputSegments(journal.rows[0].OutputTail), "visible") {
+			t.Error("journal output leaked secret or dropped ordinary output")
+		}
+		journal.mu.Unlock()
+		select {
+		case <-released:
+		case <-time.After(time.Second):
+			t.Fatal("redaction lifetime leaked after command completion")
+		}
+	})
+
+	t.Run("Should reject missing declared environment before spawning a terminal process", func(t *testing.T) {
+		t.Parallel()
+		missing := errors.New("required reference unavailable")
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithEnvironmentProvider(
+			func(context.Context, string, Actor) (LaunchEnvironment, error) { return LaunchEnvironment{}, missing },
+		))
+		_, err := manager.Exec(t.Context(), ExecRequest{WS: "workspace-a", Command: "printf", Actor: actor})
+		if !errors.Is(err, missing) || starter.starts.Load() != 0 {
+			t.Fatalf("Exec error=%v starts=%d, want refusal before spawn", err, starter.starts.Load())
+		}
+	})
 
 	t.Run(
 		"Should refuse agent exec without caller-supplied approval before spawn [UT-068][IT-008]",

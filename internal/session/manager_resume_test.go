@@ -1212,6 +1212,13 @@ func TestResumeAcceptedRouteAffinity(t *testing.T) {
 			edited.Command = "SEAT=9 claude --acp"
 			return []compozyconfig.RoleFallback{edited, codexRoute(h)}
 		}},
+		{name: "Should replay context when the accepted route session environment changed", chain: func(h *harness) []compozyconfig.RoleFallback {
+			edited := claudeSeatOneRoute(h)
+			edited.SessionEnv = compozyconfig.SessionEnv{
+				"GH_TOKEN": {Ref: "env:OTHER_ACCOUNT_TOKEN", Required: true},
+			}
+			return []compozyconfig.RoleFallback{edited, codexRoute(h)}
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

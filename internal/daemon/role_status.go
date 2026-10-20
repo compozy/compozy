@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -136,6 +137,7 @@ func roleStatusFallbacks(fallbacks []compozyconfig.RoleFallback) []contract.Role
 			Speed:           fallback.Speed,
 			ACPOptions:      roleStatusACPOptions(fallback.ACPOptions),
 			Command:         strings.TrimSpace(fallback.Command),
+			SessionEnv:      core.SessionEnvToPayload(fallback.SessionEnv),
 			CommandFingerprint: compozyconfig.CommandFingerprint(
 				strings.TrimSpace(fallback.Command),
 			),

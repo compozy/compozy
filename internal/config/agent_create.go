@@ -26,6 +26,7 @@ type AgentDefinitionDraft struct {
 	Name            string
 	Provider        string
 	Command         string
+	SessionEnv      SessionEnv
 	Model           string
 	ReasoningEffort string
 	Speed           speedpkg.Speed
@@ -81,6 +82,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		Name:            agentName,
 		Provider:        strings.TrimSpace(draft.Provider),
 		Command:         strings.TrimSpace(draft.Command),
+		SessionEnv:      MergeSessionEnv(nil, draft.SessionEnv),
 		Model:           strings.TrimSpace(draft.Model),
 		ReasoningEffort: strings.TrimSpace(draft.ReasoningEffort),
 		Tools:           trimAgentDefinitionAtoms(draft.Tools),
@@ -135,6 +137,7 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		Name:            canonical.Name,
 		Provider:        canonical.Provider,
 		Command:         canonical.Command,
+		SessionEnv:      MergeSessionEnv(nil, canonical.SessionEnv),
 		Model:           canonical.Model,
 		ReasoningEffort: canonical.ReasoningEffort,
 		Speed:           canonical.SpeedValue(),

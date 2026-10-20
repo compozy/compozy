@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"strings"
 
@@ -207,6 +208,7 @@ func createAgentPayloadFromRecord(agent AgentRecord) contract.CreateAgentPayload
 		Name:            agent.Name,
 		Provider:        agent.Provider,
 		Command:         agent.Command,
+		SessionEnv:      maps.Clone(agent.SessionEnv),
 		Model:           agent.Model,
 		ReasoningEffort: agent.ReasoningEffort,
 		Speed:           agent.Speed,

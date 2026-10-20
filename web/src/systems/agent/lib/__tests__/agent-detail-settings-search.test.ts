@@ -208,6 +208,7 @@ describe("agent-settings-draft", () => {
   // unchanged (minus read-only projection fields) even without route controls.
   it("Should carry the authored fallback chain through an unrelated settings edit", () => {
     const agent = makeAgent({
+      session_env: { GH_TOKEN: { ref: "env:GH_TOKEN", required: true } },
       fallback_chain: [
         {
           provider: "codex",
@@ -217,6 +218,7 @@ describe("agent-settings-draft", () => {
           acp_options: [{ id: "thinking", bool_value: true }],
           command: "SEAT=2 codex --acp",
           command_fingerprint: "sha256:abc",
+          session_env: { GH_TOKEN: { ref: "vault:providers/codex/github", required: true } },
         },
         { provider: "claude", model: "sonnet" },
       ],
@@ -226,6 +228,7 @@ describe("agent-settings-draft", () => {
     expect(isAgentSettingsDraftDirty(draft, agent)).toBe(false);
 
     const params = buildUpdateAgentParams({ ...draft, prompt: "Updated." }, "ws_alpha");
+    expect(params?.agent.session_env).toEqual(agent.session_env);
     expect(params?.agent.fallback_chain).toEqual([
       {
         provider: "codex",
@@ -234,6 +237,7 @@ describe("agent-settings-draft", () => {
         speed: "fast",
         acp_options: [{ id: "thinking", bool_value: true }],
         command: "SEAT=2 codex --acp",
+        session_env: { GH_TOKEN: { ref: "vault:providers/codex/github", required: true } },
       },
       { provider: "claude", model: "sonnet" },
     ]);

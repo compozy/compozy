@@ -26,7 +26,20 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		t.Parallel()
 
 		agent := AgentRecord{
-			Name:            "coder",
+			Name: "coder",
+			EffectiveRuntime: &contract.AgentEffectiveRuntimePayload{
+				Provider: "fake",
+				SessionEnvStatus: []contract.SettingsProviderCredentialStatusPayload{
+					{
+						Name:      "GH_TOKEN",
+						TargetEnv: "GH_TOKEN",
+						SecretRef: "env:GH_TOKEN",
+						Source:    "env",
+						Present:   true,
+						Required:  true,
+					},
+				},
+			},
 			Provider:        "fake",
 			Command:         "codex",
 			Model:           "gpt-5.4",
@@ -124,6 +137,9 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		if err != nil {
 			t.Fatalf("agent info human error = %v", err)
 		}
+		if !strings.Contains(human, "env:GH_TOKEN") || !strings.Contains(human, "Session Environment") {
+			t.Fatalf("agent environment metadata missing: %s", human)
+		}
 		if !strings.Contains(human, "Agent") || !strings.Contains(human, agent.Name) ||
 			!strings.Contains(human, "MCP Servers") ||
 			!strings.Contains(human, "Marketing / Sales") ||
@@ -139,6 +155,10 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		toon, _, err := executeRootCommand(t, deps, "agent", "info", agent.Name, "-o", "toon")
 		if err != nil {
 			t.Fatalf("agent info toon error = %v", err)
+		}
+		if !strings.Contains(toon, "session_env[1]{name,ref,source,present,required}") ||
+			!strings.Contains(toon, "env:GH_TOKEN") {
+			t.Fatalf("agent environment metadata missing: %s", toon)
 		}
 		if !strings.Contains(
 			toon,

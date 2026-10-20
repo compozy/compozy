@@ -19,6 +19,8 @@ import (
 func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 	trimmed := strings.TrimSpace(raw)
 	switch kind {
+	case configSetSessionEnv, configSetSessionEnvBinding:
+		return parseSessionEnvConfigValue(kind, raw)
 	case configSetString:
 		return raw, nil
 	case configSetBool:
@@ -41,24 +43,7 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 	case configSetTable:
 		return parseConfigSetTableValue(raw, trimmed)
 	case configSetScalar, configSetLoopInput:
-		value := parseLoopValue(raw)
-		normalized, err := normalizeConfigSetJSONValue(value)
-		if err != nil {
-			return nil, fmt.Errorf("cli: parse scalar value %q: %w", raw, err)
-		}
-		switch normalized.(type) {
-		case string, bool, int64, float64:
-			return normalized, nil
-		case map[string]any:
-			if kind == configSetLoopInput {
-				return normalized, nil
-			}
-		}
-		expected := "a string, boolean, or number"
-		if kind == configSetLoopInput {
-			expected += ", or object"
-		}
-		return nil, fmt.Errorf("cli: loop input default %q must be %s", raw, expected)
+		return parseConfigScalarValue(kind, raw)
 	case configSetStringOrStringSlice:
 		if strings.HasPrefix(trimmed, "[") {
 			var values []string
@@ -73,6 +58,27 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
 	}
+}
+
+func parseConfigScalarValue(kind configSetValueKind, raw string) (any, error) {
+	value := parseLoopValue(raw)
+	normalized, err := normalizeConfigSetJSONValue(value)
+	if err != nil {
+		return nil, fmt.Errorf("cli: parse scalar value %q: %w", raw, err)
+	}
+	switch normalized.(type) {
+	case string, bool, int64, float64:
+		return normalized, nil
+	case map[string]any:
+		if kind == configSetLoopInput {
+			return normalized, nil
+		}
+	}
+	expected := "a string, boolean, or number"
+	if kind == configSetLoopInput {
+		expected += ", or object"
+	}
+	return nil, fmt.Errorf("cli: loop input default %q must be %s", raw, expected)
 }
 
 func parseConfigSetACPOptions(raw string, trimmed string) (any, error) {

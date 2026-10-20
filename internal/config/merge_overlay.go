@@ -1,6 +1,7 @@
 package config
 
 type configOverlay struct {
+	Vault         *VaultConfig               `toml:"vault"`
 	Subagents     subagentsOverlay           `toml:"subagents"`
 	Daemon        daemonOverlay              `toml:"daemon"`
 	HTTP          httpOverlay                `toml:"http"`
@@ -38,6 +39,9 @@ type configOverlay struct {
 }
 
 func (o *configOverlay) Apply(dst *Config) error {
+	if o.Vault != nil {
+		dst.Vault = *o.Vault
+	}
 	o.Subagents.Apply(&dst.Subagents)
 	o.Daemon.Apply(&dst.Daemon)
 	o.HTTP.Apply(&dst.HTTP)

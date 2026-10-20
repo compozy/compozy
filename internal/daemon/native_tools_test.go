@@ -4729,6 +4729,37 @@ func TestDaemonNativeTools(t *testing.T) {
 		if cfg.Defaults.Agent != "planner" {
 			t.Fatalf("Defaults.Agent = %q, want planner", cfg.Defaults.Agent)
 		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDConfigSet,
+			Input: json.RawMessage(
+				`{"path":"providers.codex.session_env","value":{"GH_TOKEN":"env:DECLARED_TOKEN","SSH_AUTH_SOCK":{"ref":"env:SSH_AUTH_SOCK","required":false}}}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("config_set session_env: %v", err)
+		}
+		cfg, err = compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		declarations := cfg.Providers["codex"].SessionEnv
+		if declarations["SSH_AUTH_SOCK"].Ref != "env:SSH_AUTH_SOCK" {
+			t.Fatal("optional socket declaration was not persisted")
+		}
+		if declarations["GH_TOKEN"].Ref != "env:DECLARED_TOKEN" || !declarations["GH_TOKEN"].Required ||
+			declarations["SSH_AUTH_SOCK"].Required {
+			t.Fatalf("persisted declarations: %#v", declarations)
+		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDConfigSet,
+			Input:  json.RawMessage(`{"path":"providers.codex.session_env.GH_TOKEN","value":"private-literal-canary"}`),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("literal declaration error = %v, want invalid input", err)
+		}
+		if strings.Contains(err.Error(), "private-literal-canary") {
+			t.Fatal("literal leaked in diagnostic")
+		}
 
 		loopInputPath := "loops.inputs.review-and-fix.auto_commit"
 		_, err = registry.Call(

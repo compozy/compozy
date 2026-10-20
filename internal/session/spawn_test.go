@@ -1018,8 +1018,22 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 		isolatedHome     bool
 		isolatedEnv      bool
 		foreignWorkspace bool
+		parentEnv        compozyconfig.SessionEnv
+		childEnv         compozyconfig.SessionEnv
+		wantToken        string
 	}{
 		{name: "Should inherit the resolved creator command for the same provider", childProvider: "claude", want: "account-b"},
+		{
+			name:          "Should inherit the creator environment together with its account command",
+			childProvider: "claude", want: "account-b", wantToken: "parent-account-token",
+			parentEnv: compozyconfig.SessionEnv{"GH_TOKEN": {Ref: "env:PARENT_TOKEN", Required: true}},
+		},
+		{
+			name:          "Should preserve an explicitly declared child environment instead of inheriting the creator account",
+			childProvider: "claude", want: "account-a", wantToken: "child-account-token",
+			parentEnv: compozyconfig.SessionEnv{"GH_TOKEN": {Ref: "env:PARENT_TOKEN", Required: true}},
+			childEnv:  compozyconfig.SessionEnv{"GH_TOKEN": {Ref: "env:CHILD_TOKEN", Required: true}},
+		},
 		{name: "Should preserve an explicit child command", childProvider: "claude", childCommand: "account-c", want: "account-c"},
 		{name: "Should preserve inheritance with an explicit same provider selection", childProvider: "claude", override: "claude", want: "account-b"},
 		{name: "Should use the selected different provider command", childProvider: "claude", override: "codex", want: "test-acp-driver"},
@@ -1034,7 +1048,9 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			h := newHarness(t)
+			h := newHarness(t, WithProviderSecretResolver(fakeProviderSecretResolver{values: map[string]string{
+				"env:PARENT_TOKEN": "parent-account-token", "env:CHILD_TOKEN": "child-account-token",
+			}}))
 			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
 			if err != nil {
 				t.Fatal(err)
@@ -1045,16 +1061,18 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 			workspace.Agents = append(
 				workspace.Agents,
 				compozyconfig.AgentDef{
-					Name:     "parent",
-					Provider: "claude",
-					Command:  "account-b",
-					Prompt:   "Delegate work.",
+					Name:       "parent",
+					SessionEnv: tt.parentEnv,
+					Provider:   "claude",
+					Command:    "account-b",
+					Prompt:     "Delegate work.",
 				},
 				compozyconfig.AgentDef{
-					Name:     "child",
-					Provider: tt.childProvider,
-					Command:  tt.childCommand,
-					Prompt:   "Review work.",
+					Name:       "child",
+					SessionEnv: tt.childEnv,
+					Provider:   tt.childProvider,
+					Command:    tt.childCommand,
+					Prompt:     "Review work.",
 				},
 			)
 			h.resolver.upsert(&workspace)
@@ -1095,6 +1113,9 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 			cleanupSessionStop(t, h, child.ID)
 			if got := h.driver.startCalls[1].Command; got != tt.want {
 				t.Fatalf("spawn command = %q, want %q", got, tt.want)
+			}
+			if got := envValue(h.driver.startCalls[1].Env, "GH_TOKEN"); got != tt.wantToken {
+				t.Fatalf("spawn token = %q, want declared account token", got)
 			}
 		})
 	}

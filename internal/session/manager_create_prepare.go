@@ -58,6 +58,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		provider:                 strings.TrimSpace(opts.Provider),
 		model:                    strings.TrimSpace(opts.Model),
 		command:                  strings.TrimSpace(opts.Command),
+		sessionEnv:               compozyconfig.MergeSessionEnv(nil, opts.SessionEnv),
 		chainOwner:               opts.ChainOwner,
 		reasoningEffort:          strings.TrimSpace(opts.ReasoningEffort),
 		speed:                    requestedSpeed,

@@ -112,6 +112,15 @@ const acpOptionSelectionInputSchema = `{
 	]
 }`
 
+const sessionEnvInputSchema = `{
+	"type":"object",
+	"additionalProperties":{
+		"type":"object","required":["ref","required"],
+		"properties":{"ref":{"type":"string","pattern":"^(env:|vault:)"},"required":{"type":"boolean"}},
+		"additionalProperties":false
+	}
+}`
+
 var agentCreateInputSchema = `{
 	"type":"object",
 	"required":["scope","name","prompt"],
@@ -125,6 +134,7 @@ var agentCreateInputSchema = `{
 		"speed":{"type":"string","enum":["normal","fast"]},
 		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
 		"command":{"type":"string"},
+		"session_env":` + sessionEnvInputSchema + `,
 		"prompt":{"type":"string"},
 		"permissions":{"type":"string","enum":["deny-all","approve-reads","approve-all"]},
 		"tools":{"type":"array","items":{"type":"string"}},
@@ -146,7 +156,8 @@ var agentFallbackRouteInputSchema = `{
 		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
 		"speed":{"type":"string","enum":["normal","fast"]},
 		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
-		"command":{"type":"string"}
+		"command":{"type":"string"},
+		"session_env":` + sessionEnvInputSchema + `
 	},
 	"additionalProperties":false
 }`

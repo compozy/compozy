@@ -116,6 +116,9 @@ func roleFallbackTables(fallbacks []compozyconfig.RoleFallback) []map[string]any
 		if command := strings.TrimSpace(fallback.Command); command != "" {
 			table["command"] = command
 		}
+		if fallback.SessionEnv != nil {
+			table["session_env"] = sessionEnvSettingsMap(fallback.SessionEnv)
+		}
 		tables = append(tables, table)
 	}
 	return tables

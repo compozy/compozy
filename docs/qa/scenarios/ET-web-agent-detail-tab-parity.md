@@ -51,3 +51,12 @@ untested; not walked.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-19 (issue #828): Configuration shows effective `session_env` references with
+source, presence, and required/optional metadata. In an isolated workspace, declare an optional
+missing environment reference and a Vault reference on an agent and its fallback route. Verify
+that Configuration displays metadata without secret values or an editable secret field. Change
+only the prompt in Settings, save, and reread the definition: both environment maps must survive.
+Compare the metadata with `agent show -o json` in the same workspace/profile. Live replay and
+rendered evidence remain pending; focused projection and edit-preservation tests are not a pass
+for this scenario.

@@ -54,6 +54,7 @@ func parsePutSettingsProviderRequest(c *gin.Context) (settingspkg.CollectionItem
 		AuthACPMethod:    trimmedOptionalString(body.Settings.AuthACPMethod),
 		AuthACPMethodSet: body.Settings.AuthACPMethod != nil,
 		CredentialSlots:  providerCredentialSlotsFromPayload(body.Settings.CredentialSlots),
+		SessionEnv:       sessionEnvFromPayload(body.Settings.SessionEnv),
 	}
 	return settingspkg.CollectionItemPutRequest{
 		CollectionRequest:     req,
@@ -110,7 +111,7 @@ func providerSettingsPayloadEmpty(payload contract.SettingsProviderWritePayload)
 		strings.TrimSpace(payload.AuthStatusCmd) == "" &&
 		payload.AuthLoginCmd == nil &&
 		payload.AuthACPMethod == nil &&
-		len(payload.CredentialSlots) == 0
+		len(payload.CredentialSlots) == 0 && payload.SessionEnv == nil
 }
 
 func trimmedOptionalString(value *string) string {

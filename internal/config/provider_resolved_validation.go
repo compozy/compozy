@@ -66,7 +66,7 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 		}
 	}
 
-	return nil
+	return provider.SessionEnv.Validate("providers." + name + ".session_env")
 }
 
 func validateProviderAuthSlots(name string, provider ProviderConfig) ([]ProviderCredentialSlot, error) {

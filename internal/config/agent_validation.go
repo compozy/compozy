@@ -11,6 +11,9 @@ import (
 
 // Validate ensures the parsed agent definition is usable.
 func (a AgentDef) Validate() error {
+	if err := a.SessionEnv.Validate("agent.session_env"); err != nil {
+		return err
+	}
 	switch {
 	case NormalizeAgentName(a.Name) == "":
 		return errors.New("agent name is required")

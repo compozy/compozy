@@ -13,7 +13,7 @@ var blockedEnvironmentPrefixes = []string{
 	"ITERM_", "KITTY_", "TERM_PROGRAM", "TERM_SESSION_ID", "WEZTERM_", "WT_SESSION",
 }
 
-func environment(overrides map[string]string) []string {
+func environment(overrides map[string]string, unsetGroups ...[]string) []string {
 	type environmentValue struct {
 		key   string
 		value string
@@ -25,6 +25,11 @@ func environment(overrides map[string]string) []string {
 			continue
 		}
 		values[environmentIdentity(key)] = environmentValue{key: key, value: value}
+	}
+	for _, names := range unsetGroups {
+		for _, name := range names {
+			delete(values, environmentIdentity(name))
+		}
 	}
 	for key, value := range overrides {
 		if blockedEnvironmentKey(key) {

@@ -141,7 +141,7 @@ func (s *service) preserveProviderOptionalFields(
 ) (ProviderSettings, error) {
 	if (settings.AuthLoginCmdSet || strings.TrimSpace(settings.AuthLoginCmd) != "") &&
 		(settings.AuthACPMethodSet || strings.TrimSpace(settings.AuthACPMethod) != "") &&
-		settings.SteerCapability != "" {
+		settings.SteerCapability != "" && settings.SessionEnv != nil {
 		return settings, nil
 	}
 	cfg, _, err := s.loadConfig(ctx, ScopeUser, "", "")
@@ -160,6 +160,9 @@ func (s *service) preserveProviderOptionalFields(
 	}
 	if settings.SteerCapability == "" {
 		settings.SteerCapability = provider.SteerCapability
+	}
+	if settings.SessionEnv == nil {
+		settings.SessionEnv = compozyconfig.MergeSessionEnv(nil, provider.SessionEnv)
 	}
 	return settings, nil
 }
@@ -233,6 +236,7 @@ func providerConfigFromSettings(settings ProviderSettings) compozyconfig.Provide
 		AuthLoginCmd:    strings.TrimSpace(settings.AuthLoginCmd),
 		AuthACPMethod:   strings.TrimSpace(settings.AuthACPMethod),
 		CredentialSlots: providerCredentialSlotsFromSettings(settings.CredentialSlots),
+		SessionEnv:      compozyconfig.MergeSessionEnv(nil, settings.SessionEnv),
 	}
 }
 

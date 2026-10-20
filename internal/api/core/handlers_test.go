@@ -3088,7 +3088,11 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		body := mustJSON(t, contract.CreateAgentRequest{
 			Scope: contract.AgentCreateScopeGlobal,
 			Agent: contract.CreateAgentPayload{
-				Name:            "pricing_strategist",
+				Name: "pricing_strategist",
+				SessionEnv: map[string]contract.SessionEnvBindingPayload{
+					"GH_TOKEN":      {Ref: "env:GH_TOKEN", Required: true},
+					"SSH_AUTH_SOCK": {Ref: "env:SSH_AUTH_SOCK", Required: false},
+				},
 				Provider:        "claude",
 				Model:           "claude-sonnet-5",
 				ReasoningEffort: "max",
@@ -3120,6 +3124,10 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			len(payload.Agent.ACPOptions) != 2 {
 			t.Fatalf("created agent payload = %#v, want pricing strategist", payload.Agent)
 		}
+		if payload.Agent.SessionEnv["GH_TOKEN"].Ref != "env:GH_TOKEN" ||
+			!payload.Agent.SessionEnv["GH_TOKEN"].Required || payload.Agent.SessionEnv["SSH_AUTH_SOCK"].Required {
+			t.Fatal("agent response lost reference-only session environment declarations")
+		}
 		path := filepath.Join(
 			fixture.HomePaths.AgentsDir,
 			"pricing_strategist",
@@ -3137,6 +3145,10 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
 		}
 		loadedOptions := loaded.ACPOptionsValue()
+		if loaded.SessionEnv["GH_TOKEN"].Ref != "env:GH_TOKEN" ||
+			!loaded.SessionEnv["GH_TOKEN"].Required || loaded.SessionEnv["SSH_AUTH_SOCK"].Required {
+			t.Fatal("persisted agent lost session environment declarations")
+		}
 		if loaded.Permissions != string(contract.SettingsPermissionModeApproveReads) ||
 			loaded.ReasoningEffort != "max" || loaded.SpeedValue() != contract.SpeedFast || len(loadedOptions) != 2 ||
 			loadedOptions[0].ID != "context" || loadedOptions[0].ValueID != "1m" ||
@@ -4756,7 +4768,10 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						ID: "registry-ws-1", Name: workspaceRef, RootDir: "/workspace",
 						WorkspaceID: "ws-1",
 						Agents: []compozyconfig.AgentDef{
-							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
+							{Name: "founder", Provider: "codex", Prompt: "Lead the startup.",
+								SessionEnv: compozyconfig.SessionEnv{
+									"GH_TOKEN": {Ref: "env:COMPOZY_TEST_UNSET_AGENT_STATUS_828", Required: false},
+								}},
 							{Name: "onboarding", Provider: "codex", Prompt: "Operator onboarding."},
 							{Name: "qa", Provider: "codex", Prompt: "Stress test the release."},
 						},
@@ -4835,6 +4850,13 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		if got.Agent.Name != "founder" || got.Agent.Provider != "codex" ||
 			got.Agent.Origin != contract.AgentOriginWorkspace || got.Agent.WorkspaceID != "registry-ws-1" {
 			t.Fatalf("get workspace agent = %#v, want founder/codex", got.Agent)
+		}
+		if got.Agent.EffectiveRuntime == nil || len(got.Agent.EffectiveRuntime.SessionEnvStatus) != 1 {
+			t.Fatalf("missing environment metadata: %#v", got.Agent.EffectiveRuntime)
+		}
+		status := got.Agent.EffectiveRuntime.SessionEnvStatus[0]
+		if status.Name != "GH_TOKEN" || status.Source != "env" || status.Present || status.Required {
+			t.Fatalf("optional absent environment metadata: %#v", status)
 		}
 
 		catalogResp := performRequest(

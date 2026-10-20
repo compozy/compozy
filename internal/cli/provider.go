@@ -39,6 +39,7 @@ type providerAuthCommandSpec = authproviders.ProviderAuthCommandSpec
 type providerAuthCommandResult = authproviders.ProviderAuthCommandResult
 
 type providerAuthStatusRecord struct {
+	SessionEnv    []providerCredentialStatusItem        `json:"session_env,omitempty"`
 	Provider      string                                `json:"provider"`
 	DisplayName   string                                `json:"display_name,omitempty"`
 	AuthMode      string                                `json:"auth_mode"`

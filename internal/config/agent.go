@@ -19,11 +19,12 @@ var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	Name                  string `json:"name"                       yaml:"name"                       toml:"name"`
-	Provider              string `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
-	Command               string `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
-	Model                 string `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
-	ReasoningEffort       string `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	SessionEnv            SessionEnv `json:"session_env,omitempty"      yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
+	Name                  string     `json:"name"                       yaml:"name"                       toml:"name"`
+	Provider              string     `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
+	Command               string     `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
+	Model                 string     `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
+	ReasoningEffort       string     `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
 	*AgentRuntimeDefaults ` yaml:",inline" toml:",inline"`
 	Tools                 []string             `json:"tools,omitempty"            yaml:"tools,omitempty"            toml:"tools,omitempty"`
 	Toolsets              []string             `json:"toolsets,omitempty"         yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
@@ -48,6 +49,7 @@ type AgentDefinitionRef struct {
 }
 
 type parsedAgentDef struct {
+	SessionEnv      SessionEnv              `yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
 	Name            string                  `yaml:"name"                       toml:"name"`
 	Provider        string                  `yaml:"provider"                   toml:"provider"`
 	Command         string                  `yaml:"command,omitempty"          toml:"command,omitempty"`
@@ -301,6 +303,7 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 	}
 
 	agent := AgentDef{
+		SessionEnv:      MergeSessionEnv(nil, parsed.SessionEnv),
 		Name:            strings.TrimSpace(parsed.Name),
 		Provider:        strings.TrimSpace(parsed.Provider),
 		Command:         strings.TrimSpace(parsed.Command),

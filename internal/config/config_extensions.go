@@ -41,6 +41,7 @@ type ExtensionsResourceRateLimitConfig struct {
 
 // Config is the fully merged Compozy configuration.
 type Config struct {
+	Vault         VaultConfig               `toml:"vault"`
 	Subagents     SubagentsConfig           `toml:"subagents"`
 	Daemon        DaemonConfig              `toml:"daemon"`
 	HTTP          HTTPConfig                `toml:"http"`

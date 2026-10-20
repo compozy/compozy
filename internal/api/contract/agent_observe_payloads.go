@@ -27,19 +27,20 @@ type CreateAgentRequest struct {
 
 // CreateAgentPayload captures the simple AGENT.md fields supported by v1 authoring.
 type CreateAgentPayload struct {
-	Name            string                    `json:"name"`
-	Provider        string                    `json:"provider,omitempty"`
-	Command         string                    `json:"command,omitempty"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	Tools           []string                  `json:"tools,omitempty"`
-	Toolsets        []string                  `json:"toolsets,omitempty"`
-	DenyTools       []string                  `json:"deny_tools,omitempty"`
-	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
-	CategoryPath    []string                  `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig  `json:"skills,omitzero"`
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Name            string                              `json:"name"`
+	Provider        string                              `json:"provider,omitempty"`
+	Command         string                              `json:"command,omitempty"`
+	Model           string                              `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort                     `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools           []string                            `json:"tools,omitempty"`
+	Toolsets        []string                            `json:"toolsets,omitempty"`
+	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath    []string                            `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
 	// FallbackChain declares ordered pre-acceptance routes; omitted keeps no chain on
 	// create and replaces the whole chain on update.
 	FallbackChain []AgentFallbackRoutePayload `json:"fallback_chain,omitempty"`
@@ -48,12 +49,13 @@ type CreateAgentPayload struct {
 
 // AgentFallbackRoutePayload is one authored agent fallback route.
 type AgentFallbackRoutePayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model"`
-	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	Command         string                    `json:"command,omitempty"`
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider"`
+	Model           string                              `json:"model"`
+	ReasoningEffort ReasoningEffort                     `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command         string                              `json:"command,omitempty"`
 }
 
 // CreateAgentSkillsConfig captures agent-local skill policy stored in AGENT.md.

@@ -82,6 +82,10 @@ func classifyAgentMutableConfigPath(path []string) (configSetValueKind, bool, bo
 		kind = configSetLoopInput
 	case compozyconfig.ConfigValueACPOptions:
 		kind = configSetACPOptions
+	case compozyconfig.ConfigValueSessionEnv:
+		kind = configSetSessionEnv
+	case compozyconfig.ConfigValueSessionEnvBinding:
+		kind = configSetSessionEnvBinding
 	default:
 		return configSetString, false, false
 	}

@@ -27,21 +27,22 @@ type DuplicateAgentRequest struct {
 
 // DuplicateAgentOverrides captures caller-editable fields applied to a clone.
 type DuplicateAgentOverrides struct {
-	Provider        string                    `json:"provider,omitempty"`
-	Command         string                    `json:"command,omitempty"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	ClearSpeed      bool                      `json:"clear_speed,omitzero"`
-	ClearACPOptions bool                      `json:"clear_acp_options,omitzero"`
-	Tools           []string                  `json:"tools,omitempty"`
-	Toolsets        []string                  `json:"toolsets,omitempty"`
-	DenyTools       []string                  `json:"deny_tools,omitempty"`
-	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
-	CategoryPath    []string                  `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig  `json:"skills,omitzero"`
-	Prompt          string                    `json:"prompt,omitempty"`
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider,omitempty"`
+	Command         string                              `json:"command,omitempty"`
+	Model           string                              `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort                     `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	ClearSpeed      bool                                `json:"clear_speed,omitzero"`
+	ClearACPOptions bool                                `json:"clear_acp_options,omitzero"`
+	Tools           []string                            `json:"tools,omitempty"`
+	Toolsets        []string                            `json:"toolsets,omitempty"`
+	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath    []string                            `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	Prompt          string                              `json:"prompt,omitempty"`
 }
 
 // DeleteAgentResponse reports the effective definition removed from disk.
@@ -73,12 +74,14 @@ type AgentEffectiveRuntimeSources struct {
 // AgentEffectiveRuntimePayload is the workspace-scoped runtime projection for
 // one authored agent definition.
 type AgentEffectiveRuntimePayload struct {
-	Provider        string                       `json:"provider"`
-	Model           string                       `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort              `json:"reasoning_effort,omitempty"`
-	Speed           Speed                        `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection    `json:"acp_options,omitempty"`
-	Sources         AgentEffectiveRuntimeSources `json:"sources"`
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	SessionEnv       map[string]SessionEnvBindingPayload       `json:"session_env,omitempty"`
+	Provider         string                                    `json:"provider"`
+	Model            string                                    `json:"model,omitempty"`
+	ReasoningEffort  ReasoningEffort                           `json:"reasoning_effort,omitempty"`
+	Speed            Speed                                     `json:"speed,omitempty"`
+	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	Sources          AgentEffectiveRuntimeSources              `json:"sources"`
 }
 
 // AgentDefinitionShadowPayload reports one lower-precedence authored definition.
@@ -89,27 +92,28 @@ type AgentDefinitionShadowPayload struct {
 
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
-	Name             string                         `json:"name"`
-	Provider         string                         `json:"provider"`
-	Command          string                         `json:"command,omitempty"`
-	Model            string                         `json:"model,omitempty"`
-	ReasoningEffort  ReasoningEffort                `json:"reasoning_effort,omitempty"`
-	Speed            Speed                          `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection      `json:"acp_options,omitempty"`
-	Tools            []string                       `json:"tools,omitempty"`
-	Toolsets         []string                       `json:"toolsets,omitempty"`
-	DenyTools        []string                       `json:"deny_tools,omitempty"`
-	Permissions      string                         `json:"permissions,omitempty"`
-	CategoryPath     []string                       `json:"category_path,omitempty"`
-	MCPServers       []AgentMCPServerJSON           `json:"mcp_servers,omitempty"`
-	Origin           AgentOrigin                    `json:"origin"`
-	WorkspaceID      string                         `json:"workspace_id,omitempty"`
-	Layer            string                         `json:"layer,omitempty"`
-	Shadows          []AgentDefinitionShadowPayload `json:"shadows,omitempty"`
-	Skills           *CreateAgentSkillsConfig       `json:"skills,omitzero"`
-	FallbackChain    []RoleFallbackStatus           `json:"fallback_chain,omitempty"`
-	DefinitionDigest string                         `json:"definition_digest"`
-	Prompt           string                         `json:"prompt"`
-	Diagnostics      []AgentDiagnosticPayload       `json:"diagnostics,omitempty"`
-	EffectiveRuntime *AgentEffectiveRuntimePayload  `json:"effective_runtime,omitzero"`
+	SessionEnv       map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Name             string                              `json:"name"`
+	Provider         string                              `json:"provider"`
+	Command          string                              `json:"command,omitempty"`
+	Model            string                              `json:"model,omitempty"`
+	ReasoningEffort  ReasoningEffort                     `json:"reasoning_effort,omitempty"`
+	Speed            Speed                               `json:"speed,omitempty"`
+	ACPOptions       []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools            []string                            `json:"tools,omitempty"`
+	Toolsets         []string                            `json:"toolsets,omitempty"`
+	DenyTools        []string                            `json:"deny_tools,omitempty"`
+	Permissions      string                              `json:"permissions,omitempty"`
+	CategoryPath     []string                            `json:"category_path,omitempty"`
+	MCPServers       []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`
+	Origin           AgentOrigin                         `json:"origin"`
+	WorkspaceID      string                              `json:"workspace_id,omitempty"`
+	Layer            string                              `json:"layer,omitempty"`
+	Shadows          []AgentDefinitionShadowPayload      `json:"shadows,omitempty"`
+	Skills           *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	FallbackChain    []RoleFallbackStatus                `json:"fallback_chain,omitempty"`
+	DefinitionDigest string                              `json:"definition_digest"`
+	Prompt           string                              `json:"prompt"`
+	Diagnostics      []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
+	EffectiveRuntime *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
 }

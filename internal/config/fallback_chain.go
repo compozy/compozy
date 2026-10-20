@@ -35,6 +35,9 @@ func validateFallbackChain(
 }
 
 func validateFallbackRoute(fallbackPath string, fallback RoleFallback) error {
+	if err := fallback.SessionEnv.Validate(fallbackPath + ".session_env"); err != nil {
+		return err
+	}
 	if strings.TrimSpace(fallback.Provider) == "" {
 		return fmt.Errorf("%s.provider is required", fallbackPath)
 	}
@@ -99,6 +102,7 @@ func normalizeRoleFallbacks(source []RoleFallback) []RoleFallback {
 	normalized := make([]RoleFallback, len(source))
 	for index, fallback := range source {
 		normalized[index] = RoleFallback{
+			SessionEnv:      MergeSessionEnv(nil, fallback.SessionEnv),
 			Provider:        strings.TrimSpace(fallback.Provider),
 			Model:           strings.TrimSpace(fallback.Model),
 			ReasoningEffort: strings.TrimSpace(fallback.ReasoningEffort),

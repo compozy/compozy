@@ -15,6 +15,7 @@ import (
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -60,6 +61,7 @@ type installWizardRunner func(context.Context, installWizardInput) (installWizar
 type mcpServeRunner func(context.Context, mcpServeOptions) error
 
 type commandDeps struct {
+	vaultKeyring                vault.Keyring
 	commandContext              func() context.Context
 	loadConfig                  func() (compozyconfig.Config, error)
 	resolveHome                 func() (compozyconfig.HomePaths, error)

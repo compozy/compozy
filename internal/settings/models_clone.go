@@ -14,6 +14,7 @@ import (
 func cloneProviderSettings(value ProviderSettings) ProviderSettings {
 	value.Models = cloneProviderModelsConfig(value.Models)
 	value.CredentialSlots = append([]compozyconfig.ProviderCredentialSlot(nil), value.CredentialSlots...)
+	value.SessionEnv = compozyconfig.MergeSessionEnv(nil, value.SessionEnv)
 	return value
 }
 
@@ -31,6 +32,7 @@ func cloneProviderItem(value *ProviderItem) ProviderItem {
 	cloned := *value
 	cloned.Settings = cloneProviderSettings(value.Settings)
 	cloned.Credentials = append([]ProviderCredentialStatus(nil), value.Credentials...)
+	cloned.SessionEnvStatus = append([]ProviderCredentialStatus(nil), value.SessionEnvStatus...)
 	cloned.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
 	if value.Fallback != nil {
 		fallback := *value.Fallback

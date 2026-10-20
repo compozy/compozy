@@ -6714,6 +6714,10 @@ export interface components {
       model?: string;
       provider: string;
       reasoning_effort?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
+      session_env_status?: components["schemas"]["SettingsProviderCredentialStatusPayload"][];
       sources: components["schemas"]["AgentEffectiveRuntimeSources"];
       /** @enum {string} */
       speed?: "normal" | "fast";
@@ -6730,6 +6734,9 @@ export interface components {
       model: string;
       provider: string;
       reasoning_effort?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       /** @enum {string} */
       speed?: "normal" | "fast";
     };
@@ -6799,6 +6806,9 @@ export interface components {
       prompt: string;
       provider: string;
       reasoning_effort?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       shadows?: components["schemas"]["AgentDefinitionShadowPayload"][];
       skills?: components["schemas"]["CreateAgentSkillsConfig"] | null;
       /** @enum {string} */
@@ -7868,6 +7878,9 @@ export interface components {
       prompt: string;
       provider?: string;
       reasoning_effort?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       skills?: components["schemas"]["CreateAgentSkillsConfig"] | null;
       /** @enum {string} */
       speed?: "normal" | "fast";
@@ -8142,6 +8155,9 @@ export interface components {
       prompt?: string;
       provider?: string;
       reasoning_effort?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       skills?: components["schemas"]["CreateAgentSkillsConfig"] | null;
       /** @enum {string} */
       speed?: "normal" | "fast";
@@ -11723,6 +11739,7 @@ export interface components {
       name: string;
       /** @enum {string} */
       runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
+      session_env_status?: components["schemas"]["SettingsProviderCredentialStatusPayload"][];
     };
     PutLoopAnnotationsRequest: {
       annotations: components["schemas"]["LoopAnnotationPayload"][];
@@ -12129,6 +12146,9 @@ export interface components {
       model: string;
       provider: string;
       reasoning_effort?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       /** @enum {string} */
       speed?: "normal" | "fast";
     };
@@ -12953,6 +12973,10 @@ export interface components {
       source_turn_in_progress: boolean;
       through_turn_id: string;
       truncated: boolean;
+    };
+    SessionEnvBindingPayload: {
+      ref: string;
+      required: boolean;
     };
     SessionEventPayload: {
       actor_id?: string;
@@ -14283,6 +14307,7 @@ export interface components {
       name: string;
       /** @enum {string} */
       runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
+      session_env_status?: components["schemas"]["SettingsProviderCredentialStatusPayload"][];
       settings: components["schemas"]["SettingsProviderSettingsPayload"];
       source_metadata: components["schemas"]["SettingsSourceMetadataPayload"];
     };
@@ -14354,6 +14379,9 @@ export interface components {
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
       runtime_provider?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       /** @enum {string} */
       steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
       transport?: string;
@@ -14372,6 +14400,9 @@ export interface components {
       home_policy?: string;
       models?: components["schemas"]["SettingsProviderModelsPayload"] | null;
       runtime_provider?: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       /** @enum {string} */
       steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
       transport?: string;
@@ -14404,6 +14435,9 @@ export interface components {
       model: string;
       provider: string;
       reasoning_effort: string;
+      session_env?: {
+        [key: string]: components["schemas"]["SessionEnvBindingPayload"];
+      };
       /** @enum {string|null} */
       speed?: "normal" | "fast" | null;
     };

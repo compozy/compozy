@@ -46,6 +46,7 @@ type Service struct {
 	executionRoot   ExecutionRootResolver
 	profileNames    ProfileNameResolver
 	settings        SettingsProvider
+	environment     EnvironmentProvider
 	profiles        ProfileGuard
 	execApprovals   ExecAuthorizer
 	registerProcess processRegister

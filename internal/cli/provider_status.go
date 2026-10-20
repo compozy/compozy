@@ -40,11 +40,7 @@ func buildProviderAuthStatus(
 	}
 	pinProviderNativeCLIResolution(&probeEnv, options.nativeCLI)
 	profileSlots, err := authproviders.ProfileCredentialSlots(
-		ctx,
-		providerName,
-		options.profileName,
-		provider.EffectiveCredentialSlots(),
-		probeEnv.Vault,
+		ctx, providerName, options.profileName, provider.EffectiveCredentialSlots(), probeEnv.Vault,
 	)
 	if err != nil {
 		return providerAuthStatusRecord{}, err
@@ -55,11 +51,16 @@ func buildProviderAuthStatus(
 		return providerAuthStatusRecord{}, err
 	}
 	labelProviderCredentialSources(credentials, options.profileName)
+	sessionEnv, err := authproviders.SessionEnvStatuses(ctx, provider.SessionEnv, &probeEnv)
+	if err != nil {
+		return providerAuthStatusRecord{}, err
+	}
 	classification, err := authproviders.ClassifyDeclared(ctx, provider, &probeEnv)
 	if err != nil {
 		return providerAuthStatusRecord{}, err
 	}
 	record := providerAuthStatusRecord{
+		SessionEnv:    providerCredentialStatusItems(sessionEnv),
 		Provider:      providerName,
 		DisplayName:   strings.TrimSpace(provider.DisplayName),
 		AuthMode:      string(provider.EffectiveAuthMode()),

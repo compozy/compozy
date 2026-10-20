@@ -278,6 +278,7 @@ func resolvedAgentFromProvider(
 		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
 		AuthACPMethod:   provider.EffectiveACPMethod(),
 		SessionMCP:      provider.SessionMCPEnabled(),
+		SessionEnv:      MergeSessionEnv(provider.SessionEnv, agent.SessionEnv),
 		CredentialSlots: provider.EffectiveCredentialSlots(),
 		MCPServers:      mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),
 		Reasoning:       provider.Models.Reasoning,
@@ -337,9 +338,10 @@ func (c *Config) ResolveSessionAgent(agent AgentDef, providerOverride string) (R
 
 // RuntimeOverrides are the engine-resolved runtime fields applied to one session.
 type RuntimeOverrides struct {
-	Provider  string
-	Model     string
-	Reasoning string
+	SessionEnv SessionEnv
+	Provider   string
+	Model      string
+	Reasoning  string
 	// Command is an explicit launch command for this attempt (a fallback route's account).
 	// It is applied after the provider-aware resolution: when non-empty it replaces the
 	// resolved command on any provider; when empty the existing rule holds (the agent
@@ -360,6 +362,10 @@ func (c *Config) ResolveSessionAgentWithRuntime(
 		resolved.Command = command
 		resolved.CommandIsBuiltin = false
 	}
+	if err := overrides.SessionEnv.Validate("runtime.session_env"); err != nil {
+		return ResolvedAgent{}, err
+	}
+	resolved.SessionEnv = MergeSessionEnv(resolved.SessionEnv, overrides.SessionEnv)
 	return resolved, nil
 }
 

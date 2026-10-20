@@ -441,6 +441,31 @@ func TestUnixPTYHardening(t *testing.T) {
 func TestPipeRunnerContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should pass declared secrets and sockets while removing inherited optional targets", func(t *testing.T) {
+		t.Parallel()
+		proc := startTestProc(t, ProcSpec{
+			Argv: []string{"/bin/sh", "-c", `printf '%s|%s|%s' "$GH_TOKEN" "$SSH_AUTH_SOCK" "${HOME-unset}"`},
+			Env: map[string]string{
+				"GH_TOKEN":      "disposable-declared-secret",
+				"SSH_AUTH_SOCK": "/tmp/disposable.sock",
+			},
+			UnsetEnv: []string{"HOME"},
+			Mode:     ModePipe,
+		})
+		defer stopTestProc(t, proc)
+		output, err := io.ReadAll(proc.Reader())
+		if err != nil {
+			t.Fatal(err)
+		}
+		exit, err := proc.Wait(t.Context())
+		if err != nil || exit.Code == nil || *exit.Code != 0 {
+			t.Fatalf("Wait() = %#v, %v", exit, err)
+		}
+		if string(output) != "disposable-declared-secret|/tmp/disposable.sock|unset" {
+			t.Fatalf("declared process environment = %q", output)
+		}
+	})
+
 	t.Run("Should merge output scrub host terminal identity and pin TERM [UT-008]", func(t *testing.T) {
 		t.Parallel()
 		proc := startTestProc(t, ProcSpec{

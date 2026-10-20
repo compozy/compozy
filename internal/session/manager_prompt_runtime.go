@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 type promptRuntimePlan struct {
@@ -214,6 +215,7 @@ func (m *Manager) replacePromptRuntime(
 	session.commitAcceptedRoute(
 		acceptedRouteRecord(plan.attempt, runtime.agent, plan.selection.Model),
 		plan.spec.command,
+		plan.spec.sessionEnv,
 	)
 	session.setAgentDefinition(runtime.agentDef, runtime.startupManifest)
 	if plan.spec.resumeReplay {
@@ -303,7 +305,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	session *Session,
 	selection RuntimeSelection,
 ) (*promptRuntimePlan, error) {
-	return m.preparePromptRuntimePlanForRoute(ctx, session, selection, "")
+	return m.preparePromptRuntimePlanForRoute(ctx, session, selection, "", nil)
 }
 
 // preparePromptRuntimePlanForRoute plans a binding with an explicit route command
@@ -313,6 +315,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	session *Session,
 	selection RuntimeSelection,
 	command string,
+	sessionEnv compozyconfig.SessionEnv,
 ) (*promptRuntimePlan, error) {
 	if session == nil {
 		return nil, ErrSessionNotFound
@@ -346,6 +349,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	spec.speed = selection.Speed
 	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
 	spec.command = strings.TrimSpace(command)
+	spec.sessionEnv = compozyconfig.MergeSessionEnv(nil, sessionEnv)
 	// The bound route records whether an unrestricted preference was already present at session start.
 	boundRoute := session.providerRoutingSnapshot()
 	dropInheritedUnrestricted := hasUnrestrictedACPMode(boundRoute.ACPOptionsValue())

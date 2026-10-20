@@ -26,6 +26,13 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 					providerCredentialStatusRows(record.Credentials),
 				))
 			}
+			if len(record.SessionEnv) > 0 {
+				sections = append(sections, renderHumanTable(
+					"Session Environment",
+					[]string{"Name", "Target", "Source", "Required", "Present"},
+					providerCredentialStatusRows(record.SessionEnv),
+				))
+			}
 			return strings.Join(sections, "\n"), nil
 		},
 		toon: func() (string, error) {

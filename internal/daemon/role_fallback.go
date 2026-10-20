@@ -47,7 +47,8 @@ type roleAttemptRoute struct {
 	ACPOptions      []compozyconfig.ACPOptionSelection
 	// Command is the route's account; it is forwarded to the consumer's Command field
 	// and never written to events or logs (only its fingerprint is).
-	Command string
+	Command    string
+	SessionEnv compozyconfig.SessionEnv
 }
 
 type roleFallbackEventPayload struct {
@@ -119,6 +120,7 @@ func (role *ResolvedRole) invokeRoleWithFallback[T any](
 			Speed:           fallback.Speed,
 			ACPOptions:      compozyconfig.CloneACPOptionSelections(fallback.ACPOptions),
 			Command:         strings.TrimSpace(fallback.Command),
+			SessionEnv:      compozyconfig.MergeSessionEnv(nil, fallback.SessionEnv),
 		}
 		attempt := index + 1
 		if eventErr := recordRoleFallbackEvent(ctx, role, correlation, attempt, route); eventErr != nil {

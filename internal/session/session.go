@@ -215,9 +215,10 @@ type Session struct {
 	deriveCommitted bool
 	// acceptedCommand is the explicit route command of the accepted attempt ("" when the
 	// route inherited its command); in-memory only, so automatic recovery keeps the seat.
-	acceptedCommand string
-	agentDef        compozyconfig.AgentDef
-	startupManifest acp.StartupManifest
+	acceptedCommand    string
+	acceptedSessionEnv compozyconfig.SessionEnv
+	agentDef           compozyconfig.AgentDef
+	startupManifest    acp.StartupManifest
 
 	sessionDir              string
 	metaPath                string
@@ -366,6 +367,7 @@ func (s *Session) rollbackActivation(now time.Time) {
 	s.ACPSessionID = ""
 	s.acceptedRoute = nil
 	s.acceptedCommand = ""
+	s.acceptedSessionEnv = nil
 	s.ACPCaps = acp.Caps{}
 	s.ACPCapsKnown = false
 	s.Liveness = nil

@@ -28,6 +28,8 @@ type execRun struct {
 	commandID        string
 	startedAt        time.Time
 	journaled        chan error
+	journalFinished  chan struct{}
+	lifecycleStarted bool
 	registered       atomic.Bool
 	decision         chan struct{}
 	decideOnce       sync.Once
@@ -73,8 +75,8 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	if err != nil {
 		return nil, err
 	}
-	run.producer = producer
-	producer = nil
+	run.producer, producer = producer, nil
+	defer run.releaseUnpublishedEnvironment()
 	if request.Visible {
 		if err := m.publishExec(ctx, run, request); err != nil {
 			run.producer.Release()
@@ -120,9 +122,11 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 }
 
 func (m *Service) startExecLifecycle(run *execRun, request ExecRequest, argv []string) {
+	run.lifecycleStarted = true
 	if request.Visible {
 		run.producer.MarkRegistered()
 		run.item.beforeExitPublish = func(ctx context.Context, info Info) error {
+			defer close(run.journalFinished)
 			err := m.recordExecRow(ctx, run, request, argv, info)
 			run.journaled <- err
 			return err
@@ -222,47 +226,57 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	if err != nil {
 		return nil, err
 	}
-	title := SanitizeTitle(strings.Join(argv, " "))
 	spec := ProcSpec{
 		Argv:        argv,
 		Cwd:         cwd,
-		Env:         processEnvironment(request.Actor, request.Env),
+		Env:         request.Env,
 		Cols:        80,
 		Rows:        24,
 		Mode:        ptyMode,
 		MarkerNonce: nonce,
 	}
+	release, err := m.prepareEnvironment(ctx, workspaceID, request.Actor, &spec)
+	if err != nil {
+		return nil, err
+	}
+	transferred := false
+	defer func() {
+		if !transferred {
+			release()
+		}
+	}()
 	proc, err := m.pty.Start(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start exec %q: %w", argv[0], err)
 	}
-	info := boundInfo(Info{
-		ID:           id,
-		WS:           workspaceID,
-		ProfileID:    request.Actor.ProfileID,
-		Title:        title,
-		Shell:        argv[0],
-		Cwd:          cwd,
-		Mode:         mode,
-		State:        terminalStateRunning,
-		Capabilities: request.Capabilities,
-		CreatedAt:    m.now(),
-	}, request.Actor)
+	info := m.execInfo(id, mode, request, argv)
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(ctx, m, proc, info, request.Actor, settings, nonce, profileName, 80, 24, true)
 	item.captureOutput = true
+	item.environmentRelease = release
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
 		return nil, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
 	}
 	item.processRecord = processRecord
 	run := &execRun{
-		item: item, key: terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id},
+		journalFinished: make(chan struct{}),
+		item:            item, key: terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id},
 		commandID: commandID, startedAt: m.now(), journaled: make(chan error, 1), decision: make(chan struct{}),
 		releaseCommandID: func() { m.journal.ReleaseCommandID(workspaceID, commandID) },
 	}
 	releaseCommandID = false
+	transferred = true
 	return run, nil
+}
+
+func (m *Service) execInfo(id ID, mode Mode, request ExecRequest, argv []string) Info {
+	return boundInfo(Info{
+		ID: id, WS: request.WS, ProfileID: request.Actor.ProfileID,
+		Title: SanitizeTitle(strings.Join(argv, " ")),
+		Shell: argv[0], Cwd: request.Cwd, Mode: mode, State: terminalStateRunning,
+		Capabilities: request.Capabilities, CreatedAt: m.now(),
+	}, request.Actor)
 }
 
 func execModes(visible bool, capabilities Capabilities) (Mode, terminalpty.Mode, error) {
@@ -302,6 +316,7 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 }
 
 func (m *Service) recordExecAfterExit(run *execRun, request ExecRequest, argv []string) {
+	defer close(run.journalFinished)
 	<-run.item.done
 	<-run.decision
 	ctx, cancel := boundedCleanupContext(run.item.ctx, defaultJournalShutdownTimeout)

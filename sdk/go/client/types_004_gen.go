@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// CoordinatorConfigPayload is a daemon API value.
+type CoordinatorConfigPayload struct {
+	Enabled                       bool                    `json:"enabled"`
+	AgentName                     string                  `json:"agent_name"`
+	Provider                      string                  `json:"provider,omitempty"`
+	Model                         string                  `json:"model,omitempty"`
+	DefaultTTLSeconds             int64                   `json:"default_ttl_seconds"`
+	MaxChildren                   int                     `json:"max_children"`
+	MaxActiveSessionsPerWorkspace int                     `json:"max_active_sessions_per_workspace"`
+	Source                        CoordinatorConfigSource `json:"source"`
+	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
+}
+
+// CoordinatorConfigSource is a daemon API value.
+type CoordinatorConfigSource string
+
+// CoordinatorMode is a daemon API value.
+type CoordinatorMode string
+
 // CoordinatorProfile is a daemon API value.
 type CoordinatorProfile struct {
 	Mode      CoordinatorMode `json:"mode"`
@@ -37,21 +56,22 @@ type CountedCursorPagePayload struct {
 
 // CreateAgentPayload is a daemon API value.
 type CreateAgentPayload struct {
-	Name            string                      `json:"name"`
-	Provider        string                      `json:"provider,omitempty"`
-	Command         string                      `json:"command,omitempty"`
-	Model           string                      `json:"model,omitempty"`
-	ReasoningEffort Effort                      `json:"reasoning_effort,omitempty"`
-	Speed           Speed                       `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection   `json:"acp_options,omitempty"`
-	Tools           []string                    `json:"tools,omitempty"`
-	Toolsets        []string                    `json:"toolsets,omitempty"`
-	DenyTools       []string                    `json:"deny_tools,omitempty"`
-	Permissions     SettingsPermissionMode      `json:"permissions,omitempty"`
-	CategoryPath    []string                    `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig    `json:"skills,omitzero"`
-	FallbackChain   []AgentFallbackRoutePayload `json:"fallback_chain,omitempty"`
-	Prompt          string                      `json:"prompt"`
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Name            string                              `json:"name"`
+	Provider        string                              `json:"provider,omitempty"`
+	Command         string                              `json:"command,omitempty"`
+	Model           string                              `json:"model,omitempty"`
+	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools           []string                            `json:"tools,omitempty"`
+	Toolsets        []string                            `json:"toolsets,omitempty"`
+	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath    []string                            `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	FallbackChain   []AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
+	Prompt          string                              `json:"prompt"`
 }
 
 // CreateAgentRequest is a daemon API value.
@@ -377,21 +397,22 @@ type DslTerminalState string
 
 // DuplicateAgentOverrides is a daemon API value.
 type DuplicateAgentOverrides struct {
-	Provider        string                    `json:"provider,omitempty"`
-	Command         string                    `json:"command,omitempty"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	ClearSpeed      bool                      `json:"clear_speed,omitzero"`
-	ClearACPOptions bool                      `json:"clear_acp_options,omitzero"`
-	Tools           []string                  `json:"tools,omitempty"`
-	Toolsets        []string                  `json:"toolsets,omitempty"`
-	DenyTools       []string                  `json:"deny_tools,omitempty"`
-	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
-	CategoryPath    []string                  `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig  `json:"skills,omitzero"`
-	Prompt          string                    `json:"prompt,omitempty"`
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider,omitempty"`
+	Command         string                              `json:"command,omitempty"`
+	Model           string                              `json:"model,omitempty"`
+	ReasoningEffort Effort                              `json:"reasoning_effort,omitempty"`
+	Speed           Speed                               `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	ClearSpeed      bool                                `json:"clear_speed,omitzero"`
+	ClearACPOptions bool                                `json:"clear_acp_options,omitzero"`
+	Tools           []string                            `json:"tools,omitempty"`
+	Toolsets        []string                            `json:"toolsets,omitempty"`
+	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath    []string                            `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	Prompt          string                              `json:"prompt,omitempty"`
 }
 
 // DuplicateAgentRequest is a daemon API value.
@@ -422,27 +443,4 @@ type Effect struct {
 type EffectResult struct {
 	EffectID string          `json:"effect_id"`
 	Payload  json.RawMessage `json:"payload,omitempty"`
-}
-
-// EffectSpec is a daemon API value.
-type EffectSpec struct {
-	Emit *EmitSpec      `json:"emit,omitzero"`
-	Tool string         `json:"tool,omitempty"`
-	With map[string]any `json:"with,omitempty"`
-}
-
-// Effort is a daemon API value.
-type Effort string
-
-// EmitSpec is a daemon API value.
-type EmitSpec struct {
-	Kind    string         `json:"kind"`
-	Payload map[string]any `json:"payload,omitempty"`
-}
-
-// EmptyState is a daemon API value.
-type EmptyState struct {
-	Title string `json:"title"`
-	Hint  string `json:"hint,omitempty"`
-	Icon  string `json:"icon,omitempty"`
 }
