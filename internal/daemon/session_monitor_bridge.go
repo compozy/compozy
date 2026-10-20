@@ -9,19 +9,20 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 type monitorSessionManager interface {
 	Status(context.Context, string) (*session.Info, error)
-	PromptSynthetic(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	EnqueueSyntheticWake(context.Context, string, session.SyntheticPromptOpts) (store.SessionInputQueueEntry, error)
 }
 
 // monitorSessionWaker admits a fired monitor to its owning session's durable
-// input queue: an idle session starts a turn, a busy one runs it after the turn.
+// input queue and returns once it is queued: an idle session starts a turn, a
+// busy one runs it after the turn. It never reads the woken turn.
 type monitorSessionWaker struct {
 	sessions func() monitorSessionManager
-	logger   *slog.Logger
 }
 
 func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification monitorpkg.Notification) error {
@@ -31,50 +32,50 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	}
 	sessionID := notification.Monitor.SessionID
 	info, err := sessions.Status(ctx, sessionID)
-	if err != nil {
+	switch {
+	case errors.Is(err, session.ErrSessionNotFound):
+		return fmt.Errorf("%w: %s", monitorpkg.ErrSessionGone, sessionID)
+	case err != nil:
 		return fmt.Errorf("daemon: read monitor session %q: %w", sessionID, err)
+	case info == nil:
+		return fmt.Errorf("%w: %s", monitorpkg.ErrSessionGone, sessionID)
 	}
 	// A stopped session is the user's decision; a monitor must not revive it.
-	if info == nil || info.State != session.StateActive {
-		return fmt.Errorf("daemon: monitor session %q is not active", sessionID)
+	// A session still starting is transient and retried by the monitor service.
+	if info.State == session.StateStopping || info.State == session.StateStopped {
+		return fmt.Errorf("%w: %s is %s", monitorpkg.ErrSessionGone, sessionID, info.State)
 	}
-	events, err := sessions.PromptSynthetic(ctx, sessionID, session.SyntheticPromptOpts{
-		Message: notification.Message(),
+	if _, err := sessions.EnqueueSyntheticWake(ctx, sessionID, session.SyntheticPromptOpts{
+		MessageID: "monitor:" + notification.Monitor.ID,
+		Priority:  1,
+		Message:   notification.Message(),
 		Metadata: acp.PromptSyntheticMeta{
 			Kind:        acp.PromptSyntheticKindMonitor,
 			Reason:      "monitor_" + notification.Outcome.Reason,
 			Summary:     notification.Monitor.Description,
 			WakeEventID: notification.Monitor.ID,
 		},
-	})
-	if err != nil {
+	}); err != nil {
 		return fmt.Errorf("daemon: deliver monitor wake to %q: %w", sessionID, err)
 	}
-	w.drain(ctx, sessionID, notification.Monitor.ID, events)
 	return nil
 }
 
-// drain consumes the woken turn on the monitor's own goroutine, which the
-// monitor service joins at shutdown; ctx ends the drain, not the turn.
-func (w *monitorSessionWaker) drain(
-	ctx context.Context,
-	sessionID, monitorID string,
-	events <-chan acp.AgentEvent,
-) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case event, ok := <-events:
-			if !ok {
-				return
-			}
-			if event.Type == acp.EventTypeError {
-				w.logger.Warn("session.monitor_wake.agent_error", "session_id", sessionID, "monitor_id", monitorID)
-			}
-		}
+// monitorLifecycleObserver cancels a session's monitors when it stops, so a
+// stopped or removed session never keeps watches, history, or cap slots.
+type monitorLifecycleObserver struct {
+	monitors *monitorpkg.Service
+}
+
+func (o monitorLifecycleObserver) OnSessionCreated(context.Context, *session.Session) {}
+
+func (o monitorLifecycleObserver) OnSessionStopped(_ context.Context, stopped *session.Session) {
+	if o.monitors != nil && stopped != nil {
+		o.monitors.CancelSession(stopped.ID)
 	}
 }
+
+var _ sessionLifecycleObserver = monitorLifecycleObserver{}
 
 // monitorTerminalWatcher resolves a terminal in the monitor owner's profile and
 // waits on it through the same Wait path compozy__terminal_wait uses.
@@ -114,15 +115,12 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 	if logger == nil {
 		logger = slog.Default()
 	}
-	waker := &monitorSessionWaker{
-		sessions: func() monitorSessionManager {
-			if state.sessions == nil {
-				return nil
-			}
-			return state.sessions
-		},
-		logger: logger,
-	}
+	waker := &monitorSessionWaker{sessions: func() monitorSessionManager {
+		if manager, ok := state.sessions.(monitorSessionManager); ok {
+			return manager
+		}
+		return nil
+	}}
 	watcher := &monitorTerminalWatcher{terminals: func() terminalpkg.Manager {
 		if state.terminals == nil {
 			return nil

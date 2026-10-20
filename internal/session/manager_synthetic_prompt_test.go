@@ -113,6 +113,72 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	}
 }
 
+func TestEnqueueSyntheticWakeRunsOnceWithoutADeliveryStream(t *testing.T) {
+	t.Parallel()
+
+	h := newHarness(t)
+	session := createSession(t, h)
+	enableSyntheticQueue(t, h, session)
+	t.Cleanup(func() {
+		reportSessionStop(t, h, session.ID)
+	})
+
+	firstPromptEntered := make(chan struct{})
+	releaseFirstPrompt := make(chan struct{})
+	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+		if req.TurnID == "turn-1" {
+			close(firstPromptEntered)
+			events := make(chan acp.AgentEvent, 1)
+			go func() {
+				<-releaseFirstPrompt
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: req.TurnID}
+				close(events)
+			}()
+			return events, nil
+		}
+		return completedSyntheticPromptEvents(req.TurnID), nil
+	}
+	userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+	if err != nil {
+		t.Fatalf("Prompt() error = %v", err)
+	}
+	<-firstPromptEntered
+
+	opts := SyntheticPromptOpts{
+		MessageID: "monitor:mon-0123456789ab",
+		Message:   "monitor fired",
+		Metadata: acp.PromptSyntheticMeta{
+			Kind: acp.PromptSyntheticKindMonitor, Reason: "monitor_exit", WakeEventID: "mon-0123456789ab",
+		},
+	}
+	first, err := h.manager.EnqueueSyntheticWake(testutil.Context(t), session.ID, opts)
+	if err != nil {
+		t.Fatalf("EnqueueSyntheticWake() error = %v", err)
+	}
+	// A retried admission while the wake is pending is the same wake, never a second row.
+	again, err := h.manager.EnqueueSyntheticWake(testutil.Context(t), session.ID, opts)
+	if err != nil || again.ID != first.ID {
+		t.Fatalf("EnqueueSyntheticWake(retry) = %q, %v; want the original %q", again.ID, err, first.ID)
+	}
+
+	close(releaseFirstPrompt)
+	_ = collectEvents(t, userEventsCh)
+	promptCalls := func() []acp.PromptRequest {
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		return append([]acp.PromptRequest(nil), h.driver.promptCalls...)
+	}
+	waitForCondition(t, "the queued monitor wake to start its turn", func() bool { return len(promptCalls()) >= 2 })
+	waitForCondition(t, "the monitor wake to leave the queue", func() bool {
+		pending, err := h.manager.inputQueue.List(t.Context(), session.ID)
+		return err == nil && len(pending) == 0
+	})
+	calls := promptCalls()
+	if len(calls) != 2 || calls[1].Meta.Synthetic == nil || calls[1].Meta.Synthetic.Kind != acp.PromptSyntheticKindMonitor {
+		t.Fatalf("prompt calls = %#v, want the user turn then one monitor wake", calls)
+	}
+}
+
 func TestPromptSyntheticRejectsMissingWakeupMetadata(t *testing.T) {
 	t.Parallel()
 

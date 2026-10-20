@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"regexp"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -107,6 +108,35 @@ func TestWaitEngineContract(t *testing.T) {
 				t.Fatal("matching output did not wake wait")
 			}
 		})
+	})
+
+	t.Run("Should match output split across appended chunks after a full first scan", func(t *testing.T) {
+		t.Parallel()
+		matcher := regexp.MustCompile(`ready-[0-9]+`)
+		ring := NewRing(1 << 20)
+		ring.Append(bytes.Repeat([]byte("x"), 512<<10))
+		var scan matchScanner
+		if scan.matches(ring, matcher) {
+			t.Fatal("first scan matched output without the pattern")
+		}
+		if scan.matches(ring, matcher) {
+			t.Fatal("scan without new output matched")
+		}
+		ring.Append([]byte("noise rea"))
+		if scan.matches(ring, matcher) {
+			t.Fatal("partial pattern matched")
+		}
+		ring.Append([]byte("dy-42\r\n"))
+		if !scan.matches(ring, matcher) {
+			t.Fatal("pattern split across chunks did not match")
+		}
+
+		var late matchScanner
+		preexisting := NewRing(1 << 20)
+		preexisting.Append([]byte("ready-1 before the wait\r\n"))
+		if !late.matches(preexisting, matcher) {
+			t.Fatal("first scan missed output retained before the wait")
+		}
 	})
 
 	t.Run("Should distinguish timeout idle and still-running states [UT-052]", func(t *testing.T) {

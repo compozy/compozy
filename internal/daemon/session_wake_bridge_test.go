@@ -8,10 +8,12 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -181,6 +183,29 @@ func validSessionWakeEvent() session.SpawnWakeEvent {
 	}
 }
 
+type monitorWakeManagerStub struct {
+	status     *session.Info
+	statusErr  error
+	enqueueErr error
+	calls      int
+	id         string
+	opts       session.SyntheticPromptOpts
+}
+
+func (stub *monitorWakeManagerStub) Status(context.Context, string) (*session.Info, error) {
+	return stub.status, stub.statusErr
+}
+
+func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
+	_ context.Context,
+	id string,
+	opts session.SyntheticPromptOpts,
+) (store.SessionInputQueueEntry, error) {
+	stub.calls++
+	stub.id, stub.opts = id, opts
+	return store.SessionInputQueueEntry{ID: "inq-1"}, stub.enqueueErr
+}
+
 func TestMonitorSessionWaker(t *testing.T) {
 	t.Parallel()
 
@@ -191,50 +216,80 @@ func TestMonitorSessionWaker(t *testing.T) {
 		},
 		Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonExit, Output: "done"},
 	}
+	wakerFor := func(manager *monitorWakeManagerStub) *monitorSessionWaker {
+		return &monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+	}
 
-	t.Run("Should queue an attributed monitor wake for an active session", func(t *testing.T) {
+	t.Run("Should admit one attributed, idempotent monitor wake for an active session", func(t *testing.T) {
 		t.Parallel()
 
-		events := make(chan acp.AgentEvent)
-		close(events)
-		manager := &sessionWakeManagerStub{
-			status: &session.Info{ID: "sess-1", State: session.StateActive},
-			events: events,
-		}
-		waker := &monitorSessionWaker{
-			sessions: func() monitorSessionManager { return manager },
-			logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
-		}
-		if err := waker.WakeSession(testutil.Context(t), fired); err != nil {
+		manager := &monitorWakeManagerStub{status: &session.Info{ID: "sess-1", State: session.StateActive}}
+		if err := wakerFor(manager).WakeSession(testutil.Context(t), fired); err != nil {
 			t.Fatalf("WakeSession() error = %v", err)
 		}
-		if manager.promptCalls != 1 || manager.promptID != "sess-1" || manager.promptOpts.SkipIfBusy {
-			t.Fatalf("prompt = calls %d id %q opts %#v, want one queued wake", manager.promptCalls,
-				manager.promptID, manager.promptOpts)
+		if manager.calls != 1 || manager.id != "sess-1" || manager.opts.MessageID != "monitor:mon-0123456789ab" {
+			t.Fatalf("admission = calls %d id %q opts %#v, want one idempotent wake", manager.calls,
+				manager.id, manager.opts)
 		}
-		meta := manager.promptOpts.Metadata
+		meta := manager.opts.Metadata
 		if meta.Kind != acp.PromptSyntheticKindMonitor || meta.Reason != "monitor_exit" ||
 			meta.WakeEventID != "mon-0123456789ab" || meta.Summary != "release workflow" {
 			t.Fatalf("synthetic metadata = %#v, want monitor attribution", meta)
 		}
-		if !strings.Contains(manager.promptOpts.Message, "NOT USER INPUT") {
-			t.Fatalf("wake message = %q, want automated-wake header", manager.promptOpts.Message)
+		if !strings.Contains(manager.opts.Message, "NOT USER INPUT") {
+			t.Fatalf("wake message = %q, want automated-wake header", manager.opts.Message)
 		}
 	})
 
-	t.Run("Should not revive a stopped session", func(t *testing.T) {
+	t.Run("Should refuse permanently for a stopped or missing session without admitting", func(t *testing.T) {
 		t.Parallel()
 
-		manager := &sessionWakeManagerStub{status: &session.Info{ID: "sess-1", State: session.StateStopped}}
-		waker := &monitorSessionWaker{
-			sessions: func() monitorSessionManager { return manager },
-			logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		for name, manager := range map[string]*monitorWakeManagerStub{
+			"stopped": {status: &session.Info{ID: "sess-1", State: session.StateStopped}},
+			"missing": {statusErr: session.ErrSessionNotFound},
+		} {
+			err := wakerFor(manager).WakeSession(testutil.Context(t), fired)
+			if !errors.Is(err, monitorpkg.ErrSessionGone) || manager.calls != 0 {
+				t.Fatalf("%s: WakeSession() error = %v calls = %d, want ErrSessionGone and no admission",
+					name, err, manager.calls)
+			}
 		}
-		if err := waker.WakeSession(testutil.Context(t), fired); err == nil {
-			t.Fatal("WakeSession() error = nil, want inactive session error")
+	})
+
+	t.Run("Should report a full input queue as transient", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &monitorWakeManagerStub{
+			status:     &session.Info{ID: "sess-1", State: session.StateActive},
+			enqueueErr: store.ErrSessionInputQueueFull,
 		}
-		if manager.promptCalls != 0 {
-			t.Fatalf("PromptSynthetic() calls = %d, want 0", manager.promptCalls)
+		err := wakerFor(manager).WakeSession(testutil.Context(t), fired)
+		if err == nil || errors.Is(err, monitorpkg.ErrSessionGone) {
+			t.Fatalf("WakeSession() error = %v, want a transient error", err)
+		}
+	})
+
+	t.Run("Should cancel a session's monitors when it stops", func(t *testing.T) {
+		t.Parallel()
+
+		monitors, err := monitorpkg.NewService(testutil.Context(t), nil, wakerFor(&monitorWakeManagerStub{}))
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := monitors.Shutdown(testutil.Context(t)); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+		if _, err := monitors.Create(testutil.Context(t), monitorpkg.Spec{
+			WorkspaceID: "ws-1", SessionID: "sess-1", Kind: monitorpkg.KindTimer,
+			Description: "check CI", Delay: time.Hour,
+		}); err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		monitorLifecycleObserver{monitors: monitors}.OnSessionStopped(testutil.Context(t), &session.Session{ID: "sess-1"})
+		if listed := monitors.List("sess-1"); len(listed) != 0 {
+			t.Fatalf("List() after stop = %+v, want empty", listed)
 		}
 	})
 }

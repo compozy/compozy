@@ -2005,6 +2005,17 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 				Options struct {
 					DisallowedTools []string          `json:"disallowedTools"`
 					Env             map[string]string `json:"env"`
+					Settings        struct {
+						Hooks struct {
+							PreToolUse []struct {
+								Matcher string `json:"matcher"`
+								Hooks   []struct {
+									Type    string `json:"type"`
+									Command string `json:"command"`
+								} `json:"hooks"`
+							} `json:"PreToolUse"`
+						} `json:"hooks"`
+					} `json:"settings"`
 				} `json:"options"`
 			} `json:"claudeCode"`
 		}
@@ -2017,8 +2028,17 @@ func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
 				t.Fatalf("%s _meta.claudeCode.options.disallowedTools = %#v, want %s", method, options.DisallowedTools, tool)
 			}
 		}
-		if env := options.Env; env["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] != "1" {
-			t.Fatalf("%s _meta.claudeCode.options.env = %#v, want background tasks disabled", method, env)
+		// Background Agent subagents keep working: the bridge holds the prompt until they settle.
+		if env := options.Env; env["CLAUDE_CODE_DISABLE_MCP_TASK_BACKGROUND"] != "1" ||
+			env["CLAUDE_CODE_DISABLE_CRON"] != "1" || env["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] != "" {
+			t.Fatalf("%s _meta.claudeCode.options.env = %#v, want MCP/cron backgrounding off and subagents on", method, env)
+		}
+		hooks := options.Settings.Hooks.PreToolUse
+		if len(hooks) != 1 || hooks[0].Matcher != "Bash" || len(hooks[0].Hooks) != 1 ||
+			hooks[0].Hooks[0].Type != "command" ||
+			!strings.Contains(hooks[0].Hooks[0].Command, "run_in_background") ||
+			!strings.Contains(hooks[0].Hooks[0].Command, `"permissionDecision":"deny"`) {
+			t.Fatalf("%s PreToolUse hooks = %#v, want one Bash run_in_background deny hook", method, hooks)
 		}
 	}
 

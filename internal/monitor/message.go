@@ -35,7 +35,7 @@ func (n Notification) Message() string {
 	}
 	if output := tail(n.Outcome.Output); output != "" {
 		lines = append(lines,
-			"<output untrusted=\"true\">",
+			"<output untrusted=\"true\" encoding=\"entities\">",
 			output,
 			"</output>",
 		)
@@ -81,17 +81,21 @@ func nextAction(mon Monitor, outcome Outcome) string {
 	}
 }
 
-// tail keeps the last maxOutputBytes of valid UTF-8 output.
+// escapeOutput entity-encodes markup so untrusted output can never close the
+// <output> block or forge daemon-authored notification fields.
+var escapeOutput = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+
+// tail keeps the last maxOutputBytes of valid UTF-8 output, entity-encoded.
 func tail(output string) string {
 	output = strings.TrimSpace(strings.ToValidUTF8(output, "�"))
 	if len(output) <= maxOutputBytes {
-		return output
+		return escapeOutput.Replace(output)
 	}
 	cut := len(output) - maxOutputBytes
 	for cut < len(output) && !utf8.RuneStart(output[cut]) {
 		cut++
 	}
-	return "[... earlier output truncated ...]\n" + output[cut:]
+	return "[... earlier output truncated ...]\n" + escapeOutput.Replace(output[cut:])
 }
 
 func sanitizeLine(value string) string {

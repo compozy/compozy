@@ -26,7 +26,10 @@ const (
 type Status string
 
 const (
-	StatusActive   Status = "active"
+	StatusActive Status = "active"
+	// StatusDelivering means the monitor fired and its wake is retrying a transient refusal.
+	StatusDelivering Status = "delivering"
+	// StatusFired means the wake was admitted to the owning session's input queue.
 	StatusFired    Status = "fired"
 	StatusCanceled Status = "canceled"
 	// StatusUndelivered means the monitor fired but its owning session could not be woken.
@@ -51,14 +54,24 @@ const (
 
 // Bounds keep monitors cheap and prevent runaway wake loops.
 const (
-	MaxDescriptionRunes     = 200
-	MaxPatternRunes         = 512
-	MaxActivePerSession     = 8
-	DefaultTerminalTimeout  = 30 * time.Minute
-	MaxTerminalTimeout      = 6 * time.Hour
-	MinTimerDelay           = 5 * time.Second
-	MaxTimerDelay           = 24 * time.Hour
-	retainedFinishedPerSess = 16
+	MaxDescriptionRunes    = 200
+	MaxPatternRunes        = 512
+	MaxActivePerSession    = 8
+	MaxActivePerTerminal   = 4
+	MaxActiveTotal         = 256
+	DefaultTerminalTimeout = 30 * time.Minute
+	MaxTerminalTimeout     = 6 * time.Hour
+	MinTimerDelay          = 5 * time.Second
+	MaxTimerDelay          = 24 * time.Hour
+	// Finished monitors stay listable for inspection, bounded per session and in time.
+	retainedFinishedPerSession = 16
+	finishedRetention          = time.Hour
+	sweepInterval              = time.Minute
+	// A transient wake refusal (full input queue, admission pressure) retries with
+	// backoff inside this window before the monitor is marked undelivered.
+	deliveryRetryWindow  = 15 * time.Minute
+	deliveryRetryInitial = 2 * time.Second
+	deliveryRetryMax     = time.Minute
 )
 
 var (
@@ -70,6 +83,8 @@ var (
 	ErrNotFound = errors.New("monitor: not found")
 	// ErrStopped reports that the service is shutting down.
 	ErrStopped = errors.New("monitor: service stopped")
+	// ErrSessionGone reports a permanent wake refusal: the owning session is stopped or removed.
+	ErrSessionGone = errors.New("monitor: owning session is not active")
 )
 
 // Spec describes one monitor request from an agent session.

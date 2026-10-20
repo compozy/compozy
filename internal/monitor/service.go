@@ -20,7 +20,9 @@ type TerminalWatcher interface {
 	WatchTerminal(ctx context.Context, spec Spec) (TerminalWatch, error)
 }
 
-// Waker delivers one fired monitor to its owning session.
+// Waker admits one fired monitor to its owning session. It returns as soon as
+// the wake is queued; ErrSessionGone marks a permanent refusal, and any other
+// error is retried as transient.
 type Waker interface {
 	WakeSession(ctx context.Context, notification Notification) error
 }
@@ -37,7 +39,7 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
-// WithClock overrides the wall clock used for timestamps.
+// WithClock overrides the wall clock used for timestamps and retention.
 func WithClock(now func() time.Time) Option {
 	return func(s *Service) {
 		if now != nil {
@@ -46,7 +48,9 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
-// Service owns every live monitor and the goroutines that watch them.
+// Service owns every live monitor and the goroutines that watch them. State is
+// indexed by owning session; active monitors are capped per session, per
+// terminal, and per daemon, and finished ones expire after finishedRetention.
 type Service struct {
 	terminals TerminalWatcher
 	waker     Waker
@@ -57,14 +61,23 @@ type Service struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	mu       sync.Mutex
-	stopped  bool
-	monitors map[string]*entry
+	mu          sync.Mutex
+	stopped     bool
+	sessions    map[string]map[string]*entry
+	occupied    int
+	perTerminal map[string]int
+	lastSweep   time.Time
 }
 
 type entry struct {
-	state  Monitor
-	cancel context.CancelFunc
+	state       Monitor
+	terminalKey string
+	cancel      context.CancelFunc
+}
+
+// occupies reports whether the monitor still holds a slot in the active caps.
+func (e *entry) occupies() bool {
+	return e.state.Status == StatusActive || e.state.Status == StatusDelivering
 }
 
 // NewService builds a monitor service bound to a daemon lifetime context.
@@ -77,13 +90,14 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 	}
 	serviceCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	service := &Service{
-		terminals: terminals,
-		waker:     waker,
-		logger:    slog.Default(),
-		now:       func() time.Time { return time.Now().UTC() },
-		ctx:       serviceCtx,
-		cancel:    cancel,
-		monitors:  make(map[string]*entry),
+		terminals:   terminals,
+		waker:       waker,
+		logger:      slog.Default(),
+		now:         func() time.Time { return time.Now().UTC() },
+		ctx:         serviceCtx,
+		cancel:      cancel,
+		sessions:    make(map[string]map[string]*entry),
+		perTerminal: make(map[string]int),
 	}
 	for _, opt := range opts {
 		opt(service)
@@ -116,10 +130,13 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	if normalized.Kind == KindTimer {
 		window = normalized.Delay
 	}
-	state := Monitor{
-		ID: id, SessionID: normalized.SessionID, Kind: normalized.Kind, Description: normalized.Description,
-		TerminalID: normalized.TerminalID, Until: normalized.Until, Pattern: normalized.Pattern,
-		Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
+	item := &entry{
+		state: Monitor{
+			ID: id, SessionID: normalized.SessionID, Kind: normalized.Kind, Description: normalized.Description,
+			TerminalID: normalized.TerminalID, Until: normalized.Until, Pattern: normalized.Pattern,
+			Status: StatusActive, CreatedAt: now, DeadlineAt: now.Add(window),
+		},
+		terminalKey: terminalKey(normalized),
 	}
 
 	s.mu.Lock()
@@ -127,64 +144,66 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	if s.stopped {
 		return Monitor{}, ErrStopped
 	}
-	if s.activeCountLocked(normalized.SessionID) >= MaxActivePerSession {
-		return Monitor{}, fmt.Errorf("%w: at most %d per session", ErrLimit, MaxActivePerSession)
+	s.sweepLocked(now)
+	if err := s.admitLocked(item); err != nil {
+		return Monitor{}, err
 	}
 	runCtx, cancel := context.WithCancel(s.ctx)
-	s.monitors[id] = &entry{state: state, cancel: cancel}
+	item.cancel = cancel
+	s.insertLocked(item)
+	created := item.state
 	s.wg.Go(func() {
 		defer cancel()
-		s.run(runCtx, id, normalized, watch)
+		s.run(runCtx, created, normalized, watch)
 	})
-	return state, nil
+	return created, nil
 }
 
 // List returns the session's monitors, active first, newest first within each group.
 func (s *Service) List(sessionID string) []Monitor {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	items := make([]Monitor, 0)
-	for _, item := range s.monitors {
-		if item.state.SessionID == sessionID {
-			items = append(items, item.state)
-		}
+	s.pruneSessionLocked(sessionID, s.now())
+	items := make([]Monitor, 0, len(s.sessions[sessionID]))
+	for _, item := range s.sessions[sessionID] {
+		items = append(items, item.state)
 	}
 	slices.SortFunc(items, compareMonitors)
 	return items
 }
 
-// Cancel stops one active monitor owned by sessionID without waking the session.
+// Cancel stops one active or delivering monitor owned by sessionID without waking the session.
 func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	item, ok := s.monitors[id]
-	if !ok || item.state.SessionID != sessionID {
+	item, ok := s.sessions[sessionID][id]
+	if !ok {
 		return Monitor{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
-	if item.state.Status != StatusActive {
+	if !item.occupies() {
 		return item.state, nil
 	}
-	item.state.Status = StatusCanceled
-	item.state.FiredAt = s.now()
+	s.finishLocked(item, StatusCanceled, s.now())
 	item.cancel()
-	s.pruneLocked(sessionID)
+	s.pruneSessionLocked(sessionID, s.now())
 	return item.state, nil
 }
 
-// CancelSession stops every active monitor owned by sessionID.
+// CancelSession stops every monitor of a stopped or removed session and drops
+// its history; nothing it registered may wake a later incarnation.
 func (s *Service) CancelSession(sessionID string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	canceled := 0
-	for _, item := range s.monitors {
-		if item.state.SessionID == sessionID && item.state.Status == StatusActive {
-			item.state.Status = StatusCanceled
-			item.state.FiredAt = s.now()
+	now := s.now()
+	for _, item := range s.sessions[sessionID] {
+		if item.occupies() {
+			s.finishLocked(item, StatusCanceled, now)
 			item.cancel()
 			canceled++
 		}
 	}
-	s.pruneLocked(sessionID)
+	delete(s.sessions, sessionID)
 	return canceled
 }
 
@@ -207,96 +226,102 @@ func (s *Service) Shutdown(ctx context.Context) error {
 	}
 }
 
-func (s *Service) run(ctx context.Context, id string, spec Spec, watch TerminalWatch) {
-	outcome, ok := s.observe(ctx, spec, watch)
-	if !ok {
-		return
+func (s *Service) admitLocked(item *entry) error {
+	if s.occupied >= MaxActiveTotal {
+		return fmt.Errorf("%w: at most %d active monitors per daemon", ErrLimit, MaxActiveTotal)
 	}
-	state, fire := s.markFired(id, outcome)
-	if !fire {
-		return
-	}
-	err := s.waker.WakeSession(s.ctx, Notification{Monitor: state, Outcome: outcome})
-	if err == nil {
-		return
-	}
-	s.logger.Warn("monitor: session wake failed",
-		"monitor_id", id, "session_id", spec.SessionID, "reason", outcome.Reason, "error", err)
-	s.mu.Lock()
-	if item, exists := s.monitors[id]; exists {
-		item.state.Status = StatusUndelivered
-	}
-	s.mu.Unlock()
-}
-
-func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (Outcome, bool) {
-	if spec.Kind == KindTimer {
-		timer := time.NewTimer(spec.Delay)
-		defer timer.Stop()
-		select {
-		case <-ctx.Done():
-			return Outcome{}, false
-		case <-timer.C:
-			return Outcome{Reason: ReasonTimerElapsed}, true
+	active := 0
+	for _, existing := range s.sessions[item.state.SessionID] {
+		if existing.occupies() {
+			active++
 		}
 	}
-	outcome, err := watch(ctx)
-	if ctx.Err() != nil {
-		return Outcome{}, false
+	if active >= MaxActivePerSession {
+		return fmt.Errorf("%w: at most %d per session", ErrLimit, MaxActivePerSession)
 	}
-	if err != nil {
-		s.logger.Info("monitor: terminal watch ended without a result",
-			"session_id", spec.SessionID, "terminal_id", spec.TerminalID, "error", err)
-		return Outcome{Reason: ReasonTerminalFailed}, true
+	if item.terminalKey != "" && s.perTerminal[item.terminalKey] >= MaxActivePerTerminal {
+		return fmt.Errorf("%w: at most %d per terminal", ErrLimit, MaxActivePerTerminal)
 	}
-	return outcome, true
+	return nil
 }
 
-func (s *Service) markFired(id string, outcome Outcome) (Monitor, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	item, ok := s.monitors[id]
-	if !ok || item.state.Status != StatusActive {
-		return Monitor{}, false
+func (s *Service) insertLocked(item *entry) {
+	bucket := s.sessions[item.state.SessionID]
+	if bucket == nil {
+		bucket = make(map[string]*entry)
+		s.sessions[item.state.SessionID] = bucket
 	}
-	item.state.Status = StatusFired
-	item.state.FiredAt = s.now()
-	item.state.Reason = outcome.Reason
-	item.state.ExitCode = outcome.ExitCode
-	s.pruneLocked(item.state.SessionID)
-	return item.state, true
+	bucket[item.state.ID] = item
+	s.occupied++
+	if item.terminalKey != "" {
+		s.perTerminal[item.terminalKey]++
+	}
 }
 
-func (s *Service) activeCountLocked(sessionID string) int {
-	count := 0
-	for _, item := range s.monitors {
-		if item.state.SessionID == sessionID && item.state.Status == StatusActive {
-			count++
+// finishLocked moves an occupying monitor to a terminal status and releases its cap slots.
+func (s *Service) finishLocked(item *entry, status Status, at time.Time) {
+	if item.occupies() {
+		s.occupied--
+		if item.terminalKey != "" {
+			if s.perTerminal[item.terminalKey]--; s.perTerminal[item.terminalKey] <= 0 {
+				delete(s.perTerminal, item.terminalKey)
+			}
 		}
 	}
-	return count
+	item.state.Status = status
+	if item.state.FiredAt.IsZero() {
+		item.state.FiredAt = at
+	}
 }
 
-// pruneLocked keeps only the newest finished monitors per session for inspection.
-func (s *Service) pruneLocked(sessionID string) {
+// sweepLocked expires finished history across all sessions at most once per sweepInterval.
+func (s *Service) sweepLocked(now time.Time) {
+	if now.Sub(s.lastSweep) < sweepInterval {
+		return
+	}
+	s.lastSweep = now
+	for sessionID := range s.sessions {
+		s.pruneSessionLocked(sessionID, now)
+	}
+}
+
+// pruneSessionLocked drops expired finished monitors and keeps only the newest
+// retainedFinishedPerSession; an empty session bucket is removed.
+func (s *Service) pruneSessionLocked(sessionID string, now time.Time) {
+	bucket := s.sessions[sessionID]
 	finished := make([]Monitor, 0)
-	for _, item := range s.monitors {
-		if item.state.SessionID == sessionID && item.state.Status != StatusActive {
-			finished = append(finished, item.state)
+	for id, item := range bucket {
+		if item.occupies() {
+			continue
+		}
+		if now.Sub(item.state.FiredAt) > finishedRetention {
+			delete(bucket, id)
+			continue
+		}
+		finished = append(finished, item.state)
+	}
+	if len(finished) > retainedFinishedPerSession {
+		slices.SortFunc(finished, compareMonitors)
+		for _, stale := range finished[retainedFinishedPerSession:] {
+			delete(bucket, stale.ID)
 		}
 	}
-	if len(finished) <= retainedFinishedPerSess {
-		return
+	if len(bucket) == 0 {
+		delete(s.sessions, sessionID)
 	}
-	slices.SortFunc(finished, compareMonitors)
-	for _, stale := range finished[retainedFinishedPerSess:] {
-		delete(s.monitors, stale.ID)
+}
+
+func terminalKey(spec Spec) string {
+	if spec.Kind != KindTerminal {
+		return ""
 	}
+	return spec.WorkspaceID + "\x00" + spec.ProfileID + "\x00" + spec.TerminalID
 }
 
 func compareMonitors(a, b Monitor) int {
-	if (a.Status == StatusActive) != (b.Status == StatusActive) {
-		if a.Status == StatusActive {
+	aActive, bActive := a.Status == StatusActive, b.Status == StatusActive
+	if aActive != bActive {
+		if aActive {
 			return -1
 		}
 		return 1
