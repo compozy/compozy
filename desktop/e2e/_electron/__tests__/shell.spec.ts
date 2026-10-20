@@ -1619,7 +1619,7 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
   expect(
     await product.evaluate(async () => {
       const frame = document.createElement("iframe");
-      frame.src = "/";
+      // An initial about:blank frame inherits this origin without a CSP-blocked navigation.
       const loaded = new Promise<void>(resolve => {
         frame.onload = () => resolve();
       });
