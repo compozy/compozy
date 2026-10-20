@@ -394,9 +394,9 @@ func testReviewLoopCompletion(t *testing.T, resolved *loop.ResolvedDefinition) {
 		design := reviewNodeOutput(variables, "design")
 		design["status"], design["summary"] = "created", "Selection prototype"
 		for preview, valid := range map[string]bool{
-			"http://localhost:4400/selection": true,
+			"http://localhost:4400/selection":                                    true,
 			"http://127.0.0.1:6006/iframe.html?id=prototypes-selection--default": true,
-			"https://example.com/selection": false,
+			"https://example.com/selection":                                      false,
 		} {
 			design["preview_url"] = preview
 			raw, err := json.Marshal(design)
