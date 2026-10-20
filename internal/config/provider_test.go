@@ -1442,6 +1442,23 @@ func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve live effort choices when curated metadata is incomplete", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{
+			Defaults: DefaultsConfig{Provider: "opencode"},
+			Providers: map[string]ProviderConfig{"opencode": {Models: ProviderModelsConfig{
+				Curated: []ProviderModelConfig{{ID: "openrouter/acme/coding-default"}},
+			}}},
+		}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(
+			AgentDef{Name: "general", Prompt: "prompt"},
+			RuntimeOverrides{Model: "openrouter/acme/coding-default", Reasoning: "high"},
+		)
+		if err != nil || resolved.ReasoningEffort != "high" {
+			t.Fatalf("runtime = %#v, %v; want live ACP to negotiate explicit effort", resolved, err)
+		}
+	})
+
 	sessionDefaultsConfig := func(t *testing.T, defaults DefaultsConfig) Config {
 		t.Helper()
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))

@@ -230,8 +230,8 @@ func resolveAgentModelRuntime(
 	return model, reasoningEffort, modelSource, reasoningSource, nil
 }
 
-// validateResolvedAgentRuntime rejects static capability absence. ACP owns
-// live effort choices for models that advertise selectable reasoning options.
+// validateResolvedAgentRuntime rejects authoritative static capability absence.
+// Partial curation cannot deny effort choices advertised later by live ACP.
 func validateResolvedAgentRuntime(
 	providerName string,
 	provider ProviderConfig,
@@ -252,7 +252,8 @@ func validateResolvedAgentRuntime(
 	}
 	if effort := strings.TrimSpace(resolved.ReasoningEffort); effort != "" {
 		for _, model := range provider.Models.Curated {
-			if strings.TrimSpace(model.ID) == resolved.Model && len(model.ReasoningEfforts) == 0 {
+			if strings.TrimSpace(model.ID) == resolved.Model && len(model.ReasoningEfforts) == 0 &&
+				builtinModelHasNoSelectableReasoning(providerName, resolved.Model) {
 				return modelReasoningUnavailableError(providerName, resolved.Model, effort)
 			}
 		}

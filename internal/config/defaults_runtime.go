@@ -64,6 +64,17 @@ func providerAcceptsReasoningEffort(provider ProviderConfig, modelID, effort str
 	return true
 }
 
+// builtinModelHasNoSelectableReasoning distinguishes complete builtin metadata
+// from partial operator curation, where a missing effort list means unknown.
+func builtinModelHasNoSelectableReasoning(providerName, modelID string) bool {
+	for _, model := range builtinProviders[providerName].Models.Curated {
+		if strings.TrimSpace(model.ID) == modelID {
+			return len(model.ReasoningEfforts) == 0
+		}
+	}
+	return false
+}
+
 // dropStaleDefaultsRuntime removes this document's defaults.model and
 // defaults.reasoning_effort before defaults.provider changes to provider, so a
 // single-key provider write (CLI, native tool, install, profile seed) never
