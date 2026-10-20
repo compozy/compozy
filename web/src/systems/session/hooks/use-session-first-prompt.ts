@@ -1,6 +1,6 @@
 import { SessionPromptRuntimeContext } from "../contexts/session-prompt-runtime-context-value";
 import { use, useEffect, useRef, useState } from "react";
-import { useAui, useAuiState } from "@assistant-ui/react";
+import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 import { useSelector } from "@xstate/store-react";
 
 import { sendFirstPrompt } from "../lib/session-first-prompt";
@@ -39,6 +39,10 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
   // nothing is consumed until there is something that can accept it.
   const threadAccepts = useAuiState(state => !state.thread.isDisabled && !state.thread.isLoading);
   const prompt = useSelector(sessionStore, snapshot => snapshot.context.firstPrompts[sessionId]);
+
+  useAuiEvent("composer.send", () => {
+    sessionStore.trigger.firstPromptSent({ sessionId });
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -87,7 +91,8 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
           return aui.composer.addAttachment(file);
         })
       );
-      if (!signal || signal.aborted) return;
+      if (!signal || signal.aborted || !sessionStore.getSnapshot().context.firstPrompts[sessionId])
+        return;
       await new Promise<void>((resolve, reject) => {
         const done = () => {
           signal.removeEventListener("abort", done);
@@ -104,6 +109,10 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
   }, [aui, canPrompt, prompt, runtimeStore, sessionId, threadAccepts]);
 
   useEffect(() => {
+    if (staged && !sessionStore.getSnapshot().context.firstPrompts[sessionId]) {
+      staged.done();
+      return;
+    }
     if (
       !staged ||
       staged.signal.aborted ||
@@ -131,5 +140,5 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
     )
       return;
     aui.composer.send();
-  }, [aui, canPrompt, composer, staged, threadAccepts]);
+  }, [aui, canPrompt, composer, prompt, sessionId, staged, threadAccepts]);
 }

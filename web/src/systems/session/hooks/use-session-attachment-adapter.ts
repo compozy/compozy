@@ -14,6 +14,7 @@ import {
 import { ATTACHMENT_ALLOWED_REASON, SESSION_ATTACHMENT_PART_NAME } from "../lib/attachment-kinds";
 import { consumeSubmittedComposerAttachment } from "../lib/session-composer-attachment-ownership";
 import type { SessionAttachment } from "../types";
+import { sessionStore } from "../stores/session-store";
 
 export const SESSION_ATTACHMENT_ADAPTER_ACCEPT = "*";
 
@@ -132,6 +133,8 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
 
   public async remove(attachment: Attachment): Promise<void> {
     if (!this.sessionId) return;
+    // Removal transfers the first-message handoff to the edited draft before upload cleanup awaits.
+    sessionStore.trigger.firstPromptSent({ sessionId: this.sessionId });
     if (consumeSubmittedComposerAttachment(attachment)) {
       const uploaded = this.uploads.get(attachment.id);
       this.uploads.delete(attachment.id);

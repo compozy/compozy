@@ -6141,6 +6141,102 @@ describe("SessionThread composer running semantics", () => {
     ).toBeUndefined();
   });
 
+  // Invariant: removing an uploading first-prompt file relinquishes automatic delivery immediately;
+  // neither a manual send nor reopening can replay the original handoff. Owner: SessionThread.
+  it.each([false, true])(
+    "Should not restore removed first-prompt files after reopening (manual send: %s)",
+    async manualSend => {
+      let release!: () => void;
+      const hold = new Promise<void>(resolve => {
+        release = resolve;
+      });
+      const promptCalls: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        createPromptRecordingFetchMock(promptCalls, { beforeAttachmentUpload: () => hold })
+      );
+      act(() =>
+        sessionStore.trigger.firstPromptQueued({
+          sessionId: primarySessionFixture.id,
+          text: "Keep only the edited text",
+          files: [new File(["evidence"], "removed.txt", { type: "text/plain" })],
+        })
+      );
+      const view = renderComposer({ isSessionRunning: false });
+      const tile = await screen.findByTestId("composer-attachment-tile");
+      expect(tile).toHaveAttribute("data-state", "uploading");
+      let removal!: Promise<void>;
+      act(() => {
+        const attachment = requireComposerAui().composer.getState().attachments[0]!;
+        removal = requireComposerAui().composer.attachment({ id: attachment.id }).remove();
+      });
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined();
+      if (manualSend) {
+        await act(async () => {
+          release();
+          await removal;
+        });
+        expect(promptCalls).toHaveLength(0);
+        await userEvent.setup().click(screen.getByTestId("composer-send-button"));
+        await waitFor(() => expect(promptCalls).toHaveLength(1));
+        expect(JSON.parse(promptCalls[0]!).attachments ?? []).toHaveLength(0);
+      }
+      view.unmount();
+      renderComposer({ isSessionRunning: false });
+      await screen.findByTestId("composer-input");
+      if (!manualSend)
+        await act(async () => {
+          release();
+          await removal;
+        });
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+      expect(composerText()).toBe(manualSend ? "" : "Keep only the edited text");
+      expect(promptCalls).toHaveLength(manualSend ? 1 : 0);
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined();
+    }
+  );
+
+  it("Should consume the first-prompt handoff on a manual composer send during upload", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const promptCalls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createPromptRecordingFetchMock(promptCalls, { beforeAttachmentUpload: () => hold })
+    );
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Send this draft manually",
+        files: [new File(["evidence"], "manual.txt", { type: "text/plain" })],
+      })
+    );
+    const view = renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-attachment-tile");
+    act(() => {
+      void requireComposerAui().composer.send();
+    });
+    await act(async () => release());
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    await waitFor(() =>
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined()
+    );
+    view.unmount();
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-input");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+    expect(composerText()).toBe("");
+    expect(promptCalls).toHaveLength(1);
+  });
+
   // Invariant: window teardown during upload preserves first-message files and resumes once.
   // Owner: session runtime/composer lifecycle; canonical suite: SessionThread.
   it("Should resume first-prompt attachments after closing during upload", async () => {
