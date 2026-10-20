@@ -38,3 +38,11 @@ the invalid file again and verify that detail resolution reports 422 while listi
 - Browser validation used a separate headless Chromium profile, with real network requests and no mocks. The host daemon and user project config were untouched.
 - No provider-backed sessions were needed for this workspace-registration contract.
 - Full heavy gates remain delegated to CI; two pre-existing test-shape warnings in unrelated config tests were left unchanged.
+
+## Review Remediation Re-walk
+
+- Removed loop runtime, provider model and extension marketplace keys each returned 422 from the real daemon, retaining their specific replacement advice and typed key metadata.
+- A Go SDK workspace call against that daemon preserved status, stable code, config path and unknown keys in `APIError`.
+- Repeated the browser refusal/retry with another temporary project and a unique display name: 422 followed by 201, with the editable draft preserved.
+- Re-ran the 14-test Web suite through root Turborepo, codegen-check, targeted config/core/CLI and SDK race tests, and product-language validation successfully.
+- CI findings also required registering the optional error fields in the existing OpenAPI compatibility test and correcting lint conventions.

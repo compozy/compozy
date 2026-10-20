@@ -37,7 +37,7 @@ func loadWorkspaceConfigOverlayBytes(contents []byte, source string) (configOver
 		if _, ok := errors.AsType[*UnknownKeysError](err); ok {
 			return configOverlay{}, fmt.Errorf(
 				"%w: %w. Remove the unknown keys, or rename or remove this file "+
-					"if it belongs to the legacy Compozy CLI. CompozyOS does not support legacy CLI configuration.",
+					"if it belongs to the legacy CLI. CompozyOS does not support legacy CLI configuration",
 				ErrWorkspaceConfigInvalid,
 				err,
 			)

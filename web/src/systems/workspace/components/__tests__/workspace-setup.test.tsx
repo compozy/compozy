@@ -353,7 +353,7 @@ describe("WorkspaceSetupDialog", () => {
     const user = userEvent.setup();
     const message =
       'workspace config invalid: unknown config keys in "/project/.compozy/config.toml": defaults.ide, tasks.run. ' +
-      "Remove the unknown keys, or rename or remove this file if it belongs to the legacy Compozy CLI. " +
+      "Remove the unknown keys, or rename or remove this file if it belongs to the legacy CLI. " +
       "CompozyOS does not support legacy CLI configuration.";
     mockCreateMutateAsync.mockRejectedValue(new Error(message));
     const { onOpenChange, onWorkspaceResolved } = renderDialog({ open: true });

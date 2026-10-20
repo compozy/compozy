@@ -3443,6 +3443,10 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #864: optional workspace-config error details; required fields stay unchanged.
+	if addWorkspaceConfigErrorSchema(baseline) == 0 {
+		t.Fatal("approved workspace config error additions: no historical error schemas found")
+	}
 	if addDeclaredEnvironmentSchemas(baseline) == 0 {
 		t.Fatal("approved environment additions: no historical declaration owners found")
 	}
@@ -3532,6 +3536,32 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			parameters[last],
 		)
 	}
+}
+
+// Match historical generic error fields, including payloads that embed them.
+func addWorkspaceConfigErrorSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addWorkspaceConfigErrorSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addWorkspaceConfigErrorSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["code"] == nil || properties["current_turn_id"] == nil ||
+			properties["details"] == nil || properties["diagnostic"] == nil || properties["error"] == nil {
+			return count
+		}
+		properties["config_path"] = map[string]any{"type": "string"}
+		properties["unknown_keys"] = map[string]any{
+			"type": "array", "items": map[string]any{"type": "string"},
+		}
+		count++
+	}
+	return count
 }
 
 // The historical baseline inlines SessionRuntimePayload at every response site.

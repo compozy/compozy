@@ -14,6 +14,8 @@ type APIError struct {
 	Message       string
 	Details       map[string]any
 	CurrentTurnID string
+	ConfigPath    string
+	UnknownKeys   []string
 }
 
 // Error returns the daemon's status and error message.
@@ -48,9 +50,12 @@ func responseError(response *http.Response) error {
 		Code          string         `json:"code"`
 		Details       map[string]any `json:"details"`
 		CurrentTurnID string         `json:"current_turn_id"`
+		ConfigPath    string         `json:"config_path"`
+		UnknownKeys   []string       `json:"unknown_keys"`
 	}
 	if err := json.Unmarshal(data, &body); err == nil {
 		result.Code, result.Details, result.CurrentTurnID = body.Code, body.Details, body.CurrentTurnID
+		result.ConfigPath, result.UnknownKeys = body.ConfigPath, body.UnknownKeys
 		if body.Error != "" {
 			result.Message = body.Error
 		} else if body.Message != "" {

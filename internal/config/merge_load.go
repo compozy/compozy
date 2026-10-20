@@ -73,16 +73,20 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 		if len(undecoded) == 0 {
 			return overlay, nil
 		}
+		unknown := &UnknownKeysError{Path: source, Keys: uniqueTOMLKeys(undecoded)}
 		if err := rejectRemovedLoopRuntimeKeys(source, undecoded); err != nil {
-			return overlay, err
+			unknown.Err = err
+			return overlay, unknown
 		}
 		if err := rejectRemovedProviderModelKeys(source, undecoded); err != nil {
-			return overlay, err
+			unknown.Err = err
+			return overlay, unknown
 		}
 		if err := rejectRemovedExtensionMarketplaceKeys(source, undecoded); err != nil {
-			return overlay, err
+			unknown.Err = err
+			return overlay, unknown
 		}
-		return overlay, &UnknownKeysError{Path: source, Keys: uniqueTOMLKeys(undecoded)}
+		return overlay, unknown
 	}
 
 	return overlay, nil

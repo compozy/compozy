@@ -236,7 +236,7 @@ deduplicated `unknown_keys` array, and an actionable `error` message. The CLI pr
 with `-o json` and exits with code `78`; Add project displays the message without clearing the form.
 The workspace list remains available because it reads registrations without resolving configuration.
 
-Legacy Compozy CLI configuration is unsupported. If the error names legacy keys such as
+Legacy CLI configuration is unsupported. If the error names legacy keys such as
 `defaults.ide` or `tasks.run.task_runtime_rules`, remove those keys, or rename or remove the legacy
 file before trying again. CompozyOS does not translate these settings or modify the rejected file.
 Other configuration decode errors and server failures retain their existing behavior.

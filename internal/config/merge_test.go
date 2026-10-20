@@ -17,6 +17,26 @@ import (
 func TestUnknownConfigKeys(t *testing.T) {
 	t.Parallel()
 
+	for _, test := range []struct{ name, content, key, advice string }{
+		{"loop runtime", "[loops.defaults.delivery.model_defaults.worker]\nmodel = 'opus'\n",
+			"loops.defaults.delivery.model_defaults.worker", "runtime_defaults"},
+		{"provider model", "[providers.codex]\ndefault_model = 'model'\n",
+			"providers.codex.default_model", "providers.codex.models.default"},
+		{"extension marketplace", "[extensions.marketplace]\nallow_unverified = true\n",
+			"extensions.marketplace.allow_unverified", "extensions.trust.allow_unverified"},
+	} {
+		t.Run("Should preserve removed "+test.name+" key guidance in workspace errors", func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), ".compozy", "config.toml")
+			_, err := loadWorkspaceConfigOverlayBytes([]byte(test.content), path)
+			unknown, ok := errors.AsType[*UnknownKeysError](err)
+			if !errors.Is(err, ErrWorkspaceConfigInvalid) || !ok || unknown.Path != path ||
+				!slices.Contains(unknown.Keys, test.key) || !strings.Contains(err.Error(), test.advice) {
+				t.Fatalf("error = %v, metadata = %#v; want removed key and replacement guidance", err, unknown)
+			}
+		})
+	}
+
 	t.Run("Should reject legacy workspace keys with a sorted unique list and preserve the file", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
@@ -36,7 +56,7 @@ func TestUnknownConfigKeys(t *testing.T) {
 		if !ok || unknown.Path != path || !slices.Equal(unknown.Keys, want) {
 			t.Fatalf("unknown keys error = %#v, want path %q and keys %v", unknown, path, want)
 		}
-		for _, text := range []string{"Remove the unknown keys", "rename or remove", "legacy Compozy CLI"} {
+		for _, text := range []string{"Remove the unknown keys", "rename or remove", "legacy CLI"} {
 			if !strings.Contains(err.Error(), text) {
 				t.Fatalf("error %q lacks remediation %q", err, text)
 			}

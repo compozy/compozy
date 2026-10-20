@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+const workspaceConfigInvalidDescription = "Unknown workspace config keys (workspace_config_invalid)"
+
 func registryWorkspaceOperations() []OperationSpec {
 	return []OperationSpec{
 		listWorkspacesOperationSpec(),
@@ -43,7 +45,7 @@ func createWorkspaceOperationSpec() OperationSpec {
 			{Status: 409, Description: "Workspace conflict", Body: contract.ErrorPayload{}},
 			{
 				Status:      422,
-				Description: "Unknown workspace config keys (workspace_config_invalid)",
+				Description: workspaceConfigInvalidDescription,
 				Body:        contract.ErrorPayload{},
 			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -66,7 +68,7 @@ func getWorkspaceOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.WorkspaceDetailPayload{}},
 			{
 				Status:      422,
-				Description: "Unknown workspace config keys (workspace_config_invalid)",
+				Description: workspaceConfigInvalidDescription,
 				Body:        contract.ErrorPayload{},
 			},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -128,7 +130,7 @@ func resolveWorkspaceOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.WorkspaceResponse{}},
 			{
 				Status:      422,
-				Description: "Unknown workspace config keys (workspace_config_invalid)",
+				Description: workspaceConfigInvalidDescription,
 				Body:        contract.ErrorPayload{},
 			},
 			{Status: 400, Description: "Invalid workspace path", Body: contract.ErrorPayload{}},
