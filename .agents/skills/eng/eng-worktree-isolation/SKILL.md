@@ -75,6 +75,15 @@ Creating the parallel checkout itself is a separate step: `make worktree-new SLU
 
 *Done when:* the owned envelope is clean, unrelated labs remain untouched, and any retained files contain no live process state.
 
+## Process identity
+
+Register every owned process immediately with
+`python3 .agents/skills/eng/eng-qa-bootstrap/scripts/qa_process_identity.py --pid "$!" --file "<QA_OUTPUT_PATH>/qa/pids/<name>.pid"`.
+The record includes start time and command. Teardown revalidates it before each individual signal,
+never signals whole process groups, and reports matched, stale, and skipped records. Legacy bare
+PID files and port listeners require independent lab ownership evidence. Dead process records are
+removed during teardown; do not reuse a record for a replacement process.
+
 ## Error Handling
 
 - **No free port available:** retry with a wider range. If still no luck, surface the busy ports and exit.

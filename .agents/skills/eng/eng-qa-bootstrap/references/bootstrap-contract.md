@@ -96,7 +96,7 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 - Web dev server for isolated daemon QA: `COMPOZY_WEB_API_PROXY_TARGET="$COMPOZY_WEB_API_PROXY_TARGET" make web-dev`
 - Config mutations such as `compozy config set` must run sequentially when they target the same isolated home.
 - Before claiming behavior-first QA completion, run `python3 "$AUDIT_COMMAND" --qa-output-path "$QA_OUTPUT_PATH" --strict` and include its result in the verification report.
-- Every long-lived process started against the lab (daemon, `make web-dev`, watchers, browser sessions started outside `agent-browser`'s own lifecycle) must register its PID at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` right after spawn (`echo $! > "$QA_OUTPUT_PATH/qa/pids/<name>.pid"`). The teardown consumes this registry first and falls back to cmdline/lsof/port scans.
+- Every long-lived process started against the lab (daemon, `make web-dev`, watchers, browser sessions started outside `agent-browser`'s own lifecycle) must register its PID at `<QA_OUTPUT_PATH>/qa/pids/<name>.pid` right after spawn (`python3 .agents/skills/eng/eng-qa-bootstrap/scripts/qa_process_identity.py --pid "$!" --file "$QA_OUTPUT_PATH/qa/pids/<name>.pid"`). The registry records the process start time and command, which teardown revalidates before each individual signal. Bare legacy PID files and port listeners alone never prove ownership; command-line or open-file evidence must independently identify the lab. Teardown never signals an entire process group.
 
 ## Mandatory teardown (process hygiene)
 
