@@ -1021,6 +1021,101 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should recognize patch-equivalent landings without losing unique commits", func(t *testing.T) {
+		t.Parallel()
+		for _, target := range []string{"base", "pinned base", "custom default", "remote", "split refs", "split mixed", "mixed", "hook"} {
+			t.Run("Should preserve work landed on "+target, func(t *testing.T) {
+				t.Parallel()
+				f := newRealGitFixture(t)
+				base := "main"
+				if target == "custom default" {
+					f.git(f.workspace.Root, "branch", "-m", "trunk")
+					f.git(f.workspace.Root, "update-ref", "refs/remotes/origin/trunk", "HEAD")
+					f.git(f.workspace.Root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+				}
+				if target == "pinned base" || target == "custom default" {
+					base = strings.TrimSpace(f.git(f.workspace.Root, "rev-parse", "HEAD"))
+				}
+				item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+					ProfileID: testWorktreeProfileID, Name: "Patch landing", BaseRef: base,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(item.Path, "patch.txt"), []byte("landed\n"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+				f.git(item.Path, "add", "patch.txt")
+				f.git(item.Path, "commit", "-m", "feature")
+				head := strings.TrimSpace(f.git(item.Path, "rev-parse", "HEAD"))
+				landing := f.workspace.Root
+				if target != "base" && target != "pinned base" && target != "custom default" {
+					landing = filepath.Join(t.TempDir(), "landing")
+					f.git(f.workspace.Root, "worktree", "add", "-b", "landing", landing, "main")
+				}
+				f.git(landing, "commit", "--allow-empty", "-m", "diverge")
+				f.git(landing, "cherry-pick", head)
+				if target != "base" && target != "pinned base" && target != "custom default" {
+					landed := strings.TrimSpace(f.git(landing, "rev-parse", "HEAD"))
+					f.git(f.workspace.Root, "update-ref", "refs/remotes/origin/landed", landed)
+				}
+				if target == "split refs" || target == "split mixed" {
+					if err := os.WriteFile(
+						filepath.Join(item.Path, "second.txt"),
+						[]byte("second patch\n"),
+						0o600,
+					); err != nil {
+						t.Fatal(err)
+					}
+					f.git(item.Path, "add", "second.txt")
+					f.git(item.Path, "commit", "-m", "second feature")
+					second := f.git(item.Path, "rev-parse", "HEAD")
+					other := filepath.Join(t.TempDir(), "other-landing")
+					f.git(f.workspace.Root, "worktree", "add", "-b", "other-landing", other, "main")
+					f.git(other, "commit", "--allow-empty", "-m", "other divergence")
+					f.git(other, "cherry-pick", second)
+					tip := f.git(other, "rev-parse", "HEAD")
+					for n := range 20 {
+						f.git(f.workspace.Root, "update-ref", fmt.Sprintf("refs/remotes/other/landed-%d", n), tip)
+					}
+				}
+				addUnique := func() {
+					t.Helper()
+					if err := os.WriteFile(
+						filepath.Join(item.Path, "unique.txt"),
+						[]byte("unique\n"),
+						0o600,
+					); err != nil {
+						t.Fatal(err)
+					}
+					f.git(item.Path, "add", "unique.txt")
+					f.git(item.Path, "commit", "-m", "unique")
+				}
+				if target == "mixed" || target == "split mixed" {
+					addUnique()
+				}
+				if target == "hook" {
+					f.service.hooks = removalHookDispatcher{dispatch: func(request HookRequest) (HookVerdict, error) {
+						if request.Event == EventPreRemove {
+							addUnique()
+						}
+						return HookVerdict{}, nil
+					}}
+				}
+				refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
+				if target == "mixed" || target == "split mixed" || target == "hook" {
+					if !errors.Is(err, ErrUnpushedRequiresForce) || refusal == nil ||
+						refusal.Risk.UnpushedCommits != 1 {
+						t.Fatalf("Remove(mixed) = (%#v, %v), want one unique commit", refusal, err)
+					}
+					assertFileContent(t, filepath.Join(item.Path, "unique.txt"), "unique\n")
+				} else if err != nil || refusal != nil {
+					t.Fatalf("Remove(landed) = (%#v, %v)", refusal, err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should clean up a gone upstream only with current merged HEAD evidence", func(t *testing.T) {
 		t.Parallel()
 		for _, scenario := range []string{"merged", "later commit", "dirty", "stale", "no forge", "wrong head", "no base", "persisted merge", "provider unavailable"} {
@@ -1037,7 +1132,11 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Join(item.Path, "feature.txt"), []byte("feature\n"), 0o600); err != nil {
+				if err := os.WriteFile(
+					filepath.Join(item.Path, "feature.txt"),
+					[]byte("feature\n"),
+					0o600,
+				); err != nil {
 					t.Fatal(err)
 				}
 				f.git(item.Path, "add", "feature.txt")
@@ -1093,7 +1192,8 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 					t.Fatalf("gone status = (%#v, %v)", status, err)
 				}
 				plan, err := f.service.ExitPlan(t.Context(), f.workspace.ID, item.ID)
-				wantMerged := scenario == "merged" || scenario == "dirty" || scenario == "no base" || scenario == "persisted merge"
+				wantMerged := scenario == "merged" || scenario == "dirty" || scenario == "no base" ||
+					scenario == "persisted merge"
 				if err != nil || plan.Cleanup.Safe != wantMerged || (wantMerged && plan.Cleanup.Source != "forge") {
 					t.Fatalf("exit plan = (%#v, %v), want merged evidence %v", plan, err, wantMerged)
 				}
@@ -1117,10 +1217,17 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 						t.Fatalf("Remove(dirty) = %v", err)
 					}
 				default:
-					if !errors.Is(err, ErrUnpushedRequiresForce) || refusal == nil || refusal.Risk.UnpushedCommits == 0 {
+					if !errors.Is(err, ErrUnpushedRequiresForce) || refusal == nil ||
+						refusal.Risk.UnpushedCommits == 0 {
 						t.Fatalf("Remove(unproven) = (%#v, %v)", refusal, err)
 					}
-					if refusal, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, true); err != nil || refusal != nil {
+					if refusal, err := f.service.Remove(
+						t.Context(),
+						f.workspace.ID,
+						item.ID,
+						true,
+					); err != nil ||
+						refusal != nil {
 						t.Fatalf("Remove(force) = (%#v, %v)", refusal, err)
 					}
 				}
@@ -2140,6 +2247,14 @@ func (r *interceptingGitRunner) Run(
 		}
 	}
 	return r.inner.Run(ctx, dir, args...)
+}
+
+func (r *interceptingGitRunner) RunWithInput(
+	ctx context.Context,
+	dir, input string,
+	args ...string,
+) ([]byte, []byte, error) {
+	return r.inner.(GitInputRunner).RunWithInput(ctx, dir, input, args...)
 }
 
 func (r *interceptingGitRunner) RunWithIndex(

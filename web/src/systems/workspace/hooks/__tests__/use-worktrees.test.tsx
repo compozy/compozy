@@ -1,7 +1,7 @@
 // Invariant: worktree creation forwards the active destination, and only aggregate creation
 // reports the daemon-returned owner. Owning layer: useCreateWorktree; no prior suite owns it.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, render, screen, fireEvent } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -105,6 +105,8 @@ describe("useCreateWorktree", () => {
 // failed-only retry belong to lifecycle hooks.
 import { useWorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-batch";
 import { useWorktreeRemovalSelection } from "@/systems/workspace/hooks/use-worktree-removal-selection";
+import { WorktreeBulkRemoveDialog } from "../../components/worktree-bulk-remove-dialog";
+import { WorktreeApiError } from "../../adapters/worktree-api";
 import { toWorktreeNestEntries } from "@/systems/workspace/lib/worktree-display";
 
 describe("worktree batch lifecycle", () => {
@@ -298,6 +300,58 @@ describe("worktree batch lifecycle", () => {
     }
     expect(mocks.dismissWorktree).not.toHaveBeenCalled();
     expect(mocks.removeWorktree).not.toHaveBeenCalled();
+  });
+
+  it("Should require a second confirmation and force only eligible refused targets", async () => {
+    // Invariant: force is explicit and scoped to quantified loss refusals; this lifecycle suite owns the dialog-to-API boundary.
+    const rows = ["dirty", "unpushed", "active", "clean"].map(id =>
+      buildWorktreeFixture({ id, name: id, workspace_id: "ws_alpha" })
+    );
+    mocks.inspectWorktree.mockImplementation(async (_workspace, id) => ({
+      worktree: rows.find(row => row.id === id),
+    }));
+    mocks.removeWorktree.mockImplementation(async (_workspace, id, options) => {
+      if (id === "clean" || options.force) return null;
+      throw new WorktreeApiError("refused", 409, {
+        code: id === "active" ? "worktree_session_active" : `worktree_${id}_requires_force`,
+        risk: {
+          changed_files: id === "dirty" ? 2 : 0,
+          insertions: 4,
+          deletions: 1,
+          unpushed_commits: id === "unpushed" ? 1 : 0,
+          exists_on_remote: false,
+        },
+      });
+    });
+    render(
+      createElement(WorktreeBulkRemoveDialog, {
+        batch: { workspaceId: "ws_alpha", worktrees: rows },
+        onClose: vi.fn(),
+      }),
+      { wrapper: createWrapper(new QueryClient()) }
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Also delete local branches" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove selected" }));
+    await screen.findByText("1 succeeded · 3 failed · 0 pending");
+    expect(screen.getByText("2 changed files")).toBeInTheDocument();
+    expect(screen.getByText("1 unpushed commit")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Force remove… (2)" }));
+    expect(screen.getByTestId("worktree-bulk-force-dialog")).toBeInTheDocument();
+    expect(mocks.removeWorktree).toHaveBeenCalledTimes(4);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(mocks.removeWorktree).toHaveBeenCalledTimes(4);
+    fireEvent.click(screen.getByRole("button", { name: "Force remove… (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Force remove" }));
+    await screen.findByText("3 succeeded · 1 failed · 0 pending");
+    expect(
+      mocks.removeWorktree.mock.calls.filter(call => call[2].force).map(call => call[1])
+    ).toEqual(["dirty", "unpushed"]);
+    expect(mocks.removeWorktree).toHaveBeenLastCalledWith("ws_alpha", "unpushed", {
+      profile: "default",
+      force: true,
+      deleteBranch: true,
+    });
+    expect(screen.queryByRole("button", { name: /Force remove/ })).not.toBeInTheDocument();
   });
 
   it("Should select ready and missing rows of any live owner and freeze the selection", () => {
