@@ -6252,6 +6252,9 @@
           "code": {
             "type": "string"
           },
+          "config_path": {
+            "type": "string"
+          },
           "current_turn_id": {
             "type": "string"
           },
@@ -6276,6 +6279,12 @@
           },
           "error": {
             "type": "string"
+          },
+          "unknown_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -22498,6 +22507,9 @@
           "code": {
             "type": "string"
           },
+          "config_path": {
+            "type": "string"
+          },
           "current_turn_id": {
             "type": "string"
           },
@@ -22522,6 +22534,12 @@
           },
           "error": {
             "type": "string"
+          },
+          "unknown_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -33231,6 +33249,9 @@
           "code": {
             "type": "string"
           },
+          "config_path": {
+            "type": "string"
+          },
           "current_turn_id": {
             "type": "string"
           },
@@ -33258,6 +33279,12 @@
           },
           "field": {
             "type": "string"
+          },
+          "unknown_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -73500,6 +73527,16 @@
             },
             "description": "Workspace conflict"
           },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unknown workspace config keys (workspace_config_invalid)"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -73566,6 +73603,16 @@
               }
             },
             "description": "Workspace not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unknown workspace config keys (workspace_config_invalid)"
           },
           "500": {
             "content": {
@@ -73671,6 +73718,16 @@
               }
             },
             "description": "Workspace not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Unknown workspace config keys (workspace_config_invalid)"
           },
           "500": {
             "content": {

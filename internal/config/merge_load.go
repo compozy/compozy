@@ -82,7 +82,7 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 		if err := rejectRemovedExtensionMarketplaceKeys(source, undecoded); err != nil {
 			return overlay, err
 		}
-		return overlay, fmt.Errorf("unknown config keys in %q: %s", source, joinTOMLKeys(undecoded))
+		return overlay, &UnknownKeysError{Path: source, Keys: uniqueTOMLKeys(undecoded)}
 	}
 
 	return overlay, nil

@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/gateway"
@@ -80,6 +81,10 @@ func ErrorPayloadForStatus(status int, err error, maskInternalErrors bool) contr
 }
 
 func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normalizedErrorStatus {
+	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
+		status = http.StatusUnprocessableEntity
+		maskInternalErrors = false
+	}
 	if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxBytesErr != nil {
 		status = http.StatusRequestEntityTooLarge
 		err = ErrRequestBodyTooLarge

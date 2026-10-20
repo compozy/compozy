@@ -70,3 +70,9 @@ complete. The canonical suites and production build pass; see the report for gat
 QA impact 2026-10-17 (web performance): The shell pauses directory/default-agent queries while Add project is closed and retains the mounted draft. Verify no closed-dialog filesystem reads, browse then close/reopen without losing path/name/defaults, and unchanged single-submit registration. The existing directory-browser integration suite now covers disabled reads, retained path, invalidation, and re-enable.
 
 Scope, measured results, and verification limits: [Web performance report](../reports/2026-10-17-web-performance.md). Historical scenario verdicts above are not new verification of this revision. Heavy local gates are deferred to CI by explicit user instruction.
+
+QA impact 2026-10-20 (#864): Unknown keys in the selected project's `.compozy/config.toml` return
+422 `workspace_config_invalid`, naming the file, unique keys and remediation. Add project must show
+that message inline, retain the draft and allow retry after the operator renames the temporary legacy
+file. Rejected registration must leave no workspace behind. The legacy CLI format remains unsupported.
+Targeted execution: [Workspace config rejection report](../reports/2026-10-20-issue-864-legacy-config-error.md).

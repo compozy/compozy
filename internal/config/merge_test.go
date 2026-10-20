@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -12,6 +13,54 @@ import (
 
 	"github.com/compozy/compozy/internal/resources"
 )
+
+func TestUnknownConfigKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject legacy workspace keys with a sorted unique list and preserve the file", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		path := filepath.Join(root, ".compozy", "config.toml")
+		content := "[defaults]\nide = 'codex'\n[tasks.run]\n" +
+			"[[tasks.run.task_runtime_rules]]\ntype = 'frontend'\nide = 'claude'\n" +
+			"[[tasks.run.task_runtime_rules]]\ntype = 'backend'\nide = 'codex'\n"
+		writeFile(t, path, content)
+		var cfg Config
+		err := applyWorkspaceConfigOverlayFile(path, &cfg)
+		if !errors.Is(err, ErrWorkspaceConfigInvalid) {
+			t.Fatalf("error = %v, want workspace config invalid", err)
+		}
+		unknown, ok := errors.AsType[*UnknownKeysError](err)
+		want := []string{"defaults.ide", "tasks.run", "tasks.run.task_runtime_rules",
+			"tasks.run.task_runtime_rules.ide", "tasks.run.task_runtime_rules.type"}
+		if !ok || unknown.Path != path || !slices.Equal(unknown.Keys, want) {
+			t.Fatalf("unknown keys error = %#v, want path %q and keys %v", unknown, path, want)
+		}
+		for _, text := range []string{"Remove the unknown keys", "rename or remove", "legacy Compozy CLI"} {
+			if !strings.Contains(err.Error(), text) {
+				t.Fatalf("error %q lacks remediation %q", err, text)
+			}
+		}
+		after, readErr := os.ReadFile(path)
+		if readErr != nil || string(after) != content {
+			t.Fatalf("file after rejection = %q, %v", after, readErr)
+		}
+	})
+
+	t.Run(
+		"Should keep global unknown keys and TOML decode errors outside the workspace error class",
+		func(t *testing.T) {
+			t.Parallel()
+			_, globalErr := loadConfigOverlayBytes([]byte("[defaults]\nide = 'codex'\n"), "global.toml")
+			_, decodeErr := loadWorkspaceConfigOverlayBytes([]byte("[invalid"), "workspace.toml")
+			for _, err := range []error{globalErr, decodeErr} {
+				if err == nil || errors.Is(err, ErrWorkspaceConfigInvalid) {
+					t.Fatalf("error = %v, want original non-workspace error class", err)
+				}
+			}
+		},
+	)
+}
 
 func TestApplyConfigOverlayFileAppliesSkillsOverlay(t *testing.T) {
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
