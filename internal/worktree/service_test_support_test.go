@@ -46,6 +46,10 @@ func (r *recordingGitRunner) Run(_ context.Context, dir string, args ...string) 
 	return append([]byte(nil), response.stdout...), append([]byte(nil), response.stderr...), response.err
 }
 
+func (r *recordingGitRunner) RunWithInput(ctx context.Context, dir, _ string, args ...string) ([]byte, []byte, error) {
+	return r.Run(ctx, dir, args...)
+}
+
 func (r *recordingGitRunner) invocations() []gitInvocation {
 	r.mu.Lock()
 	defer r.mu.Unlock()

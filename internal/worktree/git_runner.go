@@ -44,6 +44,10 @@ type StreamingGitRunner interface {
 	RunStreaming(context.Context, string, GitOutputHandler, ...string) ([]byte, []byte, error)
 }
 
+type GitInputRunner interface {
+	RunWithInput(context.Context, string, string, ...string) ([]byte, []byte, error)
+}
+
 type GitIndexRunner interface {
 	RunWithIndex(context.Context, string, string, ...string) ([]byte, []byte, error)
 }
@@ -171,16 +175,20 @@ func (r *RealGitRunner) run(
 	onOutput GitOutputHandler,
 	args ...string,
 ) ([]byte, []byte, error) {
-	return r.runWithIndex(ctx, dir, "", onOutput, args...)
+	return r.runCommand(ctx, dir, "", "", onOutput, args...)
 }
 
 func (r *RealGitRunner) RunWithIndex(ctx context.Context, dir, index string, args ...string) ([]byte, []byte, error) {
-	return r.runWithIndex(ctx, dir, index, nil, args...)
+	return r.runCommand(ctx, dir, index, "", nil, args...)
 }
 
-func (r *RealGitRunner) runWithIndex(
+func (r *RealGitRunner) RunWithInput(ctx context.Context, dir, input string, args ...string) ([]byte, []byte, error) {
+	return r.runCommand(ctx, dir, "", input, nil, args...)
+}
+
+func (r *RealGitRunner) runCommand(
 	ctx context.Context,
-	dir, index string,
+	dir, index, input string,
 	onOutput GitOutputHandler,
 	args ...string,
 ) ([]byte, []byte, error) {
@@ -190,7 +198,7 @@ func (r *RealGitRunner) runWithIndex(
 	// The executable is resolved once from the operator environment; callers supply structured git arguments.
 	cmd := execabs.CommandContext(ctx, r.executable, args...) // #nosec G204
 	cmd.Dir = dir
-	cmd.Stdin = nil
+	cmd.Stdin = strings.NewReader(input)
 	cmd.Env = gitEnvironment(r.environ())
 	if index != "" {
 		cmd.Env = append(cmd.Env, "GIT_INDEX_FILE="+index)
@@ -295,3 +303,5 @@ var _ GitRunner = (*RealGitRunner)(nil)
 var _ StreamingGitRunner = (*RealGitRunner)(nil)
 
 var _ GitIndexRunner = (*RealGitRunner)(nil)
+
+var _ GitInputRunner = (*RealGitRunner)(nil)

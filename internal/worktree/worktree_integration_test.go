@@ -2249,6 +2249,14 @@ func (r *interceptingGitRunner) Run(
 	return r.inner.Run(ctx, dir, args...)
 }
 
+func (r *interceptingGitRunner) RunWithInput(
+	ctx context.Context,
+	dir, input string,
+	args ...string,
+) ([]byte, []byte, error) {
+	return r.inner.(GitInputRunner).RunWithInput(ctx, dir, input, args...)
+}
+
 func (r *interceptingGitRunner) RunWithIndex(
 	ctx context.Context, dir, index string, args ...string,
 ) ([]byte, []byte, error) {

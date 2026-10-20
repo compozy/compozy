@@ -3,6 +3,7 @@ package worktree
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -333,37 +334,42 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 
 	t.Run("Should preserve the checkout when patch preservation cannot be verified", func(t *testing.T) {
 		t.Parallel()
-		for _, command := range []string{
-			"rev-list main..HEAD",
-			"for-each-ref --format=%(refname) %(objectname) %(symref) refs/remotes/ refs/heads/",
-			"rev-list --cherry-pick --right-only main...HEAD --",
-		} {
-			t.Run("Should fail closed for "+command, func(t *testing.T) {
-				t.Parallel()
-				fixture := newRemovalTestFixture(t)
-				fixture.uniqueCommits.Store(1)
-				baseRun := fixture.runner.run
-				fixture.runner.run = func(call gitInvocation) gitResponse {
-					if strings.Join(call.args, " ") == command {
-						return gitResponse{stderr: []byte("unreadable refs"), err: errors.New("exit 128")}
+		for _, oversized := range []bool{false, true} {
+			for _, command := range []string{
+				"rev-list main..HEAD",
+				"for-each-ref --format=%(refname) %(objectname) %(symref) refs/remotes/ refs/heads/",
+				"rev-list --cherry-pick --right-only --stdin",
+			} {
+				t.Run(fmt.Sprintf("Should fail closed for %s oversized=%t", command, oversized), func(t *testing.T) {
+					t.Parallel()
+					fixture := newRemovalTestFixture(t)
+					fixture.uniqueCommits.Store(1)
+					baseRun := fixture.runner.run
+					fixture.runner.run = func(call gitInvocation) gitResponse {
+						if strings.Join(call.args, " ") == command {
+							if oversized {
+								return gitResponse{stdout: []byte(strings.Repeat("x", maxGitOutputBytes))}
+							}
+							return gitResponse{stderr: []byte("unreadable refs"), err: errors.New("exit 128")}
+						}
+						return baseRun(call)
 					}
-					return baseRun(call)
-				}
-				if _, err := fixture.service.Remove(
-					t.Context(),
-					fixture.workspace.ID,
-					fixture.item.ID,
-					false,
-				); !errors.Is(
-					err,
-					ErrSafetyCheckFailed,
-				) {
-					t.Fatalf("Remove(unverifiable patches) = %v", err)
-				}
-				if fixture.mustItem(t).State != StateReady || fixture.removeCalls.Load() != 0 {
-					t.Fatal("uncertain preservation changed the checkout or removal fence")
-				}
-			})
+					if _, err := fixture.service.Remove(
+						t.Context(),
+						fixture.workspace.ID,
+						fixture.item.ID,
+						false,
+					); !errors.Is(
+						err,
+						ErrSafetyCheckFailed,
+					) {
+						t.Fatalf("Remove(unverifiable patches) = %v", err)
+					}
+					if fixture.mustItem(t).State != StateReady || fixture.removeCalls.Load() != 0 {
+						t.Fatal("uncertain preservation changed the checkout or removal fence")
+					}
+				})
+			}
 		}
 	})
 
@@ -755,7 +761,7 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 			return gitResponse{}
 		case command == "rev-list --count main..HEAD":
 			return gitResponse{stdout: []byte(strconv.Itoa(fixture.uniqueCommits.Load()) + "\n")}
-		case command == "rev-list main..HEAD" || command == "rev-list --cherry-pick --right-only main...HEAD --":
+		case command == "rev-list main..HEAD" || command == "rev-list --cherry-pick --right-only --stdin":
 			var hashes strings.Builder
 			for i := range fixture.uniqueCommits.Load() {
 				hashes.WriteString(strconv.Itoa(i) + "\n")

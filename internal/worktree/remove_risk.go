@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -90,15 +91,65 @@ func (s *Service) unpreservedRemovalCommits(ctx context.Context, item Worktree, 
 	if err != nil {
 		return 0, fmt.Errorf("list unique commits: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
 	}
+	if len(stdout) >= maxGitOutputBytes {
+		return 0, errors.New("worktree: candidate commit inventory exceeds the safety output limit")
+	}
 	remaining := make(map[string]struct{})
 	for hash := range strings.FieldsSeq(string(stdout)) {
 		remaining[hash] = struct{}{}
 	}
-	stdout, stderr, err = s.runner.Run(
+	refs, err := s.removalPreservationRefs(ctx, item, status)
+	if err != nil {
+		return 0, err
+	}
+	var revisions strings.Builder
+	seen := make(map[string]bool)
+	for _, ref := range refs {
+		if !seen[ref] {
+			revisions.WriteString(ref + "...HEAD\n")
+			seen[ref] = true
+		}
+	}
+	if len(seen) == 0 {
+		return len(remaining), nil
+	}
+	runner, ok := s.runner.(GitInputRunner)
+	if !ok {
+		return 0, errors.New("worktree: Git runner does not support revision input")
+	}
+	stdout, stderr, err = runner.RunWithInput(
+		ctx,
+		item.Path,
+		revisions.String(),
+		removalRevListCommand,
+		"--cherry-pick",
+		"--right-only",
+		"--stdin",
+	)
+	if err != nil {
+		return 0, fmt.Errorf("compare preserved patches: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+	}
+	if len(stdout) >= maxGitOutputBytes {
+		return 0, errors.New("worktree: patch comparison exceeds the safety output limit")
+	}
+	count := 0
+	for hash := range strings.FieldsSeq(string(stdout)) {
+		if _, found := remaining[hash]; found {
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (s *Service) removalPreservationRefs(ctx context.Context, item Worktree, status *Status) ([]string, error) {
+	stdout, stderr, err := s.runner.Run(
 		ctx, item.Path, "for-each-ref", "--format=%(refname) %(objectname) %(symref)", "refs/remotes/", "refs/heads/",
 	)
 	if err != nil {
-		return 0, fmt.Errorf("list preservation refs: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+		return nil, fmt.Errorf("list preservation refs: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+	}
+	if len(stdout) >= maxGitOutputBytes {
+		return nil, errors.New("worktree: preservation refs exceed the safety output limit")
 	}
 	refs := []string{}
 	if item.BaseRef != "" {
@@ -126,27 +177,5 @@ func (s *Service) unpreservedRemovalCommits(ctx context.Context, item Worktree, 
 	if tip := localRefs[defaultRef]; tip != "" {
 		refs = append(refs, tip)
 	}
-	args = []string{removalRevListCommand, "--cherry-pick", "--right-only"}
-	seen := make(map[string]bool)
-	for _, ref := range refs {
-		if !seen[ref] {
-			args = append(args, ref+"...HEAD")
-			seen[ref] = true
-		}
-	}
-	if len(seen) == 0 {
-		return len(remaining), nil
-	}
-	args = append(args, "--")
-	stdout, stderr, err = s.runner.Run(ctx, item.Path, args...)
-	if err != nil {
-		return 0, fmt.Errorf("compare preserved patches: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
-	}
-	count := 0
-	for hash := range strings.FieldsSeq(string(stdout)) {
-		if _, found := remaining[hash]; found {
-			count++
-		}
-	}
-	return count, nil
+	return refs, nil
 }
