@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import { deriveToolRowStatus } from "@/systems/session/lib/message-parts";
-import { toolMessageFromPart } from "../session-timeline-tool-message";
+import { toolMessageFromPart } from "@/components/assistant-ui/session-timeline-tool-message";
 import type { SessionMessage } from "@/systems/session/types";
 import claudeGoalLive from "./fixtures/claude-goal-live.json";
 
