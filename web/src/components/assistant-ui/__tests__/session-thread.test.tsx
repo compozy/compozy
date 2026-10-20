@@ -278,8 +278,11 @@ function sseResponse(frames: string[]) {
 }
 
 /** Records every prompt POST body so a duplicated turn is visible, not inferred. */
-function createPromptRecordingFetchMock(promptCalls: string[]) {
-  const base = createFetchMock();
+function createPromptRecordingFetchMock(
+  promptCalls: string[],
+  options?: Parameters<typeof createFetchMock>[0]
+) {
+  const base = createFetchMock(options);
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const pathname = getPathname(input);
     // A prompt POST streams, so the client identifies the listener first; a local
@@ -6104,6 +6107,51 @@ describe("SessionThread composer running semantics", () => {
       ).toBeUndefined()
     );
     expect(promptCalls).toHaveLength(1);
+  });
+
+  // Invariant: window teardown during upload preserves first-message files and resumes once.
+  // Owner: session runtime/composer lifecycle; canonical suite: SessionThread.
+  it("Should resume first-prompt attachments after closing during upload", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const promptCalls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createPromptRecordingFetchMock(promptCalls, {
+        beforeAttachmentUpload: () => hold,
+      })
+    );
+    const file = new File(["evidence"], "resume.txt", { type: "text/plain" });
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Read after reopening",
+        files: [file],
+      })
+    );
+    const first = renderComposer({ isSessionRunning: false });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveAttribute("data-state", "uploading");
+    first.unmount();
+    expect(sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]).toMatchObject(
+      {
+        claimed: false,
+        files: [file],
+      }
+    );
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-attachment-tile");
+    await act(async () => release());
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(JSON.parse(promptCalls[0]!).attachments).toHaveLength(1);
+    expect(promptCalls[0]).toContain("Read after reopening");
+    await waitFor(() =>
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined()
+    );
   });
 
   it("Should hold a queued first prompt while the session cannot be prompted", async () => {

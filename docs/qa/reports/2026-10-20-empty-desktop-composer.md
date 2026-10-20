@@ -4,7 +4,7 @@
 - **Cadence tier:** targeted
 - **Build:** fix/empty-desktop-composer-parity, working tree based on 2e63bba6.
 - **Environment:** isolated daemon and real worktree Vite frontend; native provider credentials; browser-use driver.
-- **Started:** 2026-10-20T18:31:00Z · **Status:** in-progress
+- **Started:** 2026-10-20T18:31:00Z · **Status:** pass (targeted QA)
 
 ## Personas and charter
 
@@ -26,7 +26,7 @@ The initial Vite launch filtered its proxy environment through Turbo strict mode
 
 ## Verification
 
-Targeted empty-desktop and session-store suites: 20 passed. Shared session composer/runtime suites: 195 passed. Typecheck passed through root Turborepo. React Doctor: 100/100, no findings. The final synchronization adjustment passed all 3 first-prompt tests. Heavy local gates/E2E were intentionally deferred to PR CI per assignment.
+Targeted empty-desktop and session-store suites: 20 passed. Shared session composer/runtime suites: 195 passed. Typecheck passed through root Turborepo. React Doctor: 100/100, no findings. The first-prompt subset passed all 4 tests, including closing/reopening during an in-flight upload under StrictMode. Heavy local gates/E2E were intentionally deferred to PR CI per assignment.
 
 ## Evidence
 
@@ -35,10 +35,12 @@ Targeted empty-desktop and session-store suites: 20 passed. Shared session compo
 - `docs/qa/evidence/2026-10-20-empty-desktop-composer/session-delivered.png` — document, first message and assistant response.
 - `docs/qa/evidence/2026-10-20-empty-desktop-composer/empty-desktop-narrow-attachment.png` — 390 × 844, no document-level horizontal overflow.
 
+The five public screenshots are included in [PR #865](https://github.com/compozy/compozy/pull/865), hosted on R2 and verified as HTTP 200 with `image/png`. The isolated lab teardown completed with `TEARDOWN_ALL_CLEAN=true`.
+
 ## Limits
 
 File selections are browser-memory drafts until upload after session creation; text and runtime choices persist across reload. Pre-session controls use advertised catalog options; session-only live ACP options appear once a provider binds. The lab agent initially lacked its provider, as recorded above. No host daemon state was changed.
 
 ## Final Status
 
-In progress. No delivery claim; PR, CI, and reviewer evidence remain pending.
+Targeted QA passed. Delivery remains gated by current-head CI and review disposition in [PR #865](https://github.com/compozy/compozy/pull/865); this report does not claim those external gates have passed.

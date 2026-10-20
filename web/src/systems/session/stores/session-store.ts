@@ -172,6 +172,17 @@ export const sessionStore = createStore({
         },
       };
     },
+    firstPromptReleased: (context, event: { sessionId: string }) => {
+      const prompt = context.firstPrompts[event.sessionId];
+      if (!prompt?.claimed) return;
+      return {
+        ...context,
+        firstPrompts: {
+          ...context.firstPrompts,
+          [event.sessionId]: { ...prompt, claimed: false },
+        },
+      };
+    },
     firstPromptSent: (context, event: { sessionId: string }) =>
       discardFirstPrompt(context, event.sessionId),
     firstPromptRecovered: (context, event: { sessionId: string }) => {

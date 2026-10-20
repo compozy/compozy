@@ -70,11 +70,18 @@ export function SessionDraftRuntimeProvider({
         agentName,
         canPrompt,
         effectiveRuntime: undefined,
-        selectedRuntime: readDraftRuntime(key),
+        selectedRuntime: undefined,
         selectionRevision: 0,
       })
     )
   );
+  useEffect(() => {
+    store.trigger.inputUpdated({
+      ...store.getSnapshot().context.input,
+      selectedRuntime: readDraftRuntime(key),
+    });
+  }, [key, store]);
+
   useEffect(() => {
     store.trigger.inputUpdated({
       ...store.getSnapshot().context.input,

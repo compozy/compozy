@@ -26,9 +26,13 @@ interface UseSessionFirstPromptParams {
 export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstPromptParams): void {
   const aui = useAui();
   const runtimeStore = use(SessionPromptRuntimeContext);
-  const [staged, setStaged] = useState<{ text: string; files: File[]; done: () => void } | null>(
-    null
-  );
+  const lifetime = useRef<AbortController | null>(null);
+  const [staged, setStaged] = useState<{
+    text: string;
+    files: File[];
+    done: () => void;
+    signal: AbortSignal;
+  } | null>(null);
   const submitted = useRef<typeof staged>(null);
   const composer = useAuiState(state => state.composer);
   // The runtime refuses messages while it is disabled or still loading history,
@@ -38,40 +42,72 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
   const prompt = useSelector(sessionStore, snapshot => snapshot.context.firstPrompts[sessionId]);
 
   useEffect(() => {
-    if (!prompt || prompt.claimed || !canPrompt || !threadAccepts) {
+    const controller = new AbortController();
+    lifetime.current = controller;
+    return () => controller.abort();
+  }, [sessionId]);
+
+  useEffect(() => {
+    const signal = lifetime.current?.signal;
+    if (!signal || !prompt || prompt.claimed || !canPrompt || !threadAccepts) {
       return;
     }
     // Text can append directly; files use the native composer upload lifecycle.
-    sendFirstPrompt(sessionId, (text, first) => {
-      if (first.runtime && runtimeStore) {
-        runtimeStore.trigger.runtimeSelected({
-          value: {
-            provider: first.runtime.provider,
-            model: first.runtime.model ?? "",
-            reasoning_effort: first.runtime.reasoning_effort ?? "",
-            ...(first.runtime.acp_options ? { acp_options: first.runtime.acp_options } : {}),
-          },
-        });
-        runtimeStore.trigger.speedSelected({ speed: first.runtime.speed ?? "normal" });
-      }
-      if (!first.files?.length) {
-        aui.thread.append(text);
-        return;
-      }
-      return stageFilesAndSend(text, first.files);
-    });
+    sendFirstPrompt(
+      sessionId,
+      (text, first) => {
+        if (first.runtime && runtimeStore) {
+          runtimeStore.trigger.runtimeSelected({
+            value: {
+              provider: first.runtime.provider,
+              model: first.runtime.model ?? "",
+              reasoning_effort: first.runtime.reasoning_effort ?? "",
+              ...(first.runtime.acp_options ? { acp_options: first.runtime.acp_options } : {}),
+            },
+          });
+          runtimeStore.trigger.speedSelected({ speed: first.runtime.speed ?? "normal" });
+        }
+        if (!first.files?.length) {
+          aui.thread.append(text);
+          return;
+        }
+        return stageFilesAndSend(text, first.files);
+      },
+      signal
+    );
 
     async function stageFilesAndSend(text: string, files: File[]) {
       // Let the session's native attachment adapter own uploads and recovery.
       sessionStore.trigger.composerDraftChanged({ sessionId, text });
       aui.composer.setText(text);
-      await Promise.all(files.map(file => aui.composer.addAttachment(file)));
-      await new Promise<void>(done => setStaged({ text, files, done }));
+      await Promise.all(
+        files.map(file => {
+          if (aui.composer.getState().attachments.some(attachment => attachment.file === file))
+            return;
+          return aui.composer.addAttachment(file);
+        })
+      );
+      if (!signal || signal.aborted) return;
+      await new Promise<void>(resolve => {
+        const done = () => {
+          signal.removeEventListener("abort", done);
+          resolve();
+        };
+        signal.addEventListener("abort", done, { once: true });
+        setStaged({ text, files, done, signal });
+      });
     }
   }, [aui, canPrompt, prompt, runtimeStore, sessionId, threadAccepts]);
 
   useEffect(() => {
-    if (!staged || submitted.current === staged || !canPrompt || !threadAccepts) return;
+    if (
+      !staged ||
+      staged.signal.aborted ||
+      submitted.current === staged ||
+      !canPrompt ||
+      !threadAccepts
+    )
+      return;
     // addAttachment resolves before the React client publishes its next state.
     if (composer.attachments.length < staged.files.length) return;
     if (composer.attachments.some(attachment => attachment.status.type === "running")) return;

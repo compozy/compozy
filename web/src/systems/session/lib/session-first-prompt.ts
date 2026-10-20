@@ -22,10 +22,11 @@ export const FIRST_PROMPT_SEND_FAILED =
  */
 export function sendFirstPrompt(
   sessionId: string,
-  send: (text: string, prompt: SessionFirstPrompt) => void | Promise<void>
+  send: (text: string, prompt: SessionFirstPrompt) => void | Promise<void>,
+  signal?: AbortSignal
 ): void {
   const prompt = sessionStore.getSnapshot().context.firstPrompts[sessionId];
-  if (!prompt || prompt.claimed) {
+  if (!prompt || prompt.claimed || signal?.aborted) {
     return;
   }
   sessionStore.trigger.firstPromptClaimed({ sessionId });
@@ -43,9 +44,17 @@ export function sendFirstPrompt(
   try {
     const result = send(prompt.text, prompt);
     if (result) {
+      const release = () => sessionStore.trigger.firstPromptReleased({ sessionId });
+      signal?.addEventListener("abort", release, { once: true });
       void result.then(
-        () => sessionStore.trigger.firstPromptSent({ sessionId }),
-        () => recoverFirstPrompt(sessionId)
+        () => {
+          signal?.removeEventListener("abort", release);
+          if (!signal?.aborted) sessionStore.trigger.firstPromptSent({ sessionId });
+        },
+        () => {
+          signal?.removeEventListener("abort", release);
+          if (!signal?.aborted) recoverFirstPrompt(sessionId);
+        }
       );
     } else {
       sessionStore.trigger.firstPromptSent({ sessionId });
