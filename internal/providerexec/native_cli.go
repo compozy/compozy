@@ -2,6 +2,7 @@ package providerexec
 
 import (
 	"fmt"
+	"path"
 	"strings"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -112,8 +113,20 @@ func normalizedAdapterToken(value string) string {
 	return token
 }
 
-// IsClaudeAgentBridge reports whether command launches the claude-agent-acp bridge.
+// claudeAgentBridgeExecutable is the bin name claude-agent-acp publishes.
+const claudeAgentBridgeExecutable = "claude-agent-acp"
+
+// IsClaudeAgentBridge reports whether command launches the claude-agent-acp
+// bridge, through its package token (npx/bunx) or its published executable.
 func IsClaudeAgentBridge(command string) bool {
-	nativeCLI, ok := nativeCLIBridgeForCommand(command)
-	return ok && nativeCLI.Command == nativeCLIClaudeCommand
+	if nativeCLI, ok := nativeCLIBridgeForCommand(command); ok {
+		return nativeCLI.Command == nativeCLIClaudeCommand
+	}
+	parsed, err := compozyconfig.ParseLaunchCommand(strings.TrimSpace(command))
+	if err != nil {
+		return false
+	}
+	name := strings.ToLower(path.Base(strings.ReplaceAll(parsed.Executable, `\`, "/")))
+	name = strings.TrimSuffix(strings.TrimSuffix(name, ".cmd"), ".exe")
+	return name == claudeAgentBridgeExecutable
 }

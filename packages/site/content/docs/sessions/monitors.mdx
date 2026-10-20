@@ -18,7 +18,7 @@ Monitors are owned by the CompozyOS daemon instead, so the wake always reaches t
 
 - every agent is told to use monitors for work that outlives its turn;
 - for Claude Code sessions, CompozyOS turns off the Monitor, ScheduleWakeup, and Cron tools and
-  refuses background Bash commands, because their results could never reach you. Background
+  refuses background shell commands (Bash and PowerShell), because their results could never reach you. Background
   subagents keep working: their results return inside the turn that started them.
 
 ## What a monitor can watch

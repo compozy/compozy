@@ -33,7 +33,7 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	sessionID := notification.Monitor.SessionID
 	info, err := sessions.Status(ctx, sessionID)
 	switch {
-	case errors.Is(err, session.ErrSessionNotFound):
+	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound):
 		return fmt.Errorf("%w: %s", monitorpkg.ErrSessionGone, sessionID)
 	case err != nil:
 		return fmt.Errorf("daemon: read monitor session %q: %w", sessionID, err)

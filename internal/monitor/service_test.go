@@ -311,11 +311,50 @@ func TestServiceCancelAndLimits(t *testing.T) {
 		})
 	})
 
+	t.Run("Should keep the most recently finished outcomes when history is full", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals := &channelTerminals{results: make(chan Outcome, 1)}
+			service := newTestService(t, terminals, &recordingWaker{})
+			oldest, err := service.Create(t.Context(), terminalSpec("sess-a"))
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			for range retainedFinishedPerSession {
+				time.Sleep(time.Second)
+				created, err := service.Create(t.Context(), timerSpec("sess-a"))
+				if err != nil {
+					t.Fatalf("Create() error = %v", err)
+				}
+				if _, err := service.Cancel("sess-a", created.ID); err != nil {
+					t.Fatalf("Cancel() error = %v", err)
+				}
+			}
+			time.Sleep(time.Second)
+			terminals.results <- Outcome{Reason: ReasonExit}
+			synctest.Wait()
+			for _, item := range service.List("sess-a") {
+				if item.ID == oldest.ID {
+					if item.Status != StatusFired {
+						t.Fatalf("oldest-created monitor = %+v, want fired", item)
+					}
+					return
+				}
+			}
+			t.Fatalf("the most recently finished monitor %s was pruned", oldest.ID)
+		})
+	})
+
 	t.Run("Should reject invalid specs before watching", func(t *testing.T) {
 		service := newTestService(t, &channelTerminals{err: errors.New("unknown terminal")}, &recordingWaker{})
 		cases := map[string]Spec{
 			"missing description": {WorkspaceID: "ws", SessionID: "s", Kind: KindTimer, Delay: time.Minute},
-			"short timer":         {WorkspaceID: "ws", SessionID: "s", Kind: KindTimer, Description: "x", Delay: time.Second},
+			"short timer": {
+				WorkspaceID: "ws",
+				SessionID:   "s",
+				Kind:        KindTimer,
+				Description: "x",
+				Delay:       time.Second,
+			},
 			"match without pattern": func() Spec {
 				spec := terminalSpec("s")
 				spec.Until = UntilMatch

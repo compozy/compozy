@@ -14,9 +14,6 @@ const (
 	idleSamplesNeeded   = 3
 	idleMaximumWait     = 700 * time.Millisecond
 	waitSnapshotTimeout = time.Second
-	// matchScanOverlap is how much already-scanned output a match wait rescans
-	// with each new chunk, so a match split across chunks is still found.
-	matchScanOverlap = 64 << 10
 )
 
 func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResult, error) {
@@ -40,7 +37,7 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 	if until == terminalWaitIdle {
 		return s.waitIdle(waitCtx)
 	}
-	var scan matchScanner
+	scan := newMatchScanner(matcher)
 	for {
 		s.mu.RLock()
 		exit := cloneExit(s.exit)
@@ -64,7 +61,7 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 			}
 			return s.waitExitResult(waitCtx, exit)
 		}
-		if until == terminalWaitMatch && scan.matches(s.ring, matcher) {
+		if until == terminalWaitMatch && scan.matches(s.ring) {
 			return s.waitStateResult(waitCtx, terminalWaitMatch)
 		}
 		if readerEnded && until != terminalWaitExit {
@@ -80,33 +77,6 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 		case <-revisionReady:
 		}
 	}
-}
-
-// matchScanner scans the whole retained output once, then only output appended
-// since the previous scan plus matchScanOverlap, so a long-running match wait
-// costs O(new output) per revision instead of re-rendering the whole ring.
-type matchScanner struct {
-	scanned bool
-	next    uint64
-}
-
-func (m *matchScanner) matches(ring *Ring, matcher *regexp.Regexp) bool {
-	if !m.scanned {
-		output, next := ring.Snapshot()
-		m.scanned, m.next = true, next
-		return matcher.Match(output)
-	}
-	oldest, next := ring.Bounds()
-	if next == m.next {
-		return false
-	}
-	from := oldest
-	if m.next > oldest+matchScanOverlap {
-		from = m.next - matchScanOverlap
-	}
-	replay := ring.ReplayFrom(from)
-	m.next = replay.Seq
-	return matcher.Match(replay.Bytes())
 }
 
 func prepareWaitCondition(condition WaitCondition) (string, *regexp.Regexp, error) {

@@ -301,7 +301,13 @@ func (s *Service) pruneSessionLocked(sessionID string, now time.Time) {
 		finished = append(finished, item.state)
 	}
 	if len(finished) > retainedFinishedPerSession {
-		slices.SortFunc(finished, compareMonitors)
+		// Keep the most recent outcomes, not the most recently created monitors.
+		slices.SortFunc(finished, func(a, b Monitor) int {
+			if c := b.FiredAt.Compare(a.FiredAt); c != 0 {
+				return c
+			}
+			return compareMonitors(a, b)
+		})
 		for _, stale := range finished[retainedFinishedPerSession:] {
 			delete(bucket, stale.ID)
 		}

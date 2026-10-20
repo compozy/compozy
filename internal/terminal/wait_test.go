@@ -110,32 +110,65 @@ func TestWaitEngineContract(t *testing.T) {
 		})
 	})
 
-	t.Run("Should match output split across appended chunks after a full first scan", func(t *testing.T) {
+	t.Run("Should match exactly like a full scan while rescanning only new output", func(t *testing.T) {
 		t.Parallel()
-		matcher := regexp.MustCompile(`ready-[0-9]+`)
-		ring := NewRing(1 << 20)
-		ring.Append(bytes.Repeat([]byte("x"), 512<<10))
-		var scan matchScanner
-		if scan.matches(ring, matcher) {
-			t.Fatal("first scan matched output without the pattern")
+		filler := bytes.Repeat([]byte("log line\n"), (80<<10)/9)
+		cases := []struct {
+			name    string
+			pattern string
+			chunks  []string
+			want    []bool
+		}{
+			{
+				name: "line-local pattern split across chunks", pattern: `ready-[0-9]+`,
+				chunks: []string{"noise rea", "dy-42\r\n"}, want: []bool{false, true},
+			},
+			{
+				name: "multiline pattern spanning more than the old overlap", pattern: `(?s)BEGIN.*READY`,
+				chunks: []string{"BEGIN\n" + string(filler), "READY\n"}, want: []bool{false, true},
+			},
+			{
+				name: "begin-of-text anchor never matches at a rescan boundary", pattern: `^ready`,
+				chunks: []string{string(filler), "ready\n"}, want: []bool{false, false},
+			},
+			{
+				name: "output retained before the wait", pattern: `ready-1`,
+				chunks: []string{"ready-1 before the wait\n"}, want: []bool{true},
+			},
 		}
-		if scan.matches(ring, matcher) {
-			t.Fatal("scan without new output matched")
+		for _, tc := range cases {
+			matcher := regexp.MustCompile(tc.pattern)
+			ring := NewRing(1 << 20)
+			scan := newMatchScanner(matcher)
+			for index, chunk := range tc.chunks {
+				ring.Append([]byte(chunk))
+				full, _ := ring.Snapshot()
+				got := scan.matches(ring)
+				if got != tc.want[index] || got != matcher.Match(full) {
+					t.Fatalf("%s: chunk %d matches = %v, want %v (full scan %v)",
+						tc.name, index, got, tc.want[index], matcher.Match(full))
+				}
+				if got {
+					break // a wait returns on its first match
+				}
+			}
 		}
-		ring.Append([]byte("noise rea"))
-		if scan.matches(ring, matcher) {
-			t.Fatal("partial pattern matched")
-		}
-		ring.Append([]byte("dy-42\r\n"))
-		if !scan.matches(ring, matcher) {
-			t.Fatal("pattern split across chunks did not match")
-		}
+	})
 
-		var late matchScanner
-		preexisting := NewRing(1 << 20)
-		preexisting.Append([]byte("ready-1 before the wait\r\n"))
-		if !late.matches(preexisting, matcher) {
-			t.Fatal("first scan missed output retained before the wait")
+	t.Run("Should rescan only from the last line start for line-local patterns", func(t *testing.T) {
+		t.Parallel()
+		if !lineLocalPattern(`ready-[0-9]+$`) || lineLocalPattern(`(?s)a.*b`) || lineLocalPattern(`a\sb`) ||
+			lineLocalPattern(`\Astart`) || lineLocalPattern(`[^x]+`) {
+			t.Fatal("lineLocalPattern misclassified a pattern")
+		}
+		ring := NewRing(1 << 20)
+		scan := newMatchScanner(regexp.MustCompile(`ready`))
+		ring.Append([]byte("first line\nsecond partial"))
+		if scan.matches(ring) {
+			t.Fatal("matched before the pattern arrived")
+		}
+		if want := uint64(len("first line\n")); scan.lineStart != want {
+			t.Fatalf("lineStart = %d, want %d", scan.lineStart, want)
 		}
 	})
 

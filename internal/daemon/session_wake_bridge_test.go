@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strings"
@@ -247,6 +248,7 @@ func TestMonitorSessionWaker(t *testing.T) {
 		for name, manager := range map[string]*monitorWakeManagerStub{
 			"stopped": {status: &session.Info{ID: "sess-1", State: session.StateStopped}},
 			"missing": {statusErr: session.ErrSessionNotFound},
+			"removed": {statusErr: fmt.Errorf("read session meta: %w", store.ErrSessionNotFound)},
 		} {
 			err := wakerFor(manager).WakeSession(testutil.Context(t), fired)
 			if !errors.Is(err, monitorpkg.ErrSessionGone) || manager.calls != 0 {
@@ -264,8 +266,8 @@ func TestMonitorSessionWaker(t *testing.T) {
 			enqueueErr: store.ErrSessionInputQueueFull,
 		}
 		err := wakerFor(manager).WakeSession(testutil.Context(t), fired)
-		if err == nil || errors.Is(err, monitorpkg.ErrSessionGone) {
-			t.Fatalf("WakeSession() error = %v, want a transient error", err)
+		if !errors.Is(err, store.ErrSessionInputQueueFull) || errors.Is(err, monitorpkg.ErrSessionGone) {
+			t.Fatalf("WakeSession() error = %v, want transient ErrSessionInputQueueFull", err)
 		}
 	})
 
@@ -287,7 +289,12 @@ func TestMonitorSessionWaker(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
-		monitorLifecycleObserver{monitors: monitors}.OnSessionStopped(testutil.Context(t), &session.Session{ID: "sess-1"})
+		monitorLifecycleObserver{
+			monitors: monitors,
+		}.OnSessionStopped(
+			testutil.Context(t),
+			&session.Session{ID: "sess-1"},
+		)
 		if listed := monitors.List("sess-1"); len(listed) != 0 {
 			t.Fatalf("List() after stop = %+v, want empty", listed)
 		}

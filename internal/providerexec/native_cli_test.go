@@ -90,3 +90,25 @@ func TestProviderExecutionStrategyContracts(t *testing.T) {
 		})
 	}
 }
+
+func TestIsClaudeAgentBridge(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]bool{
+		"npx -y @agentclientprotocol/claude-agent-acp@latest": true,
+		"claude-agent-acp":                             true,
+		"/usr/local/bin/claude-agent-acp --verbose":    true,
+		"CLAUDE_CONFIG_DIR=/tmp/acct claude-agent-acp": true,
+		"npx -y @agentclientprotocol/codex-acp@latest": false,
+		"claude --acp":                                 false,
+		"node claude-agent-acp-wrapper.js":             false,
+	}
+	for command, want := range tests {
+		t.Run("Should classify "+command, func(t *testing.T) {
+			t.Parallel()
+			if got := IsClaudeAgentBridge(command); got != want {
+				t.Fatalf("IsClaudeAgentBridge(%q) = %v, want %v", command, got, want)
+			}
+		})
+	}
+}

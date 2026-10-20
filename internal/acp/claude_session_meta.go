@@ -1,6 +1,11 @@
 package acp
 
-import "github.com/compozy/compozy/internal/providerexec"
+import (
+	"maps"
+	"runtime"
+
+	"github.com/compozy/compozy/internal/providerexec"
+)
 
 // claudeDaemonOwnedBackgroundTools are Claude Code tools whose completion wakes
 // the model through a provider-internal turn that no ACP prompt owns. CompozyOS
@@ -17,15 +22,40 @@ var claudeDaemonOwnedBackgroundEnv = map[string]string{
 	"CLAUDE_CODE_DISABLE_MCP_TASK_BACKGROUND": "1",
 }
 
-// claudeBackgroundBashDenyHook denies Bash run_in_background, whose exit would
-// also wake the model outside any prompt, and points at the daemon-owned path.
-// It is a settings hook because Claude Code has no switch for background shells
-// alone; the input is the PreToolUse JSON on stdin.
-const claudeBackgroundBashDenyHook = `grep -Eq '"run_in_background"[[:space:]]*:[[:space:]]*true' && ` +
-	`printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny",` +
-	`"permissionDecisionReason":"CompozyOS cannot wake you when a background Bash command exits. ` +
-	`Run it with compozy__terminal_exec, register compozy__monitor_create on the returned terminal_id, ` +
-	`then end your turn."}}'; exit 0`
+// claudeBackgroundShellDenyReason is the guidance a refused background shell returns.
+const claudeBackgroundShellDenyReason = "CompozyOS cannot wake you when a background shell command exits. " +
+	"Run it with compozy__terminal_exec, register compozy__monitor_create on the returned terminal_id, " +
+	"then end your turn."
+
+const claudeBackgroundShellDenyOutput = `{"hookSpecificOutput":{"hookEventName":"PreToolUse",` +
+	`"permissionDecision":"deny","permissionDecisionReason":"` + claudeBackgroundShellDenyReason + `"}}`
+
+const claudeHookTypeCommand = "command"
+
+// claudeBackgroundShellMatcher covers both shell tools that accept run_in_background.
+const claudeBackgroundShellMatcher = "Bash|PowerShell"
+
+// claudeBackgroundShellDenyHook denies run_in_background on a shell tool, whose
+// exit would also wake the model outside any prompt, and points at the
+// daemon-owned path. It is a settings hook because Claude Code has no switch for
+// background shells alone; the input is the PreToolUse JSON on stdin. Windows
+// gets a PowerShell hook so it does not depend on Git Bash.
+func claudeBackgroundShellDenyHook(goos string) map[string]any {
+	if goos == "windows" {
+		return map[string]any{
+			"type":  claudeHookTypeCommand,
+			"shell": "powershell",
+			"command": `$hookInput = [Console]::In.ReadToEnd(); ` +
+				`if ($hookInput -match '"run_in_background"\s*:\s*true') { ` +
+				`Write-Output '` + claudeBackgroundShellDenyOutput + `' }; exit 0`,
+		}
+	}
+	return map[string]any{
+		"type": claudeHookTypeCommand,
+		"command": `grep -Eq '"run_in_background"[[:space:]]*:[[:space:]]*true' && ` +
+			`printf '%s\n' '` + claudeBackgroundShellDenyOutput + `'; exit 0`,
+	}
+}
 
 // claudeCodeSessionMeta returns the claude-agent-acp `_meta.claudeCode.options`
 // for session/new and session/load, or nil for every other provider command.
@@ -34,9 +64,7 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 		return nil
 	}
 	env := make(map[string]string, len(claudeDaemonOwnedBackgroundEnv))
-	for key, value := range claudeDaemonOwnedBackgroundEnv {
-		env[key] = value
-	}
+	maps.Copy(env, claudeDaemonOwnedBackgroundEnv)
 	return map[string]any{
 		"claudeCode": map[string]any{
 			"options": map[string]any{
@@ -45,10 +73,8 @@ func claudeCodeSessionMeta(opts StartOpts) any {
 				"settings": map[string]any{
 					"hooks": map[string]any{
 						"PreToolUse": []any{map[string]any{
-							"matcher": "Bash",
-							"hooks": []any{map[string]any{
-								"type": "command", "command": claudeBackgroundBashDenyHook,
-							}},
+							"matcher": claudeBackgroundShellMatcher,
+							"hooks":   []any{claudeBackgroundShellDenyHook(runtime.GOOS)},
 						}},
 					},
 				},

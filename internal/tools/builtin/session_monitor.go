@@ -6,7 +6,10 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-const monitorKeyword = "monitor"
+const (
+	monitorKeyword = "monitor"
+	wakeKeyword    = "wake"
+)
 
 func sessionMonitorDescriptors() []toolspkg.Descriptor {
 	create := nativeDescriptor(
@@ -25,8 +28,14 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, monitorKeyword, "wake"},
-		[]string{"monitor background command", "wake me when done", "watch terminal", "schedule wakeup", "notify on exit"},
+		[]string{sessionsSessionsKey, monitorKeyword, wakeKeyword},
+		[]string{
+			"monitor background command",
+			"wake me when done",
+			"watch terminal",
+			"schedule wakeup",
+			"notify on exit",
+		},
 	)
 	create.OutputSchema = json.RawMessage(monitorOutputSchema)
 
@@ -72,11 +81,13 @@ const monitorCreateInputSchema = `{
 	"required":["kind","description"],
 	"properties":{
 		"kind":{"type":"string","enum":["terminal","timer"]},
-		"description":{"type":"string","minLength":1,"maxLength":200,"description":"What this monitor waits for; echoed back in the wake."},
+		"description":{"type":"string","minLength":1,"maxLength":200,
+			"description":"What this monitor waits for; echoed back in the wake."},
 		"terminal_id":` + terminalIDPropertySchema + `,
 		"until":{"type":"string","enum":["exit","match"],"description":"Terminal condition; defaults to exit."},
 		"pattern":{"type":"string","minLength":1,"maxLength":512,"description":"Go regular expression for until=match."},
-		"timeout_seconds":{"type":"integer","minimum":1,"maximum":21600,"description":"Terminal monitors only; defaults to 1800. The monitor still wakes the session on timeout."},
+		"timeout_seconds":{"type":"integer","minimum":1,"maximum":21600,
+			"description":"Terminal monitors only; defaults to 1800. The monitor still wakes the session on timeout."},
 		"delay_seconds":{"type":"integer","minimum":5,"maximum":86400,"description":"Timer monitors only."}
 	},
 	"additionalProperties":false

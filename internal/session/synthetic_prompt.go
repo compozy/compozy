@@ -175,7 +175,9 @@ func (m *Manager) EnqueueSyntheticWake(
 		return store.SessionInputQueueEntry{}, err
 	}
 	if m.inputQueue == nil {
-		return store.SessionInputQueueEntry{}, errors.New("session: durable input queue is required for synthetic prompts")
+		return store.SessionInputQueueEntry{}, errors.New(
+			"session: durable input queue is required for synthetic prompts",
+		)
 	}
 	entry, err := m.enqueueDurableSyntheticPrompt(ctx, session, req, opts)
 	if err != nil {
