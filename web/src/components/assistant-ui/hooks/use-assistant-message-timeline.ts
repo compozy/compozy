@@ -77,9 +77,10 @@ function earliestTimestampMs(parts: readonly SessionTimelinePart[]): number | un
   return earliest;
 }
 
-// Append an internal activity marker while the parent turn is live. Its row
-// renders nothing; SessionThinkingRow owns the one visible live status. The
-// marker keeps each active segment open between parent tool calls.
+/**
+ * Appends a non-rendering activity marker to keep every active segment open
+ * between parent calls. SessionThinkingRow owns the one visible live status.
+ */
 function deriveWorkingPart(
   message: { id?: string; status?: unknown },
   parts: readonly SessionTimelinePart[],
