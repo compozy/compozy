@@ -96,7 +96,7 @@ func configPathIsTrustRoot(path []string) bool {
 		return toolsConfigPathIsTrustRoot(path)
 	case SkillsDirName:
 		return skillsConfigPathIsTrustRoot(path)
-	case "extensions", "vault":
+	case "extensions", vaultConfigKey:
 		return true
 	case toolSurfaceMarketplaceKey:
 		return len(path) >= 3 && path[1] == "catalog" && path[2] == configBaseURLKey

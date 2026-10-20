@@ -77,16 +77,27 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			t.Fatal(err)
 		}
-		original := "---\n# Keep " + oldRef + "\nname: example\nsession_env:\n  TOKEN: '" + oldRef + "'\nfallback_chain:\n  - provider: codex\n    model: model\n    session_env:\n      TOKEN: {ref: \"" + oldRef + "\", required: true}\n---\n\nPrompt keeps " + oldRef + " unchanged.\n"
+		original := "---\n# Keep " + oldRef + "\nname: example\nsession_env:\n  TOKEN: '" + oldRef + "'\nfallback_chain:\n  - provider: codex\n    model: model\n    session_env:\n      TOKEN: {ref: \"" + oldRef + "\", required: true}\n      PLAIN_TOKEN: {note: café, ref: " + oldRef + ", required: true}\n---\n\nPrompt keeps " + oldRef + " unchanged.\n"
 		if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		plainPath := filepath.Join(root, "AGENT.md")
+		if err := os.WriteFile(plainPath, []byte("---\ninvalid: [\n---\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.PrepareRename(t.Context(), "dev", "creative"); err == nil ||
+			!strings.Contains(err.Error(), plainPath) {
+			t.Fatalf("malformed agent must report its path: %v", err)
+		}
+		if err := os.WriteFile(plainPath, []byte("Prompt without declarations."), 0o600); err != nil {
 			t.Fatal(err)
 		}
 		plan, err := manager.PrepareRename(t.Context(), "dev", "creative")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if plan.VaultRefRewrites != 3 {
-			t.Fatalf("rewrite preview = %d, want one Vault record and two declarations", plan.VaultRefRewrites)
+		if plan.VaultRefRewrites != 4 {
+			t.Fatalf("rewrite preview = %d, want one Vault record and three declarations", plan.VaultRefRewrites)
 		}
 		if _, err := manager.Rename(
 			t.Context(),
@@ -103,7 +114,8 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Count(string(rendered), newRef) != 2 ||
+		if strings.Count(string(rendered), newRef) != 3 ||
+			!strings.Contains(string(rendered), "PLAIN_TOKEN: {note: café, ref: "+newRef+", required: true}") ||
 			!strings.Contains(string(rendered), "# Keep "+oldRef) ||
 			!strings.Contains(string(rendered), "Prompt keeps "+oldRef+" unchanged.") {
 			t.Fatalf("renamed definition did not preserve declaration/body boundaries: %s", rendered)

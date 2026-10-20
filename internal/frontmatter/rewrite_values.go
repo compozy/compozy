@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"slices"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -38,8 +39,12 @@ func RewriteStringValues(content []byte, rewrite func(string) string) ([]byte, i
 			if err != nil {
 				return err
 			}
-			start := nextLineBoundary(normalized, 0) + 1 + offset + node.Column - 1
-			length, err := scalarTokenLength(normalized[start:nextLineBoundary(normalized, start)], node.Style)
+			start := nextLineBoundary(normalized, 0) + 1 + offset
+			for column := 1; column < node.Column && start < len(normalized); column++ {
+				_, width := utf8.DecodeRune(normalized[start:])
+				start += width
+			}
+			length, err := stringValueTokenLength(normalized[start:nextLineBoundary(normalized, start)], node)
 			if err != nil {
 				return err
 			}
@@ -67,4 +72,16 @@ func RewriteStringValues(content []byte, rewrite func(string) string) ([]byte, i
 		normalized = slices.Concat(normalized[:edit.start], edit.value, normalized[edit.end:])
 	}
 	return normalized, len(edits), nil
+}
+
+func stringValueTokenLength(line []byte, node *yaml.Node) (int, error) {
+	if node.Style != 0 {
+		return scalarTokenLength(line, node.Style)
+	}
+	// Plain YAML values can end before a comma or closing flow delimiter.
+	// The parsed value gives the exact source span for a single-line scalar.
+	if node.Value == "" || !bytes.HasPrefix(line, []byte(node.Value)) {
+		return 0, errors.New("frontmatter: cannot rewrite a multiline plain reference")
+	}
+	return len(node.Value), nil
 }

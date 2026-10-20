@@ -66,8 +66,14 @@ func profileFileSecretRefEdits(path, oldName, newName string, apply bool) (count
 	rename := func(ref string) string { return vault.RenameProfileSecretRef(ref, oldName, newName) }
 	if name == "AGENT.md" {
 		rendered, changed, err := frontmatter.RewriteStringValues(original, rename)
-		if err != nil || !apply || changed == 0 {
-			return changed, err
+		if errors.Is(err, frontmatter.ErrMissing) {
+			return 0, nil
+		}
+		if err != nil {
+			return 0, fmt.Errorf("config: inspect profile references in %q: %w", path, err)
+		}
+		if !apply || changed == 0 {
+			return changed, nil
 		}
 		if err := requireOverlayContents(directory, name, path, original, true); err != nil {
 			return 0, err

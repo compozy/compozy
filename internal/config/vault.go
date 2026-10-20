@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	vaultConfigKey            = "vault"
 	VaultKeyProviderFile      = "file"
 	VaultKeyProviderOSKeyring = "os-keyring"
 )
