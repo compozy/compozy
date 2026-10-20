@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+const workspaceConfigInvalidDescription = "Unknown workspace config keys (workspace_config_invalid)"
+
 func registryWorkspaceOperations() []OperationSpec {
 	return []OperationSpec{
 		listWorkspacesOperationSpec(),
@@ -41,6 +43,11 @@ func createWorkspaceOperationSpec() OperationSpec {
 			{Status: 201, Description: specCreatedDescription, Body: contract.WorkspaceResponse{}},
 			{Status: 400, Description: "Invalid workspace request", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Workspace conflict", Body: contract.ErrorPayload{}},
+			{
+				Status:      422,
+				Description: workspaceConfigInvalidDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}
@@ -59,6 +66,11 @@ func getWorkspaceOperationSpec() OperationSpec {
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorkspaceDetailPayload{}},
+			{
+				Status:      422,
+				Description: workspaceConfigInvalidDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -116,6 +128,11 @@ func resolveWorkspaceOperationSpec() OperationSpec {
 		RequestBody: contract.ResolveWorkspaceRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.WorkspaceResponse{}},
+			{
+				Status:      422,
+				Description: workspaceConfigInvalidDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 400, Description: "Invalid workspace path", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},

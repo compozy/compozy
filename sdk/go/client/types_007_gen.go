@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// GoalTurnResultStatus is a daemon API value.
+type GoalTurnResultStatus string
+
+// GoalVerdictOutcome is a daemon API value.
+type GoalVerdictOutcome string
+
 // GoalVerdictSummary is a daemon API value.
 type GoalVerdictSummary struct {
 	Outcome        GoalVerdictOutcome  `json:"outcome"`

@@ -267,6 +267,25 @@ func TestClientRequests(t *testing.T) {
 
 func TestClientGeneratedOperations(t *testing.T) {
 	t.Parallel()
+	t.Run("Should preserve workspace configuration error details for callers", func(t *testing.T) {
+		t.Parallel()
+		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != http.MethodPost || r.URL.Path != "/api/workspaces" {
+				t.Errorf("workspace request = %s %s", r.Method, r.URL.Path)
+			}
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			writeResponse(t, w, `{"error":"Remove unknown keys","code":"workspace_config_invalid",`+
+				`"config_path":"/project/.compozy/config.toml","unknown_keys":["defaults.ide","tasks.run"]}`)
+		})
+		_, err := c.CreateWorkspace(t.Context(), CreateWorkspaceRequest{RootDir: "/project"})
+		apiErr, ok := errors.AsType[*APIError](err)
+		if !ok || apiErr.Status != http.StatusUnprocessableEntity || apiErr.Code != "workspace_config_invalid" ||
+			apiErr.ConfigPath != "/project/.compozy/config.toml" ||
+			!slices.Equal(apiErr.UnknownKeys, []string{"defaults.ide", "tasks.run"}) {
+			t.Fatalf("CreateWorkspace() error = %#v, want complete config error details", err)
+		}
+	})
+
 	// Invariant: distinct successful tool responses retain their HTTP discriminator and complete body.
 	// Owner: generated Go client transport; canonical suite: generated operations over real HTTP.
 	for _, test := range []struct {

@@ -349,6 +349,25 @@ describe("WorkspaceSetupDialog", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
+  it("shows the config file, unknown keys and remediation while preserving the project draft", async () => {
+    const user = userEvent.setup();
+    const message =
+      'workspace config invalid: unknown config keys in "/project/.compozy/config.toml": defaults.ide, tasks.run. ' +
+      "Remove the unknown keys, or rename or remove this file if it belongs to the legacy CLI. " +
+      "CompozyOS does not support legacy CLI configuration.";
+    mockCreateMutateAsync.mockRejectedValue(new Error(message));
+    const { onOpenChange, onWorkspaceResolved } = renderDialog({ open: true });
+
+    await user.click(screen.getByTestId("workspace-setup-browser-use-current"));
+    await user.click(screen.getByTestId("workspace-setup-submit"));
+
+    expect(await screen.findByTestId("workspace-setup-error")).toHaveTextContent(message);
+    expect(screen.getByTestId("workspace-setup-name-input")).toHaveValue("Dev");
+    expect(screen.getByTestId("workspace-setup-submit")).toBeEnabled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    expect(onWorkspaceResolved).not.toHaveBeenCalled();
+  });
+
   it("surfaces the browser reading, empty, and error states", () => {
     mockBrowseState.isLoading = true;
     const { unmount } = renderDialog({ open: true });

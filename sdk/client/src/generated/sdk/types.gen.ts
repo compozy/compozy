@@ -1654,12 +1654,14 @@ export type Entry = {
 
 export type ErrorPayload = {
   code?: string;
+  config_path?: string;
   current_turn_id?: string;
   details?: {
     [key: string]: string;
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  unknown_keys?: Array<string>;
 };
 
 export type ExecutionPolicy = {
@@ -6205,12 +6207,14 @@ export type SessionDeriveCutPayload = {
 export type SessionDeriveErrorPayload = {
   child_session_id?: string;
   code?: string;
+  config_path?: string;
   current_turn_id?: string;
   details?: {
     [key: string]: string;
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  unknown_keys?: Array<string>;
 };
 
 export type SessionDerivePreviewResponse = {
@@ -9246,6 +9250,7 @@ export type TaskPayload = {
 
 export type TaskQueryErrorPayload = {
   code?: string;
+  config_path?: string;
   current_turn_id?: string;
   details?: {
     [key: string]: string;
@@ -9253,6 +9258,7 @@ export type TaskQueryErrorPayload = {
   diagnostic?: DiagnosticItem | null;
   error: string;
   field: string;
+  unknown_keys?: Array<string>;
 };
 
 export type TaskQueueDepthPayload = {
@@ -27434,6 +27440,10 @@ export type CreateWorkspaceErrors = {
    */
   409: ErrorPayload;
   /**
+   * Unknown workspace config keys (workspace_config_invalid)
+   */
+  422: ErrorPayload;
+  /**
    * Internal server error
    */
   500: ErrorPayload;
@@ -27469,6 +27479,10 @@ export type ResolveWorkspaceErrors = {
    * Workspace not found
    */
   404: ErrorPayload;
+  /**
+   * Unknown workspace config keys (workspace_config_invalid)
+   */
+  422: ErrorPayload;
   /**
    * Internal server error
    */
@@ -27537,6 +27551,10 @@ export type GetWorkspaceErrors = {
    * Workspace not found
    */
   404: ErrorPayload;
+  /**
+   * Unknown workspace config keys (workspace_config_invalid)
+   */
+  422: ErrorPayload;
   /**
    * Internal server error
    */

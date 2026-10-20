@@ -116,6 +116,8 @@ func statusForWorkspaceError(err error) int {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return statusClientClosedRequest
+	case errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):

@@ -3,7 +3,6 @@ package config
 import (
 	"cmp"
 	"slices"
-	"strings"
 
 	burnttoml "github.com/BurntSushi/toml"
 )
@@ -61,18 +60,14 @@ func applyMCPServerOverlays(base []MCPServer, overlays []mcpServerOverlay) []MCP
 	return merged
 }
 
-func joinTOMLKeys(keys []burnttoml.Key) string {
-	if len(keys) == 0 {
-		return ""
-	}
-
+func uniqueTOMLKeys(keys []burnttoml.Key) []string {
 	sorted := sortedTOMLKeys(keys)
 	values := make([]string, 0, len(sorted))
 	for _, key := range sorted {
 		values = append(values, key.String())
 	}
 
-	return strings.Join(values, ", ")
+	return slices.Compact(values)
 }
 
 func sortedTOMLKeys(keys []burnttoml.Key) []burnttoml.Key {
