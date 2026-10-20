@@ -372,9 +372,17 @@ func renderAgentEnvironment(item AgentRecord, toon bool) string {
 		})
 	}
 	if toon {
-		return renderToonArray("session_env", []string{"name", "ref", "source", "present", "required"}, rows)
+		return renderToonArray(
+			"session_env",
+			[]string{"name", "ref", cmdPaletteSourceFlag, "present", "required"},
+			rows,
+		)
 	}
-	return renderHumanTable("Session Environment", []string{"Name", "Reference", "Source", "Present", "Required"}, rows)
+	return renderHumanTable(
+		"Session Environment",
+		[]string{automationNameValue, "Reference", authoredContextSourceValue, "Present", outputRequiredValue},
+		rows,
+	)
 }
 
 func agentShadowLayers(shadows []contract.AgentDefinitionShadowPayload) string {

@@ -14,6 +14,11 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
+const (
+	sessionEnvRefField      = "ref"
+	sessionEnvRequiredField = "required"
+)
+
 // SessionEnvBinding declares a launch-time reference, never a resolved value.
 type SessionEnvBinding struct {
 	Ref      string `json:"ref"      yaml:"ref"      toml:"ref"`
@@ -48,7 +53,7 @@ func (b *SessionEnvBinding) decode(value any) error {
 		binding.Ref = value
 		binding.Required = true
 	case map[string]any:
-		ref, ok := value["ref"].(string)
+		ref, ok := value[sessionEnvRefField].(string)
 		if !ok {
 			return errors.New("session_env: ref must be a string")
 		}
@@ -56,8 +61,8 @@ func (b *SessionEnvBinding) decode(value any) error {
 		binding.Required = true
 		for key, field := range value {
 			switch key {
-			case "ref":
-			case "required":
+			case sessionEnvRefField:
+			case sessionEnvRequiredField:
 				required, ok := field.(bool)
 				if !ok {
 					return errors.New("session_env: required must be a boolean")

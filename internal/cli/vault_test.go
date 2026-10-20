@@ -46,8 +46,16 @@ func TestVaultCommands(t *testing.T) {
 		}
 		failedDeps := deps
 		failedDeps.removeFile = func(string) error { return errors.New("file removal refused") }
-		if _, _, err := executeRootCommand(t, failedDeps, "vault", "key", "migrate", "--remove-file-key"); err == nil {
-			t.Fatal("migration accepted a failed file removal")
+		if _, _, err := executeRootCommand(
+			t,
+			failedDeps,
+			"vault",
+			"key",
+			"migrate",
+			"--remove-file-key",
+		); err == nil ||
+			!strings.Contains(err.Error(), "file removal refused") {
+			t.Fatalf("migration error = %v, want file removal refusal", err)
 		}
 		unchanged, err := compozyconfig.LoadGlobalConfig(home)
 		if err != nil || unchanged.Vault.KeyProvider != "file" {

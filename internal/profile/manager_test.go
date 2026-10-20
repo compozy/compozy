@@ -57,6 +57,61 @@ func reportProfileTestMainError(format string, args ...any) {
 }
 
 func TestManagerProfileLifecycle(t *testing.T) {
+	t.Run("Should preserve agent session environment references through profile rename and replay", func(t *testing.T) {
+		t.Parallel()
+		manager, database, home := newTestManager(t)
+		if _, err := manager.Create(t.Context(), CreateInput{Name: "dev"}); err != nil {
+			t.Fatal(err)
+		}
+		service, err := vault.NewService(database, vault.NewFileKeyProvider(home.HomeDir, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		const oldRef = "vault:profiles/dev/providers/codex/token"
+		const newRef = "vault:profiles/creative/providers/codex/token"
+		if _, err := service.PutSecret(t.Context(), oldRef, "token", "profile-credential"); err != nil {
+			t.Fatal(err)
+		}
+		root := filepath.Join(home.ProfilesDir, "dev")
+		path := filepath.Join(root, "agents", "example", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		original := "---\n# Keep " + oldRef + "\nname: example\nsession_env:\n  TOKEN: '" + oldRef + "'\nfallback_chain:\n  - provider: codex\n    model: model\n    session_env:\n      TOKEN: {ref: \"" + oldRef + "\", required: true}\n---\n\nPrompt keeps " + oldRef + " unchanged.\n"
+		if err := os.WriteFile(path, []byte(original), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		plan, err := manager.PrepareRename(t.Context(), "dev", "creative")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if plan.VaultRefRewrites != 3 {
+			t.Fatalf("rewrite preview = %d, want one Vault record and two declarations", plan.VaultRefRewrites)
+		}
+		if _, err := manager.Rename(
+			t.Context(),
+			"dev",
+			RenameOptions{NewName: "creative", Repos: RepoChoice{None: true}, PlanRevision: plan.Revision},
+		); err != nil {
+			t.Fatal(err)
+		}
+		root = filepath.Join(home.ProfilesDir, "creative")
+		if err := compozyconfig.RewriteProfileSecretRefs(root, "dev", "creative"); err != nil {
+			t.Fatal(err)
+		}
+		rendered, err := os.ReadFile(filepath.Join(root, "agents", "example", "AGENT.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Count(string(rendered), newRef) != 2 ||
+			!strings.Contains(string(rendered), "# Keep "+oldRef) ||
+			!strings.Contains(string(rendered), "Prompt keeps "+oldRef+" unchanged.") {
+			t.Fatalf("renamed definition did not preserve declaration/body boundaries: %s", rendered)
+		}
+		if value, err := service.ResolveRef(t.Context(), newRef); err != nil || value != "profile-credential" {
+			t.Fatalf("renamed credential unavailable: %v", err)
+		}
+	})
 	t.Parallel()
 
 	t.Run("Should preserve renamed Lucide icons when reading and editing stored profiles", func(t *testing.T) {

@@ -23,7 +23,7 @@ type vaultKeyMigrationResult struct {
 }
 
 func newVaultKeyCommand(deps commandDeps) *cobra.Command {
-	cmd := &cobra.Command{Use: "key", Short: "Manage the local Vault encryption key provider"}
+	cmd := &cobra.Command{Use: cliKeyKey, Short: "Manage the local Vault encryption key provider"}
 	var removeFile bool
 	migrate := &cobra.Command{
 		Use:   "migrate",
@@ -89,7 +89,7 @@ func migrateVaultKey(
 	if err != nil {
 		return result, err
 	}
-	result.Provider = "os-keyring"
+	result.Provider = compozyconfig.VaultKeyProviderOSKeyring
 	result.VerifiedRecords = count
 	_, statErr := os.Lstat(filepath.Join(home.HomeDir, "vault.key"))
 	result.FileKeyRetained = statErr == nil
@@ -117,7 +117,7 @@ func activateVaultKeyring(
 		"",
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
-			return editor.SetValue([]string{"vault", "key_provider"}, "os-keyring")
+			return editor.SetValue([]string{"vault", "key_provider"}, compozyconfig.VaultKeyProviderOSKeyring)
 		},
 		func(compozyconfig.Config) error {
 			if !removeFile {
@@ -130,7 +130,7 @@ func activateVaultKeyring(
 			return err
 		},
 	)
-	if err != nil && cfg.Vault.KeyProvider == "os-keyring" {
+	if err != nil && cfg.Vault.KeyProvider == compozyconfig.VaultKeyProviderOSKeyring {
 		// The transaction returns its final config only after commit. A subsequent
 		// directory-close error must not delete the now-authoritative keyring key.
 		*warnings = append(*warnings, "Provider migration committed, but closing the config directory failed.")
@@ -143,7 +143,7 @@ func recordVaultMigrationCleanup(result *vaultKeyMigrationResult, primary *error
 	if cleanup == nil {
 		return
 	}
-	if result.Provider == "os-keyring" {
+	if result.Provider == compozyconfig.VaultKeyProviderOSKeyring {
 		result.Warnings = append(result.Warnings, "Migration committed, but could not "+action+".")
 		return
 	}

@@ -3622,13 +3622,20 @@ SSH_AUTH_SOCK = "env:SSH_AUTH_SOCK"
 			t.Fatal("socket declaration changed native authentication")
 		}
 	})
-	for _, declaration := range []string{`"private-literal-canary"`, `{ ref = "private-literal-canary" }`, `{ ref = "env:GH_TOKEN", required = "yes" }`, `{ ref = "env:GH_TOKEN", surprise = true }`, `"env:bad-name"`, `"file:/tmp/token"`} {
-		t.Run("Should reject invalid declaration "+declaration, func(t *testing.T) {
+	for _, test := range []struct{ declaration, reason string }{
+		{`"private-literal-canary"`, "ref must be a valid"},
+		{`{ ref = "private-literal-canary" }`, "ref must be a valid"},
+		{`{ ref = "env:GH_TOKEN", required = "yes" }`, "required must be a boolean"},
+		{`{ ref = "env:GH_TOKEN", surprise = true }`, "only ref and required"},
+		{`"env:bad-name"`, "ref must be a valid"},
+		{`"file:/tmp/token"`, "ref must be a valid"},
+	} {
+		t.Run("Should reject invalid declaration "+test.declaration, func(t *testing.T) {
 			t.Parallel()
 			var provider ProviderConfig
-			_, err := toml.Decode("[session_env]\nGH_TOKEN = "+declaration, &provider)
-			if err == nil {
-				t.Fatal("invalid declaration accepted")
+			_, err := toml.Decode("[session_env]\nGH_TOKEN = "+test.declaration, &provider)
+			if err == nil || !strings.Contains(err.Error(), test.reason) {
+				t.Fatalf("declaration error = %v, want %s", err, test.reason)
 			}
 			if strings.Contains(err.Error(), "private-literal-canary") {
 				t.Fatal("error exposed literal value")
@@ -3699,7 +3706,14 @@ Test agent.
 	t.Run("Should reject reserved and malformed environment names", func(t *testing.T) {
 		t.Parallel()
 		for _, name := range []string{"COMPOZY_SESSION_ID", "bad-name", "", "KEY=value"} {
-			if err := (SessionEnv{name: {Ref: "env:GH_TOKEN"}}).Validate("session_env"); err == nil {
+			reason := "invalid environment variable name"
+			if name == "COMPOZY_SESSION_ID" {
+				reason = "environment names are reserved"
+			}
+			if err := (SessionEnv{name: {Ref: "env:GH_TOKEN"}}).Validate(
+				"session_env",
+			); err == nil ||
+				!strings.Contains(err.Error(), reason) {
 				t.Fatalf("accepted invalid name %q", name)
 			}
 		}

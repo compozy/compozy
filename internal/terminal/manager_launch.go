@@ -21,7 +21,7 @@ type terminalLaunch struct {
 // launchTerminal starts an owned terminal with workspace settings and actor-bound process identity.
 func (m *Service) launchTerminal(
 	ctx context.Context,
-	launch terminalLaunch,
+	launch *terminalLaunch,
 ) (*session, terminalKey, error) {
 	release, err := m.prepareEnvironment(ctx, launch.info.WS, launch.origin, &launch.spec)
 	if err != nil {

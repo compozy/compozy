@@ -9,12 +9,33 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/vault"
 )
 
 // SessionEnvResolver resolves declared references at the process launch boundary.
 type SessionEnvResolver interface {
 	ResolveRef(context.Context, string) (string, error)
+}
+
+// RegisterSessionEnvRedaction keeps credential provenance separate from operational socket addresses.
+func RegisterSessionEnvRedaction(name string, binding config.SessionEnvBinding, value string) func() {
+	source := strings.TrimPrefix(binding.Ref, "env:")
+	sensitive := func(name string) bool {
+		return !sessionEnvSocketName(name) && procutil.SensitiveEnvName(name)
+	}
+	if vault.IsSecretRef(binding.Ref) || sensitive(name) || sensitive(source) {
+		return diagnostics.RegisterRequiredSecret(value)
+	}
+	if sessionEnvSocketName(name) || sessionEnvSocketName(source) {
+		return func() {}
+	}
+	return diagnostics.RegisterDynamicSecret(value)
+}
+
+func sessionEnvSocketName(name string) bool {
+	return strings.EqualFold(name, "SSH_AUTH_SOCK") || strings.EqualFold(name, "DBUS_SESSION_BUS_ADDRESS")
 }
 
 // SessionEnvStatuses reports metadata only; it never resolves Vault plaintext.

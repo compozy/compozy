@@ -23,7 +23,7 @@ func normalizeSessionEnvMutation(kind ValueKind, value any) (any, error) {
 		if err := binding.decode(value); err != nil {
 			return nil, err
 		}
-		return map[string]any{"ref": binding.Ref, "required": binding.Required}, nil
+		return map[string]any{sessionEnvRefField: binding.Ref, sessionEnvRequiredField: binding.Required}, nil
 	}
 	table, ok := value.(map[string]any)
 	if !ok {
@@ -37,7 +37,7 @@ func normalizeSessionEnvMutation(kind ValueKind, value any) (any, error) {
 			return nil, err
 		}
 		declarations[name] = binding
-		result[name] = map[string]any{"ref": binding.Ref, "required": binding.Required}
+		result[name] = map[string]any{sessionEnvRefField: binding.Ref, sessionEnvRequiredField: binding.Required}
 	}
 	if err := declarations.Validate("session_env"); err != nil {
 		return nil, err

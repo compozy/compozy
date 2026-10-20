@@ -8,6 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
+const outputRequiredValue = "Required"
+
 func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 	return outputBundle{
 		jsonValue: record,
@@ -20,7 +22,7 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 						providerNameValue,
 						automationTargetValue,
 						authoredContextSourceValue,
-						"Required",
+						outputRequiredValue,
 						authoredContextPresentValue,
 					},
 					providerCredentialStatusRows(record.Credentials),
@@ -29,7 +31,7 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 			if len(record.SessionEnv) > 0 {
 				sections = append(sections, renderHumanTable(
 					"Session Environment",
-					[]string{"Name", "Target", "Source", "Required", "Present"},
+					[]string{automationNameValue, "Target", authoredContextSourceValue, outputRequiredValue, "Present"},
 					providerCredentialStatusRows(record.SessionEnv),
 				))
 			}

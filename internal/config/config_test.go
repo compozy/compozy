@@ -55,8 +55,8 @@ func TestVaultKeyProviderSelection(t *testing.T) {
 			}
 		}
 		writeFile(t, filepath.Join(home, ConfigName), "[vault]\nkey_provider = 'os-keyring'\n")
-		if _, err := provider.Key(); err == nil {
-			t.Fatal("config selection without migration was accepted")
+		if _, err := provider.Key(); !errors.Is(err, vault.ErrKeyringMigrationRequired) {
+			t.Fatalf("Key() error = %v, want the explicit migration guard", err)
 		}
 	})
 }

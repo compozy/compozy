@@ -104,7 +104,8 @@ previous selection; an unavailable or locked keyring never falls back silently t
 
 The migration retains `vault.key` and warns about this plaintext copy unless
 `--remove-file-key` is supplied. Repeating the migration is supported. With the file retained,
-rollback selects `file` through `compozy config set vault.key_provider file --scope user`.
+rollback selects `file` by editing `vault.key_provider` in the home config. The key provider is
+a machine trust setting and is not mutable through native config tools.
 After removal, restore the original key from a secure backup before rollback; no key export
 command is provided. Changing the provider through generic config surfaces is restart-required.
 

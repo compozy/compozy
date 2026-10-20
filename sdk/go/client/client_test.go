@@ -419,6 +419,8 @@ func TestClientGeneratedOperations(t *testing.T) {
 		{"null source list", `null`, new(OptionalStringList)},
 		{"explicit null override", `{"override":{"sources":null}}`, new(UpdateSettingsSkillsRequest)},
 		{"empty override", `{"override":{}}`, new(UpdateSettingsSkillsRequest)},
+		{"omitted provider environment", `{}`, new(SettingsProviderWritePayload)},
+		{"cleared provider environment", `{"session_env":{}}`, new(SettingsProviderWritePayload)},
 	} {
 		t.Run("Should round trip "+test.name+" through its public JSON form", func(t *testing.T) {
 			t.Parallel()

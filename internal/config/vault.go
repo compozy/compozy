@@ -9,6 +9,11 @@ import (
 	"github.com/compozy/compozy/internal/vault"
 )
 
+const (
+	VaultKeyProviderFile      = "file"
+	VaultKeyProviderOSKeyring = "os-keyring"
+)
+
 // VaultConfig selects the machine-local encryption key source.
 type VaultConfig struct {
 	KeyProvider string `toml:"key_provider"`
@@ -16,7 +21,7 @@ type VaultConfig struct {
 
 func (c VaultConfig) Validate() error {
 	switch c.KeyProvider {
-	case "", "file", "os-keyring":
+	case "", VaultKeyProviderFile, VaultKeyProviderOSKeyring:
 		return nil
 	default:
 		return errors.New("vault.key_provider must be file or os-keyring")
@@ -53,7 +58,7 @@ func (p *configuredVaultKeyProvider) Key() ([]byte, error) {
 	if err := selection.Vault.Validate(); err != nil {
 		return nil, err
 	}
-	if selection.Vault.KeyProvider == "os-keyring" {
+	if selection.Vault.KeyProvider == VaultKeyProviderOSKeyring {
 		if err := vault.RequireKeyringMigration(p.home); err != nil {
 			return nil, err
 		}

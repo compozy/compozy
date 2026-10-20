@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/frontmatter"
 	"github.com/compozy/compozy/internal/vault"
 	tomlast "github.com/pelletier/go-toml/v2/unstable"
 )
@@ -42,7 +43,7 @@ func profileFileSecretRefs(root, oldName, newName string, apply bool) (int, erro
 			}
 			return walkErr
 		}
-		if entry.IsDir() || (entry.Name() != ConfigName && entry.Name() != MCPJSONName) {
+		if entry.IsDir() || (entry.Name() != ConfigName && entry.Name() != MCPJSONName && entry.Name() != "AGENT.md") {
 			return nil
 		}
 		changed, err := profileFileSecretRefEdits(path, oldName, newName, apply)
@@ -63,6 +64,16 @@ func profileFileSecretRefEdits(path, oldName, newName string, apply bool) (count
 		return 0, err
 	}
 	rename := func(ref string) string { return vault.RenameProfileSecretRef(ref, oldName, newName) }
+	if name == "AGENT.md" {
+		rendered, changed, err := frontmatter.RewriteStringValues(original, rename)
+		if err != nil || !apply || changed == 0 {
+			return changed, err
+		}
+		if err := requireOverlayContents(directory, name, path, original, true); err != nil {
+			return 0, err
+		}
+		return changed, writePersistedFileInDirectory(directory, name, path, rendered, true)
+	}
 	var edits []profileRefEdit
 	if name == MCPJSONName {
 		edits, err = profileJSONRefEdits(original, rename)

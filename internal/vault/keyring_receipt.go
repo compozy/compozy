@@ -11,13 +11,17 @@ import (
 const keyringReceiptName = "vault.keyring-ready"
 const keyringReceiptVersion = "compozy-vault-keyring-v1\n"
 
+var ErrKeyringMigrationRequired = errors.New(
+	"vault: OS keyring has not been explicitly provisioned; run compozy vault key migrate",
+)
+
 // RequireKeyringMigration checks local opt-in evidence without querying the OS.
 // Selecting os-keyring in config alone must never trigger a permission prompt.
 func RequireKeyringMigration(home string) error {
 	path := filepath.Join(home, keyringReceiptName)
 	info, err := os.Lstat(path)
 	if err != nil || validateKeyFile(path, info) != nil {
-		return errors.New("vault: OS keyring has not been explicitly provisioned; run compozy vault key migrate")
+		return ErrKeyringMigrationRequired
 	}
 	data, err := os.ReadFile(path)
 	if err != nil || string(data) != keyringReceiptVersion {

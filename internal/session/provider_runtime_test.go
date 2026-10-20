@@ -648,6 +648,50 @@ func TestResolveProviderNativeCLIUsesFinalLaunchEnvironment(t *testing.T) {
 
 func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testing.T) {
 	t.Parallel()
+	t.Run("Should remove missing optional targets using the platform environment casing", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+		bindings, err := manager.injectProviderSecrets(t.Context(), compozyconfig.ResolvedAgent{
+			SessionEnv: compozyconfig.SessionEnv{"PATH": {Ref: "env:MISSING", Required: false}},
+		}, []string{"Path=stale-path", "PATH=stale-uppercase"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "stale-path"
+		if runtime.GOOS == "windows" {
+			want = ""
+		}
+		if envValue(bindings.env, "Path") != want || envValue(bindings.env, "PATH") != "" {
+			t.Fatalf("missing optional target survived the platform comparison: %#v", bindings.env)
+		}
+	})
+	t.Run("Should remove declared command assignments before resolving launch environment", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{values: map[string]string{
+			"env:AVAILABLE": "declared-value",
+		}}}
+		resolved := compozyconfig.ResolvedAgent{SessionEnv: compozyconfig.SessionEnv{
+			"OPTIONAL_TOKEN": {Ref: "env:MISSING", Required: false},
+			"TOKEN":          {Ref: "env:AVAILABLE", Required: true},
+		}}
+		opts, bindings, err := manager.prepareProviderStartPolicies(t.Context(), resolved, acp.StartOpts{
+			Command: "OPTIONAL_TOKEN=stale TOKEN=wrong KEEP='two words' agent --flag",
+			Env:     []string{"OPTIONAL_TOKEN=inherited"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { runProviderSecretRedactions(bindings.redactionCleanups) })
+		parsed, err := compozyconfig.ParseLaunchCommand(opts.Command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(parsed.Environment) != 1 || parsed.Environment[0] != "KEEP=two words" ||
+			parsed.Executable != "agent" || len(parsed.Args) != 1 || parsed.Args[0] != "--flag" ||
+			envValue(opts.Env, "TOKEN") != "declared-value" || envValue(opts.Env, "OPTIONAL_TOKEN") != "" {
+			t.Fatalf("declared launch environment was overridden: command=%q", opts.Command)
+		}
+	})
 	t.Run("Should inject declared native CLI environment and redact resolved values", func(t *testing.T) {
 		t.Parallel()
 		const secret = "session-env-native-secret-123456789"
@@ -692,8 +736,12 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 				ProfileName: "current",
 				SessionEnv:  compozyconfig.SessionEnv{"TOKEN": {Ref: ref, Required: true}},
 			}, nil)
-			if err == nil {
-				t.Fatalf("accepted unavailable or forbidden reference %q", ref)
+			want := vault.ErrSecretNotFound
+			if strings.HasPrefix(ref, vault.ProfileSecretRefPrefix) {
+				want = vault.ErrUnsupportedSecretRef
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("reference %q error = %v, want %v", ref, err, want)
 			}
 		}
 	})

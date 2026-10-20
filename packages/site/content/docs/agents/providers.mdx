@@ -227,6 +227,10 @@ The integrated terminal uses the launching agent's bound declarations for agent-
 and the workspace's default agent declarations for human-owned shells. Required references are
 resolved before the process starts. An optional missing declaration removes an inherited target
 instead of retaining an older value. System-owned pipe consumers keep their own launch policy.
+Provider-owned shell tools can apply an additional environment filter after the provider process
+starts. For example, the Codex-owned shell may strip token names independently. Use the CompozyOS
+native terminal tools when commands need the declared environment; their launch boundary resolves
+these references explicitly.
 Delegated workers inherit the creator's declarations together with its account command unless
 the child explicitly declares its own command or session environment.
 

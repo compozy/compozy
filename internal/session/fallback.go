@@ -77,11 +77,15 @@ func (r FallbackRoute) selection() RuntimeSelection {
 
 // fallbackRoutesForAgent maps AgentDef.FallbackChain to FallbackRoute values in order.
 func fallbackRoutesForAgent(def compozyconfig.AgentDef) []FallbackRoute {
-	if len(def.FallbackChain) == 0 {
+	return fallbackRoutesForChain(def.FallbackChain)
+}
+
+func fallbackRoutesForChain(chain []compozyconfig.RoleFallback) []FallbackRoute {
+	if len(chain) == 0 {
 		return nil
 	}
-	routes := make([]FallbackRoute, 0, len(def.FallbackChain))
-	for _, route := range def.FallbackChain {
+	routes := make([]FallbackRoute, 0, len(chain))
+	for _, route := range chain {
 		routes = append(routes, FallbackRoute{
 			Provider:        strings.TrimSpace(route.Provider),
 			Model:           strings.TrimSpace(route.Model),

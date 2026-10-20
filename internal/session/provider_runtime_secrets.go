@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime"
 
 	"strings"
 
@@ -16,7 +17,35 @@ import (
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
+	shellquote "github.com/kballard/go-shellquote"
 )
+
+func sessionEnvironmentCommand(command string, declarations compozyconfig.SessionEnv) (string, error) {
+	if len(declarations) == 0 {
+		return command, nil
+	}
+	parsed, err := compozyconfig.ParseLaunchCommand(command)
+	if err != nil {
+		return "", fmt.Errorf("session: parse declared environment command: %w", err)
+	}
+	kept := make([]string, 0, len(parsed.Environment)+1+len(parsed.Args))
+	for _, assignment := range parsed.Environment {
+		name, _, _ := strings.Cut(assignment, "=")
+		declared := false
+		for target := range declarations {
+			if name == target || (runtime.GOOS == "windows" && strings.EqualFold(name, target)) {
+				declared = true
+				break
+			}
+		}
+		if !declared {
+			kept = append(kept, assignment)
+		}
+	}
+	kept = append(kept, parsed.Executable)
+	kept = append(kept, parsed.Args...)
+	return shellquote.Join(kept...), nil
+}
 
 type providerSecretMetadataGetter interface {
 	GetMetadata(context.Context, string) (vault.Metadata, error)
@@ -131,7 +160,8 @@ func (m *Manager) injectSessionEnvironment(
 			delete(bindings.injectedTargetEnvs, name)
 			continue
 		}
-		bindings.redactionCleanups = append(bindings.redactionCleanups, diagnostics.RegisterRequiredSecret(value))
+		bindings.redactionCleanups = append(bindings.redactionCleanups,
+			authproviders.RegisterSessionEnvRedaction(name, resolved.SessionEnv[name], value))
 		bindings.env = setSessionStartEnvValue(bindings.env, name, value)
 		bindings.injectedTargetEnvs[name] = struct{}{}
 	}

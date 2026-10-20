@@ -74,7 +74,11 @@ func (p *osKeyProvider) Key() ([]byte, error) {
 	cache := &p.cache
 	if p.system {
 		shared, _ := systemKeyringKeys.LoadOrStore(account, &keyringKeyCache{})
-		cache = shared.(*keyringKeyCache)
+		var ok bool
+		cache, ok = shared.(*keyringKeyCache)
+		if !ok {
+			return nil, errors.New("vault: invalid OS keyring cache")
+		}
 	}
 	cache.once.Do(func() {
 		cache.key, cache.err = p.readKey(account)

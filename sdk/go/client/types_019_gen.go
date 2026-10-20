@@ -9,7 +9,7 @@ import (
 
 // SettingsProviderWritePayload is a daemon API value.
 type SettingsProviderWritePayload struct {
-	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
+	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
 	SteerCapability SteerCapability                         `json:"steer_capability,omitempty"`
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`

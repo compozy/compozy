@@ -24,7 +24,7 @@ func defaultSessionConfig() SessionConfig {
 
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
-		Vault:         VaultConfig{KeyProvider: "file"},
+		Vault:         VaultConfig{KeyProvider: VaultKeyProviderFile},
 		Daemon:        defaultDaemonConfig(homePaths),
 		HTTP:          HTTPConfig{Host: "localhost", Port: 2123},
 		App:           defaultAppConfig(),

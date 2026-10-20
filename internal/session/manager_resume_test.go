@@ -1153,6 +1153,53 @@ func lastStartCall(h *harness) acp.StartOpts {
 // primary route (IT-005, UT-026, UT-027, UT-029).
 func TestResumeAcceptedRouteAffinity(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resume the unchanged coordinator role environment after persisted stop", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		installFallbackAgent(t, h)
+		workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		route := claudeSeatOneRoute(h)
+		route.SessionEnv = compozyconfig.SessionEnv{"ROLE_PATH": {Ref: "env:PATH", Required: true}}
+		workspace.Config.Roles.Coordinator.FallbackChain = []compozyconfig.RoleFallback{route}
+		h.resolver.upsert(&workspace)
+		created, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "reviewer",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeCoordinator,
+			Lineage: &store.SessionLineage{
+				SpawnRole:    string(SessionTypeCoordinator),
+				TTLExpiresAt: new(h.manager.now().UTC().Add(time.Hour)),
+			},
+			Provider:   route.Provider,
+			Model:      route.Model,
+			Command:    route.Command,
+			SessionEnv: route.SessionEnv,
+			ChainOwner: ChainOwnerCaller,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta := readMeta(t, created.MetaPath())
+		if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+			t.Fatal(err)
+		}
+		resumed, err := h.manager.Resume(t.Context(), created.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, resumed.ID) })
+		call := lastStartCall(h)
+		if call.ResumeSessionID != derefString(meta.ACPSessionID) || envValue(call.Env, "ROLE_PATH") == "" {
+			t.Fatalf(
+				"coordinator route lost on resume: native=%q environment-present=%t",
+				call.ResumeSessionID,
+				envValue(call.Env, "ROLE_PATH") != "",
+			)
+		}
+	})
 
 	createOnSeatOne := func(t *testing.T, h *harness) *Session {
 		t.Helper()

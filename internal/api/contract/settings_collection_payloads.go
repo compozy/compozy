@@ -29,7 +29,7 @@ type SettingsProviderSettingsPayload struct {
 
 // SettingsProviderWritePayload accepts auth_login_command without exposing it on reads.
 type SettingsProviderWritePayload struct {
-	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
+	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
 	SteerCapability config.SteerCapability                  `json:"steer_capability,omitempty"`
 	Command         string                                  `json:"command,omitempty"`
 	DisplayName     string                                  `json:"display_name,omitempty"`

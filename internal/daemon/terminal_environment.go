@@ -4,9 +4,9 @@ import (
 	"context"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/terminal"
@@ -23,7 +23,7 @@ func terminalEnvironmentProvider(state *bootState) terminal.EnvironmentProvider 
 		if actor.Kind == terminal.ActorKindSystem {
 			return terminal.LaunchEnvironment{}, nil
 		}
-		if state.profiles == nil || state.providerVault == nil {
+		if state.profiles == nil {
 			return terminal.LaunchEnvironment{}, terminal.ErrServiceUnavailable
 		}
 		profileName, err := state.profiles.ProfileName(ctx, actor.ProfileID)
@@ -34,14 +34,20 @@ func terminalEnvironmentProvider(state *bootState) terminal.EnvironmentProvider 
 		if err != nil {
 			return terminal.LaunchEnvironment{}, err
 		}
+		if len(declarations) == 0 {
+			return terminal.LaunchEnvironment{}, nil
+		}
+		if state.providerVault == nil {
+			return terminal.LaunchEnvironment{}, terminal.ErrServiceUnavailable
+		}
 		values, err := providers.ResolveSessionEnv(ctx, declarations, profileName, state.providerVault)
 		if err != nil {
 			return terminal.LaunchEnvironment{}, err
 		}
 		result := terminal.LaunchEnvironment{Values: values, Unset: slices.Sorted(maps.Keys(declarations))}
 		cleanups := make([]func(), 0, len(values))
-		for _, value := range values {
-			cleanups = append(cleanups, diagnostics.RegisterRequiredSecret(value))
+		for name, value := range values {
+			cleanups = append(cleanups, providers.RegisterSessionEnvRedaction(name, declarations[name], value))
 		}
 		result.Release = func() {
 			for _, cleanup := range cleanups {
@@ -74,19 +80,24 @@ func terminalEnvironmentDeclarations(
 	if err != nil {
 		return nil, err
 	}
+	providerName := resolved.Config.Defaults.Provider
+	var agentDeclarations config.SessionEnv
 	for _, agent := range resolved.Agents {
 		if agent.Name != resolved.Config.Defaults.Agent {
 			continue
 		}
-		route, err := resolved.Config.ResolveAgent(agent)
-		if err != nil {
-			return nil, err
+		agentDeclarations = agent.SessionEnv
+		if strings.TrimSpace(agent.Provider) != "" {
+			providerName = agent.Provider
 		}
-		return route.SessionEnv, nil
+		break
 	}
-	provider, err := resolved.Config.ResolveProvider(resolved.Config.Defaults.Provider)
+	if strings.TrimSpace(providerName) == "" {
+		return config.MergeSessionEnv(nil, agentDeclarations), nil
+	}
+	provider, err := resolved.Config.ResolveProvider(providerName)
 	if err != nil {
 		return nil, err
 	}
-	return config.MergeSessionEnv(nil, provider.SessionEnv), nil
+	return config.MergeSessionEnv(provider.SessionEnv, agentDeclarations), nil
 }

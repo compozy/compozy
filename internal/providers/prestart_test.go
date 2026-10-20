@@ -17,11 +17,41 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
 	shellquote "github.com/kballard/go-shellquote"
 )
+
+func TestSessionEnvRedaction(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name, target, ref, value string
+		secret                   bool
+	}{
+		{"Vault short secret", "VALUE", "vault:providers/qa/token", "🦊", true},
+		{"env source short secret", "VALUE", "env:SOURCE_TOKEN", "🦉", true},
+		{"env target short secret", "TARGET_TOKEN", "env:VALUE", "🦋", true},
+		{"operational boolean", "FEATURE", "env:FEATURE", "true", false},
+		{"socket address", "SSH_AUTH_SOCK", "env:QA_SOCKET", "/tmp/redaction-qa-agent.sock", false},
+	} {
+		t.Run("Should classify "+test.name+" by binding provenance", func(t *testing.T) {
+			t.Parallel()
+			release := RegisterSessionEnvRedaction(
+				test.target,
+				compozyconfig.SessionEnvBinding{Ref: test.ref},
+				test.value,
+			)
+			t.Cleanup(release)
+			original := "before " + test.value + " after"
+			got := diagnostics.RedactExact(original)
+			if test.secret && strings.Contains(got, test.value) || !test.secret && got != original {
+				t.Fatalf("provenance redaction = %q, secret=%t", got, test.secret)
+			}
+		})
+	}
+}
 
 func TestPreStarter(t *testing.T) {
 	t.Parallel()
