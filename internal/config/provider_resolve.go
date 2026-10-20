@@ -214,8 +214,11 @@ func resolveAgentModelRuntime(
 		reasoningSource = RuntimeValueSourceProjectDefault
 	}
 	if reasoningEffort == "" {
-		reasoningEffort = defaultReasoningEffortForModel(provider, model)
-		reasoningSource = RuntimeValueSourceModelDefault
+		modelDefault := defaultReasoningEffortForModel(provider, model)
+		if providerAcceptsReasoningEffort(provider, model, modelDefault) {
+			reasoningEffort = modelDefault
+			reasoningSource = RuntimeValueSourceModelDefault
+		}
 	}
 	if reasoningEffort == "" {
 		reasoningSource = RuntimeValueSourceUnspecified

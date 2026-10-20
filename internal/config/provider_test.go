@@ -1510,6 +1510,22 @@ func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("Should omit an unadvertised saved model effort without blocking startup", func(t *testing.T) {
+		t.Parallel()
+		cfg := sessionDefaultsConfig(t, codexDefaults)
+		cfg.Providers["codex"] = ProviderConfig{Models: ProviderModelsConfig{
+			Default: "custom-model",
+			Curated: []ProviderModelConfig{{ID: "custom-model", DefaultReasoningEffort: "high"}},
+		}}
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "general", Prompt: "prompt", Model: "custom-model"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.ReasoningEffort != "" || resolved.RuntimeSources.ReasoningEffort != RuntimeValueSourceUnspecified {
+			t.Fatalf("resolved runtime = %#v, want no unadvertised effort", resolved)
+		}
+	})
+
 	t.Run("Should never apply the saved model to an agent-authored provider", func(t *testing.T) {
 		t.Parallel()
 

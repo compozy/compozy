@@ -181,7 +181,7 @@ def kill_tmux_server(tmux_socket: Path | None, result: TeardownResult, dry_run: 
         result.notes.append(f"could not remove tmux socket {tmux_socket}: {err}")
 
 
-def collect_target_pids(target: LabTarget, result: TeardownResult) -> dict[int, SignalTarget]:
+def collect_target_pids(target: LabTarget, result: TeardownResult, dry_run: bool = False) -> dict[int, SignalTarget]:
     """Map candidate PID -> reason string."""
     candidates: dict[int, str] = {}
     stale_pids: set[int] = set()
@@ -201,7 +201,7 @@ def collect_target_pids(target: LabTarget, result: TeardownResult) -> dict[int, 
             entry = {"pid": pid, "file": f"{name}.pid", "reason": "identity missing or changed"}
             result.stale.append(entry)
             result.skipped.append(entry)
-            if not pid_alive(pid):
+            if not dry_run and not pid_alive(pid):
                 (target.qa_root / "pids" / f"{name}.pid").unlink(missing_ok=True)
     lsof_scan_paths: list[Path] = [root for root in target.roots if is_safe_root(root)]
     if target.compozy_home is not None:
@@ -392,11 +392,11 @@ def teardown_target(
     if target.compozy_home is not None and target.compozy_home.is_dir() and registered_process_matches(target.qa_root, read_daemon_pid(target.compozy_home)):
         stop_daemon_gracefully(compozy_binary, target.compozy_home, result, dry_run)
     kill_tmux_server(target.tmux_socket, result, dry_run)
-    pids = collect_target_pids(target, result)
+    pids = collect_target_pids(target, result, dry_run)
     signal_pids(pids, grace_sec, result, dry_run)
     for pid_file in (target.qa_root / "pids").glob("*.pid") if target.qa_root else []:
         record = registered_identity(pid_file)
-        if record is not None and not pid_alive(record.pid):
+        if not dry_run and record is not None and not pid_alive(record.pid):
             pid_file.unlink(missing_ok=True)
     if purge and result.clean:
         purge_roots(target, result, dry_run)

@@ -115,6 +115,22 @@ def check_allocated_process_teardown(repo_root: Path) -> None:
                 "COMPOZY_HOME": str(root), "QA_OUTPUT_PATH": str(root),
                 "WORKSPACE_PATH": str(root),
             }}), encoding="utf-8")
+            dead_record = qa_root / "pids" / "dead.pid"
+            dead_record.write_text("2147483647\n", encoding="utf-8")
+            dead_identity_record = qa_root / "pids" / "dead-identity.pid"
+            dead_identity_record.write_text("2147483646\n" + json.dumps({
+                "pid": 2147483646, "started": "old", "command": "exited fixture",
+            }) + "\n", encoding="utf-8")
+            records_before = {path.name: path.read_bytes() for path in (qa_root / "pids").glob("*.pid")}
+            preview = subprocess.run(
+                [sys.executable, str(teardown), "--manifest", str(manifest), "--json", "--dry-run"],
+                capture_output=True, text=True, timeout=15,
+            )
+            if preview.returncode != 0:
+                raise AssertionError(f"teardown preview failed: {preview.stdout} {preview.stderr}")
+            records_after = {path.name: path.read_bytes() for path in (qa_root / "pids").glob("*.pid")}
+            if records_after != records_before or any(process.poll() is not None for process in processes):
+                raise AssertionError("dry-run modified process records or stopped a process")
             result = subprocess.run(
                 [sys.executable, str(teardown), "--manifest", str(manifest), "--json", "--grace-sec", "1"],
                 capture_output=True, text=True, timeout=15,
