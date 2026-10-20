@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -77,9 +78,6 @@ var providerTransientTransportNeedles = []string{
 	"status 503",
 	"http 504",
 	"status 504",
-	"http 529",
-	"status 529",
-	"529",
 }
 
 // ProbeOutcome is the redacted output from one provider auth status command.
@@ -250,11 +248,8 @@ func classifyNativeCLIProbePrecondition(
 
 func classifyProbeOutput(combined string) (Classification, bool) {
 	switch {
-	case hasAny(
+	case hasHTTPStatus(combined, "429") || hasAny(
 		combined,
-		"http 429",
-		"status 429",
-		"429",
 		"rate limit",
 		"rate_limit",
 		"too many requests",
@@ -268,11 +263,8 @@ func classifyProbeOutput(combined string) (Classification, bool) {
 			Kind:    ProviderFailureRateLimited,
 			Action:  ProviderFailureActionRetry,
 		}, true
-	case hasAny(
+	case hasHTTPStatus(combined, "403") || hasAny(
 		combined,
-		"http 403",
-		"status 403",
-		"403",
 		"forbidden",
 		"permission denied",
 		"access denied",
@@ -286,7 +278,7 @@ func classifyProbeOutput(combined string) (Classification, bool) {
 			Kind:    ProviderFailurePermissionDenied,
 			Action:  ProviderFailureActionNoRetry,
 		}, true
-	case hasAny(combined, providerTransientTransportNeedles...):
+	case hasHTTPStatus(combined, "529") || hasAny(combined, providerTransientTransportNeedles...):
 		return Classification{
 			State:   ProviderAuthStateTransient,
 			Code:    diagcontract.CodeProviderTransientFailure,
@@ -294,7 +286,7 @@ func classifyProbeOutput(combined string) (Classification, bool) {
 			Kind:    ProviderFailureTransient,
 			Action:  ProviderFailureActionRetry,
 		}, true
-	case hasAny(
+	case hasHTTPStatus(combined, "401") || hasAny(
 		combined,
 		"not logged in",
 		"not authenticated",
@@ -306,9 +298,6 @@ func classifyProbeOutput(combined string) (Classification, bool) {
 		"missing api key",
 		"no api key",
 		"expired token",
-		"http 401",
-		"status 401",
-		"401",
 	):
 		return Classification{
 			State:   ProviderAuthStateNeedsLogin,
@@ -353,6 +342,19 @@ func outputLooksAuthenticated(outcome ProbeOutcome) bool {
 		"login ok",
 		"authorized",
 	)
+}
+
+// hasHTTPStatus recognizes standalone status codes, excluding digits embedded in
+// request IDs, model names, and paths that a provider may echo in an error.
+func hasHTTPStatus(text, code string) bool {
+	for token := range strings.FieldsFuncSeq(text, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r) && !strings.ContainsRune("_./-\\", r)
+	}) {
+		if strings.TrimRight(token, ".") == code {
+			return true
+		}
+	}
+	return false
 }
 
 func hasAny(value string, needles ...string) bool {
