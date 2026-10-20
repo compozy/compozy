@@ -26,7 +26,7 @@ The initial Vite launch filtered its proxy environment through Turbo strict mode
 
 ## Verification
 
-Targeted empty-desktop and session-store suites: 20 passed. Shared session composer/runtime suites: 195 passed. Typecheck passed through root Turborepo. React Doctor: 100/100, no findings. The first-prompt subset passed all 4 tests, including closing/reopening during an in-flight upload under StrictMode. Heavy local gates/E2E were intentionally deferred to PR CI per assignment.
+Targeted empty-desktop and session-store suites: 20 passed. Shared session composer/runtime suites: 195 passed. Typecheck passed through root Turborepo. React Doctor: 100/100, no findings. The first-prompt subset passed all 5 tests, including closing/reopening during an in-flight upload under StrictMode and preserving the editable draft when the daemon refuses an attachment. Heavy local gates/E2E were intentionally deferred to PR CI per assignment.
 
 ## Evidence
 

@@ -6109,6 +6109,38 @@ describe("SessionThread composer running semantics", () => {
     expect(promptCalls).toHaveLength(1);
   });
 
+  // Invariant: rejected first-message uploads recover the editable draft without sending.
+  // Owner: session composer/runtime handoff; canonical suite: SessionThread.
+  it("Should recover the first-prompt draft when attachment upload is refused", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Keep this message",
+        files: [new File(["zip"], "archive.zip", { type: "application/zip" })],
+      })
+    );
+    renderComposer({ isSessionRunning: false });
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Couldn't send the first message. It is waiting in the composer."
+      )
+    );
+    expect(promptCalls).toHaveLength(0);
+    expect(composerText()).toBe("Keep this message");
+    expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute(
+      "data-state",
+      "rejected"
+    );
+    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+      "Keep this message"
+    );
+    expect(
+      sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+    ).toBeUndefined();
+  });
+
   // Invariant: window teardown during upload preserves first-message files and resumes once.
   // Owner: session runtime/composer lifecycle; canonical suite: SessionThread.
   it("Should resume first-prompt attachments after closing during upload", async () => {

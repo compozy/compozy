@@ -4,8 +4,6 @@ import { useAui, useAuiState } from "@assistant-ui/react";
 import { useSelector } from "@xstate/store-react";
 
 import { sendFirstPrompt } from "../lib/session-first-prompt";
-import { notifyUser } from "@/lib/user-feedback";
-import { FIRST_PROMPT_SEND_FAILED } from "../lib/session-first-prompt";
 import { sessionStore } from "../stores/session-store";
 
 interface UseSessionFirstPromptParams {
@@ -31,6 +29,7 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
     text: string;
     files: File[];
     done: () => void;
+    fail: () => void;
     signal: AbortSignal;
   } | null>(null);
   const submitted = useRef<typeof staged>(null);
@@ -88,13 +87,17 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
         })
       );
       if (!signal || signal.aborted) return;
-      await new Promise<void>(resolve => {
+      await new Promise<void>((resolve, reject) => {
         const done = () => {
           signal.removeEventListener("abort", done);
           resolve();
         };
         signal.addEventListener("abort", done, { once: true });
-        setStaged({ text, files, done, signal });
+        const fail = () => {
+          signal.removeEventListener("abort", done);
+          reject(new Error("First-message attachment upload failed"));
+        };
+        setStaged({ text, files, done, fail, signal });
       });
     }
   }, [aui, canPrompt, prompt, runtimeStore, sessionId, threadAccepts]);
@@ -113,11 +116,12 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
     if (composer.attachments.some(attachment => attachment.status.type === "running")) return;
     // Claim before invoking the external runtime: repeated effect passes cannot send twice.
     submitted.current = staged;
-    staged.done();
     if (composer.attachments.some(attachment => attachment.status.type !== "requires-action")) {
-      notifyUser({ message: FIRST_PROMPT_SEND_FAILED, tone: "error" });
+      staged.fail();
       return;
     }
+    // Release the handoff to the editable composer once upload succeeded.
+    staged.done();
     // Keep edits made during upload in the composer for the operator to send.
     if (
       composer.text !== staged.text ||
