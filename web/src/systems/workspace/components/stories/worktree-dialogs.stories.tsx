@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
+import { HttpResponse } from "msw";
+import { compozyApiMock } from "@/storybook/openapi-msw";
+import { WorktreeBulkRemoveDialog } from "../worktree-bulk-remove-dialog";
 
 import { StorySurface } from "@/storybook/story-layout";
 import {
@@ -290,4 +293,88 @@ export const MissingResolutionIdempotentOutcome: Story = {
       />
     </StorySurface>
   ),
+};
+
+const bulkRows = [
+  buildWorktreeFixture({
+    id: "wt_bulk_dirty",
+    name: "draft-settings",
+    branch: "run/draft-settings",
+    dirty: true,
+    agent_activity: "idle",
+  }),
+  buildWorktreeFixture({
+    id: "wt_bulk_unique",
+    name: "local-fix",
+    branch: "run/local-fix",
+    dirty: false,
+    agent_activity: "idle",
+  }),
+];
+
+export const BulkForceConfirmation: Story = {
+  tags: ["play-fn"],
+  parameters: {
+    msw: {
+      handlers: [
+        compozyApiMock.get(
+          "/api/workspaces/{workspace_id}/worktrees/{worktree_id}",
+          ({ params }) => {
+            const worktree = bulkRows.find(row => row.id === params.worktree_id);
+            return worktree
+              ? HttpResponse.json({
+                  worktree,
+                  bindings: { agent_activity: "idle" },
+                  repo: { git_backed: true, git_available: true },
+                  status: null,
+                  forge: null,
+                })
+              : HttpResponse.json({ error: "Worktree not found." }, { status: 404 });
+          }
+        ),
+        compozyApiMock.delete(
+          "/api/workspaces/{workspace_id}/worktrees/{worktree_id}",
+          ({ params, request }) => {
+            const query = new URL(request.url).searchParams;
+            if (query.get("force") === "true") {
+              const row = bulkRows.find(row => row.id === params.worktree_id);
+              return query.get("delete_branch") === "true" && row
+                ? HttpResponse.json({ branch: { name: row.branch, deleted: true } })
+                : new HttpResponse(null, { status: 204 });
+            }
+            const dirty = params.worktree_id === bulkRows[0].id;
+            return HttpResponse.json(
+              {
+                code: dirty ? "worktree_dirty_requires_force" : "worktree_unpushed_requires_force",
+                error: "Removing this worktree would discard local work.",
+                risk: {
+                  changed_files: dirty ? 2 : 0,
+                  insertions: dirty ? 14 : 0,
+                  deletions: dirty ? 3 : 0,
+                  unpushed_commits: dirty ? 0 : 1,
+                  exists_on_remote: false,
+                },
+              },
+              { status: 409 }
+            );
+          }
+        ),
+      ],
+    },
+  },
+  render: () => (
+    <WorktreeBulkRemoveDialog
+      batch={{ workspaceId: bulkRows[0].workspace_id, worktrees: bulkRows }}
+      onClose={fn()}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(
+      await body.findByRole("checkbox", { name: "Also delete local branches" })
+    );
+    await userEvent.click(await body.findByRole("button", { name: "Remove selected" }));
+    await userEvent.click(await body.findByRole("button", { name: "Force remove… (2)" }));
+    await body.findByTestId("worktree-bulk-force-dialog");
+  },
 };

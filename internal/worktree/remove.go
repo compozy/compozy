@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 )
@@ -335,71 +333,6 @@ func (s *Service) finishRemoval(
 	s.invalidateDiscovery(item.WorkspaceID)
 	s.emit(ctx, EventRemoved, item)
 	return nil
-}
-
-func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, error) {
-	status, err := s.refreshStatus(ctx, item)
-	if err != nil {
-		return RemovalRisk{}, err
-	}
-	if status.ReadError != "" {
-		return RemovalRisk{}, refusal(ErrStatusUnreadable, status.ReadError)
-	}
-	risk := RemovalRisk{
-		ChangedFiles: valueOrZero(status.DirtyFiles), Insertions: valueOrZero(status.Insertions),
-		Deletions: valueOrZero(status.Deletions),
-	}
-	args := removalCommitComparison(item, status)
-	if len(args) == 0 {
-		return risk, nil
-	}
-	args = append([]string{"rev-list", "--count"}, args...)
-	stdout, stderr, err := s.runner.Run(ctx, item.Path, args...)
-	if err != nil {
-		return RemovalRisk{}, fmt.Errorf(
-			"count unique commits: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err,
-		)
-	}
-	risk.UnpushedCommits, err = strconv.Atoi(strings.TrimSpace(string(stdout)))
-	if err != nil {
-		return RemovalRisk{}, fmt.Errorf("parse unique commit count: %w", err)
-	}
-	if risk.UnpushedCommits == 0 || (status.Detached != nil && *status.Detached) {
-		return risk, nil
-	}
-	stdout, stderr, err = s.runner.Run(ctx, item.Path, "branch", "-r", "--contains", "HEAD")
-	if err != nil {
-		return RemovalRisk{}, fmt.Errorf(
-			"inspect remote containment: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err,
-		)
-	}
-	risk.ExistsOnRemote = strings.TrimSpace(string(stdout)) != ""
-	if !risk.ExistsOnRemote {
-		merged, err := s.removalMergeIsCurrent(ctx, item)
-		if err != nil {
-			return RemovalRisk{}, err
-		}
-		if merged {
-			risk.UnpushedCommits = 0
-		}
-	}
-	return risk, nil
-}
-
-func removalCommitComparison(item Worktree, status *Status) []string {
-	switch {
-	case item.BaseRef != "":
-		return []string{item.BaseRef + "..HEAD"}
-	case status.Detached != nil && *status.Detached:
-		return []string{removalHeadRef, "--not", "--all"}
-	case status.HasUpstream != nil && *status.HasUpstream:
-		if status.Ahead != nil {
-			return []string{"@{upstream}..HEAD"}
-		}
-		return []string{removalHeadRef, "--not", "--remotes", "--exclude=" + item.Branch, "--branches"}
-	default:
-		return nil
-	}
 }
 
 func (s *Service) validateRemovalIdentity(
