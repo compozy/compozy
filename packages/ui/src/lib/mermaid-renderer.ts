@@ -1,11 +1,10 @@
-import mermaid from "mermaid";
-
 // Mermaid owns mutable global configuration. Serialize configuration and rendering together so
 // simultaneous diagrams cannot borrow another diagram's theme or security configuration.
 let pending: Promise<unknown> = Promise.resolve();
 
 export function renderMermaidImage(code: string, theme: "light" | "dark"): Promise<string> {
   const result = pending.then(async () => {
+    const { default: mermaid } = await import("mermaid");
     mermaid.initialize({
       startOnLoad: false,
       securityLevel: "strict",
