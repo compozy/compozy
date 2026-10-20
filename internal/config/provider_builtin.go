@@ -30,6 +30,7 @@ var builtinProviders = map[string]ProviderConfig{
 		EnvPolicy:     ProviderEnvPolicyFiltered,
 		HomePolicy:    ProviderHomePolicyOperator,
 		AuthACPMethod: "oauth-personal",
+		Models:        ProviderModelsConfig{Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption}},
 	},
 	providerClaudeKey: {
 		Command:      claudeProviderCommand,

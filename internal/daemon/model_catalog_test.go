@@ -987,20 +987,34 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if provider.EffectiveHomePolicy() != compozyconfig.ProviderHomePolicyOperator {
 			t.Fatalf("agy home policy = %q, want operator", provider.EffectiveHomePolicy())
 		}
-		probe := &recordingAgyACPProbe{options: []acp.SessionConfigOption{{
+		// Mirrors the live agy 1.4.0 advertisement: bare model IDs plus a
+		// thinking_level selector; effort is not encoded in the model IDs.
+		modelOption := acp.SessionConfigOption{
 			ID:   "model",
 			Kind: acp.SessionConfigOptionKindSelect,
-			// Synthetic six-ID input seeded from the superseded 1.3.0 shape;
-			// live 1.4.0 advertises 2 bare IDs + thinking_level. Logic unchanged.
 			Values: []acp.SessionConfigOptionValue{
-				{Value: "gemini-4-argon-medium", Label: "Argon Medium"},
-				{Value: "gemini-4-argon-high", Label: "Argon High"},
-				{Value: "gemini-4-argon-low", Label: "Argon Low"},
-				{Value: "gemini-3.8-flash-high", Label: "Flash High"},
-				{Value: "gemini-3.8-flash-medium", Label: "Flash Medium"},
-				{Value: "gemini-3.8-flash-low", Label: "Flash Low"},
+				{Value: "gemini-4-argon", Label: "Gemini 4 Argon"},
+				{Value: "gemini-3.8-flash", Label: "Gemini 3.8 Flash"},
 			},
-		}}}
+		}
+		reasoningOption := acp.SessionConfigOption{
+			ID: "thinking_level", Category: "thought_level", Kind: acp.SessionConfigOptionKindSelect,
+			CurrentValueID: "high",
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "low", Label: "Low"},
+				{Value: "medium", Label: "Medium"},
+				{Value: "high", Label: "High"},
+			},
+		}
+		probe := &recordingAgyACPProbe{
+			options: []acp.SessionConfigOption{modelOption, reasoningOption},
+			models:  make(map[string][]acp.SessionConfigOption),
+		}
+		for _, value := range modelOption.Values {
+			selectedModel := modelOption
+			selectedModel.CurrentValueID = value.Value
+			probe.models[value.Value] = []acp.SessionConfigOption{selectedModel, reasoningOption}
+		}
 		workingDir := t.TempDir()
 		liveSource, err := modelcatalog.NewLiveProviderSource(
 			"agy",
@@ -1033,10 +1047,14 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 				t.Fatalf("CloseGlobalDB() error = %v", closeErr)
 			}
 		})
+		reasoningApply, err := effectiveCatalogReasoningApply(&cfg)
+		if err != nil {
+			t.Fatalf("effectiveCatalogReasoningApply() error = %v", err)
+		}
 		service, err := modelcatalog.NewService(
 			db,
 			[]modelcatalog.Source{configSource, liveSource},
-			modelcatalog.MergeOptions{},
+			modelcatalog.MergeOptions{ReasoningApply: reasoningApply},
 		)
 		if err != nil {
 			t.Fatalf("NewService() error = %v", err)
@@ -1056,8 +1074,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("Refresh(agy live) error = %v", err)
 		}
 		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("agy"))
-		if !ok || status.RefreshState != modelcatalog.RefreshStateSucceeded || status.RowCount != 6 {
-			t.Fatalf("agy live status = %#v, want 6 succeeded rows", status)
+		if !ok || status.RefreshState != modelcatalog.RefreshStateSucceeded || status.RowCount != 2 {
+			t.Fatalf("agy live status = %#v, want 2 succeeded rows", status)
 		}
 		// The discovery seam carries only command/cwd/env/timeout: inspection
 		// sends no prompt, authenticate, tool, or MCP message through this path.
@@ -1081,14 +1099,46 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("ListModels(agy) error = %v", err)
 		}
 		if got, want := catalogModelIDs(models, "agy"), []string{
-			"gemini-3.8-flash-high",
-			"gemini-3.8-flash-low",
-			"gemini-3.8-flash-medium",
-			"gemini-4-argon-high",
-			"gemini-4-argon-low",
-			"gemini-4-argon-medium",
+			"gemini-3.8-flash",
+			"gemini-4-argon",
 		}; !slices.Equal(got, want) {
 			t.Fatalf("agy models = %#v, want exact advertised %#v", got, want)
+		}
+		for _, model := range models {
+			if model.ReasoningApply != "acp_option" || !model.ReasoningKnown ||
+				!slices.Equal(model.ReasoningEfforts, []modelcatalog.ReasoningEffort{"low", "medium", "high"}) ||
+				model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != "high" {
+				t.Fatalf(
+					"agy model %q reasoning = %#v, want selectable live levels and high default",
+					model.ModelID,
+					model,
+				)
+			}
+		}
+
+		cfg.Providers["agy"] = compozyconfig.ProviderConfig{Models: compozyconfig.ProviderModelsConfig{
+			Reasoning: compozyconfig.ProviderReasoningConfig{Apply: compozyconfig.ReasoningApplyNone},
+		}}
+		reasoningApply, err = effectiveCatalogReasoningApply(&cfg)
+		if err != nil {
+			t.Fatalf("effectiveCatalogReasoningApply(opt-out) error = %v", err)
+		}
+		service.UpdateMergeOptions(modelcatalog.MergeOptions{ReasoningApply: reasoningApply})
+		optOutModels, err := service.ListModels(ctx, modelcatalog.ListOptions{
+			ProviderID: "agy", View: modelcatalog.CatalogViewAll, ExecutionContext: executionContext,
+			SkipRefreshIfEmpty: true,
+		})
+		if err != nil {
+			t.Fatalf("ListModels(agy opt-out) error = %v", err)
+		}
+		if len(optOutModels) != len(models) {
+			t.Fatalf("agy opt-out model count = %d, want %d", len(optOutModels), len(models))
+		}
+		for _, model := range optOutModels {
+			if model.ReasoningApply != "none" || len(model.ReasoningEfforts) != 0 ||
+				model.DefaultReasoningEffort != nil {
+				t.Fatalf("agy model %q reasoning = %#v, want explicit opt-out", model.ModelID, model)
+			}
 		}
 
 		probe.setErr(errors.New(
@@ -1113,7 +1163,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(agy stale) error = %v", err)
 		}
-		if got := catalogModelIDs(staleModels, "agy"); len(got) != 6 {
+		if got := catalogModelIDs(staleModels, "agy"); len(got) != 2 {
 			t.Fatalf("stale agy models = %#v, want same-context prior rows", got)
 		}
 		for _, model := range staleModels {
@@ -1982,6 +2032,7 @@ func catalogModelIDs(models []modelcatalog.Model, providerID string) []string {
 type recordingAgyACPProbe struct {
 	mu       sync.Mutex
 	options  []acp.SessionConfigOption
+	models   map[string][]acp.SessionConfigOption
 	err      error
 	requests []modelcatalog.ACPModelProbeRequest
 }
@@ -1996,7 +2047,11 @@ func (p *recordingAgyACPProbe) InspectModels(
 	if p.err != nil {
 		return acp.SessionModelInspection{}, p.err
 	}
-	return acp.SessionModelInspection{Options: acp.CloneSessionConfigOptions(p.options)}, nil
+	models := make(map[string][]acp.SessionConfigOption, len(p.models))
+	for modelID, options := range p.models {
+		models[modelID] = acp.CloneSessionConfigOptions(options)
+	}
+	return acp.SessionModelInspection{Options: acp.CloneSessionConfigOptions(p.options), Models: models}, nil
 }
 
 func (p *recordingAgyACPProbe) setErr(err error) {

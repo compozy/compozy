@@ -293,7 +293,7 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
 Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Agy inspect a
-short-lived ACP session. Agy publishes the exact advertised model IDs with unobserved pricing, context, reasoning, and speed; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
+short-lived ACP session. Agy publishes the exact advertised model IDs and model-specific reasoning levels; unobserved pricing, context, and speed stay unknown. Its `thinking_level` option drives the session picker's reasoning slider without adding effort suffixes to model IDs; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
 logical model IDs, and keeps the alias bindings private. OpenCode probes the selected
 installation with `--version`, then lists v1 models with `models --verbose` or v2 models through
 `opencode api --standalone`, using the workspace-scoped `model.list` operation from
@@ -323,7 +323,7 @@ active ACP adapter must still advertise or accept that exact ID; otherwise start
 Catalog/config/live observations are the only sources; model-name prefixes never fabricate effort
 levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
 
-Claude and Codex built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
+Claude, Codex, OpenCode, and Agy built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
 providers default to `none` unless explicitly configured. Strategy `none` means CompozyOS has no effort
 application strategy. It is distinct from explicit effort `none`, which is sent through ACP when
 the active model advertises it.
