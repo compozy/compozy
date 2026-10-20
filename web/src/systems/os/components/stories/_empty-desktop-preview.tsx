@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { fn } from "storybook/test";
 
-import { storyAgentNames } from "@/storybook/fintech-scenario";
+import { storyAgentNames, storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
-import { sessionStore } from "@/systems/session";
+import {
+  sessionStore,
+  SessionDraftRuntimeProvider,
+  SessionPromptRuntimeSelector,
+} from "@/systems/session";
 
 import { emptyDesktopDraftId } from "../../hooks/use-empty-desktop-prompt-runtime";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
@@ -38,7 +42,7 @@ export function EmptyDesktopPreview({
   starting = false,
   prompt = "",
 }: EmptyDesktopPreviewProps) {
-  const draftId = emptyDesktopDraftId(hasProject ? "ws_story" : null);
+  const draftId = emptyDesktopDraftId(hasProject ? storyDefaultWorkspaceId : null);
   const [agentName, setAgentName] = useState<string | null>(storyAgentNames.product);
   // Every story owns its draft slot's text, so one story's prompt never leaks into the next.
   useEffect(() => {
@@ -46,17 +50,27 @@ export function EmptyDesktopPreview({
     else sessionStore.trigger.composerDraftChanged({ sessionId: draftId, text: prompt });
   }, [draftId, prompt]);
   return (
-    <OsEmptyDesktopView
-      desktopName="Desktop 1"
-      paletteShortcutLabel={shortcutLabel("meta+KeyK")}
-      hasProject={hasProject}
-      starting={starting}
+    <SessionDraftRuntimeProvider
       draftId={draftId}
-      onSubmit={text => submitPrompt(text)}
-      agents={PREVIEW_AGENTS}
-      agentName={agentName}
-      onAgentChange={setAgentName}
-      onPickProject={pickProject}
-    />
+      workspaceId={storyDefaultWorkspaceId}
+      agentName={agentName ?? ""}
+      canPrompt={hasProject && !starting}
+    >
+      <OsEmptyDesktopView
+        desktopName="Desktop 1"
+        paletteShortcutLabel={shortcutLabel("meta+KeyK")}
+        hasProject={hasProject}
+        starting={starting}
+        draftId={draftId}
+        onSubmit={text => submitPrompt(text)}
+        agents={PREVIEW_AGENTS}
+        agentName={agentName}
+        onAgentChange={setAgentName}
+        runtimeControl={
+          hasProject ? <SessionPromptRuntimeSelector canPrompt={!starting} /> : undefined
+        }
+        onPickProject={pickProject}
+      />
+    </SessionDraftRuntimeProvider>
   );
 }

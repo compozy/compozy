@@ -1,3 +1,4 @@
+import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { createStore } from "@xstate/store";
 import { z } from "zod";
 
@@ -17,6 +18,8 @@ export interface SessionGoalFeedback {
 export interface SessionFirstPrompt {
   text: string;
   claimed: boolean;
+  files?: File[];
+  runtime?: SessionPromptRuntimeSnapshot;
 }
 
 export interface SessionStoreContext {
@@ -131,15 +134,28 @@ export const sessionStore = createStore({
     },
     composerDraftDiscarded: (context, event: { sessionId: string }) =>
       discardSessionDraft(context, event.sessionId),
-    firstPromptQueued: (context, event: { sessionId: string; text: string }) => {
-      if (event.text.trim() === "") {
+    firstPromptQueued: (
+      context,
+      event: {
+        sessionId: string;
+        text: string;
+        files?: File[];
+        runtime?: SessionPromptRuntimeSnapshot;
+      }
+    ) => {
+      if (event.text.trim() === "" && !event.files?.length) {
         return;
       }
       return {
         ...context,
         firstPrompts: {
           ...context.firstPrompts,
-          [event.sessionId]: { text: event.text, claimed: false },
+          [event.sessionId]: {
+            text: event.text,
+            claimed: false,
+            ...(event.files?.length ? { files: event.files } : {}),
+            ...(event.runtime ? { runtime: event.runtime } : {}),
+          },
         },
       };
     },

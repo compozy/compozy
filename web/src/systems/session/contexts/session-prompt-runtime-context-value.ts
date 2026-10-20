@@ -19,3 +19,8 @@ export const SessionPromptRuntimeContext = createContext<SessionPromptRuntimeSto
 export const SessionPromptRuntimeCapabilitiesContext = createContext<
   SessionRuntimePayload | undefined
 >(undefined);
+
+/** Draft hosts persist locally until a session exists. */
+export const SessionPromptRuntimePersistenceContext = createContext<
+  ((runtime: SessionPromptRuntimeSnapshot) => void) | null
+>(null);

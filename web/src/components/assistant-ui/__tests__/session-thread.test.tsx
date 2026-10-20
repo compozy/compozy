@@ -1,3 +1,9 @@
+import { SessionPromptRuntimeContext } from "@/systems/session/contexts/session-prompt-runtime-context-value";
+import {
+  sessionPromptRuntimeInput,
+  sessionPromptRuntimeStoreLogic,
+  type SessionPromptRuntimeStore,
+} from "@/systems/session/stores/session-prompt-runtime-store";
 import { StrictMode, useEffect, useLayoutEffect, type ComponentProps } from "react";
 import { useAui, type ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -4512,34 +4518,37 @@ async function placeComposerCursor(offset: number) {
 function renderComposer(
   overrides: Partial<ComponentProps<typeof SessionThread>>,
   transport?: SessionTransportState,
-  overlayContainer: HTMLElement | null = null
+  overlayContainer: HTMLElement | null = null,
+  runtimeStore: SessionPromptRuntimeStore | null = null
 ) {
   const queryClient = createQueryClient();
   return render(
     <OverlayContainerContext value={overlayContainer}>
       <StrictMode>
         <QueryClientProvider client={queryClient}>
-          <SessionChatRuntimeProvider
-            sessionId={primarySessionFixture.id}
-            workspaceId={fixtureWorkspaceId()}
-          >
-            <ComposerAuiProbe />
-            <SessionTranscriptThreadProvider
-              messages={[]}
-              status="success"
-              error={null}
-              retry={vi.fn()}
-              transport={transport}
+          <SessionPromptRuntimeContext value={runtimeStore}>
+            <SessionChatRuntimeProvider
+              sessionId={primarySessionFixture.id}
+              workspaceId={fixtureWorkspaceId()}
             >
-              <SessionThread
-                sessionId={primarySessionFixture.id}
-                agentName={primarySessionFixture.agent_name}
-                canPrompt
-                onCancelPrompt={vi.fn()}
-                {...overrides}
-              />
-            </SessionTranscriptThreadProvider>
-          </SessionChatRuntimeProvider>
+              <ComposerAuiProbe />
+              <SessionTranscriptThreadProvider
+                messages={[]}
+                status="success"
+                error={null}
+                retry={vi.fn()}
+                transport={transport}
+              >
+                <SessionThread
+                  sessionId={primarySessionFixture.id}
+                  agentName={primarySessionFixture.agent_name}
+                  canPrompt
+                  onCancelPrompt={vi.fn()}
+                  {...overrides}
+                />
+              </SessionTranscriptThreadProvider>
+            </SessionChatRuntimeProvider>
+          </SessionPromptRuntimeContext>
         </QueryClientProvider>
       </StrictMode>
     </OverlayContainerContext>
@@ -6052,6 +6061,48 @@ describe("SessionThread composer running semantics", () => {
     await act(async () => {
       await Promise.resolve();
     });
+    expect(promptCalls).toHaveLength(1);
+  });
+
+  it("Should upload first-prompt files once and send the selected runtime with them", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    const runtime = {
+      provider: "codex",
+      model: "gpt-5.6-sol",
+      reasoning_effort: "high",
+      speed: "fast" as const,
+    };
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: primarySessionFixture.agent_name,
+        sessionId: primarySessionFixture.id,
+        workspaceId: fixtureWorkspaceId(),
+        canPrompt: true,
+        effectiveRuntime: undefined,
+        selectedRuntime: undefined,
+        selectionRevision: 0,
+      })
+    );
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Inspect this file",
+        files: [new File(["evidence"], "notes.txt", { type: "text/plain" })],
+        runtime,
+      })
+    );
+    renderComposer({ isSessionRunning: false }, undefined, null, store);
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    const body = JSON.parse(promptCalls[0]!);
+    expect(body.runtime).toEqual(runtime);
+    expect(body.attachments).toHaveLength(1);
+    expect(body.attachments[0].id).toMatch(/^att_/);
+    await waitFor(() =>
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined()
+    );
     expect(promptCalls).toHaveLength(1);
   });
 

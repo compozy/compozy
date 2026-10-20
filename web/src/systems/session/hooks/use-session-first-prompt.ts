@@ -1,8 +1,11 @@
-import { useEffect } from "react";
+import { SessionPromptRuntimeContext } from "../contexts/session-prompt-runtime-context-value";
+import { use, useEffect, useRef, useState } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 import { useSelector } from "@xstate/store-react";
 
 import { sendFirstPrompt } from "../lib/session-first-prompt";
+import { notifyUser } from "@/lib/user-feedback";
+import { FIRST_PROMPT_SEND_FAILED } from "../lib/session-first-prompt";
 import { sessionStore } from "../stores/session-store";
 
 interface UseSessionFirstPromptParams {
@@ -22,6 +25,12 @@ interface UseSessionFirstPromptParams {
  */
 export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstPromptParams): void {
   const aui = useAui();
+  const runtimeStore = use(SessionPromptRuntimeContext);
+  const [staged, setStaged] = useState<{ text: string; files: File[]; done: () => void } | null>(
+    null
+  );
+  const submitted = useRef<typeof staged>(null);
+  const composer = useAuiState(state => state.composer);
   // The runtime refuses messages while it is disabled or still loading history,
   // and refuses them silently. Waiting for it is what keeps the claim honest:
   // nothing is consumed until there is something that can accept it.
@@ -32,9 +41,54 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
     if (!prompt || prompt.claimed || !canPrompt || !threadAccepts) {
       return;
     }
-    // Appended straight to the thread rather than staged through the composer:
-    // this is a message to send, not a draft, and it must not disturb whatever
-    // the composer already holds.
-    sendFirstPrompt(sessionId, text => aui.thread.append(text));
-  }, [aui, canPrompt, prompt, sessionId, threadAccepts]);
+    // Text can append directly; files use the native composer upload lifecycle.
+    sendFirstPrompt(sessionId, (text, first) => {
+      if (first.runtime && runtimeStore) {
+        runtimeStore.trigger.runtimeSelected({
+          value: {
+            provider: first.runtime.provider,
+            model: first.runtime.model ?? "",
+            reasoning_effort: first.runtime.reasoning_effort ?? "",
+            ...(first.runtime.acp_options ? { acp_options: first.runtime.acp_options } : {}),
+          },
+        });
+        runtimeStore.trigger.speedSelected({ speed: first.runtime.speed ?? "normal" });
+      }
+      if (!first.files?.length) {
+        aui.thread.append(text);
+        return;
+      }
+      return stageFilesAndSend(text, first.files);
+    });
+
+    async function stageFilesAndSend(text: string, files: File[]) {
+      // Let the session's native attachment adapter own uploads and recovery.
+      sessionStore.trigger.composerDraftChanged({ sessionId, text });
+      aui.composer.setText(text);
+      await Promise.all(files.map(file => aui.composer.addAttachment(file)));
+      await new Promise<void>(done => setStaged({ text, files, done }));
+    }
+  }, [aui, canPrompt, prompt, runtimeStore, sessionId, threadAccepts]);
+
+  useEffect(() => {
+    if (!staged || submitted.current === staged || !canPrompt || !threadAccepts) return;
+    // addAttachment resolves before the React client publishes its next state.
+    if (composer.attachments.length < staged.files.length) return;
+    if (composer.attachments.some(attachment => attachment.status.type === "running")) return;
+    // Claim before invoking the external runtime: repeated effect passes cannot send twice.
+    submitted.current = staged;
+    staged.done();
+    if (composer.attachments.some(attachment => attachment.status.type !== "requires-action")) {
+      notifyUser({ message: FIRST_PROMPT_SEND_FAILED, tone: "error" });
+      return;
+    }
+    // Keep edits made during upload in the composer for the operator to send.
+    if (
+      composer.text !== staged.text ||
+      composer.attachments.length !== staged.files.length ||
+      staged.files.some(file => !composer.attachments.some(attachment => attachment.file === file))
+    )
+      return;
+    aui.composer.send();
+  }, [aui, canPrompt, composer, staged, threadAccepts]);
 }
