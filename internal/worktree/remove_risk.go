@@ -9,6 +9,8 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 )
 
+const removalRevListCommand = "rev-list"
+
 func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, error) {
 	status, err := s.refreshStatus(ctx, item)
 	if err != nil {
@@ -25,7 +27,7 @@ func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, 
 	if len(args) == 0 {
 		return risk, nil
 	}
-	args = append([]string{"rev-list", "--count"}, args...)
+	args = append([]string{removalRevListCommand, "--count"}, args...)
 	stdout, stderr, err := s.runner.Run(ctx, item.Path, args...)
 	if err != nil {
 		return RemovalRisk{}, fmt.Errorf(
@@ -81,9 +83,9 @@ func removalCommitComparison(item Worktree, status *Status) []string {
 	}
 }
 
-// Intersect unmatched commits so patches preserved across different refs count only once.
+// Compare the preservation refs in one walk so shared remote history is visited once.
 func (s *Service) unpreservedRemovalCommits(ctx context.Context, item Worktree, status *Status) (int, error) {
-	args := append([]string{"rev-list"}, removalCommitComparison(item, status)...)
+	args := append([]string{removalRevListCommand}, removalCommitComparison(item, status)...)
 	stdout, stderr, err := s.runner.Run(ctx, item.Path, args...)
 	if err != nil {
 		return 0, fmt.Errorf("list unique commits: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
@@ -93,52 +95,58 @@ func (s *Service) unpreservedRemovalCommits(ctx context.Context, item Worktree, 
 		remaining[hash] = struct{}{}
 	}
 	stdout, stderr, err = s.runner.Run(
-		ctx,
-		item.Path,
-		"for-each-ref",
-		"--format=%(refname)",
-		"refs/remotes/",
-		"refs/heads/"+defaultBaseBranch,
+		ctx, item.Path, "for-each-ref", "--format=%(refname) %(objectname) %(symref)", "refs/remotes/", "refs/heads/",
 	)
 	if err != nil {
 		return 0, fmt.Errorf("list preservation refs: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
 	}
-	refs := strings.Fields(string(stdout))
+	refs := []string{}
 	if item.BaseRef != "" {
 		refs = append(refs, item.BaseRef)
 	}
 	if status.HasUpstream != nil && *status.HasUpstream && status.Ahead != nil {
 		refs = append(refs, "@{upstream}")
 	}
-	for _, ref := range refs {
-		if len(remaining) == 0 {
-			break
+	localRefs := make(map[string]string)
+	defaultRef := "refs/heads/" + defaultBaseBranch
+	for line := range strings.SplitSeq(string(stdout), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
 		}
-		stdout, stderr, err = s.runner.Run(
-			ctx,
-			item.Path,
-			"rev-list",
-			"--cherry-pick",
-			"--right-only",
-			ref+"...HEAD",
-			"--",
-		)
-		if err != nil {
-			return 0, fmt.Errorf(
-				"compare preserved patches: %s: %w",
-				diagnostics.RedactAndBound(string(stderr), 2048),
-				err,
-			)
+		if strings.HasPrefix(fields[0], "refs/heads/") {
+			localRefs[fields[0]] = fields[1]
+		} else {
+			refs = append(refs, fields[1])
 		}
-		unmatched := make(map[string]struct{})
-		for hash := range strings.FieldsSeq(string(stdout)) {
-			unmatched[hash] = struct{}{}
-		}
-		for hash := range remaining {
-			if _, found := unmatched[hash]; !found {
-				delete(remaining, hash)
-			}
+		if fields[0] == "refs/remotes/origin/HEAD" && len(fields) == 3 {
+			defaultRef = "refs/heads/" + strings.TrimPrefix(fields[2], "refs/remotes/origin/")
 		}
 	}
-	return len(remaining), nil
+	if tip := localRefs[defaultRef]; tip != "" {
+		refs = append(refs, tip)
+	}
+	args = []string{removalRevListCommand, "--cherry-pick", "--right-only"}
+	seen := make(map[string]bool)
+	for _, ref := range refs {
+		if !seen[ref] {
+			args = append(args, ref+"...HEAD")
+			seen[ref] = true
+		}
+	}
+	if len(seen) == 0 {
+		return len(remaining), nil
+	}
+	args = append(args, "--")
+	stdout, stderr, err = s.runner.Run(ctx, item.Path, args...)
+	if err != nil {
+		return 0, fmt.Errorf("compare preserved patches: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
+	}
+	count := 0
+	for hash := range strings.FieldsSeq(string(stdout)) {
+		if _, found := remaining[hash]; found {
+			count++
+		}
+	}
+	return count, nil
 }

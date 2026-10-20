@@ -335,7 +335,7 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		t.Parallel()
 		for _, command := range []string{
 			"rev-list main..HEAD",
-			"for-each-ref --format=%(refname) refs/remotes/ refs/heads/main",
+			"for-each-ref --format=%(refname) %(objectname) %(symref) refs/remotes/ refs/heads/",
 			"rev-list --cherry-pick --right-only main...HEAD --",
 		} {
 			t.Run("Should fail closed for "+command, func(t *testing.T) {
@@ -761,7 +761,7 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 				hashes.WriteString(strconv.Itoa(i) + "\n")
 			}
 			return gitResponse{stdout: []byte(hashes.String())}
-		case command == "for-each-ref --format=%(refname) refs/remotes/ refs/heads/main":
+		case command == "for-each-ref --format=%(refname) %(objectname) %(symref) refs/remotes/ refs/heads/":
 			return gitResponse{}
 		case command == "branch -r --contains HEAD":
 			if fixture.remoteContains.Load() {
