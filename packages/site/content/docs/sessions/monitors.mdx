@@ -1,0 +1,72 @@
+---
+title: Monitors
+description: Let an agent start long-running work, end its turn, and wake up on its own when the work finishes.
+---
+
+A monitor lets an agent say "wake me when this finishes" and keep that promise. The agent starts a
+long command (a build, a deploy, a release workflow), registers a monitor on it, and ends its turn.
+When the command exits, prints the line you were waiting for, or a timer runs out, CompozyOS starts a
+new turn in the same session with the result.
+
+## Why agents need it
+
+Coding agents such as Claude Code and Codex have their own background tasks and monitors. Inside
+CompozyOS, those cannot start a new turn. A turn exists only when CompozyOS sends a prompt, so the
+agent's "I'll report back when it finishes" never came back and the session sat idle.
+
+Monitors are owned by the CompozyOS daemon instead, so the wake always reaches the session:
+
+- every agent is told to use monitors for work that outlives its turn;
+- for Claude Code sessions, CompozyOS turns off the Monitor, ScheduleWakeup, and Cron tools and
+  refuses background shell commands (Bash and PowerShell), because their results could never reach you. Background
+  subagents keep working: their results return inside the turn that started them.
+
+## What a monitor can watch
+
+| Kind       | Fires when                                                                                    | Limits                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `terminal` | the terminal's process exits (`until: exit`) or its output matches a pattern (`until: match`) | `timeout_seconds` defaults to 30 minutes, up to 6 hours. A timeout still wakes the agent. |
+| `timer`    | `delay_seconds` have passed                                                                   | 5 seconds to 24 hours                                                                     |
+
+Each session can hold up to 8 active monitors, and each terminal up to 4.
+
+## Walkthrough: wait for a long command
+
+Ask an agent to run something slow and report back, for example:
+
+> Run `make release-check` and tell me when it's done.
+
+1. The agent runs the command with `compozy__terminal_exec`. The command keeps going after the
+   tool returns, so the result says `still_running` with a `terminal_id`.
+2. The agent calls `compozy__monitor_create`:
+
+   ```json
+   {
+     "kind": "terminal",
+     "terminal_id": "term-3f9a1c2b7d10",
+     "until": "exit",
+     "description": "make release-check finishes"
+   }
+   ```
+
+   The result returns a `monitor_id` (for example `mon-8c41e0a29b77`) and tells the agent to end
+   its turn.
+
+3. The agent ends its turn. The session goes idle, and you can keep working in other sessions.
+4. When the command exits, the transcript shows a divider: **Monitor fired · make release-check
+   finishes · Process exited**. Right after it, the agent's new turn reads the exit code and the last
+   lines of output, and reports back.
+
+If you send a message while the agent is busy, the wake waits behind the current turn. If the
+session's input queue is full, CompozyOS keeps retrying the wake for up to 15 minutes. Stopping the
+session cancels its monitors, so nothing it registered restarts it later.
+
+## Managing monitors
+
+- `compozy__monitor_list` shows the session's active monitors first, then the ones from the last
+  hour that fired, are still retrying their wake, were canceled, or could not be delivered.
+- `compozy__monitor_cancel` stops a monitor from waking the session. It does not stop the command
+  being watched; use `compozy__terminal_close` for that.
+
+Monitors live in the daemon process. Restarting the daemon drops active monitors, the same way it
+ends the terminals they watch.

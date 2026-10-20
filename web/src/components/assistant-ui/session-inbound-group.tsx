@@ -15,7 +15,10 @@ import {
   type SessionInboundGroup,
   type SessionInboundGroupMember,
 } from "@/systems/session/lib/session-message-groups";
-import { sessionReplyMeta } from "@/systems/session/lib/session-message-payload";
+import {
+  sessionMonitorWakeMeta,
+  sessionReplyMeta,
+} from "@/systems/session/lib/session-message-payload";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 
 import {
@@ -56,13 +59,14 @@ const silentByMessage = new WeakMap<object, boolean>();
 const groupsByMessages = new WeakMap<object, ReadonlyMap<string, SessionInboundGroupMember>>();
 
 // A message the transcript renders no row for: status-only assistant shells and
-// synthetic wakes other than a reply. Cached per message object.
+// synthetic wakes other than a reply or a monitor wake. Cached per message object.
 function isSilentMessage(message: ThreadMessageLike): boolean {
   const cached = silentByMessage.get(message);
   if (cached !== undefined) return cached;
   const silent =
     message.role !== "user" &&
     sessionReplyMeta(message.metadata) === null &&
+    sessionMonitorWakeMeta(message.metadata) === null &&
     (message.role !== "assistant" || deriveSessionRows(toTimelineParts(message)).length === 0);
   silentByMessage.set(message, silent);
   return silent;

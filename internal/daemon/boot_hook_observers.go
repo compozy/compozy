@@ -15,6 +15,9 @@ func (d *Daemon) initializeHookObservers(
 	if state.clarify != nil {
 		state.lifecycleObservers.Add(state.clarify)
 	}
+	if state.sessionMonitors != nil {
+		state.lifecycleObservers.Add(monitorLifecycleObserver{monitors: state.sessionMonitors})
+	}
 	if state.accessConsent != nil {
 		state.lifecycleObservers.Add(state.accessConsent)
 	}

@@ -19,6 +19,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 		situationContext:      state.situationContext,
 		sessions:              state.sessions,
 		sessionWakeBridge:     state.sessionWakeBridge,
+		sessionMonitors:       state.sessionMonitors,
 		tasks:                 state.tasks,
 		coordinator:           state.coordinator,
 		spawnReaper:           state.spawnReaper,

@@ -102,6 +102,13 @@ func renderCompozyRuntimeEnvelope(startup session.StartupPromptContext) string {
 			"exactly as returned. Use bare `compozy__*` IDs inside Compozy descriptor fields, policy config, " +
 			"CLI/API commands, and `tool_id` inputs.\n\n",
 	)
+	builder.WriteString(
+		"Background work that outlives your turn must wake you through Compozy. Provider-internal " +
+			"background tasks, monitors, scheduled wakeups, and \"I will report when it finishes\" promises " +
+			"cannot start a Compozy turn, so their results never reach the user. Run long commands with " +
+			"`compozy__terminal_exec`, register `compozy__monitor_create` on the returned terminal or as a " +
+			"timer, then end your turn; Compozy wakes this session when the monitor fires.\n\n",
+	)
 	builder.WriteString("Current session facts:\n")
 	writeCompozyRuntimeFact(&builder, "session_id", startup.SessionID)
 	writeCompozyRuntimeFact(&builder, "session_name", startup.SessionName)

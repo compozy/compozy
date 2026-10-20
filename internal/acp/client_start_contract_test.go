@@ -1992,3 +1992,111 @@ func TestStartWithUnconfiguredAttempts(t *testing.T) {
 		})
 	}
 }
+
+func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
+	t.Parallel()
+
+	// The helper ignores trailing arguments; the adapter token is what classifies the bridge.
+	claudeBridge := helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest"
+	assertClaudeOptions := func(t *testing.T, method string, params map[string]json.RawMessage) {
+		t.Helper()
+		var meta struct {
+			ClaudeCode struct {
+				Options struct {
+					DisallowedTools []string          `json:"disallowedTools"`
+					Env             map[string]string `json:"env"`
+					Settings        struct {
+						Hooks struct {
+							PreToolUse []struct {
+								Matcher string `json:"matcher"`
+								Hooks   []struct {
+									Type    string `json:"type"`
+									Command string `json:"command"`
+								} `json:"hooks"`
+							} `json:"PreToolUse"`
+						} `json:"hooks"`
+					} `json:"settings"`
+				} `json:"options"`
+			} `json:"claudeCode"`
+		}
+		if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+			t.Fatalf("%s _meta = %s, decode error = %v", method, params["_meta"], err)
+		}
+		options := meta.ClaudeCode.Options
+		for _, tool := range []string{"Monitor", "ScheduleWakeup", "CronCreate"} {
+			if !slices.Contains(options.DisallowedTools, tool) {
+				t.Fatalf(
+					"%s _meta.claudeCode.options.disallowedTools = %#v, want %s",
+					method,
+					options.DisallowedTools,
+					tool,
+				)
+			}
+		}
+		// Background Agent subagents keep working: the bridge holds the prompt until they settle.
+		if env := options.Env; env["CLAUDE_CODE_DISABLE_MCP_TASK_BACKGROUND"] != "1" ||
+			env["CLAUDE_CODE_DISABLE_CRON"] != "1" || env["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] != "" {
+			t.Fatalf(
+				"%s _meta.claudeCode.options.env = %#v, want MCP/cron backgrounding off and subagents on",
+				method,
+				env,
+			)
+		}
+		hooks := options.Settings.Hooks.PreToolUse
+		if len(hooks) != 1 || hooks[0].Matcher != "Bash|PowerShell" || len(hooks[0].Hooks) != 1 ||
+			hooks[0].Hooks[0].Type != "command" ||
+			!strings.Contains(hooks[0].Hooks[0].Command, "run_in_background") ||
+			!strings.Contains(hooks[0].Hooks[0].Command, `"permissionDecision":"deny"`) {
+			t.Fatalf("%s PreToolUse hooks = %#v, want one shell run_in_background deny hook", method, hooks)
+		}
+	}
+
+	t.Run("Should send Claude background-wake options on session/new", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
+		proc := startHelperProcess(t, New(), "stream_updates", "", StartOpts{
+			Command: claudeBridge,
+			Env:     helperEnvWithCapture("stream_updates", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		assertClaudeOptions(t, "session/new", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew))
+	})
+
+	t.Run("Should send Claude background-wake options on session/load", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-load.jsonl")
+		proc := startHelperProcess(t, New(), "load_session", "", StartOpts{
+			Command:         claudeBridge,
+			ResumeSessionID: "sess-existing",
+			Env:             helperEnvWithCapture("load_session", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		assertClaudeOptions(t, "session/load", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionLoad))
+	})
+
+	t.Run("Should give Windows a PowerShell hook that does not need Git Bash", func(t *testing.T) {
+		t.Parallel()
+		hook := claudeBackgroundShellDenyHook("windows")
+		command, _ := hook["command"].(string)
+		if hook["shell"] != "powershell" || !strings.Contains(command, "[Console]::In.ReadToEnd()") ||
+			!strings.Contains(command, `"permissionDecision":"deny"`) {
+			t.Fatalf("windows hook = %#v, want a PowerShell deny hook", hook)
+		}
+		if _, ok := claudeBackgroundShellDenyHook("darwin")["shell"]; ok {
+			t.Fatal("POSIX hook must use the default shell")
+		}
+	})
+
+	t.Run("Should keep other providers' session/new payload free of Claude options", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
+		proc := startHelperProcess(t, New(), "stream_updates", "", StartOpts{
+			Command: helperCommand(t) + " @agentclientprotocol/codex-acp@latest",
+			Env:     helperEnvWithCapture("stream_updates", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		if meta, exists := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)["_meta"]; exists {
+			t.Fatalf("session/new _meta = %#v, want absent for codex-acp", meta)
+		}
+	})
+}

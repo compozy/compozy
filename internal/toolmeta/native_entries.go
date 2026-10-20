@@ -123,6 +123,9 @@ var nativeEntries = map[string]Entry{
 	"compozy__mcp_auth_status":       nativeEntry("Reading", " ", true, "🔌", previewHintNone),
 	"compozy__mcp_status":            nativeEntry("Reading", " ", false, "🔌", "auto"),
 
+	"compozy__monitor_cancel":                nativeEntry("Canceling", " ", false, "⏰", "auto"),
+	"compozy__monitor_create":                nativeEntry("Monitoring", " ", false, "⏰", "auto"),
+	"compozy__monitor_list":                  nativeEntry("Reading", " ", false, "⏰", "auto"),
 	"compozy__notify":                        nativeEntry("Notifying", " ", false, "🔔", "auto"),
 	"compozy__observe_metrics":               nativeEntry("Reading", " ", false, "🔭", "auto"),
 	"compozy__observe_search":                nativeEntry("Searching", " for ", false, "🔭", previewHintQuery),

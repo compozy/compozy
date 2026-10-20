@@ -4,6 +4,7 @@
 // only:
 // - `metadata.custom.origin` on a user message (`PromptOriginMeta`, S1);
 // - `metadata.custom.synthetic` with kind `session_reply` on a system message (S2);
+// - `metadata.custom.synthetic` with kind `monitor` on a system message (monitor wake);
 // - the `data-compozy-session-message` part beside a `compozy__session_prompt` call (S3);
 // - `origin` on a queued input (`SessionInputPayload.origin`, S4).
 // S1/S4 read the generated `PromptOriginPayload`. The UI transcript's metadata
@@ -20,6 +21,8 @@ export const SESSION_MESSAGE_PART_NAME = "data-compozy-session-message";
 export const SESSION_PROMPT_TOOL_NAME = "compozy__session_prompt";
 const ORIGIN_KIND_SESSION = "session";
 const SYNTHETIC_KIND_SESSION_REPLY = "session_reply";
+const SYNTHETIC_KIND_MONITOR = "monitor";
+const MONITOR_REASON_PREFIX = "monitor_";
 
 /** Who sent a session message (`PromptOriginMeta`); the daemon stamps it, the client never infers it. */
 export interface SessionMessageOrigin {
@@ -201,6 +204,50 @@ export function sessionReplyMeta(metadata: unknown): SessionReplyMeta | null {
     outcome: REPLY_OUTCOMES.has(reason) ? (reason as SessionReplyOutcome) : "unknown",
     text: synthetic.summary?.trim() ?? "",
     truncated: synthetic.reply_truncated === true,
+  };
+}
+
+/** What a fired session monitor observed (`reason` on the monitor wake, minus `monitor_`). */
+export type SessionMonitorWakeReason =
+  | "exit"
+  | "match"
+  | "timeout"
+  | "stalled"
+  | "timer_elapsed"
+  | "terminal_unavailable"
+  | "unknown";
+
+const MONITOR_REASONS: ReadonlySet<string> = new Set<SessionMonitorWakeReason>([
+  "exit",
+  "match",
+  "timeout",
+  "stalled",
+  "timer_elapsed",
+  "terminal_unavailable",
+]);
+
+/** A `monitor` wake: a daemon-owned monitor the agent registered fired and woke this session. */
+export interface SessionMonitorWakeMeta {
+  monitorId: string;
+  /** The agent's own description of what the monitor waited for. */
+  description: string;
+  reason: SessionMonitorWakeReason;
+}
+
+/** The monitor wake of a system message; `null` for every other synthetic kind. */
+export function sessionMonitorWakeMeta(metadata: unknown): SessionMonitorWakeMeta | null {
+  const synthetic = customMetadata(metadata)?.synthetic;
+  if (!isRecord(synthetic) || synthetic.kind !== SYNTHETIC_KIND_MONITOR) return null;
+  const monitorId = trimmedOrNull(stringField(synthetic, "wake_event_id"));
+  if (!monitorId) return null;
+  const rawReason = stringField(synthetic, "reason")?.trim() ?? "";
+  const reason = rawReason.startsWith(MONITOR_REASON_PREFIX)
+    ? rawReason.slice(MONITOR_REASON_PREFIX.length)
+    : rawReason;
+  return {
+    monitorId,
+    description: stringField(synthetic, "summary")?.trim() ?? "",
+    reason: MONITOR_REASONS.has(reason) ? (reason as SessionMonitorWakeReason) : "unknown",
   };
 }
 

@@ -16,6 +16,7 @@ import {
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 import {
   sessionMessageOrigin,
+  sessionMonitorWakeMeta,
   sessionReplyMeta,
 } from "@/systems/session/lib/session-message-payload";
 import { SubagentOriginContext } from "@/systems/session/contexts/session-subagents-context-value";
@@ -24,7 +25,11 @@ import { AssistantMessage } from "./session-assistant-message";
 import { deriveSessionRows } from "./session-timeline.logic";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
-import { SessionAgentMessage, SessionReplyMessage } from "./session-agent-message";
+import {
+  SessionAgentMessage,
+  SessionMonitorWakeMessage,
+  SessionReplyMessage,
+} from "./session-agent-message";
 import { SessionInboundGroupSlot, SessionInboundGroupsProvider } from "./session-inbound-group";
 import {
   type SessionFailurePayload,
@@ -42,10 +47,14 @@ function SessionThreadMessage() {
     const origin = sessionMessageOrigin(metadata);
     return origin ? <SessionAgentMessage origin={origin} /> : <UserMessage />;
   }
-  // A reply that came back (S2) is the one synthetic wake with a visible card.
+  // A reply that came back (S2) and a fired monitor are the synthetic wakes with a visible row.
   const reply = sessionReplyMeta(metadata);
   if (reply) {
     return <SessionReplyMessage reply={reply} />;
+  }
+  const monitorWake = sessionMonitorWakeMeta(metadata);
+  if (monitorWake) {
+    return <SessionMonitorWakeMessage wake={monitorWake} />;
   }
   if (role === "assistant") {
     return <AssistantMessage />;
@@ -145,6 +154,7 @@ function hasNarrativeMessage(
     message =>
       message.role === "user" ||
       sessionReplyMeta(message.metadata) !== null ||
+      sessionMonitorWakeMeta(message.metadata) !== null ||
       deriveSessionRows(toTimelineParts(message)).length > 0
   );
 }

@@ -37,6 +37,7 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 	if until == terminalWaitIdle {
 		return s.waitIdle(waitCtx)
 	}
+	scan := newMatchScanner(matcher)
 	for {
 		s.mu.RLock()
 		exit := cloneExit(s.exit)
@@ -60,11 +61,8 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 			}
 			return s.waitExitResult(waitCtx, exit)
 		}
-		if until == terminalWaitMatch {
-			output, _ := s.ring.Snapshot()
-			if matcher.Match(output) {
-				return s.waitStateResult(waitCtx, terminalWaitMatch)
-			}
+		if until == terminalWaitMatch && scan.matches(s.ring) {
+			return s.waitStateResult(waitCtx, terminalWaitMatch)
 		}
 		if readerEnded && until != terminalWaitExit {
 			return s.waitStateResult(waitCtx, "stalled")

@@ -38,7 +38,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
-		[]string{"agents", authoredContextHeartbeatKey, authoredContextStatusKey, "wake"},
+		[]string{"agents", authoredContextHeartbeatKey, authoredContextStatusKey, wakeKeyword},
 		[]string{"heartbeat status", "wake audit", "agent heartbeat policy"},
 	),
 	nativeDescriptor(
@@ -52,7 +52,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
-		[]string{"agents", authoredContextHeartbeatKey, "wake"},
+		[]string{"agents", authoredContextHeartbeatKey, wakeKeyword},
 		[]string{"heartbeat wake", "manual wake", "advisory wake"},
 	),
 }

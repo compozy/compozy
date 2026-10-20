@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/heartbeat"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 
@@ -35,6 +36,7 @@ type daemonRuntimeState struct {
 	situationContext  *situation.Service
 	sessions          SessionManager
 	sessionWakeBridge *sessionWakeBridge
+	sessionMonitors   *monitorpkg.Service
 	tasks             *taskRuntime
 	coordinator       *coordinatorRuntime
 	spawnReaper       *spawnReaper
