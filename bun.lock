@@ -147,6 +147,7 @@
         "cmdk": "^1.1.1",
         "frimousse": "0.4.0",
         "lucide-react": "1.52.0",
+        "mermaid": "12.1.0",
         "react-colorful": "5.8.1",
         "react-resizable-panels": "4.14.2",
         "recharts": "^3.10.1",
