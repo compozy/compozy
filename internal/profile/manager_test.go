@@ -57,6 +57,7 @@ func reportProfileTestMainError(format string, args ...any) {
 }
 
 func TestManagerProfileLifecycle(t *testing.T) {
+	t.Parallel()
 	t.Run("Should preserve agent session environment references through profile rename and replay", func(t *testing.T) {
 		t.Parallel()
 		manager, database, home := newTestManager(t)
@@ -86,7 +87,9 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := manager.PrepareRename(t.Context(), "dev", "creative"); err == nil ||
-			!strings.Contains(err.Error(), plainPath) {
+			!strings.Contains(err.Error(), plainPath) ||
+			!strings.Contains(err.Error(), "config: inspect profile references") ||
+			!strings.Contains(err.Error(), "yaml:") {
 			t.Fatalf("malformed agent must report its path: %v", err)
 		}
 		if err := os.WriteFile(plainPath, []byte("Prompt without declarations."), 0o600); err != nil {
@@ -124,7 +127,6 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			t.Fatalf("renamed credential unavailable: %v", err)
 		}
 	})
-	t.Parallel()
 
 	t.Run("Should preserve renamed Lucide icons when reading and editing stored profiles", func(t *testing.T) {
 		t.Parallel()
