@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/runtimeoption"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -228,8 +230,8 @@ func resolveAgentModelRuntime(
 	return model, reasoningEffort, modelSource, reasoningSource, nil
 }
 
-// validateResolvedAgentRuntime rejects explicit unsupported runtime choices
-// before any session, worker, or fallback route starts the provider.
+// validateResolvedAgentRuntime rejects static capability absence. ACP owns
+// live effort choices for models that advertise selectable reasoning options.
 func validateResolvedAgentRuntime(
 	providerName string,
 	provider ProviderConfig,
@@ -248,16 +250,37 @@ func validateResolvedAgentRuntime(
 		strings.TrimSpace(resolved.ReasoningEffort) != "" {
 		return fmt.Errorf("provider %q does not support reasoning effort", providerName)
 	}
-	if effort := strings.TrimSpace(resolved.ReasoningEffort); effort != "" &&
-		!providerAcceptsReasoningEffort(provider, resolved.Model, effort) {
-		return fmt.Errorf(
-			"reasoning effort %q is unavailable for provider model %q/%q; omit reasoning_effort or select an advertised value",
-			effort,
-			providerName,
-			resolved.Model,
-		)
+	if effort := strings.TrimSpace(resolved.ReasoningEffort); effort != "" {
+		for _, model := range provider.Models.Curated {
+			if strings.TrimSpace(model.ID) == resolved.Model && len(model.ReasoningEfforts) == 0 {
+				return modelReasoningUnavailableError(providerName, resolved.Model, effort)
+			}
+		}
 	}
 	return nil
+}
+
+// modelReasoningUnavailableError preserves the public structured validation code
+// when static model capabilities rule out an effort before ACP negotiation.
+func modelReasoningUnavailableError(provider, model, effort string) error {
+	cause := fmt.Errorf(
+		"reasoning effort %q is unavailable for provider model %q/%q; omit reasoning_effort or select an advertised value",
+		effort,
+		provider,
+		model,
+	)
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "provider.models.reasoning_effort_unsupported",
+		Code:          diagnosticcontract.CodeReasoningEffortUnsupported,
+		Category:      diagnosticcontract.CategoryProvider,
+		Title:         "Reasoning effort is unsupported",
+		Message:       cause.Error(),
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	}, diagnostics.WithEvidence(map[string]any{
+		"provider_id": provider, "model_id": model, "requested": effort,
+	}))
+	return diagnostics.NewStructuredError(item, cause)
 }
 
 func resolvedAgentFromProvider(

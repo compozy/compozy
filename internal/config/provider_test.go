@@ -16,6 +16,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	compozylogger "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/reasoning"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -1421,6 +1423,22 @@ func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), "omit reasoning_effort") {
 				t.Fatalf("explicit %q error = %v, want actionable unsupported effort", effort, err)
 			}
+			item, ok := diagnostics.ItemFromError(err)
+			if !ok || item.Code != diagnosticcontract.CodeReasoningEffortUnsupported {
+				t.Fatalf("explicit %q diagnostic = %#v, %v; want structured unsupported effort", effort, item, ok)
+			}
+		}
+	})
+
+	t.Run("Should preserve explicit selectable effort for live ACP negotiation", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{Defaults: DefaultsConfig{Provider: "codex"}}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(
+			AgentDef{Name: "general", Prompt: "prompt"},
+			RuntimeOverrides{Model: modelGPT56SolID, Reasoning: "minimal"},
+		)
+		if err != nil || resolved.ReasoningEffort != "minimal" {
+			t.Fatalf("runtime = %#v, %v; want explicit effort negotiated by live ACP options", resolved, err)
 		}
 	})
 
