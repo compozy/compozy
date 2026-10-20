@@ -47,6 +47,7 @@ type nativeToolAvailabilitySet struct {
 	marketplace          toolspkg.NativeAvailabilityFunc
 	resources            toolspkg.NativeAvailabilityFunc
 	terminal             toolspkg.NativeAvailabilityFunc
+	sessionMonitors      toolspkg.NativeAvailabilityFunc
 	windowManager        toolspkg.NativeAvailabilityFunc
 	mcpStatus            toolspkg.NativeAvailabilityFunc
 	mcpAuth              toolspkg.NativeAvailabilityFunc
@@ -58,6 +59,9 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		return n.deps.Terminals != nil && n.deps.Terminals() != nil
 	})
 	availability.windowManager = n.windowManagerAvailability()
+	availability.sessionMonitors = n.dependencyAvailability(func() bool {
+		return n.sessionMonitors() != nil
+	})
 	return availability
 }
 

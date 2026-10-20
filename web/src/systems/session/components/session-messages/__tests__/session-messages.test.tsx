@@ -12,6 +12,7 @@ import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import {
   sessionMessageOriginFromPayload,
   sessionMessageOrigin,
+  sessionMonitorWakeMeta,
   sessionReplyMeta,
   sessionReplyOutcomes,
   sessionSentMessagePart,
@@ -161,6 +162,34 @@ describe("session message payload adapter", () => {
       sessionReplyMeta({ custom: { synthetic: { ...synthetic, kind: "subagent_wake" } } })
     ).toBeNull();
     expect(sessionReplyMeta({ custom: { synthetic: { reason: "completed" } } })).toBeNull();
+  });
+
+  it("Should read only monitor wakes and fold an unknown monitor reason to unknown", () => {
+    const synthetic = {
+      kind: "monitor",
+      wake_event_id: "mon-0123456789ab",
+      reason: "monitor_exit",
+      summary: " Release workflow publishes v0.3.0 ",
+    };
+    expect(sessionMonitorWakeMeta({ custom: { synthetic } })).toEqual({
+      monitorId: "mon-0123456789ab",
+      description: "Release workflow publishes v0.3.0",
+      reason: "exit",
+    });
+    expect(
+      sessionMonitorWakeMeta({
+        custom: { synthetic: { ...synthetic, reason: "monitor_timer_elapsed" } },
+      })?.reason
+    ).toBe("timer_elapsed");
+    expect(
+      sessionMonitorWakeMeta({
+        custom: { synthetic: { ...synthetic, reason: "monitor_exploded" } },
+      })?.reason
+    ).toBe("unknown");
+    expect(
+      sessionMonitorWakeMeta({ custom: { synthetic: { ...synthetic, kind: "session_reply" } } })
+    ).toBeNull();
+    expect(sessionMonitorWakeMeta({ custom: { synthetic: { kind: "monitor" } } })).toBeNull();
   });
 
   it("Should map the sent part's mode and call state and match replies by watch id (UT-067)", () => {

@@ -6,6 +6,9 @@ import (
 
 const PromptSyntheticKindSessionReply = "session_reply"
 
+// PromptSyntheticKindMonitor attributes daemon wakes emitted by fired session monitors.
+const PromptSyntheticKindMonitor = "monitor"
+
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
 type PromptSyntheticMeta struct {
 	Hop                  int             `json:"hop,omitzero"`

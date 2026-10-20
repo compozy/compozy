@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -178,4 +179,62 @@ func validSessionWakeEvent() session.SpawnWakeEvent {
 		Badge:          session.BadgeStopped,
 		WakeEventID:    "wake-1",
 	}
+}
+
+func TestMonitorSessionWaker(t *testing.T) {
+	t.Parallel()
+
+	fired := monitorpkg.Notification{
+		Monitor: monitorpkg.Monitor{
+			ID: "mon-0123456789ab", SessionID: "sess-1", Kind: monitorpkg.KindTerminal,
+			Description: "release workflow", TerminalID: "term-0123456789ab",
+		},
+		Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonExit, Output: "done"},
+	}
+
+	t.Run("Should queue an attributed monitor wake for an active session", func(t *testing.T) {
+		t.Parallel()
+
+		events := make(chan acp.AgentEvent)
+		close(events)
+		manager := &sessionWakeManagerStub{
+			status: &session.Info{ID: "sess-1", State: session.StateActive},
+			events: events,
+		}
+		waker := &monitorSessionWaker{
+			sessions: func() monitorSessionManager { return manager },
+			logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+		if err := waker.WakeSession(testutil.Context(t), fired); err != nil {
+			t.Fatalf("WakeSession() error = %v", err)
+		}
+		if manager.promptCalls != 1 || manager.promptID != "sess-1" || manager.promptOpts.SkipIfBusy {
+			t.Fatalf("prompt = calls %d id %q opts %#v, want one queued wake", manager.promptCalls,
+				manager.promptID, manager.promptOpts)
+		}
+		meta := manager.promptOpts.Metadata
+		if meta.Kind != acp.PromptSyntheticKindMonitor || meta.Reason != "monitor_exit" ||
+			meta.WakeEventID != "mon-0123456789ab" || meta.Summary != "release workflow" {
+			t.Fatalf("synthetic metadata = %#v, want monitor attribution", meta)
+		}
+		if !strings.Contains(manager.promptOpts.Message, "NOT USER INPUT") {
+			t.Fatalf("wake message = %q, want automated-wake header", manager.promptOpts.Message)
+		}
+	})
+
+	t.Run("Should not revive a stopped session", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &sessionWakeManagerStub{status: &session.Info{ID: "sess-1", State: session.StateStopped}}
+		waker := &monitorSessionWaker{
+			sessions: func() monitorSessionManager { return manager },
+			logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}
+		if err := waker.WakeSession(testutil.Context(t), fired); err == nil {
+			t.Fatal("WakeSession() error = nil, want inactive session error")
+		}
+		if manager.promptCalls != 0 {
+			t.Fatalf("PromptSynthetic() calls = %d, want 0", manager.promptCalls)
+		}
+	})
 }

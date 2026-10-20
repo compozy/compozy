@@ -1,0 +1,121 @@
+package builtin
+
+import (
+	"encoding/json"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
+
+const monitorKeyword = "monitor"
+
+func sessionMonitorDescriptors() []toolspkg.Descriptor {
+	create := nativeDescriptor(
+		toolspkg.ToolIDMonitorCreate,
+		"monitor_create",
+		"Monitor Create",
+		"Register a daemon-owned monitor that wakes this session with a new turn when the condition fires: "+
+			"kind=terminal watches a terminal_id from compozy__terminal_exec (still_running) or compozy__terminal_open "+
+			"until it exits or its output matches a pattern; kind=timer fires once after delay_seconds. Use it "+
+			"instead of provider-internal background tasks, Monitor, ScheduleWakeup, sleep loops, or polling — those "+
+			"cannot wake a CompozyOS session. After registering, end your turn; the wake arrives as a "+
+			"[COMPOZY MONITOR - NOT USER INPUT] message. If the session is busy the wake queues behind the current turn.",
+		monitorCreateInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, monitorKeyword, "wake"},
+		[]string{"monitor background command", "wake me when done", "watch terminal", "schedule wakeup", "notify on exit"},
+	)
+	create.OutputSchema = json.RawMessage(monitorOutputSchema)
+
+	list := nativeDescriptor(
+		toolspkg.ToolIDMonitorList,
+		"monitor_list",
+		"Monitor List",
+		"List this session's monitors: active ones first, then recently fired, canceled, or undelivered ones.",
+		emptyInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, monitorKeyword},
+		[]string{"list monitors", "pending wakeups"},
+	)
+	list.OutputSchema = json.RawMessage(monitorListOutputSchema)
+	list.ConcurrencySafe = true
+
+	cancel := nativeDescriptor(
+		toolspkg.ToolIDMonitorCancel,
+		"monitor_cancel",
+		"Monitor Cancel",
+		"Cancel one active monitor owned by this session so it never wakes the session. "+
+			"It does not stop the watched terminal process.",
+		monitorCancelInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, monitorKeyword},
+		[]string{"cancel monitor", "cancel wakeup"},
+	)
+	cancel.OutputSchema = json.RawMessage(monitorOutputSchema)
+	return []toolspkg.Descriptor{create, list, cancel}
+}
+
+const monitorCreateInputSchema = `{
+	"type":"object",
+	"required":["kind","description"],
+	"properties":{
+		"kind":{"type":"string","enum":["terminal","timer"]},
+		"description":{"type":"string","minLength":1,"maxLength":200,"description":"What this monitor waits for; echoed back in the wake."},
+		"terminal_id":` + terminalIDPropertySchema + `,
+		"until":{"type":"string","enum":["exit","match"],"description":"Terminal condition; defaults to exit."},
+		"pattern":{"type":"string","minLength":1,"maxLength":512,"description":"Go regular expression for until=match."},
+		"timeout_seconds":{"type":"integer","minimum":1,"maximum":21600,"description":"Terminal monitors only; defaults to 1800. The monitor still wakes the session on timeout."},
+		"delay_seconds":{"type":"integer","minimum":5,"maximum":86400,"description":"Timer monitors only."}
+	},
+	"additionalProperties":false
+}`
+
+const monitorCancelInputSchema = `{
+	"type":"object",
+	"required":["monitor_id"],
+	"properties":{"monitor_id":{"type":"string","pattern":"^mon-[0-9a-f]{12}$"}},
+	"additionalProperties":false
+}`
+
+const monitorItemSchema = `{
+	"type":"object",
+	"required":["monitor_id","session_id","kind","description","status","created_at","deadline_at"],
+	"properties":{
+		"monitor_id":{"type":"string"},
+		"session_id":{"type":"string"},
+		"kind":{"type":"string","enum":["terminal","timer"]},
+		"description":{"type":"string"},
+		"terminal_id":{"type":"string"},
+		"until":{"type":"string"},
+		"pattern":{"type":"string"},
+		"status":{"type":"string","enum":["active","fired","canceled","undelivered"]},
+		"created_at":{"type":"string","format":"date-time"},
+		"deadline_at":{"type":"string","format":"date-time"},
+		"fired_at":{"type":"string","format":"date-time"},
+		"reason":{"type":"string"},
+		"exit_code":{"type":"integer"}
+	}
+}`
+
+const monitorOutputSchema = `{
+	"type":"object",
+	"required":["monitor"],
+	"properties":{"monitor":` + monitorItemSchema + `}
+}`
+
+const monitorListOutputSchema = `{
+	"type":"object",
+	"required":["monitors"],
+	"properties":{"monitors":{"type":"array","items":` + monitorItemSchema + `}}
+}`

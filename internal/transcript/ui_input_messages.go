@@ -169,7 +169,7 @@ func inputUISynthetic(meta *acp.PromptSyntheticMeta) *inputUISyntheticMeta {
 		ChildAgentName: normalized.ChildAgentName, Reason: normalized.Reason,
 		ReplyTruncated: normalized.ReplyTruncated, Hop: normalized.Hop,
 	}
-	if normalized.Kind == acp.PromptSyntheticKindSessionReply {
+	if normalized.Kind == acp.PromptSyntheticKindSessionReply || normalized.Kind == acp.PromptSyntheticKindMonitor {
 		result.Summary = normalized.Summary
 	}
 	return result

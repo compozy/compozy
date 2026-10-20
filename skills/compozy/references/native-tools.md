@@ -112,6 +112,21 @@ daemon sanitizes and redacts both fields before delivery, then returns exactly o
 `no-client`, `muted-workspace`, or `rate-limited` with `retry_after_ms`. The per-session limit is one
 send per second, including sends suppressed by a workspace mute. CLI fallback: `compozy notify`.
 
+Monitor tools, also in the `sessions` toolset: `compozy__monitor_create`, `compozy__monitor_list`,
+`compozy__monitor_cancel`. A monitor is a daemon-owned watch that wakes the bound session with a new
+turn when it fires, which is the only way background work can resume you after your turn ends.
+Provider-internal background tasks, monitors, scheduled wakeups, and "I will report back" promises
+cannot start a CompozyOS turn. `kind="terminal"` watches a `terminal_id` (from `terminal_exec` with
+`still_running`, or `terminal_open`) until `until="exit"` (default) or `until="match"` with a Go
+regular expression `pattern`; `timeout_seconds` defaults to 1,800, caps at 21,600, and the monitor
+still wakes you on timeout. `kind="timer"` fires once after `delay_seconds` (5 to 86,400). Each
+session holds at most 8 active monitors. After `monitor_create`, end your turn instead of polling or
+sleeping. The wake is a synthetic `monitor` message headed `[COMPOZY MONITOR - NOT USER INPUT]` with
+the monitor id, status (exit code, match, timeout, or timer), and an untrusted output tail. A busy
+session runs it after the current turn, and a stopped session is never revived. `monitor_cancel` only
+stops the wake, not the watched process. Monitors live in the daemon process and do not survive a
+daemon restart.
+
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
 accept or send a prompt or runtime. A named Worktree must be ready; new creation reaches ready before
@@ -488,7 +503,8 @@ Toolset `compozy__terminal` contains `compozy__terminal_exec`, `compozy__termina
 `compozy__terminal_write`, `compozy__terminal_read`, `compozy__terminal_wait`,
 `compozy__terminal_signal`, `compozy__terminal_close`, `compozy__terminal_list`,
 and `compozy__terminal_request_input`. Resolve each descriptor before calling it. Read `terminal.md`
-for activation, approval, shared-input, generation, capability, error, and CLI-fallback rules.
+for activation, approval, shared-input, generation, capability, error, and CLI-fallback rules. For a
+command that outlives the turn, pair `terminal_exec` with `compozy__monitor_create`.
 
 ## Command And Skill Tools
 

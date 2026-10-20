@@ -101,6 +101,12 @@ const (
 	ToolIDSessionPromptCancel ToolID = "compozy__session_prompt_cancel"
 	// ToolIDNotify sends one bounded operator notification from the bound session.
 	ToolIDNotify ToolID = "compozy__notify"
+	// ToolIDMonitorCreate registers one daemon-owned monitor that wakes the bound session.
+	ToolIDMonitorCreate ToolID = "compozy__monitor_create"
+	// ToolIDMonitorList lists the bound session's monitors.
+	ToolIDMonitorList ToolID = "compozy__monitor_list"
+	// ToolIDMonitorCancel cancels one active monitor of the bound session.
+	ToolIDMonitorCancel ToolID = "compozy__monitor_cancel"
 	// ToolIDSessionHealth reads metadata-only session health and wake eligibility.
 	ToolIDSessionHealth ToolID = "compozy__session_health"
 	// ToolIDAgentHeartbeatStatus reads resolved Heartbeat policy, wake state, health, and wake audit.

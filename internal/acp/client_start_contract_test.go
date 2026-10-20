@@ -1992,3 +1992,69 @@ func TestStartWithUnconfiguredAttempts(t *testing.T) {
 		})
 	}
 }
+
+func TestStartDisablesClaudeProviderInternalBackgroundWakes(t *testing.T) {
+	t.Parallel()
+
+	// The helper ignores trailing arguments; the adapter token is what classifies the bridge.
+	claudeBridge := helperCommand(t) + " @agentclientprotocol/claude-agent-acp@latest"
+	assertClaudeOptions := func(t *testing.T, method string, params map[string]json.RawMessage) {
+		t.Helper()
+		var meta struct {
+			ClaudeCode struct {
+				Options struct {
+					DisallowedTools []string          `json:"disallowedTools"`
+					Env             map[string]string `json:"env"`
+				} `json:"options"`
+			} `json:"claudeCode"`
+		}
+		if err := json.Unmarshal(params["_meta"], &meta); err != nil {
+			t.Fatalf("%s _meta = %s, decode error = %v", method, params["_meta"], err)
+		}
+		options := meta.ClaudeCode.Options
+		for _, tool := range []string{"Monitor", "ScheduleWakeup", "CronCreate"} {
+			if !slices.Contains(options.DisallowedTools, tool) {
+				t.Fatalf("%s _meta.claudeCode.options.disallowedTools = %#v, want %s", method, options.DisallowedTools, tool)
+			}
+		}
+		if env := options.Env; env["CLAUDE_CODE_DISABLE_BACKGROUND_TASKS"] != "1" {
+			t.Fatalf("%s _meta.claudeCode.options.env = %#v, want background tasks disabled", method, env)
+		}
+	}
+
+	t.Run("Should send Claude background-wake options on session/new", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
+		proc := startHelperProcess(t, New(), "stream_updates", "", StartOpts{
+			Command: claudeBridge,
+			Env:     helperEnvWithCapture("stream_updates", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		assertClaudeOptions(t, "session/new", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew))
+	})
+
+	t.Run("Should send Claude background-wake options on session/load", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-load.jsonl")
+		proc := startHelperProcess(t, New(), "load_session", "", StartOpts{
+			Command:         claudeBridge,
+			ResumeSessionID: "sess-existing",
+			Env:             helperEnvWithCapture("load_session", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		assertClaudeOptions(t, "session/load", captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionLoad))
+	})
+
+	t.Run("Should keep other providers' session/new payload free of Claude options", func(t *testing.T) {
+		t.Parallel()
+		captureFile := filepath.Join(t.TempDir(), "session-new.jsonl")
+		proc := startHelperProcess(t, New(), "stream_updates", "", StartOpts{
+			Command: helperCommand(t) + " @agentclientprotocol/codex-acp@latest",
+			Env:     helperEnvWithCapture("stream_updates", "", captureFile),
+		})
+		defer stopProcess(t, New(), proc)
+		if meta, exists := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)["_meta"]; exists {
+			t.Fatalf("session/new _meta = %#v, want absent for codex-acp", meta)
+		}
+	})
+}

@@ -37,6 +37,12 @@ func (d *Daemon) bootSessionRuntime(
 		return d.shutdownSessionManager(cleanupCtx, sessions)
 	})
 	state.sessions = sessions
+	monitors, err := newSessionMonitorService(ctx, state)
+	if err != nil {
+		return err
+	}
+	state.sessionMonitors = monitors
+	cleanup.add(monitors.Shutdown)
 	if err := registerTerminalPromptRunEnd(sessions, state.terminals); err != nil {
 		return err
 	}

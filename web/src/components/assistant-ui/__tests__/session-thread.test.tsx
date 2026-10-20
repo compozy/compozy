@@ -6831,6 +6831,38 @@ describe("SessionThread session messages", () => {
     expect(screen.getAllByTestId("session-reply-card")).toHaveLength(1);
   });
 
+  it("Should render a fired monitor wake as a divider that names its cause", async () => {
+    const monitorWake = {
+      id: "wake-monitor",
+      role: "system",
+      metadata: {
+        turn_id: "turn-monitor",
+        synthetic: {
+          kind: "monitor",
+          wake_event_id: "mon-0123456789ab",
+          reason: "monitor_exit",
+          summary: "Release workflow publishes v0.3.0",
+        },
+      },
+      parts: [
+        {
+          type: "text",
+          text: "[COMPOZY MONITOR - NOT USER INPUT] body the row never reads",
+          state: "done",
+        },
+      ],
+    } as SessionMessage;
+    renderThreadState(
+      { status: "success", messages: toReadonlyThreadMessages([monitorWake]) },
+      clientWithPeers()
+    );
+
+    const divider = await screen.findByTestId("session-monitor-wake");
+    expect(within(divider).getByText("Release workflow publishes v0.3.0")).toBeInTheDocument();
+    expect(within(divider).getByText("Process exited")).toBeInTheDocument();
+    expect(screen.queryByText(/COMPOZY MONITOR/)).not.toBeInTheDocument();
+  });
+
   it("UT-067: Should resolve the sent card's reply state from the matching reply wake", async () => {
     const sender = (withReply: string | null): SessionMessage[] => [
       {

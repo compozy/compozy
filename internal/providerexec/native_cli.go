@@ -111,3 +111,9 @@ func normalizedAdapterToken(value string) string {
 	}
 	return token
 }
+
+// IsClaudeAgentBridge reports whether command launches the claude-agent-acp bridge.
+func IsClaudeAgentBridge(command string) bool {
+	nativeCLI, ok := nativeCLIBridgeForCommand(command)
+	return ok && nativeCLI.Command == nativeCLIClaudeCommand
+}

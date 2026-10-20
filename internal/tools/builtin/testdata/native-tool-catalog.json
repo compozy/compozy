@@ -1578,6 +1578,45 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__monitor_cancel",
+    "native_name": "monitor_cancel",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "15d96ad35622688826df2db7f9d8e0615515908754dfaa2efe37f0fe72ec7561",
+    "output_schema_digest": "99918e51b4416f946549307614adce9b16a62ee908f7ff23d47a9d891e03cf6e"
+  },
+  {
+    "tool_id": "compozy__monitor_create",
+    "native_name": "monitor_create",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "1a21b22d21306f21de538813069e722b5dbb6a3027f39333c510f3e05a1c7bad",
+    "output_schema_digest": "99918e51b4416f946549307614adce9b16a62ee908f7ff23d47a9d891e03cf6e"
+  },
+  {
+    "tool_id": "compozy__monitor_list",
+    "native_name": "monitor_list",
+    "toolsets": [
+      "compozy__sessions"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
+    "output_schema_digest": "ed530a6fdde6c7c310d602634d7f9b811d25ee6398a5e65bcd2efb260745d51e"
+  },
+  {
     "tool_id": "compozy__notify",
     "native_name": "notify",
     "toolsets": [
