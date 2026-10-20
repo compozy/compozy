@@ -41,6 +41,7 @@ import { normalizeTranscriptMessages } from "@/systems/session/lib/message-schem
 import { sessionKeys } from "@/systems/session/lib/query-keys";
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
+import { SessionActiveTurnContext } from "@/systems/session/lib/session-turn-outcomes-context-value";
 import type { SubagentRoster } from "@/systems/session/lib/subagent-roster";
 import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
 import type { SessionMessage, SessionPayload } from "@/systems/session/types";
@@ -162,6 +163,73 @@ beforeEach(() => {
 });
 
 describe("parent timeline activity across subagent updates (#835)", () => {
+  it("Should keep a daemon-owned turn open between tools before and after delegation", () => {
+    // Invariant: the active parent turn never folds or publishes final file counts
+    // between tool calls. Owner: timeline hook wiring; canonical suite: this file.
+    const Host = harness([view("sub-finished", { status: "completed", settled_at: T0 })]);
+    let activeTurnId: string | undefined = "turn-1";
+    let calls = 1;
+    function Wrapper({ children }: { children: ReactNode }) {
+      const runtime = useExternalStoreRuntime({
+        messages: [
+          {
+            id: calls >= 3 ? "turn-1-4" : "turn-1",
+            role: "assistant",
+            content: [
+              ...Array.from({ length: calls }, (_, index) => ({
+                type: "tool-call",
+                toolCallId: `edit-${index}`,
+                toolName: "Edit",
+                argsText: "{}",
+                args: { file_path: `/src/${index}.ts`, old_string: "a", new_string: "b" },
+                result: { ok: true },
+                turnId: "turn-1",
+              })),
+              ...(calls >= 2
+                ? [
+                    {
+                      type: "data",
+                      name: "compozy-subagent",
+                      data: {
+                        subagent_id: "sub-finished",
+                        tool_call_id: "delegate-finished",
+                        turn_id: "turn-1",
+                      },
+                    },
+                  ]
+                : []),
+              { type: "text", text: "Continuing the parent work", turnId: "turn-1" },
+            ],
+          } as ThreadMessageLike,
+        ],
+        convertMessage: value =>
+          fromThreadMessageLike(value, "turn-1", { type: "complete", reason: "stop" }),
+        onNew: async () => {},
+      });
+      return (
+        <Host>
+          <AssistantRuntimeProvider runtime={runtime}>
+            <SessionActiveTurnContext value={activeTurnId}>
+              <MessageByIndexProvider index={0}>{children}</MessageByIndexProvider>
+            </SessionActiveTurnContext>
+          </AssistantRuntimeProvider>
+        </Host>
+      );
+    }
+    const { result, rerender } = renderHook(useAssistantMessageTimeline, { wrapper: Wrapper });
+    for (calls = 1; calls <= 4; calls++) {
+      rerender();
+      expect(result.current.rows.some(row => row.kind === "working")).toBe(true);
+      expect(
+        result.current.rows.some(row => row.kind === "turn-fold" || row.kind === "changed-files")
+      ).toBe(false);
+    }
+    activeTurnId = undefined;
+    rerender();
+    expect(result.current.rows.some(row => row.kind === "working")).toBe(false);
+    expect(result.current.rows.some(row => row.kind === "turn-fold")).toBe(true);
+  });
+
   // Invariant: child/progress updates cannot move the parent's active identity;
   // roster settlement reveals its edited files once. Owner: timeline hook wiring.
   it.each(["progress", "child"])(

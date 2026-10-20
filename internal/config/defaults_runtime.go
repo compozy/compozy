@@ -58,10 +58,21 @@ func providerAcceptsReasoningEffort(provider ProviderConfig, modelID, effort str
 	}
 	for _, model := range provider.Models.Curated {
 		if strings.TrimSpace(model.ID) == modelID {
-			return len(model.ReasoningEfforts) == 0 || slices.Contains(model.ReasoningEfforts, effort)
+			return slices.Contains(model.ReasoningEfforts, effort)
 		}
 	}
 	return true
+}
+
+// builtinModelHasNoSelectableReasoning requires a declared reasoning capability;
+// name-only builtin entries and partial curation leave live ACP choices unknown.
+func builtinModelHasNoSelectableReasoning(providerName, modelID string) bool {
+	for _, model := range builtinProviders[providerName].Models.Curated {
+		if strings.TrimSpace(model.ID) == modelID {
+			return model.SupportsReasoning != nil && len(model.ReasoningEfforts) == 0
+		}
+	}
+	return false
 }
 
 // dropStaleDefaultsRuntime removes this document's defaults.model and

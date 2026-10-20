@@ -2008,6 +2008,58 @@ describe("SessionChatRuntimeProvider", () => {
     }
   });
 
+  it("Should retain completed work counts through prompt cancellation and transcript handoff", async () => {
+    // Invariant: canceling the transport cannot erase already acknowledged work.
+    // Owner: runtime/transcript handoff; canonical suite: this file.
+    const frames = [{ type: "start", messageId: "cancel-work-turn" }];
+    const toolFrames = [1, 2, 3].flatMap(index => [
+      {
+        type: "tool-input-available",
+        toolCallId: `cancel-call-${index}`,
+        toolName: "Bash",
+        input: { command: `echo ${index}` },
+      },
+      ...(index < 3
+        ? [
+            {
+              type: "tool-output-available",
+              toolCallId: `cancel-call-${index}`,
+              output: { stdout: String(index) },
+            },
+          ]
+        : []),
+    ]);
+    const openPrompt = openSseResponse(
+      [...frames, ...toolFrames].map(frame => `data: ${JSON.stringify(frame)}\n\n`)
+    );
+    promptResponsePromise = Promise.resolve(openPrompt.response);
+    const user = userEvent.setup();
+    renderSessionThread({
+      onCancelPrompt: vi.fn(),
+      eventSourceFactory: url => new FakeSessionEventSource(url),
+    });
+    await screen.findByTestId("composer-input");
+    await setComposerText("Check the three commands");
+    await user.click(screen.getByTestId("composer-send-button"));
+    const summary = await screen.findByTestId("work-summary-label");
+    expect(summary).toHaveTextContent("2");
+    const observed: number[] = [];
+    const observer = new MutationObserver(() =>
+      observed.push(screen.queryAllByTestId("work-summary-label").length)
+    );
+    observer.observe(document.body, { childList: true, subtree: true });
+    try {
+      await user.click(screen.getByTestId("composer-stop-button"));
+      await waitFor(() =>
+        expect(screen.queryByTestId("composer-stop-button")).not.toBeInTheDocument()
+      );
+      expect(screen.getByTestId("work-summary-label")).toHaveTextContent("2");
+      expect(observed).not.toContain(0);
+    } finally {
+      observer.disconnect();
+    }
+  });
+
   it("Should preserve the first Goal transport and local cancellation across StrictMode replay", async () => {
     const prompt =
       '/goal Reply in exactly one sentence: "CompozyOS keeps agent work local-first and durable."';

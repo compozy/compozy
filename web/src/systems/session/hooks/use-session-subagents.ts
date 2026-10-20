@@ -1,4 +1,4 @@
-import { hashKey, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { hashKey, notifyManager, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { cancelSubagent } from "../adapters/subagent-api";
@@ -61,10 +61,12 @@ function useLiveSubagentRoster(
   const queryHash = hashKey(sessionKeys.subagentRoster(workspaceId, sessionId));
   // Other sessions and background queries must not wake every roster reader.
   const subscribe = useCallback(
-    (notify: () => void) =>
-      cache.subscribe(event => {
-        if (event.query.queryHash === queryHash) notify();
-      }),
+    (notify: () => void) => {
+      const scheduledNotify = notifyManager.batchCalls(notify);
+      return cache.subscribe(event => {
+        if (event.query.queryHash === queryHash) scheduledNotify();
+      });
+    },
     [cache, queryHash]
   );
   const find = useCallback(() => cache.get<SubagentRoster>(queryHash), [cache, queryHash]);

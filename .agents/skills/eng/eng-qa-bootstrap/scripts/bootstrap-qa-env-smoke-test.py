@@ -48,6 +48,7 @@ def load_script_module(path: Path, name: str):
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"failed to load module spec for {path}")
+    sys.path.insert(0, str(path.parent))
     module = importlib.util.module_from_spec(spec)
     sys.modules[name] = module
     spec.loader.exec_module(module)
@@ -94,7 +95,7 @@ def check_allocated_process_teardown(repo_root: Path) -> None:
                 script.write_text(program, encoding="utf-8")
                 process = subprocess.Popen(
                     [sys.executable, str(script)], stdout=subprocess.PIPE,
-                    text=True, start_new_session=True,
+                    text=True, process_group=0 if not processes else processes[0].pid,
                 )
                 processes.append(process)
                 if process.stdout.readline().strip() != "ready":
@@ -102,12 +103,43 @@ def check_allocated_process_teardown(repo_root: Path) -> None:
                 reaper = threading.Thread(target=process.wait, daemon=True)
                 reaper.start()
                 reapers.append(reaper)
+            qa_root = root / "qa"
+            (qa_root / "pids").mkdir(parents=True)
+            identity_module = load_script_module(teardown.with_name("qa_process_identity.py"), "qa_process_fixture")
+            outside = identity_module.process_identity(processes[1].pid)
+            stale = {**outside.__dict__, "started": "Mon Jan 1 00:00:00 2001"}
+            (qa_root / "pids" / "stale.pid").write_text(
+                f"{outside.pid}\n" + json.dumps(stale) + "\n", encoding="utf-8")
+            manifest = root / "manifest.json"
+            manifest.write_text(json.dumps({"env": {
+                "COMPOZY_HOME": str(root), "QA_OUTPUT_PATH": str(root),
+                "WORKSPACE_PATH": str(root),
+            }}), encoding="utf-8")
+            dead_record = qa_root / "pids" / "dead.pid"
+            dead_record.write_text("2147483647\n", encoding="utf-8")
+            dead_identity_record = qa_root / "pids" / "dead-identity.pid"
+            dead_identity_record.write_text("2147483646\n" + json.dumps({
+                "pid": 2147483646, "started": "old", "command": "exited fixture",
+            }) + "\n", encoding="utf-8")
+            records_before = {path.name: path.read_bytes() for path in (qa_root / "pids").glob("*.pid")}
+            preview = subprocess.run(
+                [sys.executable, str(teardown), "--manifest", str(manifest), "--json", "--dry-run"],
+                capture_output=True, text=True, timeout=15,
+            )
+            if preview.returncode != 0:
+                raise AssertionError(f"teardown preview failed: {preview.stdout} {preview.stderr}")
+            records_after = {path.name: path.read_bytes() for path in (qa_root / "pids").glob("*.pid")}
+            if records_after != records_before or any(process.poll() is not None for process in processes):
+                raise AssertionError("dry-run modified process records or stopped a process")
             result = subprocess.run(
-                [sys.executable, str(teardown), "--root", str(root), "--json", "--grace-sec", "1"],
+                [sys.executable, str(teardown), "--manifest", str(manifest), "--json", "--grace-sec", "1"],
                 capture_output=True, text=True, timeout=15,
             )
             if result.returncode != 0 or not json.loads(result.stdout)["clean"]:
                 raise AssertionError(f"teardown failed: {result.stdout} {result.stderr}")
+            stale_entries = json.loads(result.stdout)["labs"][0]["stale"]
+            if not any(entry["pid"] == processes[1].pid for entry in stale_entries):
+                raise AssertionError("reused registry PID was not reported stale")
             reapers[0].join(timeout=1)
             if processes[0].poll() is None:
                 raise AssertionError("teardown reported clean with an allocated process still alive")
@@ -142,11 +174,12 @@ def check_teardown_signal_races() -> None:
                     alive = survives
                     raise PermissionError()
 
-            process_table = subprocess.CompletedProcess([], 0, f"{pid} 0 fixture\n", "")
+            process_table = subprocess.CompletedProcess([], 0, "Mon Oct 19 12:00:00 2026 fixture\n", "")
             result = module.TeardownResult(label="signal-race")
             with patch.object(module.subprocess, "run", return_value=process_table), \
                     patch.object(module.os, "kill", side_effect=kill):
-                module.signal_pids({pid: "registered fixture"}, 0, result, False)
+                identity = module.process_identity(pid)
+                module.signal_pids({pid: module.SignalTarget(identity, "registered fixture")}, 0, result, False)
             if result.clean != (not survives):
                 raise AssertionError(f"incorrect final liveness verdict: {result}")
             if survives:
@@ -158,8 +191,36 @@ def check_teardown_signal_races() -> None:
                 raise AssertionError(f"terminated process retained as a survivor: {result}")
 
 
+def check_teardown_reused_identity() -> None:
+    """A changed process identity never receives TERM or the later KILL."""
+    module = load_script_module(Path(__file__).with_name("teardown-qa-env.py"), "teardown_qa_env")
+    identity_module = sys.modules[module.signal_pids.__module__]
+    pid = 987654
+    old = identity_module.ProcessIdentity(pid, "Mon Oct 19 12:00:00 2026", "fixture")
+    replacement = identity_module.ProcessIdentity(pid, "Mon Oct 19 12:01:00 2026", "outside")
+    for replaced_before_term in (True, False):
+        current = replacement if replaced_before_term else old
+        signals = []
+        def kill(target, sig):
+            nonlocal current
+            if target != pid:
+                raise AssertionError(f"unexpected signal target {target}")
+            if sig:
+                signals.append(sig)
+                current = replacement
+        result = module.TeardownResult(label="reused-identity")
+        with patch.object(identity_module, "process_identity", side_effect=lambda _pid: current), \
+                patch.object(module.os, "kill", side_effect=kill), \
+                patch.object(module.os, "killpg", side_effect=AssertionError("must never signal a group")):
+            module.signal_pids({pid: module.SignalTarget(old, "owned fixture")}, 0, result, False)
+        expected = [] if replaced_before_term else [module.signal.SIGTERM]
+        if signals != expected or result.survivors:
+            raise AssertionError(f"reused PID was signaled or reported owned: {signals}, {result}")
+
+
 def main() -> None:
     check_teardown_signal_races()
+    check_teardown_reused_identity()
     module = load_bootstrap_module()
     repo_root = Path(__file__).resolve().parents[5]
     check_allocated_process_teardown(repo_root)

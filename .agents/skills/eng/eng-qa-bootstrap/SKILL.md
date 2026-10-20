@@ -64,6 +64,15 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 *Done when:* the current lab's teardown evidence is clean and no process owned by this pass remains alive.
 
+## Process identity
+
+Register every owned process immediately with
+`python3 .agents/skills/eng/eng-qa-bootstrap/scripts/qa_process_identity.py --pid "$!" --file "<QA_OUTPUT_PATH>/qa/pids/<name>.pid"`.
+The record includes start time and command. Teardown revalidates it before each individual signal,
+never signals whole process groups, and reports matched, stale, and skipped records. Legacy bare
+PID files and port listeners require independent lab ownership evidence. Dead process records are
+removed during teardown; do not reuse a record for a replacement process.
+
 ## Error Handling
 
 - **Requested reuse fails health checks:** use the fresh manifest emitted by the helper; do not revive stale state manually.

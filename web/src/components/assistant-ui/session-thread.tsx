@@ -171,7 +171,13 @@ export function SessionThread({
       data-thread-root=""
     >
       <ThreadScrollStoreContext.Provider value={scrollStore}>
-        <SessionTurnOutcomesProvider>
+        <SessionTurnOutcomesProvider
+          activeTurnId={
+            liveDataEnabled && sessionState !== "stopped"
+              ? (statusSession?.activity?.turn_id ?? undefined)
+              : undefined
+          }
+        >
           <SteerProvenanceProvider>
             <SessionThreadReadOnlyProvider readOnly={readOnly}>
               <SessionThreadLiveDataProvider liveDataEnabled={liveDataEnabled}>

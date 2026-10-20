@@ -16,6 +16,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	compozylogger "github.com/compozy/compozy/internal/logger"
 	"github.com/compozy/compozy/internal/reasoning"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -1400,8 +1402,81 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 	})
 }
 
+// TestResolveAgentSessionRuntimeDefaults verifies runtime precedence and keeps
+// saved defaults from applying unsupported effort to the selected model.
 func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resolve Haiku without selectable effort and reject explicit unsupported values", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: model capabilities govern effort for sessions, workers, and fallback routes.
+		// Owner: shared runtime resolution; canonical suite: this function.
+		cfg := &Config{
+			Defaults: DefaultsConfig{Provider: "claude", Model: modelClaudeHaiku45CurrentID, ReasoningEffort: "medium"},
+		}
+		agent := AgentDef{Name: "general", Prompt: "prompt"}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{})
+		if err != nil || resolved.ReasoningEffort != "" {
+			t.Fatalf("Haiku runtime = %#v, %v; want no effort", resolved, err)
+		}
+		for _, effort := range []string{"medium", "none"} {
+			_, err := cfg.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{Reasoning: effort})
+			if err == nil || !strings.Contains(err.Error(), "omit reasoning_effort") {
+				t.Fatalf("explicit %q error = %v, want actionable unsupported effort", effort, err)
+			}
+			item, ok := diagnostics.ItemFromError(err)
+			if !ok || item.Code != diagnosticcontract.CodeReasoningEffortUnsupported {
+				t.Fatalf("explicit %q diagnostic = %#v, %v; want structured unsupported effort", effort, item, ok)
+			}
+		}
+	})
+
+	t.Run("Should preserve explicit selectable effort for live ACP negotiation", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{Defaults: DefaultsConfig{Provider: "codex"}}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(
+			AgentDef{Name: "general", Prompt: "prompt"},
+			RuntimeOverrides{Model: modelGPT56SolID, Reasoning: "minimal"},
+		)
+		if err != nil || resolved.ReasoningEffort != "minimal" {
+			t.Fatalf("runtime = %#v, %v; want explicit effort negotiated by live ACP options", resolved, err)
+		}
+	})
+
+	t.Run("Should preserve live effort choices when curated metadata is incomplete", func(t *testing.T) {
+		t.Parallel()
+		cfg := &Config{
+			Defaults: DefaultsConfig{Provider: "opencode"},
+			Providers: map[string]ProviderConfig{"opencode": {Models: ProviderModelsConfig{
+				Curated: []ProviderModelConfig{{ID: "openrouter/acme/coding-default"}},
+			}}},
+		}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(
+			AgentDef{Name: "general", Prompt: "prompt"},
+			RuntimeOverrides{Model: "openrouter/acme/coding-default", Reasoning: "high"},
+		)
+		if err != nil || resolved.ReasoningEffort != "high" {
+			t.Fatalf("runtime = %#v, %v; want live ACP to negotiate explicit effort", resolved, err)
+		}
+	})
+
+	t.Run("Should preserve live effort choices when builtin capability metadata is incomplete", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: absent capability metadata cannot override live ACP choices.
+		// Owner: shared runtime resolution; canonical suite: this function.
+		cfg := &Config{
+			Defaults: DefaultsConfig{Provider: providerGeminiKey},
+			Providers: map[string]ProviderConfig{providerGeminiKey: {Models: ProviderModelsConfig{
+				Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption},
+			}}},
+		}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(
+			AgentDef{Name: "general", Prompt: "prompt"},
+			RuntimeOverrides{Model: providerGemini31ProPreviewPath, Reasoning: "high"},
+		)
+		if err != nil || resolved.ReasoningEffort != "high" {
+			t.Fatalf("runtime = %#v, %v; want live ACP to negotiate explicit effort", resolved, err)
+		}
+	})
 
 	sessionDefaultsConfig := func(t *testing.T, defaults DefaultsConfig) Config {
 		t.Helper()
@@ -1488,6 +1563,22 @@ func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 				resolved.ReasoningEffort,
 				resolved.RuntimeSources.ReasoningEffort,
 			)
+		}
+	})
+
+	t.Run("Should omit an unadvertised saved model effort without blocking startup", func(t *testing.T) {
+		t.Parallel()
+		cfg := sessionDefaultsConfig(t, codexDefaults)
+		cfg.Providers["codex"] = ProviderConfig{Models: ProviderModelsConfig{
+			Default: "custom-model",
+			Curated: []ProviderModelConfig{{ID: "custom-model", DefaultReasoningEffort: "high"}},
+		}}
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "general", Prompt: "prompt", Model: "custom-model"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.ReasoningEffort != "" || resolved.RuntimeSources.ReasoningEffort != RuntimeValueSourceUnspecified {
+			t.Fatalf("resolved runtime = %#v, want no unadvertised effort", resolved)
 		}
 	})
 

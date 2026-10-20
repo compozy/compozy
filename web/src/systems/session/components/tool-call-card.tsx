@@ -150,6 +150,7 @@ function toolCallPresentation({
   const derived = deriveToolRowStatus({
     toolError: message.toolError,
     toolResult: message.toolResult,
+    resultReceived: message.role === "tool_result",
     hasInput: hasToolInput(message.toolInput),
     turnSettled,
   });

@@ -1,6 +1,7 @@
 import { useAuiState } from "@assistant-ui/react";
 import { useSelector, useStore } from "@xstate/store-react";
-import { useLayoutEffect } from "react";
+import { use, useLayoutEffect } from "react";
+import { SessionActiveTurnContext } from "@/systems/session/lib/session-turn-outcomes-context-value";
 
 import { workEntryIdentity } from "../session-timeline-group-identity";
 import {
@@ -76,17 +77,23 @@ function earliestTimestampMs(parts: readonly SessionTimelinePart[]): number | un
   return earliest;
 }
 
-// When the turn is streaming, append a trailing `working` part so the timeline
-// renders the streaming indicator below the turn's content; the fold keeps the
-// live turn inline because a `working` row marks the group active.
+/**
+ * Appends a non-rendering activity marker to keep every active segment open
+ * between parent calls. SessionThinkingRow owns the one visible live status.
+ */
 function deriveWorkingPart(
   message: { id?: string; status?: unknown },
-  parts: readonly SessionTimelinePart[]
+  parts: readonly SessionTimelinePart[],
+  activeTurnId?: string
 ): SessionTimelineWorkingPart | null {
-  if (!messageStatusIsRunning(message) && !parts.some(partIsLive)) {
+  const turnId = messageTurnId(message, parts);
+  if (
+    !(activeTurnId && turnId === activeTurnId) &&
+    !messageStatusIsRunning(message) &&
+    !parts.some(partIsLive)
+  ) {
     return null;
   }
-  const turnId = messageTurnId(message, parts);
   return {
     kind: "working",
     id: `${turnId ?? message.id ?? "message"}:working`,
@@ -291,11 +298,13 @@ function unionTurnIds(
   return new Set([...left, ...right]);
 }
 
+/** Combines daemon turn activity and recorded outcomes without settling gaps between parent calls. */
 export function useAssistantMessageTimeline() {
   const message = useAuiState(
     state => state.message as { id?: string; content?: unknown; status?: unknown }
   );
   const outcomes = useSessionTurnOutcomes();
+  const activeTurnId = use(SessionActiveTurnContext);
   const recorded = turnEndings(
     message.content,
     typeof message.id === "string" && message.id.length > 0 ? message.id : undefined,
@@ -308,7 +317,7 @@ export function useAssistantMessageTimeline() {
     unionTurnIds(recorded.interrupted, recorded.superseded)
   );
   const baseParts = ended.parts;
-  const workingPart = deriveWorkingPart(message, baseParts);
+  const workingPart = deriveWorkingPart(message, baseParts, activeTurnId);
   const parts = workingPart ? [...baseParts, workingPart] : baseParts;
   const endings = {
     ...recorded,

@@ -126,7 +126,7 @@ export function toTimelineParts(message: {
     }
     if (type === "tool-call") {
       const result = part.result;
-      const isError = part.isError === true;
+      const isError = part.isError === true || state === "output-error";
       return [
         {
           kind: "tool",
@@ -139,7 +139,10 @@ export function toTimelineParts(message: {
           isError,
           status: isInterruptedState(state)
             ? "interrupted"
-            : result === undefined && !isError
+            : result === undefined &&
+                !isError &&
+                state !== "output-available" &&
+                state !== "output-error"
               ? "running"
               : "settled",
           turnId,

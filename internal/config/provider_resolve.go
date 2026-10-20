@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/runtimeoption"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -180,6 +182,8 @@ func (c *Config) resolveAgentProvider(
 	return providerName, provider, providerSource, nil
 }
 
+// resolveAgentModelRuntime selects model and effort with source attribution,
+// omitting defaults that the chosen model does not advertise.
 func resolveAgentModelRuntime(
 	providerName string,
 	provider ProviderConfig,
@@ -214,8 +218,11 @@ func resolveAgentModelRuntime(
 		reasoningSource = RuntimeValueSourceProjectDefault
 	}
 	if reasoningEffort == "" {
-		reasoningEffort = defaultReasoningEffortForModel(provider, model)
-		reasoningSource = RuntimeValueSourceModelDefault
+		modelDefault := defaultReasoningEffortForModel(provider, model)
+		if providerAcceptsReasoningEffort(provider, model, modelDefault) {
+			reasoningEffort = modelDefault
+			reasoningSource = RuntimeValueSourceModelDefault
+		}
 	}
 	if reasoningEffort == "" {
 		reasoningSource = RuntimeValueSourceUnspecified
@@ -223,6 +230,8 @@ func resolveAgentModelRuntime(
 	return model, reasoningEffort, modelSource, reasoningSource, nil
 }
 
+// validateResolvedAgentRuntime rejects authoritative static capability absence.
+// Partial curation cannot deny effort choices advertised later by live ACP.
 func validateResolvedAgentRuntime(
 	providerName string,
 	provider ProviderConfig,
@@ -241,7 +250,38 @@ func validateResolvedAgentRuntime(
 		strings.TrimSpace(resolved.ReasoningEffort) != "" {
 		return fmt.Errorf("provider %q does not support reasoning effort", providerName)
 	}
+	if effort := strings.TrimSpace(resolved.ReasoningEffort); effort != "" {
+		for _, model := range provider.Models.Curated {
+			if strings.TrimSpace(model.ID) == resolved.Model && len(model.ReasoningEfforts) == 0 &&
+				builtinModelHasNoSelectableReasoning(providerName, resolved.Model) {
+				return modelReasoningUnavailableError(providerName, resolved.Model, effort)
+			}
+		}
+	}
 	return nil
+}
+
+// modelReasoningUnavailableError preserves the public structured validation code
+// when static model capabilities rule out an effort before ACP negotiation.
+func modelReasoningUnavailableError(provider, model, effort string) error {
+	cause := fmt.Errorf(
+		"reasoning effort %q is unavailable for provider model %q/%q; omit reasoning_effort or select an advertised value",
+		effort,
+		provider,
+		model,
+	)
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "provider.models.reasoning_effort_unsupported",
+		Code:          diagnosticcontract.CodeReasoningEffortUnsupported,
+		Category:      diagnosticcontract.CategoryProvider,
+		Title:         "Reasoning effort is unsupported",
+		Message:       cause.Error(),
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	}, diagnostics.WithEvidence(map[string]any{
+		"provider_id": provider, "model_id": model, "requested": effort,
+	}))
+	return diagnostics.NewStructuredError(item, cause)
 }
 
 func resolvedAgentFromProvider(

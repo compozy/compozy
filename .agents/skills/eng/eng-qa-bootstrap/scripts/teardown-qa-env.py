@@ -1,37 +1,9 @@
 #!/usr/bin/env python3
-"""Tear down Compozy QA labs: stop daemons, kill orphaned lab processes, optionally purge lab dirs.
+"""Stop one manifest-owned QA lab with verified process identities.
 
-This is the mandatory counterpart of bootstrap-qa-env.py. Every QA pass that
-bootstraps a lab MUST end with a teardown invocation (success OR failure paths):
-
-    python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --manifest "<BOOTSTRAP_MANIFEST>"
-
-Tear down one bare worktree-isolation envelope without touching other labs:
-
-    python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --root "<COMPOZY_ISOLATION_ROOT>"
-
-Reap every discoverable lab on the machine (safe default set of roots):
-
-    python3 .agents/skills/eng/eng-qa-bootstrap/scripts/teardown-qa-env.py --all
-
-Discovery roots for --all:
-  - ~/dev/qa-labs/compozy-*-lab/qa-artifacts/qa/bootstrap-manifest.json  (bootstrap labs)
-  - $TMPDIR/compozyqa-*                                                  (short socket-safe runtime roots)
-  - $TMPDIR/compozy-iso-* and /tmp/compozy-iso-*                         (worktree-isolation envelopes)
-
-Per lab the teardown:
-  1. Stops the daemon gracefully (`compozy daemon stop` against the lab COMPOZY_HOME when a
-     repo binary exists, else SIGTERM -> SIGKILL on the PID recorded in daemon.lock /
-     daemon.json). Graceful stop lets the daemon shut down its ACP agent subprocesses,
-     MCP sidecars, and tmux bridge sessions.
-  2. Kills the tmux server bound to the lab tmux socket (`tmux -S <sock> kill-server`).
-  3. Sweeps survivors: any process whose command line references a lab root, any
-     PID recorded under <qa_root>/pids/*.pid, any listener on the lab HTTP port, and
-     any process holding open files under the lab runtime/provider homes (lsof).
-  4. Writes teardown evidence to <qa_root>/teardown.json and stamps the manifest with
-     a `teardown` block so audits and continuations can verify process hygiene.
-
-Exit codes: 0 = clean (no survivors), 1 = survivors remain or teardown error, 2 = usage.
+Use --manifest <path> for normal teardown; --root <path> for a bare isolation
+root. --all is reserved for intentional stale-lab recovery. Evidence is written
+to qa/teardown.json. Exit 0 means clean, 1 means survivors/errors, 2 means usage.
 """
 
 from __future__ import annotations
@@ -48,6 +20,11 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from qa_process_identity import (
+    SignalTarget, list_processes, lsof_pids, matches_identity, pid_alive,
+    port_listener_pids, process_identity, protected_pids, registered_identity, registered_process_matches, signal_pids,
+)
 
 GRACE_DEFAULT_SEC = 10.0
 DAEMON_STOP_TIMEOUT_SEC = 20.0
@@ -73,6 +50,9 @@ class TeardownResult:
     stopped_daemon_pid: int | None = None
     killed: list[dict] = field(default_factory=list)
     survivors: list[dict] = field(default_factory=list)
+    matched: list[dict] = field(default_factory=list)
+    stale: list[dict] = field(default_factory=list)
+    skipped: list[dict] = field(default_factory=list)
     purged: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
@@ -95,18 +75,6 @@ def is_safe_root(path: Path) -> bool:
     if len(text) < 8 or text == "/":
         return False
     return any(marker in text + "/" for marker in SAFE_ROOT_MARKERS)
-
-
-def pid_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
 
 
 def read_pid_file(path: Path) -> int:
@@ -134,73 +102,6 @@ def read_daemon_pid(compozy_home: Path) -> int:
         except (OSError, ValueError, json.JSONDecodeError):
             pass
     return read_pid_file(compozy_home / "daemon.lock")
-
-
-def list_processes() -> list[tuple[int, int, str]]:
-    """Return (pid, pgid, command) for every visible process."""
-    proc = subprocess.run(
-        ["ps", "-axo", "pid=,pgid=,command="],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    rows: list[tuple[int, int, str]] = []
-    for line in proc.stdout.splitlines():
-        parts = line.strip().split(None, 2)
-        if len(parts) < 3:
-            continue
-        try:
-            pid = int(parts[0])
-            pgid = int(parts[1])
-        except ValueError:
-            continue
-        rows.append((pid, pgid, parts[2]))
-    return rows
-
-
-def protected_pids() -> set[int]:
-    protected = {os.getpid(), os.getppid(), 1}
-    try:
-        protected.add(os.getpgrp())
-    except OSError:
-        pass
-    return protected
-
-
-def lsof_pids(paths: list[Path]) -> set[int]:
-    existing = [str(p) for p in paths if p.exists()]
-    if not existing:
-        return set()
-    pids: set[int] = set()
-    for path in existing:
-        proc = subprocess.run(
-            ["lsof", "-t", "+D", path],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        for line in proc.stdout.splitlines():
-            try:
-                pids.add(int(line.strip()))
-            except ValueError:
-                continue
-    return pids
-
-
-def port_listener_pids(port: int) -> set[int]:
-    proc = subprocess.run(
-        ["lsof", "-t", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    pids: set[int] = set()
-    for line in proc.stdout.splitlines():
-        try:
-            pids.add(int(line.strip()))
-        except ValueError:
-            continue
-    return pids
 
 
 def registered_pids(qa_root: Path | None) -> dict[int, str]:
@@ -233,11 +134,15 @@ def stop_daemon_gracefully(
     pid = read_daemon_pid(compozy_home)
     if pid <= 0 or not pid_alive(pid):
         return
+    identity = process_identity(pid)
+    if identity is None or pid not in lsof_pids([compozy_home]):
+        result.notes.append(f"refusing unverified daemon pid {pid}")
+        return
     result.stopped_daemon_pid = pid
     if dry_run:
         result.notes.append(f"dry-run: would stop daemon pid {pid} (COMPOZY_HOME={compozy_home})")
         return
-    if compozy_binary is not None:
+    if compozy_binary is not None and matches_identity(identity):
         env = dict(os.environ)
         env["COMPOZY_HOME"] = str(compozy_home)
         try:
@@ -276,9 +181,10 @@ def kill_tmux_server(tmux_socket: Path | None, result: TeardownResult, dry_run: 
         result.notes.append(f"could not remove tmux socket {tmux_socket}: {err}")
 
 
-def collect_target_pids(target: LabTarget) -> dict[int, str]:
+def collect_target_pids(target: LabTarget, result: TeardownResult, dry_run: bool = False) -> dict[int, SignalTarget]:
     """Map candidate PID -> reason string."""
     candidates: dict[int, str] = {}
+    stale_pids: set[int] = set()
     root_strings = [str(root) for root in target.roots if is_safe_root(root)]
     for pid, _pgid, command in list_processes():
         for root in root_strings:
@@ -286,11 +192,18 @@ def collect_target_pids(target: LabTarget) -> dict[int, str]:
                 candidates.setdefault(pid, f"cmdline references {root}")
                 break
     for pid, name in registered_pids(target.qa_root).items():
-        candidates.setdefault(pid, f"registered pid file {name}.pid")
-    if target.http_port:
-        for pid in port_listener_pids(target.http_port):
-            candidates.setdefault(pid, f"listens on lab port {target.http_port}")
-    lsof_scan_paths: list[Path] = []
+        record = registered_identity(target.qa_root / "pids" / f"{name}.pid")
+        if record is not None and matches_identity(record):
+            candidates.setdefault(pid, f"verified registered process {name}.pid")
+        else:
+            if record is not None:
+                stale_pids.add(pid)
+            entry = {"pid": pid, "file": f"{name}.pid", "reason": "identity missing or changed"}
+            result.stale.append(entry)
+            result.skipped.append(entry)
+            if not dry_run and not pid_alive(pid):
+                (target.qa_root / "pids" / f"{name}.pid").unlink(missing_ok=True)
+    lsof_scan_paths: list[Path] = [root for root in target.roots if is_safe_root(root)]
     if target.compozy_home is not None:
         lsof_scan_paths.append(target.compozy_home)
     for root in target.roots:
@@ -299,57 +212,29 @@ def collect_target_pids(target: LabTarget) -> dict[int, str]:
             lsof_scan_paths.append(root)
     for pid in lsof_pids(lsof_scan_paths):
         candidates.setdefault(pid, "holds open files under lab runtime")
-    for pid in protected_pids():
+    for pid in protected_pids() | stale_pids:
         candidates.pop(pid, None)
-    return candidates
-
-
-def signal_pids(pids: dict[int, str], grace_sec: float, result: TeardownResult, dry_run: bool) -> None:
-    if not pids:
-        return
-    pgid_by_pid: dict[int, int] = {}
-    for pid, pgid, _command in list_processes():
-        pgid_by_pid[pid] = pgid
-    own_pgid = os.getpgrp()
-    if dry_run:
-        for pid, reason in sorted(pids.items()):
-            result.notes.append(f"dry-run: would kill pid {pid} ({reason})")
-        return
-    signal_errors: dict[int, str] = {}
-    for pid, reason in sorted(pids.items()):
-        pgid = pgid_by_pid.get(pid, 0)
-        try:
-            if pgid > 1 and pgid != own_pgid:
-                os.killpg(pgid, signal.SIGTERM)
-            else:
-                os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
+    verified: dict[int, SignalTarget] = {}
+    for pid, reason in candidates.items():
+        identity = process_identity(pid)
+        if identity is None:
             continue
-        except PermissionError:
-            signal_errors[pid] = "EPERM on SIGTERM"
-    deadline = time.monotonic() + grace_sec
-    remaining = {pid: reason for pid, reason in pids.items() if pid_alive(pid)}
-    while remaining and time.monotonic() < deadline:
-        time.sleep(0.25)
-        remaining = {pid: reason for pid, reason in remaining.items() if pid_alive(pid)}
-    for pid, reason in sorted(remaining.items()):
-        pgid = pgid_by_pid.get(pid, 0)
-        try:
-            if pgid > 1 and pgid != own_pgid:
-                os.killpg(pgid, signal.SIGKILL)
-            else:
-                os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
+        if reason.startswith("cmdline") and not any(root in identity.command for root in root_strings):
             continue
-        except PermissionError:
-            signal_errors[pid] = "EPERM on SIGKILL"
-    time.sleep(0.25)
-    for pid, reason in sorted(pids.items()):
-        if pid_alive(pid):
-            error = signal_errors.get(pid, "still alive after SIGKILL")
-            result.survivors.append({"pid": pid, "reason": reason, "error": error})
-        else:
-            result.killed.append({"pid": pid, "reason": reason})
+        if reason.startswith("holds open") and pid not in lsof_pids(lsof_scan_paths):
+            continue
+        if reason.startswith("verified registered"):
+            name = registered_pids(target.qa_root).get(pid)
+            record = registered_identity(target.qa_root / "pids" / f"{name}.pid")
+            if identity != record:
+                continue
+        verified[pid] = SignalTarget(identity, reason)
+        result.matched.append({"pid": pid, "reason": reason})
+    if target.http_port:
+        for pid in port_listener_pids(target.http_port):
+            if pid not in verified and pid not in protected_pids():
+                result.skipped.append({"pid": pid, "reason": "lab port alone does not prove process ownership"})
+    return verified
 
 
 def purge_roots(target: LabTarget, result: TeardownResult, dry_run: bool) -> None:
@@ -380,6 +265,9 @@ def write_evidence(target: LabTarget, result: TeardownResult, dry_run: bool) -> 
         "stopped_daemon_pid": result.stopped_daemon_pid,
         "killed": result.killed,
         "survivors": result.survivors,
+        "matched": result.matched,
+        "stale": result.stale,
+        "skipped": result.skipped,
         "purged": result.purged,
         "notes": result.notes,
     }
@@ -501,11 +389,15 @@ def teardown_target(
 ) -> TeardownResult:
     result = TeardownResult(label=target.label)
     compozy_binary = resolve_repo_compozy_binary(repo_root)
-    if target.compozy_home is not None and target.compozy_home.is_dir():
+    if target.compozy_home is not None and target.compozy_home.is_dir() and registered_process_matches(target.qa_root, read_daemon_pid(target.compozy_home)):
         stop_daemon_gracefully(compozy_binary, target.compozy_home, result, dry_run)
     kill_tmux_server(target.tmux_socket, result, dry_run)
-    pids = collect_target_pids(target)
+    pids = collect_target_pids(target, result, dry_run)
     signal_pids(pids, grace_sec, result, dry_run)
+    for pid_file in (target.qa_root / "pids").glob("*.pid") if target.qa_root else []:
+        record = registered_identity(pid_file)
+        if not dry_run and record is not None and not pid_alive(record.pid):
+            pid_file.unlink(missing_ok=True)
     if purge and result.clean:
         purge_roots(target, result, dry_run)
     elif purge and not result.clean:
@@ -567,6 +459,9 @@ def main() -> int:
                             "stopped_daemon_pid": result.stopped_daemon_pid,
                             "killed": result.killed,
                             "survivors": result.survivors,
+                            "matched": result.matched,
+                            "stale": result.stale,
+                            "skipped": result.skipped,
                             "purged": result.purged,
                             "notes": result.notes,
                         }
