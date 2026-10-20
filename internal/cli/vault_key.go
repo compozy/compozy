@@ -29,7 +29,7 @@ func newVaultKeyCommand(deps commandDeps) *cobra.Command {
 		Use:   "migrate",
 		Short: "Explicitly migrate the local Vault file key to the OS keyring",
 		Long: "Import the existing local vault.key, verify every encrypted record, then select os-keyring. " +
-			"This command can prompt for OS credential-store permission. It operates on the local Compozy home.",
+			"This command can prompt for OS credential-store permission. It operates on the local CompozyOS home.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			result, err := migrateVaultKey(cmd.Context(), deps, removeFile)
