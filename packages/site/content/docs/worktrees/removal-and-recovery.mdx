@@ -62,6 +62,11 @@ stops sessions. End the session through its own controls before retrying.
 
 ## Review a refusal before force
 
+Commits whose patches already exist in the comparison base, local default branch, or any local remote-tracking ref do
+not count as unpushed removal risk. This includes cherry-picked and rebased landings with different
+commit IDs, even without an upstream or PR. Genuinely unique commits remain protected. Remote
+evidence uses locally available refs; fetch recent remote changes before retrying if needed.
+
 Dirty or unpushed work returns a structured conflict instead of deleting it:
 
 ```json
@@ -201,8 +206,12 @@ unmerged branch is kept, its notification offers **Delete anyway**.
 Each target receives fresh server checks and acts with its own owner profile, exactly as the
 single-row actions do, so rows owned by another profile can be cleaned up without switching
 profiles. Active/busy Worktrees, unknown lifecycle states, unreadable status, hook denials, dirty
-edits and unpublished work remain refused. The batch never forces removal, never force-deletes a
-branch, and never stops sessions. Rows whose owner profile is archived or no longer exists, rows with
+edits and unpublished work remain refused on the first attempt. For dirty or unpushed refusals,
+**Force remove…** opens a second confirmation with each eligible worktree's changed files and
+unique commits. Confirming retries only those targets with force; canceling removes nothing.
+With **Also delete local branches** selected, the force confirmation also warns that unmerged
+branches may be deleted. The root and default branches remain protected. Other refusal codes
+cannot be forced, and the batch never stops sessions. Rows whose owner profile is archived or no longer exists, rows with
 an active session, and unregistered discovered checkouts are ineligible: their row action stays
 visible but disabled, and names the reason.
 

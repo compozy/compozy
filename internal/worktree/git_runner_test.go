@@ -279,6 +279,20 @@ func TestGitCapabilityAndRunner(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deliver large input without consuming the argument budget", func(t *testing.T) {
+		t.Parallel()
+		runner, err := NewRealGitRunner(2 * time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		input := strings.Repeat("preservation revision\n", 30000)
+		stdout, stderr, err := runner.RunWithInput(t.Context(), "", input, "hash-object", "--stdin")
+		if err != nil || len(stderr) != 0 ||
+			strings.TrimSpace(string(stdout)) != "7bdcb1a9a3b760dffb32f5abbe11eb49dd51bc03" {
+			t.Fatalf("RunWithInput(large) = %q, %q, %v", stdout, stderr, err)
+		}
+	})
+
 	t.Run("Should bound output captured by the real runner", func(t *testing.T) {
 		t.Parallel()
 		runner := &RealGitRunner{executable: "/bin/sh", timeout: time.Second, environ: os.Environ}

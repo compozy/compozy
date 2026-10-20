@@ -5,7 +5,11 @@ import { dismissWorktree, removeWorktree } from "@/systems/workspace/adapters/wo
 import { inspectWorktree } from "@/systems/workspace/adapters/worktree-exit-api";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 import { describeBranchOutcome } from "@/systems/workspace/lib/worktree-branch-outcome";
-import { decodeWorktreeRefusal } from "@/systems/workspace/lib/worktree-refusal";
+import {
+  decodeWorktreeRefusal,
+  WORKTREE_ERROR_CODES,
+  type WorktreeRefusal,
+} from "@/systems/workspace/lib/worktree-refusal";
 import { removeWorktreeFromList } from "@/systems/workspace/lib/worktree-list-reconciliation";
 import { activeWorkspaceStore } from "@/systems/workspace/stores/active-workspace-store";
 import type { WorktreePayload, WorktreesResponse } from "@/systems/workspace/types";
@@ -15,29 +19,56 @@ interface RemovalResult {
   row: WorktreePayload;
   status: "pending" | "running" | "success" | "failed";
   message: string;
+  refusal?: WorktreeRefusal | null;
 }
+function canForce(result: RemovalResult) {
+  return (
+    result.status === "failed" &&
+    result.row.state === "ready" &&
+    result.refusal?.risk != null &&
+    (result.refusal.code === WORKTREE_ERROR_CODES.dirtyRequiresForce ||
+      result.refusal.code === WORKTREE_ERROR_CODES.unpushedRequiresForce)
+  );
+}
+
 const batchLogic = createStoreLogic({
   context: (batch: WorktreeRemovalBatch) => ({
     batch,
     deleteBranch: false,
     running: false,
     attempted: false,
+    forceTargets: [] as RemovalResult[],
     results: batch.worktrees.map(row => ({ row, status: "pending", message: "" }) as RemovalResult),
   }),
   on: {
+    requestForce: context =>
+      context.running
+        ? undefined
+        : {
+            ...context,
+            forceTargets: context.results.filter(canForce),
+          },
+    cancelForce: context => ({ ...context, forceTargets: [] }),
     // The opt-in is part of the confirmed consequences; it freezes once a run starts.
     deleteBranch: (context, event: { value: boolean }) =>
       context.attempted ? undefined : { ...context, deleteBranch: event.value },
     start: context =>
-      context.running ? undefined : { ...context, running: true, attempted: true },
+      context.running
+        ? undefined
+        : { ...context, running: true, attempted: true, forceTargets: [] },
     outcome: (
       context,
-      event: { id: string; status: RemovalResult["status"]; message: string }
+      event: {
+        id: string;
+        status: RemovalResult["status"];
+        message: string;
+        refusal?: WorktreeRefusal | null;
+      }
     ) => ({
       ...context,
       results: context.results.map(result =>
         result.row.id === event.id
-          ? { ...result, status: event.status, message: event.message }
+          ? { ...result, status: event.status, message: event.message, refusal: event.refusal }
           : result
       ),
     }),
@@ -81,9 +112,10 @@ async function cleanupTarget(
   row: WorktreePayload,
   workspaceId: string,
   deleteBranch: boolean,
-  terminal: TerminalState | null
+  terminal: TerminalState | null,
+  force: boolean
 ) {
-  const options = { profile: row.profile_name, force: false, deleteBranch };
+  const options = { profile: row.profile_name, force, deleteBranch };
   const dismiss = terminal ? terminal === "dismissed" : row.state === "missing";
   const branch = dismiss
     ? await dismissWorktree(workspaceId, row.id, options)
@@ -103,13 +135,13 @@ const BRANCH_UNCONFIRMED =
 /**
  * Executes one confirmed batch through the singular lifecycle APIs in repository-queue order.
  * Reconciles lost responses, preserves successful receipts, and retries only unresolved
- * targets without force. Scope and cache cleanup follow the confirmed workspace and ID.
+ * targets with force only after explicit confirmation. Scope and cache cleanup follow the confirmed workspace and ID.
  */
 export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
   const store = useStore(batchLogic, input);
   const context = useSelector(store, snapshot => snapshot.context);
   const queryClient = useQueryClient();
-  const run = async () => {
+  const run = async (forceTargets: RemovalResult[] = []) => {
     if (!store.can.start()) return;
     store.trigger.start();
     const { batch, results, deleteBranch } = store.getSnapshot().context;
@@ -120,6 +152,9 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
         (previous, result) =>
           previous.then(async () => {
             if (result.status === "success") return;
+            const force =
+              forceTargets.some(target => target.row.id === result.row.id) && canForce(result);
+            if (forceTargets.length > 0 && !force) return;
             const row = result.row;
             store.trigger.outcome({ id: row.id, status: "running", message: "Checking…" });
             let message = "Already removed or dismissed; confirmed by CompozyOS.";
@@ -127,7 +162,13 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
               const terminal = await reconcileTarget(batch, row);
               // A terminal record still owes its branch outcome when the opt-in was confirmed.
               if (!terminal || deleteBranch) {
-                message = await cleanupTarget(row, batch.workspaceId, deleteBranch, terminal);
+                message = await cleanupTarget(
+                  row,
+                  batch.workspaceId,
+                  deleteBranch,
+                  terminal,
+                  force
+                );
               }
             } catch (error) {
               let confirmed: TerminalState | null = null;
@@ -140,6 +181,7 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
                 store.trigger.outcome({
                   id: row.id,
                   status: "failed",
+                  refusal: confirmed ? null : decodeWorktreeRefusal(error),
                   message: confirmed
                     ? BRANCH_UNCONFIRMED
                     : (decodeWorktreeRefusal(error)?.message ??
@@ -175,6 +217,13 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
   return {
     ...context,
     setDeleteBranch: (value: boolean) => store.trigger.deleteBranch({ value }),
-    run,
+    forceEligible: context.results.filter(canForce),
+    requestForce: () => store.trigger.requestForce(),
+    cancelForce: () => store.trigger.cancelForce(),
+    confirmForce: () => {
+      const targets = store.getSnapshot().context.forceTargets;
+      if (targets.length > 0) return run(targets);
+    },
+    run: () => run(),
   };
 }
