@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-18
+## 0.3.0 - 2026-10-20
 
 ### ♻️ Refactoring
 
@@ -108,6 +108,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Give session titles their own line in the session list (#790)
 - Adding antigravity acp (#773)
 - Add app SDKs and browser application tokens (#794)
+- Pick the default provider, model and reasoning from Settings → General
+- Clean up missing worktrees in bulk and opt into local branch deletion
+- Open new sessions in the existing Session window
+- Add @ mentions for files, folders, and sessions in the session composer (#842)
+- Make the session window's sessions rail resizable (#845)
+- Add opencode v2 support (#811)
 
 ### 🐛 Bug Fixes
 
@@ -351,6 +357,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Discover releases promptly and expose manual update checks (#808)
 - Allow steering active sessions with attachments (#809)
 - Reject blank queued-input promotion as a client error
+- Retire session windows after list deletion
+- Keep first prompts with skills admitted across registry reloads and never drop a refused draft
+- Keep hosted tool results schema-valid when they exceed the result budget
+- Retain desktop shutdown teardown diagnostics
+- Move runtime selector model list issues behind a header warning mark
+- Standardize composer toolbar controls and drop the steer/queue badges
+- Recover WAL owner checks and storage-failed session stops
+- Allow safe cleanup of worktrees with gone upstreams
+- Stabilize transcript file summaries during subagent work
+- Retain session runtime metadata and aggregate profile folders
+- Close the product renderer after shell cleanup
+- Scope the session sidebar state to each session window (#844)
+- Fit both bundled tool manuals in the skills-disabled startup budget (#849)
+- Resolve review findings left open on #842, #844, and #845 (#848)
+- Keep the routing coordinator within the 500-line source limit (#850)
+- Render Mermaid, enable desktop notifications, and declare session env (#855)
+- Stabilize live transcripts and model-aware delegation (#856)
+- Avoid interpreting request identities as provider failures (#857)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -385,6 +409,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Control popover exit animation time
 - Synchronize migration and startup verification
 - Apply formatter to blank promotion regression
+- Assert bounded caller reads in native policy regression
 
 ## 0.2.15 - 2026-07-17
 
