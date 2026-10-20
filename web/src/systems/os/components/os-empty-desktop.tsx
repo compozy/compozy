@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { SessionDraftRuntimeProvider, SessionPromptRuntimeSelector } from "@/systems/session";
 import { Button, Spinner } from "@compozy/ui";
 
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
@@ -26,6 +28,7 @@ export interface OsEmptyDesktopViewProps {
   draftId: string;
   /** Receives the sent prompt; `release` clears it once a session owns it. */
   onSubmit: OsEmptyDesktopComposerProps["onSubmit"];
+  runtimeControl?: ReactNode;
   agents: AgentPayload[];
   /** The agent the prompt starts with; `null` until one is known. */
   agentName: string | null;
@@ -54,6 +57,7 @@ export function OsEmptyDesktopView({
   agentsLoading = false,
   agentsError = null,
   onPickProject,
+  runtimeControl,
 }: OsEmptyDesktopViewProps) {
   const control = hasProject ? (
     <AgentCommandSelect
@@ -92,7 +96,12 @@ export function OsEmptyDesktopView({
           inactivePlaceholder={
             hasProject ? STARTING_LABEL : GLOBAL_SCOPE_COPY.newSessionNeedsProject
           }
-          control={control}
+          control={
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              {control}
+              {runtimeControl}
+            </div>
+          }
           typeToFocus
         />
         <p
@@ -138,19 +147,29 @@ export function OsEmptyDesktop({
 }: OsEmptyDesktopProps) {
   const session = useEmptyDesktopSession();
   return (
-    <OsEmptyDesktopView
-      desktopName={desktopName}
-      paletteShortcutLabel={paletteShortcutLabel}
-      hasProject={hasProject}
-      starting={session.pending}
+    <SessionDraftRuntimeProvider
       draftId={emptyDesktopDraftId(session.workspaceId)}
-      onSubmit={session.start}
-      agents={session.agents}
-      agentName={session.agentName}
-      onAgentChange={session.selectAgent}
-      agentsLoading={session.agentsLoading}
-      agentsError={session.agentsError}
-      onPickProject={onPickProject}
-    />
+      workspaceId={session.workspaceId ?? ""}
+      agentName={session.agentName ?? ""}
+      canPrompt={hasProject && !session.pending}
+    >
+      <OsEmptyDesktopView
+        desktopName={desktopName}
+        paletteShortcutLabel={paletteShortcutLabel}
+        hasProject={hasProject}
+        starting={session.pending}
+        draftId={emptyDesktopDraftId(session.workspaceId)}
+        onSubmit={session.start}
+        runtimeControl={
+          hasProject ? <SessionPromptRuntimeSelector canPrompt={!session.pending} /> : undefined
+        }
+        agents={session.agents}
+        agentName={session.agentName}
+        onAgentChange={session.selectAgent}
+        agentsLoading={session.agentsLoading}
+        agentsError={session.agentsError}
+        onPickProject={onPickProject}
+      />
+    </SessionDraftRuntimeProvider>
   );
 }

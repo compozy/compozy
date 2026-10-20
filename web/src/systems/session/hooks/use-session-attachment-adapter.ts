@@ -18,7 +18,7 @@ import type { SessionAttachment } from "../types";
 export const SESSION_ATTACHMENT_ADAPTER_ACCEPT = "*";
 
 interface SessionAttachmentAdapterOptions {
-  sessionId: string;
+  sessionId?: string;
   workspaceId: string;
 }
 
@@ -69,7 +69,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
   private readonly inFlightUploads = new Map<string, Promise<SessionAttachment>>();
   private readonly removedWhileUploading = new Set<string>();
   private readonly workspaceId: string;
-  private readonly sessionId: string;
+  private readonly sessionId: string | undefined;
 
   constructor({ workspaceId, sessionId }: SessionAttachmentAdapterOptions) {
     this.workspaceId = workspaceId;
@@ -85,6 +85,11 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       contentType: file.type,
       file,
     };
+
+    if (!this.sessionId) {
+      yield { ...base, status: { type: "requires-action", reason: "composer-send" }, content: [] };
+      return;
+    }
 
     yield {
       ...base,
@@ -126,6 +131,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
   }
 
   public async remove(attachment: Attachment): Promise<void> {
+    if (!this.sessionId) return;
     if (consumeSubmittedComposerAttachment(attachment)) {
       const uploaded = this.uploads.get(attachment.id);
       this.uploads.delete(attachment.id);
@@ -160,6 +166,9 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
   }
 
   public async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
+    if (!this.sessionId) {
+      return { ...attachment, status: { type: "complete" }, content: [] };
+    }
     const uploaded = this.uploads.get(attachment.id);
     if (!uploaded) {
       throw new Error(`Attachment "${attachment.name}" is not ready to send`);

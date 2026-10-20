@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import { isReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
-import { SessionPromptRuntimeCapabilitiesContext } from "../contexts/session-prompt-runtime-context-value";
+import {
+  SessionPromptRuntimeCapabilitiesContext,
+  SessionPromptRuntimePersistenceContext,
+} from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeEffective, SessionRuntimePayload } from "../types";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
@@ -95,6 +98,7 @@ function runtimeProviderOptions(
  */
 export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const runtimeCapabilities = use(SessionPromptRuntimeCapabilitiesContext);
+  const persistDraft = use(SessionPromptRuntimePersistenceContext);
   const input = useSelector(store, snapshot => snapshot.context.input);
   const selectedValue = useSelector(store, snapshot => snapshot.context.selectedValue);
   const selectedSpeed = useSelector(store, snapshot => snapshot.context.selectedSpeed);
@@ -154,6 +158,11 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
     providers.length > 0;
 
   const persistRuntimeSelection = (nextValue: RuntimeSelectorValue, nextSpeed: RuntimeSpeed) => {
+    if (persistDraft) {
+      const runtime = snapshotFromSelection(nextValue, nextSpeed);
+      if (runtime) persistDraft(runtime);
+      return;
+    }
     if (runtimeSelectionController.current) {
       queuedSelection.current = { value: nextValue, speed: nextSpeed };
       return;

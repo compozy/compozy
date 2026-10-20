@@ -4,15 +4,15 @@ area: ET
 title: An empty desktop asks what to work on and starts a session from the first message
 persona: Bruno
 journey: J-operate-desktop-shell
-expected: A desktop with no visible windows shows, on the flat desk panel with no card around it, the question "What should we work on?" above the real session composer (placeholder "Describe a task or ask a question", an agent control preset to the project's default agent, the round send control, no attach button) and a quiet "Press ⌘K to open anything" line with the live palette chord; typing while nothing else has focus lands in the composer and the shell's chords (⌘K, the desktop-switch chords, ⌘E) keep working; Enter or Send starts a session with the chosen agent in the scope's worktree, keeps the words in the resting composer with "Starting a session…" until it exists, then opens it on this desktop as the one window filling the panel with the message as its first prompt; a failed start shows the error toast and leaves the words editable; when no agent resolves the New session dialog opens with the prompt, and dismissing it leaves the words in the composer; in Global scope the composer rests with "Pick a project to start a session" and a Pick a project button that opens the workspace menu; the surface returns when the last window closes or is minimized and reads in both themes.
+expected: A desktop with no visible windows shows, on the flat desk panel with no card around it, the question "What should we work on?" above the real session composer (placeholder "Describe a task or ask a question", an agent control preset to the project's default agent, the shared session runtime selector with provider, model, reasoning, Fast and advertised options, native attachment picker/drop/paste previews, and the round send control) and a quiet "Press ⌘K to open anything" line with the live palette chord; typing while nothing else has focus lands in the composer and the shell's chords (⌘K, the desktop-switch chords, ⌘E) keep working; Enter or Send starts a session with the chosen agent in the scope's worktree, keeps the words in the resting composer with "Starting a session…" until it exists, then opens it on this desktop as the one window filling the panel with the message, selected runtime, and attached files as its first prompt; a failed start shows the error toast and leaves the words and staged files editable; when no agent resolves the New session dialog opens with the prompt, and dismissing it leaves the words in the composer; in Global scope the composer rests with "Pick a project to start a session" and a Pick a project button that opens the workspace menu; the surface returns when the last window closes or is minimized and reads in both themes.
 entry_points: web desk on a new or emptied desktop; empty-desktop composer (Enter / Send); agent control; Pick a project (Global); ⌘K
-qa_status: skipped
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report: docs/qa/reports/2026-10-02-untested.md
+evidence: docs/qa/evidence/2026-10-20-empty-desktop-composer/runtime-comparison.png; docs/qa/evidence/2026-10-20-empty-desktop-composer/session-delivered.png
+last_report: docs/qa/reports/2026-10-20-empty-desktop-composer.md
 overlaps: ET-web-desktop-shell-lifecycle; RT-desktop-pager-overview; ET-web-dock-contextual-session-launch
 ---
 
@@ -23,3 +23,5 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 QA impact 2026-10-19 (#825): a just-created session now lands in an existing Session window on the landing desktop (focused, else empty-state, else most recently focused; pinned and other-desktop windows skipped) instead of opening another window. The window choice is owned by ET-web-new-session-reuses-session-window; replay this scenario's create step with a Session window already open.
+
+QA impact 2026-10-20 (#862): select a runtime before a session exists, change reasoning/Fast where advertised, reload to confirm text/runtime persistence, attach a file and send once. Confirm the resulting session owns the selected runtime and file, then compare both composers. Repeat at a narrow viewport and retain the Global Pick a project canary. Local file selections remain browser-memory drafts until a session owns their upload.

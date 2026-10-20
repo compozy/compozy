@@ -3,7 +3,7 @@ import { notifyUser } from "@/lib/user-feedback";
 import { parseTerminalQuote } from "@/systems/terminal/parts";
 
 import { stageSessionTerminalQuote } from "./session-terminal-quote";
-import { sessionStore } from "../stores/session-store";
+import { sessionStore, type SessionFirstPrompt } from "../stores/session-store";
 
 /** What the operator is told when the runtime refuses the message they typed. */
 export const FIRST_PROMPT_SEND_FAILED =
@@ -20,9 +20,13 @@ export const FIRST_PROMPT_SEND_FAILED =
  * A refusal never costs the operator their words: the message becomes an
  * ordinary composer draft, visible and editable, instead of disappearing.
  */
-export function sendFirstPrompt(sessionId: string, send: (text: string) => void): void {
+export function sendFirstPrompt(
+  sessionId: string,
+  send: (text: string, prompt: SessionFirstPrompt) => void | Promise<void>,
+  signal?: AbortSignal
+): void {
   const prompt = sessionStore.getSnapshot().context.firstPrompts[sessionId];
-  if (!prompt || prompt.claimed) {
+  if (!prompt || prompt.claimed || signal?.aborted) {
     return;
   }
   sessionStore.trigger.firstPromptClaimed({ sessionId });
@@ -38,10 +42,30 @@ export function sendFirstPrompt(sessionId: string, send: (text: string) => void)
     return;
   }
   try {
-    send(prompt.text);
-    sessionStore.trigger.firstPromptSent({ sessionId });
+    const result = send(prompt.text, prompt);
+    if (result) {
+      const release = () => sessionStore.trigger.firstPromptReleased({ sessionId });
+      signal?.addEventListener("abort", release, { once: true });
+      void result.then(
+        () => {
+          signal?.removeEventListener("abort", release);
+          if (!signal?.aborted) sessionStore.trigger.firstPromptSent({ sessionId });
+        },
+        () => {
+          signal?.removeEventListener("abort", release);
+          if (!signal?.aborted) recoverFirstPrompt(sessionId);
+        }
+      );
+    } else {
+      sessionStore.trigger.firstPromptSent({ sessionId });
+    }
   } catch {
-    sessionStore.trigger.firstPromptRecovered({ sessionId });
-    notifyUser({ message: FIRST_PROMPT_SEND_FAILED, tone: "error" });
+    recoverFirstPrompt(sessionId);
   }
+}
+
+/** Returns an unsent handoff to the editable draft and reports the failed delivery once. */
+function recoverFirstPrompt(sessionId: string) {
+  sessionStore.trigger.firstPromptRecovered({ sessionId });
+  notifyUser({ message: FIRST_PROMPT_SEND_FAILED, tone: "error" });
 }

@@ -1,3 +1,4 @@
+import type { EmptyDesktopPromptRuntimeOptions } from "./use-empty-desktop-prompt-runtime";
 import { useEffect, useRef, useState } from "react";
 
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
@@ -29,7 +30,7 @@ export interface EmptyDesktopSession {
    * or a create dialog dismissed after the prompt moved there — never releases
    * it, so the words stay in the composer.
    */
-  start(prompt: string, release: ReleasePrompt): Promise<void>;
+  start: EmptyDesktopPromptRuntimeOptions["onSubmit"];
 }
 
 /**
@@ -97,7 +98,7 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
     agentName: chosen ?? defaultAgent,
     selectAgent: agentName =>
       setChoice(agentName ? { workspaceId: runtimeWorkspaceId, agentName } : null),
-    start: async (prompt, release) => {
+    start: async (prompt, release, options) => {
       if (!scopedWorktree.resolved) {
         notifyUser({ message: "Worktrees are not available yet. Try again.", tone: "error" });
         return;
@@ -106,6 +107,7 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
       const outcome = await fallback.run(prompt, {
         agentName: chosen ?? undefined,
         worktreeId: scopedWorktree.worktreeId,
+        ...options,
       });
       if (outcome === "created") release();
       if (outcome === "picker") setHeldPrompt({ release });
