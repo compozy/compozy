@@ -6,13 +6,13 @@ persona: Ada
 journey: J-extension-kit-lifecycle
 expected: The open-design profile supports conversational HTML design and an explicitly requested independent review Loop using the OpenDesign-derived linter and curated local guidance, with workspace-contained files and accurate evidence.
 entry_points: Profile open-design; session agent open-design-designer; skill open-design-setup; ext__open_design__lint_artifact; loop open-design-review; extension inventory open-design
-qa_status: untested
+qa_status: pass
 bug_ids: none
 fix_status: fixed
-retest_status: pending
+retest_status: pass
 fix_commits: none
 evidence: /Users/pedronauck/dev/qa-labs/compozy-open-design-20260911-203142-042642-lab/qa-artifacts/qa
-last_report: 2026-09-11
+last_report: 2026-10-20
 overlaps: ET-ext-inventory; LP-runtime-validation-preflight
 ---
 
@@ -52,10 +52,38 @@ overlaps: ET-ext-inventory; LP-runtime-validation-preflight
    prototype sources and approval of unchanged rendered evidence.
 8. Run the lab's exact teardown and retain clean process evidence.
 
-## Pending — 2026-10-20 library target
+## Library target evidence — 2026-10-20
 
-Step 7 is new and not yet walked; steps 1–6 keep their 2026-09-11 evidence below. Package
-contract tests cover the review Loop's library completion rules and loopback preview schema.
+Branch build in an isolated lab (`compozy-open-design-library-20261020-211528-779327-lab`), Claude
+Opus 5.5 designer sessions in the `open-design` profile, each project in its own git worktree.
+
+- Setup approval: with no `docs/design/prototyping.md`, all three designers loaded
+  `open-design-setup`, inspected the project, proposed a host plan, and changed nothing until
+  approval (reloaddev `sess-5914073fa8526694`, AdvOS `sess-b4b007bb3095541d`, Compozy
+  `sess-a65e70e3763a26b0`).
+- reloaddev (Astro site + `@reload/ui`, no preview host): new dev-only Vite app
+  `apps/prototypes`; member-dashboard prototype; typecheck, 1440/390 px screenshots, lint of
+  rendered evidence, and `bun run verify` passed.
+- Compozy `web/`: reused the existing Storybook with no dependency or config change;
+  session bulk-actions prototype composed from production components; typecheck rejected an
+  invented import in the smoke story; browser flow (select, archive, partial delete failure,
+  retry) checked; lint 0 P0.
+- AdvOS: reused the existing Storybook with MSW, no dependency; process-list bulk-actions
+  prototype; typecheck, `check:design-drift`, and `knip` passed; lint 0 P0.
+- Remaining lint P1s in all three come from library, Tailwind, or Storybook CSS inlined in the
+  snapshot, not prototype sources.
+- Review Loop `target: library`: run `looprun-a8c16361c3425c10` exhausted at the three-generation
+  cap; the critic read all sources and found a new real issue each pass (duplicate link names,
+  broken logo in the snapshot, unused import). It exposed two product defects, fixed in this
+  branch: the critic could not reach the preview after the designer stopped its server, and
+  snapshots kept root-relative dev-server asset URLs. After the fix, run
+  `looprun-39a3fe7f3577e271` completed `done` in one generation with an approved verdict; the
+  critic started the recorded dev server itself and exercised interactions live.
+- Other findings fixed in the setup skill: the reloaddev designer bypassed the operator's
+  minimum-release-age guard and added dependencies/config beyond the approved plan; two
+  designers proposed the Storybook manager URL instead of the isolated canvas; ignoring the
+  prototype folder disabled Tailwind detection and lint (AdvOS).
+- Evidence: the lab's `qa-artifacts/qa/evidence/` (records, git status, session histories).
 
 ## Current evidence — 2026-09-11
 

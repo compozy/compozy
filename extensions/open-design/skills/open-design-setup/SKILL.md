@@ -33,7 +33,7 @@ Prototypes must not call real product APIs. Use the project's existing mock laye
 
 ## Get approval before changing the repository
 
-Setup changes the user's project. Before adding dependencies, packages, scripts, routes, or configuration, present the plan: chosen host, files to add or edit, dependencies with versions, and exclusions from tests, lint, or production builds. Wait for the user's approval. A request that already explicitly authorizes the setup counts as approval. Use the project's package manager and conventions, and keep prototype-only code out of production bundles.
+Setup changes the user's project. Before adding dependencies, packages, scripts, routes, or configuration, present the plan: chosen host, files to add or edit, dependencies with versions, and exclusions from tests, lint, or production builds. Wait for the user's approval. A request that already explicitly authorizes the setup counts as approval. Use the project's package manager and conventions, and keep prototype-only code out of production bundles. Respect the project's dependency policies, such as minimum release age, allowlists, and frozen lockfiles: never disable or bypass them. When a policy blocks a version, choose an allowed version or report the blocker. Changes beyond the approved plan, including extra dependencies or configuration edits discovered during setup, need the user's approval before you make them.
 
 ## Prove it works
 

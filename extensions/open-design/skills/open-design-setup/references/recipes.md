@@ -4,7 +4,7 @@ These are adaptable shapes, not templates. Follow the project's framework, versi
 
 ## Reuse an existing host
 
-- **Story-based hosts** (Storybook, Ladle, Histoire, React Cosmos): put prototypes in their own folder, title them under one prototype group, and render each as a full-screen story or fixture. Reuse global decorators for theme, router, data, and mocks. Exclude the folder from story test runners, visual-regression baselines, and documentation pages when those would treat prototypes as product components. The preview URL is the host's isolated canvas URL for the story, not its manager shell.
+- **Story-based hosts** (Storybook, Ladle, Histoire, React Cosmos): put prototypes in their own folder, title them under one prototype group, and render each as a full-screen story or fixture. Reuse global decorators for theme, router, data, and mocks. Exclude the folder from story test runners, visual-regression baselines, and documentation pages when those would treat prototypes as product components. The preview URL is the host's isolated canvas URL for the story, not its manager shell: for Storybook, `http://localhost:<port>/iframe.html?id=<story-id>&viewMode=story` rather than `/?path=/story/<story-id>`. The manager wraps the prototype in its own UI, which pollutes screenshots and rendered evidence.
 - **Existing playground or examples app:** add one route or page per prototype in the app's existing routing style. Keep it development-only when the app ships to users.
 
 ## Playground inside an existing app
@@ -34,14 +34,15 @@ The lint tool reads HTML under `docs/design/`. Library prototypes provide render
 - **Snapshot:** open the preview URL with `open-design-browser`, wait for the prototype to render, and capture the DOM without scripts:
 
   ```bash
-  agent-browser --session "od-<task-id>" eval "(() => { const root = document.documentElement.cloneNode(true); root.querySelectorAll('script').forEach((node) => node.remove()); return '<!doctype html>' + root.outerHTML; })()"
+  agent-browser --session "od-<task-id>" eval "(() => { const root = document.documentElement.cloneNode(true); root.querySelectorAll('script').forEach((node) => node.remove()); root.querySelectorAll('[src],[href]').forEach((node) => { for (const name of ['src', 'href']) { const value = node.getAttribute(name); if (value && !value.startsWith('#') && !value.startsWith('data:')) node.setAttribute(name, new URL(value, location.href).href); } }); return '<!doctype html>' + root.outerHTML; })()"
   ```
 
-  Write the returned markup to the evidence file. Decode it first when the CLI prints a quoted JSON string. Development servers usually inject the compiled CSS as `<style>` elements, so the snapshot keeps the rendered styles; if styles are linked instead, inline them or use an export. A snapshot is lint and review evidence, not a standalone deliverable.
+  The script makes asset URLs absolute, because development servers emit root-relative paths (for example `/@fs/...`) that break in a saved file; those assets load only while the development server runs. Inline small images such as logos when the evidence must stand alone. Write the returned markup to the evidence file. Decode it first when the CLI prints a quoted JSON string. Development servers usually inject the compiled CSS as `<style>` elements, so the snapshot keeps the rendered styles; if styles are linked instead, inline them or use an export. A snapshot is lint and review evidence, not a standalone deliverable.
 
 ## Pitfalls
 
 - Generated files, ignored directories, and unused-file checks can reject or hide prototype folders; record the exclusions you add.
+- Tailwind v4 automatic detection, linters, and formatters skip files ignored by version control. Ignoring the prototype folder then needs an explicit `@source` for it and leaves typecheck as its only static check; prefer versioning prototypes unless the user asks otherwise, and record the trade-off.
 - Do not copy library components into the prototype folder or restyle them locally to fake a missing variant; note the gap instead.
 - Monorepos may have several candidate apps; choose the one that owns the library's styles and providers, and record why.
 - Prefer loopback-only development servers and a fixed port, and record it in the preview URL.

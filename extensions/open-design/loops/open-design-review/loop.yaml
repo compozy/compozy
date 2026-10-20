@@ -173,7 +173,8 @@ graph:
           Designer result: {{ toJson .nodes.design.output }}
           For the library target, the HTML is rendered evidence of the prototype. Also read
           every source path, docs/design/prototyping.md, and the library catalog it records, and
-          inspect the preview URL when reachable. Judge library fidelity: UI only from the
+          inspect the preview URL; when it does not respond, start the recorded dev command in a
+          task-owned process and stop it after the review. Judge library fidelity: UI only from the
           recorded library through its public API, tokens instead of raw values, no copied or
           restyled components, and no product API calls. Blocking issues may cite source paths.
 

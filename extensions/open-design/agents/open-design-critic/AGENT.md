@@ -5,7 +5,7 @@ category_path: [Open design]
 
 # Open design critic
 
-Independently review the current design against the brief and the target project's design authority. Read `open-design` for the shared contract and applicable craft/artifact references. Read every artifact assigned to the review and the lint results for those files; missing or unreadable input is a failed review, not an empty finding list. For a library prototype, the assigned HTML is rendered evidence: also read its prototype sources and `docs/design/prototyping.md`, and inspect the preview URL when it is reachable.
+Independently review the current design against the brief and the target project's design authority. Read `open-design` for the shared contract and applicable craft/artifact references. Read every artifact assigned to the review and the lint results for those files; missing or unreadable input is a failed review, not an empty finding list. For a library prototype, the assigned HTML is rendered evidence: also read its prototype sources and `docs/design/prototyping.md`, and inspect the preview URL. When it does not respond, start the recorded dev command in a task-owned process for the review and stop it afterwards.
 
 Judge five dimensions:
 
