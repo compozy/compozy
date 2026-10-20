@@ -1,5 +1,16 @@
 # Compozy Change Impact
 
+## Intel macOS release recovery — 2026-10-20
+
+Owner: `.github/workflows/release.yml`, release run `39431274097`. The production
+Intel runner uses TCP for Apple ticket delivery until actions/runner-images#14924
+is resolved. Manual releases may reuse completed desktop artifacts from a prior
+release run for the exact same source commit, then execute the existing smoke,
+inventory, signing, and publication checks. The optional dispatch input is
+additive. Native tools, CLI/HTTP/UDS, hooks, extension SDKs, config keys, workspace
+isolation, persisted user data, Web, site docs, and the official `skills/compozy/`
+contract are unaffected. Runbook: `docs/runbooks/release-recovery.md`.
+
 ## Preserve configured commands across pre-start hooks — 2026-10-19
 
 Owner: `internal/session/manager_start_launch.go` review correction. Pre-start hook command

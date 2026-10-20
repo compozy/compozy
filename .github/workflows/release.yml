@@ -31,6 +31,10 @@ on:
           - beta
           - stable
           - legacy
+      desktop_artifacts_run_id:
+        description: Optional prior release run for the same source commit; reuse completed desktop artifacts
+        required: false
+        type: string
 
 # Merges of release PRs (head commit "release:"/"ci(release):") land in their
 # own non-cancellable "-publish" group so a routine push to main can never
@@ -49,6 +53,7 @@ env:
   PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.29
 
 permissions:
+  actions: read
   contents: write
   packages: write
   pull-requests: write
@@ -1230,16 +1235,51 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Resolve reusable desktop artifact
+        id: reuse
+        if: inputs.desktop_artifacts_run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.desktop_artifacts_run_id }}
+          RELEASE_COMMIT: ${{ needs.release-plan.outputs.release_commit }}
+          ARTIFACT_NAME: desktop-release-${{ matrix.id }}
+        run: |
+          set -euo pipefail
+          [[ "${SOURCE_RUN_ID}" =~ ^[0-9]+$ ]] || exit 1
+          source_run="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}")"
+          jq -e --arg commit "${RELEASE_COMMIT}" '
+            .head_sha == $commit and .path == ".github/workflows/release.yml" and
+            .status == "completed" and (.event == "push" or .event == "workflow_dispatch")
+          ' <<<"${source_run}" >/dev/null
+          artifacts="$(gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts?per_page=100")"
+          count="$(jq --arg name "${ARTIFACT_NAME}" '[.[].artifacts[] | select(.name == $name and .expired == false)] | length' <<<"${artifacts}")"
+          case "${count}" in
+            0) echo "available=false" >>"${GITHUB_OUTPUT}" ;;
+            1) echo "available=true" >>"${GITHUB_OUTPUT}" ;;
+            *) echo "::error::Ambiguous reusable desktop artifact"; exit 1 ;;
+          esac
+
+      - name: Download completed desktop artifact
+        if: steps.reuse.outputs.available == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.desktop_artifacts_run_id }}
+          name: desktop-release-${{ matrix.id }}
+          path: desktop/.artifacts/release/${{ matrix.id }}
+
       - uses: ./.github/actions/setup-go
+        if: steps.reuse.outputs.available != 'true'
         with:
           go-version: ${{ env.GO_VERSION }}
 
       - uses: ./.github/actions/setup-bun
+        if: steps.reuse.outputs.available != 'true'
         with:
           install-playwright: "false"
 
       - name: Install Linux desktop dependencies
-        if: matrix.platform == 'linux'
+        if: matrix.platform == 'linux' && steps.reuse.outputs.available != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -1250,7 +1290,7 @@ jobs:
             xdg-utils
 
       - name: Assert and stage macOS signing material
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && steps.reuse.outputs.available != 'true'
         shell: bash
         env:
           CSC_LINK_VALUE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -1276,6 +1316,7 @@ jobs:
           } >>"${GITHUB_ENV}"
 
       - name: Generate release builder configuration
+        if: steps.reuse.outputs.available != 'true'
         run: |
           bun run --cwd desktop release:config -- \
             --version "${{ needs.release-plan.outputs.release_version }}" \
@@ -1284,7 +1325,17 @@ jobs:
             --notarize ${{ matrix.platform == 'mac' }} \
             --output .artifacts/release-config.json
 
+      # Remove when actions/runner-images#14924 is resolved. This ephemeral
+      # Intel runner drops HTTP/3 CloudKit requests; HTTPS over TCP works.
+      - name: Use TCP for Apple notarization on Intel runners
+        if: matrix.platform == 'mac' && matrix.arch == 'x64' && steps.reuse.outputs.available != 'true'
+        run: |
+          set -euo pipefail
+          echo 'block return out quick proto udp from any to any port 443' | sudo pfctl -f -
+          sudo pfctl -E
+
       - name: Build signed desktop bundle
+        if: steps.reuse.outputs.available != 'true'
         env:
           COMPOZY_RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
@@ -1299,7 +1350,7 @@ jobs:
             --publish never
 
       - name: Verify macOS provenance and updater archive
-        if: matrix.platform == 'mac'
+        if: matrix.platform == 'mac' && steps.reuse.outputs.available != 'true'
         run: |
           set -euo pipefail
           version="${{ needs.release-plan.outputs.release_version }}"
@@ -1314,6 +1365,7 @@ jobs:
             ".artifacts/builder/CompozyOS-${version}-mac-${{ matrix.arch }}.zip"
 
       - name: Collect exact desktop artifacts
+        if: steps.reuse.outputs.available != 'true'
         run: |
           bun run --cwd desktop release:collect -- \
             --platform "${{ matrix.platform }}" \
@@ -1321,6 +1373,25 @@ jobs:
             --version "${{ needs.release-plan.outputs.release_version }}" \
             --source .artifacts/builder \
             --output ".artifacts/release/${{ matrix.id }}"
+
+      - name: Verify reused artifact version
+        if: steps.reuse.outputs.available == 'true'
+        env:
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+          ARTIFACT_DIR: desktop/.artifacts/release/${{ matrix.id }}
+        run: |
+          set -euo pipefail
+          if [[ "${PLATFORM}" == "mac" ]]; then
+            test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-mac-${ARCH}.dmg"
+            test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-mac-${ARCH}.zip"
+            test -s "${ARTIFACT_DIR}/latest-mac-${ARCH}.yml"
+          else
+            test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-linux-x64.AppImage"
+            test -s "${ARTIFACT_DIR}/CompozyOS-${RELEASE_VERSION}-linux-x64.deb"
+            test -s "${ARTIFACT_DIR}/latest-linux.yml"
+          fi
 
       - name: Upload exact desktop artifacts
         uses: actions/upload-artifact@v7

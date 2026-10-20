@@ -29,6 +29,13 @@ untracked release-workspace contamination.
 Task 12 QA plan: pre-publish only. Live publication and registry acceptance remain Task 10's
 authorized human runbook.
 
+QA impact 2026-10-20: a manual recovery can reuse completed desktop artifacts from
+`desktop_artifacts_run_id` only for the exact planned source commit and version.
+Missing targets build normally; all reused targets run the normal packaged smoke
+and inventory checks. Intel Apple ticket delivery uses the TCP mitigation for
+actions/runner-images#14924. Live recovery evidence is pending the repaired
+`0.3.0-beta.36` release workflow; local workflow-contract checks remain required.
+
 QA impact 2026-08-07: the release trust chain now pins Cosign v3.1.3, installs it before
 `goreleaser-action@v7`, and exercises the same GoReleaser signature verification in dry-run and
 production. This scenario was reset for a targeted release-candidate walk.
