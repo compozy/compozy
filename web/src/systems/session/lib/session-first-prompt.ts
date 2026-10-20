@@ -64,6 +64,7 @@ export function sendFirstPrompt(
   }
 }
 
+/** Returns an unsent handoff to the editable draft and reports the failed delivery once. */
 function recoverFirstPrompt(sessionId: string) {
   sessionStore.trigger.firstPromptRecovered({ sessionId });
   notifyUser({ message: FIRST_PROMPT_SEND_FAILED, tone: "error" });

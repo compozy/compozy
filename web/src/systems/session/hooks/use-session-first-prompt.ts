@@ -75,6 +75,7 @@ export function useSessionFirstPrompt({ sessionId, canPrompt }: UseSessionFirstP
       signal
     );
 
+    /** Uploads through native composer ownership and waits for its published state before dispatch. */
     async function stageFilesAndSend(text: string, files: File[]) {
       // Let the session's native attachment adapter own uploads and recovery.
       sessionStore.trigger.composerDraftChanged({ sessionId, text });

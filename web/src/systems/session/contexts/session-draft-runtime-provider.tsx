@@ -31,6 +31,7 @@ const draftRuntimeSchema = z.object({
     .optional(),
 });
 
+/** Reads optional draft intent, discarding invalid stored shapes before they reach the selector. */
 function readDraftRuntime(key: string): SessionPromptRuntimeSnapshot | undefined {
   try {
     const value = localStorage.getItem(key);
