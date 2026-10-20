@@ -114,6 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add @ mentions for files, folders, and sessions in the session composer (#842)
 - Make the session window's sessions rail resizable (#845)
 - Add opencode v2 support (#811)
+- Let open-design prototype with the project's component library (#867)
+- Wake agent sessions natively when background work finishes (#860)
 
 ### 🐛 Bug Fixes
 
@@ -375,6 +377,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Render Mermaid, enable desktop notifications, and declare session env (#855)
 - Stabilize live transcripts and model-aware delegation (#856)
 - Avoid interpreting request identities as provider failures (#857)
+- Recover releases from Intel Apple networking failures
+- Confirm bulk worktree removal and recognize landed patches (#863)
+- Bring runtime and attachments to the empty desktop composer (#865)
+- Report actionable errors for invalid workspace config (#866)
+- Consume first-message handoffs when attachments are removed
 
 ### 🔧 Miscellaneous Tasks
 
