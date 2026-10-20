@@ -331,6 +331,42 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the checkout when patch preservation cannot be verified", func(t *testing.T) {
+		t.Parallel()
+		for _, command := range []string{
+			"rev-list main..HEAD",
+			"for-each-ref --format=%(refname) refs/remotes/ refs/heads/main",
+			"rev-list --cherry-pick --right-only main...HEAD --",
+		} {
+			t.Run("Should fail closed for "+command, func(t *testing.T) {
+				t.Parallel()
+				fixture := newRemovalTestFixture(t)
+				fixture.uniqueCommits.Store(1)
+				baseRun := fixture.runner.run
+				fixture.runner.run = func(call gitInvocation) gitResponse {
+					if strings.Join(call.args, " ") == command {
+						return gitResponse{stderr: []byte("unreadable refs"), err: errors.New("exit 128")}
+					}
+					return baseRun(call)
+				}
+				if _, err := fixture.service.Remove(
+					t.Context(),
+					fixture.workspace.ID,
+					fixture.item.ID,
+					false,
+				); !errors.Is(
+					err,
+					ErrSafetyCheckFailed,
+				) {
+					t.Fatalf("Remove(unverifiable patches) = %v", err)
+				}
+				if fixture.mustItem(t).State != StateReady || fixture.removeCalls.Load() != 0 {
+					t.Fatal("uncertain preservation changed the checkout or removal fence")
+				}
+			})
+		}
+	})
+
 	t.Run("Should use force only when explicit and restore ready after Git failure", func(t *testing.T) {
 		t.Parallel()
 		forced := newRemovalTestFixture(t)
@@ -719,6 +755,14 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 			return gitResponse{}
 		case command == "rev-list --count main..HEAD":
 			return gitResponse{stdout: []byte(strconv.Itoa(fixture.uniqueCommits.Load()) + "\n")}
+		case command == "rev-list main..HEAD" || command == "rev-list --cherry-pick --right-only main...HEAD --":
+			var hashes strings.Builder
+			for i := range fixture.uniqueCommits.Load() {
+				hashes.WriteString(strconv.Itoa(i) + "\n")
+			}
+			return gitResponse{stdout: []byte(hashes.String())}
+		case command == "for-each-ref --format=%(refname) refs/remotes/ refs/heads/main":
+			return gitResponse{}
 		case command == "branch -r --contains HEAD":
 			if fixture.remoteContains.Load() {
 				return gitResponse{stdout: []byte("  origin/feature/remove\n")}
