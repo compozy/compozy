@@ -165,6 +165,10 @@ func TestClassifyErrorText(t *testing.T) {
 	}{
 		{name: "Should map rate limiting", text: "ACP session/new failed: HTTP 429 too many requests", state: ProviderAuthStateRateLimited},
 		{name: "Should map entitlement denial", text: "ACP session/new failed: 403 not entitled", state: ProviderAuthStatePermissionDenied},
+		{name: "Should map a bare rate-limit status", text: "429", state: ProviderAuthStateRateLimited},
+		{name: "Should map a status followed by punctuation", text: "HTTP 429.", state: ProviderAuthStateRateLimited},
+		{name: "Should map a structured auth status", text: `status:401`, state: ProviderAuthStateNeedsLogin},
+		{name: "Should map an overload status", text: `status=529`, state: ProviderAuthStateTransient},
 		{name: "Should map transport failure", text: "connection reset by peer", state: ProviderAuthStateTransient},
 		{name: "Should map unauthorized output", text: "HTTP 401 unauthorized", state: ProviderAuthStateNeedsLogin},
 	} {
@@ -181,11 +185,19 @@ func TestClassifyErrorText(t *testing.T) {
 		})
 	}
 
-	t.Run("Should leave unrelated text unclassified", func(t *testing.T) {
-		t.Parallel()
-
-		if _, ok := ClassifyErrorText("helper exited with status 1"); ok {
-			t.Fatal("ClassifyErrorText() classified generic text")
-		}
-	})
+	// Numeric substrings in echoed request identities are not HTTP statuses.
+	for _, text := range []string{
+		"helper exited with status 1",
+		"acpmock: no turn matched raw_prompt session_id: sess-dfeb9b429b30bdab",
+		"acpmock: no turn matched workspace: /tmp/TestAutoTitle_4290148401/003",
+		"request failed for sess-401 and account-403 and model-529",
+		"request failed for session_429 and 401.txt and /403/ and 5290",
+	} {
+		t.Run("Should leave unrelated text unclassified "+text, func(t *testing.T) {
+			t.Parallel()
+			if got, ok := ClassifyErrorText(text); ok {
+				t.Fatalf("ClassifyErrorText(%q) = %#v, want unclassified", text, got)
+			}
+		})
+	}
 }

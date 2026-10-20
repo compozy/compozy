@@ -84,3 +84,11 @@ a failed Stop or AwaitStopped also suppresses fallback and preserves the cleanup
 error. Other accepted-session failures retain the acceptance fence above. The
 canonical auto-title generator suite owns these cases; earlier accepted-start
 walks remain historical evidence for that separate boundary.
+
+QA impact 2026-10-20 (release auto-title fallback): a provider error that echoes
+request IDs or workspace paths containing `401`, `403`, `429`, or `529` must remain
+unclassified unless it also reports a standalone status or a recognized failure
+message. These incidental digits must not enable another auto-title route after
+acceptance. Re-walk the accepted-then-failed child alongside pre-acceptance
+fallback, account-command routing, exhaustion, and single-chain ownership using
+`TestAutoTitleRoleIntegration`; keep its zero-fallback assertion unchanged.
