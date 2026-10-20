@@ -126,7 +126,7 @@ export function toTimelineParts(message: {
     }
     if (type === "tool-call") {
       const result = part.result;
-      const isError = part.isError === true;
+      const isError = part.isError === true || state === "output-error";
       return [
         {
           kind: "tool",

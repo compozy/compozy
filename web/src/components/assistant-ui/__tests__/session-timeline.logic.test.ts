@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { toThreadMessageLikes } from "@/systems/session/lib/session-thread-repository";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
+import { deriveToolRowStatus } from "@/systems/session/lib/message-parts";
+import { toolMessageFromPart } from "../session-timeline-tool-message";
 import type { SessionMessage } from "@/systems/session/types";
 import claudeGoalLive from "./fixtures/claude-goal-live.json";
 
@@ -40,6 +42,33 @@ function text(
 }
 
 describe("session timeline derivation", () => {
+  it("Should preserve a live terminal error without an output body", () => {
+    // Invariant: terminal error evidence survives the live projection and row status.
+    // Owner: transcript-to-timeline boundary; canonical suite: this file.
+    const [part] = toTimelineParts({
+      id: "turn-1",
+      content: [
+        {
+          type: "tool-call",
+          toolCallId: "delegate-error",
+          toolName: "delegate",
+          state: "output-error",
+        },
+      ],
+    });
+    if (part?.kind !== "tool") throw new Error("expected a tool part");
+    const message = toolMessageFromPart(part);
+    expect(
+      deriveToolRowStatus({
+        toolError: message.toolError,
+        toolResult: message.toolResult,
+        resultReceived: message.role === "tool_result",
+        hasInput: true,
+        turnSettled: true,
+      })
+    ).toMatchObject({ status: "failed", runtimeError: true });
+  });
+
   it("Should settle an acknowledged delegation with no output body", () => {
     // Invariant: an explicit terminal receipt owns liveness, independent of its payload.
     // Owner: transcript-to-timeline boundary; canonical suite: this file.
