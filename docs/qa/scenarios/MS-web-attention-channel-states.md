@@ -20,6 +20,18 @@ Walk granted, denied, unsupported, pending-write, failed-write, mute, and unmute
 controls cannot issue overlapping full-section writes and that muted rows remain visible in the bell
 while toast, sound, and system delivery stop.
 
+Desktop notification permission regression (#819): launch an isolated desktop instance and enable
+system notifications from Settings. The product's main frame must receive notification permission
+and deliver a notification while the app is in the background. Foreign origins and subframes must
+remain denied, including same-origin subframes. With no product origin configured, all permissions
+remain denied. A blocked state must not claim the operating system caused the refusal; in-app
+notifications remain available. Record OS notification delivery separately for each tested platform.
+
+2026-10-19: isolated Electron/macOS policy checks passed for the product main frame and denied
+same-origin subframes, foreign origins, missing product origin, and geolocation. Constructing a
+notification did not throw, but no show event arrived within five seconds; OS delivery and the
+complete Settings journey remain pending. See `docs/qa/reports/2026-10-19-issues-818-819-828.md`.
+
 QA impact 2026-08-16: Task 03 added Settings → Attention and truthful browser-channel states. Flag
 only; Task 08 owns the real-user walk and evidence.
 

@@ -1612,7 +1612,30 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
     environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
   });
   const product = await desktop.product();
-  expect(await product.evaluate(async () => await Notification.requestPermission())).toBe("denied");
+  expect(await product.evaluate(async () => await Notification.requestPermission())).toBe(
+    "granted"
+  );
+  expect(await product.evaluate(() => Notification.permission)).toBe("granted");
+  expect(
+    await product.evaluate(async () => {
+      const frame = document.createElement("iframe");
+      frame.src = "/";
+      const loaded = new Promise<void>(resolve => {
+        frame.onload = () => resolve();
+      });
+      document.body.append(frame);
+      try {
+        await loaded;
+        const frameNotification = Reflect.get(
+          frame.contentWindow!,
+          "Notification"
+        ) as typeof Notification;
+        return await frameNotification.requestPermission();
+      } finally {
+        frame.remove();
+      }
+    })
+  ).toBe("denied");
 
   const clipboardValue = "Copied through the packaged Electron product window";
   expect(

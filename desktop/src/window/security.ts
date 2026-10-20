@@ -11,7 +11,7 @@ function normalizedOrigin(raw: string | undefined): string | null {
   }
 }
 
-function allowsProductClipboardWrite(
+function allowsProductPermission(
   permission: string,
   requestingURL: string,
   isMainFrame: boolean,
@@ -19,7 +19,7 @@ function allowsProductClipboardWrite(
 ): boolean {
   return (
     isMainFrame &&
-    permission === "clipboard-sanitized-write" &&
+    (permission === "clipboard-sanitized-write" || permission === "notifications") &&
     normalizedOrigin(requestingURL) !== null &&
     normalizedOrigin(requestingURL) === normalizedOrigin(productOrigin)
   );
@@ -27,16 +27,11 @@ function allowsProductClipboardWrite(
 
 export function applyDefaultDenyPermissions(session: Session, productOrigin?: string): void {
   session.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) =>
-    allowsProductClipboardWrite(permission, requestingOrigin, details.isMainFrame, productOrigin)
+    allowsProductPermission(permission, requestingOrigin, details.isMainFrame, productOrigin)
   );
   session.setPermissionRequestHandler((_webContents, permission, callback, details) =>
     callback(
-      allowsProductClipboardWrite(
-        permission,
-        details.requestingUrl,
-        details.isMainFrame,
-        productOrigin
-      )
+      allowsProductPermission(permission, details.requestingUrl, details.isMainFrame, productOrigin)
     )
   );
 }

@@ -1,6 +1,10 @@
-import { describe, expect, it } from "vitest";
+import type { Session } from "electron";
+import { describe, expect, it, vi } from "vitest";
 
 import { classifyNavigation, safeExternalURL } from "../navigation-policy";
+import { applyDefaultDenyPermissions } from "../security";
+
+vi.mock("electron", () => ({ shell: { openExternal: vi.fn() } }));
 
 // Invariant: product navigation stays on the daemon origin; only parsed HTTP(S) URLs and the exact
 // Accessibility settings deep link leave through the operating system. Same-origin API/bytes
@@ -35,5 +39,40 @@ describe("navigation policy", () => {
     expect(safeExternalURL("not a url")).toBeNull();
     expect(safeExternalURL("file:///tmp/a")).toBeNull();
     expect(safeExternalURL("x-apple.systempreferences:com.apple.preference.security")).toBeNull();
+  });
+});
+
+// Invariant: both Electron permission paths allow only product main-frame notifications and
+// clipboard writes. Unknown permissions, foreign origins, and subframes remain default-denied.
+describe("product window permissions", () => {
+  it.each([
+    ["notifications", "http://127.0.0.1:2123/", true, true],
+    ["clipboard-sanitized-write", "http://127.0.0.1:2123/sessions", true, true],
+    ["notifications", "https://example.com/", true, false],
+    ["notifications", "http://127.0.0.1:2124/", true, false],
+    ["notifications", "http://127.0.0.1:2123/", false, false],
+    ["clipboard-sanitized-write", "http://127.0.0.1:2123/", false, false],
+    ["notifications", "invalid", true, false],
+    ["notifications", "", true, false],
+    ["media", "http://127.0.0.1:2123/", true, false],
+    ["geolocation", "http://127.0.0.1:2123/", true, false],
+  ])("Should handle %s from %s (main frame: %s)", (permission, url, isMainFrame, allowed) => {
+    const check = vi.fn();
+    const request = vi.fn();
+    const session = {
+      setPermissionCheckHandler: check,
+      setPermissionRequestHandler: request,
+    } as unknown as Session;
+    for (const productOrigin of ["http://127.0.0.1:2123", undefined]) {
+      applyDefaultDenyPermissions(session, productOrigin);
+      const expected = Boolean(productOrigin) && allowed;
+      expect(check.mock.lastCall?.[0](null, permission, url, { isMainFrame })).toBe(expected);
+      const callback = vi.fn();
+      request.mock.lastCall?.[0](null, permission, callback, {
+        requestingUrl: url,
+        isMainFrame,
+      });
+      expect(callback).toHaveBeenCalledExactlyOnceWith(expected);
+    }
   });
 });
