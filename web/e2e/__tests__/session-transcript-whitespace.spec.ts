@@ -39,16 +39,20 @@ test("split Mermaid and Markdown chunks render as separate elements after reload
   const markdown = window.getByTestId("message-markdown");
   await expect(markdown.getByRole("heading", { name: "After the diagram" })).toBeVisible();
   await expect(markdown.getByText("The paragraph is outside the code block.")).toBeVisible();
-  expect(await markdown.locator('[data-slot="code-block-line"]').allTextContents()).toEqual(
-    expect.arrayContaining(["flowchart LR", "A --> B"])
-  );
+  await expect(markdown.getByRole("img", { name: "Mermaid diagram" })).toBeVisible();
+  await markdown.getByRole("button", { name: "View source", exact: true }).click();
+  await expect
+    .poll(() => markdown.locator('[data-slot="code-block-line"]').allTextContents())
+    .toEqual(expect.arrayContaining(["flowchart LR", "A --> B"]));
   await expect(markdown.locator("pre")).not.toContainText("After the diagram");
 
   await appPage.reload();
   await expect(markdown.getByRole("heading", { name: "After the diagram" })).toBeVisible();
   await expect(markdown.getByText("The paragraph is outside the code block.")).toBeVisible();
-  expect(await markdown.locator('[data-slot="code-block-line"]').allTextContents()).toEqual(
-    expect.arrayContaining(["flowchart LR", "A --> B"])
-  );
+  await expect(markdown.getByRole("img", { name: "Mermaid diagram" })).toBeVisible();
+  await markdown.getByRole("button", { name: "View source", exact: true }).click();
+  await expect
+    .poll(() => markdown.locator('[data-slot="code-block-line"]').allTextContents())
+    .toEqual(expect.arrayContaining(["flowchart LR", "A --> B"]));
   await expect(markdown.locator("pre")).not.toContainText("After the diagram");
 });
