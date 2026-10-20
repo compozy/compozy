@@ -89,6 +89,9 @@ func TestSubagentRequest(t *testing.T) {
 		}
 	})
 }
+
+// TestSubagentTargetAndPermissions covers delegated target inheritance and the
+// permission boundary between the parent and its requested child runtime.
 func TestSubagentTargetAndPermissions(t *testing.T) {
 	t.Parallel()
 	t.Run("Should keep inherited reasoning scoped to the selected model", func(t *testing.T) {

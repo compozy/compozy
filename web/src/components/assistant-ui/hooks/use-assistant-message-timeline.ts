@@ -77,9 +77,9 @@ function earliestTimestampMs(parts: readonly SessionTimelinePart[]): number | un
   return earliest;
 }
 
-// When the turn is streaming, append a trailing `working` part so the timeline
-// renders the streaming indicator below the turn's content; the fold keeps the
-// live turn inline because a `working` row marks the group active.
+// Append an internal activity marker while the parent turn is live. Its row
+// renders nothing; SessionThinkingRow owns the one visible live status. The
+// marker keeps each active segment open between parent tool calls.
 function deriveWorkingPart(
   message: { id?: string; status?: unknown },
   parts: readonly SessionTimelinePart[],
@@ -297,6 +297,7 @@ function unionTurnIds(
   return new Set([...left, ...right]);
 }
 
+/** Combines daemon turn activity and recorded outcomes without settling gaps between parent calls. */
 export function useAssistantMessageTimeline() {
   const message = useAuiState(
     state => state.message as { id?: string; content?: unknown; status?: unknown }

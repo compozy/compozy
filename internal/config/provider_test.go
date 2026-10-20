@@ -1400,6 +1400,8 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 	})
 }
 
+// TestResolveAgentSessionRuntimeDefaults verifies runtime precedence and keeps
+// saved defaults from applying unsupported effort to the selected model.
 func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve Haiku without selectable effort and reject explicit unsupported values", func(t *testing.T) {

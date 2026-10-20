@@ -121,6 +121,9 @@ func subagentInherited(info *Info) SubagentTarget {
 		ACPOptions:      acp.CloneSessionConfigOptionSelections(info.ACPOptions),
 	}
 }
+
+// resolveSubagentTarget applies provider-scoped defaults while keeping inherited
+// reasoning effort attached to its original model. Explicit child effort wins.
 func resolveSubagentTarget(inherited, requested, defaults SubagentTarget) SubagentTarget {
 	target := requested
 	if target.Agent == "" {

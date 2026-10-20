@@ -180,6 +180,8 @@ func (c *Config) resolveAgentProvider(
 	return providerName, provider, providerSource, nil
 }
 
+// resolveAgentModelRuntime selects model and effort with source attribution,
+// omitting defaults that the chosen model does not advertise.
 func resolveAgentModelRuntime(
 	providerName string,
 	provider ProviderConfig,
@@ -226,6 +228,8 @@ func resolveAgentModelRuntime(
 	return model, reasoningEffort, modelSource, reasoningSource, nil
 }
 
+// validateResolvedAgentRuntime rejects explicit unsupported runtime choices
+// before any session, worker, or fallback route starts the provider.
 func validateResolvedAgentRuntime(
 	providerName string,
 	provider ProviderConfig,
