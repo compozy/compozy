@@ -1402,6 +1402,25 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 
 func TestResolveAgentSessionRuntimeDefaults(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resolve Haiku without selectable effort and reject explicit unsupported values", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: model capabilities govern effort for sessions, workers, and fallback routes.
+		// Owner: shared runtime resolution; canonical suite: this function.
+		cfg := &Config{
+			Defaults: DefaultsConfig{Provider: "claude", Model: modelClaudeHaiku45CurrentID, ReasoningEffort: "medium"},
+		}
+		agent := AgentDef{Name: "general", Prompt: "prompt"}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{})
+		if err != nil || resolved.ReasoningEffort != "" {
+			t.Fatalf("Haiku runtime = %#v, %v; want no effort", resolved, err)
+		}
+		for _, effort := range []string{"medium", "none"} {
+			_, err := cfg.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{Reasoning: effort})
+			if err == nil || !strings.Contains(err.Error(), "omit reasoning_effort") {
+				t.Fatalf("explicit %q error = %v, want actionable unsupported effort", effort, err)
+			}
+		}
+	})
 
 	sessionDefaultsConfig := func(t *testing.T, defaults DefaultsConfig) Config {
 		t.Helper()

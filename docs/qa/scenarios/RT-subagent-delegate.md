@@ -124,3 +124,13 @@ at most 40 models, with current/default first. Verify `models_total` counts the 
 confirm it is accepted. Automated UT-017 covers the 611-model catalog; real-provider re-walk pending.
 
 Re-walk round 3 2026-10-09 (stock 1d7f690e5, real Claude parent, Codex children): capabilities came back inline at 21,048 characters (no file spill); a `spawn.pre_create` deny returned `capability_denied` with the hook reason alone; a real async `subagent.settled` subprocess hook ran to completion once with the documented payload. Every bug on this scenario is verified. Verdict: pass. Report: `docs/qa/reports/2026-10-09-subagents-r2.md`.
+
+
+QA impact 2026-10-19 (issue #853): model changes no longer inherit the parent's
+model-specific reasoning effort. A known model with no advertised effort values
+starts with provider defaults; an explicit unsupported value is rejected before
+runtime startup with the provider/model and guidance to omit the field. The shared
+session resolver also owns prompt selections, Loop workers, and fallback routes.
+A real Claude Opus parent with medium effort delegated Haiku 4.5 successfully;
+the child's public effective runtime omitted effort and reported no failure.
+Evidence: [issues 851–854 report](../reports/2026-10-19-issues-851-854.md).

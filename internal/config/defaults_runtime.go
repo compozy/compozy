@@ -58,7 +58,7 @@ func providerAcceptsReasoningEffort(provider ProviderConfig, modelID, effort str
 	}
 	for _, model := range provider.Models.Curated {
 		if strings.TrimSpace(model.ID) == modelID {
-			return len(model.ReasoningEfforts) == 0 || slices.Contains(model.ReasoningEfforts, effort)
+			return slices.Contains(model.ReasoningEfforts, effort)
 		}
 	}
 	return true

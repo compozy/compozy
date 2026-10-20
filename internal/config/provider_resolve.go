@@ -241,6 +241,15 @@ func validateResolvedAgentRuntime(
 		strings.TrimSpace(resolved.ReasoningEffort) != "" {
 		return fmt.Errorf("provider %q does not support reasoning effort", providerName)
 	}
+	if effort := strings.TrimSpace(resolved.ReasoningEffort); effort != "" &&
+		!providerAcceptsReasoningEffort(provider, resolved.Model, effort) {
+		return fmt.Errorf(
+			"reasoning effort %q is unavailable for provider model %q/%q; omit reasoning_effort or select an advertised value",
+			effort,
+			providerName,
+			resolved.Model,
+		)
+	}
 	return nil
 }
 

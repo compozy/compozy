@@ -91,6 +91,24 @@ func TestSubagentRequest(t *testing.T) {
 }
 func TestSubagentTargetAndPermissions(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep inherited reasoning scoped to the selected model", func(t *testing.T) {
+		t.Parallel()
+		// Invariant: selecting a child model cannot carry the parent's model-specific effort.
+		// Owner: subagent target resolution; canonical suite: this function.
+		parent := SubagentTarget{Provider: "claude", Model: "opus", ReasoningEffort: "medium"}
+		child := resolveSubagentTarget(parent, SubagentTarget{Model: "haiku"}, SubagentTarget{})
+		if child.Model != "haiku" || child.ReasoningEffort != "" {
+			t.Fatalf("child = %#v, want Haiku without inherited effort", child)
+		}
+		explicit := resolveSubagentTarget(
+			parent,
+			SubagentTarget{Model: "sonnet", ReasoningEffort: "high"},
+			SubagentTarget{},
+		)
+		if explicit.ReasoningEffort != "high" {
+			t.Fatalf("explicit effort = %q, want high", explicit.ReasoningEffort)
+		}
+	})
 	t.Run("Should default omitted runtime speed to normal", func(t *testing.T) {
 		t.Parallel()
 		target := resolveSubagentTarget(SubagentTarget{}, SubagentTarget{}, SubagentTarget{})

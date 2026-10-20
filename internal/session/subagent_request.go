@@ -136,7 +136,7 @@ func resolveSubagentTarget(inherited, requested, defaults SubagentTarget) Subage
 	if target.Model == "" {
 		target.Model = base.Model
 	}
-	if target.ReasoningEffort == "" {
+	if target.ReasoningEffort == "" && target.Model == base.Model {
 		target.ReasoningEffort = base.ReasoningEffort
 	}
 	if target.Speed == "" {
