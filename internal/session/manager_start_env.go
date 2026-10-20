@@ -2,6 +2,7 @@ package session
 
 import (
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -129,7 +130,7 @@ func setSessionStartEnvValue(env []string, key string, value string) []string {
 	entry := trimmedKey + "=" + value
 	for i, current := range env {
 		existingKey, _, ok := strings.Cut(current, "=")
-		if ok && existingKey == trimmedKey {
+		if ok && sessionEnvironmentKey(existingKey) == sessionEnvironmentKey(trimmedKey) {
 			env[i] = entry
 			return env
 		}
@@ -146,7 +147,7 @@ func unsetSessionStartEnvKeys(env []string, keys ...string) []string {
 	for _, key := range keys {
 		trimmedKey := strings.TrimSpace(key)
 		if trimmedKey != "" {
-			blocked[trimmedKey] = struct{}{}
+			blocked[sessionEnvironmentKey(trimmedKey)] = struct{}{}
 		}
 	}
 	if len(blocked) == 0 {
@@ -157,11 +158,18 @@ func unsetSessionStartEnvKeys(env []string, keys ...string) []string {
 	for _, current := range env {
 		existingKey, _, ok := strings.Cut(current, "=")
 		if ok {
-			if _, blockedKey := blocked[existingKey]; blockedKey {
+			if _, blockedKey := blocked[sessionEnvironmentKey(existingKey)]; blockedKey {
 				continue
 			}
 		}
 		filtered = append(filtered, current)
 	}
 	return filtered
+}
+
+func sessionEnvironmentKey(name string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToUpper(name)
+	}
+	return name
 }

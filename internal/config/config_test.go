@@ -14,7 +14,52 @@ import (
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/vault"
 )
+
+type forbiddenVaultKeyring struct{ t *testing.T }
+
+var _ vault.Keyring = forbiddenVaultKeyring{}
+
+func (r forbiddenVaultKeyring) Get(string, string) (string, error) {
+	r.t.Error("OS keyring Get called without explicit migration")
+	return "", errors.New("keyring must remain untouched")
+}
+
+func (r forbiddenVaultKeyring) Set(string, string, string) error {
+	r.t.Error("OS keyring Set called without explicit migration")
+	return errors.New("keyring must remain untouched")
+}
+
+func (r forbiddenVaultKeyring) Delete(string, string) error {
+	r.t.Error("OS keyring Delete called without explicit migration")
+	return errors.New("keyring must remain untouched")
+}
+
+func TestVaultKeyProviderSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should never access the OS keyring on the default file path", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		provider := NewVaultKeyProvider(home, func(string) (string, bool) { return "", false }).(*configuredVaultKeyProvider)
+		provider.ring = vault.NewOSKeyProvider(home, forbiddenVaultKeyring{t: t})
+		original, err := provider.Key()
+		if err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(home, ConfigName), "[vault]\nkey_provider = 'file'\n")
+		for range 3 {
+			current, err := provider.Key()
+			if err != nil || !bytes.Equal(original, current) {
+				t.Fatal("file provider changed its key", err)
+			}
+		}
+		writeFile(t, filepath.Join(home, ConfigName), "[vault]\nkey_provider = 'os-keyring'\n")
+		if _, err := provider.Key(); !errors.Is(err, vault.ErrKeyringMigrationRequired) {
+			t.Fatalf("Key() error = %v, want the explicit migration guard", err)
+		}
+	})
+}
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {
 	workspaceRoot := t.TempDir()

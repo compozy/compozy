@@ -7,11 +7,42 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/vault"
+	"github.com/compozy/compozy/internal/workspace"
 )
 
 func TestBuildProviderVault(t *testing.T) {
 	t.Parallel()
+	t.Run("Should allow declaration-free human terminals without agent provider or Vault", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		profiles, err := profile.NewManager(profile.WithStore(database), profile.WithHomePaths(home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := testConfig(t, home)
+		cfg.Defaults.Provider = ""
+		resolver, err := workspace.NewResolver(database, workspace.WithHomePaths(home),
+			workspace.WithProfileConfigLoader(func(string, string) (config.Config, error) { return cfg, nil }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		registered, err := resolver.Register(t.Context(), workspace.RegisterOptions{RootDir: t.TempDir()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		provider := terminalEnvironmentProvider(&bootState{profiles: profiles, workspaceResolver: resolver})
+		environment, err := provider(t.Context(), registered.ID, terminal.Actor{
+			Kind: terminal.ActorKindHuman, ProfileID: "00000000000000000000000000",
+		})
+		if err != nil || len(environment.Values) != 0 || len(environment.Unset) != 0 {
+			t.Fatalf("declaration-free launch = %#v, %v", environment, err)
+		}
+	})
 
 	t.Run("Should warn when registry does not implement vault store", func(t *testing.T) {
 		t.Parallel()

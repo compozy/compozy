@@ -28,10 +28,22 @@ func (m *Manager) applyResumeRouteAffinity(
 	}
 	primary := FallbackRoute{Provider: spec.provider, Model: spec.model, ReasoningEffort: spec.reasoningEffort}
 	candidates := append([]FallbackRoute{primary}, fallbackRoutesForAgent(agentDef)...)
+	if spec.sessionType == SessionTypeCoordinator {
+		role := spec.workspace.Config.Roles.Coordinator
+		primary = FallbackRoute{Provider: role.Provider, Model: role.Model, ReasoningEffort: role.ReasoningEffort,
+			Speed: role.Speed, ACPOptions: ACPOptionSelectionsFromConfig(role.ACPOptions)}
+		candidates = append(
+			[]FallbackRoute{primary},
+			fallbackRoutesForChain(spec.workspace.Config.Roles.Coordinator.FallbackChain)...)
+	}
 	for index, route := range candidates {
 		if m.fallbackRouteMatchesAcceptedRoute(ctx, spec, agentDef, route, record) {
 			spec.command = strings.TrimSpace(route.Command)
+			spec.sessionEnv = compozyconfig.MergeSessionEnv(nil, route.SessionEnv)
 			spec.fallbackAttempt = index
+			if spec.sessionType == SessionTypeCoordinator {
+				spec.fallbackAttempt = record.Attempt
+			}
 			return
 		}
 	}
@@ -44,8 +56,12 @@ func (m *Manager) applyResumeRouteAffinity(
 	)
 	spec.acceptedRoute = nil
 	spec.command = ""
+	spec.sessionEnv = nil
 	spec.fallbackAttempt = 0
-	if record.Attempt > 0 {
+	if spec.sessionType == SessionTypeCoordinator {
+		spec.provider, spec.model, spec.reasoningEffort = primary.Provider, primary.Model, primary.ReasoningEffort
+		spec.speed, spec.acpOptions = primary.Speed, primary.ACPOptions
+	} else if record.Attempt > 0 {
 		// The recorded binding came from a chain route: return to the primary route.
 		resetSpecToPrimaryRoute(spec)
 	}
@@ -72,6 +88,7 @@ func (m *Manager) fallbackRouteMatchesAcceptedRoute(
 	spec.command = strings.TrimSpace(route.Command)
 	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
 		Provider: spec.provider, Model: spec.model, Command: spec.command,
+		SessionEnv: route.SessionEnv,
 	})
 	if err != nil {
 		return false
@@ -83,7 +100,7 @@ func (m *Manager) fallbackRouteMatchesAcceptedRoute(
 	return strings.TrimSpace(resolved.Provider) == record.Provider &&
 		string(resolved.AuthMode) == record.AuthMode &&
 		string(resolved.HomePolicy) == record.HomePolicy &&
-		providerCommandFingerprint(resolved.Command) == record.CommandFingerprint
+		resolved.LaunchFingerprint() == record.CommandFingerprint
 }
 
 // resetSpecToPrimaryRoute replaces a chain route's complete runtime selection (provider,

@@ -128,6 +128,7 @@ type ModelsDevSourceConfig struct {
 
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
+	SessionEnv       SessionEnv               `toml:"session_env,omitempty"`
 	Command          string                   `toml:"command"`
 	CommandIsBuiltin bool                     `toml:"-"                             json:"-" yaml:"-"`
 	SteerCapability  SteerCapability          `toml:"steer_capability,omitempty"`
@@ -180,6 +181,7 @@ type MCPAuthConfig struct {
 
 // ResolvedAgent is the effective runtime configuration for a parsed agent definition.
 type ResolvedAgent struct {
+	SessionEnv         SessionEnv
 	ToolPolicyEnforced bool `json:"-"`
 	Name               string
 	ProfileName        string

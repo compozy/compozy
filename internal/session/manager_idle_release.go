@@ -223,7 +223,9 @@ func (m *Manager) rebindReleasedRuntime(
 		plan.replayHistory = true
 		return m.replacePromptRuntime(ctx, session, snapshot, plan)
 	}
-	routePlan, err := m.preparePromptRuntimePlanForRoute(ctx, session, plan.selection, snapshot.acceptedCommand)
+	routePlan, err := m.preparePromptRuntimePlanForRoute(
+		ctx, session, plan.selection, snapshot.acceptedCommand, snapshot.acceptedSessionEnv,
+	)
 	if err != nil {
 		return nil, err
 	}

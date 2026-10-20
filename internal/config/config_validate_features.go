@@ -50,5 +50,5 @@ func (c *Config) validateFeatures(lookup envLookup) error {
 	if err := c.Worktrees.Validate(); err != nil {
 		return fmt.Errorf("validate worktrees config: %w", err)
 	}
-	return nil
+	return c.Vault.Validate()
 }

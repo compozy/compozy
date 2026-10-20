@@ -39,6 +39,7 @@ func settingsRoleFallbackPayloads(values []compozyconfig.RoleFallback) []contrac
 	payloads := make([]contract.SettingsRoleFallbackPayload, 0, len(values))
 	for _, value := range values {
 		payloads = append(payloads, contract.SettingsRoleFallbackPayload{
+			SessionEnv:      SessionEnvToPayload(value.SessionEnv),
 			Provider:        strings.TrimSpace(value.Provider),
 			Model:           strings.TrimSpace(value.Model),
 			ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
@@ -88,6 +89,7 @@ func roleFallbacksFromSettingsPayload(values []contract.SettingsRoleFallbackPayl
 	fallbacks := make([]compozyconfig.RoleFallback, 0, len(values))
 	for _, value := range values {
 		fallbacks = append(fallbacks, compozyconfig.RoleFallback{
+			SessionEnv:      sessionEnvFromPayload(value.SessionEnv),
 			Provider:        strings.TrimSpace(value.Provider),
 			Model:           strings.TrimSpace(value.Model),
 			ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),

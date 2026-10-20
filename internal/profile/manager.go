@@ -165,7 +165,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 	if strings.TrimSpace(m.home.ProfilesDir) == "" {
 		return nil, errors.New("profile: profiles directory is required")
 	}
-	vaultRefs, err := vault.NewProfileRefRewriter(vault.NewFileKeyProvider(m.home.HomeDir, nil))
+	vaultRefs, err := vault.NewProfileRefRewriter(compozyconfig.NewVaultKeyProvider(m.home.HomeDir, nil))
 	if err != nil {
 		return nil, fmt.Errorf("profile: create vault ref rewriter: %w", err)
 	}

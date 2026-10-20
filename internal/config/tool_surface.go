@@ -207,6 +207,10 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 		return PathPolicy{}, err
 	}
 	policy := PathPolicy{Segments: clean, Kind: ConfigValueString}
+	if kind, ok := sessionEnvMutationKind(clean); ok {
+		policy.Kind = kind
+		return policy, nil
+	}
 	joined := strings.Join(clean, ".")
 	if kind, ok := agentMutableConfigKinds[joined]; ok {
 		policy.Kind = kind
@@ -260,6 +264,8 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 // NormalizeToolConfigValue coerces a JSON-decoded tool value into a supported TOML value.
 func NormalizeToolConfigValue(kind ValueKind, value any) (any, error) {
 	switch kind {
+	case ConfigValueSessionEnv, ConfigValueSessionEnvBinding:
+		return normalizeSessionEnvMutation(kind, value)
 	case ConfigValueString:
 		typed, ok := value.(string)
 		if !ok {

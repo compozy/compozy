@@ -23,6 +23,7 @@ type sessionStartSpec struct {
 	commandFingerprint string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
 	command    string
+	sessionEnv compozyconfig.SessionEnv
 	chainOwner ChainOwner
 	// fallbackAttempt is the chain index this launch attempts (0 = primary route).
 	fallbackAttempt int

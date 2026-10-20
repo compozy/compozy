@@ -86,6 +86,7 @@ func terminalManagerOptions(
 		terminalpkg.WithAgentNiceness(state.cfg.Daemon.Load.AgentNiceness),
 		terminalpkg.WithClock(d.now),
 		terminalpkg.WithJournal(journal),
+		terminalpkg.WithEnvironmentProvider(terminalEnvironmentProvider(state)),
 	}
 	if state.terminalPermissions == nil {
 		state.terminalPermissions = newTerminalPermissionBridge()

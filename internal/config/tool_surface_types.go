@@ -16,6 +16,8 @@ const (
 	ConfigValueScalar
 	ConfigValueLoopInput
 	ConfigValueACPOptions
+	ConfigValueSessionEnv
+	ConfigValueSessionEnvBinding
 )
 
 // PathDenial is the config package's path-policy decision.

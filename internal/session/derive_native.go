@@ -73,7 +73,7 @@ func nativeForkEligible(
 	}
 	sourceRoute := source.providerRoutingSnapshot()
 	if !compatibleSpawnProviderRoute(sourceRoute, childRoute) ||
-		providerCommandFingerprint(sourceRoute.Command) != providerCommandFingerprint(childRoute.Command) {
+		sourceRoute.LaunchFingerprint() != childRoute.LaunchFingerprint() {
 		return nativeForkDecision{Reason: nativeForkReasonRoute}
 	}
 	return nativeForkDecision{Eligible: true}
@@ -198,7 +198,7 @@ func (m *Manager) attemptNativeFork(
 		Provider:           strings.TrimSpace(childRoute.Provider),
 		AuthMode:           string(childRoute.AuthMode),
 		HomePolicy:         string(childRoute.HomePolicy),
-		CommandFingerprint: providerCommandFingerprint(childRoute.Command),
+		CommandFingerprint: childRoute.LaunchFingerprint(),
 		State:              store.SessionNativeStatePending,
 	}, ""
 }
@@ -209,7 +209,7 @@ func nativeBootstrapMatchesRoute(native store.SessionNativeBootstrap, route comp
 	return strings.TrimSpace(route.Provider) == native.Provider &&
 		string(route.AuthMode) == native.AuthMode &&
 		string(route.HomePolicy) == native.HomePolicy &&
-		providerCommandFingerprint(route.Command) == native.CommandFingerprint
+		route.LaunchFingerprint() == native.CommandFingerprint
 }
 
 // nativeForkErrorText renders a native fork or load failure for the read model: the
@@ -262,6 +262,7 @@ func (m *Manager) resolveForkChildRoute(
 			agentDef,
 			compozyconfig.RuntimeOverrides{
 				Provider: route.Provider, Model: route.Model, Reasoning: route.ReasoningEffort, Command: route.Command,
+				SessionEnv: route.SessionEnv,
 			},
 		)
 		if resolveErr != nil || !acceptedRouteMatchesResolved(*record, resolved) {
@@ -302,5 +303,5 @@ func acceptedRouteMatchesResolved(record store.SessionAcceptedRoute, resolved co
 	return strings.TrimSpace(resolved.Provider) == record.Provider &&
 		string(resolved.AuthMode) == record.AuthMode &&
 		string(resolved.HomePolicy) == record.HomePolicy &&
-		providerCommandFingerprint(resolved.Command) == record.CommandFingerprint
+		resolved.LaunchFingerprint() == record.CommandFingerprint
 }

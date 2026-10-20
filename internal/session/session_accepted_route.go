@@ -8,6 +8,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+func fallbackRouteFingerprint(route FallbackRoute) string {
+	return (compozyconfig.ResolvedAgent{Command: route.Command, SessionEnv: route.SessionEnv}).LaunchFingerprint()
+}
+
 // acceptedRouteRecord describes the binding ACP accepted without its command text.
 func acceptedRouteRecord(attempt int, resolved compozyconfig.ResolvedAgent, model string) *store.SessionAcceptedRoute {
 	if strings.TrimSpace(model) == "" {
@@ -19,19 +23,24 @@ func acceptedRouteRecord(attempt int, resolved compozyconfig.ResolvedAgent, mode
 		Model:              model,
 		AuthMode:           string(resolved.AuthMode),
 		HomePolicy:         string(resolved.HomePolicy),
-		CommandFingerprint: providerCommandFingerprint(resolved.Command),
+		CommandFingerprint: resolved.LaunchFingerprint(),
 	})
 }
 
 // commitAcceptedRoute records the accepted binding; the caller persists it in the same
 // meta write as the ACP session id it belongs to.
-func (s *Session) commitAcceptedRoute(route *store.SessionAcceptedRoute, command string) {
+func (s *Session) commitAcceptedRoute(
+	route *store.SessionAcceptedRoute,
+	command string,
+	sessionEnv compozyconfig.SessionEnv,
+) {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
 	s.acceptedRoute = store.CloneSessionAcceptedRoute(route)
 	s.acceptedCommand = strings.TrimSpace(command)
+	s.acceptedSessionEnv = compozyconfig.MergeSessionEnv(nil, sessionEnv)
 	s.mu.Unlock()
 }
 

@@ -93,6 +93,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		Name:            agentName,
 		Provider:        agent.Provider,
 		Command:         agent.Command,
+		SessionEnv:      sessionEnvFromPayload(agent.SessionEnv),
 		Model:           agent.Model,
 		ReasoningEffort: string(agent.ReasoningEffort),
 		Speed:           agent.Speed,

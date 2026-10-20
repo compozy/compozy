@@ -3443,6 +3443,9 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	if addDeclaredEnvironmentSchemas(baseline) == 0 {
+		t.Fatal("approved environment additions: no historical declaration owners found")
+	}
 	// #832: last_known has the existing optional RuntimeSelectionPayload contract.
 	if addLastKnownRuntimeSchema(baseline) == 0 {
 		t.Fatal("approved session runtime addition: no historical runtime schemas found")
@@ -3533,6 +3536,58 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 
 // The historical baseline inlines SessionRuntimePayload at every response site.
 // Preserve its complete existing shape and add only the explicitly approved field.
+func addDeclaredEnvironmentSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addDeclaredEnvironmentSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addDeclaredEnvironmentSchemas(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok {
+			return count
+		}
+		runtime := properties["sources"] != nil && properties["provider"] != nil && properties["acp_options"] != nil
+		declarations := properties["command"] != nil && properties["provider"] != nil &&
+			properties["acp_options"] != nil
+		if runtime || declarations || properties["credential_slots"] != nil {
+			properties["session_env"] = map[string]any{
+				"type": "object",
+				"additionalProperties": map[string]any{
+					"type":     "object",
+					"required": []any{"ref", "required"},
+					"properties": map[string]any{
+						"ref":      map[string]any{"type": "string"},
+						"required": map[string]any{"type": "boolean"},
+					},
+				},
+			}
+			count++
+		}
+		providerDetail := properties["auth_status"] != nil && properties["runtime_strategy"] != nil &&
+			properties["display_name"] != nil
+		if runtime || providerDetail || properties["command_available"] != nil && properties["credentials"] != nil {
+			properties["session_env_status"] = map[string]any{
+				"type": "array", "items": map[string]any{
+					"type": "object", "required": []any{"name", "present", "required", "secret_ref", "target_env"},
+					"properties": map[string]any{
+						"name": map[string]any{"type": "string"}, "target_env": map[string]any{"type": "string"},
+						"secret_ref": map[string]any{"type": "string"}, "kind": map[string]any{"type": "string"},
+						"source": map[string]any{"type": "string"}, "required": map[string]any{"type": "boolean"},
+						"present": map[string]any{"type": "boolean"},
+					},
+				},
+			}
+			count++
+		}
+	}
+	return count
+}
+
 func addLastKnownRuntimeSchema(value any) int {
 	count := 0
 	switch node := value.(type) {

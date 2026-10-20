@@ -76,7 +76,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		Title: request.Title, Shell: request.Argv[0], Cwd: cwd, Mode: ModePipe, State: terminalStateRunning,
 		Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
-	item, _, err := m.launchTerminal(ctx, terminalLaunch{
+	item, _, err := m.launchTerminal(ctx, &terminalLaunch{
 		spec: spec, info: info, origin: request.Actor, settings: settings, nonce: nonce, titlePinned: true,
 		startLabel: fmt.Sprintf("pipe command %q", request.Argv[0]),
 	})

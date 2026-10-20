@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// AgentSoulValidateByPathRequest is a daemon API value.
+type AgentSoulValidateByPathRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Body        string `json:"body,omitempty"`
+}
+
 // AgentSoulValidateRequest is a daemon API value.
 type AgentSoulValidateRequest struct {
 	WorkspaceID string `json:"workspace_id,omitempty"`
@@ -431,20 +437,3 @@ type Blocker struct {
 	Expired      bool       `json:"expired,omitzero"`
 	Unblocker    string     `json:"unblocker"`
 }
-
-// Briefing is a daemon API value.
-type Briefing struct {
-	RunID     RunID         `json:"run_id"`
-	Status    Status        `json:"status"`
-	Tone      BriefingTone  `json:"tone"`
-	Headline  string        `json:"headline"`
-	Detail    string        `json:"detail,omitempty"`
-	Blockers  []Blocker     `json:"blockers"`
-	Outcome   *RunOutcome   `json:"outcome,omitzero"`
-	Artifacts []RunArtifact `json:"artifacts"`
-	Progress  StepProgress  `json:"progress"`
-	Usage     RunUsage      `json:"usage"`
-}
-
-// BriefingTone is a daemon API value.
-type BriefingTone string

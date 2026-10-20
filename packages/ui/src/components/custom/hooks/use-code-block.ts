@@ -120,7 +120,7 @@ export function useCodeBlock({
   };
 }
 
-function useResolvedCodeTheme(themeMode: CodeBlockThemeMode): CodeBlockResolvedTheme {
+export function useResolvedCodeTheme(themeMode: CodeBlockThemeMode): CodeBlockResolvedTheme {
   const subscribe = (onStoreChange: () => void) => {
     if (themeMode !== "auto") return () => {};
     return subscribeToCodeTheme(onStoreChange);

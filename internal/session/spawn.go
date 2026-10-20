@@ -65,7 +65,8 @@ type SpawnOpts struct {
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
 	// Command is an explicit launch command for this attempt (a fallback route's account).
-	Command string
+	Command    string
+	SessionEnv compozyconfig.SessionEnv
 	// ChainOwner declares who owns the fallback chain; see CreateOpts.ChainOwner.
 	ChainOwner ChainOwner
 }
@@ -128,6 +129,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		ParentSoulDigest:    strings.TrimSpace(parent.SoulDigest),
 		DiscardStartFailure: normalized.DiscardStartFailure,
 		Command:             normalized.Command,
+		SessionEnv:          compozyconfig.MergeSessionEnv(nil, normalized.SessionEnv),
 		ChainOwner:          normalized.ChainOwner,
 	})
 	if err != nil {
@@ -201,6 +203,7 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
 	normalized.Model = strings.TrimSpace(normalized.Model)
 	normalized.Command = strings.TrimSpace(normalized.Command)
+	normalized.SessionEnv = compozyconfig.MergeSessionEnv(nil, normalized.SessionEnv)
 	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
 	var err error
 	normalized.ACPOptions, err = acp.NormalizeSessionConfigOptionSelections(normalized.ACPOptions)

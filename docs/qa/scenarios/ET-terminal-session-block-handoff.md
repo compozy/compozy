@@ -43,3 +43,29 @@ Walk:
 so it could not create a fresh agent transcript block. The browser terminal, public projections, and
 focused component suites verified the changed invariant: viewer presence has no controller identity and
 terminal output remains untrusted. A future provider-backed scenario should re-walk the complete block.
+
+## Declared launch environment (#828)
+
+In an isolated home, declare a disposable Vault token and optional `env:SSH_AUTH_SOCK` on the
+workspace's default agent. Use a disposable socket path, never the operator's authentication socket.
+
+1. Launch a human terminal and an agent terminal command. Verify each process can use its declared
+   token and socket without printing the token. An undeclared credential remains filtered.
+2. Remove the optional source and launch again: the target must be absent, including when a stale
+   caller override exists. Remove a required source: launch must fail before process creation.
+3. Give the agent a different profile and verify foreign profile Vault references fail. A stale
+   run or runtime generation must not obtain declarations from the replacement session.
+4. Delegate a worker with no account override, then one with its own `session_env`. Verify the first
+   inherits the creator account and the second uses its explicit declaration.
+5. Change a declared account reference before resume. Verify context replay occurs rather than
+   loading the previous account's native session. Inspect diagnostics and retained command artifacts
+   for the disposable secret; only redacted content may appear.
+
+Focused validation covers real Unix pipe environment injection/removal, terminal exec lifetime,
+session authority, worker precedence and resume affinity. The full provider-backed UI walk remains pending.
+
+2026-10-20 targeted #828 re-walk: the isolated daemon's human `terminal exec` path passed env/Vault
+injection, disposable socket injection, undeclared filtering, stale optional override removal,
+required-missing pre-launch failure, and output redaction. CLI/API/runtime behavior passed;
+manifest-owned teardown was clean. Agent transcript and Loop inheritance remain covered by focused
+runtime suites, with a provider-backed UI walk still unverified. See the issues verification report.

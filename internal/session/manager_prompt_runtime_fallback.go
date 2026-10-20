@@ -27,6 +27,7 @@ func (m *Manager) bindPromptRuntimeWithFallback(
 		Speed:           plan.selection.Speed,
 		ACPOptions:      acp.CloneSessionConfigOptionSelections(plan.selection.ACPOptions),
 		Command:         plan.spec.command,
+		SessionEnv:      compozyconfig.MergeSessionEnv(nil, plan.spec.sessionEnv),
 	}
 	baseSpec := plan.spec
 	agentDef := compozyconfig.CloneAgentDef(plan.runtime.agentDef)
@@ -44,7 +45,13 @@ func (m *Manager) bindPromptRuntimeWithFallback(
 		func(ctx context.Context, attempt int, route FallbackRoute) (*AgentProcess, error) {
 			attemptPlan := plan
 			if attempt > 0 {
-				routePlan, err := m.preparePromptRuntimePlanForRoute(ctx, session, route.selection(), route.Command)
+				routePlan, err := m.preparePromptRuntimePlanForRoute(
+					ctx,
+					session,
+					route.selection(),
+					route.Command,
+					route.SessionEnv,
+				)
 				if err != nil {
 					return nil, err
 				}
@@ -81,6 +88,7 @@ func (m *Manager) resolveFallbackRouteCommand(
 	spec.command = strings.TrimSpace(route.Command)
 	resolved, err := spec.workspace.Config.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{
 		Provider: spec.provider, Model: spec.model, Reasoning: spec.reasoningEffort, Command: spec.command,
+		SessionEnv: route.SessionEnv,
 	})
 	if err != nil {
 		return ""

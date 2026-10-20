@@ -2672,6 +2672,7 @@ export type {
   SessionDeriveErrorPayload,
   SessionDerivePreviewResponse,
   SessionDeriveResponse,
+  SessionEnvBindingPayload,
   SessionEventPayload,
   SessionEventsResponse,
   SessionFailureHealthPayload,

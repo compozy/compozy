@@ -112,6 +112,7 @@ function ProviderTechnicalDetails({
       <CuratedModelsSection provider={provider} />
       <AuthenticationSection provider={provider} showLogin={showLogin} />
       <CredentialsSection provider={provider} />
+      <SessionEnvironmentSection provider={provider} />
 
       <InspectSection id="source" label="Defined in">
         <SettingsSourceBadge
@@ -229,6 +230,16 @@ function CredentialsSection({ provider }: { provider: SettingsProviderEntry }) {
       label={`Keys (${credentials.length || credentialSlots.length})`}
     >
       <CredentialList slots={credentialSlots} credentials={credentials} />
+    </InspectSection>
+  );
+}
+
+function SessionEnvironmentSection({ provider }: { provider: SettingsProviderEntry }) {
+  const statuses = provider.session_env_status ?? [];
+  if (statuses.length === 0) return null;
+  return (
+    <InspectSection id="session-environment" label={`Session environment (${statuses.length})`}>
+      <CredentialList slots={[]} credentials={statuses} />
     </InspectSection>
   );
 }

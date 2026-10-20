@@ -20,6 +20,7 @@ func cloneProviders(src map[string]ProviderConfig) map[string]ProviderConfig {
 
 func cloneProvider(src ProviderConfig) ProviderConfig {
 	return ProviderConfig{
+		SessionEnv:       MergeSessionEnv(nil, src.SessionEnv),
 		Command:          src.Command,
 		CommandIsBuiltin: src.CommandIsBuiltin,
 		DisplayName:      src.DisplayName,

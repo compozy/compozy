@@ -7,6 +7,73 @@ import (
 	"time"
 )
 
+// LoopRunPayload is a daemon API value.
+type LoopRunPayload struct {
+	ID                string                `json:"id"`
+	ProfileID         string                `json:"profile_id"`
+	ProfileName       string                `json:"profile_name"`
+	ProfileColor      string                `json:"profile_color,omitempty"`
+	ProfileIcon       string                `json:"profile_icon,omitempty"`
+	WorkspaceID       string                `json:"workspace_id"`
+	LoopName          string                `json:"loop_name"`
+	Status            LoopRunStatus         `json:"status"`
+	Historical        bool                  `json:"historical"`
+	CompletionState   LoopCompletionState   `json:"completion_state"`
+	Generation        int64                 `json:"generation"`
+	BestGeneration    *int64                `json:"best_generation,omitzero"`
+	BestScore         *float64              `json:"best_score,omitzero"`
+	ForkedFrom        *LoopForkRef          `json:"forked_from,omitzero"`
+	Forks             []LoopForkRef         `json:"forks"`
+	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
+	CreatedAt         time.Time             `json:"created_at"`
+	StartedAt         time.Time             `json:"started_at"`
+	LastProgressAt    time.Time             `json:"last_progress_at"`
+	CompletedAt       *time.Time            `json:"completed_at,omitempty"`
+	StartedByKind     string                `json:"started_by_kind,omitempty"`
+	StartedByRef      string                `json:"started_by_ref,omitempty"`
+	StartedOriginKind string                `json:"started_origin_kind,omitempty"`
+	StartedOriginRef  string                `json:"started_origin_ref,omitempty"`
+	DefinitionVersion int                   `json:"definition_version"`
+	DefinitionDigest  string                `json:"definition_digest,omitempty"`
+	ActiveGateID      string                `json:"active_gate_id,omitempty"`
+	BudgetApprovalSeq int                   `json:"budget_approval_seq,omitzero"`
+	StartMetadata     map[string]any        `json:"start_metadata,omitempty"`
+	IterationCap      int                   `json:"iteration_cap"`
+	BudgetTokens      int                   `json:"budget_tokens"`
+	BudgetWallSec     int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded  LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	TokensUsed        int64                 `json:"tokens_used"`
+	ParentLoopRunID   string                `json:"parent_loop_run_id,omitempty"`
+	PauseRequested    bool                  `json:"pause_requested"`
+	Inputs            map[string]any        `json:"inputs,omitempty"`
+	Attention         *LoopRunAttention     `json:"attention,omitzero"`
+	Progress          LoopRunProgress       `json:"progress"`
+}
+
+// LoopRunProgress is a daemon API value.
+type LoopRunProgress struct {
+	Round      int `json:"round"`
+	StepsDone  int `json:"steps_done"`
+	StepsTotal int `json:"steps_total"`
+}
+
+// LoopRunResponse is a daemon API value.
+type LoopRunResponse struct {
+	Run                  LoopRunPayload             `json:"run"`
+	ExecutedDefinition   *LoopDefinitionDocument    `json:"executed_definition,omitzero"`
+	MaterializedContract LoopContract               `json:"materialized_contract"`
+	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
+	Generations          []LoopGenerationPayload    `json:"generations,omitempty"`
+	NodeControls         []LoopNodeControlPayload   `json:"node_controls"`
+	Waits                []LoopNodeWaitPayload      `json:"waits"`
+	Requests             []LoopRequestPayload       `json:"requests"`
+	Amendments           []LoopNodeAmendmentPayload `json:"amendments"`
+	WatchEvents          *LoopWatchEventsState      `json:"watch_events,omitzero"`
+}
+
+// LoopRunStatus is a daemon API value.
+type LoopRunStatus string
+
 // LoopRunsAggregatePayload is a daemon API value.
 type LoopRunsAggregatePayload struct {
 	Total      int `json:"total"`
@@ -365,86 +432,4 @@ type ModelCatalogSourceRefPayload struct {
 	RefreshedAt string `json:"refreshed_at,omitempty"`
 	Stale       bool   `json:"stale"`
 	LastError   string `json:"last_error,omitempty"`
-}
-
-// ModelCatalogSourceStatusPayload is a daemon API value.
-type ModelCatalogSourceStatusPayload struct {
-	FailureReason string `json:"failure_reason,omitempty"`
-	SourceID      string `json:"source_id"`
-	SourceKind    string `json:"source_kind"`
-	ProviderID    string `json:"provider_id"`
-	Priority      int    `json:"priority"`
-	LastRefresh   string `json:"last_refresh,omitempty"`
-	NextRefresh   string `json:"next_refresh,omitempty"`
-	LastSuccess   string `json:"last_success,omitempty"`
-	LastError     string `json:"last_error,omitempty"`
-	RefreshState  string `json:"refresh_state"`
-	RowCount      int    `json:"row_count"`
-	Stale         bool   `json:"stale"`
-}
-
-// MoveSessionRequest is a daemon API value.
-type MoveSessionRequest struct {
-	FolderID string `json:"folder_id,omitempty"`
-}
-
-// NewSessionWorktreeRequest is a daemon API value.
-type NewSessionWorktreeRequest struct {
-	Name string `json:"name,omitempty"`
-}
-
-// NewWindowPolicy is a daemon API value.
-type NewWindowPolicy string
-
-// NoProgress is a daemon API value.
-type NoProgress struct {
-	Window int `json:"window"`
-}
-
-// Node is a daemon API value.
-type Node struct {
-	ID             NodeID              `json:"id"`
-	Class          NodeClass           `json:"class"`
-	Kind           string              `json:"kind"`
-	Session        *SessionSpec        `json:"session,omitzero"`
-	Timeout        string              `json:"timeout,omitempty"`
-	Retry          *RetrySpec          `json:"retry,omitzero"`
-	Review         *ReviewSpec         `json:"review,omitzero"`
-	Deadline       string              `json:"deadline,omitempty"`
-	ResultContract *ResultContract     `json:"result_contract,omitzero"`
-	OnError        *ErrorPolicy        `json:"on_error,omitzero"`
-	OnRetry        []EffectSpec        `json:"on_retry,omitempty"`
-	OnSuccess      []EffectSpec        `json:"on_success,omitempty"`
-	OnPause        []EffectSpec        `json:"on_pause,omitempty"`
-	OnTimeout      []EffectSpec        `json:"on_timeout,omitempty"`
-	OnCancel       []EffectSpec        `json:"on_cancel,omitempty"`
-	OnQuarantine   []EffectSpec        `json:"on_quarantine,omitempty"`
-	OnParentClose  ParentClosePolicy   `json:"on_parent_close,omitempty"`
-	Harvest        *HarvestSpec        `json:"harvest,omitzero"`
-	Produces       map[string]any      `json:"produces,omitempty"`
-	Params         map[string]any      `json:"params,omitempty"`
-	Collection     string              `json:"collection,omitempty"`
-	Filter         string              `json:"filter,omitempty"`
-	BatchSize      int                 `json:"batch_size,omitzero"`
-	MaxParallel    int                 `json:"max_parallel,omitzero"`
-	MaxFanOut      int                 `json:"max_fan_out,omitzero"`
-	Strategy       *StrategySpec       `json:"strategy,omitzero"`
-	BindAs         string              `json:"bind_as,omitempty"`
-	IndexAs        string              `json:"index_as,omitempty"`
-	Condition      string              `json:"condition,omitempty"`
-	OnEvalError    EvalErrorPolicy     `json:"on_eval_error,omitempty"`
-	Routes         []RouteSpec         `json:"routes,omitempty"`
-	Default        NodeID              `json:"default,omitempty"`
-	Criteria       []GateCriterion     `json:"criteria,omitempty"`
-	VerdictPolicy  VerdictPolicy       `json:"verdict_policy,omitempty"`
-	OnResult       map[string]any      `json:"on_result,omitempty"`
-	MaxRevisions   int                 `json:"max_revisions,omitzero"`
-	Expires        *WaitExpiry         `json:"expires,omitzero"`
-	Body           *Graph              `json:"body,omitzero"`
-	Contract       *Contract           `json:"contract,omitzero"`
-	InputRef       string              `json:"input_ref,omitempty"`
-	Pattern        string              `json:"pattern,omitempty"`
-	Parse          FileParseKind       `json:"parse,omitempty"`
-	WatchSpec      map[string]any      `json:"watch,omitempty"`
-	Events         []EventSubscription `json:"events,omitempty"`
 }

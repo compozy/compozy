@@ -169,6 +169,77 @@ The flat keys `default_model`, `supported_models`, and `supports_reasoning_effor
 accepted. Config that still sets them is rejected at load time with a deterministic hard-cut error
 that names the exact path. Move every value into the nested `[providers.<id>.models]` block below.
 
+## Declared session environment
+
+Use `session_env` to pass selected environment variables to a provider process, including a
+`native_cli` provider. Authentication ownership stays with the provider CLI; these declarations
+do not turn native login into `bound_secret` authentication.
+
+```toml
+[providers.codex.session_env]
+GH_TOKEN = "vault:providers/codex/github"
+SSH_AUTH_SOCK = { ref = "env:SSH_AUTH_SOCK", required = false }
+DBUS_SESSION_BUS_ADDRESS = { ref = "env:DBUS_SESSION_BUS_ADDRESS", required = false }
+```
+
+Each key is the target environment variable name. Values must be `env:NAME` or a supported
+`vault:<namespace>/<path>` reference, either as a string or a table with `ref` and `required`.
+Literal values are rejected. A string declaration is required by default; an absent required
+reference fails launch, while an absent optional reference is skipped with a diagnostic.
+Undeclared variables retain the existing environment filter, including socket variables.
+`COMPOZY_` names are reserved for managed runtime identity.
+
+The configuration CLI accepts a reference for a single binding or JSON for a structured binding:
+
+```sh
+compozy config set providers.codex.session_env.GH_TOKEN env:GH_TOKEN -o json
+compozy config set providers.codex.session_env.SSH_AUTH_SOCK \
+  '{"ref":"env:SSH_AUTH_SOCK","required":false}' -o json
+compozy config get providers.codex.session_env -o json
+```
+
+To replace the complete table, set `providers.codex.session_env` to a JSON object of declarations.
+The native `compozy__config_set` tool accepts the same table and binding paths with structured values.
+Inspect the returned apply lifecycle before launching a new session.
+
+An agent can override provider declarations by name in `AGENT.md`:
+
+```yaml
+session_env:
+  GH_TOKEN: vault:providers/codex/project-github
+  SSH_AUTH_SOCK:
+    ref: env:SSH_AUTH_SOCK
+    required: false
+```
+
+Fallback routes accept the same `session_env` mapping beside `command`. Resolution occurs at
+launch, and resolved values are registered with runtime secret redaction. Profile-scoped Vault
+references must belong to the launching profile. Configuration and definition reads retain
+references, never resolved values. `compozy provider inspect codex -o json` reports presence and
+source; Settings → Providers → Technical details shows the same reference-only information.
+`compozy agent show <name> -o json` includes effective environment presence/source metadata,
+also shown in the agent's Configuration tab. Saving unrelated agent settings preserves authored
+environment declarations, including declarations on fallback routes.
+Saving other provider settings preserves an omitted `session_env`; send an explicit empty table
+to remove the provider declarations.
+
+The integrated terminal uses the launching agent's bound declarations for agent-owned commands,
+and the workspace's default agent declarations for human-owned shells. Required references are
+resolved before the process starts. An optional missing declaration removes an inherited target
+instead of retaining an older value. System-owned pipe consumers keep their own launch policy.
+Provider-owned shell tools can apply an additional environment filter after the provider process
+starts. For example, the Codex-owned shell may strip token names independently. Use the CompozyOS
+native terminal tools when commands need the declared environment; their launch boundary resolves
+these references explicitly.
+Delegated workers inherit the creator's declarations together with its account command unless
+the child explicitly declares its own command or session environment.
+
+Changing a declared reference changes the native route identity: resume replays context rather
+than loading a native session created for a different declared account. Existing configurations
+without `session_env` retain their previous route fingerprints and need no migration.
+
+See [Vault](/docs/configuration/vault) for secret storage and explicit OS-keyring migration.
+
 ## Provider models
 
 Each provider declares pre-session model defaults and curated metadata under `[providers.<id>.models]`.

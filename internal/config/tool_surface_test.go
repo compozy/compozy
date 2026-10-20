@@ -20,6 +20,10 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		redacted bool
 	}{
 		{
+			name: "Should reject Vault key provider trust root",
+			path: "vault.key_provider", denial: ConfigPathTrustForbidden,
+		},
+		{
 			name: "Should allow provider steer capability mutation",
 			path: "providers.codex.steer_capability", kind: ConfigValueString,
 		},

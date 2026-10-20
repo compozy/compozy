@@ -272,12 +272,17 @@ func (h *BaseHandlers) providerSummaryPayload(
 	if err != nil {
 		return contract.ProviderSummaryPayload{}, err
 	}
+	sessionEnv, err := authproviders.SessionEnvStatuses(ctx, provider.SessionEnv, &env)
+	if err != nil {
+		return contract.ProviderSummaryPayload{}, err
+	}
 	return contract.ProviderSummaryPayload{
-		Name:            providerName,
-		DisplayName:     strings.TrimSpace(provider.DisplayName),
-		RuntimeStrategy: providerRuntimeStrategy(providerName, provider.RuntimeProviderName(providerName)),
-		Default:         compozyconfig.CanonicalProviderName(defaultProvider) == providerName,
-		AuthStatus:      authStatus,
+		SessionEnvStatus: sessionEnvStatusPayloads(sessionEnv),
+		Name:             providerName,
+		DisplayName:      strings.TrimSpace(provider.DisplayName),
+		RuntimeStrategy:  providerRuntimeStrategy(providerName, provider.RuntimeProviderName(providerName)),
+		Default:          compozyconfig.CanonicalProviderName(defaultProvider) == providerName,
+		AuthStatus:       authStatus,
 	}, nil
 }
 

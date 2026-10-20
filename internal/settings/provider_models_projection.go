@@ -54,6 +54,7 @@ func providerSettingsBaseFromConfig(name string, provider compozyconfig.Provider
 		AuthStatusCmd:    strings.TrimSpace(provider.AuthStatusCmd),
 		AuthACPMethod:    strings.TrimSpace(provider.AuthACPMethod),
 		CredentialSlots:  provider.EffectiveCredentialSlots(),
+		SessionEnv:       compozyconfig.MergeSessionEnv(nil, provider.SessionEnv),
 	}
 }
 

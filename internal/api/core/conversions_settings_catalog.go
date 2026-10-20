@@ -83,6 +83,7 @@ func settingsProviderItemPayload(value *settingspkg.ProviderItem) contract.Setti
 		return contract.SettingsProviderItemPayload{}
 	}
 	payload := contract.SettingsProviderItemPayload{
+		SessionEnvStatus: settingsProviderCredentialStatusPayloads(value.SessionEnvStatus),
 		Name:             strings.TrimSpace(value.Name),
 		Settings:         settingsProviderSettingsPayload(value.Settings),
 		RuntimeStrategy:  providerRuntimeStrategy(value.Name, value.Settings.RuntimeProvider),
@@ -103,6 +104,7 @@ func settingsProviderItemPayload(value *settingspkg.ProviderItem) contract.Setti
 
 func settingsProviderSettingsPayload(value settingspkg.ProviderSettings) contract.SettingsProviderSettingsPayload {
 	return contract.SettingsProviderSettingsPayload{
+		SessionEnv:       SessionEnvToPayload(value.SessionEnv),
 		Command:          strings.TrimSpace(value.Command),
 		CommandInherited: value.CommandInherited,
 		DisplayName:      strings.TrimSpace(value.DisplayName),

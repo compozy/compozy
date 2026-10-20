@@ -13,10 +13,156 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/zalando/go-keyring"
 )
 
 type staticKeyProvider struct {
 	key []byte
+}
+
+type memoryKeyring struct {
+	getCalls        int
+	values          map[string]string
+	getErr          error
+	corruptReadback bool
+}
+
+var _ Keyring = (*memoryKeyring)(nil)
+
+func (r *memoryKeyring) Get(service, account string) (string, error) {
+	r.getCalls++
+	if r.getErr != nil {
+		return "", r.getErr
+	}
+	value, ok := r.values[service+account]
+	if !ok {
+		return "", keyring.ErrNotFound
+	}
+	if r.corruptReadback {
+		return strings.Repeat("x", keySizeBytes), nil
+	}
+	return value, nil
+}
+
+func (r *memoryKeyring) Set(service, account, value string) error {
+	r.values[service+account] = value
+	return nil
+}
+
+func (r *memoryKeyring) Delete(service, account string) error {
+	delete(r.values, service+account)
+	return nil
+}
+
+func TestVaultKeyringMigration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should verify all records and make repeated migration idempotent", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		fileKeys := NewFileKeyProvider(home, func(string) (string, bool) { return "", false })
+		store := newMemoryVaultStore()
+		service, err := NewService(store, fileKeys)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, ref := range []string{"vault:providers/custom/one", "vault:profiles/work/providers/custom/two"} {
+			if _, err := service.PutSecret(t.Context(), ref, "token", "migration-secret"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		ring := &memoryKeyring{values: map[string]string{}}
+		for range 2 {
+			activated := false
+			count, err := MigrateToKeyring(t.Context(), home, store, ring, func() error {
+				readbackService, err := NewService(store, NewOSKeyProvider(home, ring))
+				if err != nil {
+					return err
+				}
+				value, err := readbackService.ResolveRef(t.Context(), "vault:providers/custom/one")
+				if err != nil {
+					return err
+				}
+				if value != "migration-secret" {
+					return errors.New("readback changed plaintext")
+				}
+				activated = true
+				return nil
+			})
+			if err != nil || count != 2 || !activated {
+				t.Fatalf("migration: verified=%d activated=%t error=%v", count, activated, err)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(home, "vault.key")); err != nil {
+			t.Fatal("migration removed source key", err)
+		}
+		cached := NewOSKeyProvider(home, ring)
+		before := ring.getCalls
+		first, err := cached.Key()
+		if err != nil {
+			t.Fatal(err)
+		}
+		second, err := cached.Key()
+		if err != nil || !bytes.Equal(first, second) || ring.getCalls != before+1 {
+			t.Fatal("cached provider queried the OS repeatedly", err)
+		}
+		clear(first)
+		third, err := cached.Key()
+		if err != nil || !bytes.Equal(second, third) {
+			t.Fatal("caller mutated cached key", err)
+		}
+		if _, err := NewOSKeyProvider(t.TempDir(), ring).Key(); err == nil {
+			t.Fatal("another home accessed the migrated key")
+		}
+	})
+	for _, failure := range []string{"locked", "readback", "ciphertext", "activation"} {
+		t.Run("Should preserve the source on "+failure+" failure", func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			fileKeys := NewFileKeyProvider(home, func(string) (string, bool) { return "", false })
+			original, err := fileKeys.Key()
+			if err != nil {
+				t.Fatal(err)
+			}
+			store := newMemoryVaultStore()
+			ring := &memoryKeyring{values: map[string]string{}}
+			switch failure {
+			case "locked":
+				ring.getErr = errors.New("locked private-payload-canary")
+			case "readback":
+				ring.corruptReadback = true
+			case "ciphertext":
+				store.records["vault:providers/custom/token"] = Record{
+					Ref:            "vault:providers/custom/token",
+					Kind:           "token",
+					EncryptedValue: "corrupt",
+				}
+			}
+			activated := false
+			_, err = MigrateToKeyring(t.Context(), home, store, ring, func() error {
+				if failure == "activation" {
+					return errors.New("config write failed")
+				}
+				activated = true
+				return nil
+			})
+			if err == nil || activated || len(ring.values) != 0 {
+				t.Fatalf(
+					"failed migration changed state: activated=%t entries=%d error=%v",
+					activated,
+					len(ring.values),
+					err,
+				)
+			}
+			if strings.Contains(err.Error(), "private-payload-canary") {
+				t.Fatal("keyring diagnostic leaked payload")
+			}
+			current, err := readKeyFile(filepath.Join(home, "vault.key"))
+			if err != nil || !bytes.Equal(original, current) {
+				t.Fatal("failed migration changed source key", err)
+			}
+		})
+	}
 }
 
 func (p staticKeyProvider) Key() ([]byte, error) {

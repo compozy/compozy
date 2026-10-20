@@ -7212,6 +7212,7 @@ describe("SessionThread composer mentions", () => {
   }
 
   beforeEach(() => {
+    otherSession.updated_at = new Date(Date.now() - 4 * 60_000).toISOString();
     composerAui = null;
     sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
   });

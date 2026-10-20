@@ -57,7 +57,8 @@ type CreateOpts struct {
 	DiscardStartFailure bool
 	// Command is an explicit launch command for this attempt (a fallback route's
 	// account). Empty keeps the provider-aware resolution and spawn inheritance.
-	Command string
+	Command    string
+	SessionEnv compozyconfig.SessionEnv
 	// ChainOwner declares who owns the fallback chain for this launch; role-owned
 	// launches pass ChainOwnerCaller so the session layer performs exactly one route.
 	ChainOwner ChainOwner

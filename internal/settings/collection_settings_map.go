@@ -53,7 +53,18 @@ func providerSettingsMap(settings ProviderSettings) map[string]any {
 	if len(settings.CredentialSlots) > 0 {
 		values["credential_slots"] = providerCredentialSlotMaps(settings.CredentialSlots)
 	}
+	if settings.SessionEnv != nil {
+		values["session_env"] = sessionEnvSettingsMap(settings.SessionEnv)
+	}
 	return values
+}
+
+func sessionEnvSettingsMap(env compozyconfig.SessionEnv) map[string]any {
+	declarations := make(map[string]any, len(env))
+	for name, binding := range env {
+		declarations[name] = map[string]any{"ref": binding.Ref, "required": binding.Required}
+	}
+	return declarations
 }
 
 func providerCredentialSlotMaps(slots []compozyconfig.ProviderCredentialSlot) []map[string]any {

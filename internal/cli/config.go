@@ -170,6 +170,8 @@ const (
 	configSetLoopInput
 	configSetStringOrStringSlice
 	configSetACPOptions
+	configSetSessionEnv
+	configSetSessionEnvBinding
 )
 
 var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetValueKind{

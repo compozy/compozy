@@ -244,7 +244,30 @@ describe("agent detail panels", () => {
   it("Should render Configuration sections and deep-link each Edit action", async () => {
     const user = userEvent.setup();
     const onEditSection = vi.fn();
-    render(<AgentConfigurationTab agent={agent()} onEditSection={onEditSection} />);
+    render(
+      <AgentConfigurationTab
+        agent={agent({
+          effective_runtime: {
+            provider: "codex",
+            sources: { provider: "agent" },
+            session_env_status: [
+              {
+                name: "GH_TOKEN",
+                target_env: "GH_TOKEN",
+                secret_ref: "env:GH_TOKEN",
+                source: "env",
+                present: false,
+                required: false,
+              },
+            ],
+          },
+        })}
+        onEditSection={onEditSection}
+      />
+    );
+    expect(screen.getByTestId("agent-config-runtime")).toHaveTextContent("env:GH_TOKEN");
+    expect(screen.getByTestId("agent-config-runtime")).toHaveTextContent("Missing · Optional");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(screen.getByTestId("agent-config-runtime")).toHaveTextContent("Default");
     expect(screen.queryByText("Provider")).not.toBeInTheDocument();
     expect(screen.getByTestId("agent-config-tools")).toHaveTextContent("compozy__task_view");

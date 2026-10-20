@@ -177,9 +177,53 @@ Session pages include a Vault tab in the inspector. It shows only entries below
 
 ## Operational Notes
 
-`COMPOZY_VAULT_KEY` can override the daemon-local Vault encryption key. When it is unset, CompozyOS creates
-`$COMPOZY_HOME/vault.key` with `0600` permissions the first time the Vault needs to encrypt or decrypt a
-secret.
+The default key provider is `file`. It never queries the OS keyring, including during startup or
+diagnostics. Existing installations keep their current behavior: `COMPOZY_VAULT_KEY` overrides the
+file key; otherwise CompozyOS creates `$COMPOZY_HOME/vault.key` with `0600` permissions on first use.
+
+### Opt in to the OS keyring
+
+For an existing file-backed Vault, unset `COMPOZY_VAULT_KEY` and run this command on the machine that
+owns the CompozyOS home:
+
+```bash
+compozy vault key migrate
+```
+
+The command imports the existing key, reads it back, verifies that it decrypts every existing Vault
+record, and only then changes the home configuration to:
+
+```toml
+[vault]
+key_provider = "os-keyring"
+```
+
+This setting is machine-wide. Profile and workspace overrides are rejected. Changing the setting
+without running migration fails before contacting the OS keyring. The migration records local
+opt-in evidence in `vault.keyring-ready`; it contains no encryption key or secret value.
+
+Migration retains `vault.key` and warns that the plaintext key copy remains on disk. To remove it
+after verification, explicitly pass:
+
+```bash
+compozy vault key migrate --remove-file-key
+```
+
+Repeating migration is safe, including after file removal. A failed verification leaves the file
+key and provider selection unchanged. An unavailable or locked keyring never causes an automatic
+fallback to the file provider.
+
+On macOS, the existing `go-keyring` integration uses `/usr/bin/security`. An unlocked login keychain
+normally needs no prompt, but creating an entry or accessing a locked keychain can request permission
+or a password. CompozyOS does not promise a prompt-free opt-in. The daemon reads the OS key only on
+first use and retains it in memory for that process; it does not query the keyring for each secret.
+After a failed initial keyring read, unlock the credential store and restart the daemon before retrying.
+
+### Return to the file provider
+
+If you retained the original `vault.key`, set `vault.key_provider` back to `"file"` in the home
+configuration. Do not substitute a newly generated key: existing records require the original key.
+If you removed the file, restore the original key from a secure backup before selecting `file`.
 
 Deleting a Vault ref removes the stored value. It does not rewrite existing configuration that still
 points at that ref, so dependent providers, MCP servers, hooks, automation triggers,

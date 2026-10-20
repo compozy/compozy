@@ -2387,7 +2387,7 @@ func TestForkAccountInheritance(t *testing.T) {
 		if mutate != nil {
 			mutate(&resolved)
 		}
-		source.commitAcceptedRoute(acceptedRouteRecord(2, resolved, ""), deriveRouteTwoCommand)
+		source.commitAcceptedRoute(acceptedRouteRecord(2, resolved, ""), deriveRouteTwoCommand, nil)
 		if err := h.manager.persistSessionMetadataOnly(source); err != nil {
 			t.Fatalf("persistSessionMetadataOnly(source) error = %v", err)
 		}

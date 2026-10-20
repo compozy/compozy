@@ -22,6 +22,7 @@ type runtimeBindingSnapshot struct {
 	acpSessionID        string
 	acceptedRoute       *store.SessionAcceptedRoute
 	acceptedCommand     string
+	acceptedSessionEnv  compozyconfig.SessionEnv
 	pendingResumeReplay string
 	acpCaps             acp.Caps
 	acpCapsKnown        bool
@@ -55,6 +56,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 		acpSessionID:        s.ACPSessionID,
 		acceptedRoute:       store.CloneSessionAcceptedRoute(s.acceptedRoute),
 		acceptedCommand:     s.acceptedCommand,
+		acceptedSessionEnv:  compozyconfig.MergeSessionEnv(nil, s.acceptedSessionEnv),
 		pendingResumeReplay: s.pendingResumeReplay,
 		acpCaps:             cloneCaps(s.ACPCaps),
 		acpCapsKnown:        s.ACPCapsKnown,
@@ -232,6 +234,7 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	s.ACPSessionID = snapshot.acpSessionID
 	s.acceptedRoute = store.CloneSessionAcceptedRoute(snapshot.acceptedRoute)
 	s.acceptedCommand = snapshot.acceptedCommand
+	s.acceptedSessionEnv = compozyconfig.MergeSessionEnv(nil, snapshot.acceptedSessionEnv)
 	s.pendingResumeReplay = snapshot.pendingResumeReplay
 	s.ACPCaps = cloneCaps(snapshot.acpCaps)
 	s.ACPCapsKnown = snapshot.acpCapsKnown

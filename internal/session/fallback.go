@@ -51,7 +51,8 @@ type FallbackRoute struct {
 	ACPOptions      []acp.SessionConfigOptionSelection
 	// Command is the route's explicit launch command (its account); empty inherits the
 	// provider-aware resolution. It never leaves the resolver boundary as text.
-	Command string
+	Command    string
+	SessionEnv compozyconfig.SessionEnv
 }
 
 // label names the route for humans without its command: "<provider>/<model>".
@@ -76,11 +77,15 @@ func (r FallbackRoute) selection() RuntimeSelection {
 
 // fallbackRoutesForAgent maps AgentDef.FallbackChain to FallbackRoute values in order.
 func fallbackRoutesForAgent(def compozyconfig.AgentDef) []FallbackRoute {
-	if len(def.FallbackChain) == 0 {
+	return fallbackRoutesForChain(def.FallbackChain)
+}
+
+func fallbackRoutesForChain(chain []compozyconfig.RoleFallback) []FallbackRoute {
+	if len(chain) == 0 {
 		return nil
 	}
-	routes := make([]FallbackRoute, 0, len(def.FallbackChain))
-	for _, route := range def.FallbackChain {
+	routes := make([]FallbackRoute, 0, len(chain))
+	for _, route := range chain {
 		routes = append(routes, FallbackRoute{
 			Provider:        strings.TrimSpace(route.Provider),
 			Model:           strings.TrimSpace(route.Model),
@@ -88,6 +93,7 @@ func fallbackRoutesForAgent(def compozyconfig.AgentDef) []FallbackRoute {
 			Speed:           route.Speed,
 			ACPOptions:      ACPOptionSelectionsFromConfig(route.ACPOptions),
 			Command:         strings.TrimSpace(route.Command),
+			SessionEnv:      compozyconfig.MergeSessionEnv(nil, route.SessionEnv),
 		})
 	}
 	return routes

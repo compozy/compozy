@@ -203,6 +203,10 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Con
 			Credentials:      credentials,
 			AuthStatus:       authStatus,
 		}
+		item.SessionEnvStatus, err = s.sessionEnvironmentStatuses(ctx, resolved.SessionEnv)
+		if err != nil {
+			return nil, fmt.Errorf("settings: provider %q session environment status: %w", name, err)
+		}
 
 		if overlay, ok := cfg.Providers[name]; ok {
 			item.SourceMetadata = SourceMetadata{

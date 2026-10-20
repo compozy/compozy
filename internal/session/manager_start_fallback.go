@@ -38,6 +38,7 @@ func (m *Manager) launchAcceptedSessionAttempts(
 		Speed:           spec.speed,
 		ACPOptions:      acp.CloneSessionConfigOptionSelections(spec.acpOptions),
 		Command:         spec.command,
+		SessionEnv:      compozyconfig.MergeSessionEnv(nil, spec.sessionEnv),
 	}
 	agentDef := compozyconfig.CloneAgentDef(runtime.agentDef)
 	seq := fallbackSequence{
@@ -137,6 +138,7 @@ func applyFallbackRouteToSpec(spec *sessionStartSpec, route FallbackRoute) {
 	spec.speed = selection.Speed
 	spec.acpOptions = selection.ACPOptions
 	spec.command = route.Command
+	spec.sessionEnv = compozyconfig.MergeSessionEnv(nil, route.SessionEnv)
 }
 
 // prepareFallbackStartRuntime re-resolves an accepted start for a fallback route and

@@ -6,6 +6,7 @@ import type { Components } from "streamdown";
 import { normalizeCompozyCodeLanguage } from "../../lib/code-theme";
 import { cn } from "../../lib/utils";
 import { CodeBlock } from "./code-block";
+import { MarkdownMermaid } from "./markdown-mermaid";
 import { Markdown, type MarkdownProps } from "./markdown";
 import { extendSafeMarkdownPlugins } from "./markdown-plugins";
 import { INLINE_CODE_CLASS } from "./markdown-components";
@@ -23,6 +24,8 @@ type StreamMarkdownCodeProps = React.ComponentProps<"code"> & {
   metastring?: string;
   "data-block"?: unknown;
 };
+
+const StreamMarkdownStreamingContext = React.createContext(false);
 
 function extractCodeLanguage(className?: string): string {
   const match = /language-([-\w]+)/.exec(className ?? "");
@@ -42,11 +45,13 @@ function StreamMarkdownCode({
   "data-block": dataBlock,
   ...props
 }: StreamMarkdownCodeProps) {
+  const streaming = React.use(StreamMarkdownStreamingContext);
   const code = toCodeString(children);
   const rawLanguage = extractCodeLanguage(className);
   const isBlock = dataBlock !== undefined || rawLanguage !== "" || code.includes("\n");
 
   if (isBlock) {
+    if (rawLanguage === "mermaid") return <MarkdownMermaid code={code} streaming={streaming} />;
     const normalizedLanguage = normalizeCompozyCodeLanguage(rawLanguage);
     return (
       <CodeBlock
@@ -146,12 +151,10 @@ function StreamMarkdown({
       {children}
     </Markdown>
   );
-  if (!slots) return markdown;
-  // Slots flow through context so the component map keeps one identity.
   return (
-    <StreamMarkdownSlotsContext.Provider value={slots}>
-      {markdown}
-    </StreamMarkdownSlotsContext.Provider>
+    <StreamMarkdownStreamingContext value={streaming}>
+      <StreamMarkdownSlotsContext value={slots ?? NO_SLOTS}>{markdown}</StreamMarkdownSlotsContext>
+    </StreamMarkdownStreamingContext>
   );
 }
 

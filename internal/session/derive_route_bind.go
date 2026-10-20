@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -36,13 +35,13 @@ func (m *Manager) bindPendingRoute(
 		)
 	}
 	route := routes[pending.Index-1]
-	if compozyconfig.CommandFingerprint(route.Command) != strings.TrimSpace(pending.CommandFingerprint) {
+	if fallbackRouteFingerprint(route) != strings.TrimSpace(pending.CommandFingerprint) {
 		return nil, true, m.restorePromptRuntime(session, snapshot, deriveErr(
 			ErrDeriveRouteNotFound,
 			"route_not_found: agent %q route %d changed since it was chosen", agentName, pending.Index,
 		))
 	}
-	routePlan, err := m.preparePromptRuntimePlanForRoute(ctx, session, plan.selection, route.Command)
+	routePlan, err := m.preparePromptRuntimePlanForRoute(ctx, session, plan.selection, route.Command, route.SessionEnv)
 	if err != nil {
 		return nil, true, err
 	}

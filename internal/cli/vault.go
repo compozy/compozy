@@ -40,6 +40,7 @@ func newVaultCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newVaultGetCommand(deps))
 	cmd.AddCommand(newVaultPutCommand(deps))
 	cmd.AddCommand(newVaultDeleteCommand(deps))
+	cmd.AddCommand(newVaultKeyCommand(deps))
 	return cmd
 }
 

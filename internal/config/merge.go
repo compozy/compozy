@@ -116,6 +116,7 @@ type permissionsOverlay struct {
 
 type providerOverlay struct {
 	Command         *string                     `toml:"command"`
+	SessionEnv      SessionEnv                  `toml:"session_env"`
 	SteerCapability *SteerCapability            `toml:"steer_capability"`
 	DisplayName     *string                     `toml:"display_name"`
 	Models          *providerModelsOverlay      `toml:"models"`

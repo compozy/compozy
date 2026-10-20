@@ -62,6 +62,7 @@ func cloneRoleFallbacks(source []RoleFallback) []RoleFallback {
 	cloned := make([]RoleFallback, len(source))
 	for index, fallback := range source {
 		cloned[index] = fallback
+		cloned[index].SessionEnv = MergeSessionEnv(nil, fallback.SessionEnv)
 		cloned[index].ACPOptions = CloneACPOptionSelections(fallback.ACPOptions)
 	}
 	return cloned
@@ -83,6 +84,7 @@ type RoleConfig struct {
 
 // RoleFallback is one ordered invocation fallback route.
 type RoleFallback struct {
+	SessionEnv      SessionEnv           `toml:"session_env,omitempty"      json:"session_env,omitempty"      yaml:"session_env,omitempty"`
 	Provider        string               `toml:"provider"                   json:"provider"                   yaml:"provider"`
 	Model           string               `toml:"model"                      json:"model"                      yaml:"model"`
 	ReasoningEffort string               `toml:"reasoning_effort,omitempty" json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty"`

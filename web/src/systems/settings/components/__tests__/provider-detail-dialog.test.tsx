@@ -326,7 +326,30 @@ describe("ProviderDetailDialog", () => {
 
   it("Should open on a status summary with technical details folded away", async () => {
     const user = userEvent.setup();
-    renderDialog({ mode: "inspect", entry: nativeProvider });
+    renderDialog({
+      mode: "inspect",
+      entry: {
+        ...nativeProvider,
+        session_env_status: [
+          {
+            name: "GH_TOKEN",
+            target_env: "GH_TOKEN",
+            secret_ref: "vault:providers/codex/github",
+            required: true,
+            present: true,
+            source: "vault",
+          },
+          {
+            name: "SSH_AUTH_SOCK",
+            target_env: "SSH_AUTH_SOCK",
+            secret_ref: "env:SSH_AUTH_SOCK",
+            required: false,
+            present: false,
+            source: "env",
+          },
+        ],
+      },
+    });
 
     expect(screen.getByTestId("inspect-login-descriptor-executable")).toHaveTextContent("codex");
     expect(screen.getByTestId("inspect-login-descriptor-action")).toHaveTextContent(
@@ -346,6 +369,13 @@ describe("ProviderDetailDialog", () => {
     await user.click(within(dialog()).getByRole("button", { name: "Technical details" }));
     expect(screen.getByTestId("inspect-command")).toBeVisible();
     expect(screen.getByTestId("inspect-auth-status")).toHaveTextContent("Needs sign-in");
+    const token = screen.getByTestId("inspect-credential-GH_TOKEN");
+    expect(token).toHaveTextContent("vault:providers/codex/github");
+    expect(within(token).getByText("Set")).toBeVisible();
+    expect(within(token).queryByRole("textbox")).not.toBeInTheDocument();
+    const socket = screen.getByTestId("inspect-credential-SSH_AUTH_SOCK");
+    expect(socket).toHaveTextContent("env:SSH_AUTH_SOCK");
+    expect(within(socket).getByText("Optional")).toBeVisible();
 
     await user.click(screen.getByTestId("provider-detail-summary-action"));
     expect(screen.getByTestId("settings-providers-editor-basics")).toBeVisible();

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -23,7 +25,7 @@ func (g *VaultRepo) vaultServiceForStore(vaultStore vault.Store) (*vault.Service
 	}
 	return vault.NewService(
 		vaultStore,
-		vault.NewFileKeyProvider(filepath.Dir(g.path), lookupEnv),
+		compozyconfig.NewVaultKeyProvider(filepath.Dir(g.path), lookupEnv),
 		vault.WithLookupEnv(lookupEnv),
 		vault.WithNow(g.now),
 	)

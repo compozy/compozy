@@ -21,9 +21,18 @@ type terminalLaunch struct {
 // launchTerminal starts an owned terminal with workspace settings and actor-bound process identity.
 func (m *Service) launchTerminal(
 	ctx context.Context,
-	launch terminalLaunch,
+	launch *terminalLaunch,
 ) (*session, terminalKey, error) {
-	launch.spec.Env = processEnvironment(launch.origin, launch.spec.Env)
+	release, err := m.prepareEnvironment(ctx, launch.info.WS, launch.origin, &launch.spec)
+	if err != nil {
+		return nil, terminalKey{}, err
+	}
+	transferred := false
+	defer func() {
+		if !transferred {
+			release()
+		}
+	}()
 	proc, err := m.pty.Start(ctx, launch.spec)
 	if err != nil {
 		return nil, terminalKey{}, fmt.Errorf("terminal: start %s: %w", launch.startLabel, err)
@@ -50,6 +59,7 @@ func (m *Service) launchTerminal(
 		return nil, terminalKey{}, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
 	}
 	item.processRecord = processRecord
+	item.environmentRelease = release
 	key := terminalKey{
 		workspaceID: launch.info.WS,
 		profileID:   launch.info.ProfileID,
@@ -58,5 +68,6 @@ func (m *Service) launchTerminal(
 	if err := m.insert(key, item); err != nil {
 		return nil, terminalKey{}, cleanupRegisteredProcess(ctx, proc, processRecord, err)
 	}
+	transferred = true
 	return item, key, nil
 }

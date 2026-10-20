@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import {
   composeMarkdownSlots,
@@ -31,6 +31,56 @@ const meta: Meta<typeof StreamMarkdown> = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+const MERMAID =
+  "```mermaid\nflowchart LR\n  A[Spec] --> B[Implement] --> C[Review]\n```\n\n## Next steps\n\nReview the result.";
+
+export const MermaidDiagram: Story = {
+  args: { children: MERMAID },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      await canvas.findByRole("img", { name: "Mermaid diagram" }, { timeout: 15000 })
+    ).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "View source" }));
+    await expect(canvas.getByText(/flowchart LR/)).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "Next steps" })).toBeVisible();
+  },
+};
+
+export const MermaidStreaming: Story = {
+  args: { children: MERMAID, streaming: true },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/flowchart LR/)).toBeVisible();
+    await expect(canvas.queryByRole("img")).toBeNull();
+  },
+};
+
+export const MermaidInvalid: Story = {
+  args: { children: "```mermaid\nnot a valid diagram\n```\n\nThe source remains readable." },
+};
+
+// Invariant: diagram-authored directives cannot relax the image renderer's security policy.
+// This browser story owns the real Mermaid/SVG boundary; no renderer mock is used.
+export const MermaidSecurity: Story = {
+  args: {
+    children:
+      '```mermaid\n%%{init: {"securityLevel":"loose","htmlLabels":true,"flowchart":{"htmlLabels":true}}}%%\nflowchart LR\n  A["<b>Source label</b>"] --> B[Safe image]\n  click A "javascript:alert(1)"\n```',
+  },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const diagram = await canvas.findByRole("img", { name: "Mermaid diagram" }, { timeout: 15000 });
+    await expect(diagram).toBeVisible();
+    const svg = decodeURIComponent(diagram.getAttribute("src") ?? "");
+    await expect(svg).not.toContain("foreignObject");
+    await expect(svg).not.toContain("javascript:");
+    await expect(canvasElement.querySelector("svg[id^='mermaid-']")).toBeNull();
+  },
+};
 
 function Chip({ label }: { label: string }) {
   return (

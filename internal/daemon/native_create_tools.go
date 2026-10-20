@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 
@@ -15,23 +16,24 @@ import (
 )
 
 type agentCreateInput struct {
-	Scope           string                               `json:"scope"`
-	Workspace       string                               `json:"workspace,omitempty"`
-	Name            string                               `json:"name"`
-	Provider        string                               `json:"provider,omitempty"`
-	Model           string                               `json:"model,omitempty"`
-	ReasoningEffort string                               `json:"reasoning_effort,omitempty"`
-	Speed           string                               `json:"speed,omitempty"`
-	ACPOptions      []contract.AgentACPOptionSelection   `json:"acp_options,omitempty"`
-	Command         string                               `json:"command,omitempty"`
-	Prompt          string                               `json:"prompt"`
-	Permissions     string                               `json:"permissions,omitempty"`
-	Tools           []string                             `json:"tools,omitempty"`
-	Toolsets        []string                             `json:"toolsets,omitempty"`
-	DenyTools       []string                             `json:"deny_tools,omitempty"`
-	CategoryPath    []string                             `json:"category_path,omitempty"`
-	DisabledSkills  []string                             `json:"disabled_skills,omitempty"`
-	FallbackChain   []contract.AgentFallbackRoutePayload `json:"fallback_chain,omitempty"`
+	SessionEnv      map[string]contract.SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Scope           string                                       `json:"scope"`
+	Workspace       string                                       `json:"workspace,omitempty"`
+	Name            string                                       `json:"name"`
+	Provider        string                                       `json:"provider,omitempty"`
+	Model           string                                       `json:"model,omitempty"`
+	ReasoningEffort string                                       `json:"reasoning_effort,omitempty"`
+	Speed           string                                       `json:"speed,omitempty"`
+	ACPOptions      []contract.AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Command         string                                       `json:"command,omitempty"`
+	Prompt          string                                       `json:"prompt"`
+	Permissions     string                                       `json:"permissions,omitempty"`
+	Tools           []string                                     `json:"tools,omitempty"`
+	Toolsets        []string                                     `json:"toolsets,omitempty"`
+	DenyTools       []string                                     `json:"deny_tools,omitempty"`
+	CategoryPath    []string                                     `json:"category_path,omitempty"`
+	DisabledSkills  []string                                     `json:"disabled_skills,omitempty"`
+	FallbackChain   []contract.AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
 }
 
 func (n *daemonNativeTools) agentCreate(
@@ -143,6 +145,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 			Name:            strings.TrimSpace(input.Name),
 			Provider:        strings.TrimSpace(input.Provider),
 			Command:         strings.TrimSpace(input.Command),
+			SessionEnv:      maps.Clone(input.SessionEnv),
 			Model:           strings.TrimSpace(input.Model),
 			ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(input.ReasoningEffort)),
 			Speed:           contract.Speed(strings.TrimSpace(input.Speed)),
@@ -205,6 +208,7 @@ func cloneNativeAgentFallbackChain(
 			Speed:           contract.Speed(strings.TrimSpace(string(route.Speed))),
 			ACPOptions:      cloneNativeAgentACPOptions(route.ACPOptions),
 			Command:         strings.TrimSpace(route.Command),
+			SessionEnv:      maps.Clone(route.SessionEnv),
 		}
 	}
 	return cloned

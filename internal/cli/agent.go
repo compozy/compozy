@@ -305,7 +305,7 @@ func agentBundle(item AgentRecord) outputBundle {
 					"command_fingerprint",
 				},
 				agentFallbackChainToonRows(item.FallbackChain),
-			)), nil
+			), renderAgentEnvironment(item, true)), nil
 		},
 	}
 }
@@ -357,7 +357,32 @@ func renderAgentHuman(item AgentRecord) string {
 		"Prompt",
 		[]keyValue{{Label: agentBodyValue, Value: stringOrDash(item.Prompt)}},
 	)
-	return renderHumanBlocks(base, mcp, fallbackChain, prompt)
+	return renderHumanBlocks(base, mcp, fallbackChain, renderAgentEnvironment(item, false), prompt)
+}
+
+func renderAgentEnvironment(item AgentRecord, toon bool) string {
+	if item.EffectiveRuntime == nil || len(item.EffectiveRuntime.SessionEnvStatus) == 0 {
+		return ""
+	}
+	rows := make([][]string, 0, len(item.EffectiveRuntime.SessionEnvStatus))
+	for _, status := range item.EffectiveRuntime.SessionEnvStatus {
+		rows = append(rows, []string{
+			status.Name, status.SecretRef, status.Source,
+			strconv.FormatBool(status.Present), strconv.FormatBool(status.Required),
+		})
+	}
+	if toon {
+		return renderToonArray(
+			"session_env",
+			[]string{"name", "ref", cmdPaletteSourceFlag, "present", "required"},
+			rows,
+		)
+	}
+	return renderHumanTable(
+		"Session Environment",
+		[]string{automationNameValue, "Reference", authoredContextSourceValue, "Present", outputRequiredValue},
+		rows,
+	)
 }
 
 func agentShadowLayers(shadows []contract.AgentDefinitionShadowPayload) string {

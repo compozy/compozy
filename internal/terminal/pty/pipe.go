@@ -40,7 +40,7 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 	if len(spec.Argv) == 0 || strings.TrimSpace(spec.Argv[0]) == "" {
 		return nil, errors.New("terminal pipe: command is required")
 	}
-	environmentList := expand.ListEnviron(environment(spec.Env)...)
+	environmentList := expand.ListEnviron(environment(spec.Env, spec.UnsetEnv)...)
 	path, err := interp.LookPathDir(spec.Cwd, environmentList, spec.Argv[0])
 	if err != nil {
 		return nil, fmt.Errorf("terminal pipe: resolve %q: %w", spec.Argv[0], err)
@@ -77,7 +77,7 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 		interp.Params(append([]string{"--"}, argv...)...),
 		interp.StdIO(inputReader, outputWriter, outputWriter),
 		interp.ExecHandlers(func(interp.ExecHandlerFunc) interp.ExecHandlerFunc {
-			return proc.execHandler(spec.Env)
+			return proc.execHandler(spec.Env, spec.UnsetEnv)
 		}),
 	)
 	if err != nil {
@@ -112,7 +112,7 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 	return proc, nil
 }
 
-func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
+func (p *pipeProc) execHandler(env map[string]string, unset []string) interp.ExecHandlerFunc {
 	return func(ctx context.Context, args []string) error {
 		handler := interp.HandlerCtx(ctx)
 		path, err := interp.LookPathDir(handler.Dir, handler.Env, args[0])
@@ -121,7 +121,7 @@ func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
 		}
 		command := exec.CommandContext(ctx, path, args[1:]...)
 		command.Dir = handler.Dir
-		command.Env = environment(env)
+		command.Env = environment(env, unset)
 		command.Stdin = handler.Stdin
 		command.Stdout = handler.Stdout
 		command.Stderr = handler.Stderr

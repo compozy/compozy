@@ -7,6 +7,8 @@ import (
 
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -321,7 +323,7 @@ func (d *Daemon) buildProviderVault(state *bootState) (*vault.Service, error) {
 	}
 	service, err := vault.NewService(
 		vaultStore,
-		vault.NewFileKeyProvider(d.homePaths.HomeDir, lookupEnv),
+		compozyconfig.NewVaultKeyProvider(d.homePaths.HomeDir, lookupEnv),
 		vault.WithLookupEnv(lookupEnv),
 		vault.WithNow(d.now),
 	)

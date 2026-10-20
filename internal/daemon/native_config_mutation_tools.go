@@ -61,7 +61,8 @@ func (n *daemonNativeTools) configSet(
 		target,
 		func(editor *compozyconfig.OverlayEditor) error {
 			if policy.Kind == compozyconfig.ConfigValueTable ||
-				policy.Kind == compozyconfig.ConfigValueLoopInput {
+				policy.Kind == compozyconfig.ConfigValueLoopInput ||
+				policy.Kind == compozyconfig.ConfigValueSessionEnv || policy.Kind == compozyconfig.ConfigValueSessionEnvBinding {
 				table, ok := value.(map[string]any)
 				if ok {
 					return editor.SetTable(policy.Segments, table)

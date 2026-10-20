@@ -71,7 +71,7 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	// #nosec G204 -- argv is the resolved shell command from the validated terminal request.
 	command := exec.CommandContext(context.WithoutCancel(ctx), setup.argv[0], setup.argv[1:]...)
 	command.Dir = spec.Cwd
-	command.Env = environment(setup.env)
+	command.Env = environment(setup.env, spec.UnsetEnv)
 	procutil.ConfigureCommandTerminalSession(command)
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Join(

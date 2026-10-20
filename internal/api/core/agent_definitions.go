@@ -289,6 +289,9 @@ func duplicateAgentDraft(
 		return draft, nil
 	}
 	overrides := req.Overrides
+	if overrides.SessionEnv != nil {
+		draft.SessionEnv = sessionEnvFromPayload(overrides.SessionEnv)
+	}
 	if overrides.Provider != "" {
 		draft.Provider = overrides.Provider
 	}

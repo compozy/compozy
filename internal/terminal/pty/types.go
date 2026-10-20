@@ -35,6 +35,7 @@ type ProcSpec struct {
 	Argv             []string
 	Cwd              string
 	Env              map[string]string
+	UnsetEnv         []string
 	Cols             uint16
 	Rows             uint16
 	Mode             Mode

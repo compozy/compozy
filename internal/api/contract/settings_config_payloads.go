@@ -88,11 +88,12 @@ type SettingsCoordinatorRoleConfigPayload struct {
 }
 
 type SettingsRoleFallbackPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model"`
-	ReasoningEffort string                    `json:"reasoning_effort"`
-	Speed           *Speed                    `json:"speed,omitzero"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider"`
+	Model           string                              `json:"model"`
+	ReasoningEffort string                              `json:"reasoning_effort"`
+	Speed           *Speed                              `json:"speed,omitzero"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options"`
 	// Command is the route account; always present on the settings surface, empty inherits.
 	Command string `json:"command"`
 }

@@ -3,15 +3,99 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/vault"
 	"github.com/spf13/cobra"
 )
 
 func TestVaultCommands(t *testing.T) {
 	t.Parallel()
+	t.Run("Should migrate a real vault and remove the file key only with an explicit flag", func(t *testing.T) {
+		t.Parallel()
+		deps := newTestDeps(t, &stubClient{})
+		deps.vaultKeyring = &memoryCredentialKeyring{values: map[string]string{}}
+		home, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		db, err := openLocalGlobalDatabase(t.Context(), home.DatabaseFile, "vault migration test")
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := vault.NewService(
+			db,
+			vault.NewFileKeyProvider(home.HomeDir, func(string) (string, bool) { return "", false }),
+		)
+		if err == nil {
+			_, err = service.PutSecret(
+				t.Context(),
+				"vault:providers/custom/token",
+				"token",
+				"cli-migration-secret-canary",
+			)
+		}
+		if err := errors.Join(err, db.Close(t.Context())); err != nil {
+			t.Fatal(err)
+		}
+		failedDeps := deps
+		failedDeps.removeFile = func(string) error { return errors.New("file removal refused") }
+		if _, _, err := executeRootCommand(
+			t,
+			failedDeps,
+			"vault",
+			"key",
+			"migrate",
+			"--remove-file-key",
+		); err == nil ||
+			!strings.Contains(err.Error(), "file removal refused") {
+			t.Fatalf("migration error = %v, want file removal refusal", err)
+		}
+		unchanged, err := compozyconfig.LoadGlobalConfig(home)
+		if err != nil || unchanged.Vault.KeyProvider != "file" {
+			t.Fatal("failed migration changed provider", err)
+		}
+		if len(deps.vaultKeyring.(*memoryCredentialKeyring).values) != 0 {
+			t.Fatal("failed migration retained a new OS entry")
+		}
+		if err := vault.RequireKeyringMigration(home.HomeDir); err == nil {
+			t.Fatal("failed migration retained its opt-in receipt")
+		}
+		for attempt := range 3 {
+			args := []string{"vault", "key", "migrate", "-o", "json"}
+			if attempt > 0 {
+				args = append(args, "--remove-file-key")
+			}
+			output, _, err := executeRootCommand(t, deps, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var result vaultKeyMigrationResult
+			if err := json.Unmarshal([]byte(output), &result); err != nil {
+				t.Fatal(err)
+			}
+			if result.Provider != "os-keyring" || result.VerifiedRecords != 1 ||
+				result.FileKeyRetained != (attempt == 0) {
+				t.Fatalf("unexpected migration result: %#v", result)
+			}
+			if strings.Contains(output, "cli-migration-secret-canary") {
+				t.Fatal("migration output leaked a secret")
+			}
+			cfg, err := compozyconfig.LoadGlobalConfig(home)
+			if err != nil || cfg.Vault.KeyProvider != "os-keyring" {
+				t.Fatal("provider selection was not committed", err)
+			}
+		}
+		if _, err := os.Stat(filepath.Join(home.HomeDir, "vault.key")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("explicit file key removal failed", err)
+		}
+	})
 	t.Run("Should treat missing stdin as optional input", func(t *testing.T) {
 		t.Parallel()
 		if content, err := readOptionalCommandInput(nil); err != nil || content != "" {

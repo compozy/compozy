@@ -71,6 +71,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 		Name:             agent.Name,
 		Provider:         agent.Provider,
 		Command:          agent.Command,
+		SessionEnv:       SessionEnvToPayload(agent.SessionEnv),
 		Model:            agent.Model,
 		ReasoningEffort:  contract.ReasoningEffort(agent.ReasoningEffort),
 		Speed:            agent.SpeedValue(),
@@ -108,6 +109,7 @@ func AgentPayloadFromEntryWithConfig(
 		return payload
 	}
 	payload.EffectiveRuntime = &contract.AgentEffectiveRuntimePayload{
+		SessionEnv:      SessionEnvToPayload(resolved.SessionEnv),
 		Provider:        resolved.Provider,
 		Model:           resolved.Model,
 		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
@@ -209,6 +211,7 @@ func agentFallbackChainToContract(chain []compozyconfig.RoleFallback) []contract
 			Speed:              route.Speed,
 			ACPOptions:         agentACPOptionsToContract(route.ACPOptions),
 			Command:            command,
+			SessionEnv:         SessionEnvToPayload(route.SessionEnv),
 			CommandFingerprint: compozyconfig.CommandFingerprint(command),
 		})
 	}
@@ -229,6 +232,7 @@ func agentFallbackChainFromContract(chain []contract.AgentFallbackRoutePayload) 
 			Speed:           route.Speed,
 			ACPOptions:      agentACPOptionsFromContract(route.ACPOptions),
 			Command:         strings.TrimSpace(route.Command),
+			SessionEnv:      sessionEnvFromPayload(route.SessionEnv),
 		})
 	}
 	return converted

@@ -485,6 +485,18 @@
           "reasoning_effort": {
             "type": "string"
           },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
+          },
+          "session_env_status": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsProviderCredentialStatusPayload"
+            },
+            "type": "array"
+          },
           "sources": {
             "$ref": "#/components/schemas/AgentEffectiveRuntimeSources"
           },
@@ -541,6 +553,12 @@
           },
           "reasoning_effort": {
             "type": "string"
+          },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
           },
           "speed": {
             "enum": [
@@ -821,6 +839,12 @@
           },
           "reasoning_effort": {
             "type": "string"
+          },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
           },
           "shadows": {
             "items": {
@@ -4842,6 +4866,12 @@
           "reasoning_effort": {
             "type": "string"
           },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
+          },
           "skills": {
             "oneOf": [
               {
@@ -5959,6 +5989,12 @@
           },
           "reasoning_effort": {
             "type": "string"
+          },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
           },
           "skills": {
             "oneOf": [
@@ -18348,6 +18384,12 @@
               "provider_managed"
             ],
             "type": "string"
+          },
+          "session_env_status": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsProviderCredentialStatusPayload"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -19623,6 +19665,12 @@
           },
           "reasoning_effort": {
             "type": "string"
+          },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
           },
           "speed": {
             "enum": [
@@ -22628,6 +22676,21 @@
           "source_turn_in_progress",
           "through_turn_id",
           "truncated"
+        ],
+        "type": "object"
+      },
+      "SessionEnvBindingPayload": {
+        "properties": {
+          "ref": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ref",
+          "required"
         ],
         "type": "object"
       },
@@ -27152,6 +27215,12 @@
             ],
             "type": "string"
           },
+          "session_env_status": {
+            "items": {
+              "$ref": "#/components/schemas/SettingsProviderCredentialStatusPayload"
+            },
+            "type": "array"
+          },
           "settings": {
             "$ref": "#/components/schemas/SettingsProviderSettingsPayload"
           },
@@ -27416,6 +27485,12 @@
           "runtime_provider": {
             "type": "string"
           },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
+          },
           "steer_capability": {
             "enum": [
               "steer_ext",
@@ -27485,6 +27560,12 @@
           },
           "runtime_provider": {
             "type": "string"
+          },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
           },
           "steer_capability": {
             "enum": [
@@ -27621,6 +27702,12 @@
           },
           "reasoning_effort": {
             "type": "string"
+          },
+          "session_env": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SessionEnvBindingPayload"
+            },
+            "type": "object"
           },
           "speed": {
             "enum": [

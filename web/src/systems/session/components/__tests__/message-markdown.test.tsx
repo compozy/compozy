@@ -42,9 +42,10 @@ describe("MessageMarkdown", () => {
     expect(codeBlock?.textContent).toContain("compozy start");
   });
 
-  it("ends a Mermaid code fence before subsequent Markdown prose", () => {
+  it("ends a streaming Mermaid code fence before subsequent Markdown prose", () => {
     const { container } = render(
       <MessageMarkdown
+        streaming
         content={[
           "```mermaid",
           "flowchart LR",

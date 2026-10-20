@@ -90,6 +90,7 @@ func (m *Service) removeWithTombstone(key terminalKey, expected *session, expire
 		return
 	}
 	delete(m.terminals, key)
+	expected.releaseEnvironment()
 	m.tombstones[key] = tombstone{key: key, expiresAt: expiresAt}
 	m.tombstoneOrder = append(m.tombstoneOrder, key)
 	for len(m.tombstoneOrder) > maxTombstones {

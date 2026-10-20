@@ -61,6 +61,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 			Speed:           route.Speed,
 			ACPOptions:      session.ACPOptionSelectionsFromConfig(route.ACPOptions),
 			Command:         route.Command,
+			SessionEnv:      route.SessionEnv,
 			ChainOwner:      session.ChainOwnerCaller,
 			Name:            coordinatorSessionName(decision.WorkspaceID),
 			Workspace:       decision.WorkspaceID,

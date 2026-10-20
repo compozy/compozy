@@ -9,6 +9,7 @@ import (
 
 // ProviderSettings is the editable provider overlay payload.
 type ProviderSettings struct {
+	SessionEnv      compozyconfig.SessionEnv
 	SteerCapability compozyconfig.SteerCapability
 	Command         string
 	// CommandInherited reports the inherited builtin default rather than an authored override.
@@ -70,6 +71,7 @@ type ProviderFallback struct {
 
 // ProviderItem is one provider collection row.
 type ProviderItem struct {
+	SessionEnvStatus []ProviderCredentialStatus
 	Name             string
 	Settings         ProviderSettings
 	Default          bool

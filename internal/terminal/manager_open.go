@@ -91,7 +91,7 @@ func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceI
 		Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
 	titlePinned := strings.TrimSpace(request.Title) != ""
-	item, key, err := m.launchTerminal(ctx, terminalLaunch{
+	item, key, err := m.launchTerminal(ctx, &terminalLaunch{
 		spec: spec, info: info, origin: request.Actor, settings: settings, nonce: nonce, titlePinned: titlePinned,
 		startLabel: fmt.Sprintf("shell %q", shell),
 	})
@@ -230,6 +230,7 @@ func (m *Service) removeInserted(key terminalKey, expected *session) {
 	defer m.mu.Unlock()
 	if m.terminals[key] == expected {
 		delete(m.terminals, key)
+		expected.releaseEnvironment()
 	}
 }
 

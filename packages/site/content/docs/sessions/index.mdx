@@ -18,6 +18,17 @@ Session-scoped Vault refs use `vault:sessions/<session_id>/<name>`. They are ord
 Vault records filtered by the session prefix, and the session inspector shows only redacted metadata
 for those refs.
 
+## Read diagrams in chat
+
+Completed Markdown fences labeled `mermaid` render as diagrams in session chat, using the current
+light or dark theme. **View source** opens the original Mermaid code, and the copy action copies
+that source. While the message streams, or if the diagram cannot be rendered, the source remains
+a readable, copyable code block. Text after the closing fence remains ordinary Markdown.
+
+Diagrams render with strict security and HTML labels disabled. They are isolated images rather
+than interactive SVG: diagram links and callbacks are not active. The renderer loads only when a
+completed Mermaid fence needs it; ordinary messages and streaming fences do not load Mermaid.
+
 ## Attach files to prompts
 
 Upload a file with [`compozy session attachments upload <session-id> <file>`](/docs/cli/session/attachments/upload)

@@ -5,6 +5,8 @@ import (
 
 	"errors"
 	"fmt"
+	"log/slog"
+	"runtime"
 
 	"strings"
 
@@ -15,7 +17,35 @@ import (
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/vault"
+	shellquote "github.com/kballard/go-shellquote"
 )
+
+func sessionEnvironmentCommand(command string, declarations compozyconfig.SessionEnv) (string, error) {
+	if len(declarations) == 0 {
+		return command, nil
+	}
+	parsed, err := compozyconfig.ParseLaunchCommand(command)
+	if err != nil {
+		return "", fmt.Errorf("session: parse declared environment command: %w", err)
+	}
+	kept := make([]string, 0, len(parsed.Environment)+1+len(parsed.Args))
+	for _, assignment := range parsed.Environment {
+		name, _, _ := strings.Cut(assignment, "=")
+		declared := false
+		for target := range declarations {
+			if name == target || (runtime.GOOS == "windows" && strings.EqualFold(name, target)) {
+				declared = true
+				break
+			}
+		}
+		if !declared {
+			kept = append(kept, assignment)
+		}
+	}
+	kept = append(kept, parsed.Executable)
+	kept = append(kept, parsed.Args...)
+	return shellquote.Join(kept...), nil
+}
 
 type providerSecretMetadataGetter interface {
 	GetMetadata(context.Context, string) (vault.Metadata, error)
@@ -85,9 +115,6 @@ func (m *Manager) injectProviderSecrets(
 		env:                env,
 		injectedTargetEnvs: make(map[string]struct{}),
 	}
-	if len(resolved.CredentialSlots) == 0 {
-		return bindings, nil
-	}
 	for _, slot := range resolved.CredentialSlots {
 		updated, targetEnv, cleanup, err := m.injectProviderSecret(
 			ctx,
@@ -107,6 +134,36 @@ func (m *Manager) injectProviderSecrets(
 		if cleanup != nil {
 			bindings.redactionCleanups = append(bindings.redactionCleanups, cleanup)
 		}
+	}
+	return m.injectSessionEnvironment(ctx, resolved, bindings)
+}
+
+func (m *Manager) injectSessionEnvironment(
+	ctx context.Context,
+	resolved compozyconfig.ResolvedAgent,
+	bindings providerSecretBindings,
+) (providerSecretBindings, error) {
+	values, err := authproviders.ResolveSessionEnv(ctx, resolved.SessionEnv, resolved.ProfileName, m.providerSecrets)
+	if err != nil {
+		runProviderSecretRedactions(bindings.redactionCleanups)
+		return providerSecretBindings{}, err
+	}
+	for name := range resolved.SessionEnv {
+		bindings.env = unsetSessionStartEnvKeys(bindings.env, name)
+		value, present := values[name]
+		if !present {
+			logger := m.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.WarnContext(ctx, "session_env.optional_missing", "name", name, "provider", resolved.Provider)
+			delete(bindings.injectedTargetEnvs, name)
+			continue
+		}
+		bindings.redactionCleanups = append(bindings.redactionCleanups,
+			authproviders.RegisterSessionEnvRedaction(name, resolved.SessionEnv[name], value))
+		bindings.env = setSessionStartEnvValue(bindings.env, name, value)
+		bindings.injectedTargetEnvs[name] = struct{}{}
 	}
 	return bindings, nil
 }

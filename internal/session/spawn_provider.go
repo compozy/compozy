@@ -17,9 +17,10 @@ func (m *Manager) resolveSpawnProviderCommand(
 	resolved compozyconfig.ResolvedAgent,
 	visited map[string]bool,
 ) (compozyconfig.ResolvedAgent, error) {
-	// Inheritance applies only when neither the attempt nor the agent supplied a command.
+	// Explicit command or environment declarations own account routing instead of inheriting it.
 	if normalizeSessionType(spec.sessionType) != SessionTypeSpawned || strings.TrimSpace(spec.command) != "" ||
 		strings.TrimSpace(agent.Command) != "" ||
+		len(spec.sessionEnv) > 0 || len(agent.SessionEnv) > 0 ||
 		spec.lineage == nil ||
 		spec.lineage.ParentSessionID == "" ||
 		resolved.AuthMode != compozyconfig.ProviderAuthModeNativeCLI ||
@@ -31,6 +32,7 @@ func (m *Manager) resolveSpawnProviderCommand(
 		if compatibleSpawnProviderRoute(route, resolved) {
 			resolved.Command = route.Command
 			resolved.CommandIsBuiltin = route.CommandIsBuiltin
+			resolved.SessionEnv = compozyconfig.MergeSessionEnv(nil, route.SessionEnv)
 			return resolved, nil
 		}
 	}
@@ -49,6 +51,7 @@ func (m *Manager) resolveSpawnProviderCommand(
 	if compatibleSpawnProviderRoute(parentRoute, resolved) {
 		resolved.Command = parentRoute.Command
 		resolved.CommandIsBuiltin = parentRoute.CommandIsBuiltin
+		resolved.SessionEnv = compozyconfig.MergeSessionEnv(nil, parentRoute.SessionEnv)
 	}
 	return resolved, nil
 }

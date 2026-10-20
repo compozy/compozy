@@ -80,6 +80,11 @@ func (m *Manager) prepareProviderStartPolicies(
 	resolved compozyconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, providerSecretBindings, error) {
+	command, err := sessionEnvironmentCommand(opts.Command, resolved.SessionEnv)
+	if err != nil {
+		return acp.StartOpts{}, providerSecretBindings{}, err
+	}
+	opts.Command = command
 	profileSlots, err := authproviders.ProfileCredentialSlots(
 		ctx,
 		resolved.Provider,

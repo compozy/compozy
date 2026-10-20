@@ -45,6 +45,11 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
 - permissions must be one of deny-all, approve-reads, or approve-all. It sets both the static tool policy and the cross-workspace boundary for sessions of this agent: approve-all crosses workspaces without asking, approve-reads prompts the operator at the native-tool seam and denies at every other seam, and deny-all never crosses and never prompts. The two axes are coupled; there is no permissive-tools-with-isolated-workspace setting. Choose deny-all for an agent that must stay inside its own workspace, and see references/native-tools.md (Workspace boundary) for denial and prompt semantics.
 - category_path is display-only hierarchy and must be an array.
 - mcp_servers declares per-agent MCP servers.
+- session_env maps environment names to `env:NAME` or `vault:path` references, optionally expressed
+  as `{ ref: "env:NAME", required: false }`. Shorthand references are required. Agent declarations
+  override provider declarations by name; literals and reserved `COMPOZY_` names are rejected.
+  Missing required values fail launch, while missing optional values are omitted with a diagnostic.
+  This also applies to native-CLI agents and their terminals without changing provider login ownership.
 
 Do not use categories or slash strings for hierarchy. They are not runtime semantics.
 
@@ -90,6 +95,11 @@ Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp
 
 ## Fleet Reads
 
+`compozy agent show <name> -o json` and `GET /api/agents/{name}` include effective
+`session_env_status` metadata under `effective_runtime`: reference, source, presence, and whether
+the declaration is required. These reads never resolve Vault plaintext. The Web Configuration
+tab displays the same metadata; unrelated Settings edits preserve authored environment maps.
+
 Use `GET /api/agents/catalog?workspace=<ref>&profile=<name>` over HTTP or UDS when a workspace fleet needs an exact `name` filter, server-owned search, category/status filters, cursor pagination, or exact per-agent session metrics. Keep the same `name`, `q`, `category`, `status`, and `limit` when following the opaque `page.next_cursor`.
 
 Omit `workspace` for Global. Definitions use the acting profile's shared resource resolution;
@@ -125,7 +135,9 @@ key and takes the rest of the value verbatim (quote the whole flag value in the 
       --fallback-route provider=cursor,model=grok-4.6,reasoning_effort=high -o json
 
 The `fallback_chain` frontmatter key holds the same route tables as `[[roles.<role>.fallback_chain]]`
-(`provider` and `model` required; optional `reasoning_effort`, `speed`, `acp_options`, `command`).
+(`provider` and `model` required; optional `reasoning_effort`, `speed`, `acp_options`, `command`,
+`session_env`). Route environment declarations merge by name over the selected provider and agent
+defaults. Use frontmatter or the typed HTTP/UDS route objects to author route `session_env`.
 `compozy agent show` and `GET /api/agents/{name}` project it with `command_fingerprint` for routes that
 set `command`. Invalid routes fail with a path such as
 `agent "reviewer" fallback_chain[0].command: command is missing an executable`. Sessions a background

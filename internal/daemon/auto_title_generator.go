@@ -148,6 +148,7 @@ func (g *forkedAutoTitleGenerator) autoTitleSpawnOpts(
 		Speed:               route.Speed,
 		ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
 		Command:             route.Command,
+		SessionEnv:          route.SessionEnv,
 		ChainOwner:          session.ChainOwnerCaller,
 		Name:                autoTitleSessionName,
 		PromptOverlay:       autoTitlePromptOverlay(),

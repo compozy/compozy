@@ -30,3 +30,21 @@ overlaps:
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## Declared session environment (#828)
+
+Use an isolated QA home and a native-CLI provider with a required Vault reference and an
+optional absent `env:SSH_AUTH_SOCK` declaration. Seed only a disposable test secret.
+
+1. Open Overview → Technical details. Session environment lists the target names and references;
+   the Vault entry reports Set and the absent socket reports Optional. No resolved value or
+   secret-editing input appears.
+2. Compare with `compozy provider inspect <provider> -o json`: presence and source agree with
+   Settings. Search the response for the disposable secret value; it must be absent.
+3. Change the provider display name in Configure and save. Reopen Technical details and verify
+   both declarations remain. An omitted `session_env` in the provider write preserves the map.
+4. Through the settings API, send an explicit empty `session_env` object with the provider's
+   launch command. Reopen the provider and verify the declarations are removed.
+
+Validation status: focused backend and Web component tests cover these contracts; the isolated
+rendered application walk remains pending.

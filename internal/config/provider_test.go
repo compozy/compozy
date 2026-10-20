@@ -3595,3 +3595,127 @@ func mergeRetiredTestTables(base, kept map[string]any) map[string]any {
 	}
 	return merged
 }
+
+// Invariant: session environment declarations carry validated refs and required semantics across config formats.
+func TestProviderSessionEnvironment(t *testing.T) {
+	t.Parallel()
+	t.Run("Should decode references and optional bindings without changing native authentication", func(t *testing.T) {
+		t.Parallel()
+		var provider ProviderConfig
+		_, err := toml.Decode(`command = "claude --acp"
+auth_mode = "native_cli"
+[session_env]
+GH_TOKEN = "env:GH_TOKEN"
+JIRA_TOKEN = { ref = "vault:providers/claude/jira", required = false }
+SSH_AUTH_SOCK = "env:SSH_AUTH_SOCK"
+`, &provider)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := validateResolvedProvider("custom", provider); err != nil {
+			t.Fatal(err)
+		}
+		if !provider.SessionEnv["GH_TOKEN"].Required || provider.SessionEnv["JIRA_TOKEN"].Required {
+			t.Fatal("required semantics were not preserved")
+		}
+		if provider.SessionEnv["SSH_AUTH_SOCK"].Ref != "env:SSH_AUTH_SOCK" || len(provider.CredentialSlots) != 0 {
+			t.Fatal("socket declaration changed native authentication")
+		}
+	})
+	for _, test := range []struct{ declaration, reason string }{
+		{`"private-literal-canary"`, "ref must be a valid"},
+		{`{ ref = "private-literal-canary" }`, "ref must be a valid"},
+		{`{ ref = "env:GH_TOKEN", required = "yes" }`, "required must be a boolean"},
+		{`{ ref = "env:GH_TOKEN", surprise = true }`, "only ref and required"},
+		{`"env:bad-name"`, "ref must be a valid"},
+		{`"file:/tmp/token"`, "ref must be a valid"},
+	} {
+		t.Run("Should reject invalid declaration "+test.declaration, func(t *testing.T) {
+			t.Parallel()
+			var provider ProviderConfig
+			_, err := toml.Decode("[session_env]\nGH_TOKEN = "+test.declaration, &provider)
+			if err == nil || !strings.Contains(err.Error(), test.reason) {
+				t.Fatalf("declaration error = %v, want %s", err, test.reason)
+			}
+			if strings.Contains(err.Error(), "private-literal-canary") {
+				t.Fatal("error exposed literal value")
+			}
+		})
+	}
+	t.Run("Should merge declarations by name without sharing mutable state", func(t *testing.T) {
+		t.Parallel()
+		base := ProviderConfig{
+			SessionEnv: SessionEnv{
+				"GH_TOKEN":      {Ref: "env:BASE", Required: true},
+				"SSH_AUTH_SOCK": {Ref: "env:SSH_AUTH_SOCK", Required: false},
+			},
+		}
+		override := ProviderConfig{SessionEnv: SessionEnv{"GH_TOKEN": {Ref: "env:OVERRIDE", Required: false}}}
+		merged := mergeProvider(base, override)
+		if merged.SessionEnv["GH_TOKEN"].Ref != "env:OVERRIDE" || merged.SessionEnv["GH_TOKEN"].Required ||
+			len(merged.SessionEnv) != 2 {
+			t.Fatal("incorrect declaration merge")
+		}
+		merged.SessionEnv["GH_TOKEN"] = SessionEnvBinding{Ref: "env:CHANGED"}
+		if base.SessionEnv["GH_TOKEN"].Ref != "env:BASE" || override.SessionEnv["GH_TOKEN"].Ref != "env:OVERRIDE" {
+			t.Fatal("merge mutated its source")
+		}
+	})
+	t.Run("Should preserve agent declarations and fallback route declarations", func(t *testing.T) {
+		t.Parallel()
+		agent, err := ParseAgentDef([]byte(`---
+name: session-env-test
+session_env:
+  GH_TOKEN: env:GH_TOKEN
+  DBUS_SESSION_BUS_ADDRESS:
+    ref: env:DBUS_SESSION_BUS_ADDRESS
+    required: false
+fallback_chain:
+  - provider: claude
+    model: test
+    session_env:
+      GH_TOKEN: vault:providers/claude/alternate
+---
+Test agent.
+`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !agent.SessionEnv["GH_TOKEN"].Required || agent.SessionEnv["DBUS_SESSION_BUS_ADDRESS"].Required {
+			t.Fatal("agent required semantics were not preserved")
+		}
+		if agent.FallbackChain[0].SessionEnv["GH_TOKEN"].Ref != "vault:providers/claude/alternate" {
+			t.Fatal("route declaration lost")
+		}
+		_, rendered, err := RenderAgentDefinition(AgentDefinitionDraftFromDef(agent))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(rendered.SessionEnv, agent.SessionEnv) ||
+			!reflect.DeepEqual(rendered.FallbackChain, agent.FallbackChain) {
+			t.Fatal("authoring round trip lost session environment declarations")
+		}
+		cloned := CloneAgentDef(agent)
+		cloned.SessionEnv["GH_TOKEN"] = SessionEnvBinding{Ref: "env:CHANGED"}
+		cloned.FallbackChain[0].SessionEnv["GH_TOKEN"] = SessionEnvBinding{Ref: "env:CHANGED"}
+		if agent.SessionEnv["GH_TOKEN"].Ref != "env:GH_TOKEN" ||
+			agent.FallbackChain[0].SessionEnv["GH_TOKEN"].Ref != "vault:providers/claude/alternate" {
+			t.Fatal("clone mutated agent")
+		}
+	})
+	t.Run("Should reject reserved and malformed environment names", func(t *testing.T) {
+		t.Parallel()
+		for _, name := range []string{"COMPOZY_SESSION_ID", "bad-name", "", "KEY=value"} {
+			reason := "invalid environment variable name"
+			if name == "COMPOZY_SESSION_ID" {
+				reason = "environment names are reserved"
+			}
+			if err := (SessionEnv{name: {Ref: "env:GH_TOKEN"}}).Validate(
+				"session_env",
+			); err == nil ||
+				!strings.Contains(err.Error(), reason) {
+				t.Fatalf("accepted invalid name %q", name)
+			}
+		}
+	})
+}

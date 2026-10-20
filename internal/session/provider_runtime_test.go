@@ -26,6 +26,59 @@ type fakeProviderSecretResolver struct {
 	errs   map[string]error
 }
 
+// The provider runtime suite owns reference-only terminal delegation and its authority boundary.
+func TestSessionEnvironmentAuthority(t *testing.T) {
+	t.Parallel()
+	identity := PromptRunIdentity{
+		SessionID: "session-a", WorkspaceID: "workspace-a", ProfileID: "profile-a",
+		RunID: "run-a", TurnID: "turn-a", Generation: 2,
+	}
+	for _, boundary := range []string{"matching", "workspace", "profile", "run", "generation", "inactive"} {
+		t.Run("Should enforce "+boundary+" terminal environment authority", func(t *testing.T) {
+			t.Parallel()
+			owner := &Session{
+				ID: identity.SessionID, WorkspaceID: identity.WorkspaceID, ProfileID: identity.ProfileID,
+				RuntimeGeneration: identity.Generation,
+				providerRoute: compozyconfig.ResolvedAgent{SessionEnv: compozyconfig.SessionEnv{
+					"GH_TOKEN": {Ref: "env:GH_TOKEN", Required: true},
+				}},
+			}
+			manager := &Manager{
+				sessions:         map[string]*Session{owner.ID: owner},
+				activePromptRuns: map[string]PromptRunIdentity{owner.ID: identity},
+			}
+			requested := identity
+			requested.TurnID = "" // Terminal actors carry run identity, not turn identity.
+			switch boundary {
+			case "workspace":
+				requested.WorkspaceID = "foreign"
+			case "profile":
+				requested.ProfileID = "foreign"
+			case "run":
+				requested.RunID = "foreign"
+			case "generation":
+				requested.Generation++
+			case "inactive":
+				delete(manager.activePromptRuns, owner.ID)
+			}
+			declarations, err := manager.SessionEnvironment(t.Context(), requested)
+			if boundary != "matching" {
+				if !errors.Is(err, ErrPromptNotActive) || len(declarations) != 0 {
+					t.Fatalf("foreign environment = %#v, %v", declarations, err)
+				}
+				return
+			}
+			if err != nil || declarations["GH_TOKEN"].Ref != "env:GH_TOKEN" {
+				t.Fatalf("bound environment = %#v, %v", declarations, err)
+			}
+			delete(declarations, "GH_TOKEN")
+			if len(owner.providerRoute.SessionEnv) != 1 {
+				t.Fatal("returned declarations alias runtime state")
+			}
+		})
+	}
+}
+
 type mutableProviderSecretResolver struct {
 	mu     sync.RWMutex
 	values map[string]string
@@ -595,6 +648,103 @@ func TestResolveProviderNativeCLIUsesFinalLaunchEnvironment(t *testing.T) {
 
 func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testing.T) {
 	t.Parallel()
+	t.Run("Should remove missing optional targets using the platform environment casing", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+		bindings, err := manager.injectProviderSecrets(t.Context(), compozyconfig.ResolvedAgent{
+			SessionEnv: compozyconfig.SessionEnv{"PATH": {Ref: "env:MISSING", Required: false}},
+		}, []string{"Path=stale-path", "PATH=stale-uppercase"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := "stale-path"
+		if runtime.GOOS == "windows" {
+			want = ""
+		}
+		if envValue(bindings.env, "Path") != want || envValue(bindings.env, "PATH") != "" {
+			t.Fatalf("missing optional target survived the platform comparison: %#v", bindings.env)
+		}
+	})
+	t.Run("Should remove declared command assignments before resolving launch environment", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{values: map[string]string{
+			"env:AVAILABLE": "declared-value",
+		}}}
+		resolved := compozyconfig.ResolvedAgent{SessionEnv: compozyconfig.SessionEnv{
+			"OPTIONAL_TOKEN": {Ref: "env:MISSING", Required: false},
+			"TOKEN":          {Ref: "env:AVAILABLE", Required: true},
+		}}
+		opts, bindings, err := manager.prepareProviderStartPolicies(t.Context(), resolved, acp.StartOpts{
+			Command: "OPTIONAL_TOKEN=stale TOKEN=wrong KEEP='two words' agent --flag",
+			Env:     []string{"OPTIONAL_TOKEN=inherited"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { runProviderSecretRedactions(bindings.redactionCleanups) })
+		parsed, err := compozyconfig.ParseLaunchCommand(opts.Command)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(parsed.Environment) != 1 || parsed.Environment[0] != "KEEP=two words" ||
+			parsed.Executable != "agent" || len(parsed.Args) != 1 || parsed.Args[0] != "--flag" ||
+			envValue(opts.Env, "TOKEN") != "declared-value" || envValue(opts.Env, "OPTIONAL_TOKEN") != "" {
+			t.Fatalf("declared launch environment was overridden: command=%q", opts.Command)
+		}
+	})
+	t.Run("Should inject declared native CLI environment and redact resolved values", func(t *testing.T) {
+		t.Parallel()
+		const secret = "session-env-native-secret-123456789"
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{values: map[string]string{
+			"env:GH_TOKEN":      secret,
+			"env:SSH_AUTH_SOCK": "/tmp/declared-agent.sock",
+		}}}
+		resolved := compozyconfig.ResolvedAgent{
+			Provider: "codex", AuthMode: compozyconfig.ProviderAuthModeNativeCLI,
+			SessionEnv: compozyconfig.SessionEnv{
+				"GH_TOKEN":       {Ref: "env:GH_TOKEN", Required: true},
+				"SSH_AUTH_SOCK":  {Ref: "env:SSH_AUTH_SOCK", Required: true},
+				"OPTIONAL_TOKEN": {Ref: "vault:providers/custom/optional", Required: false},
+			},
+		}
+		bindings, err := manager.injectProviderSecrets(
+			t.Context(),
+			resolved,
+			[]string{"OPTIONAL_TOKEN=stale", "PATH=/usr/bin"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { runProviderSecretRedactions(bindings.redactionCleanups) })
+		if envValue(bindings.env, "GH_TOKEN") != secret ||
+			envValue(bindings.env, "SSH_AUTH_SOCK") != "/tmp/declared-agent.sock" ||
+			envValue(bindings.env, "OPTIONAL_TOKEN") != "" ||
+			envValue(bindings.env, "PATH") != "/usr/bin" {
+			t.Fatal("declared environment did not replace inherited targets correctly")
+		}
+		if strings.Contains(diagnostics.RedactAndBound("stderr: "+secret, 256), secret) {
+			t.Fatal("resolved session environment was not redacted")
+		}
+	})
+	t.Run("Should reject missing required declarations and foreign profile references", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{values: map[string]string{
+			"vault:profiles/other/providers/custom/token": "foreign-profile-secret",
+		}}}
+		for _, ref := range []string{"env:MISSING", "vault:profiles/other/providers/custom/token"} {
+			_, err := manager.injectProviderSecrets(t.Context(), compozyconfig.ResolvedAgent{
+				ProfileName: "current",
+				SessionEnv:  compozyconfig.SessionEnv{"TOKEN": {Ref: ref, Required: true}},
+			}, nil)
+			want := vault.ErrSecretNotFound
+			if strings.HasPrefix(ref, vault.ProfileSecretRefPrefix) {
+				want = vault.ErrUnsupportedSecretRef
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("reference %q error = %v, want %v", ref, err, want)
+			}
+		}
+	})
 
 	t.Run("Should prefer the active profile credential and retain user fallback semantics", func(t *testing.T) {
 		t.Parallel()

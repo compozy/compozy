@@ -1,6 +1,7 @@
 package config
 
 func (o providerOverlay) Apply(dst *ProviderConfig) {
+	dst.SessionEnv = MergeSessionEnv(dst.SessionEnv, o.SessionEnv)
 	if o.SteerCapability != nil {
 		dst.SteerCapability = *o.SteerCapability
 	}

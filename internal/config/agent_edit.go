@@ -96,6 +96,7 @@ func agentDefFromParsedFile(
 	parsed parsedAgentDef,
 ) (AgentDef, error) {
 	agent := AgentDef{
+		SessionEnv:      MergeSessionEnv(nil, parsed.SessionEnv),
 		Name:            NormalizeAgentName(parsed.Name),
 		Provider:        strings.TrimSpace(parsed.Provider),
 		Command:         strings.TrimSpace(parsed.Command),
@@ -134,6 +135,7 @@ func agentDefFromParsedFile(
 }
 
 func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
+	parsed.SessionEnv = MergeSessionEnv(nil, agent.SessionEnv)
 	parsed.Name = agent.Name
 	parsed.Provider = strings.TrimSpace(agent.Provider)
 	parsed.Command = strings.TrimSpace(agent.Command)
