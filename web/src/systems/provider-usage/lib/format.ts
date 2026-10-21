@@ -35,7 +35,7 @@ function formatDurationMinutes(totalMinutes: number): string {
     const minutes = totalMinutes % HOUR_MINUTES;
     return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
   }
-  return `${totalMinutes}m`;
+  return totalMinutes < 1 ? "<1m" : `${totalMinutes}m`;
 }
 
 /**
@@ -49,7 +49,7 @@ export function formatResetsAt(resetsAt: string | null, now: number): string | n
   const delta = target - now;
   if (delta <= 0) return "Resetting…";
   if (delta > ABSOLUTE_RESET_AFTER_MS) return `Resets ${RESET_DATE_FORMAT.format(target)}`;
-  return `resets in ${formatDurationMinutes(Math.ceil(delta / MINUTE_MS))}`;
+  return `resets in ${formatDurationMinutes(Math.floor(delta / MINUTE_MS))}`;
 }
 
 /**
@@ -70,7 +70,7 @@ export function formatWindowReset(
 export function formatWaitUntil(iso: string | null, now: number): string | null {
   const target = parseTime(iso);
   if (target === null || target <= now) return null;
-  return formatDurationMinutes(Math.ceil((target - now) / MINUTE_MS));
+  return formatDurationMinutes(Math.floor((target - now) / MINUTE_MS));
 }
 
 /** "just now", "2 min ago", "3 hours ago", "2 days ago". */

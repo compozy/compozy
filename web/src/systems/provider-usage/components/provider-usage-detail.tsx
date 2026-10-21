@@ -108,6 +108,40 @@ function FactRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SourceFacts({ target, now }: { target: ProviderUsageTarget; now: number }) {
+  const facts: Array<{ label: string; value: string }> = [];
+  if (target.account?.label) facts.push({ label: "Account", value: target.account.label });
+  if (target.account?.plan) facts.push({ label: "Plan", value: formatPlan(target.account.plan) });
+  if (target.source) facts.push({ label: "Source", value: target.source.label });
+  const measured = showsUsageData(target) ? formatAgo(target.measured_at, now) : null;
+  if (measured) facts.push({ label: "Measured", value: measured });
+  if (facts.length === 0) return null;
+  return (
+    <dl
+      aria-label={`${target.provider_name} source`}
+      className="flex flex-col gap-1 border-t border-line-soft pt-2"
+    >
+      {facts.map(fact => (
+        <FactRow key={fact.label} label={fact.label} value={fact.value} />
+      ))}
+    </dl>
+  );
+}
+
+function MoneyFacts({ target, now }: { target: ProviderUsageTarget; now: number }) {
+  if (target.spend_caps.length === 0 && target.balances.length === 0) return null;
+  return (
+    <dl aria-label={`${target.provider_name} spend`} className="flex flex-col gap-1">
+      {target.spend_caps.map(cap => (
+        <FactRow key={`cap-${cap.id}`} label={cap.label} value={spendCapText(cap, now)} />
+      ))}
+      {target.balances.map(balance => (
+        <FactRow key={`balance-${balance.id}`} label={balance.label} value={balanceText(balance)} />
+      ))}
+    </dl>
+  );
+}
+
 /**
  * Every window, then money in its own units (balances and spend caps, never
  * summed), then who and where the numbers come from and when they were
@@ -115,54 +149,25 @@ function FactRow({ label, value }: { label: string; value: string }) {
  */
 export function ProviderUsageDetail({ target, now, className }: ProviderUsageDetailProps) {
   const hasData = showsUsageData(target);
-  const windows = hasData ? target.windows : [];
-  const balances = hasData ? target.balances : [];
-  const spendCaps = hasData ? target.spend_caps : [];
-  const plan = target.account?.plan ? formatPlan(target.account.plan) : "";
-  const measured = hasData ? formatAgo(target.measured_at, now) : null;
-  const errorMessage =
-    target.status === "error" || target.status === "stale" ? target.error?.message.trim() : "";
   const stale = target.status === "stale";
+  const errorMessage = target.status === "error" || stale ? target.error?.message.trim() : "";
 
   return (
     <div data-slot="provider-usage-detail" className={cn("flex min-w-0 flex-col gap-3", className)}>
-      {windows.length > 0 ? (
+      {hasData && target.windows.length > 0 ? (
         <ul aria-label={`${target.provider_name} limits`} className="flex flex-col gap-2.5">
-          {windows.map(window => (
+          {target.windows.map(window => (
             <UsageWindowLine key={window.id} window={window} now={now} stale={stale} />
           ))}
         </ul>
       ) : null}
-      {spendCaps.length > 0 || balances.length > 0 ? (
-        <dl aria-label={`${target.provider_name} spend`} className="flex flex-col gap-1">
-          {spendCaps.map(cap => (
-            <FactRow key={`cap-${cap.id}`} label={cap.label} value={spendCapText(cap, now)} />
-          ))}
-          {balances.map(balance => (
-            <FactRow
-              key={`balance-${balance.id}`}
-              label={balance.label}
-              value={balanceText(balance)}
-            />
-          ))}
-        </dl>
-      ) : null}
+      {hasData ? <MoneyFacts target={target} now={now} /> : null}
       {errorMessage ? (
         <p data-slot="provider-usage-error" className="text-meta text-pretty text-muted">
           {errorMessage}
         </p>
       ) : null}
-      {target.account?.label || plan || target.source || measured ? (
-        <dl
-          aria-label={`${target.provider_name} source`}
-          className="flex flex-col gap-1 border-t border-line-soft pt-2"
-        >
-          {target.account?.label ? <FactRow label="Account" value={target.account.label} /> : null}
-          {plan ? <FactRow label="Plan" value={plan} /> : null}
-          {target.source ? <FactRow label="Source" value={target.source.label} /> : null}
-          {measured ? <FactRow label="Measured" value={measured} /> : null}
-        </dl>
-      ) : null}
+      <SourceFacts target={target} now={now} />
     </div>
   );
 }

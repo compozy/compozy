@@ -73,6 +73,21 @@ function RowFigure({ row }: { row: ProviderUsageRowModel }) {
   );
 }
 
+/** Inline spans join without spaces in the computed name, so the trigger names itself. */
+function rowAccessibleName(row: ProviderUsageRowModel, plan: string, now: number): string {
+  const window = row.tightest;
+  const parts = [row.target.provider_name, plan];
+  if (window) {
+    const usage = !hasKnownPercent(window)
+      ? "usage unknown"
+      : row.severity === "exhausted"
+        ? "limit reached"
+        : `${formatPercent(window.used_percent)} used`;
+    parts.push(`${window.label} ${usage}`, formatWindowReset(window, now) ?? "");
+  }
+  return parts.filter(Boolean).join(", ");
+}
+
 /**
  * One target: provider mark and name, plan, the binding window as a bar with
  * its percent and reset, and the status line when the numbers are missing or
@@ -102,6 +117,7 @@ export function ProviderUsageRow({
       className="flex min-w-0 flex-col rounded-lg"
     >
       <CollapsibleTrigger
+        aria-label={rowAccessibleName(row, plan, now)}
         className={cn(
           "group/usage-row grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5",
           "rounded-lg px-2 py-2 text-left transition-colors duration-base hover:bg-surface-2",

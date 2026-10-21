@@ -119,6 +119,48 @@ function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number
   );
 }
 
+function RefreshButton({ refreshing, onRefresh }: { refreshing: boolean; onRefresh: () => void }) {
+  return (
+    <Button
+      variant="quiet"
+      size="icon-sm"
+      aria-label={refreshing ? "Refreshing provider usage" : "Refresh provider usage"}
+      aria-busy={refreshing || undefined}
+      disabled={refreshing}
+      onClick={onRefresh}
+    >
+      {refreshing ? (
+        <Spinner aria-hidden="true" className="size-3.5" />
+      ) : (
+        <Icon as={RefreshCw} className="size-3.5" />
+      )}
+    </Button>
+  );
+}
+
+function PanelFooter({
+  onOpenUsage,
+  onOpenSettings,
+}: Pick<ProviderUsagePanelProps, "onOpenUsage" | "onOpenSettings">) {
+  if (!onOpenUsage && !onOpenSettings) return null;
+  return (
+    <footer className="flex items-center justify-between gap-2 border-t border-line-soft px-1 pt-2">
+      {onOpenUsage ? (
+        <Button variant="quiet" size="sm" onClick={onOpenUsage}>
+          Open Usage
+        </Button>
+      ) : (
+        <span />
+      )}
+      {onOpenSettings ? (
+        <Button variant="quiet" size="sm" onClick={onOpenSettings}>
+          Settings
+        </Button>
+      ) : null}
+    </footer>
+  );
+}
+
 /**
  * Header (title, freshness, Refresh), one row per target in the daemon's
  * order, and the footer links. Serves the tray popover and, with `expandAll`
@@ -132,14 +174,12 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
     title = PROVIDER_USAGE_TITLE,
     onRefresh,
     refreshing = false,
-    onOpenUsage,
-    onOpenSettings,
     className,
   } = props;
   const now = useUsageClock();
   const freshness = viewModel?.enabled ? formatUpdated(viewModel.oldestMeasuredAt, now) : null;
-  const showRefresh = Boolean(onRefresh) && !daemonUnavailable && viewModel?.enabled !== false;
-  const showFooter = Boolean(onOpenUsage || onOpenSettings);
+  // Refresh is absent, not disabled, while the daemon is unreachable.
+  const canRefresh = !daemonUnavailable && viewModel?.enabled !== false;
 
   return (
     <section
@@ -157,21 +197,8 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
             </p>
           ) : null}
         </PopoverHeader>
-        {showRefresh ? (
-          <Button
-            variant="quiet"
-            size="icon-sm"
-            aria-label={refreshing ? "Refreshing provider usage" : "Refresh provider usage"}
-            aria-busy={refreshing || undefined}
-            disabled={refreshing}
-            onClick={onRefresh}
-          >
-            {refreshing ? (
-              <Spinner aria-hidden="true" className="size-3.5" />
-            ) : (
-              <Icon as={RefreshCw} className="size-3.5" />
-            )}
-          </Button>
+        {onRefresh && canRefresh ? (
+          <RefreshButton refreshing={refreshing} onRefresh={onRefresh} />
         ) : null}
       </header>
       {daemonUnavailable ? (
@@ -184,22 +211,7 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
         </Alert>
       ) : null}
       <PanelBody props={props} now={now} />
-      {showFooter ? (
-        <footer className="flex items-center justify-between gap-2 border-t border-line-soft px-1 pt-2">
-          {onOpenUsage ? (
-            <Button variant="quiet" size="sm" onClick={onOpenUsage}>
-              Open Usage
-            </Button>
-          ) : (
-            <span />
-          )}
-          {onOpenSettings ? (
-            <Button variant="quiet" size="sm" onClick={onOpenSettings}>
-              Settings
-            </Button>
-          ) : null}
-        </footer>
-      ) : null}
+      <PanelFooter onOpenUsage={props.onOpenUsage} onOpenSettings={props.onOpenSettings} />
     </section>
   );
 }

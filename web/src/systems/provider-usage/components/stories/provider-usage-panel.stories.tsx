@@ -201,7 +201,7 @@ export const TurnedOff: Story = {
 export const UsageAppWindow: Story = {
   render: args => (
     <PanelSurface className="p-4">
-      <ProviderUsagePanel {...args} />
+      <ProviderUsagePanel {...args} className="w-full max-w-2xl" />
     </PanelSurface>
   ),
   args: {
