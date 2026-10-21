@@ -17,6 +17,7 @@ func loopRunInsertParams(
 	metadataJSON []byte,
 ) sqlcgen.InsertLoopRunParams {
 	return sqlcgen.InsertLoopRunParams{
+		GrantCeiling:            run.GrantCeiling,
 		ProfileID:               run.ProfileID,
 		ID:                      string(run.ID),
 		WorkspaceID:             string(run.WorkspaceID),
@@ -70,8 +71,9 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 	}
 	values := loopRunScanValues{
 		run: looppkg.Run{
-			ProfileID: row.ProfileID,
-			LoopName:  row.LoopName, Historical: row.Historical != 0, Generation: int(row.Generation),
+			GrantCeiling: row.GrantCeiling,
+			ProfileID:    row.ProfileID,
+			LoopName:     row.LoopName, Historical: row.Historical != 0, Generation: int(row.Generation),
 			DefinitionVersion: int(row.DefinitionVersion),
 			DefinitionDigest:  row.DefinitionDigest, ActiveGateID: looppkg.NodeID(row.ActiveGateID),
 			BudgetApprovalSeq: int(row.BudgetApprovalSeq),

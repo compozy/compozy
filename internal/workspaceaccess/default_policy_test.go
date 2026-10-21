@@ -634,3 +634,43 @@ type factsSourceFunc func(context.Context, string) (SessionFacts, error)
 func (f factsSourceFunc) SessionFacts(ctx context.Context, id string) (SessionFacts, error) {
 	return f(ctx, id)
 }
+
+func TestUnrestrictedGrant(t *testing.T) {
+	t.Parallel()
+	for _, target := range []TargetRef{ScopeTarget(testWorkspaceB, "p1"), ScopeTarget("", "p1"), ScopeTarget(testWorkspaceA, "p2"), {Kind: TargetAggregate, Surface: "session-catalog", AllProfiles: true}} {
+		t.Run("Should authorize and audit granted "+string(target.Kind)+target.ProfileID, func(t *testing.T) {
+			t.Parallel()
+			audit := &auditEmitterSpy{}
+			facts := factsSourceFunc(func(context.Context, string) (SessionFacts, error) {
+				return SessionFacts{Mode: ModeDenyAll, WorkspaceAccess: Unrestricted, WorkspaceID: testWorkspaceA, ProfileID: "p1"}, nil
+			})
+			policy := newPolicyForTest(t, facts, &consentCacheStub{}, audit, slog.Default())
+			req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+			req.Target, req.ReadOnly = target, true
+			decision, err := policy.Authorize(t.Context(), req)
+			if err != nil || !decision.Allowed || decision.Source != SourceAgentGrant || decision.PromptEligible {
+				t.Fatalf("Authorize = %#v, %v", decision, err)
+			}
+			if len(audit.records) != 1 || audit.records[0].ActorProfileID != "p1" || audit.records[0].Target != target {
+				t.Fatalf("audit = %#v", audit.records)
+			}
+		})
+	}
+	t.Run("Should cap every non-operator creation at its persisted ceiling", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			origin           Origin
+			definition, want string
+		}{
+			{Origin{Kind: ActorHuman}, Unrestricted, Unrestricted},
+			{Origin{Kind: ActorAgentSession}, Unrestricted, ""},
+			{Origin{Kind: ActorAgentSession, Ceiling: Unrestricted}, "", ""},
+			{Origin{Kind: ActorAutomation, Ceiling: Unrestricted}, Unrestricted, Unrestricted},
+			{Origin{}, Unrestricted, ""},
+		} {
+			if got := tc.origin.Effective(tc.definition); got != tc.want {
+				t.Fatalf("Effective(%#v,%q)=%q want %q", tc.origin, tc.definition, got, tc.want)
+			}
+		}
+	})
+}

@@ -11,6 +11,7 @@ import (
 
 	storepkg "github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (s *service) RerunFromNode(ctx context.Context, input RerunInput) (RerunResult, error) {
@@ -186,7 +187,7 @@ func (s *service) ForkRun(ctx context.Context, input ForkInput) (StartResult, er
 	if err != nil {
 		return StartResult{}, err
 	}
-	child, err := s.forkChildRun(
+	child, err := s.forkChildRun(ctx,
 		prepared.source, prepared.snapshot, prepared.values, input,
 	)
 	if err != nil {
@@ -228,6 +229,7 @@ func forkRequestDigest(source Run, input ForkInput) (string, error) {
 }
 
 func (s *service) forkChildRun(
+	ctx context.Context,
 	source Run,
 	snapshot json.RawMessage,
 	values map[string]any,
@@ -239,6 +241,7 @@ func (s *service) forkChildRun(
 	}
 	now := s.now().UTC()
 	child := source
+	child.GrantCeiling = workspaceaccess.NarrowGrant(source.GrantCeiling, workspaceaccess.AuthoringCeiling(ctx, input.Actor.Scope.Operator))
 	child.RunStartState = nil
 	child.ID = runID
 	child.Status = StatusRunning

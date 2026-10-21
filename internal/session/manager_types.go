@@ -23,6 +23,7 @@ import (
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
+	Origin           workspaceaccess.Origin
 	Scope            workspacepkg.ScopeKind
 	DesiredSessionID string
 	ProfileID        string

@@ -5,19 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
 	"net/http"
-
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -110,6 +107,20 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 			ParentSessionID: parentSessionID,
 			Kind:            createSessionLineageKind(req.LineageKind),
 		}
+	}
+	opts.Origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}
+	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		caller, err := h.resolveAgentCaller(c.Request.Context(), agentCallerCredentialsFromRequest(c), agentActionSessionCreate)
+		if err != nil {
+			h.respondError(c, StatusForAgentIdentityError(err), err)
+			return
+		}
+		creator, err := h.Sessions.Status(c.Request.Context(), caller.Session.ID)
+		if err != nil {
+			h.respondError(c, StatusForSessionError(err), err)
+			return
+		}
+		opts.Origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: creator.EffectiveWorkspaceAccess}
 	}
 	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
 	if err != nil {

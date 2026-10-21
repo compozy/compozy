@@ -27,6 +27,7 @@ type agentCreateInput struct {
 	ACPOptions      []contract.AgentACPOptionSelection           `json:"acp_options,omitempty"`
 	Command         string                                       `json:"command,omitempty"`
 	Prompt          string                                       `json:"prompt"`
+	WorkspaceAccess string                                       `json:"workspace_access,omitempty"`
 	Permissions     string                                       `json:"permissions,omitempty"`
 	Tools           []string                                     `json:"tools,omitempty"`
 	Toolsets        []string                                     `json:"toolsets,omitempty"`
@@ -44,6 +45,9 @@ func (n *daemonNativeTools) agentCreate(
 	var input agentCreateInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if input.WorkspaceAccess != "" && scope.SessionID != "" {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeDenied, req.ToolID, "only the operator may set workspace_access", toolspkg.ErrToolDenied, toolspkg.ReasonCode("workspace_access_operator_only"))
 	}
 	createReq, err := n.agentCreateRequest(req.ToolID, scope, input)
 	if err != nil {
@@ -151,6 +155,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 			Speed:           contract.Speed(strings.TrimSpace(input.Speed)),
 			ACPOptions:      cloneNativeAgentACPOptions(input.ACPOptions),
 			Prompt:          input.Prompt,
+			WorkspaceAccess: input.WorkspaceAccess,
 			Permissions:     contract.SettingsPermissionMode(strings.TrimSpace(input.Permissions)),
 			Tools:           trimNativeStrings(input.Tools),
 			Toolsets:        trimNativeStrings(input.Toolsets),

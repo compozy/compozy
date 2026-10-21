@@ -884,6 +884,9 @@
             },
             "type": "array"
           },
+          "workspace_access": {
+            "type": "string"
+          },
           "workspace_id": {
             "type": "string"
           }
@@ -4958,6 +4961,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "workspace_access": {
+            "type": "string"
           }
         },
         "required": [
@@ -6103,6 +6109,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "workspace_access": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -24492,6 +24501,9 @@
               }
             ]
           },
+          "effective_workspace_access": {
+            "type": "string"
+          },
           "escalated": {
             "nullable": true,
             "type": "boolean"
@@ -24701,6 +24713,7 @@
           "available_commands",
           "badge",
           "created_at",
+          "effective_workspace_access",
           "id",
           "pending_interactions",
           "profile_id",

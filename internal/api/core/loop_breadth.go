@@ -9,7 +9,7 @@ import (
 )
 
 func (h *BaseHandlers) loopListBreadth(c *gin.Context) (WorkspaceBreadth, bool) {
-	if c.Param("workspace_id") == "" && !h.requireOperatorSurface(c, "aggregate loops") {
+	if c.Param("workspace_id") == "" && !h.requireOperatorOrGrantedAgent(c, "aggregate loops") {
 		return WorkspaceBreadth{}, false
 	}
 	breadth, err := parseWorkspaceBreadth(c, c.Param("workspace_id"), breadthEncoding{Selector: "workspace_id"})

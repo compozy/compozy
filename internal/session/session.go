@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"sync"
 	"sync/atomic"
 	"time"
@@ -75,6 +74,7 @@ type Info struct {
 	RuntimeRecovery          *store.SessionRuntimeRecovery
 	SelectedRuntime          *RuntimeSelection
 	RuntimeSelectionRevision int64
+	EffectiveWorkspaceAccess string
 	EffectivePermissions     string
 	WorkspaceID              string
 	Workspace                string
@@ -162,6 +162,7 @@ type Session struct {
 	RuntimeRecovery           *store.SessionRuntimeRecovery
 	SelectedRuntime           *RuntimeSelection
 	RuntimeSelectionRevision  int64
+	EffectiveWorkspaceAccess  string
 	EffectivePermissions      string
 	effectiveProviderAuthMode compozyconfig.ProviderAuthMode
 	providerHomePolicy        compozyconfig.ProviderHomePolicy

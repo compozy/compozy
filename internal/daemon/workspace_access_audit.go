@@ -21,6 +21,10 @@ type workspaceAccessAuditEmitter struct {
 }
 
 type workspaceAccessAuditPayload struct {
+	ActorProfileID    string                         `json:"actor_profile_id"`
+	TargetProfileID   string                         `json:"target_profile_id"`
+	TargetKind        workspaceaccess.TargetKind     `json:"target_kind"`
+	AllProfiles       bool                           `json:"all_profiles"`
 	TargetWorkspaceID string                         `json:"target_workspace_id"`
 	Seam              workspaceaccess.Seam           `json:"seam"`
 	Source            workspaceaccess.DecisionSource `json:"source"`
@@ -58,10 +62,11 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	}
 	content, err := json.Marshal(workspaceAccessAuditPayload{
 		TargetWorkspaceID: strings.TrimSpace(record.TargetID),
-		Seam:              record.Seam,
-		Source:            record.Source,
-		Mode:              record.Mode,
-		Error:             strings.TrimSpace(record.Err),
+		ActorProfileID:    record.ActorProfileID, TargetProfileID: record.Target.ProfileID, TargetKind: record.Target.Kind, AllProfiles: record.Target.AllProfiles,
+		Seam:   record.Seam,
+		Source: record.Source,
+		Mode:   record.Mode,
+		Error:  strings.TrimSpace(record.Err),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: encode workspace access audit payload: %w", err)
@@ -69,7 +74,7 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), workspaceAccessAuditWriteTimeout)
 	defer cancel()
 	if err := e.store.WriteEventSummary(writeCtx, daemonEventSummary(store.EventSummary{
-		ProfileID:   store.DefaultProfileID,
+		ProfileID:   record.ActorProfileID,
 		SessionID:   strings.TrimSpace(record.Actor.SessionID),
 		WorkspaceID: strings.TrimSpace(record.Actor.WorkspaceID),
 		Type:        eventType,

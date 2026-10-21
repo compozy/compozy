@@ -52,5 +52,5 @@ func (s *workspaceAccessModeSource) SessionFacts(
 	if mode == "" {
 		return workspaceaccess.SessionFacts{}, fmt.Errorf("daemon: workspace access session %q has no effective permission mode", sessionID)
 	}
-	return workspaceaccess.SessionFacts{Mode: mode, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID}, nil
+	return workspaceaccess.SessionFacts{Mode: mode, WorkspaceAccess: info.EffectiveWorkspaceAccess, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID}, nil
 }

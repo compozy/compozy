@@ -116,6 +116,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	}
 
 	child, err := m.Create(ctx, CreateOpts{
+		Origin:              workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: parent.EffectiveWorkspaceAccess},
 		DesiredSessionID:    desiredID,
 		ProfileID:           strings.TrimSpace(parent.ProfileID),
 		AgentName:           normalized.AgentName,

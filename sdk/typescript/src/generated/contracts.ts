@@ -853,6 +853,7 @@ export interface AutomationJobsParams {
 export type JobSource = string;
 
 export interface Job {
+  grant_ceiling: string;
   id: string;
   profile_id: string;
   scope: Scope;

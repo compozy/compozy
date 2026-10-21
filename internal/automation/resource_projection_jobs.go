@@ -3,7 +3,6 @@ package automation
 import (
 	"context"
 	"errors"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -69,6 +68,10 @@ func (m *Manager) updateJobResource(ctx context.Context, job Job) (Job, error) {
 	}
 
 	next := cloneJob(job)
+	next.GrantCeiling, err = updatedJobGrant(ctx, current.Spec, next)
+	if err != nil {
+		return Job{}, err
+	}
 	next.ID = current.ID
 	next.Source = current.Spec.Source
 	next.CreatedAt = current.CreatedAt.UTC()

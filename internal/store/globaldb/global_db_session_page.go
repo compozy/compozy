@@ -25,7 +25,7 @@ const sessionCatalogVerdictOnlyExpression = `(session_type = 'system' AND EXISTS
  WHERE policy.profile_ref = sessions.creation_profile_ref
  AND json_extract(policy.profile_json, '$.runtime_mode') = 'verdict-only'))`
 
-const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provider, model, reasoning_effort, speed,
+const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_id, name, agent_name, provider, model, reasoning_effort, speed,
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	runtime_generation, runtime_recovery_json,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,

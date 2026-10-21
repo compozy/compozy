@@ -27,6 +27,7 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTask(
 	actor ActorContext,
 	taskRecord Task,
 ) error {
+	actor.ReadScope = store.ReadScope{ProfileID: taskRecord.ProfileID}
 	return a.AuthorizeTaskScope(
 		ctx,
 		actor,
@@ -44,7 +45,7 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
 	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon {
 		return nil
 	}
-	if scope.Normalize() == ScopeGlobal || strings.TrimSpace(actor.Scope.WorkspaceID) != strings.TrimSpace(workspaceID) {
+	if actor.Scope.UserProfileID != actor.ReadScope.ProfileID || scope.Normalize() == ScopeGlobal || strings.TrimSpace(actor.Scope.WorkspaceID) != strings.TrimSpace(workspaceID) {
 		allowed, err := taskWorkspaceAccessAllowed(ctx, a.workspaceAccess, actor, strings.TrimSpace(workspaceID))
 		if err != nil {
 			return errors.Join(ErrPermissionDenied, err)

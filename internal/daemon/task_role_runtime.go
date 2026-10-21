@@ -67,6 +67,7 @@ type taskRoleRuntime struct {
 }
 
 type taskRoleActivation struct {
+	GrantCeiling  string
 	TaskID        string
 	RunID         string
 	ProfileID     string
@@ -284,14 +285,15 @@ func (r *taskRoleRuntime) activationForRun(
 	}
 
 	activation := taskRoleActivation{
-		TaskID:      strings.TrimSpace(taskRecord.ID),
-		RunID:       strings.TrimSpace(run.ID),
-		ProfileID:   strings.TrimSpace(taskRecord.ProfileID),
-		Scope:       taskRecord.Scope.Normalize(),
-		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
-		AgentName:   agentName,
-		Provider:    provider,
-		Model:       model,
+		GrantCeiling: taskRecord.GrantCeiling,
+		TaskID:       strings.TrimSpace(taskRecord.ID),
+		RunID:        strings.TrimSpace(run.ID),
+		ProfileID:    strings.TrimSpace(taskRecord.ProfileID),
+		Scope:        taskRecord.Scope.Normalize(),
+		WorkspaceID:  strings.TrimSpace(taskRecord.WorkspaceID),
+		AgentName:    agentName,
+		Provider:     provider,
+		Model:        model,
 
 		Title:   strings.TrimSpace(taskRecord.Title),
 		Profile: profile,

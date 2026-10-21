@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // ListTaskCatalog returns one batched public catalog page after enforcing read authority.
@@ -20,7 +21,24 @@ func (m *Service) ListTaskCatalog(
 	if actor.ReadScope != (store.ReadScope{}) {
 		query.ReadScope = actor.ReadScope
 	}
-	if !isTaskOperator(actor) {
+	aggregateGranted := false
+	if !isTaskOperator(actor) && query.AllWorkspaces {
+		if m.workspaceAccess == nil {
+			return CatalogPage{}, ErrPermissionDenied
+		}
+		decision, err := m.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
+			Actor:  workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: actor.Scope.SessionID, WorkspaceID: actor.Scope.WorkspaceID},
+			Target: workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, Surface: "tasks", ProfileID: query.ReadScope.ProfileID, AllProfiles: query.ReadScope.AllProfiles}, ReadOnly: true, Seam: workspaceaccess.SeamCatalog,
+		})
+		if err != nil {
+			return CatalogPage{}, err
+		}
+		if !decision.Allowed || decision.Source != workspaceaccess.SourceAgentGrant {
+			return CatalogPage{}, ErrPermissionDenied
+		}
+		aggregateGranted = true
+	}
+	if !isTaskOperator(actor) && !aggregateGranted {
 		workspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
 		if target := strings.TrimSpace(
 			query.WorkspaceID,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"maps"
 	"os"
 	"path/filepath"
@@ -133,6 +134,10 @@ func loadStaticAgent(rootDir, agentDir string) (StaticAgent, error) {
 			agentPath,
 			fmt.Errorf("%w: load agent: %w", ErrManifestInvalid, err),
 		)
+	}
+	if agent.WorkspaceAccess != "" {
+		slog.Warn("workspace_access_untrusted_source", "agent_name", agent.Name, "source", agentPath)
+		agent.WorkspaceAccess = ""
 	}
 	result := StaticAgent{Agent: compozyconfig.CloneAgentDef(agent)}
 	if result.Soul, err = loadStaticAgentSidecar(

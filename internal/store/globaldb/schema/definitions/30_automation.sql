@@ -26,6 +26,7 @@ CREATE TABLE automation_job_overlays (
 	);
 
 CREATE TABLE automation_jobs (
+ grant_ceiling TEXT NOT NULL DEFAULT '',
 		id           TEXT PRIMARY KEY,
 		profile_id   TEXT NOT NULL REFERENCES profiles(id),
 		scope        TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
@@ -140,6 +141,7 @@ CREATE TABLE automation_trigger_overlays (
 	);
 
 CREATE TABLE automation_triggers (
+ grant_ceiling TEXT NOT NULL DEFAULT '',
 		id            TEXT PRIMARY KEY,
 		profile_id    TEXT NOT NULL REFERENCES profiles(id),
 		scope         TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),

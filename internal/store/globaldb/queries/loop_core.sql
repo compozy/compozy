@@ -1,5 +1,6 @@
 -- name: InsertLoopRun :exec
 INSERT INTO loop_runs (
+ grant_ceiling,
   profile_id,
   id, workspace_id, loop_name, status, historical, generation, reattempt_strategy, created_at, started_at,
   last_progress_at, definition_version, definition_digest, active_gate_id,
@@ -10,6 +11,7 @@ INSERT INTO loop_runs (
   goal_context_nudge_ratio, origin_kind, origin_session_id,
   origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest
 ) VALUES (
+ sqlc.arg(grant_ceiling),
   sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(status), sqlc.arg(historical),
   sqlc.arg(generation), sqlc.arg(reattempt_strategy), sqlc.arg(created_at), sqlc.arg(started_at),
@@ -163,3 +165,8 @@ DELETE FROM loop_ui_annotations WHERE profile_id = sqlc.arg(profile_id) AND work
 -- name: InsertLoopUIAnnotation :exec
 INSERT INTO loop_ui_annotations (profile_id, workspace_id, loop_name, node_id, x, y)
 VALUES (sqlc.arg(profile_id), sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(node_id), sqlc.arg(x), sqlc.arg(y));
+
+-- name: UpdateLoopRunGrantCeiling :exec
+UPDATE loop_runs SET grant_ceiling = CASE WHEN CAST(sqlc.arg(operator) AS BOOLEAN) THEN sqlc.arg(ceiling)
+ WHEN grant_ceiling = 'unrestricted' AND sqlc.arg(ceiling) = 'unrestricted' THEN 'unrestricted' ELSE '' END
+WHERE id = sqlc.arg(id);

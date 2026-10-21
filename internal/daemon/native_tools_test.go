@@ -14574,3 +14574,35 @@ func TestNativeWindowGlobalPartition(t *testing.T) {
 		}
 	})
 }
+
+func TestNativeGrantSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should select another profile and retain the authenticated creator ceiling", func(t *testing.T) {
+		t.Parallel()
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant}}
+		var accepted *session.CreateAcceptedOpts
+		manager := apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{ID: "creator", ProfileID: "p1", AgentName: "coder", State: session.StateActive, EffectiveWorkspaceAccess: workspaceaccess.Unrestricted}, nil
+			},
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				accepted = &opts
+				return &session.Info{ID: "child", ProfileID: opts.Session.ProfileID, State: session.StateActive}, nil
+			},
+		}
+		deps := &daemonNativeToolsDeps{Sessions: manager, Workspaces: nativeUserWorkspaceService{}, WorkspaceAccess: policy,
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{{ID: "p1", Name: "one", State: profilepkg.StateActive}, {ID: "p2", Name: "two", State: profilepkg.StateActive}}},
+		}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, deps, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+		_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "creator", ProfileID: "p1", AgentName: "coder"}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionCreate, Input: json.RawMessage(`{"agent":"general","workspace":"@user","profile":"two"}`)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if accepted == nil || accepted.Session.ProfileID != "p2" || accepted.Session.Origin.Kind != workspaceaccess.ActorAgentSession || accepted.Session.Origin.Ceiling != workspaceaccess.Unrestricted {
+			t.Fatalf("accepted = %+v", accepted)
+		}
+		if policy.last.Target.ProfileID != "p2" || policy.last.Target.Kind != workspaceaccess.TargetUser {
+			t.Fatalf("profile authorization = %+v", policy.last)
+		}
+	})
+}

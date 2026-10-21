@@ -1,6 +1,9 @@
 package core
 
 import (
+	"net/http"
+
+	"github.com/compozy/compozy/internal/api/contract"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
@@ -32,6 +35,17 @@ func (h *BaseHandlers) windowManagerProfile(
 			Cause:   profilepkg.ErrInvalidInput,
 		})
 		return "", false
+	}
+	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		caller, err := h.resolveAgentCaller(c.Request.Context(), agentCallerCredentialsFromRequest(c), "window-manager")
+		if err != nil {
+			h.respondError(c, StatusForAgentIdentityError(err), err)
+			return "", false
+		}
+		if string(workspaceID) == "global" || scope.ProfileID != caller.Session.ProfileID {
+			c.JSON(http.StatusForbidden, contract.ErrorPayload{Error: "desktop partition is operator-only", Code: operatorScopeDeniedCode})
+			return "", false
+		}
 	}
 	return scope.ProfileID, true
 }

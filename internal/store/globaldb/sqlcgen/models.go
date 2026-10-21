@@ -125,6 +125,7 @@ type AttentionWorkspaceMute struct {
 }
 
 type AutomationJob struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
 	ID               string         `json:"id"`
 	ProfileID        string         `json:"profile_id"`
 	Scope            string         `json:"scope"`
@@ -226,6 +227,7 @@ type AutomationSuggestion struct {
 }
 
 type AutomationTrigger struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
 	ID               string         `json:"id"`
 	ProfileID        string         `json:"profile_id"`
 	Scope            string         `json:"scope"`
@@ -898,6 +900,7 @@ type LoopRequest struct {
 }
 
 type LoopRun struct {
+	GrantCeiling             string          `json:"grant_ceiling"`
 	ID                       string          `json:"id"`
 	ProfileID                string          `json:"profile_id"`
 	WorkspaceID              string          `json:"workspace_id"`
@@ -1351,6 +1354,7 @@ type SchedulerPause struct {
 }
 
 type Session struct {
+	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ID                       string         `json:"id"`
 	ProfileID                string         `json:"profile_id"`
 	Name                     sql.NullString `json:"name"`
@@ -1704,6 +1708,7 @@ type SkillExposure struct {
 }
 
 type Task struct {
+	GrantCeiling          string         `json:"grant_ceiling"`
 	ID                    string         `json:"id"`
 	ProfileID             string         `json:"profile_id"`
 	Identifier            sql.NullString `json:"identifier"`

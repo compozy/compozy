@@ -20,6 +20,7 @@ import (
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type daemonNativeSkillsRegistry interface {
@@ -56,6 +57,7 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
+	WorkspaceAccess     workspaceaccess.Policy
 	Subagents           func() sessionpkg.SubagentService
 	Logger              *slog.Logger
 	Registry            func() toolspkg.Registry

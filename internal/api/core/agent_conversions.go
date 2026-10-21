@@ -79,6 +79,7 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 		Tools:            append([]string(nil), agent.Tools...),
 		Toolsets:         append([]string(nil), agent.Toolsets...),
 		DenyTools:        append([]string(nil), agent.DenyTools...),
+		WorkspaceAccess:  agent.WorkspaceAccess,
 		Permissions:      agent.Permissions,
 		CategoryPath:     append([]string(nil), agent.CategoryPath...),
 		MCPServers:       mcpServers,

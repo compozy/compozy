@@ -26,7 +26,7 @@ Never guess a tool schema from this reference. Resolve canonical `compozy__tool_
 
 Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, config apply history, and some session repair/recap/approval flows.
 
-`workspace` is optional and defaults to the bound session's workspace. Naming another workspace is a cross-workspace request governed by the session permission mode; see Workspace Boundary below. Bound sessions still cannot use `global`/`all`; operators can.
+`workspace` is optional and defaults to the bound session's workspace. Naming another workspace is a cross-workspace request governed by the session permission mode; see Workspace Boundary below. Aggregate reads require an operator or an effective unrestricted grant; desktop `global` remains operator-only.
 
 ## Discovery And Catalog Toolsets
 
@@ -477,7 +477,7 @@ Registered IDs, durable workspace IDs, names and paths resolve to the same regis
 policy and dispatch. Naming the current project does not require cross-workspace approval, and
 native automation operations use the same project registration as CLI and HTTP/UDS reads.
 
-A call that names a workspace other than the bound session's is a cross-workspace request. The session's effective permission mode decides it, and there is no separate toggle, grant, or config key:
+A call that names a workspace other than the bound session's is a cross-workspace request. An effective `workspace_access: unrestricted` grant allows it with audit source `agent_grant`; otherwise the session's effective permission mode decides:
 
 - `approve-all`: allowed at every seam.
 - `deny-all`: denied at every seam, including native tools. CompozyOS never prompts for crossing under this mode.
@@ -489,7 +489,9 @@ Denied native calls return `workspace_access_denied` with this exact hint:
 
 The prompt offers four daemon-computed options: `allow_once` (this call), `allow_session` (this call and every later crossing by this session, at every seam), `reject_once` (this call), and `reject_session` (this call and every later crossing by this session). A `*_session` answer lives only in daemon memory, expires when the session stops or the daemon restarts, and has no list or revoke surface. A prompt timeout, transport failure, or unknown answer denies and stores no session answer.
 
-Each policy evaluation attempts a best-effort `workspace.access_granted` or `workspace.access_denied` audit append with target workspace, seam, decision source, and mode. A prompt-eligible miss is a denied policy evaluation even when the operator then allows that one call; later evaluations allowed by `allow_session` are granted. Read persisted events through `compozy__logs`, `compozy__observe_search`, `compozy logs --type <event-type>`, or `GET /api/logs`.
+Granted agents may select an active `profile`, use `all_profiles` on reads, and read aggregate routes. Desktop tools remain restricted to project partitions and the caller profile's `user` partition; `global` and another profile's `user` partition are denied. User Scope Work ADR-003 supersedes ADR-007 §1 for this operator-authored grant.
+
+Each policy evaluation attempts a best-effort `workspace.access_granted` or `workspace.access_denied` audit append with actor/target profiles, target kind/workspace, seam, decision source, and mode. A prompt-eligible miss is a denied policy evaluation even when the operator then allows that one call; later evaluations allowed by `allow_session` are granted. Read persisted events through `compozy__logs`, `compozy__observe_search`, `compozy logs --type <event-type>`, or `GET /api/logs`.
 
 On denial, report the hint to the operator and stop that line of work. Do not retry the same call, re-enter through another seam, spawn a child to cross for you, or edit `permissions.*` in config or an agent definition. `compozy__config_set` on `permissions.*` fail-closes; the operator owns the mode.
 

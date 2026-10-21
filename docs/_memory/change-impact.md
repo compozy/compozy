@@ -1,5 +1,11 @@
 # Compozy Change Impact
 
+## Unrestricted agent grant — U5, 2026-10-21
+
+Owner: User Scope Work BR-9–13; T-22–27/33–35/37. AGENT.md adds the strict operator-authored `workspace_access` field; session payloads expose immutable `effective_workspace_access`. Native workspace tools accept explicit profile selection, with aggregate reads guarded by the effective grant. Tool policy and desktop partition restrictions remain independent. Agent definition writes reject nonempty grants; extension/marketplace definitions drop them.
+
+Migration `00150_schema.sql` adds empty-default session grants and deferred task/job/trigger/Loop ceilings without rewriting existing state. Executable agent edits narrow ceilings atomically. No new hook, extension permission, or config.toml key is introduced. API/SDK/native catalog generation and official agent/native references co-ship. Web badge/editor are frontend-owned. User Scope Work ADR-003 supersedes cross-workspace ADR-007 §1 in the glossary and official references. Evidence: `docs/qa/reports/2026-10-21-unrestricted-grant-u5.md`.
+
 ## All-projects automation and resource aggregates — A4, 2026-10-21
 
 Owner: `all-projects` A4, BR-13/14/15, T-14/15/17/33–35/38. Source attribution is persisted

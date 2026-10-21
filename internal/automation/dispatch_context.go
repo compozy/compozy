@@ -2,14 +2,15 @@ package automation
 
 import (
 	"errors"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	opts := session.CreateOpts{
+		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.grantCeiling()},
 		AgentName: req.agentName(),
 		ProfileID: req.profileID(),
 		Provider:  "",
@@ -161,4 +162,11 @@ func (d *Dispatcher) CapacityAvailable() <-chan struct{} {
 		return ready
 	}
 	return d.capacityChanged
+}
+
+func (r DispatchRequest) grantCeiling() string {
+	if r.Job != nil {
+		return r.Job.GrantCeiling
+	}
+	return r.Trigger.GrantCeiling
 }

@@ -69,6 +69,9 @@ func (m *Manager) acceptSessionStart(
 		return nil, errors.Join(err, cleanupErr)
 	}
 
+	if spec.startAction == sessionStartActionCreate {
+		spec.effectiveWorkspaceAccess = spec.origin.Effective(runtime.agentDef.WorkspaceAccess)
+	}
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
 	session.followUpMode = m.busyInputDefaultMode
 	session.pendingDeriveReceipt = cloneDerivationReceipt(spec.deriveReceipt)

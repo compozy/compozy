@@ -333,6 +333,7 @@ func renderAgentHuman(item AgentRecord) string {
 		{Label: "Definition Digest", Value: stringOrDash(item.DefinitionDigest)},
 		{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
 		{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
+		{Label: "workspace_access", Value: stringOrDash(item.WorkspaceAccess)},
 	})
 
 	servers := make([][]string, 0, len(item.MCPServers))

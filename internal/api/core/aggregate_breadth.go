@@ -8,7 +8,7 @@ import (
 )
 
 func (h *BaseHandlers) requireAggregateSurface(c *gin.Context) bool {
-	return h.requireOperatorSurface(c, "aggregate catalogs")
+	return h.requireOperatorOrGrantedAgent(c, "aggregate catalogs")
 }
 
 func (h *BaseHandlers) aggregateBreadth(c *gin.Context) (WorkspaceBreadth, bool) {

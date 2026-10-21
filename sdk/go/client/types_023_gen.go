@@ -7,6 +7,62 @@ import (
 	"time"
 )
 
+// TaskInspectRunPayload is a daemon API value.
+type TaskInspectRunPayload struct {
+	RunID                   string        `json:"run_id"`
+	TaskID                  string        `json:"task_id"`
+	Status                  TaskRunStatus `json:"status"`
+	ClaimTokenHashTruncated string        `json:"claim_token_hash_truncated,omitempty"`
+	LeaseUntil              *time.Time    `json:"lease_until,omitempty"`
+	HeartbeatAt             *time.Time    `json:"heartbeat_at,omitempty"`
+	HeartbeatAgeSeconds     *int64        `json:"heartbeat_age_seconds,omitzero"`
+	Retries                 int           `json:"retries,omitzero"`
+	LastErrorSummary        string        `json:"last_error_summary,omitempty"`
+	FailureKind             string        `json:"failure_kind,omitempty"`
+	BoundSessionID          string        `json:"bound_session_id,omitempty"`
+	StartedAt               *time.Time    `json:"started_at,omitempty"`
+	EndedAt                 *time.Time    `json:"ended_at,omitempty"`
+	PreviousRunID           string        `json:"previous_run_id,omitempty"`
+	QueuedAt                time.Time     `json:"queued_at"`
+	Attempt                 int           `json:"attempt"`
+}
+
+// TaskInspectSchedulerPayload is a daemon API value.
+type TaskInspectSchedulerPayload struct {
+	Paused    bool       `json:"paused"`
+	PausedBy  string     `json:"paused_by,omitempty"`
+	PausedAt  *time.Time `json:"paused_at,omitempty"`
+	Reason    string     `json:"reason,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
+// TaskInspectSessionPayload is a daemon API value.
+type TaskInspectSessionPayload struct {
+	SessionID      string     `json:"session_id"`
+	State          string     `json:"state,omitempty"`
+	AgentName      string     `json:"agent_name,omitempty"`
+	ProviderName   string     `json:"provider_name,omitempty"`
+	WorkspaceID    string     `json:"workspace_id,omitempty"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
+	StopReason     string     `json:"stop_reason,omitempty"`
+	FailureKind    string     `json:"failure_kind,omitempty"`
+}
+
+// TaskLatencyMetricPayload is a daemon API value.
+type TaskLatencyMetricPayload struct {
+	Samples       int   `json:"samples"`
+	AverageMillis int64 `json:"average_ms"`
+	MaximumMillis int64 `json:"maximum_ms"`
+}
+
+// TaskOwnerTotalPayload is a daemon API value.
+type TaskOwnerTotalPayload struct {
+	OwnerKind string `json:"owner_kind"`
+	OwnerRef  string `json:"owner_ref"`
+	Count     int    `json:"count"`
+}
+
 // TaskPayload is a daemon API value.
 type TaskPayload struct {
 	ID                   string          `json:"id"`
@@ -389,60 +445,4 @@ type TaskTreeNodePayload struct {
 type TaskTreePayload struct {
 	Root        TaskTreeNodePayload   `json:"root"`
 	Descendants []TaskTreeNodePayload `json:"descendants,omitempty"`
-}
-
-// TaskTreeResponse is a daemon API value.
-type TaskTreeResponse struct {
-	Tree TaskTreePayload `json:"tree"`
-}
-
-// TaskTriageStatePayload is a daemon API value.
-type TaskTriageStatePayload struct {
-	TaskID             string        `json:"task_id"`
-	Actor              ActorIdentity `json:"actor"`
-	Read               bool          `json:"read"`
-	Archived           bool          `json:"archived"`
-	Dismissed          bool          `json:"dismissed"`
-	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
-	UpdatedAt          time.Time     `json:"updated_at"`
-}
-
-// TaskTriageStateResponse is a daemon API value.
-type TaskTriageStateResponse struct {
-	Triage TaskTriageStatePayload `json:"triage"`
-}
-
-// TasksResponse is a daemon API value.
-type TasksResponse struct {
-	Tasks  []TaskCatalogItemPayload `json:"tasks"`
-	Page   CountedCursorPagePayload `json:"page"`
-	Facets TaskCatalogFacetsPayload `json:"facets"`
-}
-
-// TerminalActorKind is a daemon API value.
-type TerminalActorKind string
-
-// TerminalAnswerInputRequest is a daemon API value.
-type TerminalAnswerInputRequest struct {
-	Input string `json:"input"`
-}
-
-// TerminalAttachMode is a daemon API value.
-type TerminalAttachMode string
-
-// TerminalAttachTicketRequest is a daemon API value.
-type TerminalAttachTicketRequest struct {
-	Mode     TerminalAttachMode `json:"mode"`
-	ClientID string             `json:"client_id,omitempty"`
-}
-
-// TerminalAttachTicketResponse is a daemon API value.
-type TerminalAttachTicketResponse struct {
-	Ticket    string    `json:"ticket"`
-	ExpiresAt time.Time `json:"expires_at"`
-}
-
-// TerminalCapabilitiesPayload is a daemon API value.
-type TerminalCapabilitiesPayload struct {
-	Interactive bool `json:"interactive"`
 }

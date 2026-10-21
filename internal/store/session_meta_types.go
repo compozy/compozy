@@ -39,13 +39,14 @@ type SessionProviderExecutionState struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID              string         `json:"id"`
-	Name            string         `json:"name,omitempty"`
-	AgentName       string         `json:"agent_name"`
-	Provider        string         `json:"provider,omitempty"`
-	Model           string         `json:"model,omitempty"`
-	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed `json:"speed,omitempty"`
+	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
+	ID                       string         `json:"id"`
+	Name                     string         `json:"name,omitempty"`
+	AgentName                string         `json:"agent_name"`
+	Provider                 string         `json:"provider,omitempty"`
+	Model                    string         `json:"model,omitempty"`
+	ReasoningEffort          string         `json:"reasoning_effort,omitempty"`
+	Speed                    speedpkg.Speed `json:"speed,omitempty"`
 	*SessionRuntimeDetails
 	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitzero"`
 	RuntimeStatus     SessionRuntimeStatus     `json:"runtime_status"`

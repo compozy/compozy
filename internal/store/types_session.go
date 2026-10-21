@@ -63,15 +63,16 @@ type SessionAttachState struct {
 }
 
 type SessionInfo struct {
-	VerdictOnly     bool `json:"-"`
-	ID              string
-	ProfileID       string
-	Name            string
-	AgentName       string
-	Provider        string
-	Model           string
-	ReasoningEffort string
-	Speed           speedpkg.Speed
+	EffectiveWorkspaceAccess string
+	VerdictOnly              bool `json:"-"`
+	ID                       string
+	ProfileID                string
+	Name                     string
+	AgentName                string
+	Provider                 string
+	Model                    string
+	ReasoningEffort          string
+	Speed                    speedpkg.Speed
 	*SessionRuntimeDetails
 	SpeedResolution          *speedpkg.Resolution
 	RuntimeStatus            SessionRuntimeStatus

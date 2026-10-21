@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (s *service) Start(
@@ -194,6 +195,7 @@ func (s *service) prepareResolvedStart(
 		return Run{}, fmt.Errorf("loop: generate run id: %w", err)
 	}
 	return s.startResolved(
+		ctx,
 		runID,
 		ws,
 		loopName,
@@ -222,6 +224,7 @@ func (s *service) resolveGoalRunPolicy(ctx context.Context, ws WorkspaceID) (Goa
 }
 
 func (s *service) startResolved(
+	ctx context.Context,
 	runID RunID,
 	ws WorkspaceID,
 	loopName string,
@@ -239,7 +242,8 @@ func (s *service) startResolved(
 	}
 	now := s.now().UTC()
 	run := Run{
-		ID: runID, ProfileID: inputs.ProfileID, WorkspaceID: ws,
+		GrantCeiling: workspaceaccess.AuthoringCeiling(ctx, actor.Scope.Operator),
+		ID:           runID, ProfileID: inputs.ProfileID, WorkspaceID: ws,
 		LoopName: loopName, Status: StatusRunning, Generation: 0,
 		ReattemptStrategy: effective.ReattemptStrategy, CreatedAt: now, StartedAt: now, LastProgressAt: now,
 		StartedBy: actor.Actor, StartedOrigin: actor.Origin,

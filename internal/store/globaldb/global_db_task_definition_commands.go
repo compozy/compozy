@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 var _ taskpkg.DefinitionStore = (*TaskRepo)(nil)
@@ -115,6 +117,12 @@ func (g *TaskRepo) SetTaskExecutionProfile(
 		if storeErr != nil {
 			return storeErr
 		}
+		if err := sqlcgen.New(exec).UpdateTaskGrantCeiling(ctx, sqlcgen.UpdateTaskGrantCeilingParams{
+			ID: mutation.Event.TaskID, Operator: mutation.Actor.Scope.Operator,
+			Ceiling: workspaceaccess.AuthoringCeiling(ctx, mutation.Actor.Scope.Operator),
+		}); err != nil {
+			return err
+		}
 		return appendTaskEventsWithExecutor(ctx, exec, []taskpkg.Event{mutation.Event})
 	})
 	if err != nil {
@@ -157,6 +165,12 @@ func (g *TaskRepo) SetTaskWorktreePolicy(
 		if loadErr != nil {
 			return loadErr
 		}
+		if err := sqlcgen.New(exec).UpdateTaskGrantCeiling(ctx, sqlcgen.UpdateTaskGrantCeilingParams{
+			ID: mutation.Event.TaskID, Operator: mutation.Actor.Scope.Operator,
+			Ceiling: workspaceaccess.AuthoringCeiling(ctx, mutation.Actor.Scope.Operator),
+		}); err != nil {
+			return err
+		}
 		return appendTaskEventsWithExecutor(ctx, exec, []taskpkg.Event{mutation.Event})
 	})
 	if err != nil {
@@ -185,6 +199,12 @@ func (g *TaskRepo) DeleteTaskExecutionProfile(
 				return err
 			}
 			if err := deleteExecutionProfileWithExecutor(ctx, exec, taskID); err != nil {
+				return err
+			}
+			if err := sqlcgen.New(exec).UpdateTaskGrantCeiling(ctx, sqlcgen.UpdateTaskGrantCeilingParams{
+				ID: mutation.Event.TaskID, Operator: mutation.Actor.Scope.Operator,
+				Ceiling: workspaceaccess.AuthoringCeiling(ctx, mutation.Actor.Scope.Operator),
+			}); err != nil {
 				return err
 			}
 			return appendTaskEventsWithExecutor(ctx, exec, []taskpkg.Event{mutation.Event})

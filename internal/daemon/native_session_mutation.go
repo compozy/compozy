@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -105,6 +106,14 @@ func (n *daemonNativeTools) sessionCreate(
 	callerWorkspaceID := strings.TrimSpace(scope.WorkspaceID)
 	if callerSessionID != "" && callerWorkspaceID == workspaceID {
 		opts.Lineage = &store.SessionLineage{ParentSessionID: callerSessionID}
+	}
+	opts.Origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}
+	if callerSessionID != "" {
+		creator, err := n.deps.Sessions.Status(ctx, callerSessionID)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		opts.Origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: creator.EffectiveWorkspaceAccess}
 	}
 	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: opts})
 	if err != nil {

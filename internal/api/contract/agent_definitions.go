@@ -39,6 +39,7 @@ type DuplicateAgentOverrides struct {
 	Tools           []string                            `json:"tools,omitempty"`
 	Toolsets        []string                            `json:"toolsets,omitempty"`
 	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
 	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
 	CategoryPath    []string                            `json:"category_path,omitempty"`
 	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
@@ -103,6 +104,7 @@ type AgentPayload struct {
 	Tools            []string                            `json:"tools,omitempty"`
 	Toolsets         []string                            `json:"toolsets,omitempty"`
 	DenyTools        []string                            `json:"deny_tools,omitempty"`
+	WorkspaceAccess  string                              `json:"workspace_access,omitempty"`
 	Permissions      string                              `json:"permissions,omitempty"`
 	CategoryPath     []string                            `json:"category_path,omitempty"`
 	MCPServers       []AgentMCPServerJSON                `json:"mcp_servers,omitempty"`

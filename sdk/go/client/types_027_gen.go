@@ -2,7 +2,67 @@
 
 package client
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
+
+// WindowManagerPreview is a daemon API value.
+type WindowManagerPreview struct {
+	Snapshot    WindowManagerSnapshot    `json:"snapshot"`
+	Changed     bool                     `json:"changed"`
+	Changes     ChangeSet                `json:"changes"`
+	Diagnostics []Diagnostic             `json:"diagnostics,omitempty"`
+	Client      *WindowManagerClientView `json:"client,omitzero"`
+}
+
+// WindowManagerRebaseGuard is a daemon API value.
+type WindowManagerRebaseGuard struct {
+	WindowID      *WindowID            `json:"window_id,omitzero"`
+	SourceNodeID  *WindowmanagerNodeID `json:"source_node_id,omitzero"`
+	TargetNodeID  *WindowmanagerNodeID `json:"target_node_id,omitzero"`
+	SplitID       *WindowmanagerNodeID `json:"split_id,omitzero"`
+	BoundaryIndex *int                 `json:"boundary_index,omitzero"`
+}
+
+// WindowManagerResult is a daemon API value.
+type WindowManagerResult struct {
+	Snapshot    WindowManagerSnapshot    `json:"snapshot"`
+	Applied     bool                     `json:"applied"`
+	Changes     ChangeSet                `json:"changes"`
+	Diagnostics []Diagnostic             `json:"diagnostics,omitempty"`
+	Client      *WindowManagerClientView `json:"client,omitzero"`
+	RebasedFrom *WindowManagerRevision   `json:"rebased_from,omitzero"`
+}
+
+// WindowManagerReturnAnchor is a daemon API value.
+type WindowManagerReturnAnchor struct {
+	DesktopID      DesktopID                 `json:"desktop_id"`
+	GroupID        *GroupID                  `json:"group_id,omitzero"`
+	ParentSplitID  *WindowmanagerNodeID      `json:"parent_split_id,omitzero"`
+	ChildIndex     *int                      `json:"child_index,omitzero"`
+	Weight         *float64                  `json:"weight,omitzero"`
+	NeighborIDs    []WindowID                `json:"neighbor_ids,omitempty"`
+	SourceRevision WindowManagerRevision     `json:"source_revision"`
+	SourceGroup    *WindowManagerLayoutGroup `json:"source_group,omitzero"`
+	Zoomed         bool                      `json:"zoomed,omitzero"`
+}
+
+// WindowManagerRevision is a daemon API value.
+// WindowManagerRevision preserves its custom JSON wire representation.
+type WindowManagerRevision = json.RawMessage
+
+// WindowManagerSnapshot is a daemon API value.
+type WindowManagerSnapshot struct {
+	Version          uint32                         `json:"version"`
+	WorkspaceID      WindowmanagerWorkspaceID       `json:"workspace_id"`
+	Revision         WindowManagerRevision          `json:"revision"`
+	Desktops         []WindowManagerDesktop         `json:"desktops"`
+	Windows          map[string]WindowManagerWindow `json:"windows"`
+	ClosedEntryCount int                            `json:"closed_entry_count"`
+	Overrides        WorkspaceConfig                `json:"overrides"`
+	UpdatedAt        time.Time                      `json:"updated_at"`
+}
 
 // WindowManagerWindow is a daemon API value.
 type WindowManagerWindow struct {

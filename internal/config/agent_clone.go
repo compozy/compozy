@@ -15,6 +15,7 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),
 		Permissions:     strings.TrimSpace(agent.Permissions),
+		WorkspaceAccess: agent.WorkspaceAccess,
 		Skills:          normalizeAgentSkillsConfig(agent.Skills),
 		CategoryPath:    normalizeAgentCategoryPath(agent.CategoryPath),
 		MCPServers:      cloneMCPServers(agent.MCPServers),

@@ -2,15 +2,12 @@ package core
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -35,7 +32,7 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	if transportQuery.AllWorkspaces && !h.requireOperatorSurface(c, "all-workspaces tasks") {
+	if transportQuery.AllWorkspaces && !h.requireOperatorOrGrantedAgent(c, "all-workspaces tasks") {
 		return
 	}
 	actor, err := h.taskActorContext(c, taskActionList)

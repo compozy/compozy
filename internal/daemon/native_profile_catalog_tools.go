@@ -8,6 +8,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type nativeProfileListItem struct {
@@ -159,7 +160,7 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 		if sessionProfileID == "" {
 			return "", "", "", errors.New("daemon: session has no bound profile")
 		}
-		if requestedProfileID != "" && requestedProfileID != store.DefaultProfileID &&
+		if requestedProfileID != "" && requestedProfileID != store.DefaultProfileID && info.EffectiveWorkspaceAccess != workspaceaccess.Unrestricted &&
 			requestedProfileID != sessionProfileID {
 			return "", "", "", &profilepkg.Error{
 				Code: "profile_session_conflict", Message: "session is bound to another profile",
@@ -167,6 +168,9 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 			}
 		}
 		profileID, source, workspaceID = sessionProfileID, nativeToolsSessionKey, strings.TrimSpace(info.WorkspaceID)
+		if requestedProfileID != "" && info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted {
+			profileID = requestedProfileID
+		}
 	}
 	return profileID, source, workspaceID, nil
 }
@@ -180,6 +184,9 @@ func (n *daemonNativeTools) nativeProfileReadScope(
 		return store.ReadScope{}, err
 	}
 	readScope := store.ReadScope{ProfileID: profileID}
+	if scope.AllProfiles {
+		readScope = store.ReadScope{AllProfiles: true}
+	}
 	if err := readScope.Validate(); err != nil {
 		return store.ReadScope{}, err
 	}

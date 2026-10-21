@@ -7,6 +7,7 @@ import (
 	"time"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // LoopStartKind is the automation-local copy of loop start-surface kinds.
@@ -108,7 +109,7 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
-	result, err := d.loopStarter.StartLoop(ctx, LoopStartRequest{
+	result, err := d.loopStarter.StartLoop(workspaceaccess.WithOrigin(ctx, workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.grantCeiling()}), LoopStartRequest{
 		ProfileID:       req.profileID(),
 		WorkspaceID:     strings.TrimSpace(target.WorkspaceID),
 		LoopName:        strings.TrimSpace(target.LoopName),

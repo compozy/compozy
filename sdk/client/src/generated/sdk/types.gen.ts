@@ -255,6 +255,7 @@ export type AgentPayload = {
   speed?: "normal" | "fast";
   tools?: Array<string>;
   toolsets?: Array<string>;
+  workspace_access?: string;
   workspace_id?: string;
 };
 
@@ -1317,6 +1318,7 @@ export type CreateAgentPayload = {
   speed?: "normal" | "fast";
   tools?: Array<string>;
   toolsets?: Array<string>;
+  workspace_access?: string;
 };
 
 export type CreateAgentRequest = {
@@ -1611,6 +1613,7 @@ export type DuplicateAgentOverrides = {
   speed?: "normal" | "fast";
   tools?: Array<string>;
   toolsets?: Array<string>;
+  workspace_access?: string;
 };
 
 export type DuplicateAgentRequest = {
@@ -6689,6 +6692,7 @@ export type SessionPayload = {
   busy_input?: BusyInputState | null;
   created_at: string;
   derivation?: SessionDerivationPayload | null;
+  effective_workspace_access: string;
   escalated?: boolean | null;
   failure?: SessionFailurePayload | null;
   folder_id?: string;

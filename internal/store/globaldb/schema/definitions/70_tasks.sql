@@ -87,6 +87,7 @@ CREATE TABLE task_triage_state (
 	);
 
 CREATE TABLE "tasks" (
+ grant_ceiling TEXT NOT NULL DEFAULT '',
 		id              TEXT PRIMARY KEY,
 		profile_id      TEXT NOT NULL REFERENCES profiles(id),
 		identifier      TEXT,

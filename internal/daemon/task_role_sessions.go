@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (r *taskRoleRuntime) activeRoleSession(
@@ -44,6 +45,7 @@ func (r *taskRoleRuntime) startRoleSession(
 
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
+		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: activation.GrantCeiling},
 		ProfileID: activation.ProfileID,
 		AgentName: activation.AgentName,
 		Provider:  activation.Provider,

@@ -10,11 +10,10 @@ import (
 	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
-
 	extensionpkg "github.com/compozy/compozy/internal/extension"
-
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const (
@@ -82,7 +81,22 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 				if err != nil {
 					return toolspkg.ToolResult{}, err
 				}
-				return call(ctx, effectiveScope, req)
+				origin := workspaceaccess.Origin{}
+				if effectiveScope.Operator {
+					origin.Kind = workspaceaccess.ActorHuman
+				}
+				if effectiveScope.SessionID != "" {
+					info, err := adapter.deps.Sessions.Status(ctx, effectiveScope.SessionID)
+					if err != nil {
+						return toolspkg.ToolResult{}, err
+					}
+					origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: info.EffectiveWorkspaceAccess}
+				}
+				effectiveScope, req, err = adapter.nativeProfileSelection(ctx, effectiveScope, req, descriptor)
+				if err != nil {
+					return toolspkg.ToolResult{}, err
+				}
+				return call(workspaceaccess.WithOrigin(ctx, origin), effectiveScope, req)
 			}
 		}
 		nativeTools = append(nativeTools, toolspkg.NativeTool{

@@ -83,6 +83,7 @@ CREATE TABLE loop_run_events (
 		);
 
 CREATE TABLE loop_runs (
+ grant_ceiling TEXT NOT NULL DEFAULT '',
 			id                   TEXT PRIMARY KEY,
 			profile_id           TEXT NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
 			workspace_id         TEXT NOT NULL,

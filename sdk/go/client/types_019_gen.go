@@ -2,7 +2,55 @@
 
 package client
 
-import "encoding/json"
+// SettingsObservabilityConfigPayload is a daemon API value.
+type SettingsObservabilityConfigPayload struct {
+	Enabled        bool                                   `json:"enabled"`
+	RetentionDays  int                                    `json:"retention_days"`
+	MaxGlobalBytes int64                                  `json:"max_global_bytes"`
+	Transcripts    SettingsObservabilityTranscriptPayload `json:"transcripts"`
+}
+
+// SettingsObservabilityResponse is a daemon API value.
+type SettingsObservabilityResponse struct {
+	Section         SettingsSectionName                 `json:"section"`
+	Scope           SettingsUserScopeKind               `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind             `json:"available_scopes"`
+	Config          SettingsObservabilityConfigPayload  `json:"config"`
+	Runtime         SettingsObservabilityRuntimePayload `json:"runtime"`
+	LogTail         SettingsLogTailCapabilityPayload    `json:"log_tail"`
+}
+
+// SettingsObservabilityRuntimePayload is a daemon API value.
+type SettingsObservabilityRuntimePayload struct {
+	Available          bool   `json:"available"`
+	Status             string `json:"status,omitempty"`
+	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
+	SessionDBSizeBytes int64  `json:"session_db_size_bytes"`
+	ActiveSessions     int    `json:"active_sessions"`
+	ActiveAgents       int    `json:"active_agents"`
+	UptimeSeconds      int64  `json:"uptime_seconds"`
+}
+
+// SettingsObservabilityTranscriptPayload is a daemon API value.
+type SettingsObservabilityTranscriptPayload struct {
+	Enabled            bool  `json:"enabled"`
+	SegmentBytes       int   `json:"segment_bytes"`
+	MaxBytesPerSession int64 `json:"max_bytes_per_session"`
+}
+
+// SettingsOperationalLinkPayload is a daemon API value.
+type SettingsOperationalLinkPayload struct {
+	Label string `json:"label"`
+	Path  string `json:"path"`
+}
+
+// SettingsPermissionMode is a daemon API value.
+type SettingsPermissionMode string
+
+// SettingsPermissionsPayload is a daemon API value.
+type SettingsPermissionsPayload struct {
+	Mode SettingsPermissionMode `json:"mode"`
+}
 
 // SettingsPersonaResponse is a daemon API value.
 type SettingsPersonaResponse struct {
@@ -372,78 +420,3 @@ type SettingsSkillsConfigPayload struct {
 	PollInterval            string   `json:"poll_interval"`
 	AllowedMarketplaceHooks []string `json:"allowed_marketplace_hooks,omitempty"`
 }
-
-// SettingsSkillsMutationResponse is a daemon API value.
-type SettingsSkillsMutationResponse struct {
-	Section          SettingsSectionName                    `json:"section"`
-	Scope            SettingsScopeKind                      `json:"scope"`
-	WorkspaceID      string                                 `json:"workspace_id,omitempty"`
-	Profile          string                                 `json:"profile,omitempty"`
-	AgentName        string                                 `json:"agent_name,omitempty"`
-	AvailableScopes  []SettingsScopeKind                    `json:"available_scopes"`
-	Config           SettingsSkillsConfigPayload            `json:"config"`
-	DiscoveredCount  int                                    `json:"discovered_count"`
-	DisabledCount    int                                    `json:"disabled_count"`
-	RuntimeAvailable bool                                   `json:"runtime_available"`
-	Diagnostics      []SkillDiagnosticPayload               `json:"diagnostics,omitempty"`
-	Sources          []SettingsSkillSourcePayload           `json:"sources"`
-	Inherits         *SettingsSkillSourceInheritancePayload `json:"inherits,omitzero"`
-	Links            []SettingsOperationalLinkPayload       `json:"links,omitempty"`
-	WriteTarget      SettingsWriteTargetKind                `json:"write_target,omitempty"`
-	Applied          bool                                   `json:"applied"`
-	Lifecycle        SettingsApplyLifecycle                 `json:"lifecycle"`
-	ApplyRecordID    string                                 `json:"apply_record_id"`
-	ActiveGeneration int64                                  `json:"active_generation"`
-	ActiveConfigHash string                                 `json:"active_config_hash"`
-	NextAction       SettingsApplyNextAction                `json:"next_action"`
-	RestartRequired  bool                                   `json:"restart_required,omitzero"`
-	RestartScope     string                                 `json:"restart_scope,omitempty"`
-	Warnings         []string                               `json:"warnings,omitempty"`
-	PartialFailures  []SettingsApplyFailurePayload          `json:"partial_failures,omitempty"`
-	Skipped          bool                                   `json:"skipped,omitzero"`
-	SkippedReason    string                                 `json:"skipped_reason,omitempty"`
-}
-
-// SettingsSkillsOverridePayload is a daemon API value.
-// SettingsSkillsOverridePayload preserves its custom JSON wire representation.
-type SettingsSkillsOverridePayload = json.RawMessage
-
-// SettingsSkillsResponse is a daemon API value.
-type SettingsSkillsResponse struct {
-	Section          SettingsSectionName                    `json:"section"`
-	Scope            SettingsScopeKind                      `json:"scope"`
-	WorkspaceID      string                                 `json:"workspace_id,omitempty"`
-	Profile          string                                 `json:"profile,omitempty"`
-	AgentName        string                                 `json:"agent_name,omitempty"`
-	AvailableScopes  []SettingsScopeKind                    `json:"available_scopes"`
-	Config           SettingsSkillsConfigPayload            `json:"config"`
-	DiscoveredCount  int                                    `json:"discovered_count"`
-	DisabledCount    int                                    `json:"disabled_count"`
-	RuntimeAvailable bool                                   `json:"runtime_available"`
-	Diagnostics      []SkillDiagnosticPayload               `json:"diagnostics,omitempty"`
-	Sources          []SettingsSkillSourcePayload           `json:"sources"`
-	Inherits         *SettingsSkillSourceInheritancePayload `json:"inherits,omitzero"`
-	Links            []SettingsOperationalLinkPayload       `json:"links,omitempty"`
-}
-
-// SettingsSourceKind is a daemon API value.
-type SettingsSourceKind string
-
-// SettingsSourceMetadataPayload is a daemon API value.
-type SettingsSourceMetadataPayload struct {
-	EffectiveSource  SettingsSourceRefPayload   `json:"effective_source"`
-	ShadowedSources  []SettingsSourceRefPayload `json:"shadowed_sources,omitempty"`
-	AvailableTargets []SettingsWriteTargetKind  `json:"available_targets"`
-}
-
-// SettingsSourceRefPayload is a daemon API value.
-type SettingsSourceRefPayload struct {
-	Kind        SettingsSourceKind `json:"kind"`
-	Scope       SettingsScopeKind  `json:"scope"`
-	WorkspaceID string             `json:"workspace_id,omitempty"`
-	Profile     string             `json:"profile,omitempty"`
-	AgentName   string             `json:"agent_name,omitempty"`
-}
-
-// SettingsStreamTransport is a daemon API value.
-type SettingsStreamTransport string

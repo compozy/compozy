@@ -201,6 +201,7 @@ type LoopDefaults struct {
 
 // Run is the durable loop_run aggregate returned by the service.
 type Run struct {
+	GrantCeiling          string `json:"grant_ceiling"`
 	ID                    RunID
 	ProfileID             string
 	WorkspaceID           WorkspaceID

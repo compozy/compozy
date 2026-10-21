@@ -6,18 +6,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
-
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/gin-gonic/gin"
 )
 
 var errOverviewUsageWindow = errors.New("usage_window must be 7, 30, or 90")
 
 // ObserveOverview returns the observer-backed home overview read model.
 func (h *BaseHandlers) ObserveOverview(c *gin.Context) {
-	if !h.requireOperatorSurface(c, "overview") {
+	if !h.requireOperatorOrGrantedAgent(c, "overview") {
 		return
 	}
 	observer, ok := h.requireTaskObserver(c)
@@ -82,7 +81,7 @@ func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.O
 		return false
 	}
 	if all {
-		if !h.requireOperatorSurface(c, "all-workspaces overview") {
+		if !h.requireOperatorOrGrantedAgent(c, "all-workspaces overview") {
 			return false
 		}
 		query.TaskScope = taskpkg.CatalogScopeAll

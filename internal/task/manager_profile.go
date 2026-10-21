@@ -103,6 +103,7 @@ func (m *Service) SetExecutionProfile(
 		return ExecutionProfile{}, err
 	}
 	stored, err := m.store.SetTaskExecutionProfile(ctx, &ExecutionProfileMutation{
+		Actor:   actor,
 		Profile: normalized,
 		Event:   event,
 	})
@@ -145,6 +146,7 @@ func (m *Service) DeleteExecutionProfile(
 		return err
 	}
 	if err := m.store.DeleteTaskExecutionProfile(ctx, ExecutionProfileDeleteMutation{
+		Actor:  actor,
 		TaskID: trimmedID,
 		Event:  event,
 	}); err != nil {

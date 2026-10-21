@@ -65,7 +65,7 @@ func (q *Queries) DeleteAutomationTriggerOverlay(ctx context.Context, triggerID 
 }
 
 const getAutomationJob = `-- name: GetAutomationJob :one
-SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
+SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, schedule, task,
        enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	   loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_jobs WHERE id = ?1
@@ -75,6 +75,7 @@ func (q *Queries) GetAutomationJob(ctx context.Context, id string) (AutomationJo
 	row := q.db.QueryRowContext(ctx, getAutomationJob, id)
 	var i AutomationJob
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.Scope,
@@ -166,7 +167,7 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id string) (GetAutomatio
 }
 
 const getAutomationTrigger = `-- name: GetAutomationTrigger :one
-SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, created_at, updated_at
@@ -177,6 +178,7 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 	row := q.db.QueryRowContext(ctx, getAutomationTrigger, id)
 	var i AutomationTrigger
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.Scope,
@@ -205,7 +207,7 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 }
 
 const getAutomationTriggerByWebhookID = `-- name: GetAutomationTriggerByWebhookID :one
-SELECT id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
+SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
        webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, created_at, updated_at
@@ -216,6 +218,7 @@ func (q *Queries) GetAutomationTriggerByWebhookID(ctx context.Context, webhookID
 	row := q.db.QueryRowContext(ctx, getAutomationTriggerByWebhookID, webhookID)
 	var i AutomationTrigger
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.Scope,
@@ -257,21 +260,24 @@ func (q *Queries) GetAutomationTriggerOverlay(ctx context.Context, triggerID str
 
 const insertAutomationJob = `-- name: InsertAutomationJob :exec
 INSERT INTO automation_jobs (
+ grant_ceiling,
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, schedule, task,
   enabled, retry, fire_limit, source, target_kind, loop_workspace_id,
 	loop_name, loop_inputs, loop_input_mapping, created_at, updated_at
 ) VALUES (
-  ?1,
-  ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9,
-  ?10, ?11, ?12, ?13,
-  ?14, ?15, ?16,
-	?17, ?18, ?19, ?20
+ ?1,
+  ?2,
+  ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9, ?10,
+  ?11, ?12, ?13, ?14,
+  ?15, ?16, ?17,
+	?18, ?19, ?20, ?21
 )
 `
 
 type InsertAutomationJobParams struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
 	ProfileID        string         `json:"profile_id"`
 	ID               string         `json:"id"`
 	Scope            string         `json:"scope"`
@@ -296,6 +302,7 @@ type InsertAutomationJobParams struct {
 
 func (q *Queries) InsertAutomationJob(ctx context.Context, arg InsertAutomationJobParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationJob,
+		arg.GrantCeiling,
 		arg.ProfileID,
 		arg.ID,
 		arg.Scope,
@@ -387,23 +394,26 @@ func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationR
 
 const insertAutomationTrigger = `-- name: InsertAutomationTrigger :exec
 INSERT INTO automation_triggers (
+ grant_ceiling,
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
   target_kind, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
 	created_at, updated_at
 ) VALUES (
-  ?1,
-  ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9,
-  ?10, ?11, ?12, ?13,
-  ?14, ?15, ?16,
-  ?17, ?18, ?19,
-	?20, ?21, ?22, ?23
+ ?1,
+  ?2,
+  ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9, ?10,
+  ?11, ?12, ?13, ?14,
+  ?15, ?16, ?17,
+  ?18, ?19, ?20,
+	?21, ?22, ?23, ?24
 )
 `
 
 type InsertAutomationTriggerParams struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
 	ProfileID        string         `json:"profile_id"`
 	ID               string         `json:"id"`
 	Scope            string         `json:"scope"`
@@ -431,6 +441,7 @@ type InsertAutomationTriggerParams struct {
 
 func (q *Queries) InsertAutomationTrigger(ctx context.Context, arg InsertAutomationTriggerParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationTrigger,
+		arg.GrantCeiling,
 		arg.ProfileID,
 		arg.ID,
 		arg.Scope,
@@ -516,17 +527,20 @@ func (q *Queries) ListAutomationTriggerOverlays(ctx context.Context) ([]Automati
 
 const updateAutomationJob = `-- name: UpdateAutomationJob :execrows
 UPDATE automation_jobs SET
-  scope = ?1, name = ?2, agent_name = ?3,
-  workspace_id = ?4, prompt = ?5,
-  schedule = ?6, task = ?7, enabled = ?8,
-  retry = ?9, fire_limit = ?10, source = ?11,
-  target_kind = ?12, loop_workspace_id = ?13,
-  loop_name = ?14, loop_inputs = ?15,
-	loop_input_mapping = ?16, updated_at = ?17
-WHERE id = ?18
+ grant_ceiling = CASE WHEN CAST(?1 AS BOOLEAN) THEN ?2 WHEN grant_ceiling = 'unrestricted' AND ?2 = 'unrestricted' THEN 'unrestricted' ELSE '' END,
+  scope = ?3, name = ?4, agent_name = ?5,
+  workspace_id = ?6, prompt = ?7,
+  schedule = ?8, task = ?9, enabled = ?10,
+  retry = ?11, fire_limit = ?12, source = ?13,
+  target_kind = ?14, loop_workspace_id = ?15,
+  loop_name = ?16, loop_inputs = ?17,
+	loop_input_mapping = ?18, updated_at = ?19
+WHERE id = ?20
 `
 
 type UpdateAutomationJobParams struct {
+	Operator         bool           `json:"operator"`
+	GrantCeiling     string         `json:"grant_ceiling"`
 	Scope            string         `json:"scope"`
 	Name             string         `json:"name"`
 	AgentName        string         `json:"agent_name"`
@@ -549,6 +563,8 @@ type UpdateAutomationJobParams struct {
 
 func (q *Queries) UpdateAutomationJob(ctx context.Context, arg UpdateAutomationJobParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateAutomationJob,
+		arg.Operator,
+		arg.GrantCeiling,
 		arg.Scope,
 		arg.Name,
 		arg.AgentName,
@@ -635,19 +651,22 @@ func (q *Queries) UpdateAutomationRun(ctx context.Context, arg UpdateAutomationR
 
 const updateAutomationTrigger = `-- name: UpdateAutomationTrigger :execrows
 UPDATE automation_triggers SET
-  scope = ?1, name = ?2, agent_name = ?3,
-  workspace_id = ?4, prompt = ?5, event = ?6,
-  filter = ?7, enabled = ?8, retry = ?9,
-  fire_limit = ?10, source = ?11,
-  webhook_id = ?12, endpoint_slug = ?13,
-  webhook_secret_ref = ?14, target_kind = ?15,
-  loop_workspace_id = ?16, loop_name = ?17,
-	loop_inputs = ?18, loop_input_mapping = ?19,
-  updated_at = ?20
-WHERE id = ?21
+ grant_ceiling = CASE WHEN CAST(?1 AS BOOLEAN) THEN ?2 WHEN grant_ceiling = 'unrestricted' AND ?2 = 'unrestricted' THEN 'unrestricted' ELSE '' END,
+  scope = ?3, name = ?4, agent_name = ?5,
+  workspace_id = ?6, prompt = ?7, event = ?8,
+  filter = ?9, enabled = ?10, retry = ?11,
+  fire_limit = ?12, source = ?13,
+  webhook_id = ?14, endpoint_slug = ?15,
+  webhook_secret_ref = ?16, target_kind = ?17,
+  loop_workspace_id = ?18, loop_name = ?19,
+	loop_inputs = ?20, loop_input_mapping = ?21,
+  updated_at = ?22
+WHERE id = ?23
 `
 
 type UpdateAutomationTriggerParams struct {
+	Operator         bool           `json:"operator"`
+	GrantCeiling     string         `json:"grant_ceiling"`
 	Scope            string         `json:"scope"`
 	Name             string         `json:"name"`
 	AgentName        string         `json:"agent_name"`
@@ -673,6 +692,8 @@ type UpdateAutomationTriggerParams struct {
 
 func (q *Queries) UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomationTriggerParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateAutomationTrigger,
+		arg.Operator,
+		arg.GrantCeiling,
 		arg.Scope,
 		arg.Name,
 		arg.AgentName,

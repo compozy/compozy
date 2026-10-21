@@ -10,6 +10,7 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -123,6 +124,7 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
+		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: spec.Task.GrantCeiling},
 		ProfileID: spec.Task.ProfileID,
 		AgentName: taskSessionAgentName(spec.Task),
 		Provider:  "",

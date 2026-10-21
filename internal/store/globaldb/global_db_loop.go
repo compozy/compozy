@@ -16,7 +16,7 @@ import (
 
 var _ looppkg.Store = (*LoopRepo)(nil)
 
-const loopRunSelectColumnsSQL = `
+const loopRunSelectColumnsSQL = `grant_ceiling,
 	id, profile_id, workspace_id, loop_name, status, historical, generation, reattempt_strategy, created_at, started_at,
 	last_progress_at, completed_at, definition_version, definition_digest, active_gate_id,
 	active_human_criteria_json, budget_approval_seq, start_metadata_json,

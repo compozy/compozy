@@ -12,7 +12,7 @@ import (
 
 // ListSessionFacets returns exact population counts separately from bounded rows.
 func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
-	if !h.requireOperatorSurface(c, "session catalog facets") {
+	if !h.requireOperatorOrGrantedAgent(c, "session catalog facets") {
 		return
 	}
 	query, _, err := h.parseSessionListQuery(c)

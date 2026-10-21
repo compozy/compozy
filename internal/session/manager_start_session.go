@@ -22,7 +22,8 @@ func (s *sessionStartSpec) newStartingSession(
 	}
 
 	return &Session{
-		ID: s.sessionID, ProfileID: s.profileID, Name: s.sessionName, AgentName: resolved.Name,
+		EffectiveWorkspaceAccess: s.effectiveWorkspaceAccess,
+		ID:                       s.sessionID, ProfileID: s.profileID, Name: s.sessionName, AgentName: resolved.Name,
 		Provider: strings.TrimSpace(resolved.Provider), Model: strings.TrimSpace(resolved.Model),
 		ReasoningEffort: strings.TrimSpace(s.reasoningEffort), Speed: s.speed,
 		ACPOptions: acp.CloneSessionConfigOptionSelections(s.acpOptions), WorkspaceID: s.workspace.ID,

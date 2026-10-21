@@ -23,12 +23,14 @@ type UpdateTaskDefinitionMutation struct {
 
 // ExecutionProfileMutation commits one profile replacement and its event.
 type ExecutionProfileMutation struct {
+	Actor   ActorContext
 	Profile ExecutionProfile
 	Event   Event
 }
 
 // WorktreePolicyMutation commits one worktree block patch and its event.
 type WorktreePolicyMutation struct {
+	Actor  ActorContext
 	TaskID string
 	Policy WorktreePolicy
 	Event  Event
@@ -36,6 +38,7 @@ type WorktreePolicyMutation struct {
 
 // ExecutionProfileDeleteMutation commits one profile deletion and its event.
 type ExecutionProfileDeleteMutation struct {
+	Actor  ActorContext
 	TaskID string
 	Event  Event
 }

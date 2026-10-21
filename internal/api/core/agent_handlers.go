@@ -68,6 +68,9 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
+	if !h.allowWorkspaceAccessWrite(c, req.Agent.WorkspaceAccess) {
+		return
+	}
 	profileName := ""
 	var err error
 	if req.Scope == contract.AgentCreateScopeWorkspace {

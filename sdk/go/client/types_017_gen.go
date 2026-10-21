@@ -4,6 +4,56 @@ package client
 
 import "time"
 
+// SessionPayload is a daemon API value.
+type SessionPayload struct {
+	EffectiveWorkspaceAccess string                        `json:"effective_workspace_access"`
+	Scope                    string                        `json:"scope"`
+	ReplyWatches             []ReplyWatchPayload           `json:"reply_watches,omitempty"`
+	SubagentSummary          *SubagentSummaryPayload       `json:"subagent_summary,omitzero"`
+	MonitorSummary           *SessionMonitorSummaryPayload `json:"monitor_summary,omitzero"`
+	Queue                    *SessionQueueSummaryPayload   `json:"queue,omitzero"`
+	Supervision              *SupervisionState             `json:"supervision"`
+	BusyInput                *BusyInputState               `json:"busy_input,omitzero"`
+	ID                       string                        `json:"id"`
+	ProfileID                string                        `json:"profile_id"`
+	ProfileName              string                        `json:"profile_name"`
+	ProfileColor             string                        `json:"profile_color,omitempty"`
+	ProfileIcon              string                        `json:"profile_icon,omitempty"`
+	ProfileEmoji             string                        `json:"profile_emoji,omitempty"`
+	ProfileArchived          bool                          `json:"profile_archived,omitzero"`
+	Name                     string                        `json:"name,omitempty"`
+	AgentName                string                        `json:"agent_name"`
+	Runtime                  SessionRuntimePayload         `json:"runtime"`
+	WorkspaceID              string                        `json:"workspace_id,omitempty"`
+	WorkspacePath            string                        `json:"workspace_path,omitempty"`
+	WorktreeID               string                        `json:"worktree_id,omitempty"`
+	Type                     Type                          `json:"type,omitempty"`
+	State                    State                         `json:"state"`
+	Badge                    Badge                         `json:"badge"`
+	Attachable               bool                          `json:"attachable"`
+	AttachedTo               string                        `json:"attached_to,omitempty"`
+	AttachExpiresAt          *time.Time                    `json:"attach_expires_at,omitempty"`
+	TranscriptEpoch          int64                         `json:"transcript_epoch,omitzero"`
+	AttentionChangedAt       *time.Time                    `json:"attention_changed_at,omitempty"`
+	PendingInteractions      []PendingInteractionPayload   `json:"pending_interactions"`
+	ArchivedAt               *time.Time                    `json:"archived_at"`
+	StopReason               StopReason                    `json:"stop_reason,omitempty"`
+	StopCause                string                        `json:"stop_cause,omitempty"`
+	Attention                string                        `json:"attention,omitempty"`
+	Verified                 *bool                         `json:"verified,omitzero"`
+	Escalated                *bool                         `json:"escalated,omitzero"`
+	StopDetail               string                        `json:"stop_detail,omitempty"`
+	Failure                  *SessionFailurePayload        `json:"failure,omitzero"`
+	AvailableCommands        []ACPAvailableCommandPayload  `json:"available_commands"`
+	Activity                 *RuntimeActivityPayload       `json:"activity,omitzero"`
+	Lineage                  *SessionLineagePayload        `json:"lineage,omitzero"`
+	Derivation               *SessionDerivationPayload     `json:"derivation,omitzero"`
+	FolderID                 string                        `json:"folder_id,omitempty"`
+	Health                   *SessionHealthPayload         `json:"health,omitzero"`
+	CreatedAt                time.Time                     `json:"created_at"`
+	UpdatedAt                time.Time                     `json:"updated_at"`
+}
+
 // SessionPresenceRequest is a daemon API value.
 type SessionPresenceRequest struct {
 	Visible bool   `json:"visible"`
@@ -387,56 +437,4 @@ type SettingsAutomationRuntimePayload struct {
 // SettingsBusyInputPayload is a daemon API value.
 type SettingsBusyInputPayload struct {
 	DefaultMode string `json:"default_mode"`
-}
-
-// SettingsCmdPaletteResponse is a daemon API value.
-type SettingsCmdPaletteResponse struct {
-	Section              SettingsSectionName        `json:"section"`
-	Scope                SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID          string                     `json:"workspace_id,omitempty"`
-	Profile              string                     `json:"profile,omitempty"`
-	AvailableScopes      []SettingsLayeredScopeKind `json:"available_scopes"`
-	FallbackAgentEnabled bool                       `json:"fallback_agent_enabled"`
-	Personalization      bool                       `json:"personalization"`
-	Aliases              map[string]string          `json:"aliases"`
-}
-
-// SettingsCollectionName is a daemon API value.
-type SettingsCollectionName string
-
-// SettingsConfigPathsPayload is a daemon API value.
-type SettingsConfigPathsPayload struct {
-	HomeDir          string `json:"home_dir"`
-	GlobalConfig     string `json:"global_config"`
-	GlobalMCPSidecar string `json:"global_mcp_sidecar"`
-	LogFile          string `json:"log_file"`
-	DaemonInfo       string `json:"daemon_info"`
-}
-
-// SettingsCoordinatorRoleConfigPayload is a daemon API value.
-type SettingsCoordinatorRoleConfigPayload struct {
-	Enabled                       bool                          `json:"enabled"`
-	Agent                         string                        `json:"agent"`
-	Provider                      string                        `json:"provider"`
-	Model                         string                        `json:"model"`
-	ReasoningEffort               string                        `json:"reasoning_effort"`
-	Speed                         *Speed                        `json:"speed,omitzero"`
-	ACPOptions                    []AgentACPOptionSelection     `json:"acp_options"`
-	FallbackChain                 []SettingsRoleFallbackPayload `json:"fallback_chain"`
-	TTL                           string                        `json:"ttl"`
-	MaxChildren                   int                           `json:"max_children"`
-	MaxActiveSessionsPerWorkspace int                           `json:"max_active_sessions_per_workspace"`
-}
-
-// SettingsDaemonPayload is a daemon API value.
-type SettingsDaemonPayload struct {
-	Socket               string                              `json:"socket"`
-	MemoryReportInterval string                              `json:"memory_report_interval"`
-	ReloadTimeouts       SettingsDaemonReloadTimeoutsPayload `json:"reload_timeouts"`
-}
-
-// SettingsDaemonReloadTimeoutsPayload is a daemon API value.
-type SettingsDaemonReloadTimeoutsPayload struct {
-	Providers string `json:"providers"`
-	MCP       string `json:"mcp"`
 }

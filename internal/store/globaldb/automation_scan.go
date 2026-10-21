@@ -25,6 +25,7 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		updatedAt   string
 	)
 	if err := scanner.Scan(
+		&job.GrantCeiling,
 		&job.ID,
 		&scope,
 		&job.Name,
@@ -101,6 +102,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		updatedAt        string
 	)
 	if err := scanner.Scan(
+		&trigger.GrantCeiling,
 		&trigger.ID,
 		&scope,
 		&trigger.Name,

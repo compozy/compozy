@@ -2,14 +2,11 @@ package core
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"net/http"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -299,7 +296,7 @@ func (h *BaseHandlers) TaskDashboard(c *gin.Context) {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	if transportQuery.AllWorkspaces && !h.requireOperatorSurface(c, "all-workspaces tasks") {
+	if transportQuery.AllWorkspaces && !h.requireOperatorOrGrantedAgent(c, "all-workspaces tasks") {
 		return
 	}
 	readScope, err := h.resolveProfileReadScope(c)

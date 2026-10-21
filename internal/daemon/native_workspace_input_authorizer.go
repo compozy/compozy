@@ -32,6 +32,9 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 	}
 	targets := make(map[string]struct{})
 	collectNativeWorkspaceTargets(schema, payload, targets)
+	if nativeInputHasGlobalScope(payload) {
+		targets["@user"] = struct{}{}
+	}
 	if len(targets) == 0 {
 		return nil
 	}

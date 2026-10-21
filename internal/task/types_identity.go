@@ -114,6 +114,7 @@ type ActorContext struct {
 
 // Task is the durable coordination record owned by the task domain.
 type Task struct {
+	GrantCeiling   string         `json:"grant_ceiling"`
 	ID             string         `json:"id"`
 	ProfileID      string         `json:"profile_id"`
 	Identifier     string         `json:"identifier,omitempty"`

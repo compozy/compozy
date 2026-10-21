@@ -67,6 +67,7 @@ func scanLoopRun(row loopRunScanner) (looppkg.Run, error) {
 
 func (v *loopRunScanValues) scan(row loopRunScanner) error {
 	return row.Scan(
+		&v.run.GrantCeiling,
 		&v.runID,
 		&v.run.ProfileID,
 		&v.workspaceID,

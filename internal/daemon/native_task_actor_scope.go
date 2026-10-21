@@ -21,6 +21,9 @@ func bindNativeTaskActorProfile(
 		return actor, nil
 	}
 	actor.ReadScope = store.ReadScope{ProfileID: profileID}
+	if scope.AllProfiles {
+		actor.ReadScope = store.ReadScope{AllProfiles: true}
+	}
 	if err := actor.Validate(); err != nil {
 		return taskpkg.ActorContext{}, err
 	}

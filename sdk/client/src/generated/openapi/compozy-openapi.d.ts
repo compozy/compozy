@@ -7088,6 +7088,7 @@ export interface components {
       speed?: "normal" | "fast";
       tools?: string[];
       toolsets?: string[];
+      workspace_access?: string;
       workspace_id?: string;
     };
     AgentProbeHealthPayload: {
@@ -8167,6 +8168,7 @@ export interface components {
       speed?: "normal" | "fast";
       tools?: string[];
       toolsets?: string[];
+      workspace_access?: string;
     };
     CreateAgentRequest: {
       agent: components["schemas"]["CreateAgentPayload"];
@@ -8450,6 +8452,7 @@ export interface components {
       speed?: "normal" | "fast";
       tools?: string[];
       toolsets?: string[];
+      workspace_access?: string;
     };
     DuplicateAgentRequest: {
       name: string;
@@ -13695,6 +13698,7 @@ export interface components {
       /** Format: date-time */
       created_at: string;
       derivation?: components["schemas"]["SessionDerivationPayload"] | null;
+      effective_workspace_access: string;
       escalated?: boolean | null;
       failure?: components["schemas"]["SessionFailurePayload"] | null;
       folder_id?: string;

@@ -11,6 +11,9 @@ import (
 
 // Validate ensures the parsed agent definition is usable.
 func (a AgentDef) Validate() error {
+	if a.WorkspaceAccess != "" && a.WorkspaceAccess != "unrestricted" {
+		return fmt.Errorf("agent.workspace_access must be absent or unrestricted")
+	}
 	if err := a.SessionEnv.Validate("agent.session_env"); err != nil {
 		return err
 	}
@@ -78,4 +81,22 @@ func validateAgentRuntimeDefaults(agent AgentDef) error {
 		return err
 	}
 	return validateACPOptionSelections("agent.acp_options", agent.ACPOptionsValue())
+}
+
+func hasEmbeddedTabFrontmatterKey(data []byte) bool {
+	lines := strings.SplitSeq(string(data), "\n")
+	for line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		key, _, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		if strings.Contains(key, "\t") {
+			return true
+		}
+	}
+	return false
 }

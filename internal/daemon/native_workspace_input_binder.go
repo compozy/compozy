@@ -154,7 +154,15 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	trusted := strings.TrimSpace(scope.WorkspaceID)
 	hasOperatorAuthority := nativeWorkspaceScopeHasOperatorAuthority(scope)
 	if nativeInputHasGlobalScope(payload) {
-		if !hasOperatorAuthority {
+		granted := false
+		if !hasOperatorAuthority && b.sessions != nil && scope.SessionID != "" {
+			info, err := b.sessions.Status(ctx, scope.SessionID)
+			if err != nil {
+				return err
+			}
+			granted = info != nil && info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
+		}
+		if !hasOperatorAuthority && !granted {
 			return nativeWorkspaceAccessDeniedError(id)
 		}
 		return nil

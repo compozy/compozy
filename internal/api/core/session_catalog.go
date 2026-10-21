@@ -16,7 +16,7 @@ var errSessionListWorkspaceResolution = errors.New("api: session list workspace 
 
 // ListSessions returns one bounded page from the shared public session catalog.
 func (h *BaseHandlers) ListSessions(c *gin.Context) {
-	if !h.requireOperatorSurface(c, "session catalog") {
+	if !h.requireOperatorOrGrantedAgent(c, "session catalog") {
 		return
 	}
 	query, includeHealth, err := h.parseSessionListQuery(c)

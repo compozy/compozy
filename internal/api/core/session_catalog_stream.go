@@ -17,7 +17,7 @@ const sessionCatalogChangedEvent = "session_catalog_changed"
 
 // StreamSessionCatalog emits workspace-identified wake signals for catalog reconciliation.
 func (h *BaseHandlers) StreamSessionCatalog(c *gin.Context) {
-	if !h.requireOperatorSurface(c, "session catalog stream") {
+	if !h.requireOperatorOrGrantedAgent(c, "session catalog stream") {
 		return
 	}
 	subscriber, ok := h.Sessions.(SessionCatalogEventSubscriber)

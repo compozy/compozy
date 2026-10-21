@@ -42,7 +42,9 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
 - toolsets grants named ToolsetIDs such as compozy\_\_catalog.
 - deny_tools narrows grants.
-- permissions must be one of deny-all, approve-reads, or approve-all. It sets both the static tool policy and the cross-workspace boundary for sessions of this agent: approve-all crosses workspaces without asking, approve-reads prompts the operator at the native-tool seam and denies at every other seam, and deny-all never crosses and never prompts. The two axes are coupled; there is no permissive-tools-with-isolated-workspace setting. Choose deny-all for an agent that must stay inside its own workspace, and see references/native-tools.md (Workspace boundary) for denial and prompt semantics.
+- permissions must be one of deny-all, approve-reads, or approve-all. It sets static tool policy and the ordinary session cross-workspace boundary; see references/native-tools.md (Workspace Boundary).
+- `workspace_access` accepts only omission/empty or `unrestricted`. Only the operator may author a nonempty value. The grant permits cross-workspace, User, cross-profile and aggregate access independently of permission mode; tool policy still applies. Marketplace/extension values are dropped with `workspace_access_untrusted_source`. Older daemons may reject this new strict field, so upgrade before using it.
+- The daemon computes `effective_workspace_access` once from the definition and authenticated creation origin. A granted creator cannot grant an ungranted definition; an ordinary creator cannot elevate a granted definition. Resume preserves the recorded result. Tasks, jobs, triggers and Loop runs retain a grant ceiling across restarts; agent edits of executable fields narrow it. Agent-credentialed writes attempting to set the field fail with `workspace_access_operator_only`.
 - category_path is display-only hierarchy and must be an array.
 - mcp_servers declares per-agent MCP servers.
 - session_env maps environment names to `env:NAME` or `vault:path` references, optionally expressed

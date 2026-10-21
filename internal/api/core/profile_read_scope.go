@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -51,7 +52,10 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 			Cause:   profilepkg.ErrInvalidInput,
 		}
 	}
+	origin := workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}
 	sessionProfileID := ""
+	var grantCaller agentidentity.Caller
+	granted := false
 	credentials := agentCallerCredentialsFromRequest(c)
 	if hasAgentCallerIdentityCredentials(credentials) {
 		var caller agentidentity.Caller
@@ -67,14 +71,23 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 			return resolvedProfileReadScope{}, resolveErr
 		}
 		sessionProfileID = strings.TrimSpace(caller.Session.ProfileID)
+		origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: caller.Session.EffectiveWorkspaceAccess}
+		grantCaller = caller
+		granted = caller.Session.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
 	}
+	c.Request = c.Request.WithContext(workspaceaccess.WithOrigin(c.Request.Context(), origin))
 	if allProfiles {
-		if sessionProfileID != "" {
+		if sessionProfileID != "" && !granted {
 			return resolvedProfileReadScope{}, &profilepkg.Error{
 				Code:    profileSelectionConflictCode,
 				Message: "all_profiles is only available to operators",
 				Action:  "read the agent profile selected by the authenticated session",
 				Cause:   profilepkg.ErrInvalidInput,
+			}
+		}
+		if granted {
+			if err := h.authorizeGrantedProfile(c, grantCaller, workspaceID, "", true); err != nil {
+				return resolvedProfileReadScope{}, err
 			}
 		}
 		return resolvedProfileReadScope{Scope: profilepkg.ReadScope{AllProfiles: true}}, nil
@@ -97,9 +110,13 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 		}
 		return resolvedProfileReadScope{}, fmt.Errorf("profile service is unavailable")
 	}
+	boundProfileID := sessionProfileID
+	if granted && requested != "" {
+		boundProfileID = ""
+	}
 	resolved, err := h.profileService().Resolve(c.Request.Context(), profilepkg.ResolveInput{
 		Flag:             requested,
-		SessionProfileID: sessionProfileID,
+		SessionProfileID: boundProfileID,
 		Lens:             profilepkg.Lens{Kind: profilepkg.SelectionLensGlobal},
 	})
 	if err != nil {
@@ -108,6 +125,11 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 	scope := profilepkg.ReadScope{ProfileID: strings.TrimSpace(resolved.Profile.ID)}
 	if err := scope.Validate(); err != nil {
 		return resolvedProfileReadScope{}, fmt.Errorf("api: resolved profile read scope: %w", err)
+	}
+	if granted && scope.ProfileID != sessionProfileID {
+		if err := h.authorizeGrantedProfile(c, grantCaller, workspaceID, scope.ProfileID, false); err != nil {
+			return resolvedProfileReadScope{}, err
+		}
 	}
 	return resolvedProfileReadScope{Scope: scope, ProfileName: strings.TrimSpace(resolved.Profile.Name)}, nil
 }
@@ -168,4 +190,16 @@ func (h *BaseHandlers) profileOwnerIdentities(ctx context.Context) (map[string]p
 		}
 	}
 	return result, nil
+}
+
+func (h *BaseHandlers) authorizeGrantedProfile(c *gin.Context, caller agentidentity.Caller, workspaceID, profileID string, all bool) error {
+	if workspaceID == "" {
+		workspaceID = caller.Session.WorkspaceID
+	}
+	target := workspaceaccess.ScopeTarget(workspaceID, profileID)
+	target.AllProfiles = all
+	return agentidentity.ValidateWorkspaceAccess(c.Request.Context(), h.WorkspaceAccess, workspaceaccess.Request{
+		Actor:  workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: caller.Session.ID, WorkspaceID: caller.Session.WorkspaceID, AgentName: caller.Session.AgentName},
+		Target: target, ReadOnly: c.Request.Method == "GET", Seam: workspaceaccess.SeamIdentity,
+	})
 }

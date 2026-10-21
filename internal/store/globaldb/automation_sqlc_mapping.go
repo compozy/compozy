@@ -119,20 +119,21 @@ func automationJobParams(job automation.Job) (sqlcgen.InsertAutomationJobParams,
 		return sqlcgen.InsertAutomationJobParams{}, err
 	}
 	return sqlcgen.InsertAutomationJobParams{
-		ProfileID:   job.ProfileID,
-		ID:          job.ID,
-		Scope:       string(job.Scope),
-		Name:        job.Name,
-		AgentName:   job.AgentName,
-		WorkspaceID: nullableAutomationString(job.WorkspaceID),
-		Prompt:      job.Prompt,
-		Schedule:    nullableAutomationString(scheduleJSON),
-		Task:        task,
-		Enabled:     job.Enabled,
-		Retry:       retryJSON,
-		FireLimit:   fireLimitJSON,
-		Source:      string(job.Source),
-		TargetKind:  string(job.TargetKind),
+		GrantCeiling: job.GrantCeiling,
+		ProfileID:    job.ProfileID,
+		ID:           job.ID,
+		Scope:        string(job.Scope),
+		Name:         job.Name,
+		AgentName:    job.AgentName,
+		WorkspaceID:  nullableAutomationString(job.WorkspaceID),
+		Prompt:       job.Prompt,
+		Schedule:     nullableAutomationString(scheduleJSON),
+		Task:         task,
+		Enabled:      job.Enabled,
+		Retry:        retryJSON,
+		FireLimit:    fireLimitJSON,
+		Source:       string(job.Source),
+		TargetKind:   string(job.TargetKind),
 		LoopWorkspaceID: nullableAutomationString(
 			loopTarget.workspaceID,
 		),
@@ -150,7 +151,8 @@ func automationJobUpdateParams(job automation.Job) (sqlcgen.UpdateAutomationJobP
 		return sqlcgen.UpdateAutomationJobParams{}, err
 	}
 	return sqlcgen.UpdateAutomationJobParams{
-		Scope: insert.Scope, Name: insert.Name, AgentName: insert.AgentName, WorkspaceID: insert.WorkspaceID,
+		GrantCeiling: insert.GrantCeiling,
+		Scope:        insert.Scope, Name: insert.Name, AgentName: insert.AgentName, WorkspaceID: insert.WorkspaceID,
 		Prompt: insert.Prompt, Schedule: insert.Schedule, Task: insert.Task, Enabled: insert.Enabled,
 		Retry: insert.Retry, FireLimit: insert.FireLimit, Source: insert.Source, TargetKind: insert.TargetKind,
 		LoopWorkspaceID: insert.LoopWorkspaceID, LoopName: insert.LoopName, LoopInputs: insert.LoopInputs,
@@ -161,7 +163,8 @@ func automationJobUpdateParams(job automation.Job) (sqlcgen.UpdateAutomationJobP
 
 func automationJobFromGenerated(row sqlcgen.AutomationJob) (automation.Job, error) {
 	job := automation.Job{
-		ID: row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
+		GrantCeiling: row.GrantCeiling,
+		ID:           row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
 		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
 		Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
 		TargetKind: automation.TargetKind(strings.TrimSpace(row.TargetKind)),
@@ -222,20 +225,21 @@ func automationTriggerParams(trigger automation.Trigger) (sqlcgen.InsertAutomati
 		return sqlcgen.InsertAutomationTriggerParams{}, err
 	}
 	return sqlcgen.InsertAutomationTriggerParams{
-		ProfileID:   trigger.ProfileID,
-		ID:          trigger.ID,
-		Scope:       string(trigger.Scope),
-		Name:        trigger.Name,
-		AgentName:   trigger.AgentName,
-		WorkspaceID: nullableAutomationString(trigger.WorkspaceID),
-		Prompt:      trigger.Prompt,
-		Event:       trigger.Event,
-		Filter:      filter,
-		Enabled:     trigger.Enabled,
-		Retry:       retryJSON,
-		FireLimit:   fireLimitJSON,
-		Source:      string(trigger.Source),
-		WebhookID:   nullableAutomationString(trigger.WebhookID),
+		GrantCeiling: trigger.GrantCeiling,
+		ProfileID:    trigger.ProfileID,
+		ID:           trigger.ID,
+		Scope:        string(trigger.Scope),
+		Name:         trigger.Name,
+		AgentName:    trigger.AgentName,
+		WorkspaceID:  nullableAutomationString(trigger.WorkspaceID),
+		Prompt:       trigger.Prompt,
+		Event:        trigger.Event,
+		Filter:       filter,
+		Enabled:      trigger.Enabled,
+		Retry:        retryJSON,
+		FireLimit:    fireLimitJSON,
+		Source:       string(trigger.Source),
+		WebhookID:    nullableAutomationString(trigger.WebhookID),
 		EndpointSlug: nullableAutomationString(
 			trigger.EndpointSlug,
 		),
@@ -256,7 +260,8 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 		return sqlcgen.UpdateAutomationTriggerParams{}, err
 	}
 	return sqlcgen.UpdateAutomationTriggerParams{
-		Scope: insert.Scope, Name: insert.Name, AgentName: insert.AgentName, WorkspaceID: insert.WorkspaceID,
+		GrantCeiling: insert.GrantCeiling,
+		Scope:        insert.Scope, Name: insert.Name, AgentName: insert.AgentName, WorkspaceID: insert.WorkspaceID,
 		Prompt: insert.Prompt, Event: insert.Event, Filter: insert.Filter, Enabled: insert.Enabled,
 		Retry: insert.Retry, FireLimit: insert.FireLimit, Source: insert.Source, WebhookID: insert.WebhookID,
 		EndpointSlug: insert.EndpointSlug, WebhookSecretRef: insert.WebhookSecretRef, TargetKind: insert.TargetKind,
@@ -268,7 +273,8 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 
 func automationTriggerFromGenerated(row sqlcgen.AutomationTrigger) (automation.Trigger, error) {
 	trigger := automation.Trigger{
-		ID: row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
+		GrantCeiling: row.GrantCeiling,
+		ID:           row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
 		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
 		Event: row.Event, Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
 		WebhookID: automationNullStringValue(row.WebhookID), EndpointSlug: automationNullStringValue(row.EndpointSlug),
@@ -403,6 +409,7 @@ func automationJobFromHydrated(row sqlcgen.HydrateAutomationJobCatalogRow) (auto
 		return automation.Job{}, err
 	}
 	return automationJobFromGenerated(sqlcgen.AutomationJob{
+		GrantCeiling: row.GrantCeiling, ProfileID: row.ProfileID,
 		ID: row.ID, Scope: row.Scope, Name: row.Name, AgentName: row.AgentName,
 		WorkspaceID: row.WorkspaceID, Prompt: row.Prompt, Schedule: row.Schedule, Task: row.Task,
 		Enabled: enabled, Retry: row.Retry, FireLimit: row.FireLimit, Source: row.Source,
@@ -418,6 +425,7 @@ func automationTriggerFromHydrated(row sqlcgen.HydrateAutomationTriggerCatalogRo
 		return automation.Trigger{}, err
 	}
 	return automationTriggerFromGenerated(sqlcgen.AutomationTrigger{
+		GrantCeiling: row.GrantCeiling, ProfileID: row.ProfileID,
 		ID: row.ID, Scope: row.Scope, Name: row.Name, AgentName: row.AgentName,
 		WorkspaceID: row.WorkspaceID, Prompt: row.Prompt, Event: row.Event, Filter: row.Filter,
 		Enabled: enabled, Retry: row.Retry, FireLimit: row.FireLimit, Source: row.Source,
