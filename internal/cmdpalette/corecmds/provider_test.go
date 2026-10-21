@@ -47,6 +47,25 @@ func TestProviderAbsorption(t *testing.T) {
 		}
 	})
 
+	t.Run("Should register Usage as a navigable app the window manager keeps", func(t *testing.T) {
+		t.Parallel()
+		commands := mustCommands(t)
+		index := slices.IndexFunc(commands, func(command cmdpalette.Descriptor) bool {
+			return command.ID == "app.open.usage"
+		})
+		if index < 0 {
+			t.Fatal("app.open.usage is missing")
+		}
+		usage := commands[index]
+		if usage.Title != "Open Usage" || usage.Action.Kind != cmdpalette.ActionKindNavigate ||
+			usage.Action.App != "usage" {
+			t.Fatalf("app.open.usage = %#v, want canonical Usage navigation", usage)
+		}
+		if !RegisteredApp("usage") {
+			t.Fatal("RegisteredApp(usage) = false, want the daemon to keep Usage windows")
+		}
+	})
+
 	t.Run("Should open the Automations editor with each start preselected [UT-112]", func(t *testing.T) {
 		t.Parallel()
 		commands := mustCommands(t)

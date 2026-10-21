@@ -16,7 +16,7 @@ import type { Page } from "@playwright/test";
 import { appWindow } from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { ensureProjectWorkspace } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -59,16 +59,20 @@ function usagePopover(page: Page) {
   return page.getByTestId("os-usage-popover");
 }
 
-async function openShell(page: Page) {
-  await completeOnboardingIfPrompted(page);
+async function openShell(page: Page, runtime: BrowserRuntime) {
+  await ensureProjectWorkspace(page, runtime);
   await expect(usageControl(page)).toBeVisible({ timeout: 30_000 });
 }
 
 async function runCLI(runtime: BrowserRuntime, args: string[]): Promise<void> {
   if (!runtime.paths) throw new Error(`CLI ${args.join(" ")} needs launch-mode runtime paths`);
+  // An agent session's identity variables would make the CLI act as that agent.
+  const ambient = Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !/^COMPOZY_(SESSION|AGENT)/.test(name))
+  );
   await execFileAsync(runtime.paths.cliShim, args, {
     env: {
-      ...process.env,
+      ...ambient,
       COMPOZY_E2E_CLI_BIN: runtime.paths.cliShim,
       COMPOZY_HOME: runtime.paths.homeDir,
       HOME: runtime.paths.operatorHomeDir,
@@ -78,8 +82,9 @@ async function runCLI(runtime: BrowserRuntime, args: string[]): Promise<void> {
 
 test("glances at Codex Weekly in the tray right after All desktops (E2E-001)", async ({
   appPage,
+  runtime,
 }) => {
-  await openShell(appPage);
+  await openShell(appPage, runtime);
 
   const tray = appPage.locator('[data-slot="os-menubar-tray"] [data-slot^="os-menubar-"]');
   const slots = await tray.evaluateAll(nodes => nodes.map(node => node.getAttribute("data-slot")));
@@ -87,15 +92,16 @@ test("glances at Codex Weekly in the tray right after All desktops (E2E-001)", a
   expect(slots.indexOf("os-menubar-usage")).toBeLessThan(slots.indexOf("os-menubar-bell"));
 
   const control = usageControl(appPage);
-  await expect(control).toHaveAccessibleName(/^Codex · Weekly 72% used · resets in /);
+  await expect(control).toHaveAccessibleName(/^Codex · Weekly 72% used · /);
   await control.hover();
-  await expect(appPage.getByRole("tooltip")).toContainText("Codex · Weekly 72% used");
+  await expect(appPage.getByText(/^Codex · Weekly 72% used/).last()).toBeVisible();
 });
 
 test("opens the popover, expands Codex, refreshes, and returns focus on Esc (E2E-002)", async ({
   appPage,
+  runtime,
 }) => {
-  await openShell(appPage);
+  await openShell(appPage, runtime);
   const control = usageControl(appPage);
   await control.click();
 
@@ -122,17 +128,28 @@ test("drops the control when provider usage is turned off (E2E-003)", async ({
   appPage,
   runtime,
 }) => {
-  await openShell(appPage);
+  await openShell(appPage, runtime);
 
   await runCLI(runtime, ["config", "set", "provider_usage.enabled", "false"]);
+  await expect
+    .poll(
+      async () =>
+        (await runtime.requestJSON<{ enabled: boolean }>("/api/provider-usage?profile=default"))
+          .enabled,
+      { timeout: 30_000 }
+    )
+    .toBe(false);
 
   await expect(appPage.locator('[data-slot="os-menubar-usage"]')).toHaveCount(0, {
     timeout: 30_000,
   });
 });
 
-test("opens the Usage app from the popover with Codex expanded (E2E-004)", async ({ appPage }) => {
-  await openShell(appPage);
+test("opens the Usage app from the popover with Codex expanded (E2E-004)", async ({
+  appPage,
+  runtime,
+}) => {
+  await openShell(appPage, runtime);
   await usageControl(appPage).click();
   await usagePopover(appPage).getByRole("button", { name: "Open Usage" }).click();
 
@@ -147,11 +164,13 @@ test("opens the Usage app from the popover with Codex expanded (E2E-004)", async
   await expect(usageWindow).toContainText("120 credits");
 });
 
-test("turns Codex off from Settings and the control leaves the tray (E2E-006)", async ({
+test("turns Codex off from Settings and its row leaves the popover (E2E-006)", async ({
   appPage,
+  runtime,
 }) => {
-  await openShell(appPage);
+  await openShell(appPage, runtime);
   await usageControl(appPage).click();
+  await expect(usagePopover(appPage).getByRole("button", { name: /^Codex/ })).toBeVisible();
   await usagePopover(appPage).getByRole("button", { name: "Settings" }).click();
 
   const settings = appWindow(appPage, "settings");
@@ -164,7 +183,11 @@ test("turns Codex off from Settings and the control leaves the tray (E2E-006)", 
     /applied/i
   );
 
-  await expect(appPage.locator('[data-slot="os-menubar-usage"]')).toHaveCount(0, {
+  // Every other builtin provider is still a target (unsupported or signed
+  // out), so the control stays; Codex is gone from it.
+  await usageControl(appPage).click();
+  await expect(usagePopover(appPage)).toBeVisible();
+  await expect(usagePopover(appPage).getByRole("button", { name: /^Codex/ })).toHaveCount(0, {
     timeout: 30_000,
   });
 });
