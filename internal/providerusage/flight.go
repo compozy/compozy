@@ -96,8 +96,8 @@ func (s *Manager) collectOnce(
 	if ctx.Err() != nil && outcome == nil {
 		outcome = NewUsageError(ErrorCodeProviderUnavailable, target.ProviderName)
 	}
-	if err := s.resolvePublication(ctx, profile, id, state, epoch, identity, intent, started); err != nil {
-		return err, false
+	if err, recollect := s.resolvePublication(ctx, profile, id, state, epoch, identity, intent, started); err != nil {
+		return err, recollect
 	}
 	// A completed timeout still needs a bounded ownership check before publishing its error.
 	fenceCtx, fenceCancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)

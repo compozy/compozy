@@ -140,7 +140,7 @@ func (s *Manager) resolvePublication(
 	identity CredentialIdentity,
 	intent Intent,
 	started time.Time,
-) *UsageError {
+) (*UsageError, bool) {
 	outcome := NewUsageError(ErrorCodeProviderUnavailable, id)
 	outcome.Message = "Usage could not be verified; retry shortly"
 	for {
@@ -148,10 +148,14 @@ func (s *Manager) resolvePublication(
 		_, err := s.resolveTargets(fenceCtx, profile, state)
 		cancel()
 		if err == nil {
-			return nil
+			return nil, false
 		}
 		if !s.retryFence(ctx, profile, id, state, epoch, identity, intent, started, outcome) {
-			return outcome
+			// An eligible replacement needs collection; cancellation and removal stop this flight.
+			s.mu.Lock()
+			recollect := ctx.Err() == nil && s.currentLocked(profile, id, state) && state.epoch != epoch
+			s.mu.Unlock()
+			return outcome, recollect
 		}
 	}
 }

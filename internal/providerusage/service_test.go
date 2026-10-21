@@ -703,6 +703,87 @@ func TestUsageScheduling(t *testing.T) {
 }
 
 func TestUsageFenceAndWait(t *testing.T) {
+	t.Run("Should recollect a rotated key after a failed old publication fence AstraR3", func(t *testing.T) {
+		t.Parallel()
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		var upstream, resolves atomic.Int32
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			upstream.Add(1)
+			if r.Header.Get("Authorization") == "Bearer synthetic-key-a" {
+				writeFixture(w, t, `{"balance":"10","total_used":"90"}`)
+				return
+			}
+			writeFixture(w, t, `{"balance":"90","total_used":"10"}`)
+		})
+		target := Target{
+			ProfileID:        "personal",
+			ProviderID:       "vercel-ai-gateway",
+			ProviderName:     "Vercel",
+			RouteFingerprint: "same-route",
+			Route:            ResolvedRoute{BoundSecrets: map[string]string{"api_key": "synthetic-key-a"}},
+		}
+		catalog := &TargetCatalog{}
+		catalog.Replace("personal", []Target{target})
+		resolver := usageResolverFunc(func(ctx context.Context, profile string) ([]Target, error) {
+			if resolves.Add(1) == 2 {
+				close(entered)
+				select {
+				case <-release:
+				case <-ctx.Done():
+				}
+				return nil, fmt.Errorf("transient resolver failure")
+			}
+			return catalog.Targets(ctx, profile)
+		})
+		svc := NewService(
+			Options{
+				Resolver:   resolver,
+				Collectors: Registry{"vercel-ai-gateway": NewVercelCollector(WithCollectorBaseURL(server.URL))},
+			},
+		)
+		defer func() { requireNoError(t, svc.Shutdown(context.Background())) }()
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		done := make(chan Envelope, 1)
+		go func() {
+			env, err := svc.Refresh(ctx, RefreshRequest{ProfileID: "personal", Wait: 15 * time.Second})
+			if err != nil {
+				t.Error(err)
+			}
+			done <- env
+		}()
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal("publication fence did not start")
+		}
+		target.Route.BoundSecrets = map[string]string{"api_key": "synthetic-key-b"}
+		catalog.Replace("personal", []Target{target})
+		_, err := svc.Envelope(ctx, "personal")
+		requireNoError(t, err)
+		once.Do(func() { close(release) })
+		var env Envelope
+		select {
+		case env = <-done:
+		case <-ctx.Done():
+			t.Fatal("refresh did not finish")
+		}
+		row := env.Targets[0]
+		if row.Status != StatusOK || len(row.Balances) != 1 || row.Balances[0].Remaining.Value != "90" {
+			t.Fatalf(
+				"replacement refresh stranded: status=%s refreshing=%t balances=%d calls=%d error=%v",
+				row.Status,
+				row.Refreshing,
+				len(row.Balances),
+				upstream.Load(),
+				row.Error,
+			)
+		}
+		requireEqual(t, int32(2), upstream.Load())
+	})
+
 	t.Run("Should return disabled reads before canceled transport cleanup", func(t *testing.T) {
 		t.Parallel()
 		entered, release := make(chan struct{}), make(chan struct{})

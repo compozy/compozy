@@ -3992,7 +3992,9 @@ promotes it.
   replacements are checked against freshly resolved secrets without adding secrets to public fingerprints.
   Removed targets cancel only their own flights; deleted profiles close subscriptions and clear credentials.
   A failed publication fence retains same-owner last-good values and retries only publication checks within
-  the flight deadline, without repeating the upstream collection. Reads cancel ineligible flights without
+  the flight deadline, without repeating the upstream collection. If a concurrent resolution supersedes
+  the captured epoch, the admitted flight recollects the eligible replacement instead of leaving it loading.
+  Cancellation and removal still stop the flight. Reads cancel ineligible flights without
   waiting for cleanup; lifecycle reconciliation and shutdown own bounded joins. Explicit official ChatGPT
   origins normalize to the backend API before selecting the Codex usage path.
 - **Official CompozyOS skill:** `skills/compozy/SKILL.md` router row; `references/native-tools.md` (two
