@@ -82,7 +82,8 @@ func ParseWorktreeList(output []byte) ([]GitWorktree, error) {
 	}
 
 	for _, raw := range fields {
-		field := strings.TrimSuffix(string(raw), "\n")
+		text := string(raw)
+		field := strings.TrimSuffix(text, "\n")
 		if field == "" {
 			if err := flush(); err != nil {
 				return nil, err
@@ -93,9 +94,10 @@ func ParseWorktreeList(output []byte) ([]GitWorktree, error) {
 			if err := flush(); err != nil {
 				return nil, err
 			}
-			// NUL-delimited output carries the path verbatim; trimming would
-			// merge checkouts whose names differ only by edge whitespace.
-			current = &GitWorktree{Path: strings.TrimPrefix(field, "worktree ")}
+			// NUL-delimited output carries the path verbatim, including a
+			// trailing newline -z exists to allow; trimming would merge checkouts
+			// whose names differ only by edge whitespace.
+			current = &GitWorktree{Path: strings.TrimPrefix(text, "worktree ")}
 			continue
 		}
 		if current == nil {

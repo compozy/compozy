@@ -23,17 +23,19 @@ func TestGitPorcelain(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep worktree paths that differ only by edge whitespace distinct", func(t *testing.T) {
+	t.Run("Should keep worktree paths that differ only by edge whitespace or a newline distinct", func(t *testing.T) {
 		t.Parallel()
 		fixture := []byte("worktree /repo\x00HEAD aaa\x00branch refs/heads/main\x00\x00" +
 			"worktree /repo/wt\x00HEAD bbb\x00detached\x00\x00" +
-			"worktree /repo/wt \x00HEAD ccc\x00detached\x00")
+			"worktree /repo/wt \x00HEAD ccc\x00detached\x00\x00" +
+			"worktree /repo/wt\n\x00HEAD ddd\x00detached\x00")
 		got, err := ParseWorktreeList(fixture)
 		if err != nil {
 			t.Fatalf("ParseWorktreeList() error = %v", err)
 		}
-		if len(got) != 3 || got[1].Path != "/repo/wt" || got[2].Path != "/repo/wt " {
-			t.Fatalf("ParseWorktreeList() paths = %#v, want verbatim /repo/wt and /repo/wt%q", got, " ")
+		if len(got) != 4 || got[1].Path != "/repo/wt" || got[2].Path != "/repo/wt " ||
+			got[3].Path != "/repo/wt\n" {
+			t.Fatalf("ParseWorktreeList() paths = %#v, want verbatim space and newline variants", got)
 		}
 	})
 
