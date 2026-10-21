@@ -29,7 +29,9 @@ var workspaceTools = []toolspkg.Descriptor{
 		toolspkg.ToolIDWorkspaceList,
 		"workspace_list",
 		"Workspace List",
-		"List registered workspaces through the existing workspace discovery surface.",
+		"List registered workspaces. A session-bound caller sees its own workspace plus every other "+
+			"workspace its permission mode already lets it address (approve-all, or a recorded allow under "+
+			"approve-reads); pass any listed ID, name, or path to tools that accept workspace.",
 		emptyInputSchema,
 		toolspkg.RiskRead,
 		true,

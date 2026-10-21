@@ -405,12 +405,37 @@ type SpawnBudgetPayload struct {
 	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
 }
 
+// SpawnNewWorktreeRequest is a daemon API value.
+type SpawnNewWorktreeRequest struct {
+	Name    string `json:"name,omitempty"`
+	BaseRef string `json:"base_ref,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+}
+
 // SpawnPermissionPolicyPayload is a daemon API value.
 type SpawnPermissionPolicyPayload struct {
 	Tools          []string `json:"tools"`
 	Skills         []string `json:"skills"`
 	MCPServers     []string `json:"mcp_servers"`
 	WorkspacePaths []string `json:"workspace_paths"`
+}
+
+// SpawnPromptPayload is a daemon API value.
+type SpawnPromptPayload struct {
+	MessageID       string `json:"message_id"`
+	Status          string `json:"status"`
+	ReplyWatchID    string `json:"reply_watch_id,omitempty"`
+	ReplyWatchState string `json:"reply_watch_state,omitempty"`
+}
+
+// SpawnWorktreePayload is a daemon API value.
+type SpawnWorktreePayload struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Branch  string `json:"branch"`
+	Path    string `json:"path"`
+	BaseSHA string `json:"base_sha,omitempty"`
+	Created bool   `json:"created"`
 }
 
 // Speed is a daemon API value.
@@ -422,17 +447,3 @@ type StartBinding struct {
 	Inputs       map[string]any    `json:"inputs,omitempty"`
 	InputMapping map[string]string `json:"input_mapping,omitempty"`
 }
-
-// StartKind is a daemon API value.
-type StartKind string
-
-// StartTaskRunRequest is a daemon API value.
-type StartTaskRunRequest struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// State is a daemon API value.
-type State string
-
-// Status is a daemon API value.
-type Status string

@@ -7100,26 +7100,33 @@ export interface components {
     AgentSpawnPayload: {
       lineage: components["schemas"]["SessionLineagePayload"];
       permissions: components["schemas"]["SpawnPermissionPolicyPayload"];
+      prompt?: components["schemas"]["SpawnPromptPayload"] | null;
       session: components["schemas"]["SessionPayload"];
+      worktree?: components["schemas"]["SpawnWorktreePayload"] | null;
     };
     AgentSpawnRequest: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       agent_name: string;
       auto_stop_on_parent: boolean;
       idempotency_key?: string;
+      inherit_permissions?: boolean;
       model?: string;
       name?: string;
+      new_worktree?: components["schemas"]["SpawnNewWorktreeRequest"] | null;
       notify_creator?: boolean | null;
       permissions: components["schemas"]["SpawnPermissionPolicyPayload"];
+      prompt?: string;
       prompt_overlay?: string;
       provider?: string;
       reasoning_effort?: string;
       spawn_role: string;
       /** @enum {string} */
       speed?: "normal" | "fast";
+      toolsets?: string[];
       /** Format: int64 */
       ttl_seconds: number;
       workspace?: string;
+      worktree?: string;
     };
     AgentSpawnResponse: {
       spawn: components["schemas"]["AgentSpawnPayload"];
@@ -12137,6 +12144,7 @@ export interface components {
         | "skill_resource_not_found"
         | "slow_consumer"
         | "source_disabled"
+        | "spawn_budget_exhausted"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"
@@ -15495,11 +15503,30 @@ export interface components {
       /** Format: int64 */
       ttl_seconds: number;
     };
+    SpawnNewWorktreeRequest: {
+      base_ref?: string;
+      branch?: string;
+      name?: string;
+    };
     SpawnPermissionPolicyPayload: {
       mcp_servers: string[];
       skills: string[];
       tools: string[];
       workspace_paths: string[];
+    };
+    SpawnPromptPayload: {
+      message_id: string;
+      reply_watch_id?: string;
+      reply_watch_state?: string;
+      status: string;
+    };
+    SpawnWorktreePayload: {
+      base_sha?: string;
+      branch: string;
+      created: boolean;
+      id: string;
+      name: string;
+      path: string;
     };
     StartBinding: {
       input_mapping?: {
@@ -17275,6 +17302,7 @@ export interface components {
         | "skill_resource_not_found"
         | "slow_consumer"
         | "source_disabled"
+        | "spawn_budget_exhausted"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"
@@ -17435,6 +17463,7 @@ export interface components {
         | "skill_resource_not_found"
         | "slow_consumer"
         | "source_disabled"
+        | "spawn_budget_exhausted"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"
@@ -17622,6 +17651,7 @@ export interface components {
         | "skill_resource_not_found"
         | "slow_consumer"
         | "source_disabled"
+        | "spawn_budget_exhausted"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"
@@ -17740,6 +17770,7 @@ export interface components {
         | "skill_resource_not_found"
         | "slow_consumer"
         | "source_disabled"
+        | "spawn_budget_exhausted"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"
@@ -17872,6 +17903,7 @@ export interface components {
         | "skill_resource_not_found"
         | "slow_consumer"
         | "source_disabled"
+        | "spawn_budget_exhausted"
         | "subscriber_limit_reached"
         | "terminal_exited"
         | "terminal_expired"

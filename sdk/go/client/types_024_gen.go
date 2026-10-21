@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// TerminalExecResponse is a daemon API value.
+type TerminalExecResponse struct {
+	ExitCode     *int                  `json:"exit_code"`
+	Signal       *TerminalSignal       `json:"signal"`
+	Output       string                `json:"output"`
+	Truncated    bool                  `json:"truncated"`
+	Untrusted    bool                  `json:"untrusted"`
+	Spill        *TerminalSpillPayload `json:"spill,omitzero"`
+	DurationMs   int64                 `json:"duration_ms"`
+	CommandID    string                `json:"command_id"`
+	StillRunning bool                  `json:"still_running,omitzero"`
+	TerminalID   *TerminalID           `json:"terminal_id"`
+}
+
+// TerminalExitCause is a daemon API value.
+type TerminalExitCause string
+
 // TerminalExitPayload is a daemon API value.
 type TerminalExitPayload struct {
 	Cause  TerminalExitCause `json:"cause"`
@@ -413,30 +430,4 @@ type ToolContent struct {
 	Data     json.RawMessage            `json:"data,omitempty"`
 	MIMEType string                     `json:"mime_type,omitempty"`
 	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ToolDescriptorPayload is a daemon API value.
-type ToolDescriptorPayload struct {
-	ToolID              ToolID                `json:"tool_id"`
-	Backend             ToolBackendRefPayload `json:"backend"`
-	DisplayTitle        string                `json:"display_title,omitempty"`
-	FriendlyVerb        string                `json:"friendly_verb,omitempty"`
-	Preview             string                `json:"preview,omitempty"`
-	Description         string                `json:"description"`
-	InputSchema         json.RawMessage       `json:"input_schema"`
-	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
-	InputSchemaDigest   string                `json:"input_schema_digest"`
-	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
-	Source              ToolSourceRefPayload  `json:"source"`
-	Visibility          Visibility            `json:"visibility"`
-	Risk                RiskClass             `json:"risk"`
-	ReadOnly            bool                  `json:"read_only"`
-	Destructive         bool                  `json:"destructive"`
-	OpenWorld           bool                  `json:"open_world"`
-	RequiresInteraction bool                  `json:"requires_interaction"`
-	ConcurrencySafe     bool                  `json:"concurrency_safe"`
-	MaxResultBytes      int64                 `json:"max_result_bytes,omitzero"`
-	Toolsets            []ToolsetID           `json:"toolsets,omitempty"`
-	Tags                []string              `json:"tags,omitempty"`
-	SearchHints         []string              `json:"search_hints,omitempty"`
 }

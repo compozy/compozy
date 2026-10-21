@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+// UpdateTriggerRequest is a daemon API value.
+type UpdateTriggerRequest struct {
+	Name               *string           `json:"name,omitempty"`
+	Prompt             *string           `json:"prompt,omitempty"`
+	Event              *string           `json:"event,omitempty"`
+	Filter             map[string]string `json:"filter,omitempty"`
+	LoopTarget         *LoopTarget       `json:"loop_target,omitempty"`
+	Enabled            *bool             `json:"enabled,omitempty"`
+	Retry              *RetryConfig      `json:"retry,omitempty"`
+	FireLimit          *FireLimitConfig  `json:"fire_limit,omitempty"`
+	WebhookID          *string           `json:"webhook_id,omitempty"`
+	EndpointSlug       *string           `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue *string           `json:"webhook_secret_value,omitempty"`
+}
+
+// UpdateWorkspaceRequest is a daemon API value.
+type UpdateWorkspaceRequest struct {
+	Name         *string   `json:"name"`
+	AddDirs      *[]string `json:"add_dirs"`
+	DefaultAgent *string   `json:"default_agent"`
+}
+
+// UsageSignal is a daemon API value.
+type UsageSignal struct {
+	CommandID  CommandID `json:"command_id"`
+	Weight     float64   `json:"weight"`
+	LastUsedAt int64     `json:"last_used_at"`
+}
+
+// ValidateLoopRequest is a daemon API value.
+type ValidateLoopRequest struct {
+	Definition LoopDefinitionDocument `json:"definition"`
+}
+
 // Value is a daemon API value.
 type Value struct {
 	Value    json.RawMessage `json:"value,omitempty"`
@@ -412,32 +446,4 @@ type WorkerProfile struct {
 	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
 	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
 	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
-}
-
-// WorkspaceAttentionSummaryPayload is a daemon API value.
-type WorkspaceAttentionSummaryPayload struct {
-	WorkspaceID string `json:"workspace_id"`
-	NeedsYou    int    `json:"needs_you"`
-	Finished    int    `json:"finished"`
-}
-
-// WorkspaceConfig is a daemon API value.
-type WorkspaceConfig struct {
-	NewWindowPolicy     *NewWindowPolicy     `json:"new_window_policy,omitzero"`
-	SmallViewportPolicy *SmallViewportPolicy `json:"small_viewport_policy,omitzero"`
-	FocusPolicy         *FocusPolicy         `json:"focus_policy,omitzero"`
-	FocusWrap           *bool                `json:"focus_wrap,omitzero"`
-	FocusFollowsPointer *bool                `json:"focus_follows_pointer,omitzero"`
-	RaiseOnFocus        *bool                `json:"raise_on_focus,omitzero"`
-	DragAwayPolicy      *DragAwayPolicy      `json:"drag_away_policy,omitzero"`
-	GroupMoveModifier   *string              `json:"group_move_modifier,omitzero"`
-	SwapModifier        *string              `json:"swap_modifier,omitzero"`
-	HistoryLimit        *int                 `json:"history_limit,omitzero"`
-	NavStackLimit       *int                 `json:"nav_stack_limit,omitzero"`
-	ClosedEntryLimit    *int                 `json:"closed_entry_limit,omitzero"`
-	DesktopTransition   *DesktopTransition   `json:"desktop_transition,omitzero"`
-	Gaps                *GapsConfig          `json:"gaps,omitzero"`
-	Snap                *SnapConfig          `json:"snap,omitzero"`
-	Bindings            *BindingsConfig      `json:"bindings,omitzero"`
-	Shortcuts           map[string][]string  `json:"shortcuts,omitempty"`
 }

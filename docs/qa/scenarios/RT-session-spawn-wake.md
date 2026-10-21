@@ -104,3 +104,12 @@ QA impact 2026-10-09 (Subagents tools slice): delegated subagents use separate w
 `subagent.settled` observation, and a depth/live situation summary; existing spawn contracts remain.
 Scoped evidence: `TestSubagentHookPayloads` and `TestSubagentSituation`. The lifecycle/service slice
 and final spec QA own the integrated completion, acknowledgement, and wake-suppression walk.
+
+QA impact 2026-10-21 (spawn orchestration): `compozy__session_spawn.prompt` (CLI `--prompt`,
+HTTP/UDS `prompt`) sends the child's first prompt from the parent with `notify_on_complete`. While
+the parent holds an open reply watch on the child, the bare `completed` spawn wake is suppressed
+with `suppression_reason=reply_watch_covers`, and the reply wake delivers the child's final answer
+instead. Needs-you, failure, and stop wakes are unchanged. A completed wake without a watch now
+points at `compozy__session_history`. Walk: spawn with `prompt`, let the child finish, and confirm
+exactly one parent wake that contains the answer text. Owning automated evidence: the
+reply-watch suppression case in `internal/session/spawn_wake_test.go`.

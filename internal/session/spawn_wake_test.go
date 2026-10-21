@@ -172,6 +172,33 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 		}
 	})
 
+	t.Run("Should leave a completed child to the creator's open reply watch", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		notifier := &recordingSpawnWakeNotifier{}
+		manager := spawnWakeTestManager(notifier, &logs)
+		watches := &pendingReplyWatchStore{pending: []store.ReplyWatch{
+			{ID: "rw-other", SenderSessionID: "parent-1", TargetSessionID: "child-2"},
+			{ID: "rw-child", SenderSessionID: "parent-1", TargetSessionID: "child-1"},
+		}}
+		manager.replyWatches = &replyWatchService{store: watches, manager: manager}
+
+		manager.dispatchSpawnWake(testutil.Context(t), spawnWakeTestInfo(true), BadgeDone)
+		manager.dispatchSpawnWake(testutil.Context(t), spawnWakeTestInfo(true), BadgeWaitingForInput)
+
+		_, events := notifier.calls()
+		if len(events) != 1 || events[0].Reason != SpawnWakeReasonNeedsAttention {
+			t.Fatalf("wake events = %#v, want only the needs-attention wake", events)
+		}
+		if watches.sender != "parent-1" {
+			t.Fatalf("reply watch lookup sender = %q, want parent-1", watches.sender)
+		}
+		if got := logs.String(); !strings.Contains(got, "suppression_reason=reply_watch_covers") {
+			t.Fatalf("wake audit log = %q, want reply_watch_covers suppression", got)
+		}
+	})
+
 	tests := []struct {
 		name        string
 		notify      bool
@@ -213,6 +240,20 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 			}
 		})
 	}
+}
+
+type pendingReplyWatchStore struct {
+	store.ReplyWatchStore
+	pending []store.ReplyWatch
+	sender  string
+}
+
+func (s *pendingReplyWatchStore) ListPendingReplyWatchesBySender(
+	_ context.Context,
+	sender string,
+) ([]store.ReplyWatch, error) {
+	s.sender = sender
+	return s.pending, nil
 }
 
 func spawnWakeTestManager(notifier SpawnWakeNotifier, logs *bytes.Buffer) *Manager {

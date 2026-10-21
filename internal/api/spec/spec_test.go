@@ -3451,6 +3451,9 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addDeclaredEnvironmentSchemas(baseline) == 0 {
 		t.Fatal("approved environment additions: no historical declaration owners found")
 	}
+	// Spawn orchestration: optional worktree, inheritance, toolset, and first-prompt fields on the
+	// agent spawn request and payload, plus the spawn_budget_exhausted tool reason code.
+	addSpawnOrchestrationSchemas(t, baseline)
 	// #832: last_known has the existing optional RuntimeSelectionPayload contract.
 	if addLastKnownRuntimeSchema(baseline) == 0 {
 		t.Fatal("approved session runtime addition: no historical runtime schemas found")
@@ -3621,6 +3624,106 @@ func addDeclaredEnvironmentSchemas(value any) int {
 		}
 	}
 	return count
+}
+
+func addSpawnOrchestrationSchemas(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	stringSchema := func() map[string]any { return map[string]any{"type": "string"} }
+	added := map[string]map[string]any{
+		"SpawnNewWorktreeRequest": {
+			"type": "object",
+			"properties": map[string]any{
+				"name": stringSchema(), "base_ref": stringSchema(), "branch": stringSchema(),
+			},
+		},
+		"SpawnWorktreePayload": {
+			"type": "object",
+			"properties": map[string]any{
+				"id": stringSchema(), "name": stringSchema(), "branch": stringSchema(), "path": stringSchema(),
+				"base_sha": stringSchema(), "created": map[string]any{"type": "boolean"},
+			},
+			"required": []any{"branch", "created", "id", "name", "path"},
+		},
+		"SpawnPromptPayload": {
+			"type": "object",
+			"properties": map[string]any{
+				"message_id": stringSchema(), "status": stringSchema(),
+				"reply_watch_id": stringSchema(), "reply_watch_state": stringSchema(),
+			},
+			"required": []any{"message_id", "status"},
+		},
+	}
+	for name, schema := range added {
+		if _, exists := components[name]; exists {
+			t.Fatalf("approved spawn orchestration addition: %s already exists in the historical baseline", name)
+		}
+		components[name] = schema
+	}
+	nullableRef := func(name string) map[string]any {
+		return map[string]any{"oneOf": []any{
+			map[string]any{"$ref": "#/components/schemas/" + name},
+			map[string]any{"enum": []any{nil}, "nullable": true},
+		}}
+	}
+	requests, payloads, enums := 0, 0, 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for key, child := range node {
+				if values, ok := child.([]any); ok && slices.Contains(values, any(string(tools.ReasonConflictedID))) {
+					node[key] = insertReasonCode(values, string(tools.ReasonSpawnBudgetExhausted))
+					enums++
+					continue
+				}
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok {
+				return
+			}
+			if properties["ttl_seconds"] != nil && properties["spawn_role"] != nil && properties["agent_name"] != nil {
+				properties["inherit_permissions"] = map[string]any{"type": "boolean"}
+				properties["toolsets"] = map[string]any{"type": "array", "items": stringSchema()}
+				properties["worktree"] = stringSchema()
+				properties["new_worktree"] = nullableRef("SpawnNewWorktreeRequest")
+				properties["prompt"] = stringSchema()
+				requests++
+			}
+			if properties["lineage"] != nil && properties["permissions"] != nil && properties["session"] != nil &&
+				len(properties) == 3 {
+				properties["worktree"] = nullableRef("SpawnWorktreePayload")
+				properties["prompt"] = nullableRef("SpawnPromptPayload")
+				payloads++
+			}
+		}
+	}
+	walk(baseline)
+	if requests == 0 || payloads == 0 || enums == 0 {
+		t.Fatalf("approved spawn orchestration additions: requests=%d payloads=%d enums=%d", requests, payloads, enums)
+	}
+}
+
+// insertReasonCode adds code where the generator places it: sorted enums keep their order.
+func insertReasonCode(values []any, code string) []any {
+	codes := make([]string, 0, len(values))
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			return append(slices.Clone(values), code)
+		}
+		codes = append(codes, text)
+	}
+	if !slices.IsSorted(codes) {
+		return append(slices.Clone(values), code)
+	}
+	index, _ := slices.BinarySearch(codes, code)
+	return slices.Insert(slices.Clone(values), index, any(code))
 }
 
 func addLastKnownRuntimeSchema(value any) int {

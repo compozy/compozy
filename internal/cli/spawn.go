@@ -38,11 +38,19 @@ type spawnCommandFlags struct {
 	skills           []string
 	mcpServers       []string
 	workspacePaths   []string
+	toolsets         []string
+	inheritPerms     bool
+	worktree         string
+	newWorktree      string
+	baseRef          string
+	branch           string
+	prompt           string
 
 	idempotencyKey string
 }
 
 type spawnRequestOptions struct {
+	newWorktreeFlagChanged     bool
 	notifyFlagChanged          bool
 	reasoningEffortFlagChanged bool
 	speedFlagChanged           bool
@@ -64,7 +72,16 @@ func newSpawnCommand(deps commandDeps) *cobra.Command {
     --ttl-seconds 1800 \
     --prompt-overlay "Review only the implementation diff." \
     --tool read \
-    --skill code-review`,
+    --skill code-review
+
+  # Spawn into a new managed worktree with the parent's grant and a first prompt
+  compozy spawn \
+    --agent general \
+    --ttl-seconds 3600 \
+    --new-worktree=feature-auth \
+    --base main \
+    --inherit-permissions \
+    --prompt "Implement the auth task, commit, and report the branch."`,
 		RunE: runSpawnCommand(deps, flags),
 	}
 	registerSpawnFlags(cmd, flags)
@@ -101,7 +118,26 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringArrayVar(&flags.mcpServers, "mcp-server", nil, "Allowed MCP server id (repeatable)")
 	cmd.Flags().
 		StringArrayVar(&flags.workspacePaths, "workspace-path", nil, "Allowed workspace path grant (repeatable)")
+	cmd.Flags().StringArrayVar(&flags.toolsets, "toolset", nil, "Select parent-granted tools by toolset ID (repeatable)")
+	cmd.Flags().BoolVar(
+		&flags.inheritPerms,
+		"inherit-permissions",
+		false,
+		"Keep the parent's grant for every permission list not given by flags",
+	)
+	cmd.Flags().StringVar(&flags.worktree, "worktree", "", "Bind the child to an existing ready worktree")
+	cmd.Flags().StringVar(
+		&flags.newWorktree,
+		"new-worktree",
+		"",
+		"Create and bind a managed worktree for the child; optionally provide its name",
+	)
+	cmd.Flags().Lookup("new-worktree").NoOptDefVal = sessionNewWorktreeAutoValue
+	cmd.Flags().StringVar(&flags.baseRef, "base", "", "Base ref for --new-worktree")
+	cmd.Flags().StringVar(&flags.branch, "branch", "", "Branch name for --new-worktree")
+	cmd.Flags().StringVar(&flags.prompt, "prompt", "", "First prompt for the child; its answer wakes this session")
 	cmd.Flags().StringVar(&flags.idempotencyKey, "idempotency-key", "", "Optional idempotency key")
+	cmd.MarkFlagsMutuallyExclusive("worktree", "new-worktree")
 	mustMarkFlagRequired(cmd, "agent")
 	mustMarkFlagRequired(cmd, "ttl-seconds")
 }
@@ -109,6 +145,7 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 func runSpawnCommand(deps commandDeps, flags *spawnCommandFlags) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
 		request, err := flags.request(spawnRequestOptions{
+			newWorktreeFlagChanged:     cmd.Flags().Changed("new-worktree"),
 			notifyFlagChanged:          cmd.Flags().Changed("no-notify-creator"),
 			reasoningEffortFlagChanged: cmd.Flags().Changed("reasoning-effort"),
 			speedFlagChanged:           cmd.Flags().Changed("speed"),
@@ -180,15 +217,44 @@ func (flags *spawnCommandFlags) request(
 			MCPServers:     trimSpawnAtoms(flags.mcpServers),
 			WorkspacePaths: trimSpawnAtoms(flags.workspacePaths),
 		},
-		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
+		InheritPermissions: flags.inheritPerms,
+		Toolsets:           trimSpawnAtoms(flags.toolsets),
+		Worktree:           strings.TrimSpace(flags.worktree),
+		Prompt:             strings.TrimSpace(flags.prompt),
+		IdempotencyKey:     strings.TrimSpace(flags.idempotencyKey),
 	}
+	newWorktree, err := flags.newWorktreeRequest(options.newWorktreeFlagChanged)
+	if err != nil {
+		return AgentSpawnRequest{}, err
+	}
+	request.NewWorktree = newWorktree
 	if options.notifyFlagChanged {
 		request.NotifyCreator = new(!flags.noNotifyCreator)
 	}
 	return request, nil
 }
 
+func (flags *spawnCommandFlags) newWorktreeRequest(changed bool) (*contract.SpawnNewWorktreeRequest, error) {
+	baseRef, branch := strings.TrimSpace(flags.baseRef), strings.TrimSpace(flags.branch)
+	if !changed {
+		if baseRef != "" || branch != "" {
+			return nil, fmt.Errorf("cli: --base and --branch require --new-worktree")
+		}
+		return nil, nil
+	}
+	name := strings.TrimSpace(flags.newWorktree)
+	if name == sessionNewWorktreeAutoValue {
+		name = ""
+	}
+	return &contract.SpawnNewWorktreeRequest{Name: name, BaseRef: baseRef, Branch: branch}, nil
+}
+
+// trimSpawnAtoms keeps an absent flag nil so inherit-permissions can tell it apart
+// from an explicitly empty list.
 func trimSpawnAtoms(values []string) []string {
+	if values == nil {
+		return nil
+	}
 	atoms := make([]string, 0, len(values))
 	for _, value := range values {
 		trimmed := strings.TrimSpace(value)
@@ -223,6 +289,8 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 					{Label: roleOutputLabel, Value: stringOrDash(record.Lineage.SpawnRole)},
 					{Label: "TTL Expires", Value: stringOrDash(formatTimePtr(record.Lineage.TTLExpiresAt))},
 					{Label: spawnWakeValue, Value: wake},
+					{Label: "Worktree", Value: spawnWorktreeSummary(record.Worktree)},
+					{Label: "First Prompt", Value: spawnPromptSummary(record.Prompt)},
 				}),
 			), nil
 		},
@@ -230,4 +298,18 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 			return renderJSONPreview(record)
 		},
 	}
+}
+
+func spawnWorktreeSummary(worktree *contract.SpawnWorktreePayload) string {
+	if worktree == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%s (%s) %s", worktree.Name, worktree.Branch, worktree.Path)
+}
+
+func spawnPromptSummary(prompt *contract.SpawnPromptPayload) string {
+	if prompt == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%s %s", prompt.MessageID, prompt.Status)
 }

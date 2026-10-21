@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// TaskDashboardFailedCardPayload is a daemon API value.
+type TaskDashboardFailedCardPayload struct {
+	Tasks        int    `json:"tasks"`
+	FailedRuns   int    `json:"failed_runs"`
+	ForcedStops  int    `json:"forced_stops"`
+	HealthStatus string `json:"health_status"`
+}
+
+// TaskDashboardFreshnessPayload is a daemon API value.
+type TaskDashboardFreshnessPayload struct {
+	ObservedAt       time.Time `json:"observed_at"`
+	LatestActivityAt time.Time `json:"latest_activity_at"`
+	AgeMilli         int64     `json:"age_ms"`
+	StaleAfterMilli  int64     `json:"stale_after_ms"`
+	HasLiveWork      bool      `json:"has_live_work"`
+	Status           string    `json:"status"`
+	Stale            bool      `json:"stale"`
+}
+
 // TaskDashboardHealthPayload is a daemon API value.
 type TaskDashboardHealthPayload struct {
 	Status           string `json:"status"`
@@ -423,17 +442,4 @@ type TaskReferencePayload struct {
 // TaskResponse is a daemon API value.
 type TaskResponse struct {
 	Task TaskPayload `json:"task"`
-}
-
-// TaskRunDetailPayload is a daemon API value.
-type TaskRunDetailPayload struct {
-	Run     TaskRunPayload                   `json:"run"`
-	Task    *TaskReferencePayload            `json:"task,omitempty"`
-	Session *TaskRunSessionPayload           `json:"session,omitempty"`
-	Summary TaskRunOperationalSummaryPayload `json:"summary"`
-}
-
-// TaskRunDetailResponse is a daemon API value.
-type TaskRunDetailResponse struct {
-	Run TaskRunDetailPayload `json:"run"`
 }

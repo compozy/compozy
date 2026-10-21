@@ -61,7 +61,13 @@ type SpawnOpts struct {
 	NotifyCreator       bool
 	NotifyCreatorSet    bool
 	PermissionPolicy    store.SessionPermissionPolicy
-	IdempotencyKey      string
+	// InheritPermissions starts from the parent's ceiling; PermissionNarrowing lists
+	// replace only the categories they set. Without it, PermissionPolicy is literal.
+	InheritPermissions  bool
+	PermissionNarrowing *SubagentPermissionNarrowing
+	// Toolsets selects parent-granted tools by toolset ID; it never widens the parent.
+	Toolsets       []string
+	IdempotencyKey string
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
 	// Command is an explicit launch command for this attempt (a fallback route's account).
@@ -170,6 +176,10 @@ func (m *Manager) prepareSpawn(
 		return SpawnOpts{}, nil, nil, err
 	}
 
+	normalized.PermissionPolicy, err = m.resolveSpawnPermissionPolicy(parent, normalized)
+	if err != nil {
+		return SpawnOpts{}, nil, nil, err
+	}
 	lineage, err := m.spawnLineage(ctx, parent, normalized)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
@@ -450,6 +460,10 @@ func (m *Manager) validateSpawnCaps(
 			continue
 		}
 		lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+		// Subagents are bounded by the caller's turn, not the spawn budget.
+		if lineage.SpawnRole == store.SubagentSpawnRole {
+			continue
+		}
 		if lineage.ParentSessionID == parent.ID {
 			activeChildren++
 		}
@@ -464,22 +478,15 @@ func (m *Manager) validateSpawnCaps(
 		}
 	}
 	if activeChildren >= budget.MaxChildren {
-		return fmt.Errorf(
-			"%w: parent %q has %d active children, max_children %d",
-			ErrSpawnLimitExceeded,
-			parent.ID,
-			activeChildren,
-			budget.MaxChildren,
-		)
+		return &SpawnLimitError{
+			Limit: SpawnLimitMaxChildren, Max: budget.MaxChildren, Live: activeChildren, Scope: parent.ID,
+		}
 	}
 	if budget.MaxActivePerWorkspace > 0 && activeInWorkspace >= budget.MaxActivePerWorkspace {
-		return fmt.Errorf(
-			"%w: workspace %q has %d active spawned sessions, max_active_per_workspace %d",
-			ErrSpawnLimitExceeded,
-			targetWorkspaceID,
-			activeInWorkspace,
-			budget.MaxActivePerWorkspace,
-		)
+		return &SpawnLimitError{
+			Limit: SpawnLimitMaxActivePerWorkspace, Max: budget.MaxActivePerWorkspace,
+			Live: activeInWorkspace, Scope: targetWorkspaceID,
+		}
 	}
 	return nil
 }

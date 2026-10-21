@@ -172,7 +172,43 @@ type AgentSpawnRequest struct {
 	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
 	NotifyCreator    *bool                        `json:"notify_creator,omitzero"`
 	Permissions      SpawnPermissionPolicyPayload `json:"permissions"`
-	IdempotencyKey   string                       `json:"idempotency_key,omitempty"`
+	// InheritPermissions starts from the caller's grant; permission lists that are
+	// present replace only their own category.
+	InheritPermissions bool `json:"inherit_permissions,omitempty"`
+	// Toolsets selects caller-granted tools by toolset ID.
+	Toolsets []string `json:"toolsets,omitempty"`
+	// Worktree binds an existing ready worktree of the child workspace.
+	Worktree string `json:"worktree,omitempty"`
+	// NewWorktree creates and binds a managed worktree; exclusive with Worktree.
+	NewWorktree *SpawnNewWorktreeRequest `json:"new_worktree,omitzero"`
+	// Prompt is the child's first prompt, sent from the caller with notify_on_complete.
+	Prompt         string `json:"prompt,omitempty"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// SpawnNewWorktreeRequest names the managed worktree created for a spawned child.
+type SpawnNewWorktreeRequest struct {
+	Name    string `json:"name,omitempty"`
+	BaseRef string `json:"base_ref,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+}
+
+// SpawnWorktreePayload identifies the worktree bound to a spawned child.
+type SpawnWorktreePayload struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Branch  string `json:"branch"`
+	Path    string `json:"path"`
+	BaseSHA string `json:"base_sha,omitempty"`
+	Created bool   `json:"created"`
+}
+
+// SpawnPromptPayload reports the admitted first prompt of a spawned child.
+type SpawnPromptPayload struct {
+	MessageID       string `json:"message_id"`
+	Status          string `json:"status"`
+	ReplyWatchID    string `json:"reply_watch_id,omitempty"`
+	ReplyWatchState string `json:"reply_watch_state,omitempty"`
 }
 
 // AgentSpawnPayload is the safe spawn response projection.
@@ -180,4 +216,6 @@ type AgentSpawnPayload struct {
 	Session     SessionPayload               `json:"session"`
 	Lineage     SessionLineagePayload        `json:"lineage"`
 	Permissions SpawnPermissionPolicyPayload `json:"permissions"`
+	Worktree    *SpawnWorktreePayload        `json:"worktree,omitzero"`
+	Prompt      *SpawnPromptPayload          `json:"prompt,omitzero"`
 }

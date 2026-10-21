@@ -165,6 +165,11 @@ func (m *Manager) dispatchSpawnWake(ctx context.Context, info *Info, badge Badge
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "self_wake", nil)
 		return
 	}
+	if event.Reason == SpawnWakeReasonCompleted &&
+		m.creatorAwaitsChildReply(ctx, creatorSessionID, event.ChildSessionID) {
+		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "reply_watch_covers", nil)
+		return
+	}
 	if err := m.spawnWakeNotifier.WakeSpawnCreator(context.WithoutCancel(ctx), creatorSessionID, event); err != nil {
 		if errors.Is(err, ErrSpawnWakeSessionNotLive) {
 			m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "session_not_live", nil)

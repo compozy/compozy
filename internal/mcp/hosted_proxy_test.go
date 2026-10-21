@@ -721,9 +721,27 @@ func TestHostedProxyHelpers(t *testing.T) {
 			},
 		}}
 		invalidSkillErr := hostedToolResponseError{response: invalidSkillResponse}
-		if got := hostedToolErrorMessage(invalidSkillErr); got !=
-			"skill_definition_invalid: skill definition is invalid" {
-			t.Fatalf("hostedToolErrorMessage(invalid skill) = %q, want actionable reason", got)
+		if got := hostedToolErrorMessage(invalidSkillErr); got != "skill_definition_invalid: skill definition is invalid"+
+			"\nCause: /workspace/.agents/skills/broken/SKILL.md: yaml: line 2"+
+			"\nRecovery: Fix the SKILL.md YAML frontmatter and retry skill_view." {
+			t.Fatalf("hostedToolErrorMessage(invalid skill) = %q, want reason with safe cause and recovery", got)
+		}
+		deniedSpawnErr := hostedToolResponseError{response: contract.ToolErrorResponse{Error: contract.ToolErrorPayload{
+			Code:        tools.ErrorCodeDenied,
+			ToolID:      tools.ToolIDSessionSpawn,
+			Message:     "tool invocation denied",
+			ReasonCodes: []tools.ReasonCode{tools.ReasonPolicyDenied},
+			Details: map[string]json.RawMessage{
+				contract.ToolOperatorCauseDetailKey: json.RawMessage(
+					`"session: spawn permission denied: workspace_paths value \"/wt\" widens parent permissions"`,
+				),
+				"internal_trace": json.RawMessage(`"must stay hidden"`),
+			},
+		}}}
+		if got := hostedToolErrorMessage(deniedSpawnErr); !strings.HasPrefix(got,
+			"policy_denied: tool invocation denied\nCause: session: spawn permission denied: workspace_paths") ||
+			strings.Contains(got, "must stay hidden") || strings.Contains(got, "Recovery:") {
+			t.Fatalf("hostedToolErrorMessage(denied spawn) = %q, want only the safe refused-field cause", got)
 		}
 		if got := hostedToolErrorStructuredContent(invalidSkillErr); !reflect.DeepEqual(got, invalidSkillResponse) {
 			t.Fatalf("hostedToolErrorStructuredContent(invalid skill) = %#v, want %#v", got, invalidSkillResponse)

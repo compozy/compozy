@@ -7,6 +7,16 @@ HTTP, UDS, and CLI reads. Resolve it by id, name, or contained path. A ready wor
 session through `compozy session new --worktree <ref>`; create and bind one atomically with
 `--new-worktree [name]`. These selectors are mutually exclusive with `--cwd`.
 
+A governed child gets the same binding: `compozy spawn --worktree <ref>` or
+`--new-worktree[=name] [--base <ref>] [--branch <name>]`, native `compozy__session_spawn`
+`worktree`/`new_worktree`, and HTTP/UDS `POST /api/agent/spawn` with the same fields. The child
+starts with the worktree as its working directory and provider sandbox root. With a `workspace`
+that names another registered workspace, the cross-workspace spawn is authorized first and the
+worktree is resolved or created in that workspace. A worktree created for
+a refused spawn is removed again. The spawn result reports the worktree's `id`, `branch`, `path`,
+and `base_sha`; read live Git facts (commits ahead, dirty files, PR) with
+`compozy worktree status <ref> --refresh --forge -o json` or `compozy__worktree_inspect`.
+
 Worktree catalog reads are the profile-model exception: `compozy worktree list` always lists the
 workspace catalog across profiles, does not accept `--profile` or `--all-profiles`, and labels every
 row with its owning profile in human and structured output. Use that owner when choosing a worktree;

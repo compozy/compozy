@@ -134,6 +134,8 @@ func sessionWakeAction(badge session.Badge) string {
 		return "Use compozy__session_clarify_answer or compozy__session_events to act."
 	case session.BadgeWaitingForAuth:
 		return "Use compozy__session_approve or compozy__session_events to act."
+	case session.BadgeDone:
+		return "Read its answer with compozy__session_history limit 1; notify_on_complete returns answers inline."
 	default:
 		return "Use compozy__session_events to inspect the child."
 	}

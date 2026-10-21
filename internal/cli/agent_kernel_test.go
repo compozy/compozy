@@ -334,6 +334,59 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			t.Fatalf("disabled spawn output = %q, want wake off", disabledStdout)
 		}
 	})
+
+	t.Run("Should map worktree, inheritance, toolset, and first prompt flags", func(t *testing.T) {
+		t.Parallel()
+
+		var gotRequest AgentSpawnRequest
+		client := &stubClient{}
+		deps := newAgentCommandTestDeps(t, client)
+		client.agentSpawnFn = func(
+			_ context.Context,
+			request AgentSpawnRequest,
+			_ agentidentity.Credentials,
+		) (AgentSpawnRecord, error) {
+			gotRequest = request
+			return AgentSpawnRecord{
+				Session:  SessionRecord{ID: "sess-child", CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow},
+				Worktree: &contract.SpawnWorktreePayload{ID: "wt-1", Name: "auth", Branch: "feat/auth", Path: "/wt/auth"},
+				Prompt:   &contract.SpawnPromptPayload{MessageID: "spawn-prompt-sess-child", Status: "accepted"},
+			}, nil
+		}
+
+		stdout, _, err := executeRootCommand(
+			t, deps, "spawn", "--agent", "general", "--ttl-seconds", "600",
+			"--new-worktree=auth", "--base", "main", "--branch", "feat/auth",
+			"--inherit-permissions", "--skill", "go", "--toolset", "compozy__sessions",
+			"--prompt", "Implement auth.",
+		)
+		if err != nil {
+			t.Fatalf("compozy spawn error = %v", err)
+		}
+		if gotRequest.NewWorktree == nil || gotRequest.NewWorktree.Name != "auth" ||
+			gotRequest.NewWorktree.BaseRef != "main" || gotRequest.NewWorktree.Branch != "feat/auth" ||
+			!gotRequest.InheritPermissions || len(gotRequest.Toolsets) != 1 ||
+			gotRequest.Prompt != "Implement auth." || gotRequest.Permissions.Tools != nil ||
+			len(gotRequest.Permissions.Skills) != 1 {
+			t.Fatalf("spawn request = %#v, want worktree, inheritance, toolset, and prompt", gotRequest)
+		}
+		if !strings.Contains(stdout, "feat/auth") || !strings.Contains(stdout, "spawn-prompt-sess-child") {
+			t.Fatalf("spawn output = %q, want worktree and first prompt rows", stdout)
+		}
+
+		_, _, err = executeRootCommand(
+			t, deps, "spawn", "--agent", "general", "--ttl-seconds", "600", "--base", "main",
+		)
+		if err == nil || !strings.Contains(err.Error(), "--new-worktree") {
+			t.Fatalf("compozy spawn --base without --new-worktree error = %v", err)
+		}
+		_, _, err = executeRootCommand(
+			t, deps, "spawn", "--agent", "general", "--ttl-seconds", "600", "--worktree", "wt-a", "--new-worktree",
+		)
+		if err == nil {
+			t.Fatal("compozy spawn --worktree --new-worktree error = nil, want mutually exclusive flags")
+		}
+	})
 }
 
 func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {

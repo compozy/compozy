@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -45,8 +46,17 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 		return
 	}
 
-	child, err := spawner.Spawn(c.Request.Context(), spawnOptsFromAgentRequest(req, caller.Session.ID))
+	ctx := c.Request.Context()
+	worktreeTarget, err := h.resolveAgentSpawnWorktree(ctx, caller.Session, req)
 	if err != nil {
+		h.respondError(c, statusForAgentSpawnWorktreeError(err), err)
+		return
+	}
+	opts := spawnOptsFromAgentRequest(req, caller.Session.ID)
+	opts.IsolatedWorktreeID = worktreeTarget.ID()
+	child, err := spawner.Spawn(ctx, opts)
+	if err != nil {
+		err = errors.Join(err, RollbackSpawnWorktree(ctx, h.Worktrees, worktreeTarget))
 		h.respondError(c, statusForAgentSpawnError(err), err)
 		return
 	}
@@ -56,13 +66,88 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	sessionPayload, err := h.sessionPayloadWithOptionalHealth(c.Request.Context(), child.Info(), false)
+	payload.Worktree = SpawnWorktreePayloadFromTarget(worktreeTarget)
+	if prompt := strings.TrimSpace(req.Prompt); prompt != "" {
+		result, promptErr := sendAgentSpawnPrompt(ctx, h.Sessions, session.SpawnPromptRequest{
+			ParentSessionID: caller.Session.ID,
+			ParentAgentName: caller.Session.AgentName,
+			ChildSessionID:  child.ID,
+			Message:         prompt,
+			Source:          agentActionSpawn,
+		})
+		if promptErr != nil {
+			h.respondError(c, StatusForSessionError(promptErr), fmt.Errorf(
+				"api: spawned child %q but its first prompt failed: %w", child.ID, promptErr,
+			))
+			return
+		}
+		payload.Prompt = SpawnPromptPayloadFromResult(result)
+	}
+	sessionPayload, err := h.sessionPayloadWithOptionalHealth(ctx, child.Info(), false)
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
 	payload.Session = sessionPayload
 	c.JSON(http.StatusCreated, contract.AgentSpawnResponse{Spawn: payload})
+}
+
+type agentSpawnPrompter interface {
+	SendSpawnPrompt(ctx context.Context, req session.SpawnPromptRequest) (session.SendPromptResult, error)
+}
+
+func sendAgentSpawnPrompt(
+	ctx context.Context,
+	sessions any,
+	req session.SpawnPromptRequest,
+) (session.SendPromptResult, error) {
+	prompter, ok := sessions.(agentSpawnPrompter)
+	if !ok {
+		return session.SendPromptResult{}, errors.New("api: spawn prompt service is not configured")
+	}
+	return prompter.SendSpawnPrompt(ctx, req)
+}
+
+func (h *BaseHandlers) resolveAgentSpawnWorktree(
+	ctx context.Context,
+	caller agentidentity.SessionSnapshot,
+	req contract.AgentSpawnRequest,
+) (SpawnWorktreeTarget, error) {
+	if strings.TrimSpace(req.Worktree) == "" && req.NewWorktree == nil {
+		return SpawnWorktreeTarget{}, nil
+	}
+	// Authorize the target workspace before creating anything in it.
+	workspaceID, err := ResolveSpawnWorkspace(ctx, h.Sessions, caller.ID, req.Workspace)
+	if err != nil {
+		return SpawnWorktreeTarget{}, err
+	}
+	return ResolveSpawnWorktree(ctx, h.Worktrees, workspaceID, caller.ProfileID, req.Worktree, req.NewWorktree)
+}
+
+type spawnWorkspaceResolver interface {
+	ResolveSpawnWorkspace(ctx context.Context, parentSessionID, workspaceRef string) (string, error)
+}
+
+// ResolveSpawnWorkspace authorizes the child workspace of a spawn before any side effect in it.
+func ResolveSpawnWorkspace(ctx context.Context, sessions any, parentSessionID, workspaceRef string) (string, error) {
+	resolver, ok := sessions.(spawnWorkspaceResolver)
+	if !ok {
+		return "", errors.New("api: spawn workspace resolver is not configured")
+	}
+	return resolver.ResolveSpawnWorkspace(ctx, parentSessionID, workspaceRef)
+}
+
+func statusForAgentSpawnWorktreeError(err error) int {
+	if errors.Is(err, session.ErrSpawnValidation) {
+		return http.StatusUnprocessableEntity
+	}
+	if errors.Is(err, session.ErrSpawnPermissionDenied) {
+		return http.StatusForbidden
+	}
+	if WorktreeErrorCode(err) != "" {
+		return StatusForWorktreeError(err)
+	}
+	return StatusForSessionError(err)
 }
 
 func decodeStrictAgentSpawnRequest(c *gin.Context, req *contract.AgentSpawnRequest) error {
@@ -85,23 +170,28 @@ func decodeStrictAgentSpawnRequest(c *gin.Context, req *contract.AgentSpawnReque
 
 func spawnOptsFromAgentRequest(req contract.AgentSpawnRequest, parentSessionID string) session.SpawnOpts {
 	return session.SpawnOpts{
-		ParentSessionID:  strings.TrimSpace(parentSessionID),
-		AgentName:        strings.TrimSpace(req.AgentName),
-		Provider:         strings.TrimSpace(req.Provider),
-		Model:            strings.TrimSpace(req.Model),
-		ReasoningEffort:  strings.TrimSpace(string(req.ReasoningEffort)),
-		Speed:            req.Speed,
-		ACPOptions:       contract.ACPOptionSelectionsFromPayload(req.ACPOptions),
-		Name:             strings.TrimSpace(req.Name),
-		Workspace:        strings.TrimSpace(req.Workspace),
-		PromptOverlay:    strings.TrimSpace(req.PromptOverlay),
-		SpawnRole:        strings.TrimSpace(req.SpawnRole),
-		TTL:              time.Duration(req.TTLSeconds) * time.Second,
-		AutoStopOnParent: req.AutoStopOnParent,
-		NotifyCreator:    req.NotifyCreator != nil && *req.NotifyCreator,
-		NotifyCreatorSet: req.NotifyCreator != nil,
-		PermissionPolicy: sessionPermissionPolicyFromPayload(req.Permissions),
-		IdempotencyKey:   strings.TrimSpace(req.IdempotencyKey),
+		ParentSessionID:    strings.TrimSpace(parentSessionID),
+		AgentName:          strings.TrimSpace(req.AgentName),
+		Provider:           strings.TrimSpace(req.Provider),
+		Model:              strings.TrimSpace(req.Model),
+		ReasoningEffort:    strings.TrimSpace(string(req.ReasoningEffort)),
+		Speed:              req.Speed,
+		ACPOptions:         contract.ACPOptionSelectionsFromPayload(req.ACPOptions),
+		Name:               strings.TrimSpace(req.Name),
+		Workspace:          strings.TrimSpace(req.Workspace),
+		PromptOverlay:      strings.TrimSpace(req.PromptOverlay),
+		SpawnRole:          strings.TrimSpace(req.SpawnRole),
+		TTL:                time.Duration(req.TTLSeconds) * time.Second,
+		AutoStopOnParent:   req.AutoStopOnParent,
+		NotifyCreator:      req.NotifyCreator != nil && *req.NotifyCreator,
+		NotifyCreatorSet:   req.NotifyCreator != nil,
+		PermissionPolicy:   sessionPermissionPolicyFromPayload(req.Permissions),
+		InheritPermissions: req.InheritPermissions,
+		PermissionNarrowing: SpawnPermissionNarrowing(
+			req.Permissions.Tools, req.Permissions.Skills, req.Permissions.MCPServers, req.Permissions.WorkspacePaths,
+		),
+		Toolsets:       trimSpawnAtoms(req.Toolsets),
+		IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
 	}
 }
 
