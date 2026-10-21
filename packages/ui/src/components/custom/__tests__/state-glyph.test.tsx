@@ -8,6 +8,7 @@ const STATES: StateGlyphState[] = [
   "running",
   "queued",
   "delegated",
+  "monitoring",
   "done",
   "attention",
   "failed",
@@ -41,6 +42,7 @@ describe("StateGlyph", () => {
     ["failed", "text-danger"],
     ["stopped", "text-subtle"],
     ["delegated", "text-info"],
+    ["monitoring", "text-warning"],
   ] as const)("Should paint the %s state with %s", (state, toneClass) => {
     const { container } = render(<StateGlyph state={state} />);
     expect(container.querySelector('[data-slot="state-glyph"]')).toHaveClass(toneClass);

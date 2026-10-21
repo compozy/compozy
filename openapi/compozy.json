@@ -23595,6 +23595,100 @@
         ],
         "type": "object"
       },
+      "SessionMonitorPayload": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deadline_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "exit_code": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "fired_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "monitor_id": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "terminal_id": {
+            "type": "string"
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "deadline_at",
+          "description",
+          "kind",
+          "monitor_id",
+          "session_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorResponse": {
+        "properties": {
+          "monitor": {
+            "$ref": "#/components/schemas/SessionMonitorPayload"
+          }
+        },
+        "required": [
+          "monitor"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorSummaryPayload": {
+        "properties": {
+          "active": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorsResponse": {
+        "properties": {
+          "monitors": {
+            "items": {
+              "$ref": "#/components/schemas/SessionMonitorPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "monitors"
+        ],
+        "type": "object"
+      },
       "SessionOwner": {
         "properties": {
           "session_id": {
@@ -23735,6 +23829,19 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/SessionLineagePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "monitor_summary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionMonitorSummaryPayload"
               },
               {
                 "enum": [
@@ -82648,6 +82755,167 @@
           }
         },
         "summary": "List pending session interactions",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
+      "get": {
+        "operationId": "listSessionMonitors",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMonitorsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session or monitor not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session monitors unavailable"
+          }
+        },
+        "summary": "List a session's monitors",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel": {
+      "post": {
+        "operationId": "cancelSessionMonitor",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Monitor id",
+            "in": "path",
+            "name": "monitor_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMonitorResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session or monitor not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session monitors unavailable"
+          }
+        },
+        "summary": "Cancel a session monitor without waking the session",
         "tags": [
           "sessions"
         ],

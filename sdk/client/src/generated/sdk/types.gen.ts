@@ -6487,6 +6487,34 @@ export type SessionLineagePayload = {
   ttl_expires_at?: string | null;
 };
 
+export type SessionMonitorPayload = {
+  created_at: string;
+  deadline_at: string;
+  description: string;
+  exit_code?: number | null;
+  fired_at?: string | null;
+  kind: string;
+  monitor_id: string;
+  pattern?: string;
+  reason?: string;
+  session_id: string;
+  status: string;
+  terminal_id?: string;
+  until?: string;
+};
+
+export type SessionMonitorResponse = {
+  monitor: SessionMonitorPayload;
+};
+
+export type SessionMonitorSummaryPayload = {
+  active: number;
+};
+
+export type SessionMonitorsResponse = {
+  monitors: Array<SessionMonitorPayload>;
+};
+
 export type SessionOwner = {
   session_id: string;
   workspace_id: string;
@@ -6513,6 +6541,7 @@ export type SessionPayload = {
   health?: SessionHealthPayload | null;
   id: string;
   lineage?: SessionLineagePayload | null;
+  monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
   pending_interactions: Array<PendingInteractionPayload>;
   profile_archived?: boolean;
@@ -32173,6 +32202,97 @@ export type ListSessionInteractionsResponses = {
 
 export type ListSessionInteractionsResponse =
   ListSessionInteractionsResponses[keyof ListSessionInteractionsResponses];
+
+export type ListSessionMonitorsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors";
+};
+
+export type ListSessionMonitorsErrors = {
+  /**
+   * Session or monitor not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session monitors unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionMonitorsError = ListSessionMonitorsErrors[keyof ListSessionMonitorsErrors];
+
+export type ListSessionMonitorsResponses = {
+  /**
+   * Success
+   */
+  200: SessionMonitorsResponse;
+};
+
+export type ListSessionMonitorsResponse =
+  ListSessionMonitorsResponses[keyof ListSessionMonitorsResponses];
+
+export type CancelSessionMonitorData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+    /**
+     * Monitor id
+     */
+    monitor_id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel";
+};
+
+export type CancelSessionMonitorErrors = {
+  /**
+   * Session or monitor not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session monitors unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CancelSessionMonitorError =
+  CancelSessionMonitorErrors[keyof CancelSessionMonitorErrors];
+
+export type CancelSessionMonitorResponses = {
+  /**
+   * Success
+   */
+  200: SessionMonitorResponse;
+};
+
+export type CancelSessionMonitorResponse =
+  CancelSessionMonitorResponses[keyof CancelSessionMonitorResponses];
 
 export type MoveSessionData = {
   /**

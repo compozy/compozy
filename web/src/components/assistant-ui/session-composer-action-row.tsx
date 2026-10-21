@@ -40,6 +40,7 @@ interface SessionComposerActionRowProps {
   environmentControl?: ReactNode;
   contextControl?: ReactNode;
   subagentControl?: ReactNode;
+  monitorControl?: ReactNode;
 }
 
 type SessionComposerActionState = {
@@ -284,6 +285,7 @@ export function SessionComposerActionRow({
   environmentControl,
   contextControl,
   subagentControl,
+  monitorControl,
 }: SessionComposerActionRowProps) {
   const canPrompt = actionState.prompt === "enabled";
   const busyControls = actionState.controls.kind === "busy" ? actionState.controls : null;
@@ -297,12 +299,14 @@ export function SessionComposerActionRow({
       environmentControl ||
       contextControl ||
       subagentControl ||
+      monitorControl ||
       attachControl ? (
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           {runtimeControl}
           {environmentControl}
           {contextControl}
           {subagentControl}
+          {monitorControl}
           {attachControl}
         </div>
       ) : null}

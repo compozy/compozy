@@ -1,4 +1,5 @@
 import {
+  SessionComposerMonitors,
   SessionComposerSubagents,
   SessionContextControl,
   useSessionContextActivity,
@@ -321,6 +322,7 @@ export function SessionWindowContent({
                 subagentControl={
                   <SessionComposerSubagents session={session} onOpen={openSubagent} />
                 }
+                monitorControl={<SessionComposerMonitors session={session} />}
                 runtimeControl={<SessionPromptRuntimeSelector canPrompt={controls.canPrompt} />}
                 environmentControl={
                   <SessionEnvironmentControl

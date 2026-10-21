@@ -693,6 +693,23 @@ describe("SessionList subagents", () => {
     expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
   });
 
+  it("reads monitoring, not done, while a finished session still has an active monitor", () => {
+    renderList({
+      sessions: [
+        row("watching", { badge: "done", monitor_summary: { active: 1 } }),
+        row("watching-running", { badge: "running", monitor_summary: { active: 1 } }),
+        row("finished", { badge: "done" }),
+      ],
+    });
+
+    const watching = screen.getByTestId("session-sidebar-session-watching");
+    expect(within(watching).getByRole("img")).toHaveAttribute("data-badge", "monitoring");
+    const running = screen.getByTestId("session-sidebar-session-watching-running");
+    expect(within(running).getByRole("img")).toHaveAttribute("data-badge", "running");
+    const finished = screen.getByTestId("session-sidebar-session-finished");
+    expect(within(finished).getByRole("img")).toHaveAttribute("data-badge", "done");
+  });
+
   it("opens the parent with its inspector landing on Subagents when the chip is clicked", async () => {
     const user = userEvent.setup();
     const parent = row("chip-parent", summary(1, 1));

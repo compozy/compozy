@@ -197,6 +197,13 @@
             "resource": "sessions",
             "app_access": "allowed"
         },
+        "cancelSessionMonitor": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.cancelSessionMonitor({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\", \"monitor_id\": \"monitor_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CancelSessionMonitor(ctx, client.CancelSessionMonitorParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\", MonitorID: \"monitor_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "cancelSessionPrompt": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.cancelSessionPrompt({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.CancelSessionPrompt(ctx, client.CancelSessionPromptParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -1922,6 +1929,13 @@
         "listSessionInteractions": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionInteractions({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, query: { \"status\": \"pending\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionInteractions(ctx, client.ListSessionInteractionsParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
+        "listSessionMonitors": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.listSessionMonitors({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListSessionMonitors(ctx, client.ListSessionMonitorsParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"

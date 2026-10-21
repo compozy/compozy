@@ -4,6 +4,16 @@ package client
 
 import "time"
 
+// WorktreeForgeStatusPayload is a daemon API value.
+type WorktreeForgeStatusPayload struct {
+	Provider  string     `json:"provider"`
+	PRNumber  *int       `json:"pr_number"`
+	PRState   *string    `json:"pr_state"`
+	PRURL     string     `json:"pr_url,omitempty"`
+	Merged    *bool      `json:"merged"`
+	FetchedAt *time.Time `json:"fetched_at"`
+}
+
 // WorktreeInspectionResponse is a daemon API value.
 type WorktreeInspectionResponse struct {
 	Worktree WorktreePayload             `json:"worktree"`

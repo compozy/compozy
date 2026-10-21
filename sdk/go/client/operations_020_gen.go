@@ -10,6 +10,115 @@ import (
 	"strings"
 )
 
+// ListWorkspaceSessions List sessions
+func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspaceSessionsParams) (*SessionCatalogResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.IncludeHealth != nil {
+		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
+	}
+	if params.SkipTotal != nil {
+		query.Set("skip_total", strconv.FormatBool(*params.SkipTotal))
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Subagents != nil {
+		query.Set("subagents", *params.Subagents)
+	}
+	if params.Parent != nil {
+		query.Set("parent", *params.Parent)
+	}
+	if params.Root != nil {
+		query.Set("root", *params.Root)
+	}
+	if params.Worktree != nil {
+		query.Set("worktree", *params.Worktree)
+	}
+	if params.Q != nil {
+		query.Set("q", *params.Q)
+	}
+	if params.SearchFields != nil {
+		query.Set("search_fields", *params.SearchFields)
+	}
+	if params.Resumable != nil {
+		query.Set("resumable", strconv.FormatBool(*params.Resumable))
+	}
+	if params.Attention != nil {
+		query.Set("attention", strconv.FormatBool(*params.Attention))
+	}
+	if params.Badge != nil {
+		query.Set("badge", *params.Badge)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Sort != nil {
+		query.Set("sort", *params.Sort)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionCatalogResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorkspaces List registered workspaces
+func (c *Client) ListWorkspaces(ctx context.Context) (*WorkspacesResponse, error) {
+	path := "/api/workspaces"
+	var out WorkspacesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorktreesParams carries the path, query, and header parameters.
+type ListWorktreesParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	Refresh     *bool  `url:"refresh"`
+}
+
+// ListWorktrees List registered and discovered worktrees
+func (c *Client) ListWorktrees(ctx context.Context, params ListWorktreesParams) (*WorktreesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // LogoutSettingsMCPAuthParams carries the path, query, and header parameters.
 type LogoutSettingsMCPAuthParams struct {
 	Name        string  `url:"name"`
@@ -328,110 +437,4 @@ type PinCmdPaletteCommandParams struct {
 	ID        string  `url:"id"`
 	Workspace string  `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// PinCmdPaletteCommand Pin one command palette command
-func (c *Client) PinCmdPaletteCommand(ctx context.Context, params PinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
-	path := "/api/cmd-palette/pins/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePinResponse
-	if err := c.doContent(ctx, "PUT", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileArchiveParams carries the path, query, and header parameters.
-type PrepareProfileArchiveParams struct {
-	Name string `url:"name"`
-}
-
-// PrepareProfileArchive Preview profile archival
-func (c *Client) PrepareProfileArchive(ctx context.Context, params PrepareProfileArchiveParams) (*ArchiveProfilePlan, error) {
-	path := "/api/profiles/{name}/archive-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out ArchiveProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileDeleteParams carries the path, query, and header parameters.
-type PrepareProfileDeleteParams struct {
-	Name string `url:"name"`
-}
-
-// PrepareProfileDelete Preview profile deletion
-func (c *Client) PrepareProfileDelete(ctx context.Context, params PrepareProfileDeleteParams) (*DeleteProfilePlan, error) {
-	path := "/api/profiles/{name}/delete-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out DeleteProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PrepareProfileRenameParams carries the path, query, and header parameters.
-type PrepareProfileRenameParams struct {
-	Name    string `url:"name"`
-	NewName string `url:"new_name"`
-}
-
-// PrepareProfileRename Preview a profile rename
-func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfileRenameParams) (*RenameProfilePlan, error) {
-	path := "/api/profiles/{name}/rename-plan"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	query.Set("new_name", params.NewName)
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RenameProfilePlan
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewExtensionEnableParams carries the path, query, and header parameters.
-type PreviewExtensionEnableParams struct {
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// PreviewExtensionEnable Preview one extension enablement change
-func (c *Client) PreviewExtensionEnable(ctx context.Context, params PreviewExtensionEnableParams) (*ExtensionEnablePreviewPayload, error) {
-	path := "/api/extensions/{name}/preview"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionEnablePreviewPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewExtensionInstallParams carries the path, query, and header parameters.
-type PreviewExtensionInstallParams struct {
-	Profile *string `url:"profile"`
 }

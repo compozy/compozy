@@ -4,6 +4,32 @@ package client
 
 import "time"
 
+// SessionRuntimeTransition is a daemon API value.
+type SessionRuntimeTransition string
+
+// SessionSkillInvocationPayload is a daemon API value.
+type SessionSkillInvocationPayload struct {
+	CommandID string               `json:"command_id"`
+	Token     string               `json:"token"`
+	Name      string               `json:"name"`
+	Source    SessionCommandSource `json:"source"`
+	Start     int                  `json:"start"`
+	End       int                  `json:"end"`
+}
+
+// SessionSoulRefreshRequest is a daemon API value.
+type SessionSoulRefreshRequest struct {
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// SessionSpec is a daemon API value.
+type SessionSpec struct {
+	Handle   string `json:"handle,omitempty"`
+	Isolated bool   `json:"isolated,omitzero"`
+	Mode     string `json:"mode,omitempty"`
+}
+
 // SessionStatusResponse is a daemon API value.
 type SessionStatusResponse struct {
 	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
@@ -417,34 +443,3 @@ type SettingsGlobalShortcutPayload struct {
 
 // SettingsGlobalShortcutStatus is a daemon API value.
 type SettingsGlobalShortcutStatus string
-
-// SettingsHTTPPayload is a daemon API value.
-type SettingsHTTPPayload struct {
-	Host string `json:"host"`
-	Port int    `json:"port"`
-}
-
-// SettingsHookDeclarationPayload is a daemon API value.
-type SettingsHookDeclarationPayload struct {
-	Name         string            `json:"name"`
-	Event        HookEvent         `json:"event"`
-	Mode         HookMode          `json:"mode,omitempty"`
-	Required     bool              `json:"required,omitzero"`
-	Enabled      *bool             `json:"enabled,omitzero"`
-	Priority     int               `json:"priority,omitzero"`
-	Timeout      string            `json:"timeout,omitempty"`
-	Matcher      HookMatcher       `json:"matcher"`
-	ExecutorKind HookExecutorKind  `json:"executor_kind,omitempty"`
-	Command      string            `json:"command,omitempty"`
-	Args         []string          `json:"args,omitempty"`
-	Env          map[string]string `json:"env,omitempty"`
-	SecretEnv    map[string]string `json:"secret_env,omitempty"`
-	Metadata     map[string]string `json:"metadata,omitempty"`
-}
-
-// SettingsHookItemPayload is a daemon API value.
-type SettingsHookItemPayload struct {
-	Name           string                         `json:"name"`
-	Declaration    SettingsHookDeclarationPayload `json:"declaration"`
-	SourceMetadata SettingsSourceMetadataPayload  `json:"source_metadata"`
-}

@@ -27,6 +27,7 @@ type handlerConfig struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	subagents             session.SubagentService
+	sessionMonitors       core.SessionMonitorService
 	sessionCatalog        core.SessionCatalog
 	taskDesignations      core.TaskDesignationStore
 	skillExposureStore    store.SkillExposureRepository
@@ -209,6 +210,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SessionAcceptance:      sessionAcceptanceManager(cfg.sessions),
 		DrainController:        cfg.drainController,
 		Subagents:              cfg.subagents,
+		SessionMonitors:        cfg.sessionMonitors,
 		SessionCatalog:         cfg.sessionCatalog,
 		TaskDesignations:       cfg.taskDesignations,
 		Tasks:                  cfg.tasks,

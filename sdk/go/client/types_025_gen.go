@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// TranscriptMarkerPayload is a daemon API value.
+type TranscriptMarkerPayload struct {
+	Kind       string          `json:"kind"`
+	OccurredAt time.Time       `json:"occurred_at"`
+	Summary    string          `json:"summary"`
+	Evidence   map[string]any  `json:"evidence,omitempty"`
+	Diagnostic json.RawMessage `json:"diagnostic,omitempty"`
+}
+
 // TranscriptSnapshotPayload is a daemon API value.
 type TranscriptSnapshotPayload struct {
 	SessionID          string  `json:"session_id"`
@@ -437,13 +446,4 @@ type Weights struct {
 	EntitySectionVisibleCap    int      `json:"entity_section_visible_cap"`
 	DomainViewMountCap         int      `json:"domain_view_mount_cap"`
 	GroupOrder                 []string `json:"group_order"`
-}
-
-// WindowID is a daemon API value.
-type WindowID string
-
-// WindowManagerActor is a daemon API value.
-type WindowManagerActor struct {
-	Kind string `json:"kind,omitempty"`
-	ID   string `json:"id,omitempty"`
 }

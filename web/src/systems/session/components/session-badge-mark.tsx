@@ -18,17 +18,21 @@ export interface SessionBadgeMarkProps extends Omit<React.ComponentProps<"span">
   badge: string | null | undefined;
   /** The turn ended but subagents still work: the parent reads `delegated`, not done. */
   delegated?: boolean;
+  /** The turn ended but a monitor still waits to wake it: the row reads `monitoring`, not done. */
+  monitoring?: boolean;
 }
 
 /** Row-scale mark: the state glyph + an accessible state token. */
 export function SessionBadgeMark({
   badge,
   delegated = false,
+  monitoring = false,
   className,
   ...props
 }: SessionBadgeMarkProps) {
   const signal = sessionBadgeSignal(badge);
-  const label = delegated ? "delegated" : signal.label;
+  const parked = delegated ? "delegated" : monitoring ? "monitoring" : null;
+  const label = parked ?? signal.label;
   return (
     <span
       role="img"
@@ -37,7 +41,7 @@ export function SessionBadgeMark({
       className={cn("grid size-3 shrink-0 place-items-center", className)}
       {...props}
     >
-      <StateGlyph size="sm" state={delegated ? "delegated" : signal.state} />
+      <StateGlyph size="sm" state={parked ?? signal.state} />
     </span>
   );
 }

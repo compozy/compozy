@@ -1,5 +1,19 @@
 # Compozy Change Impact
 
+## Session monitor visibility — 2026-10-21
+
+Owner: branch `feat/session-monitor-visibility`. Additive across every public surface (SD-013); no
+delete targets. HTTP/UDS gain `listSessionMonitors` and `cancelSessionMonitor` under
+`/api/workspaces/{workspace_id}/sessions/{session_id}/monitors`, and `SessionPayload` gains the
+optional `monitor_summary` (OpenAPI, TS and Go SDKs regenerated). Every monitor start, cancel, or
+settled delivery publishes a session catalog `upserted` event. Native monitor tools, hooks, extension
+SDKs, config keys, and persisted user state are unchanged; monitors stay daemon-memory only.
+Operator reads use the existing workspace-scoped session route guard, so workspace isolation is
+unchanged. `@compozy/ui` `StateGlyph` gains the amber `monitoring` state; Web shows it on session rows
+and adds the composer monitor popover. Site docs (`sessions/monitors.mdx`), the official skill
+(`references/native-tools.md`), and QA scenario `RT-session-monitor-wake` step 8 are updated.
+
+
 ## Terminal journal storage under the daemon home — 2026-10-21
 
 Owner: `internal/store/workspacedb/` and `internal/daemon/terminal_boot.go`.

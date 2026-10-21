@@ -3505,6 +3505,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		}
 	}
 
+	// Session monitors: optional additive `monitor_summary` on session payloads; no
+	// required/type/removal change.
+	addSessionMonitorSummary(t, baseline)
+
 	// Composer mentions: optional additive `mentions` on queued-input payloads; no
 	// required/type/removal change.
 	addQueuedInputMentions(t, baseline)
@@ -3639,6 +3643,48 @@ func addLastKnownRuntimeSchema(value any) int {
 		}
 	}
 	return count
+}
+
+// addSessionMonitorSummary adds the approved nullable `monitor_summary` to every
+// historical session payload schema (identified by subagent_summary + badge).
+func addSessionMonitorSummary(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	if _, exists := components["SessionMonitorSummaryPayload"]; exists {
+		t.Fatal("approved session monitor addition: summary schema already exists in the historical baseline")
+	}
+	components["SessionMonitorSummaryPayload"] = map[string]any{
+		"type":       "object",
+		"properties": map[string]any{"active": map[string]any{"type": "integer"}},
+		"required":   []any{"active"},
+	}
+	var walk func(any) int
+	walk = func(value any) int {
+		count := 0
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				count += walk(child)
+			}
+		case map[string]any:
+			for child := range maps.Values(node) {
+				count += walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok || properties["subagent_summary"] == nil || properties["badge"] == nil {
+				return count
+			}
+			properties["monitor_summary"] = map[string]any{"oneOf": []any{
+				map[string]any{"$ref": "#/components/schemas/SessionMonitorSummaryPayload"},
+				map[string]any{"enum": []any{nil}, "nullable": true},
+			}}
+			count++
+		}
+		return count
+	}
+	if walk(baseline) == 0 {
+		t.Fatal("approved session monitor addition: no historical session payload schemas found")
+	}
 }
 
 // addQueuedInputMentions adds the approved `mentions` array to every historical
