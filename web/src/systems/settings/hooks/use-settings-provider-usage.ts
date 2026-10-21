@@ -17,6 +17,12 @@ export function useSettingsProviderUsage() {
   return useQuery(settingsProviderUsageOptions());
 }
 
+export interface SettingsProviderUsageSave {
+  body: SettingsUpdateProviderUsageRequest;
+  /** The shell's active profile: a consent change collects for it, never `default`. */
+  collectionProfile: string;
+}
+
 /**
  * Saves the whole provider usage config through the apply lifecycle. Usage
  * views re-read too: an apply can remove targets or turn the feature off.
@@ -25,7 +31,8 @@ export function useUpdateSettingsProviderUsage() {
   const queryClient = useQueryClient();
   return useMutation({
     networkMode: "always",
-    mutationFn: (body: SettingsUpdateProviderUsageRequest) => updateSettingsProviderUsage(body),
+    mutationFn: ({ body, collectionProfile }: SettingsProviderUsageSave) =>
+      updateSettingsProviderUsage(body, collectionProfile),
     onSuccess: recordSettingsMutation,
     onSettled: () =>
       Promise.all([
@@ -38,17 +45,21 @@ export function useUpdateSettingsProviderUsage() {
 
 /**
  * The usage row's **Allow**: saves `provider_usage.providers.claude.keychain_access
- * = true` over the current config and reports a failed save itself. The
- * returned promise rejects on failure so the caller sends no refresh.
+ * = true` over the current config for `profile` — the profile the follow-up
+ * refresh targets — and reports a failed save itself. The returned promise
+ * rejects on failure so the caller sends no refresh.
  */
-export function useAllowProviderUsageKeychain(): (providerId: string) => Promise<void> {
+export function useAllowProviderUsageKeychain(
+  profile: string
+): (providerId: string) => Promise<void> {
   const queryClient = useQueryClient();
   const mutation = useUpdateSettingsProviderUsage();
   return async () => {
     try {
       const section = await queryClient.fetchQuery(settingsProviderUsageOptions());
       await mutation.mutateAsync({
-        config: withProviderUsageKeychainAccess(section.config, true),
+        body: { config: withProviderUsageKeychainAccess(section.config, true) },
+        collectionProfile: profile,
       });
     } catch (error) {
       toast.error(

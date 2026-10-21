@@ -27,12 +27,21 @@ export async function getSettingsProviderUsage(
   return requireResponseData(data, response, "Failed to load provider usage settings");
 }
 
+/**
+ * Saves the machine-wide section. `collectionProfile` names the profile whose
+ * Claude collection a Keychain consent change starts; it scopes nothing else.
+ */
 export async function updateSettingsProviderUsage(
   body: SettingsUpdateProviderUsageRequest,
+  collectionProfile: string,
   signal?: AbortSignal
 ): Promise<SettingsMutationResult> {
   const { data, error, response } = await apiClient
-    .PATCH("/api/settings/provider-usage", { body, signal })
+    .PATCH("/api/settings/provider-usage", {
+      body,
+      params: { query: { collection_profile: collectionProfile } },
+      signal,
+    })
     .catch(throwSettingsSaveTransportError);
   if (apiRequestFailed(response, error)) {
     throw new SettingsApiError(

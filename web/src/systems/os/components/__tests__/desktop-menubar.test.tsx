@@ -17,6 +17,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
+import { resetProfileViews } from "@/systems/profiles";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
 import {
   codexOkTarget,
@@ -118,6 +119,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetProfileViews();
 });
 
 function renderMenubar({
@@ -242,6 +244,10 @@ describe("DesktopMenubar provider usage control", () => {
     expect(
       screen.getByRole("button", { name: /^Codex · Weekly 72% used · resets in/ })
     ).toHaveAttribute("aria-haspopup", "dialog");
+    // The menubar hands the control its icon-button footprint: same as All desktops.
+    const footprint = screen.getByRole("button", { name: "All desktops" }).classList;
+    const usageButton = screen.getByRole("button", { name: /^Codex · Weekly/ });
+    expect([...footprint].filter(token => !usageButton.classList.contains(token))).toEqual([]);
     expect(trayOrder(container)).toEqual([
       "os-menubar-desktops",
       "os-menubar-usage",
@@ -377,4 +383,79 @@ describe("DesktopMenubar provider usage control", () => {
       expect(within(popover).queryAllByRole("button", { name: "Allow" })).toHaveLength(allowCount);
     }
   );
+
+  it("Should save Keychain consent and refresh for the active profile, not default", async () => {
+    const user = userEvent.setup();
+    const consent = usageEnvelope(
+      [codexOkTarget(NOW), statusTargets(NOW).needsConsent],
+      { profile_id: "work", keychain_supported: true },
+      NOW
+    );
+    vi.mocked(globalThis.fetch).mockImplementation(input => {
+      const request = input as Request;
+      const { pathname } = new URL(request.url);
+      if (pathname === "/api/profiles/selection") {
+        return Promise.resolve(jsonResponse([{ scope: "global", profile: "work" }]));
+      }
+      if (pathname === "/api/settings/provider-usage") {
+        return Promise.resolve(
+          jsonResponse(
+            request.method === "PATCH"
+              ? { section: "provider-usage", scope: "user", restart_required: false, warnings: [] }
+              : {
+                  section: "provider-usage",
+                  scope: "user",
+                  available_scopes: ["user"],
+                  keychain_supported: true,
+                  config: { enabled: true, refresh_interval: "5m0s", providers: {} },
+                }
+          )
+        );
+      }
+      if (pathname.startsWith("/api/provider-usage")) return Promise.resolve(jsonResponse(consent));
+      return Promise.resolve(jsonResponse({ error: "not found", code: "not_found" }, 404));
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { enabled: false, retry: false } },
+    });
+    queryClient.setQueryData(["provider-usage", "envelope", "work"], consent);
+    render(
+      <QueryClientProvider client={queryClient}>
+        <UIProvider reducedMotion="never" skipAnimations>
+          <CmdPaletteRegistryProvider registry={paletteRegistryFixture([])}>
+            <DesktopMenubar
+              workspaces={[]}
+              activeWorkspace={undefined}
+              scope="workspace"
+              onSelectWorkspace={vi.fn()}
+              onAddWorkspace={vi.fn()}
+              onRunCommand={vi.fn()}
+              activeOverlay="usage"
+              onOverlayOpenChange={vi.fn()}
+              attention={ATTENTION}
+              update={{ state: "hidden" }}
+            />
+          </CmdPaletteRegistryProvider>
+        </UIProvider>
+      </QueryClientProvider>
+    );
+
+    const popover = await screen.findByTestId("os-usage-popover");
+    await user.click(await within(popover).findByRole("button", { name: "Allow" }));
+
+    const requests = () =>
+      vi
+        .mocked(globalThis.fetch)
+        .mock.calls.map(([input]) => input as Request)
+        .filter(request => request.method !== "GET");
+    await waitFor(() => expect(requests()).toHaveLength(2));
+    const [save, refresh] = requests();
+    expect(save?.method).toBe("PATCH");
+    expect(new URL(save?.url ?? "").searchParams.get("collection_profile")).toBe("work");
+    expect(await refresh?.clone().json()).toEqual({
+      profile: "work",
+      intent: "explicit",
+      provider_ids: ["claude"],
+    });
+  });
 });

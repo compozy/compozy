@@ -35,7 +35,7 @@ export function useProviderUsageSurface(): ProviderUsageSurfaceModel {
   const host = useProviderUsageHost(usage.viewModel);
   const launcher = useOsAppLauncher();
   const openSettings = () => launcher.openSettingsSection("provider-usage");
-  const allowKeychain = useAllowProviderUsageKeychain();
+  const allowKeychain = useAllowProviderUsageKeychain(profile);
   const actions = useProviderUsageActions(profile, {
     allowKeychain,
     configure: openSettings,

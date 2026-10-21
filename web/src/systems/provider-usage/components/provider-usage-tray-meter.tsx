@@ -26,17 +26,11 @@ export interface ProviderUsageTrayMeterProps extends Omit<
   measuredAt?: string | null;
 }
 
-/** The tray icon-button footprint (34 px pill, muted glyph) the topbar uses. */
-const TRAY_BUTTON = [
-  "relative grid size-8.5 place-items-center rounded-pill text-muted",
-  "transition-colors duration-base hover:bg-rail-hover hover:text-fg",
-  "data-popup-open:bg-rail-selected data-popup-open:text-fg",
-  "focus-visible:shadow-focus-ring focus-visible:outline-none",
-].join(" ");
-
 /**
  * The topbar's Provider usage control: a gauge glyph over a compact bar filled
- * to the tightest window, inside the same footprint as the other tray buttons.
+ * to the tightest window. The host owns the footprint: the menubar passes its
+ * tray icon-button classes through `className`, so the control matches All
+ * desktops and the bell.
  * Its accessible name and tooltip carry the window, percent, and reset; the
  * bar tone is never the only signal. Stale data dims the bar and adds a ring
  * marker. Hand it to a popover trigger's `render`; props and `ref` reach the
@@ -63,7 +57,7 @@ export function ProviderUsageTrayMeter({
             data-slot="provider-usage-tray-meter"
             data-severity={tray?.severity}
             data-stale={tray?.stale || undefined}
-            className={cn(TRAY_BUTTON, className)}
+            className={className}
             {...props}
           >
             {tray ? (

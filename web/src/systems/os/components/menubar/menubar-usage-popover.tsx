@@ -5,6 +5,8 @@ import type { ProviderUsageSurfaceModel } from "../../hooks/use-provider-usage-s
 
 export interface MenubarUsagePopoverProps {
   surface: ProviderUsageSurfaceModel;
+  /** The tray icon-button footprint, owned by the menubar. */
+  triggerClassName: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -15,7 +17,12 @@ export interface MenubarUsagePopoverProps {
  * while the cached rows render at once. The footer destinations close the
  * popover before the window opens.
  */
-export function MenubarUsagePopover({ surface, open, onOpenChange }: MenubarUsagePopoverProps) {
+export function MenubarUsagePopover({
+  surface,
+  triggerClassName,
+  open,
+  onOpenChange,
+}: MenubarUsagePopoverProps) {
   const { usage, actions } = surface;
   const viewModel = usage.viewModel;
   const close = (then: () => void) => () => {
@@ -36,6 +43,7 @@ export function MenubarUsagePopover({ surface, open, onOpenChange }: MenubarUsag
           <ProviderUsageTrayMeter
             tray={viewModel?.tray ?? null}
             measuredAt={viewModel?.trayMeasuredAt ?? null}
+            className={triggerClassName}
           />
         }
       />

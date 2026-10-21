@@ -88,8 +88,10 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   /**
    * Provider usage control, right after All desktops (shell wiring). Absent —
    * not disabled — while the feature is off or the profile has no target.
+   * Receives the tray icon-button footprint so the control matches its
+   * neighbours without restating it.
    */
-  usageControl?: React.ReactNode;
+  usageControl?: (trayButtonClassName: string) => React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
 }
@@ -330,7 +332,7 @@ export function OsMenuBar({
           </ControlTooltip>
           {usageControl ? (
             <div data-slot="os-menubar-usage" className="contents">
-              {usageControl}
+              {usageControl(cn(INTERACTIVE, ICON_BUTTON))}
             </div>
           ) : null}
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is

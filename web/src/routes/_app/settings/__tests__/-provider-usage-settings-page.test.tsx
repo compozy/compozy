@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UIProvider } from "@compozy/ui";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
 import { codexOkTarget, usageEnvelope } from "@/systems/provider-usage/mocks";
+import { resetProfileViews } from "@/systems/profiles";
 import type { SettingsProviderUsageSection } from "@/systems/settings";
 
 vi.mock("@tanstack/react-router", async importOriginal => ({
@@ -45,6 +46,8 @@ const PROVIDERS = {
 const NOW = Date.now();
 
 interface Daemon {
+  /** The shell's remembered profile. */
+  activeProfile?: string;
   section: SettingsProviderUsageSection;
   usage: ProviderUsageEnvelope;
   patch: (body: unknown) => Response;
@@ -75,6 +78,9 @@ function serve(daemon: Daemon) {
         : json(daemon.section);
     }
     if (pathname === "/api/settings/providers") return json(PROVIDERS);
+    if (pathname === "/api/profiles/selection") {
+      return json([{ scope: "global", profile: daemon.activeProfile ?? "default" }]);
+    }
     if (pathname === "/api/provider-usage") return json(daemon.usage);
     // The apply-record reader behind the restart notice: nothing pending.
     if (pathname === "/api/settings/apply") return json({ entries: [] });
@@ -94,6 +100,7 @@ function patchBodies(): Promise<unknown[]> {
 
 function renderPage(daemon: Partial<Daemon> = {}) {
   serve({
+    activeProfile: daemon.activeProfile,
     section: daemon.section ?? SECTION,
     usage: daemon.usage ?? usageEnvelope([codexOkTarget(NOW)], {}, NOW),
     patch: daemon.patch ?? (() => json(APPLIED)),
@@ -116,6 +123,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  resetProfileViews();
 });
 
 describe("ProviderUsageSettingsPage", () => {
@@ -206,5 +214,21 @@ describe("ProviderUsageSettingsPage", () => {
 
     expect(screen.queryByTestId("settings-provider-usage-interval")).toBeNull();
     expect(screen.queryByTestId("settings-provider-usage-providers")).toBeNull();
+  });
+
+  it("Should carry the active profile into the consent apply", async () => {
+    const user = userEvent.setup();
+    renderPage({ activeProfile: "work", section: { ...SECTION, keychain_supported: true } });
+
+    await user.click(await screen.findByTestId("settings-provider-usage-keychain"));
+    await user.click(screen.getByTestId("settings-page-provider-usage-save"));
+
+    await waitFor(() => {
+      const patch = vi
+        .mocked(globalThis.fetch)
+        .mock.calls.map(([input]) => input as Request)
+        .find(request => request.method === "PATCH");
+      expect(new URL(patch?.url ?? "http://x").searchParams.get("collection_profile")).toBe("work");
+    });
   });
 });

@@ -446,6 +446,11 @@ export const UsagePopoverOpen: Story = {
   },
 };
 
+/** Below 80 %: the meter fills in neutral ink. */
+export const UsageTrayNeutral: Story = usageStory(now =>
+  usageEnvelope([codexOkTarget(now)], { tray: usageTray({}, now) }, now)
+);
+
 /** The tightest window is spent: the meter fills in the danger tone; the label says so. */
 export const UsageTrayExhausted: Story = usageStory(now =>
   usageEnvelope(

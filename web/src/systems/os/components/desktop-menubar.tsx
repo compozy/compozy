@@ -260,7 +260,15 @@ export function DesktopMenubar({
       }
       pager={pager}
       usageControl={
-        usageVisible ? <MenubarUsagePopover surface={usage} {...overlay("usage")} /> : null
+        usageVisible
+          ? className => (
+              <MenubarUsagePopover
+                surface={usage}
+                triggerClassName={className}
+                {...overlay("usage")}
+              />
+            )
+          : undefined
       }
       wrapBellTrigger={trigger => (
         <Popover

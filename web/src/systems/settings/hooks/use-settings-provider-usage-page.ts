@@ -42,8 +42,8 @@ function usageProviders(
 }
 
 /** Display names the usage rows show, by provider ID. */
-function useUsageCatalogNames(): ReadonlyMap<string, string> {
-  const { viewModel } = useProviderUsage(useProfileReadScope().destination);
+function useUsageCatalogNames(profile: string): ReadonlyMap<string, string> {
+  const { viewModel } = useProviderUsage(profile);
   return new Map(
     (viewModel?.rows ?? []).map(row => [row.providerId, row.target.provider_name.trim()])
   );
@@ -58,7 +58,10 @@ export function useSettingsProviderUsagePage() {
   const query = useSettingsProviderUsage();
   const providersQuery = useSettingsProviders();
   const mutation = useUpdateSettingsProviderUsage();
-  const catalogNames = useUsageCatalogNames();
+  // The shell's active profile: usage names come from it, and a consent
+  // change collects for it.
+  const profile = useProfileReadScope().destination;
+  const catalogNames = useUsageCatalogNames(profile);
   const page = useSettingsPage({ currentSlug: "provider-usage" });
   const [draftOverride, setDraftOverride] = useState<ProviderUsageSettingsConfig | null>(null);
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
@@ -86,7 +89,7 @@ export function useSettingsProviderUsagePage() {
     handleSave: () => {
       if (draft === null || !isDirty) return;
       mutation.mutate(
-        { config: draft },
+        { body: { config: draft }, collectionProfile: profile },
         {
           onSuccess: result => {
             setDraftOverride(null);
