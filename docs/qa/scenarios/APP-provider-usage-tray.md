@@ -84,3 +84,10 @@ Parity and profile isolation:
   `provider_usage.providers.<id>.enabled` is accepted;
 - switch the shell to a second profile with different logins: the meter, popover, and
   `--profile <name>` CLI read only that profile's numbers; no surface combines profiles.
+
+PR review regressions:
+- Open the popover with a first-fetch Loading row and no active collection. Opening requests a
+  background refresh; a row with an active collection is not requested again.
+- Fail an explicit Refresh or Try again request, then let the envelope read succeed. One error toast
+  explains the rejected action while cached numbers remain visible. Background failures do not toast.
+- Fail Allow's settings save. One Keychain error toast appears, and no explicit refresh is sent.

@@ -135,7 +135,7 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 			p.targets[target.ProviderID] = state
 		}
 		if targetChanged(state.target, target) {
-			if state.target.ProviderID != "" {
+			if s.shouldCollectTargetLocked(state.target) {
 				replacements = append(replacements, target.ProviderID)
 			}
 			state.epoch++
@@ -171,6 +171,11 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 	}
 	s.admitFlightsLocked(p, replacements, RefreshRequest{ProfileID: profile, Intent: IntentBackground})
 	return canceled, nil
+}
+
+// New targets share startup jitter, but join an active scheduler without waiting an interval.
+func (s *Manager) shouldCollectTargetLocked(previous Target) bool {
+	return previous.ProviderID != "" || (s.scheduler != nil && !s.scheduler.initial)
 }
 
 func targetChanged(previous, current Target) bool {

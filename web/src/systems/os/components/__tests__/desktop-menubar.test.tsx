@@ -16,7 +16,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { UIProvider } from "@compozy/ui";
+import { toast, UIProvider } from "@compozy/ui";
 import { resetProfileViews } from "@/systems/profiles";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
 import {
@@ -120,6 +120,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   resetProfileViews();
+  vi.restoreAllMocks();
 });
 
 function renderMenubar({
@@ -384,7 +385,8 @@ describe("DesktopMenubar provider usage control", () => {
     }
   );
 
-  it("Should save Keychain consent for the active profile without a duplicate refresh", async () => {
+  it.each([false, true])("Should report consent save failures once (%s)", async failed => {
+    const notify = vi.spyOn(toast, "error").mockReturnValue("consent-error");
     const user = userEvent.setup();
     const consent = usageEnvelope(
       [codexOkTarget(NOW), statusTargets(NOW).needsConsent],
@@ -398,10 +400,20 @@ describe("DesktopMenubar provider usage control", () => {
         return Promise.resolve(jsonResponse([{ scope: "global", profile: "work" }]));
       }
       if (pathname === "/api/settings/provider-usage") {
+        if (failed && request.method === "PATCH") {
+          return Promise.resolve(
+            jsonResponse({ error: "Consent save refused", code: "validation_error" }, 400)
+          );
+        }
         return Promise.resolve(
           jsonResponse(
             request.method === "PATCH"
-              ? { section: "provider-usage", scope: "user", restart_required: false, warnings: [] }
+              ? {
+                  section: "provider-usage",
+                  scope: "user",
+                  restart_required: false,
+                  warnings: [],
+                }
               : {
                   section: "provider-usage",
                   scope: "user",
@@ -453,5 +465,13 @@ describe("DesktopMenubar provider usage control", () => {
     expect(save?.method).toBe("PATCH");
     expect(new URL(save?.url ?? "").searchParams.get("collection_profile")).toBe("work");
     expect(usageRequests().filter(request => request.method === "POST")).toHaveLength(0);
+    if (failed) {
+      await waitFor(() =>
+        expect(notify).toHaveBeenCalledWith("Couldn't allow Keychain access: Consent save refused")
+      );
+      expect(notify).toHaveBeenCalledTimes(1);
+    } else {
+      expect(notify).not.toHaveBeenCalled();
+    }
   });
 });

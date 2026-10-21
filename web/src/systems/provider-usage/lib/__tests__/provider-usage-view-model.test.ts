@@ -181,6 +181,10 @@ describe("buildProviderUsageViewModel", () => {
     const status = statusTargets(NOW);
     const envelope = usageEnvelope([fresh, old, status.unsupported, status.refreshing], {}, NOW);
     expect(targetsNeedingOpenRefresh(envelope, NOW)).toEqual(["claude"]);
+    const uncollected = { ...status.refreshing, refreshing: false };
+    expect(targetsNeedingOpenRefresh(usageEnvelope([uncollected], {}, NOW), NOW)).toEqual([
+      uncollected.provider_id,
+    ]);
   });
 });
 

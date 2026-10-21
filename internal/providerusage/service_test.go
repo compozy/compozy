@@ -546,6 +546,59 @@ type usageMetricsChannel chan Status
 func (c usageMetricsChannel) Collect(_ string, status Status, _ time.Duration) { c <- status }
 
 func TestUsageScheduling(t *testing.T) {
+	t.Run("Should collect a new profile after the startup tick without duplicate flights", func(t *testing.T) {
+		t.Parallel()
+		entered, release := make(chan struct{}), make(chan struct{})
+		startup := make(chan struct{}, 4)
+		var once sync.Once
+		var workCalls atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("ChatGPT-Account-Id") == "work-account" {
+				if workCalls.Add(1) == 1 {
+					close(entered)
+				}
+				<-release
+			}
+			if r.Header.Get("ChatGPT-Account-Id") != "work-account" {
+				startup <- struct{}{}
+			}
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		requireNoError(t, f.service.Start(t.Context(), []string{"personal"}))
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+		defer cancel()
+		requireNoError(t, f.clock.BlockUntilContext(ctx, 1))
+		f.clock.Advance(10 * time.Second)
+		select {
+		case <-startup:
+		case <-ctx.Done():
+			t.Fatal("startup collection did not run")
+		}
+		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+		work := codexTarget(t, "work-account", f.clock.Now().Add(time.Hour))
+		work.ProfileID = "work"
+		f.catalog.Replace("work", []Target{work})
+		requireNoError(t, f.service.Start(ctx, []string{"personal", "work"}))
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal("new profile was left waiting for the refresh interval")
+		}
+		requireNoError(t, f.service.Start(ctx, []string{"personal", "work"}))
+		env, err := f.service.Envelope(ctx, "work")
+		requireNoError(t, err)
+		requireEqual(t, true, env.Targets[0].Refreshing)
+		requireEqual(t, int32(1), workCalls.Load())
+		once.Do(func() { close(release) })
+		env, err = f.service.Refresh(
+			ctx,
+			RefreshRequest{ProfileID: "work", Wait: time.Second, Intent: IntentBackground},
+		)
+		requireNoError(t, err)
+		requireEqual(t, StatusOK, env.Targets[0].Status)
+	})
+
 	for _, operation := range []string{"disable", "shutdown"} {
 		t.Run("Should cancel blocked scheduled resolution on "+operation, func(t *testing.T) {
 			t.Parallel()

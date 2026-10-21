@@ -2,6 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { toast } from "@compozy/ui";
+
 import { refreshProviderUsage } from "../adapters/provider-usage-api";
 import { providerUsageKeys } from "../lib/query-keys";
 import type { ProviderUsageRowAction } from "../lib/status";
@@ -30,6 +32,11 @@ export function useRefreshProviderUsage(profile: string) {
         ...(providerIds && providerIds.length > 0 ? { provider_ids: providerIds } : {}),
         ...(maxAgeSeconds === undefined ? {} : { max_age_seconds: maxAgeSeconds }),
       }),
+    onError: (error, { intent }) => {
+      if (intent === "explicit") {
+        toast.error("Couldn't refresh provider usage", { description: error.message });
+      }
+    },
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: providerUsageKeys.envelope(scoped), exact: true }),
   });

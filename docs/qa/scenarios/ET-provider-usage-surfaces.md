@@ -78,3 +78,5 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
   default. An ordinary profile query must not redirect it; reload and remote writes remain background.
 - Disable usage or shut down while scheduled profile/credential resolution is blocked. The owned
   scheduler context cancels that resolution and shutdown joins it without timing out.
+- Create a profile after the scheduler's startup tick. Its eligible providers receive their first
+  background collection promptly; repeated profile reconciliation joins existing flights.

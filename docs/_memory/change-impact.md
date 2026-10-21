@@ -3996,7 +3996,8 @@ promotes it.
   before returning; replacement collection runs in the background without a Keychain read.
   Removed targets cancel only their own flights; deleted profiles close subscriptions and clear credentials.
   Profile events reconcile through one coalescing worker with bounded resolution and joined shutdown.
-  Replaced eligible routes collect promptly after invalidation. Scheduled resolution uses the scheduler's
+  Replaced eligible routes collect promptly after invalidation. New targets added after the startup tick
+  receive a first background collection immediately; targets discovered during startup share its jitter. Scheduled resolution uses the scheduler's
   owned cancellation context, so disable and shutdown cancel blocked profile/credential reads.
   A failed publication fence retains same-owner last-good values and retries only publication checks within
   the flight deadline, without repeating the upstream collection. If a concurrent resolution supersedes
@@ -4013,7 +4014,9 @@ promotes it.
   Usage app, Keychain consent, Codex store, support table, statuses, CLI, config, tools, routes),
   `configuration/config-toml.mdx` `[provider_usage]`, `tools/toolsets.mdx` row, generated CLI pages.
   The daemon owns initial consent collection; the Web invalidates its query and reserves refresh for
-  later Refresh/Try again actions. Cursor partial auto/API percentages do not imply a monthly total.
+  later Refresh/Try again actions. Failed explicit refreshes show one error toast even if the cache reread
+  succeeds; Allow retains its settings-owned error toast. Opening also refreshes first-fetch rows without
+  an active flight. Cursor partial auto/API percentages do not imply a monthly total.
 - **QA:** `APP-provider-usage-tray` (operator walk, journey `J-provider-usage`) and
   `ET-provider-usage-surfaces` (transport, profiles, app tokens, SSE) — both `untested` until the trailing QA
   pair walks them with real Claude and Codex logins.

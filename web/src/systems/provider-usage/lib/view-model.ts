@@ -147,7 +147,6 @@ export function targetsNeedingOpenRefresh(
     if (
       target.status !== "unsupported" &&
       target.status !== "disabled" &&
-      target.status !== "refreshing" &&
       !target.refreshing &&
       isOlderThan(target.measured_at, now, maxAgeSeconds * 1_000)
     ) {

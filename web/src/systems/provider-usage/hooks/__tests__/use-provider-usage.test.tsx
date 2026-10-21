@@ -9,6 +9,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { toast } from "@compozy/ui";
+
 import type { StreamEventSource } from "@/lib/ticketed-event-source";
 import { fetchRequest } from "@/test/fetch-test-utils";
 
@@ -62,6 +64,7 @@ function refreshCalls(): number[] {
 describe("provider usage hooks", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    vi.spyOn(toast, "error").mockReturnValue("usage-error");
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -188,6 +191,62 @@ describe("provider usage hooks", () => {
       intent: "explicit",
       provider_ids: ["claude"],
     });
+  });
+
+  it.each(["all", "retry", "refresh"] as const)(
+    "Should report a failed explicit %s even when the cache re-read succeeds",
+    async action => {
+      const { queryClient, wrapper } = setup();
+      const envelope = defaultUsageEnvelope();
+      vi.mocked(globalThis.fetch).mockImplementation(input => {
+        const failed = (input as Request).method === "POST";
+        return Promise.resolve(
+          jsonResponse(
+            failed ? { error: "Refresh refused", code: "unavailable" } : envelope,
+            failed ? 503 : 200
+          )
+        );
+      });
+      const { result } = renderHook(
+        () => ({
+          usage: useProviderUsage("default"),
+          actions: useProviderUsageActions("default"),
+        }),
+        { wrapper }
+      );
+      await waitFor(() => expect(result.current.usage.viewModel?.rows).toHaveLength(2));
+      act(() => {
+        if (action === "all") result.current.actions.refreshAll();
+        else result.current.actions.runAction("codex", action);
+      });
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("Couldn't refresh provider usage", {
+          description: "Refresh refused",
+        })
+      );
+      await waitFor(() => expect(result.current.actions.refreshing).toBe(false));
+      expect(toast.error).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        const reads = vi
+          .mocked(globalThis.fetch)
+          .mock.calls.filter(([input]) => (input as Request).method === "GET");
+        expect(reads.length).toBeGreaterThanOrEqual(2);
+        expect(queryClient.isFetching()).toBe(0);
+      });
+      expect(result.current.usage.viewModel?.rows).toHaveLength(2);
+      expect(result.current.usage.errorMessage).toBeNull();
+    }
+  );
+
+  it("Should keep background refresh failures silent", async () => {
+    const { queryClient, wrapper } = setup();
+    queryClient.setQueryData(providerUsageKeys.envelope("default"), defaultUsageEnvelope());
+    vi.mocked(globalThis.fetch).mockRejectedValue(new TypeError("Failed to fetch"));
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const { result } = renderHook(() => useProviderUsageOpenRefresh("default"), { wrapper });
+    act(() => result.current());
+    await waitFor(() => expect(invalidate).toHaveBeenCalled());
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("Should not refresh when saving Keychain consent fails", async () => {
