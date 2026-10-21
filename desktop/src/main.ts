@@ -76,6 +76,7 @@ let publisher: AppStatePublisher | null = null;
 let productBridge: ProductBridgeController | null = null;
 let cleanupPromise: Promise<void> | null = null;
 let cleanupComplete = false;
+let installerOwnsQuit = false;
 const bootstrapAbort = new AbortController();
 let bootstrapFlow: Promise<void> | null = null;
 
@@ -184,7 +185,7 @@ async function quitCleanly(): Promise<void> {
   } catch (error) {
     logger.error("clean desktop shutdown", error);
   }
-  app.quit();
+  if (!installerOwnsQuit) app.quit();
 }
 
 /** Initializes the shell and permits verified staged updates before runtime readiness. */
@@ -392,19 +393,33 @@ async function start(): Promise<void> {
       currentVersion: app.getVersion(),
       transitions: new UpdateTransitionClient(resources.bundle),
       installer: new ElectronUpdateInstaller({
-        prepareForRestart: async () => {
-          await cleanup();
-          app.releaseSingleInstanceLock();
+        prepareForRestart: async signal => {
+          signal.throwIfAborted();
+          installerOwnsQuit = true;
+          try {
+            await cleanup();
+            signal.throwIfAborted();
+            app.releaseSingleInstanceLock();
+          } catch (error) {
+            installerOwnsQuit = false;
+            throw error;
+          }
         },
       }),
-      onError: error => logger.error("consume app update operation", error),
+      onError: error => {
+        logger.error("consume app update operation", error);
+        if (cleanupPromise) {
+          installerOwnsQuit = false;
+          void quitCleanly();
+        }
+      },
     });
     operationWatcher = new OperationWatcher({
       path: paths.operation,
       pollIntervalMs: 2_000,
       onOperation: async operation => {
         await state.setOperation(operation);
-        await updateConsumer?.handle(operation);
+        return (await updateConsumer?.handle(operation)) ?? false;
       },
       onError: error => logger.error("watch app update operation", error),
     });
@@ -456,10 +471,12 @@ if (!app.requestSingleInstanceLock()) {
       logger.error("start desktop shell", error);
       app.quit();
     });
-  app.on("window-all-closed", () => void quitCleanly());
+  app.on("window-all-closed", () => {
+    if (!installerOwnsQuit) void quitCleanly();
+  });
   app.on("before-quit", event => {
     if (cleanupComplete) return;
     event.preventDefault();
-    void quitCleanly();
+    if (!installerOwnsQuit) void quitCleanly();
   });
 }

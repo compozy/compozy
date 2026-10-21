@@ -4,7 +4,7 @@ area: APP
 title: Update CompozyOS in one click from the menubar
 persona: Bruno
 journey: J-desktop-update-moment
-expected: An "Update" pill exists in the menubar only while there is something to say. One activation by pointer or keyboard updates CompozyOS in place with no detour through Settings. The pill holds a disabled "Updating…" spinner while the operation runs, and the app comes back on the new version by itself (the desktop app relaunches; a browser tab reloads). A failed update turns the pill into "Update failed", which opens Settings → General. A package-manager install opens Settings, where the upgrade command lives.
+expected: One Update activation by pointer or keyboard updates CompozyOS in place. The pill holds a disabled Updating spinner while the operation runs, and the app returns on the new version. A settled app failure offers Retry update directly; a failure without an eligible retry opens Settings. A package-manager install opens Settings with its upgrade command.
 entry_points: product menubar in Chrome or the app; keyboard focus with Enter or Space; GET /api/settings/update; POST /api/settings/update/apply
 qa_status: untested
 bug_ids:
@@ -37,11 +37,16 @@ Branches to walk:
   restarts, and the tab reloads by itself onto the new version;
 - staged (the app is closed while a browser applies): the pill disappears; Settings explains that
   the update finishes on next launch;
-- failed: the pill reads "Update failed" in the danger tone, and activating it opens Settings →
-  General with the error;
+- failed app with an eligible release and no active operation: the pill reads "Retry update" in
+  the danger tone and starts a freshly validated attempt without opening Settings;
+- failed without an eligible retry: "Update failed" opens Settings → General with the error;
 - package-manager install: "Update" opens Settings, which shows the upgrade command;
 - keyboard-only: the pill is reachable by Tab, shows a visible focus ring against the menubar
   glass, and activates with Enter or Space.
 
 Walk this in a plain browser as well as the desktop app. The pill is fed by daemon truth, so
 both must behave the same.
+
+2026-10-21 targeted implementation verification: [update-flow report](../reports/2026-10-21-desktop-update-flow.md). The current full scenario is flagged
+`untested`; native fixture and owning-suite results do not replace published-release or
+cross-platform acceptance. Prior dated reports retain their historical evidence.

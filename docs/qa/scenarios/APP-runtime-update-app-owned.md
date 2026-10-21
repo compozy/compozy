@@ -1,12 +1,12 @@
 ---
 id: APP-runtime-update-app-owned
 area: APP
-title: An app-provisioned runtime updates as one product update with timing consent
+title: Update an app-provisioned runtime through one product action
 persona: Bruno
 journey: J-desktop-update-moment
-expected: On an app-provisioned home with agent work in flight, a ready runtime update asks for timing consent — "later" keeps everything working; "now" quiesces, stops, applies, restarts, reconnects — and both new versions appear in one update surface.
+expected: On an app-provisioned home, one Update activation installs the app package and its bundled runtime. The app remains open until native staging succeeds, restarts once, replaces only its proven owned runtime, and reports both observed versions. Explicit runtime-only updates retain the existing runtime path.
 entry_points: Settings → General → Updates in Chrome or the app; compozy update; settings update HTTP and UDS routes; signed compatibility catalog and immutable release assets
-qa_status: blocked-decision
+qa_status: untested
 bug_ids:
 fix_status: 
 retest_status: 
@@ -22,7 +22,15 @@ nagging; EC-3 ownership flip → managed behavior). BR-8/BR-9. Test ID: E2E-018;
 (verify-before-quiesce staging guarantee, N-003), IT-029, IT-030; UT-065–UT-070, UT-092–UT-095,
 UT-100–UT-102, UT-108.
 
-Per-OS evidence: the full consent → quiesce → swap → reconnect walk runs on Linux and macOS with
-the drain-readout transcript and both version indicators captured. The "later keeps working" branch and the decline-no-nagging
-posture are recorded on at least one OS. Overlap: APP-runtime-update-managed owns the
-recommendation-only branch of the same update surface.
+The one product action supplies restart consent; no second runtime/app confirmation is required.
+Leaving the offer alone keeps work running. The packaged update regression must assert the new
+daemon version and preserved home state, not only the new app marker. A compatible newer runtime
+remains untouched and CLI output reports that actual version rather than substituting the app
+release number. The historical separate timing-prompt branch is not a current acceptance step.
+
+Per-OS release acceptance must confirm native installation, runtime readiness and preserved user
+state on Linux and macOS. APP-runtime-update-managed owns the recommendation-only branch.
+
+2026-10-21 targeted implementation verification: [update-flow report](../reports/2026-10-21-desktop-update-flow.md). The current full scenario is flagged
+`untested`; native fixture and owning-suite results do not replace published-release or
+cross-platform acceptance. Prior dated reports retain their historical evidence.

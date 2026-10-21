@@ -78,9 +78,10 @@ compozy update -o json
 compozy update --cancel -o json
 ```
 
-An update checks the runtime and, when installed, the app. Apply runs runtime first. A running app
-then installs its verified artifact; a closed app is staged for the next launch. Cancel succeeds
-only while the operation has no live executor lease.
+Click **Update** in the menubar or Settings to download, install, and restart. If the app owns the
+runtime, one app package carries both updates; the new app starts its bundled runtime. The app
+stays open while its native installer prepares the verified package. A closed app is staged for
+the next launch. Standalone runtime updates keep their existing update path.
 
 On Linux, automatic app-track installation is available only for the AppImage. A `.deb` install
 must be updated by downloading and installing the current `.deb` package over the existing app.
@@ -96,7 +97,9 @@ binary.
 
 ## Recover
 
-If an update operation reports `failed`, read diagnostics before starting another mutation:
+If an app update fails, click **Retry update** or run `compozy update` again. There is no need to
+cancel a completed failed operation in Settings. If the desktop itself cannot start, inspect and
+retry startup:
 
 ```bash
 compozy app diagnose -o json

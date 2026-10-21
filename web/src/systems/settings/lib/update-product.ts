@@ -97,6 +97,8 @@ function productStatus(
   snapshot: SettingsUpdateStatus,
   targets: SettingsUpdateTargetSet | null
 ): SettingsUpdateStatusKind {
+  if (targets?.some(target => target === "app") && snapshot.app?.status === "failed")
+    return "failed";
   // Something applicable is the user's next step even when another track
   // reports a settled or failed outcome; the footnotes keep that history.
   if (targets) return "available";

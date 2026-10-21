@@ -12,7 +12,7 @@ module.exports = async function e2eAfterSign(context) {
     "--sign",
     "-",
     "--requirements",
-    '=designated => identifier "com.compozy.os"',
+    `=designated => identifier "${context.packager.appInfo.id}"`,
     appPath,
   ]);
   await run("codesign", ["--verify", "--deep", "--strict", appPath]);

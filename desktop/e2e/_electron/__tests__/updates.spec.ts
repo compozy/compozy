@@ -268,6 +268,26 @@ async function readAppRecord(home: string): Promise<Record<string, unknown>> {
   return JSON.parse(await readFile(join(home, "app.json"), "utf8")) as Record<string, unknown>;
 }
 
+async function expectUpdatedRuntime(desktop: DesktopInstance, version: string): Promise<void> {
+  // Owner: packaged desktop update journey. The relaunched bundle must update its
+  // owned daemon too; an app-version marker alone cannot prove product readiness.
+  await expect
+    .poll(async () => await readAppRecord(desktop.home), { timeout: 60_000 })
+    .toMatchObject({
+      state: "product",
+      diagnostic_report: { runtime_version: version, runtime_owned: true, current_error: null },
+    });
+  await expect
+    .poll(
+      async () => {
+        const result = await desktop.cli(["status", "-o", "json"]);
+        return JSON.parse(result.stdout) as Record<string, unknown>;
+      },
+      { timeout: 60_000 }
+    )
+    .toMatchObject({ daemon: { status: "running", version } });
+}
+
 async function history(home: string): Promise<readonly Record<string, unknown>[]> {
   let contents: string;
   try {
@@ -357,6 +377,7 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
       "data-phase",
       "download"
     );
+    await product.screenshot({ path: test.info().outputPath("app-update-downloading.png") });
     feed.releaseAsset();
     await waitForShellExit(desktop);
     await expect
@@ -365,6 +386,7 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
     await expect
       .poll(async () => (await history(desktop.home)).at(-1)?.outcome, { timeout: 30_000 })
       .toBe("updated");
+    await expectUpdatedRuntime(desktop, fixture.next_version);
   } finally {
     try {
       await closeFixture(feed, restoreEnvironment);
@@ -410,6 +432,11 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
     expect(background.app).toMatchObject({ status: "failed" });
     expect((background.app as Record<string, unknown>).message).toMatch(/paused.*Retry manually/u);
 
+    await completeOnboarding(product);
+    await product.reload({ waitUntil: "domcontentloaded" });
+    await expect(product.getByRole("button", { name: "Retry update", exact: true })).toBeVisible();
+    await product.screenshot({ path: test.info().outputPath("app-update-retry.png") });
+
     await seedOperation(desktop.home, operation(fixture, digest, { failures: 1 }));
     await waitForShellExit(desktop);
     await expect
@@ -418,6 +445,48 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
     await expect
       .poll(async () => (await history(desktop.home)).at(-1)?.outcome, { timeout: 30_000 })
       .toBe("updated");
+    await expectUpdatedRuntime(desktop, fixture.next_version);
+  } finally {
+    try {
+      await closeFixture(feed, restoreEnvironment);
+    } finally {
+      await cleanupCache();
+    }
+  }
+});
+
+test("E2E-017: a failed installer cleanup exits after archiving the failure", async ({
+  copyPackagedExecutable,
+  launchDesktop,
+}) => {
+  const fixture = await updateFixture();
+  const packaged = await copyPackagedExecutable(fixture.baseline_executable);
+  const feed = await startMockFeed(fixture);
+  let restoreEnvironment: RestoreEnvironment = () => Promise.resolve();
+  let cleanupCache = () => Promise.resolve();
+  try {
+    cleanupCache = await configureFeed(packaged, feed.url);
+    const digest = await artifactDigest(fixture);
+    const desktop = await launchDesktop({
+      executablePath: packaged.executablePath,
+      environment: await updaterEnvironment(fixture, packaged),
+      prepare: async ({ home }) => {
+        restoreEnvironment = await configureRelaunchHome(home);
+        await seedUpdateCache(home, fixture);
+      },
+    });
+    const product = await desktop.product();
+    // A real filesystem failure exercises cleanup after native preparation, without mocking quit.
+    const tokenPath = join(desktop.home, "app.token");
+    await rename(tokenPath, `${tokenPath}.saved`);
+    await mkdir(tokenPath);
+    await stageAppOperation(desktop, fixture, digest);
+    await expect
+      .poll(async () => (await history(desktop.home)).at(-1)?.outcome, { timeout: 60_000 })
+      .toBe("failed");
+    expect(product.isClosed()).toBe(true);
+    expect((await readAppRecord(desktop.home)).app_version).toBe(fixture.current_version);
+    await expect.poll(() => desktop.shellProcess.exitCode, { timeout: 10_000 }).toBe(0);
   } finally {
     try {
       await closeFixture(feed, restoreEnvironment);

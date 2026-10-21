@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { RuntimeHealthMonitor } from "../runtime-health-monitor";
 
@@ -25,6 +25,7 @@ describe("runtime health monitor", () => {
   });
 
   it("Should report one disconnect after the bounded failure threshold", async () => {
+    vi.useFakeTimers();
     let disconnects = 0;
     const monitor = new RuntimeHealthMonitor({
       origin: "http://127.0.0.1:2123",
@@ -39,8 +40,16 @@ describe("runtime health monitor", () => {
       },
     });
     monitor.start();
-    await new Promise(resolve => setTimeout(resolve, 30));
-    monitor.stop();
-    expect(disconnects).toBe(1);
+    try {
+      await vi.advanceTimersByTimeAsync(2);
+      expect(disconnects).toBe(0);
+      await vi.advanceTimersByTimeAsync(2);
+      expect(disconnects).toBe(1);
+      await vi.advanceTimersByTimeAsync(20);
+      expect(disconnects).toBe(1);
+    } finally {
+      monitor.stop();
+      vi.useRealTimers();
+    }
   });
 });

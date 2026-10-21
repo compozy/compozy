@@ -58,9 +58,14 @@ environment overrides to a global shell profile.
 
 ## Recover an app update
 
-If app apply fails, download the current package for your architecture from the GitHub release and
-install it over the existing app. The runtime home and session data live outside the application
-bundle.
+If app apply fails and no operation remains active, use **Retry update** in the menubar or Settings,
+or run `compozy update` again. A stalled transfer is canceled and recorded as failed; a native
+staging failure leaves the app open. The retry rechecks the release and verifies its artifact.
+
+If an older installed app cannot run its own updater, download the current package for your
+architecture from the GitHub release and install it over the existing app. A new release cannot
+repair updater code already running in an older process. The runtime home and session data live
+outside the application bundle; preserve them when replacing the app.
 
 ```bash
 compozy app status -o json
