@@ -240,20 +240,23 @@ export function useSessionListDnd(
 }
 
 /**
- * A dragged selection drops only while it can still move and only where at
- * least one of its sessions would change place.
+ * A dragged selection drops only while it can still move, still holds the
+ * sessions it started with, and only where at least one of them would change
+ * place.
  */
 function selectionDrops(
   dragging: SessionDragItem | null,
   selection: SessionSelectionDrag | undefined,
   folderId: string | null
 ): boolean {
+  if (dragging?.kind !== "selection" || selection === undefined) return false;
+  const current = new Set(selection.sessions.map(session => session.id));
   return (
-    dragging?.kind === "selection" &&
-    selection !== undefined &&
     !selection.disabled &&
     selection.blockedReason === null &&
-    dragging.folderIds.some(current => current !== folderId)
+    current.size === dragging.ids.length &&
+    dragging.ids.every(id => current.has(id)) &&
+    dragging.folderIds.some(folder => folder !== folderId)
   );
 }
 

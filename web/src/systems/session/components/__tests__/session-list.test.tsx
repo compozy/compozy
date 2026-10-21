@@ -1558,14 +1558,24 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
 
-  it("Should refuse a selection drop once another bulk operation starts mid-drag", async () => {
+  it.each([
+    ["another bulk operation starts", "busy"],
+    ["a carried session leaves the list", "pruned"],
+  ])("Should refuse a selection drop once %s mid-drag", async (_case, change) => {
     const layout = fakeLayout();
     const layoutView = { ...view, sort: "created" as const, layout };
     const { actions, update } = renderList({ sessions: layoutRows, view: layoutView });
-    await selectRows("r1");
+    await selectRows("r1", "r2");
     fireEvent.dragStart(rowContainer("r1"));
-    (actions as { pendingAction: string | null }).pendingAction = "stop";
-    update(layoutRows, layoutView);
+    if (change === "busy") {
+      (actions as { pendingAction: string | null }).pendingAction = "stop";
+      update(layoutRows, layoutView);
+    } else {
+      update(
+        layoutRows.filter(row => row.id !== "r2"),
+        layoutView
+      );
+    }
 
     fireEvent.dragOver(screen.getByTestId("session-sidebar-folder-fb"));
     expect(screen.getByTestId("session-sidebar-folder-fb-header")).not.toHaveAttribute("data-drop");
