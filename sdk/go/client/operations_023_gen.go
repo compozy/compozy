@@ -145,6 +145,26 @@ func (c *Client) ReloadSettings(ctx context.Context) (*SettingsApplyResponse, er
 	return &out, nil
 }
 
+// RemoveDiscoveredWorktreeParams carries the path, query, and header parameters.
+type RemoveDiscoveredWorktreeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RemoveDiscoveredWorktree Remove a discovered worktree
+func (c *Client) RemoveDiscoveredWorktree(ctx context.Context, params RemoveDiscoveredWorktreeParams, body RemoveDiscoveredWorktreeRequest) error {
+	path := "/api/workspaces/{workspace_id}/worktrees/discovered/remove"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
 // RemoveExtensionParams carries the path, query, and header parameters.
 type RemoveExtensionParams struct {
 	Name      string  `url:"name"`
@@ -425,10 +445,4 @@ func (c *Client) ReplaceSessionInput(ctx context.Context, params ReplaceSessionI
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ReplaceWindowManagerLayoutParams carries the path, query, and header parameters.
-type ReplaceWindowManagerLayoutParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

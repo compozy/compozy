@@ -4,6 +4,17 @@ package client
 
 import "time"
 
+// SchedulerBacklogPayload is a daemon API value.
+type SchedulerBacklogPayload struct {
+	Runs  []SchedulerBacklogRunPayload `json:"runs"`
+	Total int                          `json:"total"`
+}
+
+// SchedulerBacklogResponse is a daemon API value.
+type SchedulerBacklogResponse struct {
+	Backlog SchedulerBacklogPayload `json:"backlog"`
+}
+
 // SchedulerBacklogRunPayload is a daemon API value.
 type SchedulerBacklogRunPayload struct {
 	Task TaskSummaryPayload `json:"task"`
@@ -432,16 +443,3 @@ type SessionContextSpanPayload struct {
 
 // SessionContextState is a daemon API value.
 type SessionContextState string
-
-// SessionConversationRewindPayload is a daemon API value.
-type SessionConversationRewindPayload struct {
-	TranscriptEpoch int64  `json:"transcript_epoch"`
-	TargetMessageID string `json:"target_message_id"`
-	ArchivedFrom    int64  `json:"archived_from_sequence"`
-	ArchivedThrough int64  `json:"archived_through_sequence"`
-	ArchivedEvents  int64  `json:"archived_event_count"`
-	Generation      int64  `json:"generation"`
-	MaxSequence     int64  `json:"max_sequence"`
-	DraftText       string `json:"draft_text"`
-	Replayed        bool   `json:"replayed"`
-}

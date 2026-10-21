@@ -2,10 +2,47 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "encoding/json"
+
+// SettingsProviderCredentialSlotPayload is a daemon API value.
+type SettingsProviderCredentialSlotPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+}
+
+// SettingsProviderCredentialStatusPayload is a daemon API value.
+type SettingsProviderCredentialStatusPayload struct {
+	Name      string `json:"name"`
+	TargetEnv string `json:"target_env"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Required  bool   `json:"required"`
+	Present   bool   `json:"present"`
+	Source    string `json:"source,omitempty"`
+}
+
+// SettingsProviderFallbackPayload is a daemon API value.
+type SettingsProviderFallbackPayload struct {
+	Source   SettingsSourceRefPayload        `json:"source"`
+	Settings SettingsProviderSettingsPayload `json:"settings"`
+}
+
+// SettingsProviderItemPayload is a daemon API value.
+type SettingsProviderItemPayload struct {
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	Name             string                                    `json:"name"`
+	Settings         SettingsProviderSettingsPayload           `json:"settings"`
+	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
+	Default          bool                                      `json:"default"`
+	CommandAvailable bool                                      `json:"command_available"`
+	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
+	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitzero"`
+	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
+	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitzero"`
+}
 
 // SettingsProviderModelPayload is a daemon API value.
 type SettingsProviderModelPayload struct {
@@ -406,40 +443,3 @@ type SettingsUpdateApplyResponse struct {
 
 // SettingsUpdateApplyStatus is a daemon API value.
 type SettingsUpdateApplyStatus string
-
-// SettingsUpdateCancelResponse is a daemon API value.
-type SettingsUpdateCancelResponse struct {
-	Status      SettingsUpdateStatusKind     `json:"status"`
-	OperationID string                       `json:"operation_id,omitempty"`
-	Message     string                       `json:"message"`
-	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
-}
-
-// SettingsUpdateHolderPayload is a daemon API value.
-type SettingsUpdateHolderPayload struct {
-	PID                int                 `json:"pid"`
-	PIDStartTime       time.Time           `json:"pid_start_time"`
-	Surface            SettingsUpdateActor `json:"surface"`
-	ExecutorGeneration string              `json:"executor_generation"`
-	LeaseExpiresAt     time.Time           `json:"lease_expires_at"`
-}
-
-// SettingsUpdateInstallMethod is a daemon API value.
-type SettingsUpdateInstallMethod string
-
-// SettingsUpdateOperationPayload is a daemon API value.
-type SettingsUpdateOperationPayload struct {
-	ID           string                       `json:"id"`
-	Revision     int64                        `json:"revision"`
-	Targets      []SettingsUpdateTarget       `json:"targets"`
-	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
-	Phase        SettingsUpdatePhase          `json:"phase"`
-	Percent      int                          `json:"percent"`
-	Holder       *SettingsUpdateHolderPayload `json:"holder"`
-	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
-	StartedAt    time.Time                    `json:"started_at"`
-	LastError    string                       `json:"last_error"`
-}
-
-// SettingsUpdatePhase is a daemon API value.
-type SettingsUpdatePhase string

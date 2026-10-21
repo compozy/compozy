@@ -4,6 +4,55 @@ package client
 
 import "time"
 
+// SessionPromptCancelResponse is a daemon API value.
+type SessionPromptCancelResponse struct {
+	SessionID string `json:"session_id"`
+	Outcome   string `json:"outcome"`
+	TurnID    string `json:"turn_id,omitempty"`
+}
+
+// SessionProviderOptionPayload is a daemon API value.
+type SessionProviderOptionPayload struct {
+	Name            string                  `json:"name"`
+	DisplayName     string                  `json:"display_name,omitempty"`
+	Harness         string                  `json:"harness,omitempty"`
+	RuntimeProvider string                  `json:"runtime_provider,omitempty"`
+	RuntimeStrategy ProviderRuntimeStrategy `json:"runtime_strategy,omitempty"`
+	AuthMode        string                  `json:"auth_mode,omitempty"`
+	EnvPolicy       string                  `json:"env_policy,omitempty"`
+	HomePolicy      string                  `json:"home_policy,omitempty"`
+}
+
+// SessionQueueSummaryPayload is a daemon API value.
+type SessionQueueSummaryPayload struct {
+	Entries int `json:"entries"`
+	Cap     int `json:"cap"`
+}
+
+// SessionRecapResponse is a daemon API value.
+type SessionRecapResponse struct {
+	Recap RecapPayload `json:"recap"`
+}
+
+// SessionRepairActionPayload is a daemon API value.
+type SessionRepairActionPayload struct {
+	Code       string `json:"code"`
+	TurnID     string `json:"turn_id"`
+	EventID    string `json:"event_id,omitempty"`
+	ToolCallID string `json:"tool_call_id,omitempty"`
+	ToolName   string `json:"tool_name,omitempty"`
+	Persisted  bool   `json:"persisted"`
+}
+
+// SessionRepairIssuePayload is a daemon API value.
+type SessionRepairIssuePayload struct {
+	Code     string `json:"code"`
+	Severity string `json:"severity"`
+	TurnID   string `json:"turn_id,omitempty"`
+	EventID  string `json:"event_id,omitempty"`
+	Detail   string `json:"detail,omitempty"`
+}
+
 // SessionRepairPayload is a daemon API value.
 type SessionRepairPayload struct {
 	SessionID string                       `json:"session_id"`
@@ -397,54 +446,4 @@ type SettingsDefaultsPayload struct {
 	Provider        string `json:"provider,omitempty"`
 	Model           string `json:"model,omitempty"`
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
-}
-
-// SettingsExtensionDevPayload is a daemon API value.
-type SettingsExtensionDevPayload struct {
-	WatchInterval string `json:"watch_interval"`
-}
-
-// SettingsExtensionGitHubSourcePayload is a daemon API value.
-type SettingsExtensionGitHubSourcePayload struct {
-	Enabled bool   `json:"enabled"`
-	BaseURL string `json:"base_url"`
-}
-
-// SettingsExtensionGitSourcePayload is a daemon API value.
-type SettingsExtensionGitSourcePayload struct {
-	Enabled bool `json:"enabled"`
-}
-
-// SettingsExtensionRateLimitPayload is a daemon API value.
-type SettingsExtensionRateLimitPayload struct {
-	Requests int    `json:"requests"`
-	Window   string `json:"window"`
-	Queue    int    `json:"queue"`
-}
-
-// SettingsExtensionResourcesPayload is a daemon API value.
-type SettingsExtensionResourcesPayload struct {
-	AllowedKinds           []string                          `json:"allowed_kinds,omitempty"`
-	MaxScope               ResourceScopeKind                 `json:"max_scope,omitempty"`
-	SnapshotRateLimit      SettingsExtensionRateLimitPayload `json:"snapshot_rate_limit"`
-	OperatorWriteRateLimit SettingsExtensionRateLimitPayload `json:"operator_write_rate_limit"`
-}
-
-// SettingsExtensionSourcesPayload is a daemon API value.
-type SettingsExtensionSourcesPayload struct {
-	GitHub SettingsExtensionGitHubSourcePayload `json:"github"`
-	Git    SettingsExtensionGitSourcePayload    `json:"git"`
-}
-
-// SettingsExtensionTrustPayload is a daemon API value.
-type SettingsExtensionTrustPayload struct {
-	AllowUnverified bool `json:"allow_unverified"`
-}
-
-// SettingsExtensionsConfigPayload is a daemon API value.
-type SettingsExtensionsConfigPayload struct {
-	Trust     SettingsExtensionTrustPayload     `json:"trust"`
-	Sources   SettingsExtensionSourcesPayload   `json:"sources"`
-	Dev       SettingsExtensionDevPayload       `json:"dev"`
-	Resources SettingsExtensionResourcesPayload `json:"resources"`
 }

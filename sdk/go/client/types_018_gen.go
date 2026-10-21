@@ -4,6 +4,56 @@ package client
 
 import "time"
 
+// SettingsExtensionDevPayload is a daemon API value.
+type SettingsExtensionDevPayload struct {
+	WatchInterval string `json:"watch_interval"`
+}
+
+// SettingsExtensionGitHubSourcePayload is a daemon API value.
+type SettingsExtensionGitHubSourcePayload struct {
+	Enabled bool   `json:"enabled"`
+	BaseURL string `json:"base_url"`
+}
+
+// SettingsExtensionGitSourcePayload is a daemon API value.
+type SettingsExtensionGitSourcePayload struct {
+	Enabled bool `json:"enabled"`
+}
+
+// SettingsExtensionRateLimitPayload is a daemon API value.
+type SettingsExtensionRateLimitPayload struct {
+	Requests int    `json:"requests"`
+	Window   string `json:"window"`
+	Queue    int    `json:"queue"`
+}
+
+// SettingsExtensionResourcesPayload is a daemon API value.
+type SettingsExtensionResourcesPayload struct {
+	AllowedKinds           []string                          `json:"allowed_kinds,omitempty"`
+	MaxScope               ResourceScopeKind                 `json:"max_scope,omitempty"`
+	SnapshotRateLimit      SettingsExtensionRateLimitPayload `json:"snapshot_rate_limit"`
+	OperatorWriteRateLimit SettingsExtensionRateLimitPayload `json:"operator_write_rate_limit"`
+}
+
+// SettingsExtensionSourcesPayload is a daemon API value.
+type SettingsExtensionSourcesPayload struct {
+	GitHub SettingsExtensionGitHubSourcePayload `json:"github"`
+	Git    SettingsExtensionGitSourcePayload    `json:"git"`
+}
+
+// SettingsExtensionTrustPayload is a daemon API value.
+type SettingsExtensionTrustPayload struct {
+	AllowUnverified bool `json:"allow_unverified"`
+}
+
+// SettingsExtensionsConfigPayload is a daemon API value.
+type SettingsExtensionsConfigPayload struct {
+	Trust     SettingsExtensionTrustPayload     `json:"trust"`
+	Sources   SettingsExtensionSourcesPayload   `json:"sources"`
+	Dev       SettingsExtensionDevPayload       `json:"dev"`
+	Resources SettingsExtensionResourcesPayload `json:"resources"`
+}
+
 // SettingsGeneralActionsPayload is a daemon API value.
 type SettingsGeneralActionsPayload struct {
 	Restart SettingsActionMetadataPayload `json:"restart"`
@@ -390,44 +440,4 @@ type SettingsProviderAuthStatusPayload struct {
 	Message    string                         `json:"message,omitempty"`
 	StatusCmd  string                         `json:"status_command,omitempty"`
 	Login      ProviderLoginDescriptorPayload `json:"login"`
-}
-
-// SettingsProviderCredentialSlotPayload is a daemon API value.
-type SettingsProviderCredentialSlotPayload struct {
-	Name      string `json:"name"`
-	TargetEnv string `json:"target_env"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Required  bool   `json:"required"`
-}
-
-// SettingsProviderCredentialStatusPayload is a daemon API value.
-type SettingsProviderCredentialStatusPayload struct {
-	Name      string `json:"name"`
-	TargetEnv string `json:"target_env"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Required  bool   `json:"required"`
-	Present   bool   `json:"present"`
-	Source    string `json:"source,omitempty"`
-}
-
-// SettingsProviderFallbackPayload is a daemon API value.
-type SettingsProviderFallbackPayload struct {
-	Source   SettingsSourceRefPayload        `json:"source"`
-	Settings SettingsProviderSettingsPayload `json:"settings"`
-}
-
-// SettingsProviderItemPayload is a daemon API value.
-type SettingsProviderItemPayload struct {
-	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	Name             string                                    `json:"name"`
-	Settings         SettingsProviderSettingsPayload           `json:"settings"`
-	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
-	Default          bool                                      `json:"default"`
-	CommandAvailable bool                                      `json:"command_available"`
-	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`
-	AuthStatus       *SettingsProviderAuthStatusPayload        `json:"auth_status,omitzero"`
-	SourceMetadata   SettingsSourceMetadataPayload             `json:"source_metadata"`
-	Fallback         *SettingsProviderFallbackPayload          `json:"fallback,omitzero"`
 }

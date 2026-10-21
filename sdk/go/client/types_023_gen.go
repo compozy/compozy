@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// TaskRunLeaseSummaryPayload is a daemon API value.
+type TaskRunLeaseSummaryPayload struct {
+	TaskID         string         `json:"task_id"`
+	RunID          string         `json:"run_id"`
+	Status         TaskRunStatus  `json:"status"`
+	SessionID      string         `json:"session_id,omitempty"`
+	ClaimedBy      *ActorIdentity `json:"claimed_by,omitempty"`
+	ClaimTokenHash string         `json:"claim_token_hash,omitempty"`
+	LeaseUntil     *time.Time     `json:"lease_until,omitempty"`
+	HeartbeatAt    *time.Time     `json:"heartbeat_at,omitempty"`
+}
+
+// TaskRunOperationalSummaryPayload is a daemon API value.
+type TaskRunOperationalSummaryPayload struct {
+	LastActivityAt time.Time  `json:"last_activity_at"`
+	LastEventType  string     `json:"last_event_type,omitempty"`
+	ToolCallCount  *int64     `json:"tool_call_count,omitempty"`
+	TurnCount      *int64     `json:"turn_count,omitempty"`
+	InputTokens    *int64     `json:"input_tokens,omitempty"`
+	OutputTokens   *int64     `json:"output_tokens,omitempty"`
+	TotalTokens    *int64     `json:"total_tokens,omitempty"`
+	TotalCost      *float64   `json:"total_cost,omitempty"`
+	CostCurrency   *string    `json:"cost_currency,omitempty"`
+	CostStatus     CostStatus `json:"cost_status,omitempty"`
+	CostSource     CostSource `json:"cost_source,omitempty"`
+}
+
 // TaskRunPayload is a daemon API value.
 type TaskRunPayload struct {
 	ID                   string                 `json:"id"`
@@ -414,37 +441,3 @@ type TerminalExecResponse struct {
 
 // TerminalExitCause is a daemon API value.
 type TerminalExitCause string
-
-// TerminalExitPayload is a daemon API value.
-type TerminalExitPayload struct {
-	Cause  TerminalExitCause `json:"cause"`
-	Code   *int              `json:"code,omitzero"`
-	Signal *TerminalSignal   `json:"signal,omitzero"`
-	At     time.Time         `json:"at"`
-}
-
-// TerminalExitResponse is a daemon API value.
-type TerminalExitResponse struct {
-	Exit *TerminalExitPayload `json:"exit"`
-}
-
-// TerminalID is a daemon API value.
-type TerminalID string
-
-// TerminalInfoPayload is a daemon API value.
-type TerminalInfoPayload struct {
-	ID           TerminalID                  `json:"id"`
-	WorkspaceID  string                      `json:"workspace_id"`
-	ProfileID    string                      `json:"profile_id"`
-	ProfileName  string                      `json:"profile_name"`
-	Title        string                      `json:"title"`
-	Shell        string                      `json:"shell"`
-	Cwd          string                      `json:"cwd"`
-	Mode         TerminalMode                `json:"mode"`
-	State        TerminalState               `json:"state"`
-	Viewers      int                         `json:"viewers"`
-	BoundRun     *TerminalRunPayload         `json:"bound_run"`
-	Capabilities TerminalCapabilitiesPayload `json:"capabilities"`
-	CreatedAt    time.Time                   `json:"created_at"`
-	Exit         *TerminalExitPayload        `json:"exit,omitzero"`
-}

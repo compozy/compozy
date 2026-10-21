@@ -4,6 +4,43 @@ package client
 
 import "time"
 
+// SettingsUpdateCancelResponse is a daemon API value.
+type SettingsUpdateCancelResponse struct {
+	Status      SettingsUpdateStatusKind     `json:"status"`
+	OperationID string                       `json:"operation_id,omitempty"`
+	Message     string                       `json:"message"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
+}
+
+// SettingsUpdateHolderPayload is a daemon API value.
+type SettingsUpdateHolderPayload struct {
+	PID                int                 `json:"pid"`
+	PIDStartTime       time.Time           `json:"pid_start_time"`
+	Surface            SettingsUpdateActor `json:"surface"`
+	ExecutorGeneration string              `json:"executor_generation"`
+	LeaseExpiresAt     time.Time           `json:"lease_expires_at"`
+}
+
+// SettingsUpdateInstallMethod is a daemon API value.
+type SettingsUpdateInstallMethod string
+
+// SettingsUpdateOperationPayload is a daemon API value.
+type SettingsUpdateOperationPayload struct {
+	ID           string                       `json:"id"`
+	Revision     int64                        `json:"revision"`
+	Targets      []SettingsUpdateTarget       `json:"targets"`
+	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
+	Phase        SettingsUpdatePhase          `json:"phase"`
+	Percent      int                          `json:"percent"`
+	Holder       *SettingsUpdateHolderPayload `json:"holder"`
+	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
+	StartedAt    time.Time                    `json:"started_at"`
+	LastError    string                       `json:"last_error"`
+}
+
+// SettingsUpdatePhase is a daemon API value.
+type SettingsUpdatePhase string
+
 // SettingsUpdateResponse is a daemon API value.
 type SettingsUpdateResponse struct {
 	Aggregate SettingsUpdateStatusKind        `json:"aggregate"`
@@ -399,51 +436,3 @@ type State string
 
 // Status is a daemon API value.
 type Status string
-
-// StatusPayload is a daemon API value.
-type StatusPayload struct {
-	SchemaVersion    string                           `json:"schema_version"`
-	GeneratedAt      time.Time                        `json:"generated_at"`
-	Daemon           DaemonStatusPayload              `json:"daemon"`
-	Sessions         SessionAggregatePayload          `json:"sessions"`
-	SubprocessHealth SubprocessHealthAggregatePayload `json:"subprocess_health"`
-	Health           ObserveHealthPayload             `json:"health"`
-	Automation       AutomationHealthPayload          `json:"automation"`
-	Tasks            TaskHealthPayload                `json:"tasks"`
-	Providers        []ProviderStatusPayload          `json:"providers,omitempty"`
-	MCPServers       []MCPServerStatusPayload         `json:"mcp_servers,omitempty"`
-	Skills           SkillRuntimeStatusPayload        `json:"skills"`
-	Config           ConfigRuntimeStatusPayload       `json:"config"`
-	LogTail          LogTailStatusPayload             `json:"log_tail"`
-}
-
-// SteerCapability is a daemon API value.
-type SteerCapability string
-
-// SteerDeliveryMode is a daemon API value.
-type SteerDeliveryMode string
-
-const (
-	SteerDeliveryModeInjected          SteerDeliveryMode = "injected"
-	SteerDeliveryModePendingInjection  SteerDeliveryMode = "pending_injection"
-	SteerDeliveryModeInterruptFallback SteerDeliveryMode = "interrupt_fallback"
-)
-
-// SteerPromptRequest is a daemon API value.
-type SteerPromptRequest struct {
-	Attachments    []PromptAttachmentRef `json:"attachments,omitempty"`
-	Text           string                `json:"text"`
-	MessageID      string                `json:"message_id"`
-	IdempotencyKey string                `json:"idempotency_key"`
-	ExpectedTurnID string                `json:"expected_turn_id,omitempty"`
-}
-
-// StepProgress is a daemon API value.
-type StepProgress struct {
-	Round      int `json:"round"`
-	StepsDone  int `json:"steps_done"`
-	StepsTotal int `json:"steps_total"`
-}
-
-// StopPhase is a daemon API value.
-type StopPhase string

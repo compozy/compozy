@@ -47,6 +47,24 @@ func (c *Client) ListSessionInteractions(ctx context.Context, params ListSession
 	return &out, nil
 }
 
+// ListSessionMonitorsParams carries the path, query, and header parameters.
+type ListSessionMonitorsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// ListSessionMonitors List a session's monitors
+func (c *Client) ListSessionMonitors(ctx context.Context, params ListSessionMonitorsParams) (*SessionMonitorsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionMonitorsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionSubagentsParams carries the path, query, and header parameters.
 type ListSessionSubagentsParams struct {
 	WorkspaceID string  `url:"workspace_id"`

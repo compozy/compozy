@@ -4,6 +4,43 @@ package client
 
 import "time"
 
+// WorkspaceDetailPayload is a daemon API value.
+type WorkspaceDetailPayload struct {
+	Workspace    WorkspacePayload               `json:"workspace"`
+	Sessions     []SessionPayload               `json:"sessions,omitempty"`
+	Agents       []AgentPayload                 `json:"agents,omitempty"`
+	Skills       []WorkspaceSkillPayload        `json:"skills,omitempty"`
+	Providers    []SessionProviderOptionPayload `json:"providers,omitempty"`
+	ProfileHints []WorkspaceProfileHintPayload  `json:"profile_hints,omitempty"`
+}
+
+// WorkspaceID is a daemon API value.
+type WorkspaceID string
+
+// WorkspacePayload is a daemon API value.
+type WorkspacePayload struct {
+	ID           string    `json:"id"`
+	RootDir      string    `json:"root_dir"`
+	AddDirs      []string  `json:"add_dirs"`
+	Name         string    `json:"name"`
+	DefaultAgent string    `json:"default_agent,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
+}
+
+// WorkspaceProfileHintPayload is a daemon API value.
+type WorkspaceProfileHintPayload struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
+	Action  string `json:"action"`
+}
+
+// WorkspaceResponse is a daemon API value.
+type WorkspaceResponse struct {
+	Workspace WorkspacePayload `json:"workspace"`
+}
+
 // WorkspaceSkillPayload is a daemon API value.
 type WorkspaceSkillPayload struct {
 	Name   string `json:"name"`

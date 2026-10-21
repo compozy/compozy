@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// RetryTaskRunRequest is a daemon API value.
+type RetryTaskRunRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryTaskRunResponse is a daemon API value.
+type RetryTaskRunResponse struct {
+	PreviousRun TaskRunPayload `json:"previous_run"`
+	Run         TaskRunPayload `json:"run"`
+}
+
 // ReviewContinuation is a daemon API value.
 type ReviewContinuation struct {
 	ReviewID          string   `json:"review_id"`
@@ -436,15 +447,4 @@ type ScheduleSpec struct {
 	Time                string                 `json:"time,omitempty"`
 	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
 	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
-}
-
-// SchedulerBacklogPayload is a daemon API value.
-type SchedulerBacklogPayload struct {
-	Runs  []SchedulerBacklogRunPayload `json:"runs"`
-	Total int                          `json:"total"`
-}
-
-// SchedulerBacklogResponse is a daemon API value.
-type SchedulerBacklogResponse struct {
-	Backlog SchedulerBacklogPayload `json:"backlog"`
 }

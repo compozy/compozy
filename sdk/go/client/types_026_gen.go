@@ -7,6 +7,41 @@ import (
 	"time"
 )
 
+// Value is a daemon API value.
+type Value struct {
+	Value    json.RawMessage `json:"value,omitempty"`
+	VaultRef *string         `json:"vault_ref,omitzero"`
+}
+
+// VaultSecretPayload is a daemon API value.
+type VaultSecretPayload struct {
+	Ref       string    `json:"ref"`
+	Namespace string    `json:"namespace"`
+	Kind      string    `json:"kind,omitempty"`
+	Present   bool      `json:"present"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// VaultSecretResponse is a daemon API value.
+type VaultSecretResponse struct {
+	Secret VaultSecretPayload `json:"secret"`
+}
+
+// VaultSecretsResponse is a daemon API value.
+type VaultSecretsResponse struct {
+	Secrets []VaultSecretPayload `json:"secrets"`
+}
+
+// VerdictPolicy is a daemon API value.
+type VerdictPolicy string
+
+// ViewBadge is a daemon API value.
+type ViewBadge struct {
+	Label string `json:"label"`
+	Tone  string `json:"tone"`
+}
+
 // ViewChrome is a daemon API value.
 type ViewChrome struct {
 	IsLoading   bool        `json:"is_loading,omitempty"`
@@ -405,41 +440,4 @@ type WorkspaceConfig struct {
 	Snap                *SnapConfig          `json:"snap,omitzero"`
 	Bindings            *BindingsConfig      `json:"bindings,omitzero"`
 	Shortcuts           map[string][]string  `json:"shortcuts,omitempty"`
-}
-
-// WorkspaceDetailPayload is a daemon API value.
-type WorkspaceDetailPayload struct {
-	Workspace    WorkspacePayload               `json:"workspace"`
-	Sessions     []SessionPayload               `json:"sessions,omitempty"`
-	Agents       []AgentPayload                 `json:"agents,omitempty"`
-	Skills       []WorkspaceSkillPayload        `json:"skills,omitempty"`
-	Providers    []SessionProviderOptionPayload `json:"providers,omitempty"`
-	ProfileHints []WorkspaceProfileHintPayload  `json:"profile_hints,omitempty"`
-}
-
-// WorkspaceID is a daemon API value.
-type WorkspaceID string
-
-// WorkspacePayload is a daemon API value.
-type WorkspacePayload struct {
-	ID           string    `json:"id"`
-	RootDir      string    `json:"root_dir"`
-	AddDirs      []string  `json:"add_dirs"`
-	Name         string    `json:"name"`
-	DefaultAgent string    `json:"default_agent,omitempty"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
-}
-
-// WorkspaceProfileHintPayload is a daemon API value.
-type WorkspaceProfileHintPayload struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	Message string `json:"message"`
-	Action  string `json:"action"`
-}
-
-// WorkspaceResponse is a daemon API value.
-type WorkspaceResponse struct {
-	Workspace WorkspacePayload `json:"workspace"`
 }

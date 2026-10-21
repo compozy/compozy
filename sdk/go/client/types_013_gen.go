@@ -190,6 +190,13 @@ type ReloadExtensionRequest struct {
 	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }
 
+// RemoveDiscoveredWorktreeRequest is a daemon API value.
+type RemoveDiscoveredWorktreeRequest struct {
+	Path        string `json:"path"`
+	Force       bool   `json:"force,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
+}
+
 // RenameProfilePlan is a daemon API value.
 type RenameProfilePlan struct {
 	Revision          string             `json:"revision"`
@@ -437,14 +444,3 @@ type RetrySpec struct {
 
 // RetryStrategy is a daemon API value.
 type RetryStrategy string
-
-// RetryTaskRunRequest is a daemon API value.
-type RetryTaskRunRequest struct {
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// RetryTaskRunResponse is a daemon API value.
-type RetryTaskRunResponse struct {
-	PreviousRun TaskRunPayload `json:"previous_run"`
-	Run         TaskRunPayload `json:"run"`
-}
