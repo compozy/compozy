@@ -7,6 +7,7 @@ import {
   useSessionSidebarState,
   visibleSessionOrder,
   sessionCatalogOptions,
+  useWorkspaceWorkingSessions,
   type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
@@ -173,9 +174,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   const queryClient = useQueryClient();
   const desktop = useDesktopShellState();
   const overlays = useDesktopOverlays();
-  const worktreesByWorkspace = useWorktreeListings(model.workspaces, {
-    enabled: overlays.activeOverlay === "workspace-menu" || overlays.activeOverlay === "workspaces",
-  });
+  const switcherOpen =
+    overlays.activeOverlay === "workspace-menu" || overlays.activeOverlay === "workspaces";
+  const worktreesByWorkspace = useWorktreeListings(model.workspaces, { enabled: switcherOpen });
+  const workingSessionsByWorkspace = useWorkspaceWorkingSessions(switcherOpen);
   const attention = useOsAttention(
     model.runtimeWorkspace,
     model.sessionCatalogStreamStatus,
@@ -412,6 +414,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     shortcutLabels,
     transition,
     winLayer,
+    workingSessionsByWorkspace,
     worktreesByWorkspace,
   };
 }

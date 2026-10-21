@@ -563,6 +563,18 @@ describe("OsWorkspacesOverview", () => {
     ).toHaveAttribute("aria-checked", "false");
   });
 
+  it("Should mark only workspaces with working sessions and announce the count", async () => {
+    await act(async () =>
+      renderOverview({ workingSessionsByWorkspace: { [COMPOZY.id]: 1, [BRANAS.id]: 3 } })
+    );
+
+    expect(tile(COMPOZY.id)).toHaveAccessibleName("compozy (current), 1 session working");
+    expect(tile(BRANAS.id)).toHaveAccessibleName("branas-site, 3 sessions working");
+    expect(tile(NOTES.id)).toHaveAccessibleName("notes");
+    expect(tile(BRANAS.id).querySelector('[data-slot="workspace-working-dot"]')).not.toBeNull();
+    expect(tile(NOTES.id).querySelector('[data-slot="workspace-working-dot"]')).toBeNull();
+  });
+
   it("Should adopt a discovered checkout and delete a ready worktree through their row actions", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview({ worktreesByWorkspace: MIXED_LISTINGS });

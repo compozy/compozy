@@ -203,6 +203,7 @@ function DesktopShellScopedBody({
     shortcutLabels,
     transition,
     winLayer,
+    workingSessionsByWorkspace,
     worktreesByWorkspace,
   } = useDesktopShellBody(model, {
     firstRun,
@@ -254,6 +255,7 @@ function DesktopShellScopedBody({
         attention={attention}
         update={update}
         worktreesByWorkspace={worktreesByWorkspace}
+        workingSessionsByWorkspace={workingSessionsByWorkspace}
         userHomeDir={model.userHomeDir}
         worktreeSelection={worktreeSelection}
         onSelectWorktree={(workspaceId, entry) => {
@@ -390,6 +392,7 @@ function DesktopShellScopedBody({
         onNewWorkspace={model.openWorkspaceSetup}
         reducedMotion={reducedMotion}
         worktreesByWorkspace={worktreesByWorkspace}
+        workingSessionsByWorkspace={workingSessionsByWorkspace}
         userHomeDir={model.userHomeDir}
         selectedWorktreeId={worktreeSelection.selectedWorktreeId}
         onSelectWorktree={(workspaceId, entry) => {

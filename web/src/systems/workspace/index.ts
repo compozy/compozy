@@ -281,6 +281,9 @@ export {
 } from "./lib/worktree-naming";
 export { WorktreeAggregate } from "./components/worktree-aggregate";
 export type { WorktreeAggregateProps } from "./components/worktree-aggregate";
+export { WorkspaceWorkingDot } from "./components/workspace-working-dot";
+export { workspaceWorkingLabel } from "./lib/workspace-working-label";
+export type { WorkspaceWorkingDotProps } from "./components/workspace-working-dot";
 export { WorktreeSubmenuPanel } from "./components/worktree-submenu-panel";
 export { WORKTREE_SUBMENU_FRAME_CLASS } from "./components/worktree-submenu-constants";
 export type { WorktreeSubmenuPanelProps } from "./components/worktree-submenu-panel";

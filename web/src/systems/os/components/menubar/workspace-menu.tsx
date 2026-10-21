@@ -14,6 +14,7 @@ import {
 
 import {
   groupWorkspaceTree,
+  WorkspaceWorkingDot,
   WorktreeAggregate,
   WorktreeSubmenuPanel,
   worktreeNestPresence,
@@ -41,6 +42,8 @@ export interface WorkspaceMenuProps {
   onAddWorkspace: () => void;
   /** Same query as the S1 switcher — the two surfaces must not diverge. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
+  /** Working-session counts by workspace id; drives the monogram's corner dot. */
+  workingSessionsByWorkspace?: Readonly<Record<string, number>>;
   userHomeDir?: string;
   selectedWorktreeId?: string | null;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
@@ -58,16 +61,19 @@ function WorkspaceRowLabel({
   monogram,
   name,
   runningAgents,
+  workingSessions,
 }: {
   monogram: string;
   name: string;
   runningAgents: number;
+  workingSessions: number;
 }) {
   return (
     <>
       {/* The same monogram well as the topbar's workspace chip. */}
       <Avatar size="sm" className="size-5 shrink-0">
         <AvatarFallback className="text-badge font-semibold">{monogram}</AvatarFallback>
+        <WorkspaceWorkingDot count={workingSessions} />
       </Avatar>
       {name}
       <WorktreeAggregate runningAgents={runningAgents} />
@@ -88,6 +94,7 @@ export function WorkspaceMenu({
   onRun,
   onAddWorkspace,
   worktreesByWorkspace,
+  workingSessionsByWorkspace,
   userHomeDir,
   selectedWorktreeId,
   onSelectWorktree,
@@ -140,6 +147,7 @@ export function WorkspaceMenu({
                           monogram={monogram(workspace.name)}
                           name={workspace.name}
                           runningAgents={node?.runningAgents ?? 0}
+                          workingSessions={workingSessionsByWorkspace?.[workspace.id] ?? 0}
                         />
                       );
                       if (!node || presence === "absent") {
