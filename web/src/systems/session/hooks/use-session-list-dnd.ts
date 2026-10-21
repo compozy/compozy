@@ -114,6 +114,7 @@ export function useSessionListDnd(
     run();
     end();
   };
+  /** Starts a selection drag, or refuses it when the selection cannot move now. */
   const startSelection = (selection: SessionSelectionDrag) => (event: DragEvent<HTMLElement>) => {
     if (selection.disabled || selection.blockedReason !== null) {
       event.preventDefault();

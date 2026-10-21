@@ -224,6 +224,35 @@ export function applySessionOrder(
   return next;
 }
 
+/**
+ * Optimistic Manual-sort patch for a bulk move: the listed sessions take the
+ * folder and lead its members in the listed order, as the daemon pins them.
+ * The root also leads with unplaced sessions the page cannot tell apart, so a
+ * move to the root keeps each session's slot and the reread settles the order.
+ */
+export function applySessionsMovedFirst(
+  sessions: readonly SessionPayload[],
+  folderId: string | null,
+  orderedIds: readonly string[]
+): SessionPayload[] {
+  if (folderId === null) return applySessionOrder(sessions, folderId, orderedIds);
+  const listed = new Set(orderedIds);
+  const byId = new Map(sessions.map(session => [session.id, session]));
+  const moved = orderedIds.flatMap(id => {
+    const session = byId.get(id);
+    return session ? [withFolder(session, folderId)] : [];
+  });
+  const firstMoved = sessions.findIndex(session => listed.has(session.id));
+  const rest = sessions.filter(session => !listed.has(session.id));
+  const firstMember = rest.findIndex(session => sessionFolderId(session) === folderId);
+  const insertAt =
+    firstMember >= 0
+      ? firstMember
+      : sessions.slice(0, Math.max(firstMoved, 0)).filter(session => !listed.has(session.id))
+          .length;
+  return [...rest.slice(0, insertAt), ...moved, ...rest.slice(insertAt)];
+}
+
 /** Optimistically moves one session to the end of a folder (or the root). */
 export function applySessionMove(
   sessions: readonly SessionPayload[],
@@ -307,6 +336,7 @@ export function sessionBulkMoveBlockedReason(move: SessionBulkMove): string | nu
   return null;
 }
 
+/** "1 session" or "N sessions", for counts in menus, toasts, and the drag preview. */
 export function sessionCountLabel(count: number): string {
   return `${count} ${count === 1 ? "session" : "sessions"}`;
 }

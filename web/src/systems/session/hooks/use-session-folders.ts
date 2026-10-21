@@ -22,6 +22,7 @@ import {
   applyFolderRemoval,
   applySessionMove,
   applySessionOrder,
+  applySessionsMovedFirst,
   shiftId,
 } from "../lib/session-folders";
 import type { SessionCatalogPageResponse, SessionFolderPayload, SessionPayload } from "../types";
@@ -81,15 +82,20 @@ export function useSessionFolders(options: {
       .map(([key, data]) => ({ key, data })),
     { key: foldersKey, data: queryClient.getQueryData(foldersKey) },
   ];
-  const patchSessions = (update: (sessions: readonly SessionPayload[]) => SessionPayload[]) => {
-    queryClient.setQueriesData<CatalogEnvelope>({ queryKey: catalogPrefix }, envelope =>
-      envelope
-        ? {
-            ...envelope,
-            pages: envelope.pages.map(page => ({ ...page, sessions: update(page.sessions) })),
-          }
-        : envelope
-    );
+  /** Patches every served catalog page; `manual` says whether that page is in Manual sort. */
+  const patchSessions = (
+    update: (sessions: readonly SessionPayload[], manual: boolean) => SessionPayload[]
+  ) => {
+    for (const [key, envelope] of queryClient.getQueriesData<CatalogEnvelope>({
+      queryKey: catalogPrefix,
+    })) {
+      if (!envelope) continue;
+      const manual = (key.at(-1) as { sort?: string } | undefined)?.sort === "manual";
+      queryClient.setQueryData<CatalogEnvelope>(key, {
+        ...envelope,
+        pages: envelope.pages.map(page => ({ ...page, sessions: update(page.sessions, manual) })),
+      });
+    }
   };
   const patchFolders = (update: (folders: SessionFolderPayload[]) => SessionFolderPayload[]) => {
     queryClient.setQueryData<SessionFolderPayload[]>(foldersKey, folders =>
@@ -186,7 +192,11 @@ export function useSessionFolders(options: {
         failure: "Couldn't move the sessions.",
         request: () => reorderSessions(scope, folderId, sessionIds),
         optimistic: () =>
-          patchSessions(sessions => applySessionOrder(sessions, folderId, sessionIds)),
+          patchSessions((sessions, manual) =>
+            manual
+              ? applySessionsMovedFirst(sessions, folderId, sessionIds)
+              : applySessionOrder(sessions, folderId, sessionIds)
+          ),
       }),
     reorderSessions: (folderId, sessionIds) =>
       fireAndForget({

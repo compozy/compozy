@@ -75,7 +75,6 @@ export function SessionFolderDialogs({
   }
 
   const rename = state?.kind === "rename" ? state.folder : null;
-  const moveCount = state?.kind === "create" ? state.moveCount : undefined;
   return (
     <Dialog open={state !== null} onOpenChange={close}>
       <DialogContent
@@ -86,16 +85,7 @@ export function SessionFolderDialogs({
         {state !== null ? (
           <SessionFolderNameForm
             key={rename?.id ?? "create"}
-            title={rename ? "Rename folder" : "New folder"}
-            description={moveCount === undefined ? undefined : selectionMoveDescription(moveCount)}
-            confirmLabel={
-              rename
-                ? "Rename folder"
-                : moveCount === undefined
-                  ? "Create folder"
-                  : "Create and move"
-            }
-            confirmIcon={rename ? Pencil : FolderPlus}
+            {...folderNameCopy(state)}
             initialName={rename?.name ?? ""}
             pending={pending}
             requestError={error}
@@ -108,10 +98,24 @@ export function SessionFolderDialogs({
   );
 }
 
-function selectionMoveDescription(count: number): string {
-  return count === 1
-    ? "The session you selected moves into it."
-    : `The ${count} sessions you selected move into it.`;
+/** Title, description, and confirm button for the create and rename dialogs. */
+function folderNameCopy(state: Exclude<SessionFolderDialogState, null | { kind: "delete" }>) {
+  if (state.kind === "rename") {
+    return { title: "Rename folder", confirmLabel: "Rename folder", confirmIcon: Pencil };
+  }
+  const count = state.moveCount;
+  if (count === undefined) {
+    return { title: "New folder", confirmLabel: "Create folder", confirmIcon: FolderPlus };
+  }
+  return {
+    title: "New folder",
+    description:
+      count === 1
+        ? "The session you selected moves into it."
+        : `The ${count} sessions you selected move into it.`,
+    confirmLabel: "Create and move",
+    confirmIcon: FolderPlus,
+  };
 }
 
 function SessionFolderNameForm({

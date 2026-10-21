@@ -14,6 +14,7 @@ import {
   applyFolderRemoval,
   applySessionMove,
   applySessionOrder,
+  applySessionsMovedFirst,
   buildSessionListSections,
   placeId,
   sectionsVisibleOrder,
@@ -270,6 +271,38 @@ describe("visibleSessionOrder", () => {
       "r1",
     ]);
     expect(order(visibleSessionOrder(results, options))).toEqual(["r1"]);
+  });
+});
+
+describe("applySessionsMovedFirst", () => {
+  const order = (sessions: readonly SessionPayload[]) =>
+    sessions.map(entry => [entry.id, entry.folder_id ?? null]);
+
+  it("Should lead the folder's members with the moved sessions in listed order", () => {
+    const page = [session("r1"), session("f1", "fa"), session("f2", "fa"), session("r2")];
+
+    expect(order(applySessionsMovedFirst(page, "fa", ["r2", "r1"]))).toEqual([
+      ["r2", "fa"],
+      ["r1", "fa"],
+      ["f1", "fa"],
+      ["f2", "fa"],
+    ]);
+    expect(order(applySessionsMovedFirst(page, "fb", ["f2", "r1"]))).toEqual([
+      ["f2", "fb"],
+      ["r1", "fb"],
+      ["f1", "fa"],
+      ["r2", null],
+    ]);
+  });
+
+  it("Should keep slots for a move to the root, whose unplaced sessions lead", () => {
+    const page = [session("r1"), session("f1", "fa"), session("r2")];
+
+    expect(order(applySessionsMovedFirst(page, null, ["f1"]))).toEqual([
+      ["r1", null],
+      ["f1", null],
+      ["r2", null],
+    ]);
   });
 });
 

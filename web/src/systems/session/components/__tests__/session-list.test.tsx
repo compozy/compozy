@@ -1432,6 +1432,7 @@ describe("SessionList folders and manual order", () => {
     f1: "Filed one",
     c1: "Child one",
   };
+  /** Enters selection with the first row's checkbox, then toggles the rest by click. */
   async function selectRows(...ids: string[]) {
     // Submenus open on top of their parent menu, whose guard layer the pointer check would hit.
     const user = userEvent.setup({ pointerEventsCheck: 0 });
@@ -1440,6 +1441,7 @@ describe("SessionList folders and manual order", () => {
     for (const id of rest) await user.click(screen.getByTestId(`session-sidebar-session-${id}`));
     return user;
   }
+  /** Opens the selection bar's More menu and its Move to folder submenu. */
   async function openMoveMenu(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
     await user.click(await screen.findByTestId("session-sidebar-selection-move"));

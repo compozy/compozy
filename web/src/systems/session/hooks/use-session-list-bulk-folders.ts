@@ -79,22 +79,24 @@ export function useSessionListBulkFolders(options: {
   const blockedReason =
     sessionBulkMoveBlockedReason(move) ?? (layout ? null : "Folders are still loading.");
   const folderIds = move.sessions.map(sessionFolderId);
-  const run = async (target: SessionListLayout, folderId: string | null, name?: string) => {
+  /** Writes the move of every selected root not already in `folderId`; resolves once settled. */
+  const run = (target: SessionListLayout, folderId: string | null, name?: string) => {
     const ids = sessionBulkMoveIds(move.sessions, folderId);
-    if (ids.length === 0) return;
+    if (ids.length === 0) return Promise.resolve();
     setPending(true);
-    try {
-      await target.moveSessions(ids, folderId);
-      const destination = folderId === null ? "out of folders" : `to “${name ?? "folder"}”`;
-      toast.success(`Moved ${sessionCountLabel(ids.length)} ${destination}`);
-      options.onMoved();
-    } catch {
+    return target.moveSessions(ids, folderId).then(
+      () => {
+        setPending(false);
+        const destination = folderId === null ? "out of folders" : `to “${name ?? "folder"}”`;
+        toast.success(`Moved ${sessionCountLabel(ids.length)} ${destination}`);
+        options.onMoved();
+      },
       // The layout write already rolled the list back and reported why; the
       // selection stays so the operator can retry.
-    } finally {
-      setPending(false);
-    }
+      () => setPending(false)
+    );
   };
+  /** The menu and drop entry point: moves the selection unless it is blocked or busy. */
   const moveTo = (folderId: string | null) => {
     if (!layout || blockedReason !== null || pending || options.busy) return;
     const name = layout.folders.find(folder => folder.id === folderId)?.name;

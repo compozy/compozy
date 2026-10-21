@@ -188,6 +188,40 @@ describe("useSessionFolders", () => {
     else expect(toastError).toHaveBeenCalledWith("Couldn't move the sessions.", expect.anything());
   });
 
+  it("Should show moved sessions first in the folder on a Manual-sorted page", async () => {
+    const { queryClient, result } = setup(200);
+    const manualKey = [
+      ...sessionKeys.workspaceLists("ws"),
+      "page",
+      { workspace_id: "ws", sort: "manual" },
+    ];
+    queryClient.setQueryData(manualKey, structuredClone(envelope));
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
+
+    let release: () => void = () => undefined;
+    const fetchMock = vi.mocked(globalThis.fetch);
+    const settled = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async input => {
+      if ((input as Request).method === "GET") return settled(input);
+      await new Promise<void>(resolve => {
+        release = resolve;
+      });
+      return json({ folders: [folder] });
+    });
+    let outcome: Promise<void> | undefined;
+    act(() => {
+      outcome = result.current.layout?.moveSessions(["a"], "sfold-a");
+    });
+    const ids = (key: unknown[]) =>
+      queryClient.getQueryData<typeof envelope>(key)?.pages[0]?.sessions.map(item => item.id);
+    await waitFor(() => expect(ids(manualKey)).toEqual(["b", "a", "c"]));
+    expect(ids(pageKey)).toEqual(["a", "b", "c"]);
+    await act(async () => {
+      release();
+      await outcome;
+    });
+  });
+
   it("Should send rapid layout writes one at a time in action order", async () => {
     const { result, writes } = setup(200);
     await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
