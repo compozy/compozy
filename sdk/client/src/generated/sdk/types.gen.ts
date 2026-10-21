@@ -1373,6 +1373,7 @@ export type CreateSessionRequest = {
   name?: string;
   new_worktree?: NewSessionWorktreeRequest | null;
   parent_session_id?: string;
+  scope?: string;
   workspace?: string;
   workspace_path?: string;
   worktree?: string;
@@ -6697,6 +6698,7 @@ export type SessionPayload = {
   queue?: SessionQueueSummaryPayload | null;
   reply_watches?: Array<ReplyWatchPayload>;
   runtime: SessionRuntimePayload;
+  scope: string;
   state: "starting" | "active" | "stopping" | "stopped";
   stop_cause?: string;
   stop_detail?: string;

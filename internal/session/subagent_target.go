@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/providers"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -22,11 +23,11 @@ func (r managerSubagentRuntime) Resolve(
 	parent *Info,
 	requested SubagentTarget,
 ) (SubagentTarget, error) {
-	resolver, err := r.m.requireWorkspaceResolver()
+	_, err := r.m.requireWorkspaceResolver()
 	if err != nil {
 		return SubagentTarget{}, err
 	}
-	workspace, err := resolver.Resolve(ctx, parent.WorkspaceID)
+	workspace, err := r.m.resolveResumeWorkspace(ctx, &store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID})
 	if err != nil {
 		return SubagentTarget{}, err
 	}
@@ -91,11 +92,11 @@ func (r managerSubagentRuntime) Capabilities(
 	ctx context.Context,
 	parent *Info,
 ) ([]SubagentAgentOption, []SubagentProviderOption, error) {
-	resolver, err := r.m.requireWorkspaceResolver()
+	_, err := r.m.requireWorkspaceResolver()
 	if err != nil {
 		return nil, nil, err
 	}
-	workspace, err := resolver.Resolve(ctx, parent.WorkspaceID)
+	workspace, err := r.m.resolveResumeWorkspace(ctx, &store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID})
 	if err != nil {
 		return nil, nil, err
 	}

@@ -26,13 +26,19 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 }
 
 func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.SessionPayload {
-	payload := contract.SessionPayload{}
+	scope := "workspace"
+	if info != nil && info.WorkspaceID == "" {
+		scope = "user"
+	}
+	payload := contract.SessionPayload{
+		Scope: scope}
 	if info == nil {
 		return payload
 	}
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
+		Scope:       scope,
 		Supervision: session.CloneSupervisionState(info.Supervision),
 		BusyInput:   info.BusyInput,
 		ID:          info.ID,

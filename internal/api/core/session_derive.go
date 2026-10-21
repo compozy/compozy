@@ -53,6 +53,7 @@ func (h *BaseHandlers) ContinueSession(c *gin.Context) {
 	result, err := deriver.ContinueSession(c.Request.Context(), session.ContinueSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     scope.SessionWorkspaceID(),
+		ProfileID:       scope.Resolved.ProfileID,
 		AgentName:       strings.TrimSpace(req.AgentName),
 		Runtime:         deriveRuntimeFromPayload(req.Runtime),
 		Route:           req.Route,
@@ -87,6 +88,7 @@ func (h *BaseHandlers) ForkSession(c *gin.Context) {
 	result, err := deriver.ForkSession(c.Request.Context(), session.ForkSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     scope.SessionWorkspaceID(),
+		ProfileID:       scope.Resolved.ProfileID,
 		MessageID:       strings.TrimSpace(req.MessageID),
 		Name:            req.Name,
 		IdempotencyKey:  strings.TrimSpace(req.IdempotencyKey),
@@ -151,6 +153,13 @@ func (h *BaseHandlers) PreviewSessionDerive(c *gin.Context) {
 	scope, sessionID, deriver, ok := h.deriveRoute(c)
 	if !ok {
 		return
+	}
+	if scope.Resolved.Scope == "user" {
+		info, err := h.requireSessionInWorkspace(c.Request.Context(), "", sessionID)
+		if err != nil || info.ProfileID != scope.Resolved.ProfileID {
+			h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
+			return
+		}
 	}
 	preview, err := deriver.DerivePreview(
 		c.Request.Context(),

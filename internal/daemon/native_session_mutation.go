@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -78,6 +79,9 @@ func (n *daemonNativeTools) sessionCreate(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: durable session acceptance is required")
 	}
+	if resolved.Scope == "user" && (input.Worktree != "" || input.NewWorktree != nil) {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, workspacepkg.ErrUserScopeWorktreeUnsupported)
+	}
 	worktreeTarget, err := n.resolveNativeSessionWorktree(ctx, workspaceID, scope.ProfileID, input)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -86,6 +90,7 @@ func (n *daemonNativeTools) sessionCreate(
 	// operator's resolved profile), so agent-created sessions stay in the
 	// caller's profile instead of falling back to default.
 	opts := session.CreateOpts{
+		Scope:     resolved.Scope,
 		ProfileID: scope.ProfileID,
 		AgentName: agent,
 		Name:      strings.TrimSpace(input.Name),
@@ -98,7 +103,7 @@ func (n *daemonNativeTools) sessionCreate(
 	// workspace isolation boundary.
 	callerSessionID := strings.TrimSpace(scope.SessionID)
 	callerWorkspaceID := strings.TrimSpace(scope.WorkspaceID)
-	if callerSessionID != "" && callerWorkspaceID != "" && callerWorkspaceID == workspaceID {
+	if callerSessionID != "" && callerWorkspaceID == workspaceID {
 		opts.Lineage = &store.SessionLineage{ParentSessionID: callerSessionID}
 	}
 	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: opts})
@@ -200,7 +205,7 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	attachments, err := n.resolveNativePromptAttachments(
@@ -294,7 +299,7 @@ func (n *daemonNativeTools) sessionRewind(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID); err != nil {
+	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, sessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	result, err := n.deps.Sessions.RewindConversation(ctx, sessionID, session.ConversationRewindOptions{

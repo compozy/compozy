@@ -295,8 +295,8 @@ func (m *Manager) validateSpawnWorkspace(
 		return SpawnOpts{}, err
 	}
 	targetWorkspaceID := ""
-	for _, ref := range refs {
-		resolved, resolveErr := resolver.Resolve(ctx, ref)
+	for index, ref := range refs {
+		resolved, resolveErr := resolveWorkspaceForProfile(ctx, resolver, m.profileNames, ref, parent.ProfileID)
 		if resolveErr != nil {
 			return SpawnOpts{}, fmt.Errorf(
 				"%w: resolve child workspace %q: %w",
@@ -306,22 +306,16 @@ func (m *Manager) validateSpawnWorkspace(
 			)
 		}
 		resolvedID := strings.TrimSpace(resolved.ID)
-		if resolvedID == "" {
+		if resolvedID == "" && resolved.Scope != "user" {
 			return SpawnOpts{}, fmt.Errorf("%w: child workspace %q has no id", ErrSpawnValidation, ref)
 		}
-		if targetWorkspaceID != "" && targetWorkspaceID != resolvedID {
+		if index > 0 && targetWorkspaceID != resolvedID {
 			return SpawnOpts{}, fmt.Errorf("%w: child workspace references disagree", ErrSpawnValidation)
 		}
 		targetWorkspaceID = resolvedID
 	}
 	parentWorkspaceID := strings.TrimSpace(parent.WorkspaceID)
-	if parentWorkspaceID == "" && strings.TrimSpace(parent.Workspace) != "" {
-		resolved, resolveErr := resolver.Resolve(ctx, parent.Workspace)
-		if resolveErr != nil {
-			return SpawnOpts{}, fmt.Errorf("%w: resolve parent workspace: %w", ErrSpawnValidation, resolveErr)
-		}
-		parentWorkspaceID = strings.TrimSpace(resolved.ID)
-	}
+
 	if parentWorkspaceID != targetWorkspaceID {
 		policy := m.workspaceAccessPolicy()
 		if policy == nil {
@@ -350,6 +344,13 @@ func (m *Manager) validateSpawnWorkspace(
 		}
 	}
 	opts.Workspace = targetWorkspaceID
+	if targetWorkspaceID == "" {
+		opts.Workspace = "@user"
+		if opts.IsolatedWorktreeID != "" {
+			return SpawnOpts{}, spawnValidation("User scope does not support worktrees")
+		}
+		opts.InheritedWorktreeID = ""
+	}
 	opts.WorkspacePath = ""
 	return opts, nil
 }
@@ -392,7 +393,9 @@ func (m *Manager) spawnLineage(
 		)
 	}
 	targetWorkspaceID := strings.TrimSpace(opts.Workspace)
-	if targetWorkspaceID == "" {
+	if targetWorkspaceID == "@user" {
+		targetWorkspaceID = ""
+	} else if targetWorkspaceID == "" {
 		targetWorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 	}
 	if err := m.validateSpawnCaps(ctx, parent, governance, budget, targetWorkspaceID); err != nil {

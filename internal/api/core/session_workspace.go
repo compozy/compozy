@@ -192,7 +192,9 @@ func statusForSessionLookupError(err error) (int, bool) {
 
 func statusForSessionValidationError(err error) (int, bool) {
 	switch {
-	case errors.Is(err, workspacepkg.ErrAgentNotAvailable),
+	case errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid),
+		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
+		errors.Is(err, workspacepkg.ErrAgentNotAvailable),
 		errors.Is(err, compozyconfig.ErrProviderUnavailable),
 		errors.Is(err, session.ErrValidation),
 		errors.Is(err, store.ErrConversationRewindTargetInvalid),

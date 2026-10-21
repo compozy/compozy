@@ -111,6 +111,9 @@ func LookupSessionOwner(
 		if err != nil {
 			return SessionOwner{}, fmt.Errorf("store: read Global session creation profile: %w", err)
 		}
+		if profile.WorkspaceID == "@user" && profile.ProfileID != resolved.ProfileID {
+			return SessionOwner{}, fmt.Errorf("%w: User creation profile does not match catalog profile", ErrSessionWorkspaceMismatch)
+		}
 		databaseWorkspaceID = profile.WorkspaceID
 		resolved.CreationIdentity = &identity
 	}

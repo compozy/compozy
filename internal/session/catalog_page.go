@@ -352,7 +352,7 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 		return false
 	}
 	return query.ReadScope.Matches(info.ProfileID) &&
-		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
+		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID || (query.WorkspaceID == "@user" && info.WorkspaceID == "")) &&
 		sessionMatchesWorkspaceIDs(info.WorkspaceID, query.WorkspaceIDs) &&
 		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
 		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&

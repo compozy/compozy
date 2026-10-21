@@ -99,7 +99,7 @@ func spawnWorkspaceCreateRefs(parent *Info, opts SpawnOpts) (string, string) {
 	if workspaceID := strings.TrimSpace(parent.WorkspaceID); workspaceID != "" {
 		return workspaceID, ""
 	}
-	return "", strings.TrimSpace(parent.Workspace)
+	return "@user", ""
 }
 
 func normalizeSpawnRole(role string) string {

@@ -64,6 +64,7 @@ func (n *daemonNativeTools) sessionContinue(
 	result, err := deriver.ContinueSession(ctx, session.ContinueSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     workspaceID,
+		ProfileID:       scope.ProfileID,
 		AgentName:       agent,
 		Runtime:         nativeDeriveRuntime(input.Runtime),
 		Route:           input.Route,
@@ -119,6 +120,7 @@ func (n *daemonNativeTools) sessionFork(
 	result, err := deriver.ForkSession(ctx, session.ForkSessionOpts{
 		SourceSessionID: sessionID,
 		WorkspaceID:     workspaceID,
+		ProfileID:       scope.ProfileID,
 		MessageID:       strings.TrimSpace(input.MessageID),
 		Name:            strings.TrimSpace(input.Name),
 		IdempotencyKey:  idempotencyKey,

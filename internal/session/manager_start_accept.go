@@ -112,7 +112,7 @@ func (m *Manager) resolveAcceptedStartRuntime(
 			return sessionStartRuntime{}, err
 		}
 	}
-	if spec.creationIdentityPinned {
+	if spec.creationIdentityPinned || spec.workspace.Scope == "user" {
 		if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
 			return sessionStartRuntime{}, fmt.Errorf(
 				"session: prepare creation identity for %q: %w",

@@ -565,6 +565,9 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		args    []string
 		request CreateSessionRequest
 	}{
+		{name: "Should select User with the shorthand", args: []string{"session", "new", "--user", "-o", "json"}, request: CreateSessionRequest{Workspace: "@user"}},
+		{name: "Should forward the User reference", args: []string{"session", "new", "--workspace", "@user", "-o", "json"}, request: CreateSessionRequest{Workspace: "@user"}},
+
 		{
 			name: "Should use a registered workspace",
 			args: []string{"session", "new", "--workspace", "ws_abc", "-o", "json"},

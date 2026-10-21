@@ -5208,6 +5208,9 @@
           "parent_session_id": {
             "type": "string"
           },
+          "scope": {
+            "type": "string"
+          },
           "workspace": {
             "type": "string"
           },
@@ -24561,6 +24564,9 @@
           "runtime": {
             "$ref": "#/components/schemas/SessionRuntimePayload"
           },
+          "scope": {
+            "type": "string"
+          },
           "state": {
             "enum": [
               "starting",
@@ -24661,6 +24667,7 @@
           "profile_id",
           "profile_name",
           "runtime",
+          "scope",
           "state",
           "supervision",
           "updated_at"

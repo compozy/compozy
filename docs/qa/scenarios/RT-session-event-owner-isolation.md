@@ -66,3 +66,7 @@ Review regressions also cover the last SQLite connection closing during snapshot
 guard reselects a main-only read after WAL removal. A real temporary-directory creation failure
 is classified as unavailable storage. Actual owner-page corruption must return SQLite code 11,
 an integrity-confirmed refusal, and no transient-retry marker.
+
+2026-10-21 User scope coverage:
+
+For a User session, verify the immutable creation witness names `@user` and its profile. Present the same session ID under another profile and verify rejection before opening history. `TestGlobalDBUserSessionOwner` covers witness/profile mismatch; `TestManagerIntegrationUserLifecycle` covers valid reopen. Keep legacy creation-profile canonical bytes unchanged.

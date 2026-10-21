@@ -4,10 +4,12 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // CreationProfileInput is the resolved, secret-free creation policy material.
 type CreationProfileInput struct {
+	Scope           workspacepkg.ScopeKind
 	AgentName       string
 	Provider        string
 	Model           string
@@ -30,8 +32,13 @@ type CreationProfileInput struct {
 
 // BuildCreationProfile constructs the current canonical profile used by daemon and Manager.
 func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfile {
+	version := store.SessionCreationProfileVersion
+	if input.Scope == workspacepkg.ScopeUser {
+		input.WorkspaceID = "@user"
+		version = store.UserSessionCreationProfileVersion
+	}
 	return store.NormalizeSessionCreationProfile(store.SessionCreationProfile{
-		Version:         store.SessionCreationProfileVersion,
+		Version:         version,
 		AgentName:       input.AgentName,
 		Provider:        input.Provider,
 		Model:           input.Model,

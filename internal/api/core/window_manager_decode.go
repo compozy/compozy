@@ -30,6 +30,9 @@ func decodeWindowManagerJSON(c *gin.Context, target any) error {
 }
 
 func windowManagerWorkspace(c *gin.Context) windowmanager.WorkspaceID {
+	if strings.TrimSpace(c.Param("workspace_id")) == "@user" {
+		return windowmanager.UserDesktopWorkspaceID
+	}
 	return windowmanager.WorkspaceID(strings.TrimSpace(c.Param("workspace_id")))
 }
 

@@ -5,7 +5,7 @@
 CREATE TABLE session_folders (
 	id TEXT PRIMARY KEY CHECK (length(trim(id)) > 0),
 	profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL,
 	name TEXT NOT NULL CHECK (length(trim(name)) > 0 AND length(name) <= 120),
 	position INTEGER NOT NULL CHECK (position >= 0),
 	created_at TEXT NOT NULL,

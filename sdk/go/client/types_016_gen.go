@@ -386,6 +386,7 @@ type SessionOwner struct {
 
 // SessionPayload is a daemon API value.
 type SessionPayload struct {
+	Scope               string                        `json:"scope"`
 	ReplyWatches        []ReplyWatchPayload           `json:"reply_watches,omitempty"`
 	SubagentSummary     *SubagentSummaryPayload       `json:"subagent_summary,omitzero"`
 	MonitorSummary      *SessionMonitorSummaryPayload `json:"monitor_summary,omitzero"`
@@ -441,10 +442,4 @@ type SessionPresenceRequest struct {
 // SessionPresenceResponse is a daemon API value.
 type SessionPresenceResponse struct {
 	LeaseID string `json:"lease_id"`
-}
-
-// SessionProfileFacetsPayload is a daemon API value.
-type SessionProfileFacetsPayload struct {
-	ProfileID string                      `json:"profile_id"`
-	Facets    SessionCatalogFacetsPayload `json:"facets"`
 }

@@ -32,6 +32,9 @@ func (h *BaseHandlers) requireCreateSessionFolder(
 		return false
 	}
 	ref := strings.TrimSpace(req.Workspace)
+	if req.Scope == "user" {
+		ref = "@user"
+	}
 	if ref == "" {
 		ref = strings.TrimSpace(req.WorkspacePath)
 	}
@@ -41,7 +44,11 @@ func (h *BaseHandlers) requireCreateSessionFolder(
 		))
 		return false
 	}
-	workspaceID, err := h.lookupWorkspaceID(c.Request.Context(), ref)
+	var workspaceID string
+	var err error
+	if ref != "@user" {
+		workspaceID, err = h.lookupWorkspaceID(c.Request.Context(), ref)
+	}
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return false

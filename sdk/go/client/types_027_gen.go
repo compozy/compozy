@@ -4,6 +4,62 @@ package client
 
 import "time"
 
+// WindowManagerWindow is a daemon API value.
+type WindowManagerWindow struct {
+	ID           WindowID                   `json:"id"`
+	App          string                     `json:"app"`
+	InstanceKey  *string                    `json:"instance_key,omitzero"`
+	Route        RouteIntent                `json:"route"`
+	NavStack     []RouteIntent              `json:"nav_stack"`
+	Pinned       bool                       `json:"pinned"`
+	Placement    WindowPlacement            `json:"placement"`
+	DesktopID    DesktopID                  `json:"desktop_id"`
+	FloatingRect NormalizedRect             `json:"floating_rect"`
+	Minimized    bool                       `json:"minimized"`
+	Zoomed       bool                       `json:"zoomed"`
+	ReturnAnchor *WindowManagerReturnAnchor `json:"return_anchor,omitzero"`
+}
+
+// WindowPlacement is a daemon API value.
+type WindowPlacement string
+
+// WindowmanagerClientID is a daemon API value.
+type WindowmanagerClientID string
+
+// WindowmanagerNodeID is a daemon API value.
+type WindowmanagerNodeID string
+
+// WindowmanagerWorkspaceID is a daemon API value.
+type WindowmanagerWorkspaceID string
+
+// WorkSignal is a daemon API value.
+type WorkSignal struct {
+	Kind  WorkSignalKind `json:"kind"`
+	Since time.Time      `json:"since"`
+	Ref   string         `json:"ref,omitempty"`
+}
+
+// WorkSignalKind is a daemon API value.
+type WorkSignalKind string
+
+// WorkerMode is a daemon API value.
+type WorkerMode string
+
+// WorkerProfile is a daemon API value.
+type WorkerProfile struct {
+	Mode                  WorkerMode           `json:"mode"`
+	AgentName             string               `json:"agent_name,omitempty"`
+	Provider              string               `json:"provider,omitempty"`
+	Model                 string               `json:"model,omitempty"`
+	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
+	Speed                 Speed                `json:"speed,omitempty"`
+	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
+	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
+	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
+}
+
 // WorkspaceAttentionSummaryPayload is a daemon API value.
 type WorkspaceAttentionSummaryPayload struct {
 	WorkspaceID string `json:"workspace_id"`

@@ -33,7 +33,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			}
 		}
 	}
-	for _, sentinel := range []error{workspace.ErrWorkspaceNameReserved, workspace.ErrUserScopeUnsupported, workspace.ErrUserScopeWorktreeUnsupported, workspace.ErrUserScopeWorkDirInvalid} {
+	for _, sentinel := range []error{session.ErrCreateScopeConflict, workspace.ErrWorkspaceNameReserved, workspace.ErrUserScopeUnsupported, workspace.ErrUserScopeWorktreeUnsupported, workspace.ErrUserScopeWorkDirInvalid} {
 		if errors.Is(err, sentinel) {
 			payload.Code = sentinel.Error()
 			break

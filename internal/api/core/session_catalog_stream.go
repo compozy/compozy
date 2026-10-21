@@ -160,6 +160,9 @@ func (h *BaseHandlers) parseSessionCatalogWorkspace(c *gin.Context) (bool, strin
 	if allWorkspaces {
 		return true, "", nil
 	}
+	if workspaceRef == "@user" {
+		return false, "@user", nil
+	}
 	workspaceID, err := h.lookupWorkspaceID(c.Request.Context(), workspaceRef)
 	if err != nil {
 		return false, "", fmt.Errorf("api: resolve session catalog workspace: %w", err)

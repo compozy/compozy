@@ -114,8 +114,11 @@ func (h *BaseHandlers) resolveCmdPaletteWorkspace(
 		})
 		return "", false
 	}
-	if workspaceRef == string(windowmanager.GlobalDesktopWorkspaceID) {
-		return cmdpalette.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID), true
+	if workspaceRef == "@user" {
+		return cmdpalette.WorkspaceID(windowmanager.UserDesktopWorkspaceID), true
+	}
+	if windowmanager.IsReservedDesktopPartition(windowmanager.WorkspaceID(workspaceRef)) {
+		return cmdpalette.WorkspaceID(workspaceRef), true
 	}
 	if h.Workspaces == nil {
 		h.respondError(c, http.StatusServiceUnavailable, workspacepkg.ErrWorkspaceResolverUnavailable)

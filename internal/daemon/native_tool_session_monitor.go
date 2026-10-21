@@ -145,7 +145,7 @@ func (n *daemonNativeTools) monitorScope(
 	if err != nil {
 		return nil, "", "", nativeInputError(req.ToolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, sessionID)
 	if err != nil {
 		return nil, "", "", err
 	}

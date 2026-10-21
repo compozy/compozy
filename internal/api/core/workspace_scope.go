@@ -54,6 +54,18 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		)
 		return workspaceScope{}, false
 	}
+	if workspacepkg.ParseWorkspaceRef(workspaceRef).Kind == workspacepkg.RefUser {
+		profile, err := h.resolveProfileReadScope(c)
+		if err != nil {
+			h.respondProfileReadScopeError(c, err)
+			return workspaceScope{}, false
+		}
+		if profile.AllProfiles {
+			h.respondError(c, http.StatusBadRequest, errors.New("User session routes require one profile"))
+			return workspaceScope{}, false
+		}
+		return workspaceScope{Resolved: workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser, ProfileID: profile.ProfileID}}, true
+	}
 	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRef)
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
@@ -149,6 +161,10 @@ func (h *BaseHandlers) routeSessionInWorkspace(
 	info, err := h.requireSessionInWorkspace(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	if err != nil {
 		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
+		return workspaceScope{}, "", nil, false
+	}
+	if scope.Resolved.Scope == workspacepkg.ScopeUser && info.ProfileID != scope.Resolved.ProfileID {
+		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
 		return workspaceScope{}, "", nil, false
 	}
 	return scope, sessionID, info, true

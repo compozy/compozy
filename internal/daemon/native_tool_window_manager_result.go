@@ -156,6 +156,9 @@ func (n *daemonNativeTools) windowManagerWorkspaceID(
 	if err != nil {
 		return "", windowManagerToolError(id, err)
 	}
+	if resolved.Scope == "user" {
+		return windowmanager.UserDesktopWorkspaceID, nil
+	}
 	return windowmanager.WorkspaceID(workspaceID), nil
 }
 

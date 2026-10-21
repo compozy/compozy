@@ -135,3 +135,11 @@ type SessionCatalogPage struct {
 type SessionCatalogPager interface {
 	PageSessions(ctx context.Context, query SessionCatalogPageQuery) (SessionCatalogPage, error)
 }
+
+// SessionWorkspaceClause keeps an explicit User selection distinct from an unfiltered catalog.
+func SessionWorkspaceClause(value string) Clause {
+	if strings.TrimSpace(value) == "@user" {
+		return Clause{sql: "workspace_id = ?", arg: "", ok: true, hasArg: true}
+	}
+	return StringClause("workspace_id", value)
+}

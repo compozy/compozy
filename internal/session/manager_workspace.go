@@ -11,6 +11,9 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// ErrCreateScopeConflict rejects project selectors supplied with explicit User scope.
+var ErrCreateScopeConflict = errors.New("session_create_scope_conflict")
+
 const sessionDefaultProfileName = "default"
 
 func resolveStoredSessionWorkspace(
@@ -28,7 +31,7 @@ func resolveStoredSessionWorkspace(
 
 	workspaceID := strings.TrimSpace(meta.WorkspaceID)
 	if workspaceID == "" {
-		return workspacepkg.ResolvedWorkspace{}, errors.New("session: session workspace id is required")
+		return resolveUserWorkspace(ctx, resolver, meta.ProfileID)
 	}
 
 	resolved, err := resolveWorkspaceForProfile(ctx, resolver, profileNames, workspaceID, meta.ProfileID)
@@ -51,6 +54,19 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 
 	workspaceRef := strings.TrimSpace(opts.Workspace)
 	workspacePath := strings.TrimSpace(opts.WorkspacePath)
+	if opts.Scope == workspacepkg.ScopeUser {
+		if workspaceRef != "" || workspacePath != "" || opts.Worktree != "" || opts.CWD != "" {
+			return workspacepkg.ResolvedWorkspace{}, errors.Join(ErrValidation, ErrCreateScopeConflict)
+		}
+		return resolveUserWorkspace(ctx, resolver, normalizeCreateProfileID(opts.ProfileID))
+	}
+	if workspacepkg.ParseWorkspaceRef(workspaceRef).Kind == workspacepkg.RefUser {
+		if workspacePath != "" || opts.Worktree != "" || opts.CWD != "" {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrUserScopeWorktreeUnsupported
+		}
+		return resolveUserWorkspace(ctx, resolver, normalizeCreateProfileID(opts.ProfileID))
+	}
+
 	switch {
 	case workspaceRef == "" && workspacePath == "":
 		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace or workspace path is required")
@@ -129,6 +145,9 @@ func resolveWorkspaceForProfile(
 	workspaceRef string,
 	profileID string,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if workspacepkg.ParseWorkspaceRef(workspaceRef).Kind == workspacepkg.RefUser {
+		return resolveUserWorkspace(ctx, resolver, profileID)
+	}
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" || profileID == store.DefaultProfileID {
 		profileResolver, ok := resolver.(workspacepkg.ProfileRuntimeResolver)
@@ -307,4 +326,12 @@ func builtinSessionAgentDef(agentName string, sessionType Type) (compozyconfig.A
 		return compozyconfig.AgentDef{}, false
 	}
 	return def, true
+}
+
+func resolveUserWorkspace(ctx context.Context, resolver workspacepkg.RuntimeResolver, profileID string) (workspacepkg.ResolvedWorkspace, error) {
+	userResolver, ok := resolver.(workspacepkg.UserRuntimeResolver)
+	if !ok {
+		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace resolver does not support User scope")
+	}
+	return userResolver.ResolveUser(ctx, normalizeCreateProfileID(profileID))
 }

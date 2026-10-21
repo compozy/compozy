@@ -1472,6 +1472,77 @@ func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {
 	}
 }
 
+func TestGlobalDBUserSessionOwner(t *testing.T) {
+	t.Run("Should reject a catalog profile that differs from the immutable User witness", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		other := insertLayoutTestProfile(ctx, t, db)
+		profile := store.SessionCreationProfile{Version: store.UserSessionCreationProfileVersion, AgentName: "coder", Provider: "claude", ProfileID: store.DefaultProfileID, WorkspaceID: "@user", CWD: t.TempDir(), Permissions: "approve-all"}
+		ref, err := db.PutSessionCreationProfile(ctx, profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := profile.PolicySpecDigest()
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := profile.CreationDigest(store.SessionCreationOptions{SessionID: "sess-user-owner", SessionType: "user"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := sessionInfoForWorkspaceStateIndexTest("sess-user-owner", "", globalDBSessionStateStopped, time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC))
+		info.ProfileID = other
+		if _, err := db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.LookupSessionOwner(ctx, db, db, info.ID); !errors.Is(err, store.ErrSessionWorkspaceMismatch) {
+			t.Fatalf("foreign owner error=%v", err)
+		}
+	})
+}
+
+func TestGlobalDBUserFolderMigration(t *testing.T) {
+	t.Run("Should preserve project folder placements while admitting User folders", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		raw, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00147_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		old := &GlobalDB{db: raw, path: path, now: func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) }}
+		old.initializeRepositories(openConfig{})
+		ctx := t.Context()
+		workspace := registerWorkspaceForGlobalTests(t, old, "preserved", t.TempDir())
+		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: workspace}
+		registerLayoutSession(ctx, t, old, workspace, "sess-preserved")
+		folder := createLayoutFolder(ctx, t, old, scope, "folder-preserved", "Preserved")
+		if err := old.MoveSession(ctx, scope, "sess-preserved", folder.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := raw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		var folderID string
+		if err := upgraded.db.QueryRowContext(ctx, `SELECT folder_id FROM session_placements WHERE session_id='sess-preserved'`).Scan(&folderID); err != nil {
+			t.Fatal(err)
+		}
+		if folderID != folder.ID {
+			t.Fatalf("placement=%q", folderID)
+		}
+		createLayoutFolder(ctx, t, upgraded, store.SessionLayoutScope{ProfileID: store.DefaultProfileID}, "folder-user-new", "User")
+	})
+}
+
 func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 	t.Run("Should page selected projects and User rows with independent profile facets", func(t *testing.T) {
 		t.Parallel()

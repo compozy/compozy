@@ -4,6 +4,12 @@ package client
 
 import "time"
 
+// SessionProfileFacetsPayload is a daemon API value.
+type SessionProfileFacetsPayload struct {
+	ProfileID string                      `json:"profile_id"`
+	Facets    SessionCatalogFacetsPayload `json:"facets"`
+}
+
 // SessionPromptCancelResponse is a daemon API value.
 type SessionPromptCancelResponse struct {
 	SessionID string `json:"session_id"`
@@ -438,12 +444,4 @@ type SettingsDaemonRuntimePayload struct {
 	ActiveAgents   int        `json:"active_agents"`
 	TotalSessions  int        `json:"total_sessions"`
 	Version        string     `json:"version,omitempty"`
-}
-
-// SettingsDefaultsPayload is a daemon API value.
-type SettingsDefaultsPayload struct {
-	Agent           string `json:"agent"`
-	Provider        string `json:"provider,omitempty"`
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }

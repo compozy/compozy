@@ -7,6 +7,63 @@ import (
 	"time"
 )
 
+// UpdateSettingsHooksExtensionsRequest is a daemon API value.
+type UpdateSettingsHooksExtensionsRequest struct {
+	Config SettingsExtensionsConfigPayload `json:"config"`
+}
+
+// UpdateSettingsMarketplaceRequest is a daemon API value.
+type UpdateSettingsMarketplaceRequest struct {
+	Config SettingsMarketplaceCatalogPayload `json:"config"`
+}
+
+// UpdateSettingsObservabilityRequest is a daemon API value.
+type UpdateSettingsObservabilityRequest struct {
+	Config SettingsObservabilityConfigPayload `json:"config"`
+}
+
+// UpdateSettingsPersonaRequest is a daemon API value.
+type UpdateSettingsPersonaRequest struct {
+	Config SettingsDefaultsPayload `json:"config"`
+}
+
+// UpdateSettingsRolesRequest is a daemon API value.
+type UpdateSettingsRolesRequest struct {
+	Config SettingsRolesConfigPayload `json:"config"`
+}
+
+// UpdateSettingsShellRequest is a daemon API value.
+type UpdateSettingsShellRequest struct {
+	Config SettingsShellPayload `json:"config"`
+}
+
+// UpdateSettingsSkillsRequest is a daemon API value.
+// UpdateSettingsSkillsRequest preserves its custom JSON wire representation.
+type UpdateSettingsSkillsRequest = json.RawMessage
+
+// UpdateSettingsWindowManagerRequest is a daemon API value.
+type UpdateSettingsWindowManagerRequest struct {
+	PreserveShortcuts bool                                `json:"preserve_shortcuts,omitzero"`
+	Config            *SettingsWindowManagerConfigPayload `json:"config,omitzero"`
+	Shortcuts         *map[string][]string                `json:"shortcuts,omitzero"`
+	Aliases           *map[string]string                  `json:"aliases,omitzero"`
+	GlobalShortcuts   *map[string]string                  `json:"global_shortcuts,omitzero"`
+	Overwrite         bool                                `json:"overwrite,omitzero"`
+}
+
+// UpdateTaskRequest is a daemon API value.
+type UpdateTaskRequest struct {
+	Title              *string          `json:"title,omitempty"`
+	Description        *string          `json:"description,omitempty"`
+	Priority           *Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int             `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Metadata           *json.RawMessage `json:"metadata,omitempty"`
+	Owner              *Ownership       `json:"owner,omitempty"`
+	ClearOwner         bool             `json:"clear_owner,omitempty"`
+}
+
 // UpdateTriggerRequest is a daemon API value.
 type UpdateTriggerRequest struct {
 	Name               *string           `json:"name,omitempty"`
@@ -390,60 +447,4 @@ type WindowManagerSnapshot struct {
 	ClosedEntryCount int                            `json:"closed_entry_count"`
 	Overrides        WorkspaceConfig                `json:"overrides"`
 	UpdatedAt        time.Time                      `json:"updated_at"`
-}
-
-// WindowManagerWindow is a daemon API value.
-type WindowManagerWindow struct {
-	ID           WindowID                   `json:"id"`
-	App          string                     `json:"app"`
-	InstanceKey  *string                    `json:"instance_key,omitzero"`
-	Route        RouteIntent                `json:"route"`
-	NavStack     []RouteIntent              `json:"nav_stack"`
-	Pinned       bool                       `json:"pinned"`
-	Placement    WindowPlacement            `json:"placement"`
-	DesktopID    DesktopID                  `json:"desktop_id"`
-	FloatingRect NormalizedRect             `json:"floating_rect"`
-	Minimized    bool                       `json:"minimized"`
-	Zoomed       bool                       `json:"zoomed"`
-	ReturnAnchor *WindowManagerReturnAnchor `json:"return_anchor,omitzero"`
-}
-
-// WindowPlacement is a daemon API value.
-type WindowPlacement string
-
-// WindowmanagerClientID is a daemon API value.
-type WindowmanagerClientID string
-
-// WindowmanagerNodeID is a daemon API value.
-type WindowmanagerNodeID string
-
-// WindowmanagerWorkspaceID is a daemon API value.
-type WindowmanagerWorkspaceID string
-
-// WorkSignal is a daemon API value.
-type WorkSignal struct {
-	Kind  WorkSignalKind `json:"kind"`
-	Since time.Time      `json:"since"`
-	Ref   string         `json:"ref,omitempty"`
-}
-
-// WorkSignalKind is a daemon API value.
-type WorkSignalKind string
-
-// WorkerMode is a daemon API value.
-type WorkerMode string
-
-// WorkerProfile is a daemon API value.
-type WorkerProfile struct {
-	Mode                  WorkerMode           `json:"mode"`
-	AgentName             string               `json:"agent_name,omitempty"`
-	Provider              string               `json:"provider,omitempty"`
-	Model                 string               `json:"model,omitempty"`
-	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
-	Speed                 Speed                `json:"speed,omitempty"`
-	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
-	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
 }

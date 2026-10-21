@@ -53,7 +53,7 @@ func (r windowManagerWorkspaceConfigResolver) ResolveWindowManagerConfig(
 	workspaceID windowmanager.WorkspaceID,
 	defaults windowmanager.Config,
 ) (windowmanager.Config, error) {
-	if workspaceID == windowmanager.GlobalDesktopWorkspaceID {
+	if windowmanager.IsReservedDesktopPartition(workspaceID) {
 		return defaults, nil
 	}
 	if r.resolver == nil {
@@ -112,7 +112,7 @@ func (r *windowManagerStoreWorkspaceResolver) ResolveWorkspace(
 ) (clientstate.WorkspaceGeneration, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if workspaceID == clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID) {
+	if windowmanager.IsReservedDesktopPartition(windowmanager.WorkspaceID(workspaceID)) {
 		return r.resolveGenerationLocked(workspaceID)
 	}
 	workspace, err := r.resolver.Get(ctx, string(workspaceID))

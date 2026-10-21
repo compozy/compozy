@@ -543,6 +543,22 @@ func TestWindowManagerGlobalDesktopWorkspace(t *testing.T) {
 			t.Fatalf("Snapshot(global desktop) = %#v, want isolated persisted layout", snapshot)
 		}
 	})
+	t.Run("Should persist User desktop state without a project workspace", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		workspaceID := windowmanager.UserDesktopWorkspaceID
+
+		executeDaemonDesktopCreate(t, fixture.manager, workspaceID, "desktop-user", "User")
+		snapshot, err := fixture.manager.Snapshot(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("Snapshot(global desktop) error = %v", err)
+		}
+		if snapshot.WorkspaceID != workspaceID || snapshot.Revision != 1 ||
+			len(snapshot.Desktops) != 2 || snapshot.Desktops[1].Name != "User" {
+			t.Fatalf("Snapshot(global desktop) = %#v, want isolated persisted layout", snapshot)
+		}
+	})
 }
 
 func TestWindowManagerWorkspaceResolverErrorClassification(t *testing.T) {
@@ -737,20 +753,66 @@ func (p *windowManagerSessionRemovalPreparation) Rollback(context.Context) error
 	return nil
 }
 
+func TestWindowManagerUserSessionDeletion(t *testing.T) {
+	t.Run("Should retire a User session in both reserved partitions", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		sessionID := "session-user-delete"
+		partitions := []windowmanager.WorkspaceID{windowmanager.UserDesktopWorkspaceID, windowmanager.GlobalDesktopWorkspaceID}
+		for _, partition := range partitions {
+			snapshot, err := fixture.manager.Snapshot(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = fixture.manager.Execute(ctx, windowmanager.CommandRequest{
+				WorkspaceID: partition, ExpectedRevision: snapshot.Revision,
+				Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+					ID: "user-window", App: "session", InstanceKey: &sessionID,
+					Route: windowmanager.RouteIntent{Pathname: "/session/session-user-delete", Search: windowmanager.RouteSearch{}}, DesktopID: snapshot.Desktops[0].ID,
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		reconciler := &windowManagerSessionReconciler{registry: fixture.registry}
+		reconciler.SetReady()
+		if err := reconciler.ReconcileDeletedSession(ctx, testWindowManagerProfileID, "", sessionID); err != nil {
+			t.Fatal(err)
+		}
+		for _, partition := range partitions {
+			snapshot, err := fixture.manager.Snapshot(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, window := range snapshot.Windows {
+				if window.InstanceKey != nil && *window.InstanceKey == sessionID {
+					t.Fatalf("session still open in %s", partition)
+				}
+			}
+		}
+	})
+}
+
 func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 	for _, retirement := range []string{"session", "workspace"} {
 		t.Run("Should reconcile every persisted profile partition after "+retirement+" retirement", func(t *testing.T) {
 			t.Parallel()
 			fixture := newDaemonWindowManagerFixture(t)
 			ctx := t.Context()
-			partitions := []windowmanager.WorkspaceID{windowmanager.GlobalDesktopWorkspaceID, windowmanager.WorkspaceID(fixture.workspace.ID)}
+			partitions := []windowmanager.WorkspaceID{windowmanager.GlobalDesktopWorkspaceID, windowmanager.UserDesktopWorkspaceID, windowmanager.WorkspaceID(fixture.workspace.ID)}
 			for _, profile := range []string{testWindowManagerProfileID, "profile-inactive"} {
 				manager, err := fixture.registry.For(profile)
 				if err != nil {
 					t.Fatal(err)
 				}
 				for _, partition := range partitions {
-					binding, err := json.Marshal(fixture.workspace.ID)
+					bindingTarget := fixture.workspace.ID
+					if retirement == "session" {
+						bindingTarget = "@user"
+					}
+					binding, err := json.Marshal(bindingTarget)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -772,7 +834,7 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 			reconciler := &windowManagerSessionReconciler{registry: reloaded}
 			reconciler.SetReady()
 			if retirement == "session" {
-				if err := reconciler.ReconcileDeletedSession(ctx, "unrelated-profile", "unrelated-project", "deleted-session"); err != nil {
+				if err := reconciler.ReconcileDeletedSession(ctx, "unrelated-profile", "", "deleted-session"); err != nil {
 					t.Fatal(err)
 				}
 			} else if err := reloaded.ReconcileUnregisteredWorkspace(ctx, fixture.workspace.ID); err != nil {

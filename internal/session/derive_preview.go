@@ -30,7 +30,7 @@ func (m *Manager) DerivePreview(
 		sourceID:    strings.TrimSpace(sourceSessionID),
 		messageID:   strings.TrimSpace(messageID),
 	}
-	if spec.sourceID == "" || spec.workspaceID == "" {
+	if spec.sourceID == "" {
 		return DerivePreview{}, fmt.Errorf("%w: workspace and source session id are required", ErrValidation)
 	}
 	snapshot, release, err := m.readDeriveSnapshot(ctx, spec.sourceID, spec.messageID)
@@ -38,6 +38,7 @@ func (m *Manager) DerivePreview(
 		return DerivePreview{}, err
 	}
 	release()
+	spec.profileID = snapshot.meta.ProfileID
 	if err := m.validateDeriveSource(ctx, spec, &snapshot); err != nil {
 		return DerivePreview{}, err
 	}

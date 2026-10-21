@@ -8132,6 +8132,7 @@ export interface components {
       name?: string;
       new_worktree?: components["schemas"]["NewSessionWorktreeRequest"] | null;
       parent_session_id?: string;
+      scope?: string;
       workspace?: string;
       workspace_path?: string;
       worktree?: string;
@@ -13619,6 +13620,7 @@ export interface components {
       queue?: components["schemas"]["SessionQueueSummaryPayload"] | null;
       reply_watches?: components["schemas"]["ReplyWatchPayload"][];
       runtime: components["schemas"]["SessionRuntimePayload"];
+      scope: string;
       /** @enum {string} */
       state: "starting" | "active" | "stopping" | "stopped";
       stop_cause?: string;

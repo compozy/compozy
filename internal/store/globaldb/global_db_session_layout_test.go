@@ -369,3 +369,40 @@ func insertLayoutTestProfile(ctx context.Context, t *testing.T, db *GlobalDB) st
 	}
 	return id
 }
+
+func TestSessionLayoutUserScope(t *testing.T) {
+	t.Run("Should keep User folders placements and catalog isolated by profile", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		other := insertLayoutTestProfile(ctx, t, db)
+		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID}
+		projectID := registerWorkspaceForGlobalTests(t, db, "project", filepath.Join(t.TempDir(), "project"))
+		registerLayoutSession(ctx, t, db, projectID, "sess-project")
+		registerLayoutSession(ctx, t, db, "", "sess-user")
+		folder := createLayoutFolder(ctx, t, db, scope, "folder-user", "Personal")
+		if err := db.MoveSession(ctx, scope, "sess-user", folder.ID); err != nil {
+			t.Fatal(err)
+		}
+		foreign := sessionInfoForWorkspaceStateIndexTest("sess-user-other", "", globalDBSessionStateStopped, time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC))
+		foreign.ProfileID = other
+		if err := db.RegisterSession(ctx, foreign); err != nil {
+			t.Fatal(err)
+		}
+		sessions, err := db.ListSessions(ctx, store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "@user"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(sessions) != 1 || sessions[0].ID != "sess-user" {
+			t.Fatalf("sessions=%+v", sessions)
+		}
+		folders, err := db.ListSessionFolders(ctx, store.SessionLayoutScope{ProfileID: other})
+		if err != nil || len(folders) != 0 {
+			t.Fatalf("foreign folders=%+v err=%v", folders, err)
+		}
+		all, err := db.ListSessions(ctx, store.SessionListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "@user"})
+		if err != nil || len(all) != 2 {
+			t.Fatalf("all profiles=%+v err=%v", all, err)
+		}
+	})
+}

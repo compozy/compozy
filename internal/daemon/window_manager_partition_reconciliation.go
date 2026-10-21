@@ -21,7 +21,7 @@ func (r *windowManagerRegistry) partitionWorkspaceIDs(ctx context.Context) ([]cl
 	if err != nil {
 		return nil, err
 	}
-	ids := []clientstate.WorkspaceID{clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID)}
+	ids := []clientstate.WorkspaceID{clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID), clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID)}
 	for _, workspace := range workspaces {
 		ids = append(ids, clientstate.WorkspaceID(workspace.ID))
 	}

@@ -74,6 +74,13 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 			workspacepkg.ErrWorkspaceResolverUnavailable,
 		)
 	}
+	if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+		resolver, ok := n.deps.Workspaces.(workspacepkg.UserRuntimeResolver)
+		if !ok {
+			return workspacepkg.ResolvedWorkspace{}, nativeInputError(id, workspacepkg.ErrUserScopeUnsupported)
+		}
+		return resolver.ResolveUser(ctx, scope.ProfileID)
+	}
 	resolved, err := n.deps.Workspaces.Resolve(ctx, ref)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, nativeInputError(id, err)
@@ -89,6 +96,9 @@ func nativeCallerWorkspaceInput(
 	current := strings.TrimSpace(value)
 	if current != "" {
 		return current
+	}
+	if trusted == "" && scope.SessionID != "" {
+		return "@user"
 	}
 	return trusted
 }
@@ -150,6 +160,7 @@ func nativeResolvedRegistryWorkspaceID(resolved *workspacepkg.ResolvedWorkspace)
 
 func (n *daemonNativeTools) nativeSessionInWorkspace(
 	ctx context.Context,
+	scope toolspkg.Scope,
 	id toolspkg.ToolID,
 	workspaceID string,
 	sessionID string,
@@ -161,6 +172,9 @@ func (n *daemonNativeTools) nativeSessionInWorkspace(
 		return nil, errors.New("daemon: sessions are required")
 	}
 	info, err := sessionInWorkspace(ctx, n.deps.Sessions, workspaceID, sessionID)
+	if err == nil && workspaceID == "" && (info.ProfileID != scope.ProfileID || scope.ProfileID == "") {
+		return nil, nativeWorkspaceAccessDeniedError(id)
+	}
 	if errors.Is(err, errSessionOutsideWorkspace) {
 		return nil, nativeWorkspaceAccessDeniedError(id)
 	}

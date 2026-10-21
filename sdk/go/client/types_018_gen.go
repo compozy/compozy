@@ -4,6 +4,14 @@ package client
 
 import "time"
 
+// SettingsDefaultsPayload is a daemon API value.
+type SettingsDefaultsPayload struct {
+	Agent           string `json:"agent"`
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+}
+
 // SettingsExtensionDevPayload is a daemon API value.
 type SettingsExtensionDevPayload struct {
 	WatchInterval string `json:"watch_interval"`
@@ -428,16 +436,4 @@ type SettingsPersonaResponse struct {
 	Profile         string                     `json:"profile,omitempty"`
 	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
 	Config          SettingsDefaultsPayload    `json:"config"`
-}
-
-// SettingsProviderAuthStatusPayload is a daemon API value.
-type SettingsProviderAuthStatusPayload struct {
-	Mode       string                         `json:"mode"`
-	EnvPolicy  string                         `json:"env_policy"`
-	HomePolicy string                         `json:"home_policy"`
-	State      string                         `json:"state"`
-	Code       string                         `json:"code,omitempty"`
-	Message    string                         `json:"message,omitempty"`
-	StatusCmd  string                         `json:"status_command,omitempty"`
-	Login      ProviderLoginDescriptorPayload `json:"login"`
 }

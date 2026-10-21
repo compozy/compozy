@@ -18,6 +18,7 @@ const (
 
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
+	Scope         string                     `json:"scope,omitempty"`
 	AgentName     string                     `json:"agent_name,omitempty"`
 	Name          string                     `json:"name,omitempty"`
 	Workspace     string                     `json:"workspace,omitempty"`
@@ -70,6 +71,7 @@ type ReplyWatchPayload struct {
 }
 
 type SessionPayload struct {
+	Scope               string                        `json:"scope"`
 	ReplyWatches        []ReplyWatchPayload           `json:"reply_watches,omitempty"`
 	SubagentSummary     *SubagentSummaryPayload       `json:"subagent_summary,omitzero"`
 	MonitorSummary      *SessionMonitorSummaryPayload `json:"monitor_summary,omitzero"`

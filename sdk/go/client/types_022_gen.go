@@ -7,6 +7,47 @@ import (
 	"time"
 )
 
+// TaskDashboardActiveRunPayload is a daemon API value.
+type TaskDashboardActiveRunPayload struct {
+	TaskID         string        `json:"task_id"`
+	TaskIdentifier string        `json:"task_identifier,omitempty"`
+	TaskTitle      string        `json:"task_title"`
+	TaskStatus     TaskStatus    `json:"task_status"`
+	TaskPriority   Priority      `json:"task_priority,omitempty"`
+	TaskOwner      *Ownership    `json:"task_owner,omitempty"`
+	Scope          TaskScope     `json:"scope"`
+	WorkspaceID    string        `json:"workspace_id,omitempty"`
+	LatestEventSeq int64         `json:"latest_event_seq"`
+	RunID          string        `json:"run_id"`
+	RunStatus      TaskRunStatus `json:"run_status"`
+	Attempt        int           `json:"attempt"`
+	MaxAttempts    int           `json:"max_attempts"`
+	SessionID      string        `json:"session_id,omitempty"`
+	LastActivityAt time.Time     `json:"last_activity_at"`
+	AgeMilli       int64         `json:"age_ms"`
+	HealthStatus   string        `json:"health_status"`
+	Stuck          bool          `json:"stuck"`
+	Error          string        `json:"error,omitempty"`
+}
+
+// TaskDashboardActiveRunsPayload is a daemon API value.
+type TaskDashboardActiveRunsPayload struct {
+	Total    int                             `json:"total"`
+	Running  int                             `json:"running"`
+	Starting int                             `json:"starting"`
+	Claimed  int                             `json:"claimed"`
+	Queued   int                             `json:"queued"`
+	Items    []TaskDashboardActiveRunPayload `json:"items,omitempty"`
+}
+
+// TaskDashboardBlockedCardPayload is a daemon API value.
+type TaskDashboardBlockedCardPayload struct {
+	Tasks                int    `json:"tasks"`
+	AwaitingApproval     int    `json:"awaiting_approval"`
+	AwaitingDependencies int    `json:"awaiting_dependencies"`
+	HealthStatus         string `json:"health_status"`
+}
+
 // TaskDashboardCardsPayload is a daemon API value.
 type TaskDashboardCardsPayload struct {
 	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
@@ -371,78 +412,4 @@ type TaskOwnerTotalPayload struct {
 	OwnerKind string `json:"owner_kind"`
 	OwnerRef  string `json:"owner_ref"`
 	Count     int    `json:"count"`
-}
-
-// TaskPayload is a daemon API value.
-type TaskPayload struct {
-	ID                   string          `json:"id"`
-	ProfileID            string          `json:"profile_id"`
-	ProfileName          string          `json:"profile_name"`
-	ProfileColor         string          `json:"profile_color,omitempty"`
-	ProfileIcon          string          `json:"profile_icon,omitempty"`
-	Identifier           string          `json:"identifier,omitempty"`
-	Scope                TaskScope       `json:"scope"`
-	WorkspaceID          string          `json:"workspace_id,omitempty"`
-	ParentTaskID         string          `json:"parent_task_id,omitempty"`
-	Title                string          `json:"title"`
-	Description          string          `json:"description,omitempty"`
-	Priority             Priority        `json:"priority,omitempty"`
-	MaxAttempts          int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady   bool            `json:"auto_enqueue_on_ready,omitempty"`
-	Status               TaskStatus      `json:"status"`
-	ApprovalPolicy       ApprovalPolicy  `json:"approval_policy,omitempty"`
-	ApprovalState        ApprovalState   `json:"approval_state,omitempty"`
-	Draft                bool            `json:"draft,omitempty"`
-	Owner                *Ownership      `json:"owner,omitempty"`
-	CurrentRunID         string          `json:"current_run_id,omitempty"`
-	LatestEventSeq       int64           `json:"latest_event_seq"`
-	Paused               bool            `json:"paused,omitempty"`
-	PausedBy             string          `json:"paused_by,omitempty"`
-	PausedAt             *time.Time      `json:"paused_at,omitempty"`
-	PausedReason         string          `json:"paused_reason,omitempty"`
-	EffectivePaused      bool            `json:"effective_paused,omitempty"`
-	PausedByTaskID       string          `json:"paused_by_task_id,omitempty"`
-	BlockedReasons       []BlockedReason `json:"blocked_reasons,omitempty"`
-	NeedsAttention       bool            `json:"needs_attention,omitempty"`
-	NeedsAttentionReason string          `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt     *time.Time      `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy     *ActorIdentity  `json:"needs_attention_by,omitempty"`
-	WakeCreator          bool            `json:"wake_creator"`
-	CreatedBy            ActorIdentity   `json:"created_by"`
-	Origin               Origin          `json:"origin"`
-	CreatedAt            time.Time       `json:"created_at"`
-	UpdatedAt            time.Time       `json:"updated_at"`
-	ClosedAt             *time.Time      `json:"closed_at,omitempty"`
-	Metadata             json.RawMessage `json:"metadata,omitempty"`
-	Loop                 *LoopProvenance `json:"loop,omitempty"`
-}
-
-// TaskQueueDepthPayload is a daemon API value.
-type TaskQueueDepthPayload struct {
-	Count               int        `json:"count"`
-	OldestQueuedAt      *time.Time `json:"oldest_queued_at,omitempty"`
-	OldestQueueAgeMilli int64      `json:"oldest_queue_age_ms"`
-}
-
-// TaskRecoveryTotalsPayload is a daemon API value.
-type TaskRecoveryTotalsPayload struct {
-	Requeued      int `json:"requeued"`
-	MarkedRunning int `json:"marked_running"`
-	Failed        int `json:"failed"`
-}
-
-// TaskReferencePayload is a daemon API value.
-type TaskReferencePayload struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitempty"`
-	EffectivePaused bool       `json:"effective_paused,omitempty"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
 }

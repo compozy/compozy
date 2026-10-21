@@ -15,6 +15,7 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 
 	"github.com/gin-gonic/gin"
@@ -87,6 +88,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	}
 
 	opts := session.CreateOpts{
+		Scope:         workspacepkg.ScopeKind(req.Scope),
 		ProfileID:     mutationScope.ProfileID,
 		AgentName:     req.AgentName,
 		Name:          req.Name,

@@ -117,7 +117,7 @@ func (n *daemonNativeTools) hooksRuns(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, query.SessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, sessionWorkspaceID, query.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

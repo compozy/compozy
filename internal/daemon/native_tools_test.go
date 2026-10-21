@@ -14516,6 +14516,37 @@ func TestNativeUserWorkspaceReference(t *testing.T) {
 	})
 }
 
+func TestNativeUserSession(t *testing.T) {
+	t.Run("Should accept explicit User creation without project resolution", func(t *testing.T) {
+		t.Parallel()
+		var accepted *session.CreateAcceptedOpts
+		manager := &nativeSessionPageHealthManager{
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				accepted = &opts
+				return &session.Info{ID: "session-user", ProfileID: opts.Session.ProfileID, AgentName: "general", State: session.StateActive}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeUserWorkspaceService{StubWorkspaceService: apitest.StubWorkspaceService{}}, Sessions: manager,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCreate, Input: json.RawMessage(`{"agent":"general","workspace":"@user"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if accepted == nil || accepted.Session.Scope != workspacepkg.ScopeUser || accepted.Session.Workspace != "" || accepted.Session.ProfileID != store.DefaultProfileID {
+			t.Fatalf("accepted=%+v", accepted)
+		}
+	})
+}
+
+type nativeUserWorkspaceService struct{ apitest.StubWorkspaceService }
+
+func (nativeUserWorkspaceService) ResolveUser(_ context.Context, profileID string) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser, ProfileID: profileID}, nil
+}
+
 func TestNativeWindowGlobalPartition(t *testing.T) {
 	t.Run("Should bind operator global before registry resolution and deny agents", func(t *testing.T) {
 		t.Parallel()

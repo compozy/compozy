@@ -27,6 +27,7 @@ const sessionNewWorktreeAutoValue = "__compozy_auto__"
 
 func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	var (
+		userScope    bool
 		agentName    string
 		cwd          string
 		name         string
@@ -48,6 +49,9 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
+			}
+			if userScope {
+				workspaceRef = "@user"
 			}
 			workspace, workspacePath, err := resolveSessionCreateWorkspace(cmd, deps, client, workspaceRef, cwd)
 			if err != nil {
@@ -77,6 +81,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionBundle(&created, deps.now))
 		},
 	}
+	cmd.Flags().BoolVar(&userScope, "user", false, "Create a session in User scope")
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name (defaults to config default)")
 	cmd.Flags().
 		StringVar(&workspaceRef, workspaceSkillSource, "", "Override workspace (ID, name, or path)")
@@ -94,6 +99,10 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		"",
 		"Relation to --parent: provenance (default) or recovery",
 	)
+	cmd.MarkFlagsMutuallyExclusive("user", "workspace")
+	cmd.MarkFlagsMutuallyExclusive("user", "cwd")
+	cmd.MarkFlagsMutuallyExclusive("user", "worktree")
+	cmd.MarkFlagsMutuallyExclusive("user", "new-worktree")
 	cmd.MarkFlagsMutuallyExclusive("cwd", "worktree", "new-worktree")
 	return cmd
 }

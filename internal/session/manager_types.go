@@ -17,11 +17,13 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
+	Scope            workspacepkg.ScopeKind
 	DesiredSessionID string
 	ProfileID        string
 	AgentName        string

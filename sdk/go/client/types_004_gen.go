@@ -130,6 +130,7 @@ type CreateSessionFolderRequest struct {
 
 // CreateSessionRequest is a daemon API value.
 type CreateSessionRequest struct {
+	Scope           string                     `json:"scope,omitempty"`
 	AgentName       string                     `json:"agent_name,omitempty"`
 	Name            string                     `json:"name,omitempty"`
 	Workspace       string                     `json:"workspace,omitempty"`

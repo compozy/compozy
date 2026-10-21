@@ -193,9 +193,11 @@ CREATE TABLE session_derivations (
 		kind TEXT NOT NULL CHECK (kind IN ('continue', 'fork')),
 		outcome_json TEXT NOT NULL CHECK (json_valid(outcome_json)),
 		created_at TEXT NOT NULL,
-		child_deleted_at TEXT,
-		PRIMARY KEY (workspace_id, idempotency_key)
+		child_deleted_at TEXT
 	);
+
+CREATE UNIQUE INDEX idx_session_derivations_project_key ON session_derivations(workspace_id, idempotency_key) WHERE workspace_id <> '';
+CREATE UNIQUE INDEX idx_session_derivations_user_key ON session_derivations(profile_id, idempotency_key) WHERE workspace_id = '';
 
 CREATE INDEX idx_session_derivations_source ON session_derivations(source_session_id);
 

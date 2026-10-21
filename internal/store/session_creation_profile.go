@@ -14,6 +14,9 @@ import (
 
 const SessionCreationProfileVersion = 6
 
+// UserSessionCreationProfileVersion binds new User sessions to @user and a profile.
+const UserSessionCreationProfileVersion = 7
+
 // SessionCreationProfile is the immutable, secret-free runtime policy used to
 // create or reseed a session. New fields require a profile version bump.
 type SessionCreationProfile struct {
@@ -85,8 +88,11 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 // Validate enforces the complete immutable profile contract.
 func (p SessionCreationProfile) Validate() error {
 	p = NormalizeSessionCreationProfile(p)
-	if p.Version < 3 || p.Version > SessionCreationProfileVersion {
+	if p.Version < 3 || p.Version > UserSessionCreationProfileVersion {
 		return fmt.Errorf("store: unsupported session creation profile version %d", p.Version)
+	}
+	if p.Version == UserSessionCreationProfileVersion && (p.WorkspaceID != "@user" || p.WorktreeRef != "") {
+		return fmt.Errorf("store: User creation profile requires @user without a worktree")
 	}
 	if p.Version < SessionCreationProfileVersion {
 		if err := p.validateLegacyWitness(); err != nil {

@@ -115,7 +115,7 @@ func (m *Manager) applyGoalCommand(
 func (m *Manager) goalCommandWorkspaceID(ctx context.Context, sessionID string) (string, error) {
 	if session, ok := m.Get(sessionID); ok {
 		info := session.Info()
-		if info != nil && strings.TrimSpace(info.WorkspaceID) != "" {
+		if info != nil {
 			return strings.TrimSpace(info.WorkspaceID), nil
 		}
 		return "", errors.New("session: Goal command workspace is unavailable")
@@ -125,9 +125,6 @@ func (m *Manager) goalCommandWorkspaceID(ctx context.Context, sessionID string) 
 		return "", err
 	}
 	workspaceID := strings.TrimSpace(meta.WorkspaceID)
-	if workspaceID == "" {
-		return "", errors.New("session: Goal command workspace is unavailable")
-	}
 	return workspaceID, nil
 }
 

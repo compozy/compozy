@@ -519,3 +519,41 @@ func TestUserSessionWorktreeReference(t *testing.T) {
 		}
 	})
 }
+
+func TestUserSessionScopeConflict(t *testing.T) {
+	t.Run("Should reject conflicting scope before workspace or worktree resolution", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		router := gin.New()
+		router.POST("/api/sessions", fixture.Handlers.CreateSession)
+		for _, body := range []string{`{"scope":"user","workspace":"ws-a"}`, `{"scope":"user","worktree":"wt-a"}`, `{"scope":"user","new_worktree":{}}`, `{"scope":"user","workspace_path":"/tmp"}`} {
+			resp := performRequest(t, router, http.MethodPost, "/api/sessions", []byte(body))
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusBadRequest || payload.Code != "session_create_scope_conflict" {
+				t.Fatalf("response=%d %+v", resp.Code, payload)
+			}
+		}
+	})
+}
+
+func TestUserSessionCreate(t *testing.T) {
+	t.Run("Should create a User session without resolving a registered workspace", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+			if opts.Session.Scope != workspacepkg.ScopeUser || opts.Session.Workspace != "" || opts.Session.WorkspacePath != "" {
+				t.Fatalf("opts=%+v", opts)
+			}
+			return &session.Info{ID: "sess-user", ProfileID: store.DefaultProfileID, State: session.StateActive}, nil
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		router := gin.New()
+		router.POST("/api/sessions", fixture.Handlers.CreateSession)
+		resp := performRequest(t, router, http.MethodPost, "/api/sessions", []byte(`{"scope":"user","agent_name":"general"}`))
+		var payload contract.SessionResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusCreated || payload.Session.Scope != "user" || payload.Session.WorkspaceID != "" {
+			t.Fatalf("response=%d %+v", resp.Code, payload)
+		}
+	})
+}

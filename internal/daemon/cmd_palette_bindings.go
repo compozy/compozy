@@ -253,7 +253,7 @@ func (r *cmdPaletteBindingsResolver) resolveCmdPaletteConfigSource(
 	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) (string, compozyconfig.Config, bool, error) {
-	if workspaceID == cmdpalette.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID) {
+	if windowmanager.IsReservedDesktopPartition(windowmanager.WorkspaceID(workspaceID)) {
 		globalConfig, err := r.currentConfig(profileLens, "")
 		if err != nil {
 			return "", compozyconfig.Config{}, false, err

@@ -31,9 +31,16 @@ func (m *Manager) openSessionStartRecorder(
 	spec *sessionStartSpec,
 	storage sessionStartStorage,
 ) (sessionStartStorage, error) {
+	ownerWorkspace := spec.workspace.ID
+	if spec.workspace.Scope == "user" {
+		ownerWorkspace = "@user"
+	}
+	if spec.creationProfile != nil {
+		ownerWorkspace = spec.creationProfile.WorkspaceID
+	}
 	recorder, err := m.openStore(ctx, store.SessionDBOwner{
 		SessionID:   spec.sessionID,
-		WorkspaceID: spec.workspace.ID,
+		WorkspaceID: ownerWorkspace,
 	}, storage.dbPath)
 	if err != nil {
 		return storage, fmt.Errorf("session: open session store %q: %w", storage.dbPath, err)

@@ -299,11 +299,24 @@ func (h *BaseHandlers) ResolveWorkspace(c *gin.Context) {
 }
 
 func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRequest) error {
+	if req.Scope == "user" {
+		if req.Workspace != "" || req.WorkspacePath != "" || req.Worktree != "" || req.NewWorktree != nil {
+			return session.ErrCreateScopeConflict
+		}
+		return validateCreateSessionLineageKind(h.transportName(), req)
+	}
+	if req.Scope != "" && req.Scope != "workspace" {
+		return errors.New("invalid session scope")
+	}
+
 	if workspacepkg.ParseWorkspaceRef(req.Workspace).Kind == workspacepkg.RefUser {
 		if strings.TrimSpace(req.Worktree) != "" || req.NewWorktree != nil {
 			return workspacepkg.ErrUserScopeWorktreeUnsupported
 		}
-		return workspacepkg.ErrUserScopeUnsupported
+		if req.WorkspacePath != "" {
+			return session.ErrCreateScopeConflict
+		}
+		return validateCreateSessionLineageKind(h.transportName(), req)
 	}
 	if err := validateCreateSessionRequest(h.transportName(), req.Workspace, req.WorkspacePath); err != nil {
 		return err

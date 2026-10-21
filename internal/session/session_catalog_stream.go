@@ -42,7 +42,7 @@ func (s CatalogScope) Validate() error {
 }
 
 func (s CatalogScope) matches(event CatalogEvent) bool {
-	workspaceMatches := s.AllWorkspaces || strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
+	workspaceMatches := (s.WorkspaceID == "@user" && event.WorkspaceID == "") || s.AllWorkspaces || strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
 	return workspaceMatches && s.ReadScope.Matches(event.ProfileID)
 }
 

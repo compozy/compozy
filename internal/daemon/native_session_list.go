@@ -41,7 +41,9 @@ func (n *daemonNativeTools) sessionList(
 	}
 	workspaceRef := nativeCallerWorkspaceInput(input.Workspace, scope)
 	workspaceID := ""
-	if workspaceRef != "" {
+	if workspaceRef == "@user" {
+		workspaceID = "@user"
+	} else if workspaceRef != "" {
 		resolvedWorkspaceID, err := n.workspaceID(ctx, workspaceRef)
 		if err != nil {
 			return toolspkg.ToolResult{}, err

@@ -332,7 +332,7 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 	if err != nil {
 		return nil, nativeInputError(toolspkg.ToolIDSkillView, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, toolspkg.ToolIDSkillView, workspaceID, sessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, toolspkg.ToolIDSkillView, workspaceID, sessionID)
 	if err != nil {
 		return nil, err
 	}
