@@ -8,14 +8,21 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
-const spawnWorktreeRollbackTimeout = 30 * time.Second
+const (
+	spawnWorktreeRollbackTimeout = 30 * time.Second
+	spawnPromptErrorMaxBytes     = 2048
+)
 
 // ErrSpawnWorktreeConflict reports a spawn request naming both worktree selectors.
-var ErrSpawnWorktreeConflict = fmt.Errorf("%w: worktree and new_worktree are mutually exclusive", session.ErrSpawnValidation)
+var ErrSpawnWorktreeConflict = fmt.Errorf(
+	"%w: worktree and new_worktree are mutually exclusive",
+	session.ErrSpawnValidation,
+)
 
 // SpawnWorktreeTarget is the worktree resolved or created for one spawned child.
 type SpawnWorktreeTarget struct {
@@ -109,6 +116,20 @@ func SpawnPromptPayloadFromResult(result session.SendPromptResult) *contract.Spa
 		payload.ReplyWatchState = result.ReplyWatch.State
 	}
 	return payload
+}
+
+// SpawnPromptStatusFailed marks a first prompt that failed after its child was created.
+const SpawnPromptStatusFailed = "failed"
+
+// SpawnPromptFailurePayload reports a first prompt that failed after the child was
+// created. The child keeps running so the caller can retry the prompt instead of
+// spawning a duplicate child (and worktree).
+func SpawnPromptFailurePayload(childSessionID string, err error) *contract.SpawnPromptPayload {
+	return &contract.SpawnPromptPayload{
+		MessageID: session.SpawnPromptMessageID(childSessionID),
+		Status:    SpawnPromptStatusFailed,
+		Error:     diagnostics.RedactAndBound(err.Error(), spawnPromptErrorMaxBytes),
+	}
 }
 
 // SpawnPermissionNarrowing keeps absent (nil) categories distinct from empty ones so

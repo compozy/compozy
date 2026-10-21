@@ -31,26 +31,26 @@ type AgentSpawnPayload struct {
 
 // AgentSpawnRequest is a daemon API value.
 type AgentSpawnRequest struct {
-	AgentName          string                       `json:"agent_name"`
-	Provider           string                       `json:"provider,omitempty"`
-	Model              string                       `json:"model,omitempty"`
-	ReasoningEffort    Effort                       `json:"reasoning_effort,omitempty"`
-	Speed              Speed                        `json:"speed,omitempty"`
-	ACPOptions         []AgentACPOptionSelection    `json:"acp_options,omitempty"`
-	Name               string                       `json:"name,omitempty"`
-	Workspace          string                       `json:"workspace,omitempty"`
-	PromptOverlay      string                       `json:"prompt_overlay,omitempty"`
-	SpawnRole          string                       `json:"spawn_role"`
-	TTLSeconds         int64                        `json:"ttl_seconds"`
-	AutoStopOnParent   bool                         `json:"auto_stop_on_parent"`
-	NotifyCreator      *bool                        `json:"notify_creator,omitzero"`
-	Permissions        SpawnPermissionPolicyPayload `json:"permissions"`
-	InheritPermissions bool                         `json:"inherit_permissions,omitempty"`
-	Toolsets           []string                     `json:"toolsets,omitempty"`
-	Worktree           string                       `json:"worktree,omitempty"`
-	NewWorktree        *SpawnNewWorktreeRequest     `json:"new_worktree,omitzero"`
-	Prompt             string                       `json:"prompt,omitempty"`
-	IdempotencyKey     string                       `json:"idempotency_key,omitempty"`
+	AgentName          string                        `json:"agent_name"`
+	Provider           string                        `json:"provider,omitempty"`
+	Model              string                        `json:"model,omitempty"`
+	ReasoningEffort    Effort                        `json:"reasoning_effort,omitempty"`
+	Speed              Speed                         `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection     `json:"acp_options,omitempty"`
+	Name               string                        `json:"name,omitempty"`
+	Workspace          string                        `json:"workspace,omitempty"`
+	PromptOverlay      string                        `json:"prompt_overlay,omitempty"`
+	SpawnRole          string                        `json:"spawn_role"`
+	TTLSeconds         int64                         `json:"ttl_seconds"`
+	AutoStopOnParent   bool                          `json:"auto_stop_on_parent"`
+	NotifyCreator      *bool                         `json:"notify_creator,omitzero"`
+	Permissions        SpawnPermissionRequestPayload `json:"permissions"`
+	InheritPermissions bool                          `json:"inherit_permissions,omitempty"`
+	Toolsets           []string                      `json:"toolsets,omitempty"`
+	Worktree           string                        `json:"worktree,omitempty"`
+	NewWorktree        *SpawnNewWorktreeRequest      `json:"new_worktree,omitzero"`
+	Prompt             string                        `json:"prompt,omitempty"`
+	IdempotencyKey     string                        `json:"idempotency_key,omitempty"`
 }
 
 // AgentSpawnResponse is a daemon API value.

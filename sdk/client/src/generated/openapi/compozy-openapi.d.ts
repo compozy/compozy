@@ -7114,7 +7114,7 @@ export interface components {
       name?: string;
       new_worktree?: components["schemas"]["SpawnNewWorktreeRequest"] | null;
       notify_creator?: boolean | null;
-      permissions: components["schemas"]["SpawnPermissionPolicyPayload"];
+      permissions: components["schemas"]["SpawnPermissionRequestPayload"];
       prompt?: string;
       prompt_overlay?: string;
       provider?: string;
@@ -15514,7 +15514,14 @@ export interface components {
       tools: string[];
       workspace_paths: string[];
     };
+    SpawnPermissionRequestPayload: {
+      mcp_servers?: string[];
+      skills?: string[];
+      tools?: string[];
+      workspace_paths?: string[];
+    };
     SpawnPromptPayload: {
+      error?: string;
       message_id: string;
       reply_watch_id?: string;
       reply_watch_state?: string;

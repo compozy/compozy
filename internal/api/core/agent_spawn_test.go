@@ -415,7 +415,10 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 		})
 		manager.spawnWsFn = func(_ context.Context, _ string, ref string) (string, error) {
 			if ref == "ws-denied" {
-				return "", fmt.Errorf("%w: child workspace is outside the parent workspace", session.ErrSpawnPermissionDenied)
+				return "", fmt.Errorf(
+					"%w: child workspace is outside the parent workspace",
+					session.ErrSpawnPermissionDenied,
+				)
 			}
 			return ref, nil
 		}
@@ -435,7 +438,72 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 			t.Fatalf("allowed status = %d body=%s, want 201", allowed.Code, allowed.Body.String())
 		}
 		if worktrees.workspace != "ws-foreign" || got.IsolatedWorktreeID != "wt-new" || got.Workspace != "ws-foreign" {
-			t.Fatalf("worktree workspace = %q opts = %#v, want worktree created in ws-foreign", worktrees.workspace, got)
+			t.Fatalf(
+				"worktree workspace = %q opts = %#v, want worktree created in ws-foreign",
+				worktrees.workspace,
+				got,
+			)
+		}
+	})
+
+	t.Run("Should return the live child when its first prompt fails", func(t *testing.T) {
+		t.Parallel()
+
+		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
+		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+			return &session.Session{
+				ID: "sess-child", WorkspaceID: "ws-1", WorktreeID: opts.IsolatedWorktreeID,
+				Type: session.SessionTypeSpawned, State: session.StateActive,
+				Lineage: &store.SessionLineage{
+					ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1, TTLExpiresAt: &ttl,
+				},
+			}, nil
+		})
+		manager.spawnPromptFn = func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error) {
+			return session.SendPromptResult{}, errors.New("input hook refused the prompt")
+		}
+		worktrees := &spawnWorktreeServiceStub{}
+		rec := post(t, agentSpawnRouter(manager, worktrees), `{
+			"agent_name":"coder","spawn_role":"worker","ttl_seconds":60,"new_worktree":{},"prompt":"Do it."
+		}`)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d body=%s, want 201 with the live child", rec.Code, rec.Body.String())
+		}
+		var response contract.AgentSpawnResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Spawn.Prompt == nil || response.Spawn.Prompt.Status != core.SpawnPromptStatusFailed ||
+			response.Spawn.Prompt.Error != "input hook refused the prompt" || worktrees.removed != "" {
+			t.Fatalf(
+				"spawn = %#v removed = %q, want failed prompt and kept worktree",
+				response.Spawn,
+				worktrees.removed,
+			)
+		}
+	})
+
+	t.Run("Should keep the worktree of a child returned with an error", func(t *testing.T) {
+		t.Parallel()
+
+		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
+		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+			return &session.Session{
+				ID: "sess-child", WorkspaceID: "ws-1", WorktreeID: opts.IsolatedWorktreeID,
+				Type: session.SessionTypeSpawned, State: session.StateActive,
+				Lineage: &store.SessionLineage{ParentSessionID: "sess-parent", TTLExpiresAt: &ttl},
+			}, errors.New("spawn.created hook failed")
+		})
+		worktrees := &spawnWorktreeServiceStub{}
+		rec := post(t, agentSpawnRouter(manager, worktrees), `{
+			"agent_name":"coder","spawn_role":"worker","ttl_seconds":60,"new_worktree":{}
+		}`)
+		if rec.Code < http.StatusBadRequest || worktrees.removed != "" {
+			t.Fatalf(
+				"status = %d removed = %q, want an error that keeps the live child's worktree",
+				rec.Code,
+				worktrees.removed,
+			)
 		}
 	})
 

@@ -17,9 +17,16 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 			sessionWaitInputSchema, sessionWaitOutputSchema, toolspkg.RiskRead, true, false,
 		),
 		orchestrationDescriptor(
-			toolspkg.ToolIDSessionSpawn, "session_spawn", "Session Spawn",
-			"Create one governed child session with a required TTL, narrowed or inherited permissions, an optional bound worktree, and an optional first prompt.",
-			sessionSpawnInputSchema, sessionSpawnOutputSchema, toolspkg.RiskMutating, false, false,
+			toolspkg.ToolIDSessionSpawn,
+			"session_spawn",
+			"Session Spawn",
+			"Create one governed child session with a required TTL, narrowed or inherited permissions, "+
+				"an optional bound worktree, and an optional first prompt.",
+			sessionSpawnInputSchema,
+			sessionSpawnOutputSchema,
+			toolspkg.RiskMutating,
+			false,
+			false,
 		),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionStop, "session_stop", "Session Stop",
@@ -172,7 +179,8 @@ const sessionSpawnOutputSchema = `{
 			"required":["message_id","status"],
 			"properties":{
 				"message_id":{"type":"string"},"status":{"type":"string"},
-				"reply_watch_id":{"type":"string"},"reply_watch_state":{"type":"string"}
+				"reply_watch_id":{"type":"string"},"reply_watch_state":{"type":"string"},
+				"error":{"type":"string"}
 			},
 			"additionalProperties":false
 		}

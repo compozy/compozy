@@ -49,7 +49,10 @@ func (n *daemonNativeTools) sessionSpawn(
 	opts.IsolatedWorktreeID = worktreeTarget.ID()
 	child, err := spawner.Spawn(ctx, opts)
 	if err != nil {
-		err = errors.Join(err, core.RollbackSpawnWorktree(ctx, n.deps.Worktrees, worktreeTarget))
+		// A child returned with an error is live and uses the worktree; keep its checkout.
+		if child == nil {
+			err = errors.Join(err, core.RollbackSpawnWorktree(ctx, n.deps.Worktrees, worktreeTarget))
+		}
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	info := child.Info()
@@ -75,11 +78,10 @@ func (n *daemonNativeTools) sessionSpawn(
 			Source:          req.ToolID.String(),
 		})
 		if promptErr != nil {
-			return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, fmt.Errorf(
-				"spawned child %q but its first prompt failed: %w", info.ID, promptErr,
-			))
+			payload["prompt"] = core.SpawnPromptFailurePayload(info.ID, promptErr)
+		} else {
+			payload["prompt"] = core.SpawnPromptPayloadFromResult(result)
 		}
-		payload["prompt"] = core.SpawnPromptPayloadFromResult(result)
 	}
 	return structuredResult(payload, info.ID)
 }

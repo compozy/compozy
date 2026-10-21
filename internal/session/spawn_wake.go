@@ -124,6 +124,13 @@ func spawnWakeReasonForBadge(badge Badge) (SpawnWakeReason, bool) {
 }
 
 func (m *Manager) dispatchSpawnWake(ctx context.Context, info *Info, badge Badge) {
+	m.dispatchSpawnWakeForTurn(ctx, info, badge, "")
+}
+
+// dispatchSpawnWakeForTurn wakes the creator for one child badge edge. completedTurnID
+// names the turn that produced a done edge, so a reply watch on that exact turn can
+// carry the answer instead of a duplicate completed wake.
+func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badge Badge, completedTurnID string) {
 	if m == nil || info == nil || m.spawnWakeNotifier == nil {
 		return
 	}
@@ -166,7 +173,7 @@ func (m *Manager) dispatchSpawnWake(ctx context.Context, info *Info, badge Badge
 		return
 	}
 	if event.Reason == SpawnWakeReasonCompleted &&
-		m.creatorAwaitsChildReply(ctx, creatorSessionID, event.ChildSessionID) {
+		m.creatorAwaitsChildReply(ctx, creatorSessionID, event.ChildSessionID, completedTurnID) {
 		m.logSpawnWakeSuppressed(ctx, creatorSessionID, event, "reply_watch_covers", nil)
 		return
 	}

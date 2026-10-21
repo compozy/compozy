@@ -1513,7 +1513,7 @@
             "type": "boolean"
           },
           "permissions": {
-            "$ref": "#/components/schemas/SpawnPermissionPolicyPayload"
+            "$ref": "#/components/schemas/SpawnPermissionRequestPayload"
           },
           "prompt": {
             "type": "string"
@@ -31071,8 +31071,40 @@
         ],
         "type": "object"
       },
+      "SpawnPermissionRequestPayload": {
+        "properties": {
+          "mcp_servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workspace_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "SpawnPromptPayload": {
         "properties": {
+          "error": {
+            "type": "string"
+          },
           "message_id": {
             "type": "string"
           },

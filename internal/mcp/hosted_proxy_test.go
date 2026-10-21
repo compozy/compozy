@@ -721,7 +721,9 @@ func TestHostedProxyHelpers(t *testing.T) {
 			},
 		}}
 		invalidSkillErr := hostedToolResponseError{response: invalidSkillResponse}
-		if got := hostedToolErrorMessage(invalidSkillErr); got != "skill_definition_invalid: skill definition is invalid"+
+		if got := hostedToolErrorMessage(
+			invalidSkillErr,
+		); got != "skill_definition_invalid: skill definition is invalid"+
 			"\nCause: /workspace/.agents/skills/broken/SKILL.md: yaml: line 2"+
 			"\nRecovery: Fix the SKILL.md YAML frontmatter and retry skill_view." {
 			t.Fatalf("hostedToolErrorMessage(invalid skill) = %q, want reason with safe cause and recovery", got)
@@ -742,6 +744,19 @@ func TestHostedProxyHelpers(t *testing.T) {
 			"policy_denied: tool invocation denied\nCause: session: spawn permission denied: workspace_paths") ||
 			strings.Contains(got, "must stay hidden") || strings.Contains(got, "Recovery:") {
 			t.Fatalf("hostedToolErrorMessage(denied spawn) = %q, want only the safe refused-field cause", got)
+		}
+		deniedStructured, ok := hostedToolErrorStructuredContent(deniedSpawnErr).(contract.ToolErrorResponse)
+		if !ok {
+			t.Fatalf("hostedToolErrorStructuredContent(denied spawn) = %T, want tool error response", deniedStructured)
+		}
+		if _, kept := deniedStructured.Error.Details[contract.ToolOperatorCauseDetailKey]; !kept {
+			t.Fatalf("structured denied spawn details = %#v, want operator cause", deniedStructured.Error.Details)
+		}
+		if _, leaked := deniedStructured.Error.Details["internal_trace"]; leaked {
+			t.Fatalf(
+				"structured denied spawn details = %#v, want internal_trace filtered",
+				deniedStructured.Error.Details,
+			)
 		}
 		if got := hostedToolErrorStructuredContent(invalidSkillErr); !reflect.DeepEqual(got, invalidSkillResponse) {
 			t.Fatalf("hostedToolErrorStructuredContent(invalid skill) = %#v, want %#v", got, invalidSkillResponse)

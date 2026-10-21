@@ -37,7 +37,9 @@ func hostedToolErrorStructuredContent(err error) any {
 		}}
 	}
 	if provider, ok := errors.AsType[hostedToolResponseProvider](err); ok && provider != nil {
-		return provider.Response()
+		response := provider.Response()
+		response.Error.Details = contract.FilterToolOperatorFailureDetails(response.Error.Details)
+		return response
 	}
 	return nil
 }

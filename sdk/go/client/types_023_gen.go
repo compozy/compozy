@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// TaskResponse is a daemon API value.
+type TaskResponse struct {
+	Task TaskPayload `json:"task"`
+}
+
 // TaskRunDetailPayload is a daemon API value.
 type TaskRunDetailPayload struct {
 	Run     TaskRunPayload                   `json:"run"`

@@ -119,7 +119,9 @@ compozy spawn \
 ```
 
 When the child finishes that turn, the parent receives one reply wake that carries the child's
-final answer. The response's `prompt` object reports the message ID and the reply watch.
+final answer. The response's `prompt` object reports the message ID and the reply watch. If the
+prompt fails after the child starts, the spawn still succeeds with `prompt.status` set to `failed`
+and an `error`; send the prompt again with `session_prompt` instead of spawning a second child.
 
 ## Wake the creator
 

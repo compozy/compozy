@@ -14125,7 +14125,11 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 			}
 			createOpts = opts
 			return &worktree.Worktree{
-				ID: "wt-new", Name: "feature-auth", Branch: "feat/auth", Path: "/wt/feature-auth", CreatedHead: "abc123",
+				ID:          "wt-new",
+				Name:        "feature-auth",
+				Branch:      "feat/auth",
+				Path:        "/wt/feature-auth",
+				CreatedHead: "abc123",
 			}, nil
 		}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -14230,7 +14234,10 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 				t.Fatalf("ResolveSpawnWorkspace(%q, %q), want caller and requested workspace", parent, ref)
 			}
 			if deny {
-				return "", fmt.Errorf("%w: child workspace is outside the parent workspace", session.ErrSpawnPermissionDenied)
+				return "", fmt.Errorf(
+					"%w: child workspace is outside the parent workspace",
+					session.ErrSpawnPermissionDenied,
+				)
 			}
 			return foreignID, nil
 		}
@@ -14254,14 +14261,23 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 			return err
 		}
 		if err := call(); !errors.Is(err, session.ErrSpawnPermissionDenied) || resolvedIn != "" {
-			t.Fatalf("denied spawn error = %v, worktree looked up in %q; want denial before any lookup", err, resolvedIn)
+			t.Fatalf(
+				"denied spawn error = %v, worktree looked up in %q; want denial before any lookup",
+				err,
+				resolvedIn,
+			)
 		}
 		deny = false
 		if err := call(); err != nil {
 			t.Fatalf("Registry.Call(session_spawn foreign) error = %v", err)
 		}
 		if resolvedIn != foreignID || spawnOpts.Workspace != foreignID || spawnOpts.IsolatedWorktreeID != "wt-foreign" {
-			t.Fatalf("foreign spawn looked up in %q with opts %#v, want worktree of %q", resolvedIn, spawnOpts, foreignID)
+			t.Fatalf(
+				"foreign spawn looked up in %q with opts %#v, want worktree of %q",
+				resolvedIn,
+				spawnOpts,
+				foreignID,
+			)
 		}
 	})
 
@@ -14290,6 +14306,57 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep a live child's worktree and report a failed first prompt", func(t *testing.T) {
+		t.Parallel()
+
+		removed := ""
+		hookFailure := true
+		manager := newManager(func(opts session.SpawnOpts) (*session.Session, error) {
+			if hookFailure {
+				return child(opts), errors.New("spawn.created hook failed")
+			}
+			return child(opts), nil
+		})
+		manager.spawnWsFn = func(context.Context, string, string) (string, error) { return workspaceID, nil }
+		manager.spawnPromptFn = func(context.Context, session.SpawnPromptRequest) (session.SendPromptResult, error) {
+			return session.SendPromptResult{}, errors.New("input hook refused the prompt")
+		}
+		worktrees := &nativeWorktreeServiceStub{
+			create: func(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error) {
+				return &worktree.Worktree{ID: "wt-new", Name: "feature"}, nil
+			},
+			remove: func(_ context.Context, _ string, id string, _ bool) (*worktree.RemovalRefusal, error) {
+				removed = id
+				return nil, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t), Worktrees: worktrees,
+		}, nativeApproveAllPolicyInputs())
+		call := func() (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionSpawn,
+				Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"new_worktree":{},` +
+					`"prompt":"Do the task."}`),
+			})
+		}
+		if _, err := call(); err == nil || removed != "" {
+			t.Fatalf("spawn with live child error = %v removed = %q, want error and kept worktree", err, removed)
+		}
+		hookFailure = false
+		result, err := call()
+		if err != nil {
+			t.Fatalf("Registry.Call(session_spawn) error = %v, want the child payload with a failed prompt", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"session_id":"sess-child"`))
+		requireNativeStructuredContains(t, result, []byte(
+			`"prompt":{"message_id":"spawn-prompt-sess-child","status":"failed","error":"input hook refused the prompt"}`,
+		))
+		if removed != "" {
+			t.Fatalf("removed worktree %q after a failed first prompt, want the child's checkout kept", removed)
+		}
+	})
+
 	t.Run("Should refuse worktree and new_worktree together before spawning", func(t *testing.T) {
 		t.Parallel()
 
@@ -14305,8 +14372,6 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 			Input: json.RawMessage(`{"agent_name":"general","ttl_seconds":600,"worktree":"wt-a",` +
 				`"new_worktree":{"name":"b"}}`),
 		})
-		if err == nil {
-			t.Fatal("Registry.Call(session_spawn) error = nil, want conflicting worktree selectors refused")
-		}
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 }

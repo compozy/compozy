@@ -3645,11 +3645,21 @@ func addSpawnOrchestrationSchemas(t *testing.T, baseline map[string]any) {
 			},
 			"required": []any{"branch", "created", "id", "name", "path"},
 		},
+		// The request's permission lists become optional so inherit_permissions can omit them.
+		"SpawnPermissionRequestPayload": {
+			"type": "object",
+			"properties": map[string]any{
+				"tools":           map[string]any{"type": "array", "items": stringSchema()},
+				"skills":          map[string]any{"type": "array", "items": stringSchema()},
+				"mcp_servers":     map[string]any{"type": "array", "items": stringSchema()},
+				"workspace_paths": map[string]any{"type": "array", "items": stringSchema()},
+			},
+		},
 		"SpawnPromptPayload": {
 			"type": "object",
 			"properties": map[string]any{
 				"message_id": stringSchema(), "status": stringSchema(),
-				"reply_watch_id": stringSchema(), "reply_watch_state": stringSchema(),
+				"reply_watch_id": stringSchema(), "reply_watch_state": stringSchema(), "error": stringSchema(),
 			},
 			"required": []any{"message_id", "status"},
 		},
@@ -3693,6 +3703,7 @@ func addSpawnOrchestrationSchemas(t *testing.T, baseline map[string]any) {
 				properties["worktree"] = stringSchema()
 				properties["new_worktree"] = nullableRef("SpawnNewWorktreeRequest")
 				properties["prompt"] = stringSchema()
+				properties["permissions"] = map[string]any{"$ref": "#/components/schemas/SpawnPermissionRequestPayload"}
 				requests++
 			}
 			if properties["lineage"] != nil && properties["permissions"] != nil && properties["session"] != nil &&

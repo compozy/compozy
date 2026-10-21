@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// TaskDashboardCardsPayload is a daemon API value.
+type TaskDashboardCardsPayload struct {
+	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
+	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
+	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
+	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
+}
+
 // TaskDashboardFailedCardPayload is a daemon API value.
 type TaskDashboardFailedCardPayload struct {
 	Tasks        int    `json:"tasks"`
@@ -437,9 +445,4 @@ type TaskReferencePayload struct {
 	Paused          bool       `json:"paused,omitempty"`
 	EffectivePaused bool       `json:"effective_paused,omitempty"`
 	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-// TaskResponse is a daemon API value.
-type TaskResponse struct {
-	Task TaskPayload `json:"task"`
 }

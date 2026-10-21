@@ -770,10 +770,11 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		unbound := base(session.RuntimeStatusUnbound)
 		unbound.State = session.StateStarting
 
+		const recoveringCase = "Should accept a recovering session with last-known runtime"
 		cases := map[string]*session.Info{
-			"recovering with last-known runtime": recovering,
-			"ready with effective runtime":       ready,
-			"unbound before first bind":          unbound,
+			recoveringCase: recovering,
+			"Should accept a ready session with effective runtime": ready,
+			"Should accept an unbound session before first bind":   unbound,
 		}
 		toolIDs := []toolspkg.ToolID{
 			toolspkg.ToolIDSessionCreate,
@@ -784,16 +785,20 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDSessionRuntimeClear,
 		}
 		for name, info := range cases {
-			envelope, err := json.Marshal(map[string]any{"session": core.SessionPayloadFromInfo(info)})
-			if err != nil {
-				t.Fatalf("%s: marshal session envelope error = %v", name, err)
-			}
-			if name == "recovering with last-known runtime" && !strings.Contains(string(envelope), `"last_known"`) {
-				t.Fatalf("%s: envelope %s, want last_known runtime", name, envelope)
-			}
-			for _, toolID := range toolIDs {
-				assertNativeOutputSchemaAccepts(t, descriptors[toolID], string(envelope))
-			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				envelope, err := json.Marshal(map[string]any{"session": core.SessionPayloadFromInfo(info)})
+				if err != nil {
+					t.Fatalf("marshal session envelope error = %v", err)
+				}
+				if name == recoveringCase && !strings.Contains(string(envelope), `"last_known"`) {
+					t.Fatalf("envelope %s, want last_known runtime", envelope)
+				}
+				for _, toolID := range toolIDs {
+					assertNativeOutputSchemaAccepts(t, descriptors[toolID], string(envelope))
+				}
+			})
 		}
 	})
 

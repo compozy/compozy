@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// Speed is a daemon API value.
+type Speed string
+
+// StartBinding is a daemon API value.
+type StartBinding struct {
+	Kind         StartKind         `json:"kind"`
+	Inputs       map[string]any    `json:"inputs,omitempty"`
+	InputMapping map[string]string `json:"input_mapping,omitempty"`
+}
+
 // StartKind is a daemon API value.
 type StartKind string
 
@@ -433,12 +443,4 @@ type TaskDashboardBlockedCardPayload struct {
 	AwaitingApproval     int    `json:"awaiting_approval"`
 	AwaitingDependencies int    `json:"awaiting_dependencies"`
 	HealthStatus         string `json:"health_status"`
-}
-
-// TaskDashboardCardsPayload is a daemon API value.
-type TaskDashboardCardsPayload struct {
-	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
-	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
-	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
-	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
 }

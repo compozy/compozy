@@ -118,7 +118,8 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringArrayVar(&flags.mcpServers, "mcp-server", nil, "Allowed MCP server id (repeatable)")
 	cmd.Flags().
 		StringArrayVar(&flags.workspacePaths, "workspace-path", nil, "Allowed workspace path grant (repeatable)")
-	cmd.Flags().StringArrayVar(&flags.toolsets, "toolset", nil, "Select parent-granted tools by toolset ID (repeatable)")
+	cmd.Flags().
+		StringArrayVar(&flags.toolsets, "toolset", nil, "Select parent-granted tools by toolset ID (repeatable)")
 	cmd.Flags().BoolVar(
 		&flags.inheritPerms,
 		"inherit-permissions",
@@ -211,7 +212,7 @@ func (flags *spawnCommandFlags) request(
 		SpawnRole:        firstCLIValue(flags.spawnRole, "worker"),
 		TTLSeconds:       flags.ttlSeconds,
 		AutoStopOnParent: flags.autoStopOnParent,
-		Permissions: SpawnPermissionPolicyRecord{
+		Permissions: SpawnPermissionRequestRecord{
 			Tools:          trimSpawnAtoms(flags.tools),
 			Skills:         trimSpawnAtoms(flags.skills),
 			MCPServers:     trimSpawnAtoms(flags.mcpServers),

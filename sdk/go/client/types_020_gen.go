@@ -420,12 +420,21 @@ type SpawnPermissionPolicyPayload struct {
 	WorkspacePaths []string `json:"workspace_paths"`
 }
 
+// SpawnPermissionRequestPayload is a daemon API value.
+type SpawnPermissionRequestPayload struct {
+	Tools          []string `json:"tools,omitzero"`
+	Skills         []string `json:"skills,omitzero"`
+	MCPServers     []string `json:"mcp_servers,omitzero"`
+	WorkspacePaths []string `json:"workspace_paths,omitzero"`
+}
+
 // SpawnPromptPayload is a daemon API value.
 type SpawnPromptPayload struct {
 	MessageID       string `json:"message_id"`
 	Status          string `json:"status"`
 	ReplyWatchID    string `json:"reply_watch_id,omitempty"`
 	ReplyWatchState string `json:"reply_watch_state,omitempty"`
+	Error           string `json:"error,omitempty"`
 }
 
 // SpawnWorktreePayload is a daemon API value.
@@ -436,14 +445,4 @@ type SpawnWorktreePayload struct {
 	Path    string `json:"path"`
 	BaseSHA string `json:"base_sha,omitempty"`
 	Created bool   `json:"created"`
-}
-
-// Speed is a daemon API value.
-type Speed string
-
-// StartBinding is a daemon API value.
-type StartBinding struct {
-	Kind         StartKind         `json:"kind"`
-	Inputs       map[string]any    `json:"inputs,omitempty"`
-	InputMapping map[string]string `json:"input_mapping,omitempty"`
 }

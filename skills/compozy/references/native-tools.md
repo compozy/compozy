@@ -207,35 +207,25 @@ the canonical attention/lifecycle badges; omission uses the settled set, and `do
 session supervision does not mistake orchestration for inactivity.
 
 `compozy__session_spawn` creates one governed child of the caller. It requires `agent_name` and a
-positive `ttl_seconds`; optional permission arrays can only narrow the parent. Omitted lists grant
-nothing unless `inherit_permissions: true`, which keeps the parent's grant for every omitted list
-(a passed list, including `[]`, replaces only its category). `toolsets` adds the parent-granted
-members of named toolsets. Omitted `notify_creator` defaults to true, while explicit false
-suppresses the synthetic parent wake for that child. Optional `provider`, `model`,
-`reasoning_effort`, `speed`, and `acp_options` fields override the named agent's runtime for the
-child.
+positive `ttl_seconds`; permission arrays only narrow the parent. Omitted lists grant nothing unless
+`inherit_permissions: true` keeps the parent's grant for each omitted list; `toolsets` adds the
+parent-granted members of named toolsets. `notify_creator` defaults to true. `provider`, `model`,
+`reasoning_effort`, `speed`, and `acp_options` override the agent's runtime.
 
-`workspace` (ID, name, or path) places the child in another registered workspace when the
-workspace-access policy allows it; omitted, the child uses the caller's workspace. `worktree` binds
-the child to an existing ready worktree of that workspace (ID, name, or path);
-`new_worktree: {name?, base_ref?, branch?}` creates a managed worktree there and binds it. They are
-mutually exclusive. The daemon authorizes the target workspace before it resolves or creates the
-worktree, so a denied cross-workspace request leaves nothing behind. The binding sets the child's working directory, which is also the provider
-sandbox root, so the child writes in its own checkout. A created worktree is removed again when the
-spawn is refused. Prefer this binding over `workspace_paths`: a `workspace_paths` atom is recorded
-for narrowing but does not move the child's checkout, and a parent without path grants cannot
-narrow it at all.
+`workspace` targets another registered workspace when the access policy allows it. `worktree` binds
+a ready worktree of that workspace; `new_worktree: {name?, base_ref?, branch?}` creates and binds
+one (mutually exclusive). The workspace is authorized before any worktree is touched. The checkout
+becomes the child's cwd and provider sandbox root, and a worktree created for a refused spawn is
+removed. Use this instead of `workspace_paths`, which only records a narrowing atom.
 
-`prompt` sends the child's first prompt from the caller with `notify_on_complete`, so the reply
-wake carries the child's final answer (capped like any reply). Its message ID is
-`spawn-prompt-<child_session_id>`. The result returns the child session ID, role, depth, TTL expiry,
-the effective `permissions`, and, when requested, `worktree` (`id`, `name`, `branch`, `path`,
-`base_sha`, `created`) and `prompt` (`message_id`, `status`, `reply_watch_id`, `reply_watch_state`).
-A refusal is a structured tool error. Its `operator_cause` detail names the field, the refused
-value, and the rule (`subset_of_parent`, `blank_atom`, `known_toolset`), and `operator_recovery`
-gives the next step. A live-child cap (`max_children`, `max_active_per_workspace`) fails with reason
-`spawn_budget_exhausted` and names the cap, its value, and the live count; stopped children and
-subagents do not hold a slot. A child failing its first prompt after a successful spawn names the child ID.
+`prompt` sends the first prompt from the caller with `notify_on_complete` (message ID
+`spawn-prompt-<child_session_id>`), so the reply wake carries the child's final answer. The result
+returns the child ID, role, depth, TTL expiry, effective `permissions`, and optional `worktree` and
+`prompt` objects; a failed first prompt returns `prompt.status: "failed"` with `error`, and the
+child stays live for a `session_prompt` retry. Refusals are structured: `operator_cause` names the field, value, and rule
+(`subset_of_parent`, `blank_atom`, `known_toolset`) and `operator_recovery` the next step. A
+live-child cap fails with reason `spawn_budget_exhausted` and names the cap and live count; stopped
+children and subagents hold no slot.
 
 Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
 `compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a
@@ -413,7 +403,7 @@ payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on route
 
 Fresh daemon boot does not register a workspace automatically, so `compozy__workspace_list` may return an empty catalog on a clean install. Register the intended project explicitly before starting workspace-bound work.
 
-A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog. A session-bound native caller sees its own workspace in `compozy__workspace_list` plus every other registered workspace the workspace-access policy already lets it address: all of them under `approve-all`, consented ones under `approve-reads`, none under `deny-all`. The listing never prompts. The operator CLI and HTTP/UDS list the full catalog. Pass a listed ID, name, or path to a tool's `workspace` input, such as `compozy__session_create` or `compozy__session_spawn` with `worktree`, to work there.
+A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog. A bound session's `compozy__workspace_list` adds every workspace its permission mode already lets it address (never prompting); pass one to a tool's `workspace` input.
 
 The workspace setup browser reads `GET /api/fs/browse`; its response includes `home` and every
 filesystem `root` so the UI can navigate outside the operator home. Agents should register a known

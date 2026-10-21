@@ -220,9 +220,9 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 						MaxDepth:    1,
 						TTLSeconds:  request.TTLSeconds,
 					},
-					PermissionPolicy: request.Permissions,
+					PermissionPolicy: request.Permissions.Policy(),
 				},
-				Permissions: request.Permissions,
+				Permissions: request.Permissions.Policy(),
 			}, nil
 		}
 
@@ -348,9 +348,14 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 		) (AgentSpawnRecord, error) {
 			gotRequest = request
 			return AgentSpawnRecord{
-				Session:  SessionRecord{ID: "sess-child", CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow},
-				Worktree: &contract.SpawnWorktreePayload{ID: "wt-1", Name: "auth", Branch: "feat/auth", Path: "/wt/auth"},
-				Prompt:   &contract.SpawnPromptPayload{MessageID: "spawn-prompt-sess-child", Status: "accepted"},
+				Session: SessionRecord{ID: "sess-child", CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow},
+				Worktree: &contract.SpawnWorktreePayload{
+					ID:     "wt-1",
+					Name:   "auth",
+					Branch: "feat/auth",
+					Path:   "/wt/auth",
+				},
+				Prompt: &contract.SpawnPromptPayload{MessageID: "spawn-prompt-sess-child", Status: "accepted"},
 			}, nil
 		}
 
@@ -383,8 +388,9 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 		_, _, err = executeRootCommand(
 			t, deps, "spawn", "--agent", "general", "--ttl-seconds", "600", "--worktree", "wt-a", "--new-worktree",
 		)
-		if err == nil {
-			t.Fatal("compozy spawn --worktree --new-worktree error = nil, want mutually exclusive flags")
+		if err == nil || !strings.Contains(err.Error(), "worktree") ||
+			!strings.Contains(err.Error(), "new-worktree") {
+			t.Fatalf("compozy spawn --worktree --new-worktree error = %v, want mutually exclusive flags", err)
 		}
 	})
 }

@@ -2238,7 +2238,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "7abe9ba02de8c34cfeeaf85f7070469ae5b2f3bdf2fcb93577acc21424ab6a25",
-    "output_schema_digest": "7f7c7cba2ce72587399d0603050fd1ba5c4ed9635ad790c26ad0baf188c140d3"
+    "output_schema_digest": "ce7823e0d0114205827b7d718f9b11216b15c84541d93cbd316615423c801943"
   },
   {
     "tool_id": "compozy__session_status",

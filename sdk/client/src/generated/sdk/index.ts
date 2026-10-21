@@ -2972,6 +2972,7 @@ export type {
   SpawnBudgetPayload,
   SpawnNewWorktreeRequest,
   SpawnPermissionPolicyPayload,
+  SpawnPermissionRequestPayload,
   SpawnPromptPayload,
   SpawnWorktreePayload,
   StartAgentTaskRunData,

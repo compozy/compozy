@@ -214,6 +214,7 @@ func (m *Manager) finishPromptPump(
 			before,
 			session.Info(),
 			!promptTurnWasCanceled(session, turnState),
+			promptTurnID(turnState),
 		)
 	}
 	if fatalPromptFailure == nil {
@@ -260,6 +261,13 @@ func (m *Manager) finishPromptPump(
 
 // promptTurnWasCanceled reports whether the finishing turn is still fenced as a
 // canceled turn, which is observable until clearPromptState retires the marker.
+func promptTurnID(turnState *promptTurnDispatchState) string {
+	if turnState == nil {
+		return ""
+	}
+	return turnState.turnID
+}
+
 func promptTurnWasCanceled(session *Session, turnState *promptTurnDispatchState) bool {
 	return session != nil && turnState != nil && session.promptCancellationRequested(turnState.turnID)
 }

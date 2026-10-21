@@ -56,7 +56,10 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 	opts.IsolatedWorktreeID = worktreeTarget.ID()
 	child, err := spawner.Spawn(ctx, opts)
 	if err != nil {
-		err = errors.Join(err, RollbackSpawnWorktree(ctx, h.Worktrees, worktreeTarget))
+		// A child returned with an error is live and uses the worktree; keep its checkout.
+		if child == nil {
+			err = errors.Join(err, RollbackSpawnWorktree(ctx, h.Worktrees, worktreeTarget))
+		}
 		h.respondError(c, statusForAgentSpawnError(err), err)
 		return
 	}
@@ -76,12 +79,10 @@ func (h *BaseHandlers) AgentSpawn(c *gin.Context) {
 			Source:          agentActionSpawn,
 		})
 		if promptErr != nil {
-			h.respondError(c, StatusForSessionError(promptErr), fmt.Errorf(
-				"api: spawned child %q but its first prompt failed: %w", child.ID, promptErr,
-			))
-			return
+			payload.Prompt = SpawnPromptFailurePayload(child.ID, promptErr)
+		} else {
+			payload.Prompt = SpawnPromptPayloadFromResult(result)
 		}
-		payload.Prompt = SpawnPromptPayloadFromResult(result)
 	}
 	sessionPayload, err := h.sessionPayloadWithOptionalHealth(ctx, child.Info(), false)
 	if err != nil {
@@ -185,7 +186,7 @@ func spawnOptsFromAgentRequest(req contract.AgentSpawnRequest, parentSessionID s
 		AutoStopOnParent:   req.AutoStopOnParent,
 		NotifyCreator:      req.NotifyCreator != nil && *req.NotifyCreator,
 		NotifyCreatorSet:   req.NotifyCreator != nil,
-		PermissionPolicy:   sessionPermissionPolicyFromPayload(req.Permissions),
+		PermissionPolicy:   sessionPermissionPolicyFromPayload(req.Permissions.Policy()),
 		InheritPermissions: req.InheritPermissions,
 		PermissionNarrowing: SpawnPermissionNarrowing(
 			req.Permissions.Tools, req.Permissions.Skills, req.Permissions.MCPServers, req.Permissions.WorkspacePaths,

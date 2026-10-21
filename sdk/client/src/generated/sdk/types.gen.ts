@@ -418,7 +418,7 @@ export type AgentSpawnRequest = {
   name?: string;
   new_worktree?: SpawnNewWorktreeRequest | null;
   notify_creator?: boolean | null;
-  permissions: SpawnPermissionPolicyPayload;
+  permissions: SpawnPermissionRequestPayload;
   prompt?: string;
   prompt_overlay?: string;
   provider?: string;
@@ -8640,7 +8640,15 @@ export type SpawnPermissionPolicyPayload = {
   workspace_paths: Array<string>;
 };
 
+export type SpawnPermissionRequestPayload = {
+  mcp_servers?: Array<string>;
+  skills?: Array<string>;
+  tools?: Array<string>;
+  workspace_paths?: Array<string>;
+};
+
 export type SpawnPromptPayload = {
+  error?: string;
   message_id: string;
   reply_watch_id?: string;
   reply_watch_state?: string;

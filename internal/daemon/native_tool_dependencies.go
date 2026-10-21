@@ -2,8 +2,9 @@ package daemon
 
 import (
 	"context"
-	"github.com/compozy/compozy/internal/workspaceaccess"
 	"log/slog"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
