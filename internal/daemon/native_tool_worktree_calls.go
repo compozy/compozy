@@ -174,7 +174,7 @@ func (n *daemonNativeTools) worktreeRemoveDiscovered(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	path := strings.TrimSpace(input.Path)
+	path := input.Path
 	refusal, err := n.deps.Worktrees.RemoveDiscovered(
 		ctx, workspaceID, path, worktree.RemoveDiscoveredOptions{Force: input.Force},
 	)

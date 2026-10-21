@@ -174,7 +174,9 @@ func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if path := strings.TrimSpace(discoveredPath); path != "" {
+			if strings.TrimSpace(discoveredPath) != "" {
+				// Sent verbatim: Git lists paths exactly, edge whitespace included.
+				path := discoveredPath
 				if err := client.RemoveDiscoveredWorktree(cmd.Context(), workspaceID, path, opts.Force); err != nil {
 					return err
 				}

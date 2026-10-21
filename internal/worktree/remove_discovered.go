@@ -38,8 +38,8 @@ func (s *Service) RemoveDiscovered(
 	options RemoveDiscoveredOptions,
 ) (*RemovalRefusal, error) {
 	force := options.Force
-	path = strings.TrimSpace(path)
-	if path == "" {
+	// The listed path is matched verbatim; whitespace only decides blank input.
+	if strings.TrimSpace(path) == "" {
 		return nil, refusal(ErrRefInvalid, "path is required")
 	}
 	if _, err := s.capability.Check(ctx); err != nil {
