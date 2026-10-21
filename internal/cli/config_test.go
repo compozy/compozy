@@ -1006,12 +1006,15 @@ func TestConfigSetProviderUsageUsesDaemonSettingsWhenRunning(t *testing.T) {
 	// A full reload would also carry unrelated restart-required edits already
 	// on disk; the section apply changes only provider usage, live.
 	var captured []UpdateSettingsProviderUsageRequest
+	var collectionProfiles []string
 	client := &stubClient{
 		updateSettingsProviderUsageFn: func(
 			_ context.Context,
 			request UpdateSettingsProviderUsageRequest,
+			collectionProfile string,
 		) (SettingsMutationRecord, error) {
 			captured = append(captured, request)
+			collectionProfiles = append(collectionProfiles, collectionProfile)
 			return SettingsMutationRecord{
 				Section:          "provider-usage",
 				Scope:            contract.SettingsScopeUser,
@@ -1029,7 +1032,13 @@ func TestConfigSetProviderUsageUsesDaemonSettingsWhenRunning(t *testing.T) {
 		},
 	}
 
-	deps := newDefaultProfileWorkspaceTestDeps(t, client)
+	deps := newWorkspaceTestDeps(t, &profileAwareStubClient{
+		stubClient: withWorkspaceResolution(client),
+		profileClientStub: &profileClientStub{profiles: []contract.Profile{
+			{Name: "default", State: "active"},
+			{Name: "work", State: "active"},
+		}},
+	})
 	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
 		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
 	}
@@ -1081,6 +1090,18 @@ func TestConfigSetProviderUsageUsesDaemonSettingsWhenRunning(t *testing.T) {
 		if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied {
 			t.Fatalf("config set %v record = %#v, want live/applied=true", tc.args, record)
 		}
+	}
+
+	// Consent from a CLI acting as another profile collects for that profile.
+	_, _, err := executeRootCommand(t, deps,
+		"config", "set", "provider_usage.providers.claude.keychain_access", "true",
+		"--scope", "user", "--profile", "work", "-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("config set keychain_access --profile work error = %v", err)
+	}
+	if got := collectionProfiles[len(collectionProfiles)-1]; got != "work" {
+		t.Fatalf("collection profile = %q, want work", got)
 	}
 }
 

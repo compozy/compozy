@@ -48,6 +48,7 @@ type DaemonClient interface {
 	UpdateSettingsProviderUsage(
 		ctx context.Context,
 		request UpdateSettingsProviderUsageRequest,
+		collectionProfile string,
 	) (SettingsMutationRecord, error)
 	ReloadSettings(ctx context.Context) (SettingsMutationRecord, error)
 	ListSettingsApplyRecords(ctx context.Context, query SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)

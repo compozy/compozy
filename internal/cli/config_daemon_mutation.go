@@ -33,9 +33,12 @@ func maybeApplyConfigSetViaDaemon(
 	}
 
 	var result SettingsMutationRecord
-	if isSkillSourceMutation(path) {
+	switch {
+	case isSkillSourceMutation(path):
 		result, err = applyDaemonSkillSourceValue(cmd, deps, client, target, workspaceRef, path, value)
-	} else {
+	case path[0] == compozyconfig.ProviderUsageConfigKey:
+		result, err = applyDaemonProviderUsageValue(cmd, deps, client, path, value)
+	default:
 		cfg, loadErr := deps.loadConfig()
 		if loadErr != nil {
 			return nil, fmt.Errorf("cli: load current config for daemon-backed config set: %w", loadErr)
@@ -265,13 +268,6 @@ func applyDaemonManagedConfigValue(
 		}
 		return client.UpdateSettingsAttention(ctx, UpdateSettingsAttentionRequest{
 			Config: settingsAttentionPayloadFromConfig(cfg.Attention),
-		})
-	case compozyconfig.ProviderUsageConfigKey:
-		if applyErr := applyProviderUsageConfigValue(&cfg.ProviderUsage, path, value); applyErr != nil {
-			return SettingsMutationRecord{}, applyErr
-		}
-		return client.UpdateSettingsProviderUsage(ctx, UpdateSettingsProviderUsageRequest{
-			Config: settingsProviderUsagePayloadFromConfig(cfg.ProviderUsage),
 		})
 	case configShellKey:
 		if applyErr := applyShellConfigValue(&cfg.Shell, path, value); applyErr != nil {

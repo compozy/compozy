@@ -78,6 +78,7 @@ type stubClient struct {
 	updateSettingsProviderUsageFn func(
 		context.Context,
 		UpdateSettingsProviderUsageRequest,
+		string,
 	) (SettingsMutationRecord, error)
 	reloadSettingsFn           func(context.Context) (SettingsMutationRecord, error)
 	listSettingsApplyRecordsFn func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
@@ -716,9 +717,10 @@ func (s *stubClient) UpdateSettingsAttention(
 func (s *stubClient) UpdateSettingsProviderUsage(
 	ctx context.Context,
 	request UpdateSettingsProviderUsageRequest,
+	collectionProfile string,
 ) (SettingsMutationRecord, error) {
 	if s.updateSettingsProviderUsageFn != nil {
-		return s.updateSettingsProviderUsageFn(ctx, request)
+		return s.updateSettingsProviderUsageFn(ctx, request, collectionProfile)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsProviderUsage call")
 }

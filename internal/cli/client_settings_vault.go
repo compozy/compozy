@@ -233,13 +233,20 @@ func (c *daemonClient) UpdateSettingsShell(
 	return response, nil
 }
 
+// UpdateSettingsProviderUsage saves the machine-wide section. collectionProfile
+// names the profile a Keychain consent change collects for; it scopes nothing else.
 func (c *daemonClient) UpdateSettingsProviderUsage(
 	ctx context.Context,
 	request UpdateSettingsProviderUsageRequest,
+	collectionProfile string,
 ) (SettingsMutationRecord, error) {
+	var query url.Values
+	if profile := strings.TrimSpace(collectionProfile); profile != "" {
+		query = url.Values{"collection_profile": {profile}}
+	}
 	var response SettingsMutationRecord
 	if err := c.doJSON(
-		ctx, http.MethodPatch, "/api/settings/provider-usage", nil, request, &response,
+		ctx, http.MethodPatch, "/api/settings/provider-usage", query, request, &response,
 	); err != nil {
 		return SettingsMutationRecord{}, err
 	}

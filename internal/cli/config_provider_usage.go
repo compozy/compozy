@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -14,6 +16,34 @@ const (
 	configProviderUsageEnabledKey   = "enabled"
 	configProviderUsageKeychainKey  = "keychain_access"
 )
+
+// applyDaemonProviderUsageValue saves the provider usage section through the
+// daemon with one key changed. The section apply changes only this section,
+// so unrelated restart-required edits on disk cannot hold it back, and it
+// names the CLI's acting profile so a Keychain consent change collects for
+// that profile rather than `default`.
+func applyDaemonProviderUsageValue(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+	path []string,
+	value any,
+) (SettingsMutationRecord, error) {
+	cfg, err := deps.loadConfig()
+	if err != nil {
+		return SettingsMutationRecord{}, fmt.Errorf("cli: load current config for daemon-backed config set: %w", err)
+	}
+	if err := applyProviderUsageConfigValue(&cfg.ProviderUsage, path, value); err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	profile, err := resolveConfigDisplayProfile(cmd, deps)
+	if err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	return client.UpdateSettingsProviderUsage(cmd.Context(), UpdateSettingsProviderUsageRequest{
+		Config: settingsProviderUsagePayloadFromConfig(cfg.ProviderUsage),
+	}, profile)
+}
 
 // applyProviderUsageConfigValue sets one provider_usage key on a copy of the
 // loaded config, so the daemon receives the whole section with one change.
