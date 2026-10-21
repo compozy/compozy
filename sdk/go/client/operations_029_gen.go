@@ -102,9 +102,9 @@ func (c *Client) UpdateSettingsRoles(ctx context.Context, body UpdateSettingsRol
 }
 
 // UpdateSettingsShell Update the operator shell settings section
-func (c *Client) UpdateSettingsShell(ctx context.Context, body UpdateSettingsShellRequest) (*SettingsApplyResponse, error) {
+func (c *Client) UpdateSettingsShell(ctx context.Context, body UpdateSettingsShellRequest) (*SettingsShellMutationResponse, error) {
 	path := "/api/settings/shell"
-	var out SettingsApplyResponse
+	var out SettingsShellMutationResponse
 	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

@@ -4,6 +4,38 @@ package client
 
 import "time"
 
+// SettingsUpdateActor is a daemon API value.
+type SettingsUpdateActor string
+
+// SettingsUpdateAppPayload is a daemon API value.
+type SettingsUpdateAppPayload struct {
+	Status         SettingsUpdateStatusKind `json:"status"`
+	Running        bool                     `json:"running"`
+	CurrentVersion string                   `json:"current_version"`
+	LatestVersion  string                   `json:"latest_version"`
+	ReleaseURL     string                   `json:"release_url"`
+	AttemptID      string                   `json:"attempt_id"`
+	LastError      string                   `json:"last_error"`
+	Message        string                   `json:"message"`
+}
+
+// SettingsUpdateApplyRequest is a daemon API value.
+type SettingsUpdateApplyRequest struct {
+	Targets []SettingsUpdateTarget `json:"targets"`
+}
+
+// SettingsUpdateApplyResponse is a daemon API value.
+type SettingsUpdateApplyResponse struct {
+	Targets     []SettingsUpdateTarget       `json:"targets"`
+	Status      SettingsUpdateApplyStatus    `json:"status"`
+	OperationID string                       `json:"operation_id,omitempty"`
+	Message     string                       `json:"message"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
+}
+
+// SettingsUpdateApplyStatus is a daemon API value.
+type SettingsUpdateApplyStatus string
+
 // SettingsUpdateCancelResponse is a daemon API value.
 type SettingsUpdateCancelResponse struct {
 	Status      SettingsUpdateStatusKind     `json:"status"`
@@ -405,13 +437,6 @@ type SpawnBudgetPayload struct {
 	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
 }
 
-// SpawnNewWorktreeRequest is a daemon API value.
-type SpawnNewWorktreeRequest struct {
-	Name    string `json:"name,omitempty"`
-	BaseRef string `json:"base_ref,omitempty"`
-	Branch  string `json:"branch,omitempty"`
-}
-
 // SpawnPermissionPolicyPayload is a daemon API value.
 type SpawnPermissionPolicyPayload struct {
 	Tools          []string `json:"tools"`
@@ -420,29 +445,5 @@ type SpawnPermissionPolicyPayload struct {
 	WorkspacePaths []string `json:"workspace_paths"`
 }
 
-// SpawnPermissionRequestPayload is a daemon API value.
-type SpawnPermissionRequestPayload struct {
-	Tools          []string `json:"tools,omitzero"`
-	Skills         []string `json:"skills,omitzero"`
-	MCPServers     []string `json:"mcp_servers,omitzero"`
-	WorkspacePaths []string `json:"workspace_paths,omitzero"`
-}
-
-// SpawnPromptPayload is a daemon API value.
-type SpawnPromptPayload struct {
-	MessageID       string `json:"message_id"`
-	Status          string `json:"status"`
-	ReplyWatchID    string `json:"reply_watch_id,omitempty"`
-	ReplyWatchState string `json:"reply_watch_state,omitempty"`
-	Error           string `json:"error,omitempty"`
-}
-
-// SpawnWorktreePayload is a daemon API value.
-type SpawnWorktreePayload struct {
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Branch  string `json:"branch"`
-	Path    string `json:"path"`
-	BaseSHA string `json:"base_sha,omitempty"`
-	Created bool   `json:"created"`
-}
+// Speed is a daemon API value.
+type Speed string

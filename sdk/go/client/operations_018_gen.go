@@ -131,28 +131,29 @@ func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsPa
 
 // ListSessionsParams carries the path, query, and header parameters.
 type ListSessionsParams struct {
-	WorkspaceID   *string `url:"workspace_id"`
-	AllWorkspaces *bool   `url:"all_workspaces"`
-	IncludeHealth *bool   `url:"include_health"`
-	SkipTotal     *bool   `url:"skip_total"`
-	State         *string `url:"state"`
-	Type          *string `url:"type"`
-	Agent         *string `url:"agent"`
-	Subagents     *string `url:"subagents"`
-	Parent        *string `url:"parent"`
-	Root          *string `url:"root"`
-	Worktree      *string `url:"worktree"`
-	Q             *string `url:"q"`
-	SearchFields  *string `url:"search_fields"`
-	Resumable     *bool   `url:"resumable"`
-	Attention     *bool   `url:"attention"`
-	Badge         *string `url:"badge"`
-	Archive       *string `url:"archive"`
-	Sort          *string `url:"sort"`
-	Cursor        *string `url:"cursor"`
-	Limit         *int    `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
+	WorkspaceID   *string   `url:"workspace_id"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	IncludeHealth *bool     `url:"include_health"`
+	SkipTotal     *bool     `url:"skip_total"`
+	State         *string   `url:"state"`
+	Type          *string   `url:"type"`
+	Agent         *string   `url:"agent"`
+	Subagents     *string   `url:"subagents"`
+	Parent        *string   `url:"parent"`
+	Root          *string   `url:"root"`
+	Worktree      *string   `url:"worktree"`
+	Q             *string   `url:"q"`
+	SearchFields  *string   `url:"search_fields"`
+	Resumable     *bool     `url:"resumable"`
+	Attention     *bool     `url:"attention"`
+	Badge         *string   `url:"badge"`
+	Archive       *string   `url:"archive"`
+	Sort          *string   `url:"sort"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }
 
 // ListSessions List sessions
@@ -164,6 +165,11 @@ func (c *Client) ListSessions(ctx context.Context, params ListSessionsParams) (*
 	}
 	if params.AllWorkspaces != nil {
 		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
 	}
 	if params.IncludeHealth != nil {
 		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
@@ -435,14 +441,4 @@ func (c *Client) ListTaskReviews(ctx context.Context, params ListTaskReviewsPara
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListTaskRunReviewsParams carries the path, query, and header parameters.
-type ListTaskRunReviewsParams struct {
-	ID                string  `url:"id"`
-	Status            *string `url:"status"`
-	ReviewerSessionID *string `url:"reviewer_session_id"`
-	Limit             *int    `url:"limit"`
-	Profile           *string `url:"profile"`
-	AllProfiles       *bool   `url:"all_profiles"`
 }

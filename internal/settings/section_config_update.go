@@ -143,6 +143,8 @@ func (s *service) updateShellSection(
 	ctx context.Context,
 	req SectionUpdateRequest,
 ) (MutationResult, error) {
+	s.shellMu.Lock()
+	defer s.shellMu.Unlock()
 	cfg, target, err := s.loadGlobalSectionUpdate(ctx, req.Section, req.Scope, req.WorkspaceID)
 	if err != nil {
 		return MutationResult{}, err
@@ -151,13 +153,38 @@ func (s *service) updateShellSection(
 		return MutationResult{}, validationError(errors.New("settings: shell section payload is required"))
 	}
 	desired := *req.Shell
+	scopeWritten := desired.Sessions.Scope != ""
+	if desired.Sessions.Sort == "" {
+		desired.Sessions.Sort = cfg.Shell.Sessions.Sort
+	}
+	if !scopeWritten {
+		desired.Sessions.Scope = cfg.Shell.Sessions.Scope
+	}
+	desired.Sessions.ScopeExplicit = scopeWritten
+	if desired.Sessions.GroupBy == "" {
+		desired.Sessions.GroupBy = cfg.Shell.Sessions.GroupBy
+		desired.Sessions.GroupByExplicit = cfg.Shell.Sessions.GroupByExplicit
+	} else {
+		desired.Sessions.GroupByExplicit = true
+	}
+	desired.Sessions.ResolveGroupBy()
 	if err := desired.Validate(); err != nil {
 		return MutationResult{}, validationError(err)
 	}
 	changed := diffShellSettings(cfg.Shell, desired)
-	return s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
+	result, err := s.updateConfigSection(req.Section, changed, target, func(editor *compozyconfig.OverlayEditor) error {
 		return applyShellSettings(editor, desired)
 	})
+	if err != nil {
+		return result, err
+	}
+	if scopeWritten {
+		result.Warnings = append(result.Warnings, compozyconfig.ShellScopeDeprecationWarning)
+		if err := s.bumpShellScopeRevision(ctx); err != nil {
+			return MutationResult{}, err
+		}
+	}
+	return result, nil
 }
 
 func (s *service) updateObservabilitySection(

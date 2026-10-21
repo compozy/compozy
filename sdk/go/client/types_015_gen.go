@@ -267,6 +267,7 @@ type SessionCatalogFacetsPayload struct {
 
 // SessionCatalogFacetsResponse is a daemon API value.
 type SessionCatalogFacetsResponse struct {
+	ByProfile   []SessionProfileFacetsPayload   `json:"by_profile"`
 	Facets      SessionCatalogFacetsPayload     `json:"facets"`
 	ByWorkspace []SessionWorkspaceFacetsPayload `json:"by_workspace"`
 }

@@ -44,6 +44,7 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 	}
 	response := contract.SessionCatalogFacetsResponse{
 		Facets:      sessionFacetPayload(facets.Facets),
+		ByProfile:   make([]contract.SessionProfileFacetsPayload, 0, len(facets.ByProfile)),
 		ByWorkspace: make([]contract.SessionWorkspaceFacetsPayload, 0, len(facets.ByWorkspace)),
 	}
 	for _, workspace := range facets.ByWorkspace {
@@ -54,6 +55,9 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 				Facets:      sessionFacetPayload(workspace.Facets),
 			},
 		)
+	}
+	for _, profile := range facets.ByProfile {
+		response.ByProfile = append(response.ByProfile, contract.SessionProfileFacetsPayload{ProfileID: profile.ProfileID, Facets: sessionFacetPayload(profile.Facets)})
 	}
 	c.JSON(http.StatusOK, response)
 }

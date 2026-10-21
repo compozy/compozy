@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// ListTaskRunReviewsParams carries the path, query, and header parameters.
+type ListTaskRunReviewsParams struct {
+	ID                string  `url:"id"`
+	Status            *string `url:"status"`
+	ReviewerSessionID *string `url:"reviewer_session_id"`
+	Limit             *int    `url:"limit"`
+	Profile           *string `url:"profile"`
+	AllProfiles       *bool   `url:"all_profiles"`
+}
+
 // ListTaskRunReviews List reviews for one task run
 func (c *Client) ListTaskRunReviews(ctx context.Context, params ListTaskRunReviewsParams) (*TaskRunReviewsResponse, error) {
 	path := "/api/task-runs/{id}/reviews"
@@ -411,25 +421,26 @@ func (c *Client) ListWindowManagerLayoutProfiles(ctx context.Context, params Lis
 
 // ListWorkspaceSessionsParams carries the path, query, and header parameters.
 type ListWorkspaceSessionsParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	IncludeHealth *bool   `url:"include_health"`
-	SkipTotal     *bool   `url:"skip_total"`
-	State         *string `url:"state"`
-	Type          *string `url:"type"`
-	Agent         *string `url:"agent"`
-	Subagents     *string `url:"subagents"`
-	Parent        *string `url:"parent"`
-	Root          *string `url:"root"`
-	Worktree      *string `url:"worktree"`
-	Q             *string `url:"q"`
-	SearchFields  *string `url:"search_fields"`
-	Resumable     *bool   `url:"resumable"`
-	Attention     *bool   `url:"attention"`
-	Badge         *string `url:"badge"`
-	Archive       *string `url:"archive"`
-	Sort          *string `url:"sort"`
-	Cursor        *string `url:"cursor"`
-	Limit         *int    `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
+	WorkspaceID   string    `url:"workspace_id"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	IncludeHealth *bool     `url:"include_health"`
+	SkipTotal     *bool     `url:"skip_total"`
+	State         *string   `url:"state"`
+	Type          *string   `url:"type"`
+	Agent         *string   `url:"agent"`
+	Subagents     *string   `url:"subagents"`
+	Parent        *string   `url:"parent"`
+	Root          *string   `url:"root"`
+	Worktree      *string   `url:"worktree"`
+	Q             *string   `url:"q"`
+	SearchFields  *string   `url:"search_fields"`
+	Resumable     *bool     `url:"resumable"`
+	Attention     *bool     `url:"attention"`
+	Badge         *string   `url:"badge"`
+	Archive       *string   `url:"archive"`
+	Sort          *string   `url:"sort"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }

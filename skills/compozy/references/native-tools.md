@@ -510,6 +510,10 @@ for mutations. Resolve descriptors, pass the workspace, and use the current revi
   `compozy__layout_resize`, `compozy__layout_balance`, `compozy__layout_undo`, `compozy__layout_redo`,
   `compozy__layout_export`, `compozy__layout_validate`, `compozy__layout_apply`.
 
+For operator calls, these descriptors accept `workspace: "global"` before registry normalization,
+selecting the acting profile's reserved desktop partition. Agent identities cannot use it. This does
+not make `global` a valid workspace on other tools.
+
 Every tab tool mutates and needs `window_manager.write`. `window_group` takes `target_window_id` plus
 a `window_ids` array and an optional `insert_index`; `window_reorder` moves one member inside its own
 stack with a clamped `index`; `window_activate` sets the stack's durable active member and is the

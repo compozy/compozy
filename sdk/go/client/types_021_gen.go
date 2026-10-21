@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// Speed is a daemon API value.
-type Speed string
-
 // StartBinding is a daemon API value.
 type StartBinding struct {
 	Kind         StartKind         `json:"kind"`

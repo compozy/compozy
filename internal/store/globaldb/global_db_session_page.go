@@ -164,6 +164,20 @@ func sessionCatalogPageFilters(
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
+	if len(query.WorkspaceIDs) > 0 {
+		ids := append([]string(nil), query.WorkspaceIDs...)
+		for i, id := range ids {
+			if id == "@user" {
+				ids[i] = ""
+			}
+		}
+		encoded, err := json.Marshal(ids)
+		if err != nil {
+			return nil, nil, fmt.Errorf("store: encode session workspace filter: %w", err)
+		}
+		where = append(where, "workspace_id IN (SELECT CAST(value AS TEXT) FROM json_each(?))")
+		args = append(args, string(encoded))
+	}
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
 		if query.SearchFields == "title_agent" {
 			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))

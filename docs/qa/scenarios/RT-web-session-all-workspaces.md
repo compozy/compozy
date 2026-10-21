@@ -69,3 +69,23 @@ The automated soak runs in the release desktop nightly lane (`make test-e2e-desk
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+## Backend contract checks for All projects
+
+- Query `/api/sessions?all_workspaces=true&workspace_ids=<project>&workspace_ids=@user&limit=1`.
+  Follow cursors; every row must belong to the selected project or User. Reusing a cursor with a
+  different selection must fail. Empty selections and `global` filter values are rejected.
+- Read session facets with `all_profiles=true`: `by_profile` covers every eligible profile,
+  including groups with no row on the current page. Text and badge selections do not narrow facets.
+- PATCH `/api/settings/shell` with legacy `scope=all-workspaces`: verify the warning, explicit legacy
+  scope, and increasing revision on every repeated write. Set `group_by=profile`, write legacy scope
+  again, and reload; the explicit grouping must survive.
+- Open a global window with an unknown workspace binding: expect HTTP 400 `window_binding_invalid`.
+  `@user` succeeds. Saved snapshots remain structurally loadable after project removal.
+- Delete a session referenced from multiple profiles and project/global desktops; reload each partition.
+  The session view is empty and undo, navigation, and reopen cannot resurrect it. Unregistering a
+  bound project similarly retires every affected window onto its app's catalog.
+
+Backend evidence is owned by the session query/store, shell settings, window-manager lifecycle,
+and daemon partition reconciliation suites. Browser grouping and destination behavior are validated
+by the frontend slice and integrated journey.

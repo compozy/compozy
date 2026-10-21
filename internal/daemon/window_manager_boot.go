@@ -188,6 +188,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 				deadEntities:  state.deadEntities,
 				mcpTools:      state.mcpToolProvider,
 				workspaceID:   workspace.ID,
+				registry:      state.windowManagers,
 			}, nil
 		},
 	)
@@ -195,6 +196,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 }
 
 type workspaceRemovalPreparation struct {
+	registry      *windowManagerRegistry
 	windowManager workspacepkg.UnregisterPreparation
 	session       workspacepkg.UnregisterPreparation
 	terminal      workspacepkg.UnregisterPreparation
@@ -249,6 +251,11 @@ func (p *workspaceRemovalPreparation) Commit(ctx context.Context) error {
 	}
 	if err := errors.Join(terminalErr, windowManagerErr, sessionErr); err != nil {
 		return err
+	}
+	if p.registry != nil {
+		if err := p.registry.ReconcileUnregisteredWorkspace(ctx, p.workspaceID); err != nil {
+			return err
+		}
 	}
 	if p.deadEntities != nil {
 		p.deadEntities.ForgetWorkspace(p.workspaceID)

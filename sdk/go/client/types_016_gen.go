@@ -442,3 +442,9 @@ type SessionPresenceRequest struct {
 type SessionPresenceResponse struct {
 	LeaseID string `json:"lease_id"`
 }
+
+// SessionProfileFacetsPayload is a daemon API value.
+type SessionProfileFacetsPayload struct {
+	ProfileID string                      `json:"profile_id"`
+	Facets    SessionCatalogFacetsPayload `json:"facets"`
+}

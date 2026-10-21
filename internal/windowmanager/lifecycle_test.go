@@ -2616,3 +2616,46 @@ func requireExactGroup(t *testing.T, snapshot Snapshot, desktopID DesktopID, exp
 	}
 	t.Fatalf("group %q missing on %q: %+v", expected.ID, desktopID, snapshot.Desktops[desktopIndex].Groups)
 }
+
+func TestWorkspaceBindingRetirement(t *testing.T) {
+	t.Run("Should retire bound windows and prevent navigation history and reopen from restoring them", func(t *testing.T) {
+		t.Parallel()
+		env := newTestEnvironment(t, floatingConfig(), "workspace-a")
+		opened := openTestWindow(t, env.manager, "workspace-a", nil, "bound", "desktop-default")
+		route := testRoute("/loops/runs/run-one")
+		route.Search["workspace"] = json.RawMessage(`"workspace-b"`)
+		executeTestCommand(t, env.manager, "workspace-a", nil, NavigateWindowCommand{WindowID: "bound", Route: route})
+		openTestWindow(t, env.manager, "workspace-a", nil, "closed", "desktop-default")
+		executeTestCommand(t, env.manager, "workspace-a", nil, NavigateWindowCommand{WindowID: "closed", Route: route})
+		executeTestCommand(t, env.manager, "workspace-a", nil, CloseWindowCommand{WindowID: "closed"})
+		before := mustSnapshot(t, env.manager, "workspace-a")
+		sub, err := env.manager.Subscribe(t.Context(), SubscriptionRequest{WorkspaceID: "workspace-a", AfterRevision: before.Revision})
+		if err != nil {
+			t.Fatal(err)
+		}
+		sub = trackSubscription(t, sub)
+		if err := env.manager.ReconcileUnregisteredWorkspace(t.Context(), "workspace-a", "workspace-b"); err != nil {
+			t.Fatal(err)
+		}
+		snapshot, err := env.manager.Snapshot(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		update := <-sub.Updates()
+		if update.Event == nil || update.Event.CommandID != CommandWindowNavigate {
+			t.Fatalf("event = %#v", update)
+		}
+		if len(snapshot.ClosedEntries) != 0 {
+			t.Fatalf("retained closed entries = %#v", snapshot.ClosedEntries)
+		}
+		for _, retained := range snapshot.Windows {
+			if windowReferencesWorkspace(retained, "workspace-b") {
+				t.Fatalf("retained binding = %#v", retained)
+			}
+		}
+		window := snapshot.Windows["bound"]
+		if window.Route.Pathname != "/loops" || len(window.Route.Search) != 0 || len(snapshot.History.Undo) != 0 || len(snapshot.History.Redo) != 0 {
+			t.Fatalf("retirement = %#v (opened revision %d)", snapshot, opened.Snapshot.Revision)
+		}
+	})
+}

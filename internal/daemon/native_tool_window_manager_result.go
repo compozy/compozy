@@ -142,6 +142,12 @@ func (n *daemonNativeTools) windowManagerWorkspaceID(
 	workspaceRef string,
 	scope toolspkg.Scope,
 ) (windowmanager.WorkspaceID, error) {
+	if strings.TrimSpace(workspaceRef) == string(windowmanager.GlobalDesktopWorkspaceID) {
+		if !nativeWorkspaceScopeHasOperatorAuthority(scope) {
+			return "", nativeWorkspaceAccessDeniedError(id)
+		}
+		return windowmanager.GlobalDesktopWorkspaceID, nil
+	}
 	resolved, err := n.nativeResolvedWorkspace(ctx, id, workspaceRef, scope)
 	if err != nil {
 		return "", err
@@ -194,7 +200,7 @@ func windowManagerToolError(id toolspkg.ToolID, err error) error {
 		errors.Is(err, windowmanager.ErrFinalDesktop),
 		errors.Is(err, windowmanager.ErrHistoryBoundary):
 		code, cause, reason = toolspkg.ErrorCodeConflict, toolspkg.ErrToolConflict, toolspkg.ReasonConflictedID
-	case errors.Is(err, windowmanager.ErrInvalidCommand),
+	case errors.Is(err, windowmanager.ErrWindowBindingInvalid), errors.Is(err, windowmanager.ErrInvalidCommand),
 		errors.Is(err, windowmanager.ErrInvalidTopology),
 		errors.Is(err, windowmanager.ErrDestinationRequired),
 		errors.Is(err, windowmanager.ErrNotStacked),

@@ -47,6 +47,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.IssueSeverity]():                  contract.IssueSeverityValues(),
 		reflect.TypeFor[contract.DrainState]():                     drainStateValues(),
 		reflect.TypeFor[contract.SettingsShellSessionSort]():       settingsShellSessionSortValues(),
+		reflect.TypeFor[contract.SettingsShellSessionGroupBy]():    []string{"none", "project", "profile"},
 		reflect.TypeFor[contract.SettingsShellSessionScope]():      settingsShellSessionScopeValues(),
 		reflect.TypeFor[automationpkg.Scope]():                     automationScopeValues(),
 		reflect.TypeFor[automationpkg.JobSource]():                 automationSourceValues(),

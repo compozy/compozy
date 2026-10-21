@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/listcursor"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -49,6 +48,7 @@ type ListQuery struct {
 	Subagents       string
 	ReadScope       store.ReadScope
 	WorkspaceID     string
+	WorkspaceIDs    []string
 	AllWorkspaces   bool
 	WorktreeID      string
 	State           string
@@ -84,6 +84,7 @@ type sessionListFingerprint struct {
 	ProfileID       string                     `json:"profile_id"`
 	AllProfiles     bool                       `json:"all_profiles"`
 	WorkspaceID     string                     `json:"workspace_id"`
+	WorkspaceIDs    []string                   `json:"workspace_ids,omitempty"`
 	AllWorkspaces   bool                       `json:"all_workspaces"`
 	WorktreeID      string                     `json:"worktree_id"`
 	State           string                     `json:"state"`
@@ -182,6 +183,7 @@ func sessionCatalogPageQuery(
 		SkipTotal:         normalized.SkipTotal,
 		ReadScope:         normalized.ReadScope,
 		WorkspaceID:       normalized.WorkspaceID,
+		WorkspaceIDs:      normalized.WorkspaceIDs,
 		WorktreeID:        normalized.WorktreeID,
 		State:             normalized.State,
 		SessionType:       string(normalized.SessionType),
@@ -244,6 +246,10 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 			"%w: choose exactly one workspace or all workspaces",
 			ErrListQueryInvalid,
 		)
+	}
+	query.WorkspaceIDs, err = NormalizeWorkspaceIDs(query.WorkspaceIDs, query.AllWorkspaces)
+	if err != nil {
+		return ListQuery{}, err
 	}
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.State = strings.TrimSpace(query.State)
@@ -347,6 +353,7 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 	}
 	return query.ReadScope.Matches(info.ProfileID) &&
 		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID) &&
+		sessionMatchesWorkspaceIDs(info.WorkspaceID, query.WorkspaceIDs) &&
 		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
 		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&
 		(query.SessionType == "" || normalizeSessionType(info.Type) == query.SessionType) &&
@@ -397,6 +404,7 @@ func sessionListFingerprintForQuery(query ListQuery) (string, error) {
 		ProfileID:       query.ReadScope.ProfileID,
 		AllProfiles:     query.ReadScope.AllProfiles,
 		WorkspaceID:     query.WorkspaceID,
+		WorkspaceIDs:    query.WorkspaceIDs,
 		AllWorkspaces:   query.AllWorkspaces,
 		WorktreeID:      query.WorktreeID,
 		State:           query.State,
@@ -432,58 +440,6 @@ func projectSessionCatalogPage(
 		infos = append(infos, sessionInfoFromCatalog(stored))
 	}
 	return infos
-}
-
-func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
-	attention := info.AttentionSnapshot()
-	return &Info{
-		VerdictOnly:              info.VerdictOnly,
-		ID:                       strings.TrimSpace(info.ID),
-		ProfileID:                strings.TrimSpace(info.ProfileID),
-		Name:                     strings.TrimSpace(info.Name),
-		AgentName:                strings.TrimSpace(info.AgentName),
-		Provider:                 strings.TrimSpace(info.Provider),
-		Model:                    strings.TrimSpace(info.Model),
-		ReasoningEffort:          strings.TrimSpace(info.ReasoningEffort),
-		Speed:                    info.Speed,
-		ACPOptions:               ACPOptionSelectionsFromStore(info.ACPOptionsValue()),
-		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
-		RuntimeStatus:            info.RuntimeStatus,
-		RuntimeTransition:        info.RuntimeTransition,
-		RuntimeFailure:           strings.TrimSpace(info.RuntimeFailure),
-		RuntimeGeneration:        info.RuntimeGeneration,
-		RuntimeRecovery:          info.RuntimeRecoveryValue(),
-		SelectedRuntime:          runtimeSelectionFromSessionStore(info.SelectedRuntime),
-		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
-		WorkspaceID:              strings.TrimSpace(info.WorkspaceID),
-		WorktreeID:               strings.TrimSpace(info.WorktreeID),
-		Type:                     Type(strings.TrimSpace(info.SessionType)),
-		Lineage:                  store.CloneSessionLineage(info.Lineage),
-		State:                    State(strings.TrimSpace(info.State)),
-		StopReason:               info.StopReason,
-		StopEscalated:            info.StopEscalated,
-		StopVerificationFailed:   info.StopVerificationFailed,
-		StopDetail:               strings.TrimSpace(info.StopDetail),
-		Failure:                  store.CloneSessionFailure(info.Failure),
-		ACPSessionID:             stringValue(info.ACPSessionID),
-		Liveness:                 store.CloneSessionLivenessMeta(info.Liveness),
-		SoulSnapshotID:           strings.TrimSpace(info.SoulSnapshotID),
-		SoulDigest:               strings.TrimSpace(info.SoulDigest),
-		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
-		AttachedTo:               strings.TrimSpace(info.AttachedToValue()),
-		AttachExpiresAt:          cloneTimePointer(info.AttachExpiresAtValue()),
-		TranscriptEpoch:          info.TranscriptEpoch,
-		PendingPermissionCount:   attention.PendingPermissionCount,
-		PendingClarifyCount:      attention.PendingClarifyCount,
-		AttentionRevision:        attention.AttentionRevision,
-		LastSettledRevision:      attention.LastSettledRevision,
-		LastSeenRevision:         attention.LastSeenRevision,
-		LastSeenAt:               cloneTimePointer(attention.LastSeenAt),
-		AttentionChangedAt:       cloneTimePointer(attention.AttentionChangedAt),
-		ArchivedAt:               cloneTimePointer(info.ArchivedAt),
-		CreatedAt:                info.CreatedAt,
-		UpdatedAt:                info.UpdatedAt,
-	}
 }
 
 func normalizeSubagentListFilter(value string) (string, error) {

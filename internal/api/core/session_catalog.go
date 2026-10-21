@@ -82,6 +82,10 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		}
 		return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
 	}
+	workspaceIDs, err := session.NormalizeWorkspaceIDs(c.QueryArray("workspace_ids"), allWorkspaces)
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
 	skipTotal, err := parseBoolQuery(c, "skip_total")
 	if err != nil {
 		return session.ListQuery{}, false, err
@@ -126,6 +130,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
 		AllWorkspaces:   allWorkspaces,
+		WorkspaceIDs:    workspaceIDs,
 		WorktreeID:      strings.TrimSpace(c.Query("worktree")),
 		State:           strings.TrimSpace(c.Query("state")),
 		SessionType:     sessionType,

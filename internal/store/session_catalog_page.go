@@ -62,6 +62,7 @@ type SessionCatalogPageQuery struct {
 	Subagents           string
 	SkipTotal           bool
 	ReadScope           ReadScope
+	WorkspaceIDs        []string
 	WorkspaceID         string
 	WorktreeID          string
 	State               string

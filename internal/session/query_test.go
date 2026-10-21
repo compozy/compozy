@@ -3573,3 +3573,53 @@ func TestManagerUnreadableMetadataWarnings(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionWorkspaceFilter(t *testing.T) {
+	t.Run("Should normalize selection and bind cursor identity to the full workspace set", func(t *testing.T) {
+		t.Parallel()
+		query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, WorkspaceIDs: []string{" ws-a ", "@user", "ws-a"}}
+		normalized, err := normalizeListQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(normalized.WorkspaceIDs, []string{"@user", "ws-a"}) {
+			t.Fatalf("selection = %v", normalized.WorkspaceIDs)
+		}
+		fingerprint, err := sessionListFingerprintForQuery(normalized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		normalized.WorkspaceIDs = []string{"ws-b"}
+		other, err := sessionListFingerprintForQuery(normalized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fingerprint == other {
+			t.Fatal("different selections share cursor identity")
+		}
+		for _, id := range []string{"", "ws-a"} {
+			if !sessionMatchesWorkspaceIDs(id, []string{"@user", "ws-a"}) {
+				t.Fatalf("excluded %q", id)
+			}
+		}
+		if sessionMatchesWorkspaceIDs("ws-b", []string{"@user", "ws-a"}) {
+			t.Fatal("included another project")
+		}
+	})
+	for _, values := range [][]string{{""}, {"global"}} {
+		t.Run("Should reject reserved or empty filter "+strings.Join(values, ","), func(t *testing.T) {
+			t.Parallel()
+			_, err := NormalizeWorkspaceIDs(values, true)
+			if !errors.Is(err, ErrListQueryInvalid) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+	t.Run("Should reject a filter without aggregate breadth", func(t *testing.T) {
+		t.Parallel()
+		_, err := NormalizeWorkspaceIDs([]string{"ws-a"}, false)
+		if !errors.Is(err, ErrListQueryInvalid) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -1469,4 +1470,64 @@ func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {
 			t.Fatalf("%s session foreign key on_delete = %q, want CASCADE", table, onDelete)
 		}
 	}
+}
+
+func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
+	t.Run("Should page selected projects and User rows with independent profile facets", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		wsA := registerWorkspaceForGlobalTests(t, db, "filter-a", filepath.Join(t.TempDir(), "a"))
+		wsB := registerWorkspaceForGlobalTests(t, db, "filter-b", filepath.Join(t.TempDir(), "b"))
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		const otherProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := db.db.ExecContext(t.Context(), `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'editorial','#8E8EB5','circle','active',?)`, otherProfile, formatTimestamp(now)); err != nil {
+			t.Fatal(err)
+		}
+		for i, ws := range []string{wsA, wsB, "", wsA} {
+			info := sessionInfoForWorkspaceStateIndexTest(fmt.Sprintf("filter-%d", i), ws, globalDBSessionStateActive, now.Add(time.Duration(i)*time.Second))
+			if i == 3 {
+				info.ProfileID = otherProfile
+			}
+			if err := db.RegisterSession(t.Context(), info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(t.Context(), `UPDATE sessions SET pending_permission_count=1 WHERE id IN ('filter-2','filter-3')`); err != nil {
+			t.Fatal(err)
+		}
+		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceIDs: []string{wsA, "@user"}, Sort: "created", Limit: 1}
+		for _, want := range []string{"filter-3", "filter-2", "filter-0"} {
+			page, err := db.PageSessions(t.Context(), query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Total != 3 || len(page.Sessions) != 1 || page.Sessions[0].ID != want {
+				t.Fatalf("page = %#v, want %s", page, want)
+			}
+			row := page.Sessions[0]
+			query.After = &store.SessionCatalogPosition{ID: row.ID, CreatedAt: row.CreatedAt, PrimaryAt: row.UpdatedAt, SecondaryAt: row.UpdatedAt}
+		}
+		page, err := db.PageSessions(t.Context(), query)
+		if err != nil || len(page.Sessions) != 0 {
+			t.Fatalf("last page = %#v, error = %v", page, err)
+		}
+		query.Search = "missing text"
+		query.Badges = []string{"failed"}
+		facets, err := db.SessionCatalogFacets(t.Context(), query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.All != 3 || facets.Facets.NeedsYou != 2 || len(facets.ByProfile) != 2 {
+			t.Fatalf("facets = %#v", facets)
+		}
+		for _, profile := range facets.ByProfile {
+			wantAll := 2
+			if profile.ProfileID == otherProfile {
+				wantAll = 1
+			}
+			if profile.Facets.All != wantAll || profile.Facets.NeedsYou != 1 {
+				t.Fatalf("profile facet = %#v", profile)
+			}
+		}
+	})
 }

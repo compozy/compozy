@@ -38,6 +38,10 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	for _, workspace := range durable.ByWorkspace {
 		workspaces[workspace.WorkspaceID] = workspace.Facets
 	}
+	profiles := make(map[string]store.SessionCatalogFacets, len(durable.ByProfile))
+	for _, profile := range durable.ByProfile {
+		profiles[profile.ProfileID] = profile.Facets
+	}
 	for index := range activeMatches {
 		info := sessionInfoFromCatalog(&activeMatches[index])
 		// Use the live Info, including supervision, rather than the durable projection.
@@ -48,6 +52,9 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 		addSessionFacet(&facets, BadgeForInfo(info))
 		addSessionFacet(&durable.Facets, BadgeForInfo(info))
 		workspaces[info.WorkspaceID] = facets
+		profile := profiles[info.ProfileID]
+		addSessionFacet(&profile, BadgeForInfo(info))
+		profiles[info.ProfileID] = profile
 	}
 	durable.ByWorkspace = make([]store.WorkspaceSessionCatalogFacets, 0, len(workspaces))
 	for workspaceID, facets := range workspaces {
@@ -60,6 +67,11 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 		durable.ByWorkspace,
 		func(a, b store.WorkspaceSessionCatalogFacets) int { return cmp.Compare(a.WorkspaceID, b.WorkspaceID) },
 	)
+	durable.ByProfile = make([]store.ProfileSessionCatalogFacets, 0, len(profiles))
+	for id, facets := range profiles {
+		durable.ByProfile = append(durable.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
+	}
+	slices.SortFunc(durable.ByProfile, func(a, b store.ProfileSessionCatalogFacets) int { return cmp.Compare(a.ProfileID, b.ProfileID) })
 	return durable, nil
 }
 

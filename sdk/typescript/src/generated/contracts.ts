@@ -5849,6 +5849,7 @@ export interface Tool {
   display_title?: string;
   friendly_verb?: string;
   preview?: string;
+  reserved_workspace_partition?: boolean;
   max_result_bytes?: number;
   idempotent?: boolean;
   input_error_code?: ErrorCode;

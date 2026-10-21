@@ -7880,6 +7880,7 @@ export interface components {
       code:
         | "window_manager_workspace_not_found"
         | "window_manager_revision_conflict"
+        | "window_binding_invalid"
         | "window_manager_invalid_command"
         | "window_manager_invalid_topology"
         | "window_manager_desktop_not_found"
@@ -12980,6 +12981,7 @@ export interface components {
       working: number;
     };
     SessionCatalogFacetsResponse: {
+      by_profile: components["schemas"]["SessionProfileFacetsPayload"][];
       by_workspace: components["schemas"]["SessionWorkspaceFacetsPayload"][];
       facets: components["schemas"]["SessionCatalogFacetsPayload"];
     };
@@ -13566,6 +13568,10 @@ export interface components {
     };
     SessionPresenceResponse: {
       lease_id: string;
+    };
+    SessionProfileFacetsPayload: {
+      facets: components["schemas"]["SessionCatalogFacetsPayload"];
+      profile_id: string;
     };
     SessionPromptCancelResponse: {
       outcome: string;
@@ -14800,12 +14806,77 @@ export interface components {
         | "marketplace";
       workspace_id?: string;
     };
+    SettingsShellLegacyScopePayload: {
+      explicit: boolean;
+      /** Format: uint64 */
+      revision: number;
+      /** @enum {string} */
+      value: "workspace" | "all-workspaces";
+    };
+    SettingsShellMutationResponse: {
+      active_config_hash: string;
+      /** Format: int64 */
+      active_generation: number;
+      agent_name?: string;
+      applied: boolean;
+      apply_record_id: string;
+      config: components["schemas"]["SettingsShellPayload"];
+      legacy_scope: components["schemas"]["SettingsShellLegacyScopePayload"];
+      /** @enum {string} */
+      lifecycle:
+        | "live"
+        | "live-add"
+        | "live-remove-if-unused"
+        | "restart-required"
+        | "session-rebind";
+      /** @enum {string} */
+      next_action: "none" | "restart-daemon" | "new-session" | "retry";
+      partial_failures?: components["schemas"]["SettingsApplyFailurePayload"][];
+      profile?: string;
+      restart_required?: boolean;
+      restart_scope?: string;
+      /** @enum {string} */
+      scope?: "user" | "profile" | "workspace" | "agent";
+      /** @enum {string} */
+      section?:
+        | "general"
+        | "persona"
+        | "roles"
+        | "skills"
+        | "automation"
+        | "window-manager"
+        | "cmd-palette"
+        | "attention"
+        | "shell"
+        | "provider-usage"
+        | "observability"
+        | "hooks-extensions"
+        | "marketplace"
+        | "providers"
+        | "mcp-servers"
+        | "hooks";
+      skipped?: boolean;
+      skipped_reason?: string;
+      warnings?: string[];
+      workspace_id?: string;
+      /** @enum {string} */
+      write_target?:
+        | "global-config"
+        | "profile-config"
+        | "workspace-config"
+        | "global-mcp-sidecar"
+        | "profile-mcp-sidecar"
+        | "workspace-mcp-sidecar"
+        | "global-agent-file"
+        | "workspace-agent-file";
+    };
     SettingsShellPayload: {
       sessions: components["schemas"]["SettingsShellSessionsPayload"];
     };
     SettingsShellResponse: {
       available_scopes: "user"[];
       config: components["schemas"]["SettingsShellPayload"];
+      legacy_scope: components["schemas"]["SettingsShellLegacyScopePayload"];
       /** @enum {string} */
       scope: "user";
       /** @enum {string} */
@@ -14823,12 +14894,15 @@ export interface components {
         | "observability"
         | "hooks-extensions"
         | "marketplace";
+      warnings: string[];
     };
     SettingsShellSessionsPayload: {
       /** @enum {string} */
-      scope: "workspace" | "all-workspaces";
+      group_by?: "none" | "project" | "profile";
       /** @enum {string} */
-      sort: "created" | "name" | "last_activity" | "attention" | "manual";
+      scope?: "workspace" | "all-workspaces";
+      /** @enum {string} */
+      sort?: "created" | "name" | "last_activity" | "attention" | "manual";
     };
     SettingsSkillSourceCollisionPayload: {
       name: string;
@@ -18727,6 +18801,7 @@ export interface components {
       code:
         | "window_manager_workspace_not_found"
         | "window_manager_revision_conflict"
+        | "window_binding_invalid"
         | "window_manager_invalid_command"
         | "window_manager_invalid_topology"
         | "window_manager_desktop_not_found"
@@ -31194,6 +31269,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Use the explicit all-workspaces aggregate */
         all_workspaces?: boolean;
+        /** @description Project IDs or @user; repeatable, requires all_workspaces */
+        workspace_ids?: string[];
         /** @description Include metadata-only health for returned sessions */
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
@@ -31493,6 +31570,8 @@ export interface operations {
         workspace_id?: string;
         /** @description Use the explicit all-workspaces aggregate */
         all_workspaces?: boolean;
+        /** @description Project IDs or @user; repeatable, requires all_workspaces */
+        workspace_ids?: string[];
         /** @description Filter by bound worktree id */
         worktree?: string;
         /** @description Filter by exact agent name */
@@ -34391,7 +34470,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SettingsApplyResponse"];
+          "application/json": components["schemas"]["SettingsShellMutationResponse"];
         };
       };
       /** @description Invalid settings payload */
@@ -44728,6 +44807,8 @@ export interface operations {
   listWorkspaceSessions: {
     parameters: {
       query?: {
+        /** @description Project IDs or @user; repeatable, requires all_workspaces */
+        workspace_ids?: string[];
         /** @description Include metadata-only health for returned sessions */
         include_health?: boolean;
         /** @description Omit the exact catalog count for a bounded cursor read */
@@ -50706,6 +50787,15 @@ export interface operations {
           "application/json": components["schemas"]["ContractWindowManagerClientView"];
         };
       };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
       /** @description Workspace or referenced entity not found */
       404: {
         headers: {
@@ -50767,6 +50857,15 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
       };
       /** @description Workspace or referenced entity not found */
       404: {
@@ -50833,6 +50932,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ContractWindowManagerResult"];
+        };
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
         };
       };
       /** @description Workspace or referenced entity not found */
@@ -50944,6 +51052,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ContractWindowManagerResult"];
+        };
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
         };
       };
       /** @description Workspace or referenced entity not found */
@@ -51304,6 +51421,15 @@ export interface operations {
           "application/json": components["schemas"]["ContractWindowManagerLayoutValidationResponse"];
         };
       };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
+        };
+      };
       /** @description Workspace or referenced entity not found */
       404: {
         headers: {
@@ -51369,6 +51495,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ContractWindowManagerPreview"];
+        };
+      };
+      /** @description Invalid window workspace binding */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ContractWindowManagerErrorPayload"];
         };
       };
       /** @description Workspace or referenced entity not found */

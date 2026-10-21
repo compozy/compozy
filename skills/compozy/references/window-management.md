@@ -413,3 +413,18 @@ Stable public errors include `window_manager_revision_conflict`,
 (a stack operation on a window that is in no stack), and `window_manager_window_pinned`
 (`close --scope tab` on a pinned window — unpin it or use `--scope group`). Preserve structured
 diagnostics and entity conflicts when reporting failures.
+
+## All-projects bindings
+
+Operator calls to window, desktop, and layout tools may select `workspace: "global"`, the acting
+profile's All-projects partition. Every agent identity is denied on this partition, including agents
+with unrestricted workspace access. Other native tools do not accept this reserved partition.
+
+Inside `global`, `route.search.workspace` is absent for a catalog, `"@user"` for User data, or a registered
+workspace ID for project data. Open, navigate, reopen, and layout replacement reject unresolved bindings
+with HTTP 400 `window_binding_invalid`. Project partitions preserve existing binding behavior.
+Snapshot validation remains registry-free, so saved layouts can always be loaded before reconciliation.
+
+Session deletion retires references across every persisted profile partition. Workspace unregistration
+retires bound windows to their application catalog and removes retained references from navigation,
+closed entries, and undo/redo. Reconciliation publishes the partition's normal window-manager event.

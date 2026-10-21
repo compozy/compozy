@@ -516,15 +516,17 @@ governs one daemon. Workspace overlays remain valid.
 
 ## Shell Session Preferences
 
-`shell.sessions.sort` persists the session list order and accepts `last_activity` (default) or
-`attention`. `shell.sessions.scope` persists the list breadth and accepts `workspace` (default) or
-`all-workspaces`. Both keys are global, apply live, and survive browser restarts in
-`$COMPOZY_HOME/config.toml`; workspace-scoped writes are rejected, and browser-local storage is not
-authoritative.
+`shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
+`shell.sessions.group_by` controls grouping: `none` (default), `project`, or `profile`. These user-wide
+preferences apply live. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
+PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
 
-Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`. The PATCH
-request replaces the complete `shell` config section, so read the current section before changing
-one field.
+Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
+(`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar
+globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.
+The response's `legacy_scope` reports `value`, whether the user overlay is `explicit`, and a durable
+`revision` that advances even for same-value writes. Default-only scope is never a breadth instruction.
+Removal is scheduled for v0.5.0; existing clients may continue writing the legacy key in v0.4.0.
 
 ## Provider Usage
 

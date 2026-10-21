@@ -180,6 +180,7 @@ type MCPDefinitionRetirer interface {
 
 // Dependencies captures the runtime dependencies required by the settings service.
 type Dependencies struct {
+	ShellScopeRevisions         ShellScopeRevisionStore
 	WorkspaceResolver           WorkspaceResolver
 	ProfileResolver             ProfileResolver
 	AttentionWorkspaceMutes     AttentionWorkspaceMuteStore
@@ -208,7 +209,14 @@ type Dependencies struct {
 	LookupEnv                   func(string) (string, bool)
 }
 
+type ShellScopeRevisionStore interface {
+	GetAppMetadata(context.Context, string) (string, bool, error)
+	SetAppMetadata(context.Context, string, string) error
+}
+
 type service struct {
+	shellScopeRevisions         ShellScopeRevisionStore
+	shellMu                     sync.Mutex
 	homePaths                   compozyconfig.HomePaths
 	workspaceResolver           WorkspaceResolver
 	profileResolver             ProfileResolver
@@ -279,6 +287,7 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		workspaceResolver:           deps.WorkspaceResolver,
 		profileResolver:             deps.ProfileResolver,
 		attentionWorkspaceMutes:     deps.AttentionWorkspaceMutes,
+		shellScopeRevisions:         deps.ShellScopeRevisions,
 		generalRuntime:              deps.GeneralRuntime,
 		skillsRuntime:               deps.SkillsRuntime,
 		automationRuntime:           deps.AutomationRuntime,

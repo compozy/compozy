@@ -80,6 +80,7 @@ func sessionCatalogListOperation() OperationSpec {
 		Parameters: withProfileScope(
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
+			ParameterSpec{Name: "workspace_ids", In: "query", Kind: "array", Description: "Project IDs or @user; repeatable, requires all_workspaces"},
 			boolQueryParam("include_health", "Include metadata-only health for returned sessions"),
 			boolQueryParam("skip_total", "Omit the exact catalog count for a bounded cursor read"),
 			enumQueryParam(
@@ -266,6 +267,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 		Parameters: withProfileScope(
 			queryParam("workspace_id", "Workspace id or path", false),
 			boolQueryParam("all_workspaces", "Use the explicit all-workspaces aggregate"),
+			ParameterSpec{Name: "workspace_ids", In: "query", Kind: "array", Description: "Project IDs or @user; repeatable, requires all_workspaces"},
 			queryParam("worktree", "Filter by bound worktree id", false),
 			queryParam("agent", "Filter by exact agent name", false),
 			enumQueryParam(

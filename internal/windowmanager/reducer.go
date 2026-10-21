@@ -64,6 +64,8 @@ func (r *reducer) reduceTopologyCommand(
 		changed, err = r.navigateWindow(snapshot, payload)
 	case CloseWindowCommand:
 		changed, err = r.closeWindow(snapshot, payload)
+	case workspaceUnregisteredCommand:
+		changed, err = r.retireUnregisteredWorkspaceWindows(snapshot, payload.binding)
 	case sessionDeletionCommand:
 		changed, err = r.retireDeletedSessionWindows(snapshot, payload.sessionID)
 	case MoveWindowCommand:

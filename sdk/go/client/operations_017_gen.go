@@ -342,19 +342,20 @@ func (c *Client) ListSessionEvents(ctx context.Context, params ListSessionEvents
 
 // ListSessionFacetsParams carries the path, query, and header parameters.
 type ListSessionFacetsParams struct {
-	WorkspaceID   *string `url:"workspace_id"`
-	AllWorkspaces *bool   `url:"all_workspaces"`
-	Worktree      *string `url:"worktree"`
-	Agent         *string `url:"agent"`
-	Subagents     *string `url:"subagents"`
-	Parent        *string `url:"parent"`
-	Root          *string `url:"root"`
-	Resumable     *bool   `url:"resumable"`
-	State         *string `url:"state"`
-	Type          *string `url:"type"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
+	WorkspaceID   *string   `url:"workspace_id"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Worktree      *string   `url:"worktree"`
+	Agent         *string   `url:"agent"`
+	Subagents     *string   `url:"subagents"`
+	Parent        *string   `url:"parent"`
+	Root          *string   `url:"root"`
+	Resumable     *bool     `url:"resumable"`
+	State         *string   `url:"state"`
+	Type          *string   `url:"type"`
+	Archive       *string   `url:"archive"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }
 
 // ListSessionFacets Count session catalog facets
@@ -366,6 +367,11 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 	}
 	if params.AllWorkspaces != nil {
 		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
 	}
 	if params.Worktree != nil {
 		query.Set("worktree", *params.Worktree)

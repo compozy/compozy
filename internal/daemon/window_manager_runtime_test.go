@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -734,4 +735,64 @@ func (p *windowManagerSessionRemovalPreparation) Commit(context.Context) error {
 func (p *windowManagerSessionRemovalPreparation) Rollback(context.Context) error {
 	p.rollbacks++
 	return nil
+}
+
+func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
+	for _, retirement := range []string{"session", "workspace"} {
+		t.Run("Should reconcile every persisted profile partition after "+retirement+" retirement", func(t *testing.T) {
+			t.Parallel()
+			fixture := newDaemonWindowManagerFixture(t)
+			ctx := t.Context()
+			partitions := []windowmanager.WorkspaceID{windowmanager.GlobalDesktopWorkspaceID, windowmanager.WorkspaceID(fixture.workspace.ID)}
+			for _, profile := range []string{testWindowManagerProfileID, "profile-inactive"} {
+				manager, err := fixture.registry.For(profile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, partition := range partitions {
+					binding, err := json.Marshal(fixture.workspace.ID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, err = manager.Execute(ctx, windowmanager.CommandRequest{WorkspaceID: partition, Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{ID: "bound", App: "session", InstanceKey: new("deleted-session"), DesktopID: "desktop-default", Route: windowmanager.RouteIntent{Pathname: "/sessions/deleted-session", Search: windowmanager.RouteSearch{"workspace": binding}}}}})
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			reloaded, err := newWindowManagerRegistry(fixture.engine, windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver}, nil, fixture.resolver, windowmanager.DefaultConfig(), discardLogger())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reloaded.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			reconciler := &windowManagerSessionReconciler{registry: reloaded}
+			reconciler.SetReady()
+			if retirement == "session" {
+				if err := reconciler.ReconcileDeletedSession(ctx, "unrelated-profile", "unrelated-project", "deleted-session"); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := reloaded.ReconcileUnregisteredWorkspace(ctx, fixture.workspace.ID); err != nil {
+				t.Fatal(err)
+			}
+			for _, profile := range []string{testWindowManagerProfileID, "profile-inactive"} {
+				manager, err := reloaded.For(profile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, partition := range partitions {
+					snapshot, err := manager.Snapshot(ctx, partition)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if snapshot.Windows["bound"].InstanceKey != nil || snapshot.Windows["bound"].Route.Pathname != "/sessions" || len(snapshot.History.Undo) != 0 || len(snapshot.Windows["bound"].Route.Search) != 0 {
+						t.Fatalf("unretired %s/%s: %#v", profile, partition, snapshot)
+					}
+				}
+			}
+		})
+	}
 }

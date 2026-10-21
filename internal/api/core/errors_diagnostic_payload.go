@@ -63,9 +63,16 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 }
 
 func enrichOperationError(payload *contract.ErrorPayload, err error) {
+	if validation, ok := errors.AsType[compozyconfig.ValidationError](err); ok && validation.Code == "shell_config_invalid" {
+		payload.Code = validation.Code
+	}
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound):
 		payload.Code = "session_not_found"
+	case errors.Is(err, session.ErrWorkspaceSelectionReserved):
+		payload.Code = "workspace_reserved"
+	case errors.Is(err, session.ErrWorkspaceSelectionInvalid):
+		payload.Code = "workspace_breadth_invalid"
 	case errors.Is(err, session.ErrListQueryInvalid):
 		payload.Code = cmdPaletteInvalidRequestError
 	case errors.Is(err, session.ErrSubagentArchiveFollows):

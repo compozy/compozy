@@ -73,7 +73,7 @@ func (b *nativeWorkspaceInputBinder) BindCallInput(
 	if payload == nil {
 		return nil, nativeWorkspaceObjectInputError(descriptor.ID, nil)
 	}
-	if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor.ID, schema, payload); err != nil {
+	if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor, schema, payload); err != nil {
 		return nil, err
 	}
 	return json.Marshal(payload)
@@ -82,13 +82,14 @@ func (b *nativeWorkspaceInputBinder) BindCallInput(
 func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	id toolspkg.ToolID,
+	descriptor toolspkg.Descriptor,
 	schema map[string]json.RawMessage,
 	payload map[string]json.RawMessage,
 ) error {
+	id := descriptor.ID
 	properties := nativeWorkspaceSchemaProperties(schema)
 	if _, ok := properties[nativeWorkspaceInputKey]; ok {
-		if err := b.bindNativeWorkspaceField(ctx, scope, id, payload); err != nil {
+		if err := b.bindNativeWorkspaceField(ctx, scope, descriptor, payload); err != nil {
 			return err
 		}
 	}
@@ -108,7 +109,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 		if err := json.Unmarshal(rawPayload, &childPayload); err != nil || childPayload == nil {
 			return nativeWorkspaceObjectInputError(id, err)
 		}
-		if err := b.bindNativeWorkspaceNode(ctx, scope, id, childSchema, childPayload); err != nil {
+		if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor, childSchema, childPayload); err != nil {
 			return err
 		}
 		encoded, err := json.Marshal(childPayload)
@@ -122,7 +123,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 			if !nativeWorkspaceSchemaAcceptsWorkspace(childSchema) {
 				continue
 			}
-			if err := b.bindNativeWorkspaceNode(ctx, scope, id, childSchema, payload); err != nil {
+			if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor, childSchema, payload); err != nil {
 				return err
 			}
 		}
@@ -133,12 +134,22 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	id toolspkg.ToolID,
+	descriptor toolspkg.Descriptor,
 	payload map[string]json.RawMessage,
 ) error {
+	id := descriptor.ID
 	requested, validString := nativeWorkspaceInputValue(payload[nativeWorkspaceInputKey])
 	if !validString {
 		return nil
+	}
+	if requested == "global" {
+		if !nativeWorkspaceScopeHasOperatorAuthority(scope) {
+			return nativeWorkspaceAccessDeniedError(id)
+		}
+		if descriptor.ExecutionMetadata().ReservedWorkspacePartition {
+			return setNativeWorkspaceInput(payload, requested)
+		}
+		return nativeInputError(id, fmt.Errorf("global is reserved for window-manager partitions"))
 	}
 	trusted := strings.TrimSpace(scope.WorkspaceID)
 	hasOperatorAuthority := nativeWorkspaceScopeHasOperatorAuthority(scope)

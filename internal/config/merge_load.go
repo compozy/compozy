@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	burnttoml "github.com/BurntSushi/toml"
 )
@@ -89,6 +90,9 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 		return overlay, unknown
 	}
 
+	if overlay.Shell != nil && overlay.Shell.Sessions.Scope != nil {
+		slog.Warn(ShellScopeDeprecationWarning)
+	}
 	return overlay, nil
 }
 

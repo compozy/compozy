@@ -14515,3 +14515,31 @@ func TestNativeUserWorkspaceReference(t *testing.T) {
 		}
 	})
 }
+
+func TestNativeWindowGlobalPartition(t *testing.T) {
+	t.Run("Should bind operator global before registry resolution and deny agents", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Sessions: nativeTestSessionManager("workspace-a"), WindowManagers: fixture.registry, Workspaces: fixture.resolver}, nativeApproveAllPolicyInputs())
+		request := toolspkg.CallRequest{ToolID: toolspkg.ToolIDWindowOpen, Input: json.RawMessage(`{"workspace":"global","expected_revision":0,"window_id":"global-window","app":"session","desktop_id":"desktop-default","route":{"pathname":"/sessions","search":{"workspace":"@user"}}}`)}
+		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true, ProfileID: testWindowManagerProfileID}, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var opened windowManagerCommandResult
+		if err := json.Unmarshal(result.Structured, &opened); err != nil {
+			t.Fatal(err)
+		}
+		if opened.WorkspaceID != windowmanager.GlobalDesktopWorkspaceID || !opened.Applied {
+			t.Fatalf("result = %#v", opened)
+		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "workspace-a", SessionID: "session-a", AgentName: "agent-a", ProfileID: testWindowManagerProfileID}, request)
+		if !errors.Is(err, toolspkg.ErrToolDenied) {
+			t.Fatalf("agent global error = %v", err)
+		}
+		_, err = registry.Call(t.Context(), toolspkg.Scope{Operator: true, ProfileID: testWindowManagerProfileID}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDWorkspaceDescribe, Input: json.RawMessage(`{"workspace":"global"}`)})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("non-WM global error = %v", err)
+		}
+	})
+}

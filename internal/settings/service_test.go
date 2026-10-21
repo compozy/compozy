@@ -1469,7 +1469,10 @@ func TestUpdateSectionShell(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadForHome(updated shell) error = %v", err)
 		}
-		if !reflect.DeepEqual(loaded.Shell, desired) {
+		expected := desired
+		expected.Sessions.ScopeExplicit = true
+		expected.Sessions.ResolveGroupBy()
+		if !reflect.DeepEqual(loaded.Shell, expected) {
 			t.Fatalf("loaded Shell = %#v, want %#v", loaded.Shell, desired)
 		}
 	})
@@ -5582,4 +5585,48 @@ func TestProviderListCommandAvailableRejectsNonExecutableOpenCode(t *testing.T) 
 			t.Fatal("opencode command available = true, want false")
 		}
 	})
+}
+
+func TestShellScopeWriteRevision(t *testing.T) {
+	t.Run("Should increment same-value writes and preserve explicit grouping after reload", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, baseSettingsConfig())
+		revisions := &shellRevisionTestStore{}
+		svc := testService(t, home, Dependencies{ShellScopeRevisions: revisions})
+		update := func(config compozyconfig.ShellSessionsConfig) {
+			t.Helper()
+			result, err := svc.UpdateSection(t.Context(), SectionUpdateRequest{Section: SectionShell, Shell: &compozyconfig.ShellConfig{Sessions: config}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if config.Scope != "" && !slices.Contains(result.Warnings, compozyconfig.ShellScopeDeprecationWarning) {
+				t.Fatalf("warnings = %v", result.Warnings)
+			}
+		}
+		update(compozyconfig.ShellSessionsConfig{Scope: compozyconfig.ShellSessionScopeAllWorkspaces})
+		update(compozyconfig.ShellSessionsConfig{GroupBy: compozyconfig.ShellSessionGroupByProfile})
+		update(compozyconfig.ShellSessionsConfig{Scope: compozyconfig.ShellSessionScopeAllWorkspaces})
+		update(compozyconfig.ShellSessionsConfig{Scope: compozyconfig.ShellSessionScopeAllWorkspaces})
+		reloaded := testService(t, home, Dependencies{ShellScopeRevisions: revisions})
+		envelope, err := reloaded.GetSection(t.Context(), SectionRequest{Section: SectionShell})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if envelope.Shell.ScopeRevision != 3 || !envelope.Shell.Config.Sessions.ScopeExplicit || envelope.Shell.Config.Sessions.GroupBy != compozyconfig.ShellSessionGroupByProfile {
+			t.Fatalf("section = %#v", envelope.Shell)
+		}
+	})
+}
+
+type shellRevisionTestStore struct{ value string }
+
+var _ ShellScopeRevisionStore = (*shellRevisionTestStore)(nil)
+
+func (s *shellRevisionTestStore) GetAppMetadata(context.Context, string) (string, bool, error) {
+	return s.value, s.value != "", nil
+}
+func (s *shellRevisionTestStore) SetAppMetadata(_ context.Context, _ string, value string) error {
+	s.value = value
+	return nil
 }

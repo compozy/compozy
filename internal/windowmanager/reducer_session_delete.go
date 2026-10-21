@@ -3,6 +3,7 @@ package windowmanager
 import (
 	"fmt"
 	"slices"
+	"strings"
 )
 
 const sessionEmptyRoutePath = "/sessions"
@@ -75,7 +76,16 @@ func stateContainsDeletedSession(state State, sessionID string) bool {
 }
 
 func windowBelongsToSession(window Window, sessionID string) bool {
-	return window.App == "session" && window.InstanceKey != nil && *window.InstanceKey == sessionID
+	if window.App != "session" {
+		return false
+	}
+	if window.InstanceKey != nil && *window.InstanceKey == sessionID {
+		return true
+	}
+	matches := func(route RouteIntent) bool {
+		return route.Pathname == "/sessions/"+sessionID || strings.HasPrefix(route.Pathname, "/sessions/"+sessionID+"/")
+	}
+	return matches(window.Route) || slices.ContainsFunc(window.NavStack, matches)
 }
 
 func removeDeletedSessionClosedEntries(snapshot *Snapshot, sessionID string) bool {

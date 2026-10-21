@@ -15,6 +15,11 @@ func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspace
 	path := "/api/workspaces/{workspace_id}/sessions"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	query := url.Values{}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
 	if params.IncludeHealth != nil {
 		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
 	}

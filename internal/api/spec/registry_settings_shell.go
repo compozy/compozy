@@ -29,7 +29,7 @@ func updateSettingsShellOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsShellRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsShellMutationResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},

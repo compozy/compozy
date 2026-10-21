@@ -1180,6 +1180,7 @@ export type ContractWindowManagerErrorPayload = {
   code:
     | "window_manager_workspace_not_found"
     | "window_manager_revision_conflict"
+    | "window_binding_invalid"
     | "window_manager_invalid_command"
     | "window_manager_invalid_topology"
     | "window_manager_desktop_not_found"
@@ -6124,6 +6125,7 @@ export type SessionCatalogFacetsPayload = {
 };
 
 export type SessionCatalogFacetsResponse = {
+  by_profile: Array<SessionProfileFacetsPayload>;
   by_workspace: Array<SessionWorkspaceFacetsPayload>;
   facets: SessionCatalogFacetsPayload;
 };
@@ -6690,6 +6692,11 @@ export type SessionPresenceRequest = {
 
 export type SessionPresenceResponse = {
   lease_id: string;
+};
+
+export type SessionProfileFacetsPayload = {
+  facets: SessionCatalogFacetsPayload;
+  profile_id: string;
 };
 
 export type SessionPromptCancelResponse = {
@@ -7921,6 +7928,59 @@ export type SettingsRolesResponse = {
   workspace_id?: string;
 };
 
+export type SettingsShellLegacyScopePayload = {
+  explicit: boolean;
+  revision: number;
+  value: "workspace" | "all-workspaces";
+};
+
+export type SettingsShellMutationResponse = {
+  active_config_hash: string;
+  active_generation: number;
+  agent_name?: string;
+  applied: boolean;
+  apply_record_id: string;
+  config: SettingsShellPayload;
+  legacy_scope: SettingsShellLegacyScopePayload;
+  lifecycle: "live" | "live-add" | "live-remove-if-unused" | "restart-required" | "session-rebind";
+  next_action: "none" | "restart-daemon" | "new-session" | "retry";
+  partial_failures?: Array<SettingsApplyFailurePayload>;
+  profile?: string;
+  restart_required?: boolean;
+  restart_scope?: string;
+  scope?: "user" | "profile" | "workspace" | "agent";
+  section?:
+    | "general"
+    | "persona"
+    | "roles"
+    | "skills"
+    | "automation"
+    | "window-manager"
+    | "cmd-palette"
+    | "attention"
+    | "shell"
+    | "provider-usage"
+    | "observability"
+    | "hooks-extensions"
+    | "marketplace"
+    | "providers"
+    | "mcp-servers"
+    | "hooks";
+  skipped?: boolean;
+  skipped_reason?: string;
+  warnings?: Array<string>;
+  workspace_id?: string;
+  write_target?:
+    | "global-config"
+    | "profile-config"
+    | "workspace-config"
+    | "global-mcp-sidecar"
+    | "profile-mcp-sidecar"
+    | "workspace-mcp-sidecar"
+    | "global-agent-file"
+    | "workspace-agent-file";
+};
+
 export type SettingsShellPayload = {
   sessions: SettingsShellSessionsPayload;
 };
@@ -7928,6 +7988,7 @@ export type SettingsShellPayload = {
 export type SettingsShellResponse = {
   available_scopes: Array<"user">;
   config: SettingsShellPayload;
+  legacy_scope: SettingsShellLegacyScopePayload;
   scope: "user";
   section:
     | "general"
@@ -7943,11 +8004,13 @@ export type SettingsShellResponse = {
     | "observability"
     | "hooks-extensions"
     | "marketplace";
+  warnings: Array<string>;
 };
 
 export type SettingsShellSessionsPayload = {
-  scope: "workspace" | "all-workspaces";
-  sort: "created" | "name" | "last_activity" | "attention" | "manual";
+  group_by?: "none" | "project" | "profile";
+  scope?: "workspace" | "all-workspaces";
+  sort?: "created" | "name" | "last_activity" | "attention" | "manual";
 };
 
 export type SettingsSkillSourceCollisionPayload = {
@@ -20757,6 +20820,10 @@ export type ListSessionsData = {
      */
     all_workspaces?: boolean;
     /**
+     * Project IDs or @user; repeatable, requires all_workspaces
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Include metadata-only health for returned sessions
      */
     include_health?: boolean;
@@ -20970,6 +21037,10 @@ export type ListSessionFacetsData = {
      * Use the explicit all-workspaces aggregate
      */
     all_workspaces?: boolean;
+    /**
+     * Project IDs or @user; repeatable, requires all_workspaces
+     */
+    workspace_ids?: Array<string>;
     /**
      * Filter by bound worktree id
      */
@@ -23333,7 +23404,7 @@ export type UpdateSettingsShellResponses = {
   /**
    * OK
    */
-  200: SettingsApplyResponse;
+  200: SettingsShellMutationResponse;
 };
 
 export type UpdateSettingsShellResponse =
@@ -31212,6 +31283,10 @@ export type ListWorkspaceSessionsData = {
   };
   query?: {
     /**
+     * Project IDs or @user; repeatable, requires all_workspaces
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Include metadata-only health for returned sessions
      */
     include_health?: boolean;
@@ -35605,6 +35680,10 @@ export type RegisterWindowManagerClientData = {
 
 export type RegisterWindowManagerClientErrors = {
   /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
    * Workspace or referenced entity not found
    */
   404: ContractWindowManagerErrorPayload;
@@ -35658,6 +35737,10 @@ export type UnregisterWindowManagerClientData = {
 
 export type UnregisterWindowManagerClientErrors = {
   /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
    * Workspace or referenced entity not found
    */
   404: ContractWindowManagerErrorPayload;
@@ -35709,6 +35792,10 @@ export type ExecuteWindowManagerCommandData = {
 };
 
 export type ExecuteWindowManagerCommandErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
   /**
    * Workspace or referenced entity not found
    */
@@ -35802,6 +35889,10 @@ export type ReplaceWindowManagerLayoutData = {
 };
 
 export type ReplaceWindowManagerLayoutErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
   /**
    * Workspace or referenced entity not found
    */
@@ -36052,6 +36143,10 @@ export type ValidateWindowManagerLayoutData = {
 
 export type ValidateWindowManagerLayoutErrors = {
   /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
+  /**
    * Workspace or referenced entity not found
    */
   404: ContractWindowManagerErrorPayload;
@@ -36103,6 +36198,10 @@ export type PreviewWindowManagerCommandData = {
 };
 
 export type PreviewWindowManagerCommandErrors = {
+  /**
+   * Invalid window workspace binding
+   */
+  400: ContractWindowManagerErrorPayload;
   /**
    * Workspace or referenced entity not found
    */

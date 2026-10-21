@@ -103,3 +103,26 @@ func TestShellConfig(t *testing.T) {
 		}
 	})
 }
+
+func TestShellGroupingCompatibility(t *testing.T) {
+	t.Run("Should derive legacy grouping only until an explicit preference is present", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultShellConfig()
+		legacy := ShellSessionScopeAllWorkspaces
+		shellOverlay{Sessions: shellSessionsOverlay{Scope: &legacy}}.Apply(&cfg)
+		if cfg.Sessions.GroupBy != ShellSessionGroupByProject || !cfg.Sessions.ScopeExplicit {
+			t.Fatalf("legacy = %#v", cfg)
+		}
+		group := ShellSessionGroupByProfile
+		shellOverlay{Sessions: shellSessionsOverlay{GroupBy: &group}}.Apply(&cfg)
+		legacy = ShellSessionScopeWorkspace
+		shellOverlay{Sessions: shellSessionsOverlay{Scope: &legacy}}.Apply(&cfg)
+		if cfg.Sessions.GroupBy != ShellSessionGroupByProfile {
+			t.Fatalf("explicit grouping overwritten: %#v", cfg)
+		}
+		cfg.Sessions.GroupBy = "folders"
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("invalid grouping accepted")
+		}
+	})
+}
