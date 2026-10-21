@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"time"
+
+	"github.com/jonboulle/clockwork"
 )
 
 // Start schedules all known profiles, with startup collection jitter bounded by ten seconds.
@@ -22,27 +24,40 @@ func (s *Manager) Start(ctx context.Context, profileIDs []string) error {
 		return nil
 	}
 	s.started = true
-	s.wg.Add(1)
-	go s.schedule(ctx, s.root)
+	s.startScheduleLocked(ctx)
 	return nil
 }
 
-func (s *Manager) schedule(ctx context.Context, root context.Context) {
-	defer s.wg.Done()
+type scheduleRun struct {
+	timer   clockwork.Timer
+	initial bool
+}
+
+// startScheduleLocked gives each scheduler run its own timer.
+func (s *Manager) startScheduleLocked(ctx context.Context) {
 	var seed [8]byte
 	rand.Read(seed[:])
 	jitter := time.Duration(binary.LittleEndian.Uint64(seed[:]) % uint64(10*time.Second))
-	timer := s.options.Clock.NewTimer(jitter)
-	defer timer.Stop()
+	run := &scheduleRun{timer: s.options.Clock.NewTimer(jitter), initial: true}
+	s.scheduler = run
+	s.wg.Add(1)
+	go s.schedule(ctx, s.root, run)
+}
+
+func (s *Manager) schedule(ctx context.Context, root context.Context, run *scheduleRun) {
+	defer s.wg.Done()
+	defer run.timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-root.Done():
 			return
-		case <-timer.Chan():
+		case <-run.timer.Chan():
 		}
 		s.mu.Lock()
+		run.initial = false
+		run.timer.Reset(s.options.RefreshInterval)
 		profiles := make([]string, 0, len(s.profiles))
 		for profile := range s.profiles {
 			profiles = append(profiles, profile)
@@ -59,8 +74,6 @@ func (s *Manager) schedule(ctx context.Context, root context.Context) {
 				s.options.Logger.Debug("provider_usage.schedule", "error_code", AsUsageError(err, "").Code)
 			}
 		}
-
-		timer.Reset(s.options.RefreshInterval)
 	}
 }
 
@@ -108,8 +121,7 @@ func (s *Manager) SetEnabled(ctx context.Context, enabled bool) error {
 	}
 	s.root, s.cancel = context.WithCancel(context.Background())
 	if s.started {
-		s.wg.Add(1)
-		go s.schedule(context.WithoutCancel(ctx), s.root)
+		s.startScheduleLocked(context.WithoutCancel(ctx))
 	}
 	s.mu.Unlock()
 	return nil
@@ -155,6 +167,47 @@ func (s *Manager) ClearCredentials(profileID, providerID string) {
 			state.hasIdentity = false
 			state.lastSuccess = time.Time{}
 			state.cooldown = nil
+			s.changedLocked(p)
+		}
+	}
+}
+
+// SetRefreshInterval reschedules from now; intervals outside [1m, 1h] are ignored.
+// Startup jitter, error outcomes, and active cooldown deadlines are preserved.
+func (s *Manager) SetRefreshInterval(interval time.Duration) {
+	if interval < time.Minute || interval > time.Hour {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopped || s.options.RefreshInterval == interval {
+		return
+	}
+	s.options.RefreshInterval = interval
+	if s.enabled && s.scheduler != nil && !s.scheduler.initial {
+		s.scheduler.timer.Reset(interval)
+	}
+	now := s.options.Clock.Now()
+	for _, p := range s.profiles {
+		changed := false
+		for _, row := range p.targets {
+			if row.snapshot.MeasuredAt == nil {
+				continue
+			}
+			next := now.Add(interval)
+			if row.cooldown != nil && row.cooldown.until.After(next) {
+				next = row.cooldown.until
+			}
+			row.snapshot.NextRefreshAt = &next
+			if row.snapshot.Error == nil {
+				row.snapshot.Status = StatusOK
+				if now.Sub(*row.snapshot.MeasuredAt) > 3*interval {
+					row.snapshot.Status = StatusStale
+				}
+			}
+			changed = true
+		}
+		if changed {
 			s.changedLocked(p)
 		}
 	}

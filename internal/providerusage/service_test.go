@@ -49,7 +49,10 @@ func usageFixture(t *testing.T, handler http.HandlerFunc) serviceFixture {
 }
 func refreshFixture(t *testing.T, f serviceFixture, intent Intent) Envelope {
 	t.Helper()
-	env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal", Intent: intent})
+	env, err := f.service.Refresh(
+		t.Context(),
+		RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal", Intent: intent},
+	)
 	requireNoError(t, err)
 	return env
 }
@@ -78,7 +81,10 @@ func TestUsageService(t *testing.T) {
 		results := make(chan Envelope, 2)
 		for range 2 {
 			go func() {
-				env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"})
+				env, err := f.service.Refresh(
+					t.Context(),
+					RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal"},
+				)
 				if err != nil {
 					t.Error(err)
 				}
@@ -95,7 +101,10 @@ func TestUsageService(t *testing.T) {
 		refreshFixture(t, f, IntentExplicit)
 		requireEqual(t, int32(1), calls.Load())
 		f.clock.Advance(80 * time.Second)
-		_, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal", MaxAge: 2 * time.Minute})
+		_, err := f.service.Refresh(
+			t.Context(),
+			RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal", MaxAge: 2 * time.Minute},
+		)
 		requireNoError(t, err)
 		requireEqual(t, int32(1), calls.Load())
 		f.clock.Advance(31 * time.Second)
@@ -175,7 +184,10 @@ func TestUsageService(t *testing.T) {
 		})
 		done := make(chan Envelope, 1)
 		go func() {
-			env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"})
+			env, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal"},
+			)
 			if err != nil {
 				t.Error(err)
 			}
@@ -237,7 +249,7 @@ func TestUsageService(t *testing.T) {
 		revisions, unsubscribe := f.service.Subscribe("personal")
 		defer unsubscribe()
 		go func() {
-			_, err := f.service.Refresh(ctx, RefreshRequest{ProfileID: "personal"})
+			_, err := f.service.Refresh(ctx, RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal"})
 			if err != context.Canceled {
 				t.Errorf("expected cancellation, got %v", err)
 			}
@@ -272,7 +284,10 @@ func TestUsageService(t *testing.T) {
 		f := usageFixture(t, func(_ http.ResponseWriter, r *http.Request) { close(entered); <-r.Context().Done() })
 		done := make(chan struct{})
 		go func() {
-			if _, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"}); err != nil {
+			if _, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal"},
+			); err != nil {
 				t.Error(err)
 			}
 			close(done)
@@ -343,6 +358,54 @@ func TestTraySignal(t *testing.T) {
 }
 
 func TestUsageScheduling(t *testing.T) {
+	t.Run("Should apply interval bounds and recompute snapshot freshness", func(t *testing.T) {
+		t.Parallel()
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+		refreshFixture(t, f, IntentBackground)
+		f.clock.Advance(4 * time.Minute)
+		f.service.SetRefreshInterval(time.Minute)
+		env, err := f.service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		requireEqual(t, StatusStale, env.Targets[0].Status)
+		requireEqual(t, f.clock.Now().Add(time.Minute), *env.Targets[0].NextRefreshAt)
+		f.service.SetRefreshInterval(time.Hour)
+		env, err = f.service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		requireEqual(t, StatusOK, env.Targets[0].Status)
+		requireEqual(t, f.clock.Now().Add(time.Hour), *env.Targets[0].NextRefreshAt)
+		revision := env.Revision
+		for _, invalid := range []time.Duration{0, -time.Second, time.Minute - time.Nanosecond, time.Hour + time.Nanosecond} {
+			f.service.SetRefreshInterval(invalid)
+			env, err = f.service.Envelope(t.Context(), "personal")
+			requireNoError(t, err)
+			requireEqual(t, revision, env.Revision)
+			requireEqual(t, f.clock.Now().Add(time.Hour), *env.Targets[0].NextRefreshAt)
+		}
+	})
+	t.Run("Should return immediately for zero wait while collection continues", func(t *testing.T) {
+		t.Parallel()
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+			close(entered)
+			<-release
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		env, err := f.service.Refresh(ctx, RefreshRequest{ProfileID: "personal"})
+		requireNoError(t, err)
+		requireEqual(t, true, env.Targets[0].Refreshing)
+		select {
+		case <-entered:
+		case <-ctx.Done():
+			t.Fatal("collection did not start")
+		}
+		once.Do(func() { close(release) })
+		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+	})
+
 	t.Run("Should run one explicit recovery after a joined stale rate limit", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
@@ -363,7 +426,10 @@ func TestUsageScheduling(t *testing.T) {
 		f.clock.Advance(time.Minute)
 		results := make(chan Envelope, 2)
 		refresh := func(intent Intent) {
-			env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal", Intent: intent})
+			env, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal", Intent: intent},
+			)
 			if err != nil {
 				t.Error(err)
 			}
@@ -399,7 +465,8 @@ func TestUsageScheduling(t *testing.T) {
 			t.Fatal("startup collection missing")
 		}
 		refreshFixture(t, f, IntentBackground)
-		f.clock.Advance(5 * time.Minute)
+		f.service.SetRefreshInterval(time.Minute)
+		f.clock.Advance(time.Minute)
 		select {
 		case <-requests:
 		case <-ctx.Done():
@@ -417,7 +484,10 @@ func TestUsageScheduling(t *testing.T) {
 		f.catalog.Replace("personal", []Target{f.target})
 		done := make(chan struct{})
 		go func() {
-			if _, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"}); err != nil {
+			if _, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal"},
+			); err != nil {
 				t.Error(err)
 			}
 			close(done)
@@ -460,7 +530,10 @@ func TestUsageFenceAndWait(t *testing.T) {
 		})
 		done := make(chan Envelope, 1)
 		go func() {
-			env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"})
+			env, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal"},
+			)
 			if err != nil {
 				t.Error(err)
 			}
@@ -505,7 +578,10 @@ func TestUsageFenceAndWait(t *testing.T) {
 		})
 		done := make(chan Envelope, 1)
 		go func() {
-			env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal", Wait: time.Second})
+			env, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{ProfileID: "personal", Wait: time.Second},
+			)
 			if err != nil {
 				t.Error(err)
 			}
@@ -533,7 +609,10 @@ func TestUsageCollectionDeadline(t *testing.T) {
 		defer unsubscribe()
 		done := make(chan struct{})
 		go func() {
-			if _, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"}); err != nil {
+			if _, err := f.service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: "personal"},
+			); err != nil {
 				t.Error(err)
 			}
 			close(done)
@@ -608,7 +687,10 @@ func TestUsagePartialSnapshots(t *testing.T) {
 		})
 		refresh := func() Snapshot {
 			t.Helper()
-			env, err := service.Refresh(t.Context(), RefreshRequest{ProfileID: target.ProfileID})
+			env, err := service.Refresh(
+				t.Context(),
+				RefreshRequest{Wait: 15 * time.Second, ProfileID: target.ProfileID},
+			)
 			requireNoError(t, err)
 			return env.Targets[0]
 		}

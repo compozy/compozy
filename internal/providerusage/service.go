@@ -28,6 +28,7 @@ type Manager struct {
 	enabled   bool
 	stopped   bool
 	started   bool
+	scheduler *scheduleRun
 }
 
 type profileState struct {
@@ -250,11 +251,10 @@ func (s *Manager) Refresh(ctx context.Context, req RefreshRequest) (Envelope, er
 		return Envelope{}, err
 	}
 
-	wait := req.Wait
-	if wait == 0 {
-		wait = 15 * time.Second
+	if req.Wait == 0 {
+		return s.cached(req.ProfileID), nil
 	}
-	timer := s.options.Clock.NewTimer(wait)
+	timer := s.options.Clock.NewTimer(req.Wait)
 	defer timer.Stop()
 	for _, f := range flights {
 		select {

@@ -78,11 +78,7 @@ func (r *providerUsageRuntime) ReconcileConfig(ctx context.Context, next *config
 		return err
 	}
 	if previous.RefreshInterval != next.ProviderUsage.RefreshInterval {
-		updater, ok := any(r.Manager).(interface{ SetRefreshInterval(time.Duration) })
-		if !ok {
-			return fmt.Errorf("provider usage manager does not support live refresh interval updates")
-		}
-		updater.SetRefreshInterval(next.ProviderUsage.RefreshInterval)
+		r.SetRefreshInterval(next.ProviderUsage.RefreshInterval)
 	}
 	if err := r.syncProfiles(ctx); err != nil {
 		return err

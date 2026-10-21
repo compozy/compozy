@@ -69,7 +69,7 @@ type RefreshRequest struct {
 	ProfileID   string
 	ProviderIDs []string      // empty = all targets
 	MaxAge      time.Duration // refresh only snapshots older than max(MaxAge, 30s floor)
-	Wait        time.Duration // caller wait for results (default 15s, max 30s); never bounds the flight
+	Wait        time.Duration // caller wait for results (zero returns immediately, max 30s); never bounds the flight
 	Intent      Intent        // decided by the API boundary from principal + requested intent
 }
 
