@@ -6,14 +6,14 @@ persona: Ada
 journey: J-provider-usage
 expected: HTTP, UDS, CLI and native tools expose the same profile-scoped cache without credentials; only local explicit actions can authorize Keychain access.
 entry_points: compozy provider usage; /api/provider-usage; compozy__provider_usage_list; compozy__provider_usage_refresh
-qa_status: pending
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
 evidence:
 last_report:
-overlaps:
+overlaps: APP-provider-usage-tray
 ---
 
 Provider Usage slice B2 adds the backend surfaces. The spec's trailing QA pair owns the integrated

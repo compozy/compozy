@@ -3950,13 +3950,45 @@ Owner: workflow `opencode-model-discovery` (Tasks 01–03 implement; Tasks 04–
 - Official runtime skill: existing rewind contract remains accurate; no skill changes.
 - Docs/QA: update RT-conversation-rewind and RT-session-transcript-whitespace; browser suites cover authored layout, persistent controls, and Stop/edit/resend.
 
-## Provider Usage backend surfaces — 2026-10-21
+## Provider usage — topbar usage mini-app, `[provider_usage]`, `compozy provider usage` — 2026-10-21
 
-Owner: `.compozy/tasks/provider-usage/`, slice B2. This entry is shared by subsequent slices.
+Owner: `.compozy/tasks/provider-usage/` (`_spec.md` Part II §Impact Analysis, ADR-001…005, exploration in
+`analysis/`). Implementation slices cite this entry and update only the bullets they change. Every public
+surface below is documented **experimental** (SD-013 regime 2 exception) until the history follow-up
+promotes it.
 
-- Native tools: additive experimental `compozy__provider_usage_list` and `compozy__provider_usage_refresh`, toolset `compozy__provider_usage`. Reads use only the cache; native refresh always uses background intent and the caller profile.
-- Public contracts: experimental HTTP/UDS GET list, provider detail and SSE plus POST refresh; CLI `provider usage list|refresh`; generated OpenAPI, Go/TypeScript SDKs, tool catalog and CLI documentation co-ship. Foreign-origin app access permits the GET operations and denies refresh.
-- Configuration: slice C owns `[provider_usage]` and settings DTOs. B2 composes the scheduler, active profile overlay, declared credential slots, lifecycle shutdown, config reconciliation and metrics. Only a validated local-operator settings context admits explicit Keychain consent; revocation clears credentials and snapshots. No hooks or extension execution contracts change.
-- Isolation and storage: snapshots are in-memory and profile-scoped; no SQLite migration. Bound secrets are kept out of general route environment and output. Aggregate profile selection is rejected. No workspace filesystem usage snapshot is created.
-- Web and official skill: Web consumers and `skills/compozy/` guidance remain integration-slice responsibilities. CLI reference pages are generated here. Final QA must cover two-profile credentials, local/gateway Keychain consent, app-token middleware, reconnect/restart and settings cadence; B2's focused transport test covers real OpenRouter HTTP collection, HTTP/UDS parity, SSE invalidation, refresh floor, error envelopes and disabled refresh.
+- **Native tools:** additive `compozy__provider_usage_list` (read-only, cache only, no network) and
+  `compozy__provider_usage_refresh` (mutating, always background intent, caller profile, waits up to 15 s),
+  toolset `compozy__provider_usage` (sibling of `compozy__provider_models`); catalog and digests regenerate.
+  No existing tool changes.
+- **CLI/HTTP/UDS:** additive `compozy provider usage list|refresh` (refresh sends `explicit`); `GET
+  /api/provider-usage`, `GET /api/provider-usage/providers/{provider_id}`, `POST /api/provider-usage/refresh`,
+  `GET /api/provider-usage/stream` (SSE `ready`, `provider_usage_changed`, both with `boot_id`), and
+  `GET/PATCH /api/settings/provider-usage`. `explicit` is honored only for local operators. Foreign-origin
+  app tokens may use the GETs and are denied refresh; no new token scopes. Usage codes use the flat
+  `ErrorPayload`, profile codes the profile envelope. Generated OpenAPI, Go/TypeScript SDKs, tool catalog, and
+  CLI reference co-ship.
+- **Extensibility and hooks:** no hook event, manifest, Host API, extension SDK, or MCP sidecar change; alert
+  hooks are deferred with history.
+- **Config:** `provider_usage.enabled` (true), `provider_usage.refresh_interval` ("5m", 1m–1h),
+  `provider_usage.providers.<id>.enabled` (true), `provider_usage.providers.claude.keychain_access` (false,
+  darwin only). User/machine scope; workspace config fails to load and profile overlays reject the root;
+  live apply; additive (ladder (a)). `config set` accepts `keychain_access` only under `claude`.
+- **Workspace data isolation:** no SQLite migration, tables, or workspace files; snapshots are in-memory and
+  keyed by `(profile, provider, route fingerprint)`, fenced by an in-memory credential identity; aggregate
+  profile reads are rejected; no credential, digest, account ID, or raw payload in any output. CompozyOS reads
+  provider credential files read-only; the Codex CLI may renew its own login (ADR-002), file store only
+  (`keyring`/`auto` → `unsupported`). The macOS Keychain is read only on explicit local-operator intent; the
+  token stays in memory, bound to Claude's account evidence, and is dropped on re-login, logout, consent
+  revocation, or indeterminate evidence.
+- **Official CompozyOS skill:** `skills/compozy/SKILL.md` router row; `references/native-tools.md` (two
+  tools), `references/runtime-operations.md` §Provider Usage (verbs, routes, intent, statuses and recovery),
+  `references/configuration.md` §Provider Usage (keys, scope, settings route).
+- **Web/Docs:** `web/src/systems/provider-usage/` (domain), OS tray slot, popover, overlay `usage`, Usage app
+  (`/usage`), Settings → Provider usage section. Site: `agents/provider-usage.mdx` tutorial (tray, popover,
+  Usage app, Keychain consent, Codex store, support table, statuses, CLI, config, tools, routes),
+  `configuration/config-toml.mdx` `[provider_usage]`, `tools/toolsets.mdx` row, generated CLI pages.
+- **QA:** `APP-provider-usage-tray` (operator walk, journey `J-provider-usage`) and
+  `ET-provider-usage-surfaces` (transport, profiles, app tokens, SSE) — both `untested` until the trailing QA
+  pair walks them with real Claude and Codex logins.
 - Dependency contract pending at B2 handoff: Manager must expose `SetRefreshInterval(time.Duration)` and preserve explicit zero wait. Run `ET-provider-usage-surfaces` in the trailing scenario QA; B2 focused checks are not a full daemon release validation.
