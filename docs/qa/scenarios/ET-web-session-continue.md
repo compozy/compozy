@@ -89,3 +89,18 @@ Regressions: `TestContinueSession` "Should select the chosen runtime on the unbo
 it", `use-session-prompt-runtime.test.tsx` "Should prefer an unbound session's selected runtime over
 the agent default", `session-hierarchy.test.ts` "Should keep continued and forked sessions top-level
 while spawned children nest".
+
+## Deleted root ancestor regression
+
+1. Create and prompt session A, fork A into B, then fork B into C.
+2. Delete A while keeping B and C.
+3. On C, choose **Continue with another agent** and submit (choose a different agent for Continue).
+4. Confirm the child opens successfully and carries C's conversation. Its lineage parent and root
+   both identify C; its kind matches the operation and its historical depth is C's depth plus one.
+5. Confirm C's stored lineage and transcript remain unchanged. Repeat after restarting the isolated
+   lab daemon to cover persisted sources.
+
+The session-manager regression is `TestDeriveLineageReadModel/Should_derive_*_after_the_root_ancestor_was_deleted`.
+The inherited-root workspace rejection remains owned by `TestCreateUserSessionRecordsProvenanceLineage`.
+The deleted-root UI walk and restart persistence checks passed on 2026-10-21; see
+[the targeted QA report](../reports/2026-10-21-issue-883-deleted-root.md).

@@ -492,6 +492,33 @@ func TestCreateUserSessionRecordsProvenanceLineage(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject an inherited provenance root from another workspace", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		root := createSession(t, h)
+		parent, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "coder", Workspace: h.workspaceID,
+			Lineage: &store.SessionLineage{ParentSessionID: root.ID},
+		})
+		if err != nil {
+			t.Fatalf("Create(parent) error = %v", err)
+		}
+		t.Cleanup(func() { reportSessionStop(t, h, parent.ID) })
+		if err := h.manager.Stop(t.Context(), root.ID); err != nil {
+			t.Fatalf("Stop(root) error = %v", err)
+		}
+		meta := readMeta(t, root.MetaPath())
+		meta.WorkspaceID = "ws-other"
+		if err := store.WriteSessionMeta(root.MetaPath(), &meta); err != nil {
+			t.Fatalf("WriteSessionMeta(root) error = %v", err)
+		}
+		_, err = h.manager.normalizeCreateLineage(t.Context(), "sess-foreign-root-child",
+			SessionTypeUser, h.workspaceID, &store.SessionLineage{ParentSessionID: parent.ID}, "")
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "another workspace") {
+			t.Fatalf("normalizeCreateLineage(foreign root) error = %v, want workspace validation", err)
+		}
+	})
+
 	t.Run("Should reject a parent on system sessions", func(t *testing.T) {
 		t.Parallel()
 
