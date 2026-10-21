@@ -106,6 +106,24 @@ additive. Native tools, CLI/HTTP/UDS, hooks, extension SDKs, config keys, worksp
 isolation, persisted user data, Web, site docs, and the official `skills/compozy/`
 contract are unaffected. Runbook: `docs/runbooks/release-recovery.md`.
 
+## Session deletion lifecycle deadlock — 2026-10-21
+
+Owner: `fix/session-lifecycle-freeze`, `internal/session/manager_delete.go`.
+Deletion settles active/recovered stops, descendant cancellation, and session-owned Goals
+before acquiring the global lifecycle lock for reversible history staging and catalog removal.
+The per-session conversation operation remains held throughout, preserving serialization with
+resume, another deletion, and workspace removal. This prevents subagent snapshot callbacks
+from reacquiring a lifecycle lock already held by deletion and blocking all new session starts.
+
+HTTP/UDS session DELETE and CLI session removal retain their existing contracts. Native session
+creation/resume/spawn tools benefit from the released lifecycle lock; no native tool IDs, payloads,
+hooks, extension contracts, config keys, persisted shapes, or workspace/profile boundaries change.
+No migration, code generation, compatibility shim, Web implementation change, site documentation,
+or official `skills/compozy/` update is required. Web deletion uses the repaired daemon path.
+QA owner: `RT-session-delete-owned-history`, live delegated-tree deletion slice. The existing
+daemon hosted-MCP integration suite exercises HTTP deletion followed by UDS creation/deletion;
+`TestManagerDelete` retains ownership of rollback, history preservation, and crash recovery.
+
 ## Preserve configured commands across pre-start hooks — 2026-10-19
 
 Owner: `internal/session/manager_start_launch.go` review correction. Pre-start hook command

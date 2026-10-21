@@ -1940,6 +1940,54 @@ func TestSubagentSuccessorDaemonIntegration(t *testing.T) {
 
 // M12 / D-03 / IT-032: root descendants invoke native tools through the real hosted MCP, including missing provider call IDs.
 func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
+	for _, target := range []string{"parent", "child"} {
+		t.Run("Should delete a live delegated "+target+" without blocking session lifecycle", func(t *testing.T) {
+			fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+			h := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{
+				{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+				{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+			}})
+			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+			defer cancel()
+			parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Delete live tree")
+			if _, err := h.PromptSession(ctx, parent.ID, "delegate live tree"); err != nil {
+				t.Fatal(err)
+			}
+			var children, grandchildren compozycontract.SubagentListPayload
+			waitForRuntimeCondition(t, "live tree before deletion", 30*time.Second, func() bool {
+				children = readSubagentsHTTP(t, ctx, h, parent.ID)
+				if len(children.Subagents) != 1 || children.Subagents[0].ChildSessionID == nil {
+					return false
+				}
+				grandchildren = readSubagentsHTTP(t, ctx, h, *children.Subagents[0].ChildSessionID)
+				return len(grandchildren.Subagents) == 1 &&
+					grandchildren.Subagents[0].Status == store.SubagentStatusRunning
+			})
+			targetID := parent.ID
+			if target == "child" {
+				targetID = *children.Subagents[0].ChildSessionID
+			}
+			path := "/api/workspaces/" + h.WorkspaceID + "/sessions/" + targetID
+			if err := h.HTTPJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+				t.Fatalf("delete live %s: %v", target, err)
+			}
+			for _, row := range []compozycontract.SubagentPayload{children.Subagents[0], grandchildren.Subagents[0]} {
+				if *row.ChildSessionID == targetID {
+					continue
+				}
+				info, err := h.GetSession(ctx, *row.ChildSessionID)
+				if err != nil || info.State != session.StateStopped {
+					t.Fatalf("descendant must stop before deletion completes: %v, %v", info, err)
+				}
+			}
+			// Creating through UDS must remain available after the HTTP deletion.
+			next := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "After tree deletion")
+			path = "/api/workspaces/" + h.WorkspaceID + "/sessions/" + next.ID
+			if err := h.UDSJSON(ctx, http.MethodDelete, path, nil, nil); err != nil {
+				t.Fatalf("delete subsequent session: %v", err)
+			}
+		})
+	}
 	t.Run(
 		"Should let a root child query status and delegate through hosted MCP and publish the catalog stream",
 		func(t *testing.T) {

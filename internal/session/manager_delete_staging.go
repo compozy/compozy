@@ -266,64 +266,6 @@ func releaseConversationOperations(unlocks []func()) {
 	}
 }
 
-// stageSessionDelete stops execution and owned Goals before staging history for reversible removal.
-func (m *Manager) stageSessionDelete(
-	ctx context.Context,
-	target string,
-	stopActive bool,
-) (stagedSessionDelete, error) {
-	info, err := m.Status(ctx, target)
-	if err != nil {
-		return stagedSessionDelete{}, err
-	}
-	if m.hasPendingStopSettlement(target) {
-		return stagedSessionDelete{}, fmt.Errorf(
-			"%w: recovered stop for %s has pending persistence",
-			ErrRecoveryPersistence,
-			target,
-		)
-	}
-	if m.isPending(target) {
-		return stagedSessionDelete{}, fmt.Errorf(
-			"session: stage %q: %w",
-			target,
-			workspacepkg.ErrWorkspaceHasActiveSessions,
-		)
-	}
-	if _, active := m.Get(target); active {
-		if !stopActive {
-			return stagedSessionDelete{}, fmt.Errorf(
-				"session: stage %q: %w",
-				target,
-				workspacepkg.ErrWorkspaceHasActiveSessions,
-			)
-		}
-		if err := stopSessionBeforeDelete(ctx, target, m.StopWithCause); err != nil {
-			return stagedSessionDelete{}, fmt.Errorf("session: stop %q before delete: %w", target, err)
-		}
-		info, err = m.Status(ctx, target)
-		if err != nil {
-			return stagedSessionDelete{}, fmt.Errorf("session: read %q after stop for delete: %w", target, err)
-		}
-	}
-	if info.State == StateStopping {
-		return stagedSessionDelete{}, fmt.Errorf(
-			"%w: cannot delete %s before process exit",
-			ErrStopVerificationFailed,
-			target,
-		)
-	}
-	// Deletion first stops execution irreversibly. A later staging rollback
-	// restores stopped history, never the process or its canceled Goal. This
-	// also settles Goals left live by older versions for an already stopped session.
-	stopInfo := *info
-	stopInfo.StopCause = CauseUserRequested
-	if err := m.stopSessionGoals(ctx, &stopInfo); err != nil {
-		return stagedSessionDelete{}, fmt.Errorf("session: cancel Goals before delete: %w", err)
-	}
-	return m.stageSessionDirectoryDelete(ctx, target, info)
-}
-
 func (m *Manager) stageWorkspaceSessionDelete(
 	ctx context.Context,
 	info *Info,

@@ -910,9 +910,13 @@ func TestManagerDelete(t *testing.T) {
 							t.Fatalf("Stop() error = %v", err)
 						}
 
-						staged, err := h.manager.stageSessionDelete(ctx, session.ID, false)
+						info, err := h.manager.Status(ctx, session.ID)
 						if err != nil {
-							t.Fatalf("stageSessionDelete() error = %v", err)
+							t.Fatalf("Status() error = %v", err)
+						}
+						staged, err := h.manager.stageSessionDirectoryDelete(ctx, session.ID, info)
+						if err != nil {
+							t.Fatalf("stageSessionDirectoryDelete() error = %v", err)
 						}
 						if err := errors.Join(staged.capabilities.Release(), staged.attachments.Release()); err != nil {
 							t.Fatalf("release(staged crash simulation) error = %v", err)
