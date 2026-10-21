@@ -1737,3 +1737,49 @@ start:
 	}
 	return path
 }
+
+func TestLoopAllWorkspacesCommands(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward aggregate breadth without resolving the current project", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				t.Fatal("unexpected workspace resolution")
+				return WorkspaceDetailRecord{}, nil
+			},
+			listLoopsFn: func(_ context.Context, ws string, q LoopListQuery) (contract.LoopsResponse, error) {
+				if ws != "" || !q.AllWorkspaces {
+					t.Fatalf("scope %s %+v", ws, q)
+				}
+				calls++
+				return contract.LoopsResponse{Aggregate: &contract.LoopCatalogBatchResponse{Entries: []contract.LoopCatalogAggregateEntryPayload{}, Errors: []contract.LoopCatalogWorkspaceError{}}}, nil
+			},
+			listLoopRunsFn: func(_ context.Context, ws string, q LoopRunListQuery) (contract.LoopRunsResponse, error) {
+				if ws != "" || !q.AllWorkspaces {
+					t.Fatalf("scope %s %+v", ws, q)
+				}
+				calls++
+				return contract.LoopRunsResponse{}, nil
+			},
+			listLoopRequestsFn: func(_ context.Context, ws string, q LoopRequestListQuery) (contract.LoopRequestsResponse, error) {
+				if ws != "" || !q.AllWorkspaces {
+					t.Fatalf("scope %s %+v", ws, q)
+				}
+				calls++
+				return contract.LoopRequestsResponse{}, nil
+			},
+		})
+		for _, verb := range []string{"list", "runs", "requests"} {
+			if _, _, err := executeRootCommand(t, deps, "loop", verb, "--all-workspaces", "-o", "json"); err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := executeRootCommand(t, deps, "loop", verb, "--all-workspaces", "--workspace", "alpha"); err == nil {
+				t.Fatal("accepted contradictory flags")
+			}
+		}
+		if calls != 3 {
+			t.Fatalf("calls = %d", calls)
+		}
+	})
+}

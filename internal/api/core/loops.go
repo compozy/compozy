@@ -82,6 +82,10 @@ func (h *BaseHandlers) RunLoop(c *gin.Context) {
 
 // ListLoopRuns returns workspace-scoped Loop runs.
 func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
+	breadth, ok := h.loopListBreadth(c)
+	if !ok {
+		return
+	}
 	service, ok := h.requireLoopService(c)
 	if !ok {
 		return
@@ -91,12 +95,17 @@ func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
 		h.respondLoopError(c, fmt.Errorf("%w: %v", looppkg.ErrValidation, err))
 		return
 	}
+	query.AllWorkspaces, query.WorkspaceIDs = breadth.AllWorkspaces, breadth.WorkspaceIDs
+	if query.Order != "" && query.Order != "recency" && query.Order != "operational" || breadth.AllWorkspaces && query.Order == "operational" {
+		c.JSON(http.StatusBadRequest, contract.ErrorPayload{Code: "workspace_breadth_invalid", Error: "order=operational is workspace-only; aggregate runs use order=recency"})
+		return
+	}
 	query.ReadScope, err = h.resolveProfileReadScope(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	response, err := service.ListLoopRuns(c.Request.Context(), c.Param("workspace_id"), query)
+	response, err := service.ListLoopRuns(c.Request.Context(), breadth.WorkspaceID, query)
 	if err != nil {
 		if errors.Is(err, looppkg.ErrInvalidRunListCursor) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": loopInvalidCursor})
@@ -108,6 +117,9 @@ func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
 	if err := h.decorateLoopRunOwners(c.Request.Context(), &response); err != nil {
 		h.respondLoopError(c, err)
 		return
+	}
+	if breadth.AllWorkspaces {
+		logLoopAggregate(c, len(response.Runs))
 	}
 	c.JSON(http.StatusOK, response)
 }

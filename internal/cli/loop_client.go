@@ -9,6 +9,7 @@ import (
 )
 
 type loopCommandClient interface {
+	ListWorkspaces(context.Context) ([]WorkspaceRecord, error)
 	GetWorkspace(ctx context.Context, ref string) (WorkspaceDetailRecord, error)
 	ListLoops(ctx context.Context, workspaceID string, query LoopListQuery) (contract.LoopsResponse, error)
 	CreateLoop(

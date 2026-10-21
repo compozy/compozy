@@ -1,5 +1,29 @@
 # Compozy Change Impact
 
+## All-projects loop aggregates — A3, 2026-10-21
+
+Owner: `all-projects` slice A3, BR-2/3/14/15; T-01/04/06–10/16/17/29–32.
+The new operator-only, app-denied HTTP/UDS `/api/loop-runs`, `/api/loop-requests`, and
+`/api/loops` routes require explicit breadth. Runs use recency; requests retain their shared
+rowid order with profile and breadth-bound cursors. Registered projects plus User form the
+population; profile filtering precedes count/page. Definitions resolve one profile, return
+`entries/errors/truncated`, and attribute summaries to one `(workspace_id, name)` row.
+The old workspace catalog keeps its string `source`; new aggregate entries expose `source.layer`.
+
+CLI loop list/runs/requests gain `--all-workspaces`, exclusive with `--workspace`, and project
+columns. Native tools remain pinned and gain no aggregate parameters. The U5 grant helper must
+replace `requireOperatorSurface` when integrated. No hook, config key, extension permission, or
+workspace file layout changes. Migration `00146_schema.sql` adds three indexes without changing
+rows. The bell reads requests/nodes across projects and profiles and labels empty ownership
+`User`; terminal fan-out remains A4-owned. Generated API/SDK/CLI docs and the official native-tool
+reference co-ship. Web consumers and the “Definitions for {profile}” toolbar are UW-owned;
+configuration APIs continue rejecting `all_profiles`, so that toolbar requests a concrete profile.
+
+Verification and query-plan evidence: `docs/qa/reports/2026-10-21-all-projects-a3.md`.
+The integrated browser scenario remains pending; this slice validates the real SQLite and
+HTTP middleware paths. Heavy delivery gates remain CI-owned under the worker brief.
+
+
 
 ## User loops, Goals, terminals, and heartbeat — U3, 2026-10-21
 

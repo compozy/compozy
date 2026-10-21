@@ -33,6 +33,9 @@ func registerAutomationRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerLoopRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/loop-runs", handlers.ListLoopRuns)
+	api.GET("/loop-requests", handlers.ListLoopRequests)
+	api.GET("/loops", handlers.ListLoops)
 	loops := api.Group("/workspaces/:workspace_id/loops")
 	loops.GET("", handlers.ListLoops)
 	loops.POST("", handlers.CreateLoop)

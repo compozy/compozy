@@ -162,28 +162,33 @@ func (q *Queries) InsertLoopEffectOutbox(ctx context.Context, arg InsertLoopEffe
 }
 
 const listAttentionLoopNodeInventory = `-- name: ListAttentionLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
   0 AS item_index, control.updated_at AS state_at
 FROM loop_node_controls AS control
 JOIN loop_runs AS run ON run.id = control.loop_run_id
-WHERE run.workspace_id = ?1 AND control.attention_flag != ''
-  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
-  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+WHERE (CAST(?1 AS BOOLEAN) OR run.workspace_id = ?2)
+ AND (NOT CAST(?1 AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(?3 AS BOOLEAN) OR run.profile_id = ?4) AND control.attention_flag != ''
+  AND (CAST(?5 AS TEXT) = '' OR run.loop_name = CAST(?5 AS TEXT))
+  AND (CAST(?6 AS TEXT) = '' OR run.id = CAST(?6 AS TEXT))
   AND (
-    CAST(?4 AS INTEGER) = 0
-    OR control.updated_at > ?5
-    OR (control.updated_at = ?5 AND run.id > ?6)
-    OR (control.updated_at = ?5 AND run.id = ?6
-      AND run.generation > ?7)
-    OR (control.updated_at = ?5 AND run.id = ?6
-      AND run.generation = ?7 AND control.node_id > ?8)
+    CAST(?7 AS INTEGER) = 0
+    OR control.updated_at > ?8
+    OR (control.updated_at = ?8 AND run.id > ?9)
+    OR (control.updated_at = ?8 AND run.id = ?9
+      AND run.generation > ?10)
+    OR (control.updated_at = ?8 AND run.id = ?9
+      AND run.generation = ?10 AND control.node_id > ?11)
   )
 ORDER BY control.updated_at ASC, run.id ASC, run.generation ASC, control.node_id ASC
-LIMIT ?9
+LIMIT ?12
 `
 
 type ListAttentionLoopNodeInventoryParams struct {
+	AllWorkspaces     bool      `json:"all_workspaces"`
 	FilterWorkspaceID string    `json:"filter_workspace_id"`
+	AllProfiles       bool      `json:"all_profiles"`
+	ProfileID         string    `json:"profile_id"`
 	FilterLoopName    string    `json:"filter_loop_name"`
 	FilterRunID       string    `json:"filter_run_id"`
 	HasCursor         int64     `json:"has_cursor"`
@@ -195,17 +200,21 @@ type ListAttentionLoopNodeInventoryParams struct {
 }
 
 type ListAttentionLoopNodeInventoryRow struct {
-	LoopRunID  string    `json:"loop_run_id"`
-	LoopName   string    `json:"loop_name"`
-	Generation int64     `json:"generation"`
-	NodeID     string    `json:"node_id"`
-	ItemIndex  int64     `json:"item_index"`
-	StateAt    time.Time `json:"state_at"`
+	WorkspaceID string    `json:"workspace_id"`
+	LoopRunID   string    `json:"loop_run_id"`
+	LoopName    string    `json:"loop_name"`
+	Generation  int64     `json:"generation"`
+	NodeID      string    `json:"node_id"`
+	ItemIndex   int64     `json:"item_index"`
+	StateAt     time.Time `json:"state_at"`
 }
 
 func (q *Queries) ListAttentionLoopNodeInventory(ctx context.Context, arg ListAttentionLoopNodeInventoryParams) ([]ListAttentionLoopNodeInventoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAttentionLoopNodeInventory,
+		arg.AllWorkspaces,
 		arg.FilterWorkspaceID,
+		arg.AllProfiles,
+		arg.ProfileID,
 		arg.FilterLoopName,
 		arg.FilterRunID,
 		arg.HasCursor,
@@ -223,6 +232,7 @@ func (q *Queries) ListAttentionLoopNodeInventory(ctx context.Context, arg ListAt
 	for rows.Next() {
 		var i ListAttentionLoopNodeInventoryRow
 		if err := rows.Scan(
+			&i.WorkspaceID,
 			&i.LoopRunID,
 			&i.LoopName,
 			&i.Generation,
@@ -570,31 +580,36 @@ func (q *Queries) ListPendingLoopEffects(ctx context.Context, pageLimit int64) (
 }
 
 const listQuarantinedLoopNodeInventory = `-- name: ListQuarantinedLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
   0 AS item_index, control.quarantined_at AS state_at
 FROM loop_node_controls AS control
 JOIN loop_runs AS run ON run.id = control.loop_run_id
-WHERE run.workspace_id = ?1 AND control.quarantined = 1
+WHERE (CAST(?1 AS BOOLEAN) OR run.workspace_id = ?2)
+ AND (NOT CAST(?1 AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(?3 AS BOOLEAN) OR run.profile_id = ?4) AND control.quarantined = 1
   AND control.quarantined_at IS NOT NULL
-  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
-  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+  AND (CAST(?5 AS TEXT) = '' OR run.loop_name = CAST(?5 AS TEXT))
+  AND (CAST(?6 AS TEXT) = '' OR run.id = CAST(?6 AS TEXT))
   AND (
-    CAST(?4 AS INTEGER) = 0
-    OR control.quarantined_at > ?5
-    OR (control.quarantined_at = ?5
-      AND run.id > ?6)
-    OR (control.quarantined_at = ?5
-      AND run.id = ?6 AND run.generation > ?7)
-    OR (control.quarantined_at = ?5
-      AND run.id = ?6 AND run.generation = ?7
-      AND control.node_id > ?8)
+    CAST(?7 AS INTEGER) = 0
+    OR control.quarantined_at > ?8
+    OR (control.quarantined_at = ?8
+      AND run.id > ?9)
+    OR (control.quarantined_at = ?8
+      AND run.id = ?9 AND run.generation > ?10)
+    OR (control.quarantined_at = ?8
+      AND run.id = ?9 AND run.generation = ?10
+      AND control.node_id > ?11)
   )
 ORDER BY state_at ASC, run.id ASC, run.generation ASC, control.node_id ASC
-LIMIT ?9
+LIMIT ?12
 `
 
 type ListQuarantinedLoopNodeInventoryParams struct {
+	AllWorkspaces     bool         `json:"all_workspaces"`
 	FilterWorkspaceID string       `json:"filter_workspace_id"`
+	AllProfiles       bool         `json:"all_profiles"`
+	ProfileID         string       `json:"profile_id"`
 	FilterLoopName    string       `json:"filter_loop_name"`
 	FilterRunID       string       `json:"filter_run_id"`
 	HasCursor         int64        `json:"has_cursor"`
@@ -606,17 +621,21 @@ type ListQuarantinedLoopNodeInventoryParams struct {
 }
 
 type ListQuarantinedLoopNodeInventoryRow struct {
-	LoopRunID  string       `json:"loop_run_id"`
-	LoopName   string       `json:"loop_name"`
-	Generation int64        `json:"generation"`
-	NodeID     string       `json:"node_id"`
-	ItemIndex  int64        `json:"item_index"`
-	StateAt    sql.NullTime `json:"state_at"`
+	WorkspaceID string       `json:"workspace_id"`
+	LoopRunID   string       `json:"loop_run_id"`
+	LoopName    string       `json:"loop_name"`
+	Generation  int64        `json:"generation"`
+	NodeID      string       `json:"node_id"`
+	ItemIndex   int64        `json:"item_index"`
+	StateAt     sql.NullTime `json:"state_at"`
 }
 
 func (q *Queries) ListQuarantinedLoopNodeInventory(ctx context.Context, arg ListQuarantinedLoopNodeInventoryParams) ([]ListQuarantinedLoopNodeInventoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listQuarantinedLoopNodeInventory,
+		arg.AllWorkspaces,
 		arg.FilterWorkspaceID,
+		arg.AllProfiles,
+		arg.ProfileID,
 		arg.FilterLoopName,
 		arg.FilterRunID,
 		arg.HasCursor,
@@ -634,6 +653,7 @@ func (q *Queries) ListQuarantinedLoopNodeInventory(ctx context.Context, arg List
 	for rows.Next() {
 		var i ListQuarantinedLoopNodeInventoryRow
 		if err := rows.Scan(
+			&i.WorkspaceID,
 			&i.LoopRunID,
 			&i.LoopName,
 			&i.Generation,
@@ -655,33 +675,38 @@ func (q *Queries) ListQuarantinedLoopNodeInventory(ctx context.Context, arg List
 }
 
 const listRetryingLoopNodeInventory = `-- name: ListRetryingLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, output.generation, output.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, output.generation, output.node_id,
   output.item_index, output.next_attempt_at AS state_at
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
-WHERE run.workspace_id = ?1
+WHERE (CAST(?1 AS BOOLEAN) OR run.workspace_id = ?2)
+ AND (NOT CAST(?1 AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(?3 AS BOOLEAN) OR run.profile_id = ?4)
   AND output.status = 'retrying' AND output.next_attempt_at IS NOT NULL
-  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
-  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+  AND (CAST(?5 AS TEXT) = '' OR run.loop_name = CAST(?5 AS TEXT))
+  AND (CAST(?6 AS TEXT) = '' OR run.id = CAST(?6 AS TEXT))
   AND (
-    CAST(?4 AS INTEGER) = 0
-    OR output.next_attempt_at > ?5
-    OR (output.next_attempt_at = ?5 AND run.id > ?6)
-    OR (output.next_attempt_at = ?5 AND run.id = ?6
-      AND output.generation > ?7)
-    OR (output.next_attempt_at = ?5 AND run.id = ?6
-      AND output.generation = ?7 AND output.node_id > ?8)
-    OR (output.next_attempt_at = ?5 AND run.id = ?6
-      AND output.generation = ?7 AND output.node_id = ?8
-      AND output.item_index > ?9)
+    CAST(?7 AS INTEGER) = 0
+    OR output.next_attempt_at > ?8
+    OR (output.next_attempt_at = ?8 AND run.id > ?9)
+    OR (output.next_attempt_at = ?8 AND run.id = ?9
+      AND output.generation > ?10)
+    OR (output.next_attempt_at = ?8 AND run.id = ?9
+      AND output.generation = ?10 AND output.node_id > ?11)
+    OR (output.next_attempt_at = ?8 AND run.id = ?9
+      AND output.generation = ?10 AND output.node_id = ?11
+      AND output.item_index > ?12)
   )
 ORDER BY output.next_attempt_at ASC, run.id ASC, output.generation ASC,
   output.node_id ASC, output.item_index ASC
-LIMIT ?10
+LIMIT ?13
 `
 
 type ListRetryingLoopNodeInventoryParams struct {
+	AllWorkspaces     bool         `json:"all_workspaces"`
 	FilterWorkspaceID string       `json:"filter_workspace_id"`
+	AllProfiles       bool         `json:"all_profiles"`
+	ProfileID         string       `json:"profile_id"`
 	FilterLoopName    string       `json:"filter_loop_name"`
 	FilterRunID       string       `json:"filter_run_id"`
 	HasCursor         int64        `json:"has_cursor"`
@@ -694,17 +719,21 @@ type ListRetryingLoopNodeInventoryParams struct {
 }
 
 type ListRetryingLoopNodeInventoryRow struct {
-	LoopRunID  string       `json:"loop_run_id"`
-	LoopName   string       `json:"loop_name"`
-	Generation int64        `json:"generation"`
-	NodeID     string       `json:"node_id"`
-	ItemIndex  int64        `json:"item_index"`
-	StateAt    sql.NullTime `json:"state_at"`
+	WorkspaceID string       `json:"workspace_id"`
+	LoopRunID   string       `json:"loop_run_id"`
+	LoopName    string       `json:"loop_name"`
+	Generation  int64        `json:"generation"`
+	NodeID      string       `json:"node_id"`
+	ItemIndex   int64        `json:"item_index"`
+	StateAt     sql.NullTime `json:"state_at"`
 }
 
 func (q *Queries) ListRetryingLoopNodeInventory(ctx context.Context, arg ListRetryingLoopNodeInventoryParams) ([]ListRetryingLoopNodeInventoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listRetryingLoopNodeInventory,
+		arg.AllWorkspaces,
 		arg.FilterWorkspaceID,
+		arg.AllProfiles,
+		arg.ProfileID,
 		arg.FilterLoopName,
 		arg.FilterRunID,
 		arg.HasCursor,
@@ -723,6 +752,7 @@ func (q *Queries) ListRetryingLoopNodeInventory(ctx context.Context, arg ListRet
 	for rows.Next() {
 		var i ListRetryingLoopNodeInventoryRow
 		if err := rows.Scan(
+			&i.WorkspaceID,
 			&i.LoopRunID,
 			&i.LoopName,
 			&i.Generation,
@@ -824,33 +854,38 @@ func (q *Queries) ListSessionLoopWork(ctx context.Context, arg ListSessionLoopWo
 }
 
 const listWaitingLoopNodeInventory = `-- name: ListWaitingLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, wait_row.generation, wait_row.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, wait_row.generation, wait_row.node_id,
   wait_row.item_index, wait_row.created_at AS state_at
 FROM loop_node_waits AS wait_row
 JOIN loop_runs AS run ON run.id = wait_row.loop_run_id
-WHERE run.workspace_id = ?1
+WHERE (CAST(?1 AS BOOLEAN) OR run.workspace_id = ?2)
+ AND (NOT CAST(?1 AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(?3 AS BOOLEAN) OR run.profile_id = ?4)
   AND wait_row.claim_state IN ('waiting', 'intervention_required')
-  AND (CAST(?2 AS TEXT) = '' OR run.loop_name = CAST(?2 AS TEXT))
-  AND (CAST(?3 AS TEXT) = '' OR run.id = CAST(?3 AS TEXT))
+  AND (CAST(?5 AS TEXT) = '' OR run.loop_name = CAST(?5 AS TEXT))
+  AND (CAST(?6 AS TEXT) = '' OR run.id = CAST(?6 AS TEXT))
   AND (
-    CAST(?4 AS INTEGER) = 0
-    OR wait_row.created_at > ?5
-    OR (wait_row.created_at = ?5 AND run.id > ?6)
-    OR (wait_row.created_at = ?5 AND run.id = ?6
-      AND wait_row.generation > ?7)
-    OR (wait_row.created_at = ?5 AND run.id = ?6
-      AND wait_row.generation = ?7 AND wait_row.node_id > ?8)
-    OR (wait_row.created_at = ?5 AND run.id = ?6
-      AND wait_row.generation = ?7 AND wait_row.node_id = ?8
-      AND wait_row.item_index > ?9)
+    CAST(?7 AS INTEGER) = 0
+    OR wait_row.created_at > ?8
+    OR (wait_row.created_at = ?8 AND run.id > ?9)
+    OR (wait_row.created_at = ?8 AND run.id = ?9
+      AND wait_row.generation > ?10)
+    OR (wait_row.created_at = ?8 AND run.id = ?9
+      AND wait_row.generation = ?10 AND wait_row.node_id > ?11)
+    OR (wait_row.created_at = ?8 AND run.id = ?9
+      AND wait_row.generation = ?10 AND wait_row.node_id = ?11
+      AND wait_row.item_index > ?12)
   )
 ORDER BY wait_row.created_at ASC, run.id ASC, wait_row.generation ASC,
   wait_row.node_id ASC, wait_row.item_index ASC
-LIMIT ?10
+LIMIT ?13
 `
 
 type ListWaitingLoopNodeInventoryParams struct {
+	AllWorkspaces     bool      `json:"all_workspaces"`
 	FilterWorkspaceID string    `json:"filter_workspace_id"`
+	AllProfiles       bool      `json:"all_profiles"`
+	ProfileID         string    `json:"profile_id"`
 	FilterLoopName    string    `json:"filter_loop_name"`
 	FilterRunID       string    `json:"filter_run_id"`
 	HasCursor         int64     `json:"has_cursor"`
@@ -863,17 +898,21 @@ type ListWaitingLoopNodeInventoryParams struct {
 }
 
 type ListWaitingLoopNodeInventoryRow struct {
-	LoopRunID  string    `json:"loop_run_id"`
-	LoopName   string    `json:"loop_name"`
-	Generation int64     `json:"generation"`
-	NodeID     string    `json:"node_id"`
-	ItemIndex  int64     `json:"item_index"`
-	StateAt    time.Time `json:"state_at"`
+	WorkspaceID string    `json:"workspace_id"`
+	LoopRunID   string    `json:"loop_run_id"`
+	LoopName    string    `json:"loop_name"`
+	Generation  int64     `json:"generation"`
+	NodeID      string    `json:"node_id"`
+	ItemIndex   int64     `json:"item_index"`
+	StateAt     time.Time `json:"state_at"`
 }
 
 func (q *Queries) ListWaitingLoopNodeInventory(ctx context.Context, arg ListWaitingLoopNodeInventoryParams) ([]ListWaitingLoopNodeInventoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, listWaitingLoopNodeInventory,
+		arg.AllWorkspaces,
 		arg.FilterWorkspaceID,
+		arg.AllProfiles,
+		arg.ProfileID,
 		arg.FilterLoopName,
 		arg.FilterRunID,
 		arg.HasCursor,
@@ -892,6 +931,7 @@ func (q *Queries) ListWaitingLoopNodeInventory(ctx context.Context, arg ListWait
 	for rows.Next() {
 		var i ListWaitingLoopNodeInventoryRow
 		if err := rows.Scan(
+			&i.WorkspaceID,
 			&i.LoopRunID,
 			&i.LoopName,
 			&i.Generation,

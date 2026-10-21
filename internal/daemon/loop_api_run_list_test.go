@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 )
 
 func TestLoopRunListOrderingAndCursorContract(t *testing.T) {
@@ -52,6 +53,15 @@ func TestLoopRunListOrderingAndCursorContract(t *testing.T) {
 		if !cursor.matches("ws-a", query) || cursor.matches("ws-b", query) ||
 			cursor.matches("ws-a", core.LoopRunListQuery{LoopName: "other"}) {
 			t.Fatalf("cursor scope = %#v", cursor)
+		}
+		for _, changed := range []core.LoopRunListQuery{
+			{LoopName: "delivery", AllWorkspaces: true},
+			{LoopName: "delivery", ReadScope: store.ReadScope{AllProfiles: true}},
+			{LoopName: "delivery", Order: "recency"},
+		} {
+			if cursor.matches("ws-a", changed) {
+				t.Fatalf("cursor accepted changed selection: %+v", changed)
+			}
 		}
 		if _, err := decodeLoopRunListCursor("not-base64"); !errors.Is(err, looppkg.ErrInvalidRunListCursor) {
 			t.Fatalf("decodeLoopRunListCursor(malformed) error = %v", err)

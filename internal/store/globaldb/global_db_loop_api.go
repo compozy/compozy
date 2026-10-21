@@ -46,7 +46,7 @@ func (g *LoopRepo) ListLoopRuns(
 	if err != nil {
 		return nil, err
 	}
-	if normalized.After != nil {
+	if normalized.OperationalOrder && normalized.After != nil {
 		if err := g.validateLoopRunListPosition(ctx, normalized); err != nil {
 			return nil, err
 		}
@@ -61,8 +61,7 @@ func (g *LoopRepo) ListLoopRuns(
 		store.TimeClause("created_at", ">=", normalized.CreatedAfter),
 	}
 	where, args := store.BuildClauses(clauses...)
-	where = append(where, "workspace_id = ?")
-	args = append(args, string(normalized.WorkspaceID))
+	where, args = appendLoopWorkspaceFilter(where, args, "workspace_id", string(normalized.WorkspaceID), normalized.AllWorkspaces, normalized.WorkspaceIDs)
 	if normalized.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*normalized.Live))
 	}
@@ -79,6 +78,10 @@ func (g *LoopRepo) ListLoopRuns(
 			store.FormatTimestamp(normalized.After.CreatedAt),
 			normalized.After.ID,
 		)
+	}
+	if !normalized.OperationalOrder && normalized.After != nil {
+		where = append(where, "(created_at, id) < (?, ?)")
+		args = append(args, store.FormatTimestamp(normalized.After.CreatedAt), string(normalized.After.ID))
 	}
 	// dynamic-sql: optional run filters, live-state predicate, and caller limit change the statement shape.
 	orderBy := ` ORDER BY created_at DESC, id DESC LIMIT ?`
@@ -124,8 +127,7 @@ func (g *LoopRepo) validateLoopRunListPosition(
 		store.StringClause("id", string(query.After.ID)),
 	}
 	where, args := store.BuildClauses(clauses...)
-	where = append(where, "workspace_id = ?")
-	args = append(args, string(query.WorkspaceID))
+	where, args = appendLoopWorkspaceFilter(where, args, "workspace_id", string(query.WorkspaceID), query.AllWorkspaces, query.WorkspaceIDs)
 	if query.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*query.Live))
 	}
@@ -334,6 +336,9 @@ func (g *LoopRepo) ReplaceLoopUIAnnotations(
 
 func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery, error) {
 	normalized := query
+	if query.AllWorkspaces && query.OperationalOrder {
+		return looppkg.RunListQuery{}, fmt.Errorf("%w: aggregate runs require recency order", looppkg.ErrValidation)
+	}
 	normalized.WorkspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(query.WorkspaceID)))
 	normalized.LoopName = strings.TrimSpace(query.LoopName)
 	normalized.Status = looppkg.Status(strings.TrimSpace(string(query.Status)))
@@ -368,12 +373,12 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 		normalized.After = &after
 		normalized.After.ID = looppkg.RunID(strings.TrimSpace(string(after.ID)))
 		normalized.After.CreatedAt = after.CreatedAt.UTC()
-		if !normalized.OperationalOrder || normalized.After.Rank < 0 || normalized.After.Rank > 2 ||
+		if normalized.After.Rank < 0 || normalized.After.Rank > 2 ||
 			normalized.After.CreatedAt.IsZero() || normalized.After.ID == "" {
 			return looppkg.RunListQuery{}, fmt.Errorf("%w: loop run list position is invalid", looppkg.ErrValidation)
 		}
 	}
-	if normalized.OperationalOrder && normalized.Limit == loopRunOperationalFetchLimit {
+	if normalized.Limit == loopRunOperationalFetchLimit {
 		normalized.Limit = loopRunOperationalFetchLimit
 	} else {
 		normalized.Limit = normalizeLoopAPILimit(normalized.Limit)

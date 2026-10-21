@@ -1814,6 +1814,13 @@
             "resource": "loops",
             "app_access": "allowed"
         },
+        "listLoopRequestsAggregate": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.listLoopRequestsAggregate();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListLoopRequestsAggregate(ctx, client.ListLoopRequestsAggregateParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "loops",
+            "app_access": "denied"
+        },
         "listLoopRuns": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.listLoopRuns({ path: { \"workspace_id\": \"workspace_id\" }, query: { \"status\": \"status\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListLoopRuns(ctx, client.ListLoopRunsParams{WorkspaceID: \"workspace_id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -1821,12 +1828,26 @@
             "resource": "loops",
             "app_access": "allowed"
         },
+        "listLoopRunsAggregate": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.listLoopRunsAggregate({ query: { \"status\": \"status\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListLoopRunsAggregate(ctx, client.ListLoopRunsAggregateParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "loops",
+            "app_access": "denied"
+        },
         "listLoops": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.listLoops({ path: { \"workspace_id\": \"workspace_id\" }, query: { \"status\": \"queued\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListLoops(ctx, client.ListLoopsParams{WorkspaceID: \"workspace_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "loops",
             "app_access": "allowed"
+        },
+        "listLoopsAggregate": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.loops.listLoopsAggregate({ query: { \"status\": \"queued\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListLoopsAggregate(ctx, client.ListLoopsAggregateParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "loops",
+            "app_access": "denied"
         },
         "listMarketplace": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.marketplace.listMarketplace();",

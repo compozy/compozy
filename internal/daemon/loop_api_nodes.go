@@ -140,6 +140,9 @@ func (s *daemonLoopAPIService) ListLoopNodes(
 	workspaceID string,
 	query core.LoopNodeListQuery,
 ) (contract.LoopNodeInventoryResponse, error) {
+	if query.AllWorkspaces {
+		workspaceID = "@user"
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopNodeInventoryResponse{}, err
@@ -149,12 +152,12 @@ func (s *daemonLoopAPIService) ListLoopNodes(
 		return contract.LoopNodeInventoryResponse{}, errors.New("daemon: loop node inventory is unavailable")
 	}
 	page, err := reader.ListNodeInventory(ctx, looppkg.NodeInventoryQuery{
-		WorkspaceID: ws,
-		State:       looppkg.NodeInventoryState(strings.TrimSpace(query.State)),
-		LoopName:    query.LoopName,
-		RunID:       looppkg.RunID(strings.TrimSpace(query.RunID)),
-		Cursor:      query.Cursor,
-		Limit:       query.Limit,
+		AllWorkspaces: query.AllWorkspaces, ReadScope: query.ReadScope, WorkspaceID: ws,
+		State:    looppkg.NodeInventoryState(strings.TrimSpace(query.State)),
+		LoopName: query.LoopName,
+		RunID:    looppkg.RunID(strings.TrimSpace(query.RunID)),
+		Cursor:   query.Cursor,
+		Limit:    query.Limit,
 	})
 	if err != nil {
 		return contract.LoopNodeInventoryResponse{}, err
@@ -389,7 +392,7 @@ func loopNodeInventoryItemPayload(
 	item looppkg.NodeInventoryItem,
 	now time.Time,
 ) contract.LoopNodeInventoryItem {
-	payload := contract.LoopNodeInventoryItem{
+	payload := contract.LoopNodeInventoryItem{WorkspaceID: item.WorkspaceID,
 		State:      contract.LoopNodeInventoryState(item.State),
 		LoopRunID:  string(item.LoopRunID),
 		LoopName:   item.LoopName,

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -36,27 +38,30 @@ func (s NodeInventoryState) Valid() bool {
 
 // NodeInventoryQuery filters one workspace-scoped inventory page.
 type NodeInventoryQuery struct {
-	WorkspaceID WorkspaceID
-	State       NodeInventoryState
-	LoopName    string
-	RunID       RunID
-	Cursor      string
-	Limit       int
+	AllWorkspaces bool
+	ReadScope     store.ReadScope
+	WorkspaceID   WorkspaceID
+	State         NodeInventoryState
+	LoopName      string
+	RunID         RunID
+	Cursor        string
+	Limit         int
 }
 
 // NodeInventoryItem is one stable-ordered inventory row with exactly one state detail.
 type NodeInventoryItem struct {
-	State      NodeInventoryState
-	LoopRunID  RunID
-	LoopName   string
-	Generation int
-	NodeID     NodeID
-	ItemIndex  int
-	StateAt    time.Time
-	Wait       *NodeWait
-	Control    *NodeControl
-	Output     *GenerationOutput
-	Attempt    *NodeAttempt
+	WorkspaceID string
+	State       NodeInventoryState
+	LoopRunID   RunID
+	LoopName    string
+	Generation  int
+	NodeID      NodeID
+	ItemIndex   int
+	StateAt     time.Time
+	Wait        *NodeWait
+	Control     *NodeControl
+	Output      *GenerationOutput
+	Attempt     *NodeAttempt
 }
 
 // NodeInventoryPage is one page and its opaque continuation cursor.
@@ -72,22 +77,30 @@ type NodeInventoryReader interface {
 
 // NodeInventoryCursor is the decoded keyset cursor bound to the original filters.
 type NodeInventoryCursor struct {
-	WorkspaceID WorkspaceID        `json:"workspace_id"`
-	State       NodeInventoryState `json:"state"`
-	LoopName    string             `json:"loop,omitempty"`
-	RunID       RunID              `json:"run_id,omitempty"`
-	StateAt     time.Time          `json:"state_at"`
-	LoopRunID   RunID              `json:"loop_run_id"`
-	Generation  int                `json:"generation"`
-	NodeID      NodeID             `json:"node_id"`
-	ItemIndex   int                `json:"item_index"`
+	AllWorkspaces bool               `json:"all_workspaces"`
+	ReadScope     store.ReadScope    `json:"read_scope"`
+	WorkspaceID   WorkspaceID        `json:"workspace_id"`
+	State         NodeInventoryState `json:"state"`
+	LoopName      string             `json:"loop,omitempty"`
+	RunID         RunID              `json:"run_id,omitempty"`
+	StateAt       time.Time          `json:"state_at"`
+	LoopRunID     RunID              `json:"loop_run_id"`
+	Generation    int                `json:"generation"`
+	NodeID        NodeID             `json:"node_id"`
+	ItemIndex     int                `json:"item_index"`
 }
 
 // NormalizeNodeInventoryQuery validates public filters and applies the default page size.
 func NormalizeNodeInventoryQuery(query NodeInventoryQuery) (NodeInventoryQuery, error) {
 	query.LoopName = strings.TrimSpace(query.LoopName)
 	query.Cursor = strings.TrimSpace(query.Cursor)
-	if strings.TrimSpace(string(query.WorkspaceID)) == "" {
+	if query.ReadScope == (store.ReadScope{}) {
+		query.ReadScope = store.ReadScope{AllProfiles: true}
+	}
+	if err := query.ReadScope.Validate(); err != nil {
+		return NodeInventoryQuery{}, err
+	}
+	if !query.AllWorkspaces && strings.TrimSpace(string(query.WorkspaceID)) == "" {
 		return NodeInventoryQuery{}, fmt.Errorf("%w: workspace_id is required", ErrValidation)
 	}
 	if !query.State.Valid() {
@@ -119,7 +132,7 @@ func DecodeNodeInventoryCursor(query NodeInventoryQuery) (*NodeInventoryCursor, 
 	if err := json.Unmarshal(raw, &cursor); err != nil {
 		return nil, fmt.Errorf("%w: node inventory cursor is invalid", ErrValidation)
 	}
-	if cursor.WorkspaceID != query.WorkspaceID || cursor.State != query.State ||
+	if cursor.AllWorkspaces != query.AllWorkspaces || cursor.ReadScope != query.ReadScope || cursor.WorkspaceID != query.WorkspaceID || cursor.State != query.State ||
 		cursor.LoopName != query.LoopName || cursor.RunID != query.RunID || cursor.StateAt.IsZero() ||
 		cursor.LoopRunID == "" || cursor.NodeID == "" || cursor.Generation < 0 || cursor.ItemIndex < 0 {
 		return nil, fmt.Errorf("%w: node inventory cursor does not match the requested scope", ErrValidation)
@@ -129,7 +142,7 @@ func DecodeNodeInventoryCursor(query NodeInventoryQuery) (*NodeInventoryCursor, 
 
 // EncodeNodeInventoryCursor creates an opaque continuation cursor from the last returned row.
 func EncodeNodeInventoryCursor(query NodeInventoryQuery, item NodeInventoryItem) (string, error) {
-	cursor := NodeInventoryCursor{
+	cursor := NodeInventoryCursor{AllWorkspaces: query.AllWorkspaces, ReadScope: query.ReadScope,
 		WorkspaceID: query.WorkspaceID,
 		State:       query.State,
 		LoopName:    query.LoopName,

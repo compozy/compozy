@@ -31,16 +31,18 @@ var (
 type CatalogKind string
 
 type CatalogQuery struct {
-	WorkspaceID string
-	ProfileID   string
-	ProfileName string
-	Search      string
-	Kind        CatalogKind
-	Category    string
-	Status      Status
-	Sort        string
-	Cursor      string
-	Limit       int
+	AllWorkspaces bool
+	WorkspaceIDs  []string
+	WorkspaceID   string
+	ProfileID     string
+	ProfileName   string
+	Search        string
+	Kind          CatalogKind
+	Category      string
+	Status        Status
+	Sort          string
+	Cursor        string
+	Limit         int
 }
 
 type CatalogRunAggregate struct {

@@ -38,6 +38,7 @@ func newLoopStatusCommand(deps commandDeps) *cobra.Command {
 func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef, loopName, status, origin, originSession, cursor string
 	var limit int
+	var allWorkspaces bool
 	cmd := &cobra.Command{
 		Use:   cliRunsKey,
 		Short: "List workspace Loop runs",
@@ -50,11 +51,11 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 			); err != nil {
 				return err
 			}
-			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
+			client, workspaceID, err := loopListClientAndWorkspace(cmd, deps, workspaceRef, allWorkspaces)
 			if err != nil {
 				return err
 			}
-			response, err := client.ListLoopRuns(cmd.Context(), workspaceID, LoopRunListQuery{
+			response, err := client.ListLoopRuns(cmd.Context(), workspaceID, LoopRunListQuery{AllWorkspaces: allWorkspaces,
 				LoopName:      strings.TrimSpace(loopName),
 				Status:        strings.TrimSpace(status),
 				Origin:        strings.TrimSpace(origin),
@@ -64,6 +65,17 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 			})
 			if err != nil {
 				return err
+			}
+			if allWorkspaces {
+				ids := make([]string, 0, len(response.Runs))
+				for _, run := range response.Runs {
+					ids = append(ids, run.WorkspaceID)
+				}
+				labels, err := loopProjectNames(cmd.Context(), client, ids)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, loopRunsOutputBundle(response, deps.now, labels))
 			}
 			return writeCommandOutput(cmd, loopRunsOutputBundle(response, deps.now))
 		},
@@ -76,6 +88,8 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Resume after an opaque server-order cursor")
 	cmd.Flags().IntVar(&limit, "limit", 50, "Page size from 1 to 500")
 	configureProfileReadCommand(cmd, deps)
+	cmd.Flags().BoolVar(&allWorkspaces, "all-workspaces", false, "List every project and User scope")
+	cmd.MarkFlagsMutuallyExclusive("workspace", "all-workspaces")
 	return cmd
 }
 

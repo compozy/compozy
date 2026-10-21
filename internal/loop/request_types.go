@@ -153,6 +153,7 @@ type RequestRef struct {
 
 // Request is the public redaction-safe request projection.
 type Request struct {
+	WorkspaceID      string                   `json:"workspace_id"`
 	ProfileID        string                   `json:"profile_id"`
 	LoopRunID        RunID                    `json:"loop_run_id"`
 	LoopName         string                   `json:"loop_name,omitempty"`
@@ -178,11 +179,13 @@ type Request struct {
 }
 
 type RequestQuery struct {
-	ReadScope store.ReadScope
-	RunID     RunID
-	State     string
-	Cursor    string
-	Limit     int
+	AllWorkspaces bool
+	WorkspaceIDs  []string
+	ReadScope     store.ReadScope
+	RunID         RunID
+	State         string
+	Cursor        string
+	Limit         int
 }
 
 type RequestPage struct {

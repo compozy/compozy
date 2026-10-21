@@ -3328,10 +3328,33 @@ export type LoopBudget = {
   wall_clock_sec: number;
 };
 
+export type LoopCatalogAggregateEntryPayload = {
+  aggregate_30d: LoopCatalogAggregatePayload;
+  catalog: LoopCatalogResourceSpec;
+  contract: LoopContract;
+  description?: string;
+  inputs?: {
+    [key: string]: LoopInput;
+  };
+  last_run?: LoopCatalogLastRunPayload | null;
+  name: string;
+  source: LoopCatalogSourcePayload;
+  start?: Array<LoopStartBinding>;
+  success_rate_30d: number;
+  version: number;
+  workspace_id?: string;
+};
+
 export type LoopCatalogAggregatePayload = {
   failed: number;
   runs: number;
   succeeded: number;
+};
+
+export type LoopCatalogBatchResponse = {
+  entries: Array<LoopCatalogAggregateEntryPayload>;
+  errors: Array<LoopCatalogWorkspaceError>;
+  truncated: boolean;
 };
 
 export type LoopCatalogEntryPayload = {
@@ -3348,6 +3371,7 @@ export type LoopCatalogEntryPayload = {
   start?: Array<LoopStartBinding>;
   success_rate_30d: number;
   version: number;
+  workspace_id?: string;
 };
 
 export type LoopCatalogFacetsPayload = {
@@ -3386,6 +3410,17 @@ export type LoopCatalogResourceSpec = {
   category?: string;
   keywords?: Array<string>;
   use_when?: string;
+};
+
+export type LoopCatalogSourcePayload = {
+  kind: "marketplace" | "user" | "additional" | "workspace";
+  layer: string;
+};
+
+export type LoopCatalogWorkspaceError = {
+  code: string;
+  message: string;
+  workspace_id?: string;
 };
 
 export type LoopConfig = {
@@ -3816,6 +3851,7 @@ export type LoopNodeInventoryItem = {
   state: "waiting" | "quarantined" | "attention" | "retrying";
   state_at: string;
   wait?: LoopNodeWaitPayload | null;
+  workspace_id?: string;
 };
 
 export type LoopNodeInventoryResponse = {
@@ -3919,6 +3955,7 @@ export type LoopRequestPayload = {
   resolved_at?: string | null;
   respond_schema?: unknown;
   state: string;
+  workspace_id?: string;
 };
 
 export type LoopRequestProvenance = {
@@ -17465,6 +17502,253 @@ export type ListLogsResponses = {
 };
 
 export type ListLogsResponse = ListLogsResponses[keyof ListLogsResponses];
+
+export type ListLoopRequestsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all registered projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Filter by Loop run id
+     */
+    run_id?: string;
+    /**
+     * Filter by pending or resolved state
+     */
+    state?: string;
+    /**
+     * Opaque continuation cursor
+     */
+    cursor?: string;
+    /**
+     * Maximum number of records to return
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/loop-requests";
+};
+
+export type ListLoopRequestsAggregateErrors = {
+  /**
+   * Invalid Loop request
+   */
+  400: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Loop service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListLoopRequestsAggregateError =
+  ListLoopRequestsAggregateErrors[keyof ListLoopRequestsAggregateErrors];
+
+export type ListLoopRequestsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: LoopRequestsResponse;
+};
+
+export type ListLoopRequestsAggregateResponse =
+  ListLoopRequestsAggregateResponses[keyof ListLoopRequestsAggregateResponses];
+
+export type ListLoopRunsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all registered projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Filter by Loop name
+     */
+    loop?: string;
+    /**
+     * Filter by Loop status
+     */
+    status?: string;
+    /**
+     * Filter by catalog or session origin
+     */
+    origin?: string;
+    /**
+     * Filter by origin session id
+     */
+    origin_session?: string;
+    /**
+     * Filter by live or terminal status
+     */
+    live?: boolean;
+    /**
+     * Opaque server-order cursor
+     */
+    cursor?: string;
+    /**
+     * Maximum number of records to return
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+    /**
+     * Aggregate runs support recency order only
+     */
+    order?: "recency";
+  };
+  url: "/api/loop-runs";
+};
+
+export type ListLoopRunsAggregateErrors = {
+  /**
+   * Invalid Loop request
+   */
+  400: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Loop service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListLoopRunsAggregateError =
+  ListLoopRunsAggregateErrors[keyof ListLoopRunsAggregateErrors];
+
+export type ListLoopRunsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: LoopRunsResponse;
+};
+
+export type ListLoopRunsAggregateResponse =
+  ListLoopRunsAggregateResponses[keyof ListLoopRunsAggregateResponses];
+
+export type ListLoopsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all registered projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Search Loop name or contract goal
+     */
+    q?: string;
+    /**
+     * Filter by effective Loop kind
+     */
+    kind?: "read_only" | "workspace";
+    /**
+     * Filter by exact catalog category
+     */
+    category?: string;
+    /**
+     * Filter by exact latest-run status
+     */
+    status?:
+      | "queued"
+      | "running"
+      | "watching"
+      | "needs-approval"
+      | "paused"
+      | "done"
+      | "no-op"
+      | "blocked"
+      | "failed"
+      | "exhausted"
+      | "stalled"
+      | "canceled";
+    /**
+     * Stable read-only-first name order
+     */
+    sort?: "name";
+    /**
+     * Continue after this workspace- and query-bound Loop cursor
+     */
+    cursor?: string;
+    /**
+     * Maximum number of Loops to return; defaults to 50 and is capped at 200
+     */
+    limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/loops";
+};
+
+export type ListLoopsAggregateErrors = {
+  /**
+   * Invalid Loop request
+   */
+  400: ErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Loop service is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListLoopsAggregateError = ListLoopsAggregateErrors[keyof ListLoopsAggregateErrors];
+
+export type ListLoopsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: LoopCatalogBatchResponse;
+};
+
+export type ListLoopsAggregateResponse =
+  ListLoopsAggregateResponses[keyof ListLoopsAggregateResponses];
 
 export type ListMarketplaceData = {
   body?: never;

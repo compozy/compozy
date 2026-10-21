@@ -15,6 +15,8 @@ var ErrInvalidRunListCursor = errors.New("invalid_cursor")
 // RunListQuery filters loop run listings within one explicit profile read
 // lens and workspace. AllProfiles is reserved for intentional aggregates.
 type RunListQuery struct {
+	AllWorkspaces    bool
+	WorkspaceIDs     []string
 	ReadScope        store.ReadScope
 	WorkspaceID      WorkspaceID
 	LoopName         string

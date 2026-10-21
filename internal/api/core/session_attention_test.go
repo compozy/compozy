@@ -393,6 +393,9 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 		t.Parallel()
 
 		fixture := newHandlerFixtureWithTasks(t, attentionRouteSessionManager(), testutil.StubObserver{}, &testutil.StubTaskManager{}, testutil.StubWorkspaceService{})
+		fixture.Engine.GET("/loop-runs", fixture.Handlers.ListLoopRuns)
+		fixture.Engine.GET("/loop-requests", fixture.Handlers.ListLoopRequests)
+		fixture.Engine.GET("/loops", fixture.Handlers.ListLoops)
 		headers := map[string]string{
 			agentidentity.HeaderSessionID: "sess-agent",
 			agentidentity.HeaderAgent:     "coder",
@@ -403,6 +406,9 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			body   []byte
 		}{
 			{method: http.MethodGet, path: "/sessions?all_workspaces=true"},
+			{method: http.MethodGet, path: "/loop-runs?all_workspaces=true"},
+			{method: http.MethodGet, path: "/loop-requests?all_workspaces=true"},
+			{method: http.MethodGet, path: "/loops?all_workspaces=true"},
 			{method: http.MethodGet, path: "/tasks?all_workspaces=true"},
 			{method: http.MethodGet, path: "/observe/tasks/dashboard?all_workspaces=true"},
 			{method: http.MethodGet, path: "/observe/overview?all_workspaces=true"},
@@ -755,8 +761,11 @@ func TestAttentionNotificationTaskPopulation(t *testing.T) {
 				return contract.LoopNodeInventoryResponse{}, nil
 			},
 			listLoopRequestsFn: func(
-				_ context.Context, workspace string, _ core.LoopRequestListQuery,
+				_ context.Context, workspace string, query core.LoopRequestListQuery,
 			) (contract.LoopRequestsResponse, error) {
+				if !query.AllWorkspaces || !query.ReadScope.AllProfiles {
+					t.Fatalf("bell scope = %+v", query)
+				}
 				loopWorkspaces = append(loopWorkspaces, workspace)
 				return contract.LoopRequestsResponse{}, nil
 			},
@@ -778,12 +787,12 @@ func TestAttentionNotificationTaskPopulation(t *testing.T) {
 		for _, item := range payload.Items {
 			got[item.ID] = item.SourceID + "@" + item.WorkspaceID + "/" + item.WorkspaceLabel
 		}
-		want := map[string]string{"n-global": "task-global@/Global", "n-ws1": "task-ws1@ws-1/Alpha"}
+		want := map[string]string{"n-global": "task-global@/User", "n-ws1": "task-ws1@ws-1/Alpha"}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("bell task rows = %v, want %v", got, want)
 		}
-		if !reflect.DeepEqual(loopWorkspaces, []string{"ws-1", "ws-2"}) {
-			t.Fatalf("loop reads = %v, want each registered workspace", loopWorkspaces)
+		if !reflect.DeepEqual(loopWorkspaces, []string{""}) {
+			t.Fatalf("loop reads = %v, want one aggregate read", loopWorkspaces)
 		}
 	})
 }

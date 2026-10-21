@@ -1378,3 +1378,147 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 		}
 	})
 }
+
+func TestGlobalDBLoopAggregateBreadth(t *testing.T) {
+	t.Parallel()
+	t.Run("Should page registered projects and User by recency within the profile lens", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := t.Context()
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'aggregate-foreign','#E8572A','circle','active',?)`, foreign, store.FormatTimestamp(now)); err != nil {
+			t.Fatal(err)
+		}
+		for index, ws := range []string{"ws-a", "ws-b", "", "ws-b", "retired"} {
+			run := testLoopRun(fmt.Sprintf("aggregate-%d", index), now.Add(time.Duration(index)*time.Minute), looppkg.StatusDone)
+			run.WorkspaceID = looppkg.WorkspaceID(ws)
+			if index == 3 {
+				run.ProfileID = foreign
+			}
+			insertLoopCatalogRunForTest(t, db, run)
+		}
+		query := looppkg.RunListQuery{AllWorkspaces: true, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 2}
+		first, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(first) != 2 || first[0].ID != "aggregate-2" || first[1].ID != "aggregate-1" {
+			t.Fatalf("first page = %+v, %v", first, err)
+		}
+		query.After = &looppkg.RunListPosition{ID: first[1].ID, CreatedAt: first[1].CreatedAt}
+		next, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(next) != 1 || next[0].ID != "aggregate-0" {
+			t.Fatalf("next page = %+v, %v", next, err)
+		}
+		query.After = nil
+		query.WorkspaceIDs = []string{"ws-b"}
+		narrowed, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(narrowed) != 1 || narrowed[0].ID != "aggregate-1" {
+			t.Fatalf("narrowed page = %+v, %v", narrowed, err)
+		}
+		query.ReadScope = store.ReadScope{AllProfiles: true}
+		all, err := db.ListLoopRuns(ctx, query)
+		if err != nil || len(all) != 2 || all[0].ID != "aggregate-3" {
+			t.Fatalf("all profiles = %+v, %v", all, err)
+		}
+	})
+	t.Run("Should page tied requests by rowid with attribution and scope bound cursors", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t, "ws-a", "ws-b")
+		ctx := t.Context()
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'requests-foreign','#E8572A','circle','active',?)`, foreign, store.FormatTimestamp(now)); err != nil {
+			t.Fatal(err)
+		}
+		for index, ws := range []string{"ws-a", "ws-b", "", "ws-b"} {
+			run := testLoopRun(fmt.Sprintf("request-aggregate-%d", index), now, looppkg.StatusRunning)
+			run.WorkspaceID = looppkg.WorkspaceID(ws)
+			if index == 3 {
+				run.ProfileID = foreign
+			}
+			insertLoopCatalogRunForTest(t, db, run)
+			for generation := 1; generation <= 2; generation++ {
+				if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_requests (workspace_id,loop_run_id,generation,node_id,item_index,kind,state,prompt,decisions_json,opened_at,expires_at) VALUES (?,?,?,'ask',?,'ask','pending','Approve?','["approve"]',?,?)`, ws, run.ID, generation, generation, now, func() any {
+					if generation == 1 {
+						return now.Add(time.Hour)
+					}
+					return nil
+				}()); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		query := looppkg.RequestQuery{AllWorkspaces: true, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 1}
+		seen := map[string]bool{}
+		for {
+			page, err := db.ListRequests(ctx, "", query)
+			if err != nil || page.Pending != 6 || len(page.Items) != 1 {
+				t.Fatalf("page = %+v, %v", page, err)
+			}
+			item := page.Items[0]
+			key := fmt.Sprintf("%s/%d/%d", item.LoopRunID, item.Generation, item.ItemIndex)
+			if seen[key] || item.ProfileID != store.DefaultProfileID {
+				t.Fatalf("repeated or foreign row: %+v", item)
+			}
+			seen[key] = true
+			if len(seen) <= 3 && item.ExpiresAt == nil {
+				t.Fatal("null expiry preceded expiring rows")
+			}
+			if len(seen) == 1 {
+				for _, changed := range []looppkg.RequestQuery{
+					{AllWorkspaces: true, WorkspaceIDs: []string{"ws-b"}, ReadScope: query.ReadScope, Cursor: page.NextCursor},
+					{AllWorkspaces: true, ReadScope: store.ReadScope{AllProfiles: true}, Cursor: page.NextCursor},
+					{ReadScope: query.ReadScope, Cursor: page.NextCursor},
+				} {
+					if _, err := db.ListRequests(ctx, "", changed); err == nil {
+						t.Fatal("accepted cursor under a different lens")
+					}
+				}
+			}
+			if page.NextCursor == "" {
+				break
+			}
+			query.Cursor = page.NextCursor
+		}
+		if len(seen) != 6 {
+			t.Fatalf("seen = %v", seen)
+		}
+		page, err := db.ListRequests(ctx, "", looppkg.RequestQuery{AllWorkspaces: true, WorkspaceIDs: []string{"@user"}, ReadScope: query.ReadScope})
+		if err != nil || page.Pending != 2 || len(page.Items) != 2 || page.Items[0].WorkspaceID != "" {
+			t.Fatalf("User page = %+v, %v", page, err)
+		}
+	})
+}
+
+func TestGlobalDBLoopAggregateQueryPlans(t *testing.T) {
+	t.Parallel()
+	t.Run("Should serve aggregate filters with profile and recency indexes", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		statements := []string{
+			"SELECT id FROM loop_runs WHERE profile_id = '00000000000000000000000000' AND (workspace_id = '' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = loop_runs.workspace_id)) ORDER BY created_at DESC,id DESC LIMIT 100",
+			"SELECT id FROM loop_runs WHERE (workspace_id = '' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = loop_runs.workspace_id)) ORDER BY created_at DESC,id DESC LIMIT 100",
+			"SELECT request.rowid FROM loop_requests AS request JOIN loop_runs AS run ON run.id=request.loop_run_id WHERE run.profile_id='00000000000000000000000000' AND request.state='pending' AND (request.workspace_id='' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = request.workspace_id)) ORDER BY request.expires_at IS NULL,request.expires_at,request.opened_at,request.rowid LIMIT 200",
+			"SELECT request.rowid FROM loop_requests AS request JOIN loop_runs AS run ON run.id=request.loop_run_id WHERE request.state='pending' AND (request.workspace_id='' OR EXISTS (SELECT 1 FROM workspaces AS registered WHERE registered.id = request.workspace_id)) ORDER BY request.expires_at IS NULL,request.expires_at,request.opened_at,request.rowid LIMIT 200",
+		}
+		for index, statement := range statements {
+			rows, err := db.db.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+statement)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("plan %d: %s", index+1, detail)
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+			if err := rows.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+}

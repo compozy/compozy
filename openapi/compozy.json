@@ -12009,6 +12009,73 @@
         ],
         "type": "object"
       },
+      "LoopCatalogAggregateEntryPayload": {
+        "properties": {
+          "aggregate_30d": {
+            "$ref": "#/components/schemas/LoopCatalogAggregatePayload"
+          },
+          "catalog": {
+            "$ref": "#/components/schemas/LoopCatalogResourceSpec"
+          },
+          "contract": {
+            "$ref": "#/components/schemas/LoopContract"
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LoopInput"
+            },
+            "type": "object"
+          },
+          "last_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/LoopCatalogLastRunPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/LoopCatalogSourcePayload"
+          },
+          "start": {
+            "items": {
+              "$ref": "#/components/schemas/LoopStartBinding"
+            },
+            "type": "array"
+          },
+          "success_rate_30d": {
+            "format": "double",
+            "type": "number"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "aggregate_30d",
+          "catalog",
+          "contract",
+          "name",
+          "source",
+          "success_rate_30d",
+          "version"
+        ],
+        "type": "object"
+      },
       "LoopCatalogAggregatePayload": {
         "properties": {
           "failed": {
@@ -12025,6 +12092,31 @@
           "failed",
           "runs",
           "succeeded"
+        ],
+        "type": "object"
+      },
+      "LoopCatalogBatchResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LoopCatalogAggregateEntryPayload"
+            },
+            "type": "array"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/LoopCatalogWorkspaceError"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "entries",
+          "errors",
+          "truncated"
         ],
         "type": "object"
       },
@@ -12085,6 +12177,9 @@
           },
           "version": {
             "type": "integer"
+          },
+          "workspace_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -12185,6 +12280,45 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "LoopCatalogSourcePayload": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "marketplace",
+              "user",
+              "additional",
+              "workspace"
+            ],
+            "type": "string"
+          },
+          "layer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "layer"
+        ],
+        "type": "object"
+      },
+      "LoopCatalogWorkspaceError": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
         "type": "object"
       },
       "LoopConfig": {
@@ -13936,6 +14070,9 @@
                 "nullable": true
               }
             ]
+          },
+          "workspace_id": {
+            "type": "string"
           }
         },
         "required": [
@@ -14277,6 +14414,9 @@
           },
           "respond_schema": {},
           "state": {
+            "type": "string"
+          },
+          "workspace_id": {
             "type": "string"
           }
         },
@@ -54847,6 +54987,474 @@
         "summary": "Stream runtime logs",
         "tags": [
           "logs"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/loop-requests": {
+      "get": {
+        "operationId": "listLoopRequestsAggregate",
+        "parameters": [
+          {
+            "description": "Read all registered projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Filter by Loop run id",
+            "in": "query",
+            "name": "run_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by pending or resolved state",
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque continuation cursor",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of records to return",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopRequestsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid Loop request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Loop service is not configured"
+          }
+        },
+        "summary": "List Loop human requests",
+        "tags": [
+          "loops"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/loop-runs": {
+      "get": {
+        "operationId": "listLoopRunsAggregate",
+        "parameters": [
+          {
+            "description": "Read all registered projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Filter by Loop name",
+            "in": "query",
+            "name": "loop",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by Loop status",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by catalog or session origin",
+            "in": "query",
+            "name": "origin",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by origin session id",
+            "in": "query",
+            "name": "origin_session",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by live or terminal status",
+            "in": "query",
+            "name": "live",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Opaque server-order cursor",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of records to return",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Aggregate runs support recency order only",
+            "in": "query",
+            "name": "order",
+            "schema": {
+              "enum": [
+                "recency"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopRunsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid Loop request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Loop service is not configured"
+          }
+        },
+        "summary": "List Loop runs",
+        "tags": [
+          "loops"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/loops": {
+      "get": {
+        "operationId": "listLoopsAggregate",
+        "parameters": [
+          {
+            "description": "Read all registered projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Search Loop name or contract goal",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by effective Loop kind",
+            "in": "query",
+            "name": "kind",
+            "schema": {
+              "enum": [
+                "read_only",
+                "workspace"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact catalog category",
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Filter by exact latest-run status",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "enum": [
+                "queued",
+                "running",
+                "watching",
+                "needs-approval",
+                "paused",
+                "done",
+                "no-op",
+                "blocked",
+                "failed",
+                "exhausted",
+                "stalled",
+                "canceled"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stable read-only-first name order",
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "enum": [
+                "name"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Continue after this workspace- and query-bound Loop cursor",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of Loops to return; defaults to 50 and is capped at 200",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoopCatalogBatchResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid Loop request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Loop service is not configured"
+          }
+        },
+        "summary": "List Loop catalog entries",
+        "tags": [
+          "loops"
         ],
         "x-compozy-app-access": "denied",
         "x-compozy-transports": [

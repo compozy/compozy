@@ -13,18 +13,23 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type loopRunListCursor struct {
-	WorkspaceID   string    `json:"workspace_id"`
-	LoopName      string    `json:"loop_name,omitempty"`
-	Status        string    `json:"status,omitempty"`
-	Origin        string    `json:"origin,omitempty"`
-	OriginSession string    `json:"origin_session,omitempty"`
-	Live          *bool     `json:"live,omitzero"`
-	Rank          int       `json:"rank"`
-	CreatedAt     time.Time `json:"created_at"`
-	ID            string    `json:"id"`
+	AllWorkspaces bool            `json:"all_workspaces,omitempty"`
+	WorkspaceIDs  []string        `json:"workspace_ids,omitempty"`
+	ReadScope     store.ReadScope `json:"profile_scope"`
+	Order         string          `json:"order,omitempty"`
+	WorkspaceID   string          `json:"workspace_id"`
+	LoopName      string          `json:"loop_name,omitempty"`
+	Status        string          `json:"status,omitempty"`
+	Origin        string          `json:"origin,omitempty"`
+	OriginSession string          `json:"origin_session,omitempty"`
+	Live          *bool           `json:"live,omitzero"`
+	Rank          int             `json:"rank"`
+	CreatedAt     time.Time       `json:"created_at"`
+	ID            string          `json:"id"`
 }
 
 type loopRunListRequest struct {
@@ -62,7 +67,9 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 		applyLoopRunListSummary(&payload, summaries[run.ID])
 		payloads = append(payloads, payload)
 	}
-	sortLoopRunList(payloads)
+	if request.storeQuery.OperationalOrder {
+		sortLoopRunList(payloads)
+	}
 	response := contract.LoopRunsResponse{}
 	if len(payloads) > request.limit {
 		response.Runs = payloads[:request.limit]
@@ -82,6 +89,9 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 }
 
 func prepareLoopRunListRequest(workspaceID string, query core.LoopRunListQuery) (loopRunListRequest, error) {
+	if query.AllWorkspaces {
+		workspaceID = "@user"
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return loopRunListRequest{}, err
@@ -115,7 +125,8 @@ func prepareLoopRunListRequest(workspaceID string, query core.LoopRunListQuery) 
 		OriginSessionID:  strings.TrimSpace(query.OriginSession),
 		Live:             query.Live,
 		Limit:            limit + 1,
-		OperationalOrder: true,
+		OperationalOrder: !query.AllWorkspaces && query.Order != "recency",
+		AllWorkspaces:    query.AllWorkspaces, WorkspaceIDs: query.WorkspaceIDs,
 	}
 	if cursor != nil {
 		storeQuery.After = &looppkg.RunListPosition{
@@ -135,6 +146,23 @@ func (s *daemonLoopAPIService) loopRunListSummaries(
 	reader, ok := s.persistence.(looppkg.RunListSummaryReader)
 	if !ok {
 		return map[looppkg.RunID]looppkg.RunListSummary{}, nil
+	}
+	groups := make(map[looppkg.WorkspaceID][]looppkg.RunID)
+	for _, run := range runs {
+		groups[run.WorkspaceID] = append(groups[run.WorkspaceID], run.ID)
+	}
+	if len(groups) > 1 || len(runs) > 0 && runs[0].WorkspaceID != workspaceID {
+		all := make(map[looppkg.RunID]looppkg.RunListSummary)
+		for ws, ids := range groups {
+			summaries, err := reader.ListLoopRunSummaries(ctx, ws, ids)
+			if err != nil {
+				return nil, err
+			}
+			for id, summary := range summaries {
+				all[id] = summary
+			}
+		}
+		return all, nil
 	}
 	runIDs := make([]looppkg.RunID, len(runs))
 	for index := range runs {
@@ -192,6 +220,7 @@ func encodeLoopRunListCursor(
 ) (string, error) {
 	raw, err := json.Marshal(loopRunListCursor{
 		WorkspaceID:   strings.TrimSpace(workspaceID),
+		AllWorkspaces: query.AllWorkspaces, WorkspaceIDs: query.WorkspaceIDs, ReadScope: query.ReadScope, Order: query.Order,
 		LoopName:      strings.TrimSpace(query.LoopName),
 		Status:        strings.TrimSpace(query.Status),
 		Origin:        strings.TrimSpace(query.Origin),
@@ -224,7 +253,7 @@ func decodeLoopRunListCursor(value string) (*loopRunListCursor, error) {
 }
 
 func (c loopRunListCursor) matches(workspaceID string, query core.LoopRunListQuery) bool {
-	return c.WorkspaceID == strings.TrimSpace(workspaceID) &&
+	return c.AllWorkspaces == query.AllWorkspaces && slices.Equal(c.WorkspaceIDs, query.WorkspaceIDs) && c.ReadScope == query.ReadScope && c.Order == query.Order && c.WorkspaceID == strings.TrimSpace(workspaceID) &&
 		c.LoopName == strings.TrimSpace(query.LoopName) &&
 		c.Status == strings.TrimSpace(query.Status) &&
 		c.Origin == strings.TrimSpace(query.Origin) &&

@@ -783,12 +783,21 @@ import type {
   ListLoopNodesData,
   ListLoopNodesErrors,
   ListLoopNodesResponses,
+  ListLoopRequestsAggregateData,
+  ListLoopRequestsAggregateErrors,
+  ListLoopRequestsAggregateResponses,
   ListLoopRequestsData,
   ListLoopRequestsErrors,
   ListLoopRequestsResponses,
+  ListLoopRunsAggregateData,
+  ListLoopRunsAggregateErrors,
+  ListLoopRunsAggregateResponses,
   ListLoopRunsData,
   ListLoopRunsErrors,
   ListLoopRunsResponses,
+  ListLoopsAggregateData,
+  ListLoopsAggregateErrors,
+  ListLoopsAggregateResponses,
   ListLoopsData,
   ListLoopsErrors,
   ListLoopsResponses,
@@ -3950,6 +3959,891 @@ export class logs extends HeyApiClient {
       responseStyle: "data",
       url: "/api/logs",
       ...options,
+    });
+  }
+}
+
+export class loops extends HeyApiClient {
+  /**
+   * List Loop human requests
+   */
+  public listLoopRequestsAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListLoopRequestsAggregateData, ThrowOnError>
+  ): RequestResult<
+    ListLoopRequestsAggregateResponses,
+    ListLoopRequestsAggregateErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListLoopRequestsAggregateResponses,
+      ListLoopRequestsAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/loop-requests",
+      ...options,
+    });
+  }
+
+  /**
+   * List Loop runs
+   */
+  public listLoopRunsAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListLoopRunsAggregateData, ThrowOnError>
+  ): RequestResult<
+    ListLoopRunsAggregateResponses,
+    ListLoopRunsAggregateErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListLoopRunsAggregateResponses,
+      ListLoopRunsAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/loop-runs",
+      ...options,
+    });
+  }
+
+  /**
+   * List Loop catalog entries
+   */
+  public listLoopsAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListLoopsAggregateData, ThrowOnError>
+  ): RequestResult<ListLoopsAggregateResponses, ListLoopsAggregateErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListLoopsAggregateResponses,
+      ListLoopsAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/loops",
+      ...options,
+    });
+  }
+
+  /**
+   * List workspace Loop node state
+   */
+  public listLoopNodes<ThrowOnError extends boolean = true>(
+    options: Options<ListLoopNodesData, ThrowOnError>
+  ): RequestResult<ListLoopNodesResponses, ListLoopNodesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListLoopNodesResponses,
+      ListLoopNodesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-nodes",
+      ...options,
+    });
+  }
+
+  /**
+   * List Loop human requests
+   */
+  public listLoopRequests<ThrowOnError extends boolean = true>(
+    options: Options<ListLoopRequestsData, ThrowOnError>
+  ): RequestResult<ListLoopRequestsResponses, ListLoopRequestsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListLoopRequestsResponses,
+      ListLoopRequestsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-requests",
+      ...options,
+    });
+  }
+
+  /**
+   * List Loop runs
+   */
+  public listLoopRuns<ThrowOnError extends boolean = true>(
+    options: Options<ListLoopRunsData, ThrowOnError>
+  ): RequestResult<ListLoopRunsResponses, ListLoopRunsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListLoopRunsResponses,
+      ListLoopRunsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs",
+      ...options,
+    });
+  }
+
+  /**
+   * Get one Loop run
+   */
+  public getLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopRunData, ThrowOnError>
+  ): RequestResult<GetLoopRunResponses, GetLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopRunResponses,
+      GetLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Approve one Loop gate
+   */
+  public approveLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<ApproveLoopRunData, ThrowOnError>
+  ): RequestResult<ApproveLoopRunResponses, ApproveLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ApproveLoopRunResponses,
+      ApproveLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Explain the current Loop run state
+   */
+  public getLoopRunBriefing<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopRunBriefingData, ThrowOnError>
+  ): RequestResult<GetLoopRunBriefingResponses, GetLoopRunBriefingErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopRunBriefingResponses,
+      GetLoopRunBriefingErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel one Loop run
+   */
+  public cancelLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<CancelLoopRunData, ThrowOnError>
+  ): RequestResult<CancelLoopRunResponses, CancelLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CancelLoopRunResponses,
+      CancelLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Compare Loop generations or runs
+   */
+  public diffLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<DiffLoopRunData, ThrowOnError>
+  ): RequestResult<DiffLoopRunResponses, DiffLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      DiffLoopRunResponses,
+      DiffLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff",
+      ...options,
+    });
+  }
+
+  /**
+   * Fork a linked Loop run from history
+   */
+  public forkLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<ForkLoopRunData, ThrowOnError>
+  ): RequestResult<ForkLoopRunResponses, ForkLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ForkLoopRunResponses,
+      ForkLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/fork",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get the computed Loop run node roster
+   */
+  public getLoopRunNodes<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopRunNodesData, ThrowOnError>
+  ): RequestResult<GetLoopRunNodesResponses, GetLoopRunNodesErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopRunNodesResponses,
+      GetLoopRunNodesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
+      ...options,
+    });
+  }
+
+  /**
+   * Amend one parked Loop node output
+   */
+  public amendLoopNode<ThrowOnError extends boolean = true>(
+    options: Options<AmendLoopNodeData, ThrowOnError>
+  ): RequestResult<AmendLoopNodeResponses, AmendLoopNodeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      AmendLoopNodeResponses,
+      AmendLoopNodeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/amend",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Cancel one Loop node
+   */
+  public cancelLoopNode<ThrowOnError extends boolean = true>(
+    options: Options<CancelLoopNodeData, ThrowOnError>
+  ): RequestResult<CancelLoopNodeResponses, CancelLoopNodeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CancelLoopNodeResponses,
+      CancelLoopNodeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Pause one Loop node
+   */
+  public pauseLoopNode<ThrowOnError extends boolean = true>(
+    options: Options<PauseLoopNodeData, ThrowOnError>
+  ): RequestResult<PauseLoopNodeResponses, PauseLoopNodeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      PauseLoopNodeResponses,
+      PauseLoopNodeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get one Loop human request
+   */
+  public getLoopRequest<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopRequestData, ThrowOnError>
+  ): RequestResult<GetLoopRequestResponses, GetLoopRequestErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopRequestResponses,
+      GetLoopRequestErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/request",
+      ...options,
+    });
+  }
+
+  /**
+   * Requeue one Loop node
+   */
+  public requeueLoopNode<ThrowOnError extends boolean = true>(
+    options: Options<RequeueLoopNodeData, ThrowOnError>
+  ): RequestResult<RequeueLoopNodeResponses, RequeueLoopNodeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RequeueLoopNodeResponses,
+      RequeueLoopNodeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Answer one Loop human request
+   */
+  public respondLoopRequest<ThrowOnError extends boolean = true>(
+    options: Options<RespondLoopRequestData, ThrowOnError>
+  ): RequestResult<RespondLoopRequestResponses, RespondLoopRequestErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RespondLoopRequestResponses,
+      RespondLoopRequestErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/respond",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Resume one Loop node
+   */
+  public resumeLoopNode<ThrowOnError extends boolean = true>(
+    options: Options<ResumeLoopNodeData, ThrowOnError>
+  ): RequestResult<ResumeLoopNodeResponses, ResumeLoopNodeErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ResumeLoopNodeResponses,
+      ResumeLoopNodeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/resume",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Pause one Loop run
+   */
+  public pauseLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<PauseLoopRunData, ThrowOnError>
+  ): RequestResult<PauseLoopRunResponses, PauseLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      PauseLoopRunResponses,
+      PauseLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Rerun a Loop from one settled node
+   */
+  public rerunLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<RerunLoopRunData, ThrowOnError>
+  ): RequestResult<RerunLoopRunResponses, RerunLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RerunLoopRunResponses,
+      RerunLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/rerun",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Resume one Loop run
+   */
+  public resumeLoopRun<ThrowOnError extends boolean = true>(
+    options: Options<ResumeLoopRunData, ThrowOnError>
+  ): RequestResult<ResumeLoopRunResponses, ResumeLoopRunErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ResumeLoopRunResponses,
+      ResumeLoopRunErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read the durable Loop run timeline
+   */
+  public getLoopRunTimeline<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopRunTimelineData, ThrowOnError>
+  ): RequestResult<GetLoopRunTimelineResponses, GetLoopRunTimelineErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopRunTimelineResponses,
+      GetLoopRunTimelineErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline",
+      ...options,
+    });
+  }
+
+  /**
+   * List Goal turns in run-wide sequence order
+   */
+  public listGoalTurns<ThrowOnError extends boolean = true>(
+    options: Options<ListGoalTurnsData, ThrowOnError>
+  ): RequestResult<ListGoalTurnsResponses, ListGoalTurnsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListGoalTurnsResponses,
+      ListGoalTurnsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns",
+      ...options,
+    });
+  }
+
+  /**
+   * List Loop catalog entries
+   */
+  public listLoops<ThrowOnError extends boolean = true>(
+    options: Options<ListLoopsData, ThrowOnError>
+  ): RequestResult<ListLoopsResponses, ListLoopsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListLoopsResponses,
+      ListLoopsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops",
+      ...options,
+    });
+  }
+
+  /**
+   * Create or fork a Loop definition
+   */
+  public createLoop<ThrowOnError extends boolean = true>(
+    options: Options<CreateLoopData, ThrowOnError>
+  ): RequestResult<CreateLoopResponses, CreateLoopErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateLoopResponses,
+      CreateLoopErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete one writable Loop definition
+   */
+  public deleteLoop<ThrowOnError extends boolean = true>(
+    options: Options<DeleteLoopData, ThrowOnError>
+  ): RequestResult<DeleteLoopResponses, DeleteLoopErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteLoopResponses,
+      DeleteLoopErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}",
+      ...options,
+    });
+  }
+
+  /**
+   * Inspect one Loop definition
+   */
+  public getLoop<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopData, ThrowOnError>
+  ): RequestResult<GetLoopResponses, GetLoopErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopResponses,
+      GetLoopErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}",
+      ...options,
+    });
+  }
+
+  /**
+   * Publish one Loop definition with optimistic concurrency
+   */
+  public patchLoop<ThrowOnError extends boolean = true>(
+    options: Options<PatchLoopData, ThrowOnError>
+  ): RequestResult<PatchLoopResponses, PatchLoopErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).patch<
+      PatchLoopResponses,
+      PatchLoopErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get Loop editor annotations
+   */
+  public getLoopAnnotations<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopAnnotationsData, ThrowOnError>
+  ): RequestResult<GetLoopAnnotationsResponses, GetLoopAnnotationsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopAnnotationsResponses,
+      GetLoopAnnotationsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/annotations",
+      ...options,
+    });
+  }
+
+  /**
+   * Replace Loop editor annotations
+   */
+  public putLoopAnnotations<ThrowOnError extends boolean = true>(
+    options: Options<PutLoopAnnotationsData, ThrowOnError>
+  ): RequestResult<PutLoopAnnotationsResponses, PutLoopAnnotationsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutLoopAnnotationsResponses,
+      PutLoopAnnotationsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/annotations",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get Loop config override
+   */
+  public getLoopConfig<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopConfigData, ThrowOnError>
+  ): RequestResult<GetLoopConfigResponses, GetLoopConfigErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopConfigResponses,
+      GetLoopConfigErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/config",
+      ...options,
+    });
+  }
+
+  /**
+   * Replace Loop config override
+   */
+  public putLoopConfig<ThrowOnError extends boolean = true>(
+    options: Options<PutLoopConfigData, ThrowOnError>
+  ): RequestResult<PutLoopConfigResponses, PutLoopConfigErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutLoopConfigResponses,
+      PutLoopConfigErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/config",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get one scoped Loop input-default table
+   */
+  public getLoopInputDefaults<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopInputDefaultsData, ThrowOnError>
+  ): RequestResult<
+    GetLoopInputDefaultsResponses,
+    GetLoopInputDefaultsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetLoopInputDefaultsResponses,
+      GetLoopInputDefaultsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
+      ...options,
+    });
+  }
+
+  /**
+   * Replace one scoped Loop input-default table
+   */
+  public putLoopInputDefaults<ThrowOnError extends boolean = true>(
+    options: Options<PutLoopInputDefaultsData, ThrowOnError>
+  ): RequestResult<
+    PutLoopInputDefaultsResponses,
+    PutLoopInputDefaultsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      PutLoopInputDefaultsResponses,
+      PutLoopInputDefaultsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Delete one scoped Loop input default
+   */
+  public deleteLoopInputDefault<ThrowOnError extends boolean = true>(
+    options: Options<DeleteLoopInputDefaultData, ThrowOnError>
+  ): RequestResult<
+    DeleteLoopInputDefaultResponses,
+    DeleteLoopInputDefaultErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      DeleteLoopInputDefaultResponses,
+      DeleteLoopInputDefaultErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
+      ...options,
+    });
+  }
+
+  /**
+   * Get one scoped Loop input default
+   */
+  public getLoopInputDefault<ThrowOnError extends boolean = true>(
+    options: Options<GetLoopInputDefaultData, ThrowOnError>
+  ): RequestResult<GetLoopInputDefaultResponses, GetLoopInputDefaultErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetLoopInputDefaultResponses,
+      GetLoopInputDefaultErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
+      ...options,
+    });
+  }
+
+  /**
+   * Set one scoped Loop input default
+   */
+  public putLoopInputDefault<ThrowOnError extends boolean = true>(
+    options: Options<PutLoopInputDefaultData, ThrowOnError>
+  ): RequestResult<PutLoopInputDefaultResponses, PutLoopInputDefaultErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutLoopInputDefaultResponses,
+      PutLoopInputDefaultErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Start or dry-run one Loop
+   */
+  public runLoop<ThrowOnError extends boolean = true>(
+    options: Options<RunLoopData, ThrowOnError>
+  ): RequestResult<RunLoopResponses, RunLoopErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      RunLoopResponses,
+      RunLoopErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/run",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Validate one Loop definition without saving
+   */
+  public validateLoop<ThrowOnError extends boolean = true>(
+    options: Options<ValidateLoopData, ThrowOnError>
+  ): RequestResult<ValidateLoopResponses, ValidateLoopErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      ValidateLoopResponses,
+      ValidateLoopErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/loops/{name}/validate",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get the newest visible session Goal
+   */
+  public getSessionGoal<ThrowOnError extends boolean = true>(
+    options: Options<GetSessionGoalData, ThrowOnError>
+  ): RequestResult<GetSessionGoalResponses, GetSessionGoalErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetSessionGoalResponses,
+      GetSessionGoalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
+      ...options,
+    });
+  }
+
+  /**
+   * Set or control the authenticated session Goal
+   */
+  public mutateSessionGoal<ThrowOnError extends boolean = true>(
+    options: Options<MutateSessionGoalData, ThrowOnError>
+  ): RequestResult<MutateSessionGoalResponses, MutateSessionGoalErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      MutateSessionGoalResponses,
+      MutateSessionGoalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 }
@@ -10403,827 +11297,6 @@ export class workspaces extends HeyApiClient {
   }
 }
 
-export class loops extends HeyApiClient {
-  /**
-   * List workspace Loop node state
-   */
-  public listLoopNodes<ThrowOnError extends boolean = true>(
-    options: Options<ListLoopNodesData, ThrowOnError>
-  ): RequestResult<ListLoopNodesResponses, ListLoopNodesErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListLoopNodesResponses,
-      ListLoopNodesErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-nodes",
-      ...options,
-    });
-  }
-
-  /**
-   * List Loop human requests
-   */
-  public listLoopRequests<ThrowOnError extends boolean = true>(
-    options: Options<ListLoopRequestsData, ThrowOnError>
-  ): RequestResult<ListLoopRequestsResponses, ListLoopRequestsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListLoopRequestsResponses,
-      ListLoopRequestsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-requests",
-      ...options,
-    });
-  }
-
-  /**
-   * List Loop runs
-   */
-  public listLoopRuns<ThrowOnError extends boolean = true>(
-    options: Options<ListLoopRunsData, ThrowOnError>
-  ): RequestResult<ListLoopRunsResponses, ListLoopRunsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListLoopRunsResponses,
-      ListLoopRunsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs",
-      ...options,
-    });
-  }
-
-  /**
-   * Get one Loop run
-   */
-  public getLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopRunData, ThrowOnError>
-  ): RequestResult<GetLoopRunResponses, GetLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopRunResponses,
-      GetLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Approve one Loop gate
-   */
-  public approveLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<ApproveLoopRunData, ThrowOnError>
-  ): RequestResult<ApproveLoopRunResponses, ApproveLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ApproveLoopRunResponses,
-      ApproveLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/approve",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Explain the current Loop run state
-   */
-  public getLoopRunBriefing<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopRunBriefingData, ThrowOnError>
-  ): RequestResult<GetLoopRunBriefingResponses, GetLoopRunBriefingErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopRunBriefingResponses,
-      GetLoopRunBriefingErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing",
-      ...options,
-    });
-  }
-
-  /**
-   * Cancel one Loop run
-   */
-  public cancelLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<CancelLoopRunData, ThrowOnError>
-  ): RequestResult<CancelLoopRunResponses, CancelLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CancelLoopRunResponses,
-      CancelLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Compare Loop generations or runs
-   */
-  public diffLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<DiffLoopRunData, ThrowOnError>
-  ): RequestResult<DiffLoopRunResponses, DiffLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      DiffLoopRunResponses,
-      DiffLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/diff",
-      ...options,
-    });
-  }
-
-  /**
-   * Fork a linked Loop run from history
-   */
-  public forkLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<ForkLoopRunData, ThrowOnError>
-  ): RequestResult<ForkLoopRunResponses, ForkLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ForkLoopRunResponses,
-      ForkLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/fork",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get the computed Loop run node roster
-   */
-  public getLoopRunNodes<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopRunNodesData, ThrowOnError>
-  ): RequestResult<GetLoopRunNodesResponses, GetLoopRunNodesErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopRunNodesResponses,
-      GetLoopRunNodesErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes",
-      ...options,
-    });
-  }
-
-  /**
-   * Amend one parked Loop node output
-   */
-  public amendLoopNode<ThrowOnError extends boolean = true>(
-    options: Options<AmendLoopNodeData, ThrowOnError>
-  ): RequestResult<AmendLoopNodeResponses, AmendLoopNodeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      AmendLoopNodeResponses,
-      AmendLoopNodeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/amend",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Cancel one Loop node
-   */
-  public cancelLoopNode<ThrowOnError extends boolean = true>(
-    options: Options<CancelLoopNodeData, ThrowOnError>
-  ): RequestResult<CancelLoopNodeResponses, CancelLoopNodeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CancelLoopNodeResponses,
-      CancelLoopNodeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Pause one Loop node
-   */
-  public pauseLoopNode<ThrowOnError extends boolean = true>(
-    options: Options<PauseLoopNodeData, ThrowOnError>
-  ): RequestResult<PauseLoopNodeResponses, PauseLoopNodeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      PauseLoopNodeResponses,
-      PauseLoopNodeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get one Loop human request
-   */
-  public getLoopRequest<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopRequestData, ThrowOnError>
-  ): RequestResult<GetLoopRequestResponses, GetLoopRequestErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopRequestResponses,
-      GetLoopRequestErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/request",
-      ...options,
-    });
-  }
-
-  /**
-   * Requeue one Loop node
-   */
-  public requeueLoopNode<ThrowOnError extends boolean = true>(
-    options: Options<RequeueLoopNodeData, ThrowOnError>
-  ): RequestResult<RequeueLoopNodeResponses, RequeueLoopNodeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      RequeueLoopNodeResponses,
-      RequeueLoopNodeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/requeue",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Answer one Loop human request
-   */
-  public respondLoopRequest<ThrowOnError extends boolean = true>(
-    options: Options<RespondLoopRequestData, ThrowOnError>
-  ): RequestResult<RespondLoopRequestResponses, RespondLoopRequestErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      RespondLoopRequestResponses,
-      RespondLoopRequestErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/respond",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Resume one Loop node
-   */
-  public resumeLoopNode<ThrowOnError extends boolean = true>(
-    options: Options<ResumeLoopNodeData, ThrowOnError>
-  ): RequestResult<ResumeLoopNodeResponses, ResumeLoopNodeErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ResumeLoopNodeResponses,
-      ResumeLoopNodeErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/resume",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Pause one Loop run
-   */
-  public pauseLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<PauseLoopRunData, ThrowOnError>
-  ): RequestResult<PauseLoopRunResponses, PauseLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      PauseLoopRunResponses,
-      PauseLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/pause",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Rerun a Loop from one settled node
-   */
-  public rerunLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<RerunLoopRunData, ThrowOnError>
-  ): RequestResult<RerunLoopRunResponses, RerunLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      RerunLoopRunResponses,
-      RerunLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/rerun",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Resume one Loop run
-   */
-  public resumeLoopRun<ThrowOnError extends boolean = true>(
-    options: Options<ResumeLoopRunData, ThrowOnError>
-  ): RequestResult<ResumeLoopRunResponses, ResumeLoopRunErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ResumeLoopRunResponses,
-      ResumeLoopRunErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/resume",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Read the durable Loop run timeline
-   */
-  public getLoopRunTimeline<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopRunTimelineData, ThrowOnError>
-  ): RequestResult<GetLoopRunTimelineResponses, GetLoopRunTimelineErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopRunTimelineResponses,
-      GetLoopRunTimelineErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline",
-      ...options,
-    });
-  }
-
-  /**
-   * List Goal turns in run-wide sequence order
-   */
-  public listGoalTurns<ThrowOnError extends boolean = true>(
-    options: Options<ListGoalTurnsData, ThrowOnError>
-  ): RequestResult<ListGoalTurnsResponses, ListGoalTurnsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListGoalTurnsResponses,
-      ListGoalTurnsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns",
-      ...options,
-    });
-  }
-
-  /**
-   * List Loop catalog entries
-   */
-  public listLoops<ThrowOnError extends boolean = true>(
-    options: Options<ListLoopsData, ThrowOnError>
-  ): RequestResult<ListLoopsResponses, ListLoopsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ListLoopsResponses,
-      ListLoopsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops",
-      ...options,
-    });
-  }
-
-  /**
-   * Create or fork a Loop definition
-   */
-  public createLoop<ThrowOnError extends boolean = true>(
-    options: Options<CreateLoopData, ThrowOnError>
-  ): RequestResult<CreateLoopResponses, CreateLoopErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CreateLoopResponses,
-      CreateLoopErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Delete one writable Loop definition
-   */
-  public deleteLoop<ThrowOnError extends boolean = true>(
-    options: Options<DeleteLoopData, ThrowOnError>
-  ): RequestResult<DeleteLoopResponses, DeleteLoopErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      DeleteLoopResponses,
-      DeleteLoopErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}",
-      ...options,
-    });
-  }
-
-  /**
-   * Inspect one Loop definition
-   */
-  public getLoop<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopData, ThrowOnError>
-  ): RequestResult<GetLoopResponses, GetLoopErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopResponses,
-      GetLoopErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}",
-      ...options,
-    });
-  }
-
-  /**
-   * Publish one Loop definition with optimistic concurrency
-   */
-  public patchLoop<ThrowOnError extends boolean = true>(
-    options: Options<PatchLoopData, ThrowOnError>
-  ): RequestResult<PatchLoopResponses, PatchLoopErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).patch<
-      PatchLoopResponses,
-      PatchLoopErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get Loop editor annotations
-   */
-  public getLoopAnnotations<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopAnnotationsData, ThrowOnError>
-  ): RequestResult<GetLoopAnnotationsResponses, GetLoopAnnotationsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopAnnotationsResponses,
-      GetLoopAnnotationsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/annotations",
-      ...options,
-    });
-  }
-
-  /**
-   * Replace Loop editor annotations
-   */
-  public putLoopAnnotations<ThrowOnError extends boolean = true>(
-    options: Options<PutLoopAnnotationsData, ThrowOnError>
-  ): RequestResult<PutLoopAnnotationsResponses, PutLoopAnnotationsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      PutLoopAnnotationsResponses,
-      PutLoopAnnotationsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/annotations",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get Loop config override
-   */
-  public getLoopConfig<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopConfigData, ThrowOnError>
-  ): RequestResult<GetLoopConfigResponses, GetLoopConfigErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopConfigResponses,
-      GetLoopConfigErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/config",
-      ...options,
-    });
-  }
-
-  /**
-   * Replace Loop config override
-   */
-  public putLoopConfig<ThrowOnError extends boolean = true>(
-    options: Options<PutLoopConfigData, ThrowOnError>
-  ): RequestResult<PutLoopConfigResponses, PutLoopConfigErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      PutLoopConfigResponses,
-      PutLoopConfigErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/config",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get one scoped Loop input-default table
-   */
-  public getLoopInputDefaults<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopInputDefaultsData, ThrowOnError>
-  ): RequestResult<
-    GetLoopInputDefaultsResponses,
-    GetLoopInputDefaultsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetLoopInputDefaultsResponses,
-      GetLoopInputDefaultsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
-      ...options,
-    });
-  }
-
-  /**
-   * Replace one scoped Loop input-default table
-   */
-  public putLoopInputDefaults<ThrowOnError extends boolean = true>(
-    options: Options<PutLoopInputDefaultsData, ThrowOnError>
-  ): RequestResult<
-    PutLoopInputDefaultsResponses,
-    PutLoopInputDefaultsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).put<
-      PutLoopInputDefaultsResponses,
-      PutLoopInputDefaultsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Delete one scoped Loop input default
-   */
-  public deleteLoopInputDefault<ThrowOnError extends boolean = true>(
-    options: Options<DeleteLoopInputDefaultData, ThrowOnError>
-  ): RequestResult<
-    DeleteLoopInputDefaultResponses,
-    DeleteLoopInputDefaultErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      DeleteLoopInputDefaultResponses,
-      DeleteLoopInputDefaultErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
-      ...options,
-    });
-  }
-
-  /**
-   * Get one scoped Loop input default
-   */
-  public getLoopInputDefault<ThrowOnError extends boolean = true>(
-    options: Options<GetLoopInputDefaultData, ThrowOnError>
-  ): RequestResult<GetLoopInputDefaultResponses, GetLoopInputDefaultErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetLoopInputDefaultResponses,
-      GetLoopInputDefaultErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
-      ...options,
-    });
-  }
-
-  /**
-   * Set one scoped Loop input default
-   */
-  public putLoopInputDefault<ThrowOnError extends boolean = true>(
-    options: Options<PutLoopInputDefaultData, ThrowOnError>
-  ): RequestResult<PutLoopInputDefaultResponses, PutLoopInputDefaultErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      PutLoopInputDefaultResponses,
-      PutLoopInputDefaultErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/input-defaults/{key}",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Start or dry-run one Loop
-   */
-  public runLoop<ThrowOnError extends boolean = true>(
-    options: Options<RunLoopData, ThrowOnError>
-  ): RequestResult<RunLoopResponses, RunLoopErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      RunLoopResponses,
-      RunLoopErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/run",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Validate one Loop definition without saving
-   */
-  public validateLoop<ThrowOnError extends boolean = true>(
-    options: Options<ValidateLoopData, ThrowOnError>
-  ): RequestResult<ValidateLoopResponses, ValidateLoopErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      ValidateLoopResponses,
-      ValidateLoopErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/loops/{name}/validate",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get the newest visible session Goal
-   */
-  public getSessionGoal<ThrowOnError extends boolean = true>(
-    options: Options<GetSessionGoalData, ThrowOnError>
-  ): RequestResult<GetSessionGoalResponses, GetSessionGoalErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetSessionGoalResponses,
-      GetSessionGoalErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
-      ...options,
-    });
-  }
-
-  /**
-   * Set or control the authenticated session Goal
-   */
-  public mutateSessionGoal<ThrowOnError extends boolean = true>(
-    options: Options<MutateSessionGoalData, ThrowOnError>
-  ): RequestResult<MutateSessionGoalResponses, MutateSessionGoalErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      MutateSessionGoalResponses,
-      MutateSessionGoalErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-}
-
 export class worktrees extends HeyApiClient {
   /**
    * List registered and discovered worktrees
@@ -11545,6 +11618,11 @@ export class Compozy extends HeyApiClient {
     return (this._logs ??= new logs({ client: this.client }));
   }
 
+  private _loops?: loops;
+  get loops(): loops {
+    return (this._loops ??= new loops({ client: this.client }));
+  }
+
   private _marketplace?: marketplace;
   get marketplace(): marketplace {
     return (this._marketplace ??= new marketplace({ client: this.client }));
@@ -11633,11 +11711,6 @@ export class Compozy extends HeyApiClient {
   private _workspaces?: workspaces;
   get workspaces(): workspaces {
     return (this._workspaces ??= new workspaces({ client: this.client }));
-  }
-
-  private _loops?: loops;
-  get loops(): loops {
-    return (this._loops ??= new loops({ client: this.client }));
   }
 
   private _worktrees?: worktrees;

@@ -20,6 +20,9 @@ func (s *daemonLoopAPIService) ListLoops(
 	workspaceID string,
 	query looppkg.CatalogQuery,
 ) (contract.LoopsResponse, error) {
+	if query.AllWorkspaces {
+		return s.listLoopCatalogBatch(ctx, query)
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopsResponse{}, err
@@ -69,6 +72,7 @@ func (s *daemonLoopAPIService) ListLoops(
 		if err != nil {
 			return contract.LoopsResponse{}, err
 		}
+		payload.WorkspaceID = string(ws)
 		loops = append(loops, payload)
 	}
 	return loopCatalogResponse(loops, page), nil

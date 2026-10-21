@@ -1553,3 +1553,27 @@ func TestAppTokenTaskBreadthAdmission(t *testing.T) {
 		})
 	}
 }
+
+func TestAppTokenLoopAggregateAdmission(t *testing.T) {
+	t.Parallel()
+	for _, path := range []string{"/api/loops", "/api/loop-runs", "/api/loop-requests"} {
+		t.Run("Should deny app tokens on "+path, func(t *testing.T) {
+			t.Parallel()
+			auth := appTokenHTTPAuthenticatorStub{origin: func(string) bool { return true }, authenticate: func(context.Context, string) (gateway.AppToken, error) {
+				return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_loops"}, Origins: []string{"http://a.test"}}, nil
+			}, touch: func(context.Context, string, uint64) error { return nil }}
+			router := newAppTokenTestRouter(t, auth, func(method, path string) bool {
+				for _, op := range apispec.Operations() {
+					if op.Method == method && op.Path == path {
+						return op.AppAccess == apispec.AppAccessAllowed
+					}
+				}
+				return false
+			}, nil)
+			router.GET(path, func(c *gin.Context) { t.Error("app reached aggregate handler"); c.Status(http.StatusOK) })
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, appTokenTestRequest(t, http.MethodGet, path+"?all_workspaces=true", "http://a.test", "cpz_app_valid"))
+			assertAppTokenHTTPResponse(t, response, http.StatusForbidden, "app_token_route_forbidden")
+		})
+	}
+}

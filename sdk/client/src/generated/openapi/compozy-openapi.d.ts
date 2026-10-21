@@ -1472,6 +1472,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/loop-requests": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Loop human requests */
+    get: operations["listLoopRequestsAggregate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/loop-runs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Loop runs */
+    get: operations["listLoopRunsAggregate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/loops": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Loop catalog entries */
+    get: operations["listLoopsAggregate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/marketplace": {
     parameters: {
       query?: never;
@@ -10040,10 +10091,32 @@ export interface components {
       tokens: number;
       wall_clock_sec: number;
     };
+    LoopCatalogAggregateEntryPayload: {
+      aggregate_30d: components["schemas"]["LoopCatalogAggregatePayload"];
+      catalog: components["schemas"]["LoopCatalogResourceSpec"];
+      contract: components["schemas"]["LoopContract"];
+      description?: string;
+      inputs?: {
+        [key: string]: components["schemas"]["LoopInput"];
+      };
+      last_run?: components["schemas"]["LoopCatalogLastRunPayload"] | null;
+      name: string;
+      source: components["schemas"]["LoopCatalogSourcePayload"];
+      start?: components["schemas"]["LoopStartBinding"][];
+      /** Format: double */
+      success_rate_30d: number;
+      version: number;
+      workspace_id?: string;
+    };
     LoopCatalogAggregatePayload: {
       failed: number;
       runs: number;
       succeeded: number;
+    };
+    LoopCatalogBatchResponse: {
+      entries: components["schemas"]["LoopCatalogAggregateEntryPayload"][];
+      errors: components["schemas"]["LoopCatalogWorkspaceError"][];
+      truncated: boolean;
     };
     LoopCatalogEntryPayload: {
       aggregate_30d: components["schemas"]["LoopCatalogAggregatePayload"];
@@ -10061,6 +10134,7 @@ export interface components {
       /** Format: double */
       success_rate_30d: number;
       version: number;
+      workspace_id?: string;
     };
     LoopCatalogFacetsPayload: {
       categories: {
@@ -10100,6 +10174,16 @@ export interface components {
       category?: string;
       keywords?: string[];
       use_when?: string;
+    };
+    LoopCatalogSourcePayload: {
+      /** @enum {string} */
+      kind: "marketplace" | "user" | "additional" | "workspace";
+      layer: string;
+    };
+    LoopCatalogWorkspaceError: {
+      code: string;
+      message: string;
+      workspace_id?: string;
     };
     LoopConfig: {
       /** @enum {string|null} */
@@ -10595,6 +10679,7 @@ export interface components {
       /** Format: date-time */
       state_at: string;
       wait?: components["schemas"]["LoopNodeWaitPayload"] | null;
+      workspace_id?: string;
     };
     LoopNodeInventoryResponse: {
       items: components["schemas"]["LoopNodeInventoryItem"][];
@@ -10700,6 +10785,7 @@ export interface components {
       resolved_at?: string | null;
       respond_schema?: unknown;
       state: string;
+      workspace_id?: string;
     };
     LoopRequestProvenance: {
       actor_id: string;
@@ -26639,6 +26725,233 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listLoopRequestsAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all registered projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+        /** @description Filter by Loop run id */
+        run_id?: string;
+        /** @description Filter by pending or resolved state */
+        state?: string;
+        /** @description Opaque continuation cursor */
+        cursor?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoopRequestsResponse"];
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listLoopRunsAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all registered projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+        /** @description Filter by Loop name */
+        loop?: string;
+        /** @description Filter by Loop status */
+        status?: string;
+        /** @description Filter by catalog or session origin */
+        origin?: string;
+        /** @description Filter by origin session id */
+        origin_session?: string;
+        /** @description Filter by live or terminal status */
+        live?: boolean;
+        /** @description Opaque server-order cursor */
+        cursor?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+        /** @description Aggregate runs support recency order only */
+        order?: "recency";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoopRunsResponse"];
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listLoopsAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all registered projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+        /** @description Search Loop name or contract goal */
+        q?: string;
+        /** @description Filter by effective Loop kind */
+        kind?: "read_only" | "workspace";
+        /** @description Filter by exact catalog category */
+        category?: string;
+        /** @description Filter by exact latest-run status */
+        status?:
+          | "queued"
+          | "running"
+          | "watching"
+          | "needs-approval"
+          | "paused"
+          | "done"
+          | "no-op"
+          | "blocked"
+          | "failed"
+          | "exhausted"
+          | "stalled"
+          | "canceled";
+        /** @description Stable read-only-first name order */
+        sort?: "name";
+        /** @description Continue after this workspace- and query-bound Loop cursor */
+        cursor?: string;
+        /** @description Maximum number of Loops to return; defaults to 50 and is capped at 200 */
+        limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["LoopCatalogBatchResponse"];
+        };
+      };
+      /** @description Invalid Loop request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Loop service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };

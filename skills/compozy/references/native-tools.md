@@ -675,3 +675,23 @@ requests remain reachable in their owning app. Session badges and attention-summ
 runtime state; bell/title counts represent unread notifications. Task candidates honor existing inbox
 triage. An acknowledged occurrence stays hidden across reconnects; a new source revision/run/request
 can notify again.
+
+## Loop aggregate reads
+
+Operators can use `compozy loop runs|requests|list --all-workspaces`; this flag is exclusive
+with `--workspace`. The HTTP/UDS equivalents are `GET /api/loop-runs`, `/api/loop-requests`,
+and `/api/loops`, all with `all_workspaces=true`. They deny app tokens and ordinary agent
+identities. Native Loop list tools retain their workspace-bound inputs.
+
+`workspace_ids` is repeatable and narrows an aggregate; `@user` selects User rows. Runs and
+requests accept the profile lens; continuation cursors must keep the same breadth, profile,
+and filters. Aggregate runs use `created_at DESC, id DESC`; `order=operational` requires a
+workspace path. Requests retain their expiry/opened-at/rowid order and expose `workspace_id`.
+
+Definitions require one concrete profile (`profile`, defaulting to the acting selection);
+`all_profiles=true` is rejected. The aggregate returns `entries`, per-workspace `errors`, and
+`truncated`, capped at 200 entries per workspace and 2,000 total. Each entry carries
+`workspace_id` and `source.layer`. User rows count User runs only; inherited definitions get a
+project row only when that project has a run in the last 30 days. Existing workspace routes
+retain their envelopes and source representation. The bell remains operator-wide across profiles
+and calls empty workspace ownership `User`.

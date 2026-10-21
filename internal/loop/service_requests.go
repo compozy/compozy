@@ -24,7 +24,7 @@ func (s *service) ListRequests(
 		return RequestPage{}, err
 	}
 	for index := range page.Items {
-		if err := s.hydrateRequestResponderPolicy(ctx, workspaceID, &page.Items[index]); err != nil {
+		if err := s.hydrateRequestResponderPolicy(ctx, WorkspaceID(page.Items[index].WorkspaceID), &page.Items[index]); err != nil {
 			return RequestPage{}, err
 		}
 	}

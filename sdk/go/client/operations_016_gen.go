@@ -265,6 +265,58 @@ func (c *Client) ListLoopRequests(ctx context.Context, params ListLoopRequestsPa
 	return &out, nil
 }
 
+// ListLoopRequestsAggregateParams carries the path, query, and header parameters.
+type ListLoopRequestsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	RunID         *string   `url:"run_id"`
+	State         *string   `url:"state"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
+// ListLoopRequestsAggregate List Loop human requests
+func (c *Client) ListLoopRequestsAggregate(ctx context.Context, params ListLoopRequestsAggregateParams) (*LoopRequestsResponse, error) {
+	path := "/api/loop-requests"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.RunID != nil {
+		query.Set("run_id", *params.RunID)
+	}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRequestsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListLoopRunsParams carries the path, query, and header parameters.
 type ListLoopRunsParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
@@ -321,39 +373,48 @@ func (c *Client) ListLoopRuns(ctx context.Context, params ListLoopRunsParams) (*
 	return &out, nil
 }
 
-// ListLoopsParams carries the path, query, and header parameters.
-type ListLoopsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Q           *string `url:"q"`
-	Kind        *string `url:"kind"`
-	Category    *string `url:"category"`
-	Status      *string `url:"status"`
-	Sort        *string `url:"sort"`
-	Cursor      *string `url:"cursor"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
+// ListLoopRunsAggregateParams carries the path, query, and header parameters.
+type ListLoopRunsAggregateParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Loop          *string   `url:"loop"`
+	Status        *string   `url:"status"`
+	Origin        *string   `url:"origin"`
+	OriginSession *string   `url:"origin_session"`
+	Live          *bool     `url:"live"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+	Order         *string   `url:"order"`
 }
 
-// ListLoops List Loop catalog entries
-func (c *Client) ListLoops(ctx context.Context, params ListLoopsParams) (*LoopsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+// ListLoopRunsAggregate List Loop runs
+func (c *Client) ListLoopRunsAggregate(ctx context.Context, params ListLoopRunsAggregateParams) (*LoopRunsResponse, error) {
+	path := "/api/loop-runs"
 	query := url.Values{}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
 	}
-	if params.Kind != nil {
-		query.Set("kind", *params.Kind)
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
 	}
-	if params.Category != nil {
-		query.Set("category", *params.Category)
+	if params.Loop != nil {
+		query.Set("loop", *params.Loop)
 	}
 	if params.Status != nil {
 		query.Set("status", *params.Status)
 	}
-	if params.Sort != nil {
-		query.Set("sort", *params.Sort)
+	if params.Origin != nil {
+		query.Set("origin", *params.Origin)
+	}
+	if params.OriginSession != nil {
+		query.Set("origin_session", *params.OriginSession)
+	}
+	if params.Live != nil {
+		query.Set("live", strconv.FormatBool(*params.Live))
 	}
 	if params.Cursor != nil {
 		query.Set("cursor", *params.Cursor)
@@ -367,69 +428,15 @@ func (c *Client) ListLoops(ctx context.Context, params ListLoopsParams) (*LoopsR
 	if params.AllProfiles != nil {
 		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListMarketplaceParams carries the path, query, and header parameters.
-type ListMarketplaceParams struct {
-	Q           *string `url:"q"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Scope       *string `url:"scope"`
-	Profile     *string `url:"profile"`
-	WorkspaceID *string `url:"workspace_id"`
-}
-
-// ListMarketplace List the extension catalog with source state and a content revision
-func (c *Client) ListMarketplace(ctx context.Context, params ListMarketplaceParams) (*MarketplaceListResponse, error) {
-	path := "/api/marketplace"
-	query := url.Values{}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
+	if params.Order != nil {
+		query.Set("order", *params.Order)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out MarketplaceListResponse
+	var out LoopRunsResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListMarketplaceSources List global plugin marketplace sources Experimental: pin the exact SDK version.
-func (c *Client) ListMarketplaceSources(ctx context.Context) (*MarketplaceSourcesResponse, error) {
-	path := "/api/marketplace/sources"
-	var out MarketplaceSourcesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListOpenAIModelsParams carries the path, query, and header parameters.
-type ListOpenAIModelsParams struct {
-	ProviderID *string `url:"provider_id"`
 }

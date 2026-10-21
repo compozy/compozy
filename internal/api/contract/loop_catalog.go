@@ -6,6 +6,7 @@ import (
 
 // LoopCatalogEntryPayload is one fully hydrated row from a bounded catalog page.
 type LoopCatalogEntryPayload struct {
+	WorkspaceID   string                      `json:"workspace_id,omitempty"`
 	Name          string                      `json:"name"`
 	Version       int                         `json:"version"`
 	Description   string                      `json:"description,omitempty"`
@@ -51,7 +52,31 @@ type LoopCatalogFacetsPayload struct {
 
 // LoopsResponse is returned by GET /workspaces/{workspace_id}/loops.
 type LoopsResponse struct {
-	Loops  []LoopCatalogEntryPayload `json:"loops"`
-	Facets LoopCatalogFacetsPayload  `json:"facets"`
-	Page   CountedCursorPagePayload  `json:"page"`
+	Aggregate *LoopCatalogBatchResponse `json:"-"`
+	Loops     []LoopCatalogEntryPayload `json:"loops"`
+	Facets    LoopCatalogFacetsPayload  `json:"facets"`
+	Page      CountedCursorPagePayload  `json:"page"`
+}
+
+// LoopCatalogBatchResponse reports bounded, independently resolved definition populations.
+type LoopCatalogBatchResponse struct {
+	Entries   []LoopCatalogAggregateEntryPayload `json:"entries"`
+	Errors    []LoopCatalogWorkspaceError        `json:"errors"`
+	Truncated bool                               `json:"truncated"`
+}
+
+type LoopCatalogWorkspaceError struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
+}
+
+type LoopCatalogSourcePayload struct {
+	Kind  LoopSource `json:"kind"`
+	Layer string     `json:"layer"`
+}
+
+type LoopCatalogAggregateEntryPayload struct {
+	LoopCatalogEntryPayload
+	Source LoopCatalogSourcePayload `json:"source"`
 }

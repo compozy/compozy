@@ -17,12 +17,15 @@ func (s *daemonLoopAPIService) ListLoopRequests(
 	workspaceID string,
 	query core.LoopRequestListQuery,
 ) (contract.LoopRequestsResponse, error) {
+	if query.AllWorkspaces {
+		workspaceID = "@user"
+	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopRequestsResponse{}, err
 	}
 	page, err := s.aggregate.ListRequests(ctx, ws, looppkg.RequestQuery{
-		ReadScope: query.ReadScope, RunID: looppkg.RunID(strings.TrimSpace(query.RunID)), State: strings.TrimSpace(query.State),
+		AllWorkspaces: query.AllWorkspaces, WorkspaceIDs: query.WorkspaceIDs, ReadScope: query.ReadScope, RunID: looppkg.RunID(strings.TrimSpace(query.RunID)), State: strings.TrimSpace(query.State),
 		Cursor: strings.TrimSpace(query.Cursor), Limit: query.Limit,
 	})
 	if err != nil {
@@ -113,15 +116,16 @@ func (s *daemonLoopAPIService) RespondLoopRequest(
 
 func loopRequestPayload(request looppkg.Request) contract.LoopRequestPayload {
 	payload := contract.LoopRequestPayload{
-		ProfileID:  request.ProfileID,
-		LoopRunID:  string(request.LoopRunID),
-		LoopName:   request.LoopName,
-		Generation: request.Generation,
-		NodeID:     string(request.NodeID),
-		ItemIndex:  request.ItemIndex,
-		Kind:       request.Kind,
-		State:      request.State,
-		Prompt:     request.Prompt,
+		ProfileID:   request.ProfileID,
+		WorkspaceID: string(request.WorkspaceID),
+		LoopRunID:   string(request.LoopRunID),
+		LoopName:    request.LoopName,
+		Generation:  request.Generation,
+		NodeID:      string(request.NodeID),
+		ItemIndex:   request.ItemIndex,
+		Kind:        request.Kind,
+		State:       request.State,
+		Prompt:      request.Prompt,
 		Context: append(
 			json.RawMessage(nil),
 			request.Context...),

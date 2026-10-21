@@ -12,18 +12,31 @@ import (
 func newLoopListCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	query := LoopListQuery{}
+	var allWorkspaces bool
 	cmd := &cobra.Command{
 		Use:   loopListKey,
 		Short: "List Loop definitions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, workspaceID, err := loopClientAndWorkspace(cmd, deps, workspaceRef)
+			client, workspaceID, err := loopListClientAndWorkspace(cmd, deps, workspaceRef, allWorkspaces)
 			if err != nil {
 				return err
 			}
+			query.AllWorkspaces = allWorkspaces
 			response, err := client.ListLoops(cmd.Context(), workspaceID, query)
 			if err != nil {
 				return err
+			}
+			if response.Aggregate != nil {
+				ids := make([]string, 0, len(response.Aggregate.Entries))
+				for _, entry := range response.Aggregate.Entries {
+					ids = append(ids, entry.WorkspaceID)
+				}
+				labels, err := loopProjectNames(cmd.Context(), client, ids)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, loopCatalogBatchBundle(*response.Aggregate, labels))
 			}
 			return writeCommandOutput(cmd, loopListBundle(response))
 		},
@@ -37,10 +50,13 @@ func newLoopListCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&query.Cursor, "cursor", "", "Continue from an opaque Loop catalog cursor")
 	cmd.Flags().IntVar(&query.Limit, "limit", 0, "Maximum Loops to return (default 50, max 200)")
 	configureProfileReadCommand(cmd, deps)
+	cmd.Flags().BoolVar(&allWorkspaces, "all-workspaces", false, "List every project and User scope")
+	cmd.MarkFlagsMutuallyExclusive("workspace", "all-workspaces")
 	return cmd
 }
 
 func loopListBundle(response contract.LoopsResponse) outputBundle {
+
 	bundle := listBundle(
 		response,
 		response.Loops,

@@ -247,6 +247,9 @@ type LoopRunInput struct {
 
 // LoopRunListQuery contains HTTP/UDS list filters for loop runs.
 type LoopRunListQuery struct {
+	Order         string
+	AllWorkspaces bool
+	WorkspaceIDs  []string
 	ReadScope     store.ReadScope
 	LoopName      string
 	Status        string
@@ -259,20 +262,24 @@ type LoopRunListQuery struct {
 
 // LoopRequestListQuery contains request inventory filters shared by HTTP and UDS.
 type LoopRequestListQuery struct {
-	ReadScope store.ReadScope
-	RunID     string
-	State     string
-	Cursor    string
-	Limit     int
+	AllWorkspaces bool
+	WorkspaceIDs  []string
+	ReadScope     store.ReadScope
+	RunID         string
+	State         string
+	Cursor        string
+	Limit         int
 }
 
 // LoopNodeListQuery contains workspace node-inventory filters.
 type LoopNodeListQuery struct {
-	State    string
-	LoopName string
-	RunID    string
-	Cursor   string
-	Limit    int
+	AllWorkspaces bool
+	ReadScope     store.ReadScope
+	State         string
+	LoopName      string
+	RunID         string
+	Cursor        string
+	Limit         int
 }
 
 // GoalTurnListQuery contains validated public turn-audit filters.
