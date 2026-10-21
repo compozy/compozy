@@ -856,7 +856,7 @@ func assertRedactedModelCatalogPayload(t *testing.T, value string, secret string
 // UT-076: the shared API boundary owns intent; callers cannot promote themselves.
 func TestProviderUsageIntent(t *testing.T) {
 	for _, caller := range []string{"operator", "agent", "gateway", "app"} {
-		t.Run(caller, func(t *testing.T) {
+		t.Run("Should preserve intent boundaries for "+caller, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequestWithContext(
 				t.Context(),
@@ -888,6 +888,19 @@ func TestProviderUsageIntent(t *testing.T) {
 			profileID, consent := ProviderUsageConsentProfile(handler.settingsMutationContext(c))
 			if consent || profileID != "" {
 				t.Fatalf("settings consent: profile=%s local=%v", profileID, consent)
+			}
+			c.Request.URL.Path = "/api/settings/provider-usage"
+			c.Request.URL.RawQuery = "profile=unrelated"
+			if err := handler.prepareProviderUsageConsent(c); err != nil {
+				t.Fatal(err)
+			}
+			profileID, consent = ProviderUsageConsentProfile(handler.settingsMutationContext(c))
+			if caller == "operator" {
+				if !consent || profileID != store.DefaultProfileID {
+					t.Fatalf("default PATCH consent: profile=%s local=%v", profileID, consent)
+				}
+			} else if consent {
+				t.Fatalf("%s granted consent", caller)
 			}
 		})
 	}

@@ -3969,7 +3969,7 @@ promotes it.
   `ErrorPayload`, profile codes the profile envelope. Generated OpenAPI, Go/TypeScript SDKs, tool catalog, and
   CLI reference co-ship. A provider-filtered read or `refresh <provider>` returns only those rows with
   `tray: null`; the envelope and settings response carry read-only `keychain_supported` (macOS daemon only).
-  Settings PATCH accepts `collection_profile` independently of user/machine config scope; a local consent
+  Settings PATCH accepts `collection_profile` (default `default`) independently of user/machine config scope; a local consent
   apply starts exactly one explicit collection for that profile, while gateway/agent requests stay background.
   Reload and unrelated settings mutations never seed consent; after restart, saved consent offers explicit
   Refresh. Unsupported provider/auth-mode pairs use the existing `no_collector` code.
@@ -3996,6 +3996,8 @@ promotes it.
   before returning; replacement collection runs in the background without a Keychain read.
   Removed targets cancel only their own flights; deleted profiles close subscriptions and clear credentials.
   Profile events reconcile through one coalescing worker with bounded resolution and joined shutdown.
+  Replaced eligible routes collect promptly after invalidation. Scheduled resolution uses the scheduler's
+  owned cancellation context, so disable and shutdown cancel blocked profile/credential reads.
   A failed publication fence retains same-owner last-good values and retries only publication checks within
   the flight deadline, without repeating the upstream collection. If a concurrent resolution supersedes
   the captured epoch, the admitted flight recollects the eligible replacement instead of leaving it loading.

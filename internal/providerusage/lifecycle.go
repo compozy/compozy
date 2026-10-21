@@ -32,7 +32,7 @@ func (s *Manager) Start(ctx context.Context, profileIDs []string) error {
 		return nil
 	}
 	s.started = true
-	s.startScheduleLocked(context.WithoutCancel(ctx))
+	s.startScheduleLocked()
 	return nil
 }
 
@@ -74,24 +74,22 @@ type scheduleRun struct {
 }
 
 // startScheduleLocked gives each scheduler run its own timer.
-func (s *Manager) startScheduleLocked(ctx context.Context) {
+func (s *Manager) startScheduleLocked() {
 	var seed [8]byte
 	rand.Read(seed[:])
 	jitter := time.Duration(binary.LittleEndian.Uint64(seed[:]) % uint64(10*time.Second))
 	run := &scheduleRun{timer: s.options.Clock.NewTimer(jitter), initial: true}
 	s.scheduler = run
 	s.wg.Add(1)
-	go s.schedule(ctx, s.root, run)
+	go s.schedule(s.root, run)
 }
 
-func (s *Manager) schedule(ctx context.Context, root context.Context, run *scheduleRun) {
+func (s *Manager) schedule(ctx context.Context, run *scheduleRun) {
 	defer s.wg.Done()
 	defer run.timer.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return
-		case <-root.Done():
 			return
 		case <-run.timer.Chan():
 		}
@@ -161,7 +159,7 @@ func (s *Manager) SetEnabled(ctx context.Context, enabled bool) error {
 	}
 	s.root, s.cancel = context.WithCancel(context.Background())
 	if s.started {
-		s.startScheduleLocked(context.WithoutCancel(ctx))
+		s.startScheduleLocked()
 	}
 	s.mu.Unlock()
 	return nil

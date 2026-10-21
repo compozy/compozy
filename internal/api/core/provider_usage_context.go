@@ -31,7 +31,7 @@ func (h *BaseHandlers) prepareProviderUsageConsent(c *gin.Context) error {
 	}
 	selector := strings.TrimSpace(c.Query(contract.ProviderUsageCollectionProfileQuery))
 	if selector == "" {
-		return nil
+		selector = profileDefaultName
 	}
 	selection := c.Copy()
 	selection.Request = c.Request.Clone(c.Request.Context())

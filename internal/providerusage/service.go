@@ -121,6 +121,7 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 		return nil, nil
 	}
 	var canceled []*flight
+	var replacements []string
 	p := s.profileLocked(profile)
 	seen := make(map[string]bool, len(targets))
 	order := make([]string, 0, len(targets))
@@ -134,6 +135,9 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 			p.targets[target.ProviderID] = state
 		}
 		if targetChanged(state.target, target) {
+			if state.target.ProviderID != "" {
+				replacements = append(replacements, target.ProviderID)
+			}
 			state.epoch++
 			state.snapshot = initialSnapshot(target, s.options.Collectors[target.ProviderID])
 			state.hasIdentity = false
@@ -165,6 +169,7 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 	if changed {
 		s.changedLocked(p)
 	}
+	s.admitFlightsLocked(p, replacements, RefreshRequest{ProfileID: profile, Intent: IntentBackground})
 	return canceled, nil
 }
 

@@ -66,6 +66,36 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	t.Run("Should collect a changed route after startup collection has finished", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+			if calls.Add(1) == 2 {
+				close(entered)
+				<-release
+			}
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+		f.target.RouteFingerprint = "saved-provider-route"
+		f.catalog.Replace("personal", []Target{f.target})
+		requireNoError(t, f.service.Start(t.Context(), []string{"personal"}))
+		env, err := f.service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		requireEqual(t, 0, len(env.Targets[0].Windows))
+		requireEqual(t, true, env.Targets[0].Refreshing)
+		select {
+		case <-entered:
+		case <-time.After(time.Second):
+			t.Fatal("replacement route was left waiting for the interval")
+		}
+		once.Do(func() { close(release) })
+		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+	})
+
 	t.Run("Should discard a changed file login on read and collect the replacement", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
@@ -516,6 +546,47 @@ type usageMetricsChannel chan Status
 func (c usageMetricsChannel) Collect(_ string, status Status, _ time.Duration) { c <- status }
 
 func TestUsageScheduling(t *testing.T) {
+	for _, operation := range []string{"disable", "shutdown"} {
+		t.Run("Should cancel blocked scheduled resolution on "+operation, func(t *testing.T) {
+			t.Parallel()
+			f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+			entered, release := make(chan context.Context, 1), make(chan struct{})
+			t.Cleanup(func() { close(release) })
+			var calls atomic.Int32
+			f.service.options.Resolver = usageResolverFunc(func(ctx context.Context, profile string) ([]Target, error) {
+				if calls.Add(1) > 1 {
+					entered <- ctx
+					select {
+					case <-ctx.Done():
+						return nil, ctx.Err()
+					case <-release:
+						return nil, context.Canceled
+					}
+				}
+				return f.catalog.Targets(ctx, profile)
+			})
+			requireNoError(t, f.service.Start(t.Context(), []string{"personal"}))
+			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+			defer cancel()
+			requireNoError(t, f.clock.BlockUntilContext(ctx, 1))
+			f.clock.Advance(10 * time.Second)
+			var resolution context.Context
+			select {
+			case resolution = <-entered:
+			case <-ctx.Done():
+				t.Fatal("scheduled resolution did not start")
+			}
+			var err error
+			if operation == "disable" {
+				err = f.service.SetEnabled(ctx, false)
+			} else {
+				err = f.service.Shutdown(ctx)
+			}
+			requireNoError(t, err)
+			requireEqual(t, context.Canceled, resolution.Err())
+		})
+	}
+
 	t.Run("Should drop deleted profiles and close only their subscriptions", func(t *testing.T) {
 		t.Parallel()
 		entered := make(chan struct{})

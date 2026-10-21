@@ -72,3 +72,9 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
   the collection profile owns the initial consent collection; a cold restart offers explicit Refresh.
 - Create or delete a profile while credential resolution is slow. The mutation completes independently
   of usage reconciliation; queued events coalesce and daemon shutdown cancels and joins reconciliation.
+- Save a provider route after its startup collection finishes. Its old usage disappears and the
+  replacement collects promptly without waiting for the refresh interval (E2E-001).
+- Omit collection_profile from a local provider-usage consent PATCH: exactly one collection runs for
+  default. An ordinary profile query must not redirect it; reload and remote writes remain background.
+- Disable usage or shut down while scheduled profile/credential resolution is blocked. The owned
+  scheduler context cancels that resolution and shutdown joins it without timing out.

@@ -2642,11 +2642,20 @@ func TestProviderUsageAuthAdmission(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+
+				found := false
 				for _, target := range targets {
-					if target.ProviderID == id &&
-						(target.Status != providerusage.StatusUnsupported || target.Error.Code != providerusage.ErrorCodeNoCollector) {
+					if target.ProviderID != id {
+						continue
+					}
+					found = true
+					if target.Status != providerusage.StatusUnsupported || target.Error == nil ||
+						target.Error.Code != providerusage.ErrorCodeNoCollector {
 						t.Fatalf("unsupported auth accepted: status=%s", target.Status)
 					}
+				}
+				if !found {
+					t.Fatalf("missing target for %s", id)
 				}
 			})
 		}
@@ -2857,6 +2866,11 @@ func TestProviderUsageNativeProfile(t *testing.T) {
 type usageConsentProfiles struct{ core.ProfileService }
 
 func (usageConsentProfiles) Resolve(_ context.Context, in profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	if in.Flag == "default" {
+		return profilepkg.Resolution{
+			Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		}, nil
+	}
 	if in.Flag != "work" {
 		return profilepkg.Resolution{}, fmt.Errorf("unexpected profile %q", in.Flag)
 	}
@@ -2899,9 +2913,22 @@ func (r usageConsentKeychain) Read(_ context.Context, _, account string) ([]byte
 }
 
 func TestProviderUsageConsentProfile(t *testing.T) {
-	for _, remote := range []bool{false, true} {
+	for _, selection := range []struct {
+		remote                    bool
+		query, profileID, otherID string
+	}{
+		{false, "&collection_profile=work", "work-id", store.DefaultProfileID},
+		{true, "&collection_profile=work", "work-id", store.DefaultProfileID},
+		{false, "", store.DefaultProfileID, "work-id"},
+		{true, "", store.DefaultProfileID, "work-id"},
+	} {
+		remote := selection.remote
 		t.Run(
-			fmt.Sprintf("Should apply consent only for a local selected profile IT004 IT005 remote=%t", remote),
+			fmt.Sprintf(
+				"Should apply consent only for a local selected profile IT004 IT005 remote=%t profile=%s",
+				remote,
+				selection.profileID,
+			),
 			func(t *testing.T) {
 				t.Parallel()
 				reader := usageConsentKeychain{reads: make(chan string, 2)}
@@ -2932,7 +2959,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				initial, err := manager.Refresh(
 					t.Context(),
 					providerusage.RefreshRequest{
-						ProfileID: "work-id",
+						ProfileID: selection.profileID,
 						Intent:    providerusage.IntentBackground,
 						Wait:      15 * time.Second,
 					},
@@ -2945,11 +2972,11 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 					len(reader.reads) != 0 {
 					t.Fatal("restart/background must request Refresh without reading the Keychain")
 				}
-				before, err := manager.Envelope(t.Context(), store.DefaultProfileID)
+				before, err := manager.Envelope(t.Context(), selection.otherID)
 				if err != nil {
 					t.Fatal(err)
 				}
-				revisions, unsubscribe := manager.Subscribe("work-id")
+				revisions, unsubscribe := manager.Subscribe(selection.profileID)
 				defer unsubscribe()
 				runtime := &providerUsageRuntime{Manager: manager}
 				handlers := &core.BaseHandlers{
@@ -2983,7 +3010,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				engine.ServeHTTP(response, httptest.NewRequestWithContext(
 					requestCtx,
 					http.MethodPatch,
-					"/api/settings/provider-usage?scope=user&collection_profile=work",
+					"/api/settings/provider-usage?scope=user"+selection.query,
 					strings.NewReader(
 						`{"config":{"enabled":true,"refresh_interval":"5m","providers":{"claude":{"keychain_access":true}}}}`,
 					),
@@ -3016,7 +3043,7 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
 				for {
-					env, err := manager.Envelope(ctx, "work-id")
+					env, err := manager.Envelope(ctx, selection.profileID)
 					if err != nil {
 						t.Fatal(err)
 					}
@@ -3030,15 +3057,15 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 						t.Fatal("selected profile collection did not finish")
 					}
 				}
-				if len(reader.reads) != 1 || <-reader.reads != "work-id" {
+				if len(reader.reads) != 1 || <-reader.reads != selection.profileID {
 					t.Fatal("consent read another profile login")
 				}
-				after, err := manager.Envelope(ctx, store.DefaultProfileID)
+				after, err := manager.Envelope(ctx, selection.otherID)
 				if err != nil {
 					t.Fatal(err)
 				}
 				if after.Revision != before.Revision {
-					t.Fatalf("default profile was changed: before=%d after=%d", before.Revision, after.Revision)
+					t.Fatalf("unselected profile was changed: before=%d after=%d", before.Revision, after.Revision)
 				}
 			},
 		)
