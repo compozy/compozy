@@ -23,7 +23,9 @@ func (c *daemonClient) ListProviderUsage(ctx context.Context, provider string) (
 	return result, err
 }
 
-func (c *daemonClient) RefreshProviderUsage(ctx context.Context, request contract.ProviderUsageRefreshRequest) (contract.ProviderUsageEnvelope, error) {
+func (c *daemonClient) RefreshProviderUsage(
+	ctx context.Context, request contract.ProviderUsageRefreshRequest,
+) (contract.ProviderUsageEnvelope, error) {
 	if request.Profile == "" {
 		request.Profile = profileQueryValues(ctx, nil).Get("profile")
 	}

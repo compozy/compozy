@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
@@ -187,4 +189,48 @@ func TestProviderModelListValues(t *testing.T) {
 			t.Fatalf("view query = %q, want %q", got, want)
 		}
 	})
+}
+
+// UT-043: the CLI sends the selected profile and explicit intent at the I/O boundary.
+func TestProviderUsageCLIRequest(t *testing.T) {
+	var called bool
+	client := &daemonClient{
+		target: LocalClientTarget("/tmp/compozy.sock"),
+		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			called = true
+			var body contract.ProviderUsageRefreshRequest
+			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if req.Method != http.MethodPost || req.URL.Path != "/api/provider-usage/refresh" ||
+				body.Profile != "work" ||
+				body.Intent != "explicit" ||
+				body.WaitMS == nil ||
+				*body.WaitMS != 15000 {
+				t.Fatalf("request: %+v", body)
+			}
+			return newHTTPResponse(http.StatusOK, `{"profile_id":"work","enabled":false,"targets":[]}`), nil
+		})},
+	}
+	ctx := context.WithValue(t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: "work"})
+	wait := (15 * time.Second).Milliseconds()
+	if _, err := client.RefreshProviderUsage(
+		ctx,
+		contract.ProviderUsageRefreshRequest{Intent: "explicit", WaitMS: &wait},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("request was not sent")
+	}
+	for _, body := range []string{`{"error":"provider \"nope\" not found","code":"provider_not_found"}`, `{"error":{"code":"profile_not_found","message":"profile not found","action":"choose profile"}}`} {
+		err := providerUsageCLIError(readAPIErrorBody(http.StatusNotFound, "Not Found", []byte(body)))
+		exit, ok := errors.AsType[interface {
+			error
+			cliExitCode() int
+		}](err)
+		if !ok || exit.cliExitCode() != 1 {
+			t.Fatalf("exit contract: %v", err)
+		}
+	}
 }

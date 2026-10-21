@@ -31,6 +31,9 @@ func (d *Daemon) bootRuntimeServices(
 	if err := d.bootModelCatalog(ctx, state, cleanup); err != nil {
 		return err
 	}
+	if err := d.bootProviderUsage(ctx, state, cleanup); err != nil {
+		return err
+	}
 	if err := d.bootMarketplace(ctx, state, cleanup); err != nil {
 		return err
 	}

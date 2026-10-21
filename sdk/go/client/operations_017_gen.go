@@ -9,6 +9,52 @@ import (
 	"strings"
 )
 
+// ListOpenAIModels List provider models using the OpenAI-compatible model shape
+func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsParams) (*OpenAIModelListResponse, error) {
+	path := "/api/openai/v1/models"
+	query := url.Values{}
+	if params.ProviderID != nil {
+		query.Set("provider_id", *params.ProviderID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out OpenAIModelListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProfileOperations List profile lifecycle operations
+func (c *Client) ListProfileOperations(ctx context.Context) (*[]ProfileOperation, error) {
+	path := "/api/profiles/ops"
+	var out []ProfileOperation
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProfiles List profiles
+func (c *Client) ListProfiles(ctx context.Context) (*[]Profile, error) {
+	path := "/api/profiles"
+	var out []Profile
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderModelsParams carries the path, query, and header parameters.
+type ListProviderModelsParams struct {
+	ProviderID   *string `url:"provider_id"`
+	View         *string `url:"view"`
+	SourceID     *string `url:"source_id"`
+	Refresh      *bool   `url:"refresh"`
+	IncludeStale *bool   `url:"include_stale"`
+}
+
 // ListProviderModels List provider model catalog entries across providers
 func (c *Client) ListProviderModels(ctx context.Context, params ListProviderModelsParams) (*ProviderModelListResponse, error) {
 	path := "/api/model-catalog/models"
@@ -68,6 +114,28 @@ func (c *Client) ListProviderModelsByProvider(ctx context.Context, params ListPr
 		path += "?" + query.Encode()
 	}
 	var out ProviderModelListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderUsageParams carries the path, query, and header parameters.
+type ListProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
+// ListProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) ListProviderUsage(ctx context.Context, params ListProviderUsageParams) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderUsageEnvelope
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -370,70 +438,4 @@ func (c *Client) ListSessionFolders(ctx context.Context, params ListSessionFolde
 type ListSessionInputsParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	SessionID   string `url:"session_id"`
-}
-
-// ListSessionInputs List pending session input
-func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputsParams) (*SessionInputListResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionInputListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionInteractionsParams carries the path, query, and header parameters.
-type ListSessionInteractionsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Status      *string `url:"status"`
-}
-
-// ListSessionInteractions List pending session interactions
-func (c *Client) ListSessionInteractions(ctx context.Context, params ListSessionInteractionsParams) (*SessionInteractionsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionInteractionsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionMonitorsParams carries the path, query, and header parameters.
-type ListSessionMonitorsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// ListSessionMonitors List a session's monitors
-func (c *Client) ListSessionMonitors(ctx context.Context, params ListSessionMonitorsParams) (*SessionMonitorsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionMonitorsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionSubagentsParams carries the path, query, and header parameters.
-type ListSessionSubagentsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Origin      *string `url:"origin"`
-	Status      *string `url:"status"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
 }

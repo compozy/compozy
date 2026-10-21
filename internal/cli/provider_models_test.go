@@ -393,7 +393,10 @@ func TestProviderUsageRendering(t *testing.T) {
 			t.Fatalf("missing %q in %s", want, output)
 		}
 	}
-	if got := renderProviderUsage(contract.ProviderUsageEnvelope{}, now); got != "Provider usage is turned off. Enable it with: compozy config set provider_usage.enabled true" {
+	if got := renderProviderUsage(
+		contract.ProviderUsageEnvelope{},
+		now,
+	); got != "Provider usage is turned off. Enable it with: compozy config set provider_usage.enabled true" {
 		t.Fatal(got)
 	}
 	cmd := newProviderUsageAction(commandDeps{}, true)

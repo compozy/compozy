@@ -3949,3 +3949,14 @@ Owner: workflow `opencode-model-discovery` (Tasks 01–03 implement; Tasks 04–
 - Workspace/profile isolation and user data: unchanged; rewind remains daemon-authoritative and archives the discarded suffix without undoing file/tool effects. No migration.
 - Official runtime skill: existing rewind contract remains accurate; no skill changes.
 - Docs/QA: update RT-conversation-rewind and RT-session-transcript-whitespace; browser suites cover authored layout, persistent controls, and Stop/edit/resend.
+
+## Provider Usage backend surfaces — 2026-10-21
+
+Owner: `.compozy/tasks/provider-usage/`, slice B2. This entry is shared by subsequent slices.
+
+- Native tools: additive experimental `compozy__provider_usage_list` and `compozy__provider_usage_refresh`, toolset `compozy__provider_usage`. Reads use only the cache; native refresh always uses background intent and the caller profile.
+- Public contracts: experimental HTTP/UDS GET list, provider detail and SSE plus POST refresh; CLI `provider usage list|refresh`; generated OpenAPI, Go/TypeScript SDKs, tool catalog and CLI documentation co-ship. Foreign-origin app access permits the GET operations and denies refresh.
+- Configuration: slice C owns `[provider_usage]` and settings DTOs. B2 composes the scheduler, active profile overlay, declared credential slots, lifecycle shutdown, config reconciliation and metrics. Only a validated local-operator settings context admits explicit Keychain consent; revocation clears credentials and snapshots. No hooks or extension execution contracts change.
+- Isolation and storage: snapshots are in-memory and profile-scoped; no SQLite migration. Bound secrets are kept out of general route environment and output. Aggregate profile selection is rejected. No workspace filesystem usage snapshot is created.
+- Web and official skill: Web consumers and `skills/compozy/` guidance remain integration-slice responsibilities. CLI reference pages are generated here. Final QA must cover two-profile credentials, local/gateway Keychain consent, app-token middleware, reconnect/restart and settings cadence; B2's focused transport test covers real OpenRouter HTTP collection, HTTP/UDS parity, SSE invalidation, refresh floor, error envelopes and disabled refresh.
+- Dependency contract pending at B2 handoff: Manager must expose `SetRefreshInterval(time.Duration)` and preserve explicit zero wait. Run `ET-provider-usage-surfaces` in the trailing scenario QA; B2 focused checks are not a full daemon release validation.

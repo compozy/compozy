@@ -26,7 +26,10 @@ func (h *BaseHandlers) StreamProviderUsage(c *gin.Context) {
 	}
 	defer closeStream()
 	bootID := h.ProviderUsage.BootID()
-	if err := WriteSSE(writer, SSEMessage{Name: "ready", Data: contract.ProviderUsageStreamEvent{Revision: envelope.Revision, BootID: bootID}}); err != nil {
+	if err := WriteSSE(
+		writer,
+		SSEMessage{Name: "ready", Data: contract.ProviderUsageStreamEvent{Revision: envelope.Revision, BootID: bootID}},
+	); err != nil {
 		return
 	}
 	ticker := time.NewTicker(eventStreamPingInterval)
@@ -49,7 +52,13 @@ func (h *BaseHandlers) StreamProviderUsage(c *gin.Context) {
 				continue
 			}
 			envelope.Revision, bootID = revision.Revision, revision.BootID
-			if err := WriteSSE(writer, SSEMessage{Name: "provider_usage_changed", Data: contract.ProviderUsageStreamEvent{Revision: revision.Revision, BootID: revision.BootID}}); err != nil {
+			if err := WriteSSE(
+				writer,
+				SSEMessage{
+					Name: "provider_usage_changed",
+					Data: contract.ProviderUsageStreamEvent{Revision: revision.Revision, BootID: revision.BootID},
+				},
+			); err != nil {
 				return
 			}
 		}

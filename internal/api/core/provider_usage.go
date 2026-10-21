@@ -2,13 +2,18 @@ package core
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	config "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/gateway"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerusage"
 	"github.com/gin-gonic/gin"
 )
@@ -20,8 +25,8 @@ func (h *BaseHandlers) ListProviderUsage(c *gin.Context) {
 		return
 	}
 	envelope, err := h.ProviderUsage.Envelope(c.Request.Context(), profile)
-	if err == nil && c.Param("provider_id") != "" {
-		envelope, err = FilterProviderUsage(envelope, c.Param("provider_id"))
+	if err == nil {
+		envelope, err = ProviderUsageView(envelope, c.Param("provider_id"), &h.Config)
 	}
 	if err != nil {
 		h.respondProviderUsageError(c, err)
@@ -71,6 +76,9 @@ func (h *BaseHandlers) RefreshProviderUsage(c *gin.Context) {
 		h.respondProviderUsageError(c, err)
 		return
 	}
+	envelope.Targets = slices.DeleteFunc(envelope.Targets, func(t providerusage.Snapshot) bool {
+		return t.Status == providerusage.StatusDisabled
+	})
 	c.JSON(http.StatusOK, ProviderUsageEnvelopePayload(envelope))
 }
 
@@ -96,7 +104,11 @@ func ProviderUsageRefreshInput(input contract.ProviderUsageRefreshRequest) (prov
 	if intent != providerusage.IntentBackground && intent != providerusage.IntentExplicit {
 		return providerusage.RefreshRequest{}, invalidProviderUsageRequest("intent must be background or explicit")
 	}
-	return providerusage.RefreshRequest{ProfileID: input.Profile, ProviderIDs: input.ProviderIDs, MaxAge: time.Duration(input.MaxAgeSeconds) * time.Second, Wait: time.Duration(wait) * time.Millisecond, Intent: intent}, nil
+	return providerusage.RefreshRequest{
+		ProfileID: input.Profile, ProviderIDs: input.ProviderIDs,
+		MaxAge: time.Duration(input.MaxAgeSeconds) * time.Second,
+		Wait:   time.Duration(wait) * time.Millisecond, Intent: intent,
+	}, nil
 }
 
 func providerUsageIntent(c *gin.Context, requested providerusage.Intent) providerusage.Intent {
@@ -115,11 +127,24 @@ func providerUsageIntent(c *gin.Context, requested providerusage.Intent) provide
 func (h *BaseHandlers) providerUsageProfile(c *gin.Context) (string, bool) {
 	all, err := parseBoolQuery(c, "all_profiles")
 	if err != nil || all {
-		h.respondProviderUsageError(c, invalidProviderUsageRequest("provider usage is per profile; all_profiles is not supported"))
+		h.respondProviderUsageError(c, invalidProviderUsageRequest(
+			"provider usage is per profile; all_profiles is not supported",
+		))
 		return "", false
 	}
 	scope, err := h.resolveProfileReadScope(c)
 	if err != nil {
+		if domain, ok := errors.AsType[*profilepkg.Error](err); ok {
+			mapped := *domain
+			switch mapped.Code {
+			case "profile_session_conflict":
+				mapped.Message, mapped.Action = "profile does not match the session's profile", "omit profile"
+			case string(providerusage.ErrorCodeProfileNotFound):
+				mapped.Message = fmt.Sprintf("profile %q not found", strings.TrimSpace(c.Query("profile")))
+				mapped.Action = "choose an existing profile"
+			}
+			err = &mapped
+		}
 		h.respondProfileReadScopeError(c, err)
 		return "", false
 	}
@@ -130,7 +155,9 @@ func (h *BaseHandlers) requireProviderUsage(c *gin.Context) bool {
 	if h.ProviderUsage != nil {
 		return true
 	}
-	c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{Error: "provider usage is unavailable", Code: "provider_usage_unavailable"})
+	c.JSON(http.StatusServiceUnavailable, contract.ErrorPayload{
+		Error: "provider usage is unavailable", Code: "provider_usage_unavailable",
+	})
 	return false
 }
 
@@ -139,8 +166,8 @@ func invalidProviderUsageRequest(message string) *providerusage.UsageError {
 }
 
 func (h *BaseHandlers) respondProviderUsageError(c *gin.Context, err error) {
-	var usage *providerusage.UsageError
-	if !errors.As(err, &usage) {
+	usage, ok := errors.AsType[*providerusage.UsageError](err)
+	if !ok {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -154,4 +181,36 @@ func (h *BaseHandlers) respondProviderUsageError(c *gin.Context, err error) {
 		status = http.StatusConflict
 	}
 	c.JSON(status, contract.ErrorPayload{Error: usage.Message, Code: string(usage.Code)})
+}
+
+// ProviderUsageView hides opt-outs in aggregate views while keeping the explicit
+// provider diagnostic read available, including when the master switch is off.
+func ProviderUsageView(
+	envelope providerusage.Envelope, providerID string, cfg *config.Config,
+) (providerusage.Envelope, error) {
+	if providerID == "" {
+		envelope.Targets = slices.DeleteFunc(envelope.Targets, func(t providerusage.Snapshot) bool {
+			return t.Status == providerusage.StatusDisabled
+		})
+		return envelope, nil
+	}
+	if !envelope.Enabled {
+		if _, builtin := config.BuiltinProviders()[providerID]; builtin || cfg.Providers[providerID].Command != "" {
+			provider, err := cfg.ResolveProvider(providerID)
+			if err != nil {
+				return providerusage.Envelope{}, err
+			}
+			envelope.Targets = []providerusage.Snapshot{
+				{
+					ProviderID:   providerID,
+					ProviderName: provider.DisplayName,
+					Status:       providerusage.StatusDisabled,
+					Error:        providerusage.NewUsageError(providerusage.ErrorCodeDisabled, providerID),
+				},
+			}
+			envelope.Tray = nil
+			return envelope, nil
+		}
+	}
+	return FilterProviderUsage(envelope, providerID)
 }

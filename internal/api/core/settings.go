@@ -76,7 +76,7 @@ func (h *BaseHandlers) ReloadSettings(c *gin.Context) {
 		return
 	}
 	result, err := h.Settings.Reload(
-		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		h.settingsMutationContext(c),
 	)
 	if err != nil {
 		h.respondError(c, StatusForSettingsError(err), err)

@@ -1145,6 +1145,8 @@ type nativeDescriptorExpectation struct {
 
 func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 	return []nativeDescriptorExpectation{
+		{id: toolspkg.ToolIDProviderUsageList, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDProviderUsageRefresh, risk: toolspkg.RiskMutating, openWorld: true},
 		{id: toolspkg.ToolIDSubagentCapabilities, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDSubagentDelegate, risk: toolspkg.RiskDestructive, destructive: true, openWorld: true},
 		{id: toolspkg.ToolIDSubagentStatus, risk: toolspkg.RiskMutating},

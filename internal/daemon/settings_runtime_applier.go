@@ -80,6 +80,9 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	if preStarter != nil {
 		preStarter.Clear()
 	}
+	if a.state.providerUsage != nil {
+		a.state.providerUsage.ApplyConsent(ctx, previous.ProviderUsage, next.ProviderUsage)
+	}
 	if a.state.toolProjectionEpoch != nil {
 		a.state.toolProjectionEpoch.Advance()
 	}

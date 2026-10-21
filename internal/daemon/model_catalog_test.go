@@ -3,9 +3,12 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,10 +17,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/providerusage"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDaemonModelCatalogWiring(t *testing.T) {
@@ -2601,4 +2607,146 @@ func waitForCatalogTestError(t *testing.T, ch <-chan error, label string) error 
 		t.Fatalf("timeout waiting for %s", label)
 	}
 	return nil
+}
+
+func TestProviderUsageResolver(t *testing.T) {
+	home := testHomePaths(t)
+	cfg := testConfig(t, home)
+	cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+	provider := compozyconfig.BuiltinProviders()["openrouter"]
+	provider.CredentialSlots[0].SecretRef = "env:USAGE_TEST_KEY"
+	cfg.Providers["openrouter"] = provider
+	daemon := newTestDaemon(t, home, &cfg)
+	daemon.getenv = func(key string) string {
+		if key == "USAGE_TEST_KEY" {
+			return "bound-value"
+		}
+		return ""
+	}
+	resolver := &providerUsageResolver{cfg: cfg, home: home,
+		baseEnv:    []string{"HOME=" + t.TempDir(), "OPENROUTER_API_KEY=ambient-value"},
+		secrets:    daemon.modelCatalogSecretResolver(&bootState{}),
+		collectors: providerusage.Registry{"openrouter": providerusage.NewOpenRouterCollector()},
+	}
+	targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var found bool
+	for _, target := range targets {
+		if target.ProviderID != "openrouter" {
+			if target.Status != providerusage.StatusUnsupported {
+				t.Fatalf("unexpected state: %+v", target)
+			}
+			continue
+		}
+		found = true
+		if target.Status != "" || target.Route.BoundSecrets["api_key"] != "bound-value" ||
+			target.RouteFingerprint == "" {
+			t.Fatalf("invalid resolved target: status=%s", target.Status)
+		}
+		for _, entry := range target.Route.Env {
+			if strings.HasPrefix(entry, "OPENROUTER_API_KEY=") {
+				t.Fatal("credential leaked into general environment")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("missing configured provider")
+	}
+	resolver.cfg.ProviderUsage.Enabled = false
+	targets, err = resolver.Targets(t.Context(), store.DefaultProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, target := range targets {
+		if target.Status != providerusage.StatusDisabled {
+			t.Fatalf("disabled state: %s", target.Status)
+		}
+	}
+	if _, err := resolver.Targets(t.Context(), "foreign-profile"); err == nil {
+		t.Fatal("unknown profile accepted")
+	}
+}
+
+func TestProviderUsageNativeProfile(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer work-key" {
+			t.Error("wrong profile credential")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v1/key" {
+			_, _ = w.Write([]byte(`{"data":{"limit":100,"usage":25}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"data":{"total_credits":100,"total_usage":25}}`))
+	}))
+	defer upstream.Close()
+	catalog := &providerusage.TargetCatalog{}
+	catalog.Replace(
+		"work-id",
+		[]providerusage.Target{
+			{
+				ProfileID:        "work-id",
+				ProviderID:       "openrouter",
+				ProviderName:     "OpenRouter",
+				RouteFingerprint: "work-route",
+				Route:            providerusage.ResolvedRoute{BoundSecrets: map[string]string{"api_key": "work-key"}},
+			},
+		},
+	)
+	service := providerusage.NewService(
+		providerusage.Options{
+			Resolver: catalog,
+			Collectors: providerusage.Registry{
+				"openrouter": providerusage.NewOpenRouterCollector(providerusage.WithCollectorBaseURL(upstream.URL)),
+			},
+		},
+	)
+	defer func() {
+		if err := service.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	}()
+	native := &daemonNativeTools{deps: &daemonNativeToolsDeps{ProviderUsage: service}}
+	scope := toolspkg.Scope{ProfileID: "work-id"}
+	refreshed, err := native.providerUsageRefresh(
+		t.Context(),
+		scope,
+		toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDProviderUsageRefresh,
+			Input:  json.RawMessage(`{"provider_ids":["openrouter"]}`),
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload contract.ProviderUsageEnvelope
+	if err := json.Unmarshal(refreshed.Structured, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.ProfileID != "work-id" || len(payload.Targets) != 1 || payload.Targets[0].Status != "ok" {
+		t.Fatalf("unexpected scope/result: %+v", payload)
+	}
+	listed, err := native.providerUsageList(
+		t.Context(),
+		scope,
+		toolspkg.CallRequest{ToolID: toolspkg.ToolIDProviderUsageList, Input: json.RawMessage(`{}`)},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(listed.Structured), "work-key") {
+		t.Fatal("credential leaked")
+	}
+	if _, err := native.providerUsageRefresh(
+		t.Context(),
+		scope,
+		toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDProviderUsageRefresh,
+			Input:  json.RawMessage(`{"intent":"explicit"}`),
+		},
+	); err == nil {
+		t.Fatal("native tool accepted intent escalation")
+	}
 }

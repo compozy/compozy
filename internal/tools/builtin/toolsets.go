@@ -8,7 +8,10 @@ func ToolsetCatalog() (toolspkg.ToolsetCatalog, error) {
 }
 
 var builtinToolsets = []toolspkg.Toolset{
-	{ID: toolspkg.ToolsetIDProviderUsage, Tools: []string{toolspkg.ToolIDProviderUsageList.String(), toolspkg.ToolIDProviderUsageRefresh.String()}},
+	{
+		ID:    toolspkg.ToolsetIDProviderUsage,
+		Tools: []string{toolspkg.ToolIDProviderUsageList.String(), toolspkg.ToolIDProviderUsageRefresh.String()},
+	},
 	{
 		ID: toolspkg.ToolsetIDBootstrap,
 		Tools: []string{

@@ -511,6 +511,9 @@ import type {
   GetProviderModelStatusErrors,
   GetProviderModelStatusResponses,
   GetProviderResponses,
+  GetProviderUsageData,
+  GetProviderUsageErrors,
+  GetProviderUsageResponses,
   GetResourceData,
   GetResourceErrors,
   GetResourceResponses,
@@ -600,6 +603,9 @@ import type {
   GetSettingsProviderData,
   GetSettingsProviderErrors,
   GetSettingsProviderResponses,
+  GetSettingsProviderUsageData,
+  GetSettingsProviderUsageErrors,
+  GetSettingsProviderUsageResponses,
   GetSettingsRestartStatusData,
   GetSettingsRestartStatusErrors,
   GetSettingsRestartStatusResponses,
@@ -810,6 +816,9 @@ import type {
   ListProvidersData,
   ListProvidersErrors,
   ListProvidersResponses,
+  ListProviderUsageData,
+  ListProviderUsageErrors,
+  ListProviderUsageResponses,
   ListResourcesByKindData,
   ListResourcesByKindErrors,
   ListResourcesByKindResponses,
@@ -1065,6 +1074,9 @@ import type {
   RefreshProviderModelsData,
   RefreshProviderModelsErrors,
   RefreshProviderModelsResponses,
+  RefreshProviderUsageData,
+  RefreshProviderUsageErrors,
+  RefreshProviderUsageResponses,
   RefreshSessionSoulData,
   RefreshSessionSoulErrors,
   RefreshSessionSoulResponses,
@@ -1332,6 +1344,9 @@ import type {
   UpdateSettingsPersonaData,
   UpdateSettingsPersonaErrors,
   UpdateSettingsPersonaResponses,
+  UpdateSettingsProviderUsageData,
+  UpdateSettingsProviderUsageErrors,
+  UpdateSettingsProviderUsageResponses,
   UpdateSettingsRolesData,
   UpdateSettingsRolesErrors,
   UpdateSettingsRolesResponses,
@@ -4876,6 +4891,56 @@ export class settings extends HeyApiClient {
   }
 
   /**
+   * Read the provider usage settings section
+   */
+  public getSettingsProviderUsage<ThrowOnError extends boolean = true>(
+    options?: Options<GetSettingsProviderUsageData, ThrowOnError>
+  ): RequestResult<
+    GetSettingsProviderUsageResponses,
+    GetSettingsProviderUsageErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetSettingsProviderUsageResponses,
+      GetSettingsProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/provider-usage",
+      ...options,
+    });
+  }
+
+  /**
+   * Update the provider usage settings section
+   */
+  public updateSettingsProviderUsage<ThrowOnError extends boolean = true>(
+    options: Options<UpdateSettingsProviderUsageData, ThrowOnError>
+  ): RequestResult<
+    UpdateSettingsProviderUsageResponses,
+    UpdateSettingsProviderUsageErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).patch<
+      UpdateSettingsProviderUsageResponses,
+      UpdateSettingsProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/provider-usage",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * List settings-backed providers
    */
   public listSettingsProviders<ThrowOnError extends boolean = true>(
@@ -5397,6 +5462,75 @@ export class providers extends HeyApiClient {
       responseStyle: "data",
       url: "/api/model-catalog/sources/status",
       ...options,
+    });
+  }
+
+  /**
+   * Read cached provider usage (experimental)
+   *
+   * @stability experimental
+   */
+  public listProviderUsage<ThrowOnError extends boolean = true>(
+    options?: Options<ListProviderUsageData, ThrowOnError>
+  ): RequestResult<ListProviderUsageResponses, ListProviderUsageErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListProviderUsageResponses,
+      ListProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/provider-usage",
+      ...options,
+    });
+  }
+
+  /**
+   * Read cached provider usage (experimental)
+   *
+   * @stability experimental
+   */
+  public getProviderUsage<ThrowOnError extends boolean = true>(
+    options: Options<GetProviderUsageData, ThrowOnError>
+  ): RequestResult<GetProviderUsageResponses, GetProviderUsageErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetProviderUsageResponses,
+      GetProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/provider-usage/providers/{provider_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Refresh provider usage (experimental)
+   *
+   * @stability experimental
+   */
+  public refreshProviderUsage<ThrowOnError extends boolean = true>(
+    options?: Options<RefreshProviderUsageData, ThrowOnError>
+  ): RequestResult<
+    RefreshProviderUsageResponses,
+    RefreshProviderUsageErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      RefreshProviderUsageResponses,
+      RefreshProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/provider-usage/refresh",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
     });
   }
 

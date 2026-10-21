@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// TriggerAutomationJobParams carries the path, query, and header parameters.
+type TriggerAutomationJobParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // TriggerAutomationJob Trigger one automation job immediately
 func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
 	path := "/api/automation/jobs/{id}/trigger"

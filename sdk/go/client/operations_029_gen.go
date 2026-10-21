@@ -69,6 +69,16 @@ func (c *Client) UpdateSettingsPersona(ctx context.Context, params UpdateSetting
 	return &out, nil
 }
 
+// UpdateSettingsProviderUsage Update the provider usage settings section
+func (c *Client) UpdateSettingsProviderUsage(ctx context.Context, body SettingsProviderUsageUpdateRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/provider-usage"
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateSettingsRoles Update the background-role routing settings section
 func (c *Client) UpdateSettingsRoles(ctx context.Context, body UpdateSettingsRolesRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/roles"

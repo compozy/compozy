@@ -858,12 +858,19 @@ func TestProviderUsageIntent(t *testing.T) {
 	for _, caller := range []string{"operator", "agent", "gateway", "app"} {
 		t.Run(caller, func(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodPost, "/api/provider-usage/refresh", nil)
+			c.Request = httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/provider-usage/refresh",
+				http.NoBody,
+			)
 			switch caller {
 			case "agent":
 				c.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
 			case "gateway":
-				c.Request = c.Request.WithContext(gateway.ContextWithDevice(c.Request.Context(), gateway.DeviceSession{}))
+				c.Request = c.Request.WithContext(
+					gateway.ContextWithDevice(c.Request.Context(), gateway.DeviceSession{}),
+				)
 			case "app":
 				c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
 			}
@@ -876,6 +883,11 @@ func TestProviderUsageIntent(t *testing.T) {
 			}
 			if got := providerUsageIntent(c, providerusage.IntentBackground); got != providerusage.IntentBackground {
 				t.Fatalf("background became %s", got)
+			}
+			handler := &BaseHandlers{}
+			profileID, consent := ProviderUsageConsentProfile(handler.settingsMutationContext(c))
+			if consent != (caller == "operator") || (consent && profileID != store.DefaultProfileID) {
+				t.Fatalf("settings consent: profile=%s local=%v", profileID, consent)
 			}
 		})
 	}

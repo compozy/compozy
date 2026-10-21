@@ -200,7 +200,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
-			"refreshProviderUsage",
+			"refreshProviderUsage", "getSettingsProviderUsage", "updateSettingsProviderUsage",
 			"getStatus",
 			"resolveWorkspace",
 			"addMarketplaceSource",

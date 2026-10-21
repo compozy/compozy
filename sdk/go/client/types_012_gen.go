@@ -375,75 +375,72 @@ type ProviderSummaryPayload struct {
 	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
 }
 
-// PutLoopAnnotationsRequest is a daemon API value.
-type PutLoopAnnotationsRequest struct {
-	Annotations []LoopAnnotationPayload `json:"annotations"`
+// ProviderUsageAccount is a daemon API value.
+type ProviderUsageAccount struct {
+	Label string `json:"label"`
+	Plan  string `json:"plan"`
 }
 
-// PutLoopConfigRequest is a daemon API value.
-type PutLoopConfigRequest struct {
-	Config LoopConfig `json:"config"`
+// ProviderUsageAmount is a daemon API value.
+type ProviderUsageAmount struct {
+	Value string `json:"value"`
+	Unit  string `json:"unit"`
 }
 
-// PutLoopInputDefaultRequest is a daemon API value.
-type PutLoopInputDefaultRequest struct {
-	Scope LoopInputDefaultsScope `json:"scope"`
-	Value any                    `json:"value"`
+// ProviderUsageBalance is a daemon API value.
+type ProviderUsageBalance struct {
+	ID        string              `json:"id"`
+	Label     string              `json:"label"`
+	Remaining ProviderUsageAmount `json:"remaining"`
+	ExpiresAt *time.Time          `json:"expires_at"`
 }
 
-// PutLoopInputDefaultsRequest is a daemon API value.
-type PutLoopInputDefaultsRequest struct {
-	Scope  LoopInputDefaultsScope `json:"scope"`
-	Values map[string]any         `json:"values"`
+// ProviderUsageEnvelope is a daemon API value.
+type ProviderUsageEnvelope struct {
+	ProfileID   string                   `json:"profile_id"`
+	Revision    uint64                   `json:"revision"`
+	GeneratedAt time.Time                `json:"generated_at"`
+	Enabled     bool                     `json:"enabled"`
+	Tray        *ProviderUsageTraySignal `json:"tray"`
+	Targets     []ProviderUsageTarget    `json:"targets"`
 }
 
-// PutResourceRequest is a daemon API value.
-type PutResourceRequest struct {
-	Scope           ResourceScope   `json:"scope"`
-	ExpectedVersion int64           `json:"expected_version,omitzero"`
-	Spec            json.RawMessage `json:"spec"`
+// ProviderUsageError is a daemon API value.
+type ProviderUsageError struct {
+	Code       string     `json:"code"`
+	Message    string     `json:"message"`
+	Action     string     `json:"action"`
+	RetryAfter *time.Time `json:"retry_after"`
 }
 
-// PutSettingsHookRequest is a daemon API value.
-type PutSettingsHookRequest struct {
-	Declaration SettingsHookDeclarationPayload `json:"declaration"`
+// ProviderUsageRefreshRequest is a daemon API value.
+type ProviderUsageRefreshRequest struct {
+	Profile       string   `json:"profile,omitempty"`
+	ProviderIDs   []string `json:"provider_ids,omitempty"`
+	MaxAgeSeconds int64    `json:"max_age_seconds,omitempty"`
+	WaitMS        *int64   `json:"wait_ms,omitempty"`
+	Intent        string   `json:"intent,omitempty"`
 }
 
-// PutSettingsMCPServerRequest is a daemon API value.
-type PutSettingsMCPServerRequest struct {
-	Server          SettingsMCPServerPayload              `json:"server"`
-	SecretValues    *SettingsMCPSecretValuesPayload       `json:"secret_values,omitzero"`
-	PreserveSecrets *SettingsMCPSecretPreservationPayload `json:"preserve_secrets,omitzero"`
-	PreserveEnv     []string                              `json:"preserve_env,omitempty"`
+// ProviderUsageSource is a daemon API value.
+type ProviderUsageSource struct {
+	Kind  string `json:"kind"`
+	Label string `json:"label"`
 }
 
-// PutSettingsProviderRequest is a daemon API value.
-type PutSettingsProviderRequest struct {
-	Settings      SettingsProviderWritePayload         `json:"settings"`
-	ModelCuration *ProviderModelCurationRequest        `json:"model_curation,omitzero"`
-	Secrets       []SettingsProviderSecretWritePayload `json:"secrets,omitempty"`
+// ProviderUsageSpendCap is a daemon API value.
+type ProviderUsageSpendCap struct {
+	ID          string               `json:"id"`
+	Label       string               `json:"label"`
+	Used        ProviderUsageAmount  `json:"used"`
+	Limit       *ProviderUsageAmount `json:"limit"`
+	UsedPercent *float64             `json:"used_percent"`
+	ResetsAt    *time.Time           `json:"resets_at"`
+	Enabled     *bool                `json:"enabled"`
 }
 
-// PutVaultSecretRequest is a daemon API value.
-type PutVaultSecretRequest struct {
-	Ref         string `json:"ref"`
-	Kind        string `json:"kind,omitempty"`
-	SecretValue string `json:"secret_value"`
+// ProviderUsageStreamEvent is a daemon API value.
+type ProviderUsageStreamEvent struct {
+	Revision uint64 `json:"revision"`
+	BootID   string `json:"boot_id"`
 }
-
-// QueryHit is a daemon API value.
-type QueryHit struct {
-	Query     string    `json:"query"`
-	CommandID CommandID `json:"command_id"`
-	Weight    float64   `json:"weight"`
-}
-
-// QuietWarning is a daemon API value.
-type QuietWarning struct {
-	QuietSince time.Time  `json:"quiet_since"`
-	WarnedAt   time.Time  `json:"warned_at"`
-	StopAt     *time.Time `json:"stop_at"`
-}
-
-// ReasonCode is a daemon API value.
-type ReasonCode string
