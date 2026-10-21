@@ -4,7 +4,7 @@ import { useSelector } from "@xstate/store-react";
 import type { AgentPayload } from "@/systems/agent";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalQuote } from "@/systems/terminal/parts";
-import type { WorkspaceScopeMode } from "@/systems/workspace";
+import type { DestinationKind } from "@/systems/workspace";
 
 import { sessionCreateBinding } from "../lib/session-create-binding";
 import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
@@ -25,7 +25,7 @@ interface UseSessionCreateSubmitOptions {
   environment: SessionEnvironmentModel;
   environmentWorkspaceId: string;
   runtimeWorkspaceId: string | null;
-  scope: WorkspaceScopeMode;
+  scope: DestinationKind;
   store: SessionCreateStore;
 }
 
@@ -96,7 +96,7 @@ export function useSessionCreateSubmit({
       store.trigger.validationFailed({ message: validated.message });
       return;
     }
-    if (scope === "workspace") {
+    if (scope === "project") {
       const readiness = environment.ensureReady();
       if (readiness === "blocked") {
         store.trigger.validationFailed({
@@ -126,7 +126,7 @@ export function useSessionCreateSubmit({
         executeCreatedSession(
           createSessionAsync({
             ...validated.request,
-            ...(scope === "workspace" && worktreeId ? { worktree: worktreeId } : {}),
+            ...(scope === "project" && worktreeId ? { worktree: worktreeId } : {}),
           }),
           validated.pendingPrompt,
           terminalQuote
@@ -164,14 +164,14 @@ function validateSessionCreate(
 async function openCreatedSession(
   session: SessionPayload,
   currentWorkspaceId: string | null,
-  scope: WorkspaceScopeMode,
+  scope: DestinationKind,
   navigate: ReturnType<typeof useNavigate>,
   shell: OsShellHandle | null
 ): Promise<void> {
   // Named before the workspace switch: the route reconciliation that lands it — after the
   // target workspace hydrates — prefers the operator's existing Session window (#825).
   shell?.coordinator.noteCreatedSession(session.id);
-  activateCreatedSessionWorkspace(session, currentWorkspaceId, { skip: scope === "global" });
+  activateCreatedSessionWorkspace(session, currentWorkspaceId, { skip: scope === "user" });
   await navigate({
     to: "/agents/$name/sessions/$id",
     params: { name: session.agent_name, id: session.id },

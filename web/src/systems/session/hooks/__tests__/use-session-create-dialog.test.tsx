@@ -27,14 +27,14 @@ import {
 } from "../use-session-create-dialog";
 import type { AgentPayload } from "@/systems/agent";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
-import type { WorkspacePayload } from "@/systems/workspace";
+import type { DataScope, WorkspacePayload } from "@/systems/workspace";
 import {
   buildWorktreeFixture,
   emptyWorktreeListingFixture,
 } from "@/systems/workspace/mocks/worktree-fixtures";
 
-// Invariant: creation submits only durable session identity and launch context, derives Global
-// from the hidden home registration without a worktree choice, materializes a project environment
+// Invariant: creation submits only durable session identity and launch context, binds creation
+// outside a project to the home path without a worktree choice, materializes a project environment
 // before binding to it, and hands off to the canonical session route without inventing a prompt.
 // A prompt already sent from the composer is staged separately while its agent fallback waits.
 // Every exit from a pending environment rolls the worktree back without losing that staged prompt.
@@ -198,9 +198,8 @@ interface TestSessionCreateDialogApi extends SessionCreateDialogApi {
 function useSessionCreateDialog(context: {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
-  scope?: "workspace" | "global";
+  dataScope?: DataScope | null;
   projectWorkspaceId?: string | null;
-  homeWorkspaceId?: string;
 }): TestSessionCreateDialogApi {
   const controller = useSessionCreateDialogController();
   const dialog = useSessionCreateDialogViewModel(context, controller.store);
@@ -422,12 +421,12 @@ describe("useSessionCreateDialog", () => {
     );
   });
 
-  it("Should bind Global creation to home without exposing or activating a worktree", async () => {
+  it("Should bind creation outside a project to the home path without exposing or activating a worktree", async () => {
     mockUserHomeDir.current = "/Users/operator";
     mockWorktreeListingRef.current = emptyWorktreeListingFixture;
     mockMutateAsync.mockResolvedValue({
       ...createdSession,
-      workspace_id: "ws_home",
+      workspace_id: "",
       workspace_path: "/Users/operator",
     });
 
@@ -437,9 +436,8 @@ describe("useSessionCreateDialog", () => {
         useSessionCreateDialog({
           agents,
           activeWorkspace: homeWorkspace,
-          scope: "global",
+          dataScope: { kind: "user" },
           projectWorkspaceId: activeWorkspace.id,
-          homeWorkspaceId: homeWorkspace.id,
         }),
       { wrapper }
     );
@@ -450,7 +448,7 @@ describe("useSessionCreateDialog", () => {
 
     expect(mockMutateAsync).toHaveBeenCalledWith({
       agent_name: "codex-agent",
-      workspace: homeWorkspace.id,
+      workspace_path: "/Users/operator",
     });
     await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
     expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();

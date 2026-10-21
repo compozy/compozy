@@ -4,6 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionPayload } from "../../types";
 import { useSessionCatalog } from "../use-session-catalog";
+import type { DataScope } from "@/systems/workspace";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions } from "../../lib/session-catalog-options";
 import { sessionKeys } from "../../lib/query-keys";
@@ -592,6 +593,9 @@ describe("Session context query projection", () => {
   });
 });
 
+const ALPHA: DataScope = { kind: "project", workspaceId: "ws_alpha" };
+const BETA: DataScope = { kind: "project", workspaceId: "ws_beta" };
+
 describe("bounded session catalog", () => {
   beforeEach(() => {
     vi.mocked(fetchSessionCatalogPage).mockReset();
@@ -612,7 +616,7 @@ describe("bounded session catalog", () => {
     const { result } = renderHook(
       () => ({
         search: useSessionCatalog(
-          "ws_alpha",
+          ALPHA,
           {
             q: "older",
             search_fields: "title_agent",
@@ -625,7 +629,7 @@ describe("bounded session catalog", () => {
           { facets: true }
         ),
         attention: useSessionCatalog(
-          "ws_alpha",
+          ALPHA,
           {
             attention: true,
             sort: "attention",
@@ -637,7 +641,7 @@ describe("bounded session catalog", () => {
           true,
           { facets: true }
         ),
-        picker: useSessionCatalog("ws_alpha", { q: "picker", limit: 100 }, true, { facets: false }),
+        picker: useSessionCatalog(ALPHA, { q: "picker", limit: 100 }, true, { facets: false }),
       }),
       { wrapper }
     );
@@ -672,7 +676,7 @@ describe("bounded session catalog", () => {
     const wrapper = ({ children }: { children: ReactNode }) =>
       createElement(QueryClientProvider, { client }, children);
     const { result } = renderHook(
-      () => useSessionCatalog("ws_alpha", { limit: 100 }, true, { facets: true }),
+      () => useSessionCatalog(ALPHA, { limit: 100 }, true, { facets: true }),
       { wrapper }
     );
     await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-new"));
@@ -719,24 +723,81 @@ describe("bounded session catalog", () => {
       createElement(QueryClientProvider, { client }, children);
     const { result, rerender, unmount } = renderHook(
       ({ workspace, search }) => useSessionCatalog(workspace, { q: search, limit: 100 }),
-      { wrapper, initialProps: { workspace: "ws_alpha", search: "original" } }
+      { wrapper, initialProps: { workspace: ALPHA, search: "original" } }
     );
     await waitFor(() => expect(result.current.sessions[0]?.id).toBe("sess-original"));
     expect(fetchSessionFacets).not.toHaveBeenCalled();
-    rerender({ workspace: "ws_alpha", search: "changed" });
+    rerender({ workspace: ALPHA, search: "changed" });
     expect(result.current.sessions[0]?.id).toBe("sess-original");
     expect(result.current.paging).toBe(true);
     expect(result.current.next).toBe(false);
     expect(result.current.previous).toBe(false);
     act(() => result.current.nextPage());
     expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(2);
-    rerender({ workspace: "ws_beta", search: "changed" });
+    rerender({ workspace: BETA, search: "changed" });
     expect(result.current.sessions).toEqual([]);
     expect(result.current.loading).toBe(true);
     expect(result.current.failed).toBe(false);
     expect(cancelled).toHaveBeenCalledTimes(1);
     expect(fetchSessionFacets).not.toHaveBeenCalled();
     unmount();
+    client.clear();
+  });
+});
+
+// Invariant (W-06): the User destination lists through `@user`, never the aggregate, and an
+// unsettled scope reads nothing. Owner: the catalog hook every session list goes through.
+describe("session catalog data scope", () => {
+  beforeEach(() => {
+    vi.mocked(fetchSessionCatalogPage).mockReset();
+    vi.mocked(fetchSessionFacets).mockReset();
+    vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
+      sessions: [],
+      page: { has_more: false, limit: 100 },
+    });
+  });
+
+  function wrapperFor(client: QueryClient) {
+    return ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client }, children);
+  }
+
+  it("Should request User sessions through @user, never all_workspaces", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderHook(() => useSessionCatalog({ kind: "user" }, { limit: 100 }), {
+      wrapper: wrapperFor(client),
+    });
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(1));
+    const [filters] = vi.mocked(fetchSessionCatalogPage).mock.calls[0]!;
+    expect(filters).toMatchObject({ workspace_id: "@user" });
+    expect(filters).not.toHaveProperty("all_workspaces");
+    client.clear();
+  });
+
+  it("Should request every project only under All projects", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderHook(() => useSessionCatalog({ kind: "all" }, { limit: 100 }), {
+      wrapper: wrapperFor(client),
+    });
+    await waitFor(() => expect(fetchSessionCatalogPage).toHaveBeenCalledTimes(1));
+    const [filters] = vi.mocked(fetchSessionCatalogPage).mock.calls[0]!;
+    expect(filters).toMatchObject({ all_workspaces: true });
+    expect(filters).not.toHaveProperty("workspace_id");
+    client.clear();
+  });
+
+  it("Should read nothing while the scope is unsettled", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(
+      () => useSessionCatalog(null, { limit: 100 }, true, { facets: true }),
+      { wrapper: wrapperFor(client) }
+    );
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(fetchSessionCatalogPage).not.toHaveBeenCalled();
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
+    expect(result.current.sessions).toEqual([]);
     client.clear();
   });
 });

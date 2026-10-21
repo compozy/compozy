@@ -37,13 +37,18 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     session,
     sessionId,
     workspaceId,
+    listScope,
   } = useSessionWindowController(windowId);
 
   if (deletedLocally || sessionId === null) {
-    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
+    return (
+      <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} scope={listScope} />
+    );
   }
   if (agentName === null) {
-    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
+    return (
+      <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} scope={listScope} />
+    );
   }
   if (crossesWorkspace) {
     return <SessionWindowNotice title="This session is outside the current project" />;

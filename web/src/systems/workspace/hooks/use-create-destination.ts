@@ -1,36 +1,41 @@
 import { useActiveWorkspace } from "./use-active-workspace";
-import { GLOBAL_SCOPE_COPY } from "../lib/workspace-scope-copy";
-import type { WorkspaceScopeMode } from "../lib/workspace-scope-mode";
+import type { DataScope } from "../lib/destination";
+import { DESTINATION_COPY } from "../lib/workspace-scope-copy";
 
 export interface CreateDestination {
-  scope: WorkspaceScopeMode;
+  /** Where new work lands; `null` while resolution is unsettled. */
+  dataScope: DataScope | null;
   /** True while scope resolution is unsettled — withhold submits that bind a destination. */
   pending: boolean;
   workspaceId: string | null;
   workspaceName: string | null;
   destinationLabel: string;
   userHomeDir: string | undefined;
-  homeWorkspaceId: string | undefined;
   runtimeWorkspaceId: string | null;
-  /** Session root or operator-home path for `kind="session"` statements. */
+  /** Session root, or the operator home outside a project, for `kind="session"` statements. */
   sessionRoot: string;
 }
 
-/** Derived create/install landing from the menubar-owned scope. */
+function labelFor(dataScope: DataScope | null, workspaceName: string): string {
+  if (dataScope?.kind === "all") return DESTINATION_COPY.allProjects;
+  if (dataScope?.kind === "user") return DESTINATION_COPY.user;
+  return workspaceName;
+}
+
+/** Derived create/install landing from the menubar-owned destination. */
 export function useCreateDestination(): CreateDestination {
   const active = useActiveWorkspace();
-  const isGlobal = active.scope === "global";
+  const project = active.dataScope?.kind === "project";
   const workspaceName = active.activeWorkspace?.name ?? "";
 
   return {
-    scope: active.scope,
+    dataScope: active.dataScope,
     pending: active.pending,
-    workspaceId: isGlobal ? null : active.activeWorkspaceId,
-    workspaceName: isGlobal ? null : workspaceName || null,
-    destinationLabel: isGlobal ? GLOBAL_SCOPE_COPY.chipLabel : workspaceName,
+    workspaceId: project ? active.activeWorkspaceId : null,
+    workspaceName: project ? workspaceName || null : null,
+    destinationLabel: labelFor(active.dataScope, workspaceName),
     userHomeDir: active.userHomeDir,
-    homeWorkspaceId: active.homeWorkspace?.id,
     runtimeWorkspaceId: active.runtimeWorkspaceId,
-    sessionRoot: isGlobal ? (active.userHomeDir ?? "~") : (active.activeWorkspace?.root_dir ?? ""),
+    sessionRoot: project ? (active.activeWorkspace?.root_dir ?? "") : (active.userHomeDir ?? "~"),
   };
 }

@@ -3,7 +3,7 @@ import { SessionDraftRuntimeProvider, SessionPromptRuntimeSelector } from "@/sys
 import { Button, Spinner } from "@compozy/ui";
 
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
-import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
 import { emptyDesktopDraftId } from "../hooks/use-empty-desktop-prompt-runtime";
 import { useEmptyDesktopSession } from "../hooks/use-empty-desktop-session";
@@ -94,7 +94,7 @@ export function OsEmptyDesktopView({
           canPrompt={hasProject && !starting}
           placeholder={PROMPT_PLACEHOLDER}
           inactivePlaceholder={
-            hasProject ? STARTING_LABEL : GLOBAL_SCOPE_COPY.newSessionNeedsProject
+            hasProject ? STARTING_LABEL : DESTINATION_COPY.newSessionNeedsProject
           }
           control={
             <div className="flex min-w-0 flex-wrap items-center gap-1">

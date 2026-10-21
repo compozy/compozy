@@ -11,7 +11,7 @@ import {
   type LoopRunDiffRouteSearch,
   LoopStatusMark,
 } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
 
 export function LoopRunDiffLocation({
   runId,
@@ -22,8 +22,8 @@ export function LoopRunDiffLocation({
   routeWorkspaceId?: string;
   search: LoopRunDiffRouteSearch;
 }) {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = routeWorkspaceId ?? runtimeWorkspaceId ?? "";
+  const { dataScope } = useActiveWorkspace();
+  const workspaceId = routeWorkspaceId ?? focusedWorkspaceSelector(dataScope);
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="loop-run-diff-location">
       {workspaceId === "" ? (

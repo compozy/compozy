@@ -21,10 +21,13 @@ import {
   settingsUpdateRolledBackFixture,
   settingsUpdateStatusFixture,
 } from "@/systems/settings/mocks";
+import { DESTINATION_COPY } from "@/systems/workspace";
 import type {
   ActiveWorktreeSelection,
+  BreadthMode,
+  Focus,
+  WorkspaceChipIdentity,
   WorkspacePayload,
-  WorkspaceScopeMode,
   WorktreesResponse,
 } from "@/systems/workspace";
 import {
@@ -58,7 +61,7 @@ const meta: Meta<typeof OsMenuBar> = {
     docs: {
       description: {
         component:
-          'The desktop menubar: the CompozyOS system menu, the Global scope globe, the workspace switcher, the static Session / Go / Window / Help set, then the tray: desktop pager dots, All desktops, Provider usage, the approvals bell, and the ⌘K button. Settings lives in the system menu on the mark. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
+          'The desktop menubar: the CompozyOS system menu, the All projects globe, the workspace switcher, the static Session / Go / Window / Help set, then the tray: desktop pager dots, All desktops, Provider usage, the approvals bell, and the ⌘K button. Settings lives in the system menu on the mark. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
       },
     },
   },
@@ -109,20 +112,22 @@ const PAGER_DESKTOPS: DesktopPagerItem[] = [
 function MenubarFixture({
   overlay = null,
   live = true,
-  scope,
+  breadthMode,
+  focus,
   chip,
-  onToggleGlobalScope,
-  toggleLocked,
+  workspaces = WORKSPACES,
+  onToggleAllProjects,
   worktreeSelection,
   listing = MENUBAR_WORKTREE_LISTING,
   update = { state: "hidden" },
 }: {
   overlay?: DesktopOverlay | null;
   live?: boolean;
-  scope?: WorkspaceScopeMode;
-  chip?: { name: string; monogram: string };
-  onToggleGlobalScope?: () => void;
-  toggleLocked?: boolean;
+  breadthMode?: BreadthMode;
+  focus?: Focus;
+  chip?: WorkspaceChipIdentity;
+  workspaces?: WorkspacePayload[];
+  onToggleAllProjects?: () => void;
   worktreeSelection?: ActiveWorktreeSelection;
   listing?: WorktreesResponse;
   update?: MenubarUpdateModel;
@@ -138,13 +143,18 @@ function MenubarFixture({
             deskHint
             topbar={
               <DesktopMenubar
-                workspaces={WORKSPACES}
-                activeWorkspace={WORKSPACES[0]}
+                workspaces={workspaces}
+                activeWorkspace={
+                  breadthMode === undefined && focus === undefined ? workspaces[0] : undefined
+                }
                 chip={chip}
-                scope={scope}
-                toggleLocked={toggleLocked}
-                onToggleGlobalScope={onToggleGlobalScope}
+                breadthMode={breadthMode}
+                focus={focus}
+                focusWorkspaceName={WORKSPACES[0].name}
+                onToggleAllProjects={onToggleAllProjects}
                 onSelectWorkspace={fn()}
+                onFocusUser={fn()}
+                onEnableAllProjects={fn()}
                 onAddWorkspace={fn()}
                 onRunCommand={fn()}
                 activeOverlay={active}
@@ -206,15 +216,55 @@ export const Populated: Story = {
   render: () => <MenubarFixture />,
 };
 
-/** Global scope on: the chip reads Global and the menubar toggle is armed. */
-export const GlobalScopeOn: Story = {
-  args: { workspace: { name: "Global", monogram: "~" } },
+const ALL_PROJECTS_CHIP: WorkspaceChipIdentity = {
+  kind: "all",
+  name: DESTINATION_COPY.allProjects,
+  monogram: DESTINATION_COPY.allProjectsMonogram,
+};
+
+const USER_CHIP: WorkspaceChipIdentity = {
+  kind: "user",
+  name: DESTINATION_COPY.user,
+  monogram: DESTINATION_COPY.userMonogram,
+};
+
+/** All projects on: the chip draws the stacked mark and the globe is pressed. */
+export const AllProjectsOn: Story = {
+  args: { workspace: { name: DESTINATION_COPY.allProjects, monogram: "∗" } },
   render: () => (
     <MenubarFixture
-      chip={{ name: "Global", monogram: "~" }}
-      onToggleGlobalScope={fn()}
-      scope="global"
-      toggleLocked={false}
+      breadthMode="all"
+      focus={{ kind: "project", workspaceId: WORKSPACES[0].id }}
+      chip={ALL_PROJECTS_CHIP}
+      onToggleAllProjects={fn()}
+    />
+  ),
+};
+
+/** User focused: the chip reads User with the `~` mark; the globe is off. */
+export const UserFocused: Story = {
+  args: { workspace: { name: DESTINATION_COPY.user, monogram: "~" } },
+  render: () => (
+    <MenubarFixture
+      breadthMode="focused"
+      focus={{ kind: "user" }}
+      chip={USER_CHIP}
+      onToggleAllProjects={fn()}
+    />
+  ),
+};
+
+/** Zero projects: the switcher offers All projects and User; the globe is never locked. */
+export const ZeroProjects: Story = {
+  args: { workspace: { name: DESTINATION_COPY.user, monogram: "~" } },
+  render: () => (
+    <MenubarFixture
+      overlay="workspace-menu"
+      workspaces={[]}
+      breadthMode="focused"
+      focus={{ kind: "user" }}
+      chip={USER_CHIP}
+      onToggleAllProjects={fn()}
     />
   ),
 };
@@ -268,16 +318,16 @@ export const WorkspaceMenuOpen: Story = {
   render: () => <MenubarFixture overlay="workspace-menu" listing={MENUBAR_NEST_LISTING} />,
 };
 
-/** Global on: the menu lists project folders with no check and no notices. */
-export const WorkspaceMenuOpenWhileGlobal: Story = {
-  args: { workspace: { name: "Global", monogram: "~" } },
+/** All projects on: the switcher checks All projects, then lists User and the projects. */
+export const WorkspaceMenuOpenWhileAllProjects: Story = {
+  args: { workspace: { name: DESTINATION_COPY.allProjects, monogram: "∗" } },
   render: () => (
     <MenubarFixture
       overlay="workspace-menu"
-      chip={{ name: "Global", monogram: "~" }}
-      onToggleGlobalScope={fn()}
-      scope="global"
-      toggleLocked={false}
+      breadthMode="all"
+      focus={{ kind: "project", workspaceId: WORKSPACES[0].id }}
+      chip={ALL_PROJECTS_CHIP}
+      onToggleAllProjects={fn()}
     />
   ),
 };

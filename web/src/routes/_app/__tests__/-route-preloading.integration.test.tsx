@@ -37,7 +37,6 @@ import {
 } from "@/systems/profiles";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
-import { statusOptions } from "@/systems/status";
 import {
   taskDashboardOptions,
   useTask,
@@ -61,7 +60,8 @@ import {
 import { useVaultSecrets, vaultSecretsListOptions } from "@/systems/vault";
 import {
   setActiveWorkspaceId,
-  enableGlobalScope,
+  enableAllProjects,
+  focusUser,
   useWorkspace,
   useWorkspaces,
   workspacesListOptions,
@@ -349,7 +349,7 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "home → status/workspace/agent/exact-active-session options",
+    name: "home → workspace/agent/exact-active-session options",
     load: queryClient => invokeLoader(HomeRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -361,12 +361,7 @@ const cases: PreloadCase[] = [
           filters: { state: "active", type: "user", sort: "last_activity", limit: 6 },
         });
       }),
-    requests: [
-      adapterMocks.fetchStatus,
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.fetchAgents,
-      adapterMocks.fetchSessions,
-    ],
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgents, adapterMocks.fetchSessions],
   },
   {
     name: "tasks → exact route-filtered active-workspace catalog options",
@@ -398,12 +393,7 @@ const cases: PreloadCase[] = [
         });
         useTaskInboxBadge({ scope: "workspace", workspace: workspace.id, limit: 1 });
       }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.fetchStatus,
-      adapterMocks.listTasks,
-      adapterMocks.getTaskInbox,
-    ],
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.listTasks, adapterMocks.getTaskInbox],
   },
   {
     name: "agents → exact workspace/filter infinite catalog options",
@@ -922,9 +912,33 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should preload and reuse the Global agent catalog without a project", async () => {
+  it("Should preload User lists under User focus, never the aggregate", async () => {
     const queryClient = createQueryClient();
-    enableGlobalScope();
+    focusUser();
+
+    await invokeLoader(TasksRoute, { ...context(queryClient), deps: {} });
+    await invokeLoader(AutomationsRoute, {
+      ...context(queryClient),
+      deps: {},
+      location: { pathname: "/automations" },
+    });
+
+    expect(adapterMocks.listTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "global" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listTasks.mock.calls[0]?.[0].workspace).toBeUndefined();
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "global" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listAutomationSuggestions).not.toHaveBeenCalled();
+    queryClient.clear();
+  });
+
+  it("Should preload and reuse the user-layer agent catalog under All projects", async () => {
+    const queryClient = createQueryClient();
+    enableAllProjects();
     await invokeLoader(AgentsRoute, {
       ...context(queryClient),
       deps: { q: "reading", limit: 50 },
@@ -1062,11 +1076,6 @@ describe("route query preloading", () => {
   });
 
   it.each([
-    {
-      name: "status",
-      reject: () => adapterMocks.fetchStatus.mockRejectedValue(new Error("status unavailable")),
-      queryKey: statusOptions().queryKey,
-    },
     {
       name: "workspace catalog",
       reject: () =>
@@ -1334,7 +1343,7 @@ describe("route query preloading", () => {
     "Should restore the remembered profile in %s breadth before cold-entry task and shell reads",
     async scope => {
       const queryClient = createQueryClient();
-      if (scope === "global") enableGlobalScope();
+      if (scope === "global") enableAllProjects();
       adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "marketing" });
       adapterMocks.getTaskRun.mockResolvedValue({ run: { id: "run-1", status: "completed" } });
       adapterMocks.getTask.mockResolvedValue({

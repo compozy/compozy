@@ -22,9 +22,12 @@ function GroupNote({ children }: { children: React.ReactNode }) {
 
 function ConnectedGroupBody(props: Parameters<typeof GroupBody>[0]) {
   const group = props.group;
-  const catalog = useSessionCatalog(group.workspaceId, group.catalogFilters, group.enabled, {
-    facets: false,
-  });
+  const catalog = useSessionCatalog(
+    { kind: "project", workspaceId: group.workspaceId },
+    group.catalogFilters,
+    group.enabled,
+    { facets: false }
+  );
   return (
     <>
       <GroupBody

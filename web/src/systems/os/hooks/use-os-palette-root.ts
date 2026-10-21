@@ -132,7 +132,7 @@ export function useOsPaletteRoot({
   const registry = usePaletteRegistry();
   const jumpToSession = useAttentionJump();
   const workspace = useActiveWorkspace();
-  const { activeWorkspaceId, registeredWorkspaces, runtimeWorkspaceId, scope } = workspace;
+  const { activeWorkspaceId, dataScope, registeredWorkspaces, runtimeWorkspaceId } = workspace;
   const [query, setQuery] = useState("");
   const paletteIntent = useWindowPaletteIntent();
   const destinationWindowId =
@@ -142,8 +142,7 @@ export function useOsPaletteRoot({
   const entities = useOsPaletteEntities({
     open,
     activeWorkspaceId,
-    runtimeWorkspaceId,
-    scope,
+    dataScope,
     destinationWindowId,
     destination,
     query,
@@ -153,7 +152,6 @@ export function useOsPaletteRoot({
   const fallbackAgentEnabled = useCmdPaletteFallbackSettings({
     activeWorkspaceId,
     open,
-    scope,
     settled: workspace.hasHydrated && !workspace.pending,
   });
   const assembly = assemblePaletteResults({
@@ -169,9 +167,9 @@ export function useOsPaletteRoot({
     open: open && !destination,
     query,
     workspaceId: runtimeWorkspaceId,
-    scope,
+    scope: dataScope,
     workspaceNames:
-      scope === "global"
+      dataScope?.kind === "all"
         ? new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]))
         : new Map(),
     signals: rankSignals.data,

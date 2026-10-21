@@ -27,7 +27,7 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
     // navigation error.
     return;
   }
-  const scope = homeScopeForActiveWorkspace(resolution.scope, resolution.activeWorkspaceId);
+  const scope = homeScopeForActiveWorkspace(resolution.dataScope);
   if (!scope) return;
   const agentWorkspaceId = resolution.runtimeWorkspaceId;
   if (!agentWorkspaceId) return;

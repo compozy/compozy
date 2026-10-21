@@ -10,7 +10,8 @@ import { useSessionEnvironment, type SessionEnvironmentModel } from "./use-sessi
 import { type AgentPayload, useAgents } from "@/systems/agent";
 import {
   useUserHomeDir,
-  type WorkspaceScopeMode,
+  type DataScope,
+  type DestinationKind,
   type WorkspacePayload,
 } from "@/systems/workspace";
 import { useSessionCreateSubmit } from "./use-session-create-submit";
@@ -19,9 +20,8 @@ import { useSessionCreateDialogActions } from "./use-session-create-dialog-actio
 interface SessionCreateDialogContext {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
-  scope?: WorkspaceScopeMode;
+  dataScope?: DataScope | null;
   projectWorkspaceId?: string | null;
-  homeWorkspaceId?: string;
 }
 
 export interface SessionCreateDialogState {
@@ -31,7 +31,7 @@ export interface SessionCreateDialogState {
   agents: AgentPayload[];
   workspace: WorkspacePayload | undefined;
   workspaceId: string | null;
-  scope: WorkspaceScopeMode;
+  scope: DestinationKind;
   destinationLabel: string;
   sessionRoot: string;
   destinationReady: boolean;
@@ -70,13 +70,7 @@ export function useSessionCreateDialogController(): SessionCreateDialogControlle
 
 /** Projects session-create state into the dialog API and validates durable launch requests. */
 export function useSessionCreateDialogViewModel(
-  {
-    agents,
-    activeWorkspace,
-    scope: requestedScope,
-    projectWorkspaceId,
-    homeWorkspaceId,
-  }: SessionCreateDialogContext,
+  { agents, activeWorkspace, dataScope, projectWorkspaceId }: SessionCreateDialogContext,
   store: SessionCreateStore
 ): SessionCreateDialogApi {
   const userHomeDir = useUserHomeDir();
@@ -89,9 +83,8 @@ export function useSessionCreateDialogViewModel(
   const { pendingSubmit } = flow;
   const destination = resolveSessionCreateDestination({
     activeWorkspace,
-    homeWorkspaceId,
     projectWorkspaceId,
-    requestedScope,
+    dataScope,
     userHomeDir,
   });
 
@@ -110,7 +103,7 @@ export function useSessionCreateDialogViewModel(
       );
       store.trigger.environmentSelected({ environment: next });
     },
-    enabled: flow.open && destination.scope === "workspace" && destination.binding !== null,
+    enabled: flow.open && destination.scope === "project" && destination.binding !== null,
   });
 
   const submit = useSessionCreateSubmit({
@@ -146,7 +139,7 @@ export function useSessionCreateDialogViewModel(
     pendingAgentName,
     pendingWorkspaceId,
     userHomeDir,
-    environment: destination.scope === "workspace" ? environment.field : undefined,
+    environment: destination.scope === "project" ? environment.field : undefined,
     environmentListingState: environment.listingState,
     environmentListingError: environment.listingError,
     isAwaitingEnvironment: pendingSubmit !== null,

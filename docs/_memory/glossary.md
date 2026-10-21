@@ -366,7 +366,7 @@ The visual shape of the dock: the 60px column on the left edge (`--width-rail`, 
 
 ### Menubar
 
-The top bar across the full window: CompozyOS mark (whose menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray — desktop pager, All desktops, the approvals bell, and the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
+The top bar across the full window: CompozyOS mark (whose menu holds Settings), **All projects** globe, destination chip, app menus, then the tray — desktop pager, All desktops, the approvals bell, and the ⌘K palette. The globe sits between the mark and the chip and is the only owner of breadth (All projects vs the focus); the chip's switcher sets the focus: **All projects**, **User**, then projects. The chip reads the project name when a project is focused, **User** (`~`) when User is focused, or **All projects** while the globe is pressed.
 
 **Naming:** the menubar's accessible name is "System bar"; "topbar" is only a prose description of its position. `<Topbar>` in `@compozy/ui` is the **window head**, not the menubar — never use "Topbar" to mean the menubar in code or specs.
 

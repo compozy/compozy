@@ -27,13 +27,13 @@ export function useOsPaletteDomainView(
 ): PaletteViewContent {
   const domainTitle = definition.domainTitle ?? definition.title;
   const [filter, setFilter] = useState("all");
-  const { runtimeWorkspaceId, scope, workspaces } = useActiveWorkspace();
+  const { dataScope, runtimeWorkspaceId, workspaces } = useActiveWorkspace();
   const signals = useCmdPaletteRankSignals(runtimeWorkspaceId, true);
   const sections = useOsPaletteDomainSearch({
     open: true,
     query,
     workspaceId: runtimeWorkspaceId,
-    scope,
+    scope: dataScope,
     workspaceNames: new Map(workspaces.map(workspace => [workspace.id, workspace.name])),
     signals: signals.data,
     targetDomain: domainTitle,

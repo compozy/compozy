@@ -12,7 +12,12 @@ import { flushStorage } from "@xstate/store/persist";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { disableGlobalScope, enableGlobalScope, setActiveWorkspaceId } from "@/systems/workspace";
+import {
+  disableAllProjects,
+  enableAllProjects,
+  focusUser,
+  setActiveWorkspaceId,
+} from "@/systems/workspace";
 
 import {
   fetchProfileSelection,
@@ -53,7 +58,7 @@ function createWrapper() {
 describe("global profile selection", () => {
   beforeEach(() => {
     resetProfileViews();
-    disableGlobalScope();
+    disableAllProjects();
     setActiveWorkspaceId("ws-alpha");
     vi.mocked(fetchProfiles).mockResolvedValue(PROFILE_ROWS as never);
     vi.mocked(fetchProfileSelection).mockResolvedValue({ scope: "global", profile: "marketing" });
@@ -71,8 +76,9 @@ describe("global profile selection", () => {
 
     for (const move of [
       () => setActiveWorkspaceId("ws-beta"),
-      () => enableGlobalScope(),
-      () => disableGlobalScope(),
+      () => enableAllProjects(),
+      () => disableAllProjects(),
+      () => focusUser(),
       () => setActiveWorkspaceId("ws-alpha"),
     ]) {
       act(move);

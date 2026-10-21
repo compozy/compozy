@@ -14,14 +14,14 @@ import {
   useLoopRuns,
   useLoops,
 } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
 
 const RECENT_RUNS_LIMIT = 5;
 
 /** View-model for the Loop detail route: definition, 30d aggregate, recent runs, bindings, nav. */
 export function useLoopDetail(name: string, routeWorkspaceId?: string) {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = routeWorkspaceId ?? runtimeWorkspaceId ?? "";
+  const { dataScope } = useActiveWorkspace();
+  const workspaceId = routeWorkspaceId ?? focusedWorkspaceSelector(dataScope);
   const navigate = useNavigate();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const active = workspaceId !== "" && liveDataEnabled;

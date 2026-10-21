@@ -11,7 +11,7 @@ import {
 } from "@/systems/automation";
 import type { VaultSecret } from "@/systems/vault";
 import { ownerFromRow, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
-import type { WorkspaceScopeMode } from "@/systems/workspace";
+import { DESTINATION_COPY, type DataScope } from "@/systems/workspace";
 
 import { compareStatusAttentionFirst } from "@/lib/status-tone";
 
@@ -86,13 +86,14 @@ export function isPaletteDomainSearchEnabled(
   );
 }
 
+/** Owner label under All projects only: the project's name, or "User" with no project. */
 export function workspaceLabel(
-  scope: WorkspaceScopeMode,
+  scope: DataScope,
   workspaceId: string | null | undefined,
   names: ReadonlyMap<string, string>
 ): string | undefined {
-  if (scope !== "global") return undefined;
-  if (!workspaceId) return "Global";
+  if (scope.kind !== "all") return undefined;
+  if (!workspaceId) return DESTINATION_COPY.user;
   return names.get(workspaceId) ?? workspaceId;
 }
 
@@ -124,14 +125,14 @@ export function marketplaceEntryRoute(input: {
   source?: string;
   profileName?: string;
   entryId: string;
-  scope: WorkspaceScopeMode;
+  scope: DataScope;
   workspaceId?: string | null;
   installedName?: string | null;
 }): OsWindowRoute {
   const workspace = input.workspaceId?.trim();
   const installedName = input.installedName?.trim();
   const search =
-    input.scope === "workspace" && workspace
+    input.scope.kind === "project" && workspace
       ? {
           scope: "workspace",
           workspace_id: workspace,
@@ -225,7 +226,7 @@ export function section(
 
 export function projectVaultRows(
   secrets: readonly VaultSecret[],
-  scope: WorkspaceScopeMode,
+  scope: DataScope,
   names: ReadonlyMap<string, string>
 ): readonly OsPaletteVaultRow[] {
   return secrets.map(secret => {
@@ -246,7 +247,7 @@ export function projectVaultRows(
 /** Both automation kinds as one section: start glyph, name, and the sentence as subtitle. */
 /**
  * Palette automation views with the same sentence as the listing: the project name
- * resolves from every registered workspace, not only the Global-scope label index.
+ * resolves from every registered workspace, not only the All projects label index.
  */
 export function paletteAutomationViews(
   jobs: readonly AutomationJob[],
@@ -270,7 +271,7 @@ export function paletteAutomationViews(
 
 export function projectAutomationRows(
   views: readonly AutomationView[],
-  scope: WorkspaceScopeMode,
+  scope: DataScope,
   names: ReadonlyMap<string, string>
 ): readonly OsPaletteDomainRow[] {
   return views.map(view => ({
@@ -285,27 +286,26 @@ export function projectAutomationRows(
   }));
 }
 
-export function paletteTaskFilters(
-  scope: WorkspaceScopeMode,
-  workspaceId: string | null
-): { scope: "all" | "workspace"; workspace?: string } {
-  if (scope === "workspace" && workspaceId) {
-    return { scope: "workspace", workspace: workspaceId };
-  }
+/** Tasks: the project's, User's (`scope=global`, no workspace), or every task. */
+export function paletteTaskFilters(scope: DataScope): {
+  scope: "all" | "global" | "workspace";
+  workspace?: string;
+} {
+  if (scope.kind === "project") return { scope: "workspace", workspace: scope.workspaceId };
+  if (scope.kind === "user") return { scope: "global" };
   return { scope: "all" };
 }
 
 /**
- * Automation lists have no `scope: "all"` token. Omitting scope and workspace
- * is the complete population — not a stand-in for the home runtime id.
+ * Automations: the project's, User's (`scope=global`), or — with no `scope:
+ * "all"` token — the complete population by omitting scope and workspace.
  */
-export function paletteWorkspaceCatalogFilters(
-  scope: WorkspaceScopeMode,
-  workspaceId: string | null
-): { scope?: "workspace"; workspace_id?: string } {
-  if (scope === "workspace" && workspaceId) {
-    return { scope: "workspace", workspace_id: workspaceId };
-  }
+export function paletteWorkspaceCatalogFilters(scope: DataScope): {
+  scope?: "global" | "workspace";
+  workspace_id?: string;
+} {
+  if (scope.kind === "project") return { scope: "workspace", workspace_id: scope.workspaceId };
+  if (scope.kind === "user") return { scope: "global" };
   return {};
 }
 

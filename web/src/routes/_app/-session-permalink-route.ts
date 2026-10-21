@@ -5,6 +5,7 @@ import type { RouterContext } from "@/integrations/tanstack-query/root-context";
 
 import type { TopbarRouteContext } from "@/types/topbar";
 import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
+import { sessionRouteOwnership, type SessionRouteOwnership } from "./-session-route-ownership";
 import {
   cachedForeignSessionOwner,
   resolveSessionOwner,
@@ -88,46 +89,45 @@ export async function resolveSessionPermalink({
   queryClient: QueryClient;
   sessionId: string;
 }): Promise<SessionPermalinkResolution> {
-  // Global data scope still renders inside the remembered project's desktop.
-  // Session windows belong to that durable layout partition, not to the
-  // workspace-free catalog lens used by global listings.
-  const selection = await resolveActiveWorkspaceSelection(queryClient);
-  const workspaceId = selection.desktopWorkspaceId;
-  if (!workspaceId) {
+  // Session windows belong to the mounted desktop's partition, not to the
+  // catalog lens of the data scope (All projects keeps a project's desktop).
+  const ownership = sessionRouteOwnership(await resolveActiveWorkspaceSelection(queryClient));
+  if (!ownership) {
     throw new SessionNotFoundError(sessionId);
   }
 
-  const knownOwner = cachedForeignSessionOwner(queryClient, sessionId, workspaceId);
+  const knownOwner = cachedForeignSessionOwner(queryClient, sessionId, ownership.ownerWorkspaceId);
   if (knownOwner) {
-    if (knownOwner.workspaceId === "" && selection.scope === "global") {
-      return resolveForeignPermalink(queryClient, sessionId, workspaceId, true);
+    if (ownership.accepts(knownOwner.workspaceId)) {
+      return resolveForeignPermalink(queryClient, sessionId, ownership);
     }
     return { status: "foreign", owner: knownOwner };
+  }
+  if (ownership.proofSelector === null) {
+    return resolveForeignPermalink(queryClient, sessionId, ownership);
   }
 
   let session: SessionPayload;
   try {
     // The profile-aware by-id endpoint does not enforce workspace ownership.
-    // Prove the active workspace first so a permalink cannot jump across
-    // workspaces without the operator's confirmation.
-    await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
+    // Prove the desktop's scope first (`@user` on the User desktop) so a
+    // permalink cannot jump across destinations without the operator's
+    // confirmation.
+    await queryClient.ensureQueryData(sessionDetailOptions(ownership.proofSelector, sessionId));
     session = await queryClient.ensureQueryData(
       sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient))
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
-      return resolveForeignPermalink(
-        queryClient,
-        sessionId,
-        workspaceId,
-        selection.scope === "global"
-      );
+      return resolveForeignPermalink(queryClient, sessionId, ownership);
     }
     throw error;
   }
 
   await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, session.id)),
+    queryClient.ensureInfiniteQueryData(
+      sessionTranscriptOptions(ownership.ownerWorkspaceId, session.id)
+    ),
   ]);
   return { status: "resolved", session };
 }
@@ -139,14 +139,13 @@ export async function resolveSessionPermalink({
 async function resolveForeignPermalink(
   queryClient: QueryClient,
   sessionId: string,
-  activeWorkspaceId: string,
-  globalScope: boolean
+  ownership: SessionRouteOwnership
 ): Promise<SessionPermalinkResolution> {
   const owner = await resolveSessionOwner(queryClient, sessionId);
   if (!owner) {
     throw new SessionNotFoundError(sessionId);
   }
-  if (owner.workspaceId === activeWorkspaceId || (globalScope && owner.workspaceId === "")) {
+  if (ownership.accepts(owner.workspaceId)) {
     const session = await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
     await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),

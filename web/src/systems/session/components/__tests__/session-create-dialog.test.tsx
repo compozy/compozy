@@ -61,7 +61,7 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     mode: "simple",
     onModeChange: vi.fn(),
     agents,
-    scope: "workspace",
+    scope: "project",
     destinationLabel: workspace.name,
     sessionRoot: workspace.root_dir,
     destinationReady: true,

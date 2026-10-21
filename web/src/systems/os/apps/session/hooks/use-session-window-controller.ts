@@ -13,8 +13,8 @@ import { useSessionWindowRuntime } from "./use-session-window-runtime";
 export function useSessionWindowController(windowId: string) {
   const { coordinator } = useOsShell();
   const { aggregate } = useProfileReadScope();
-  const activeWorkspace = useActiveWorkspace();
-  const runtimeWorkspaceId = activeWorkspace.runtimeWorkspaceId?.trim() || null;
+  const { dataScope } = useActiveWorkspace();
+  const focusedScope = dataScope === null || dataScope.kind === "all" ? null : dataScope;
   const { liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const deletionPending = useSessionDeletionPending(sessionId);
@@ -22,7 +22,7 @@ export function useSessionWindowController(windowId: string) {
   const deletedByOperator = sessionId !== null && deletedSessionId === sessionId;
   const resolution = useSessionWindowResolution({
     sessionId,
-    runtimeWorkspaceId,
+    focusedScope,
     liveTailEnabled: liveTailEnabled && !deletedByOperator,
   });
   const remotelyGone =

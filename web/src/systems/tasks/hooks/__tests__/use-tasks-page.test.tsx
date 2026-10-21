@@ -56,7 +56,7 @@ const workspaceMockState = vi.hoisted(() => ({
   hasHydrated: true,
   isLoading: false,
   pending: false,
-  scope: "workspace" as "workspace" | "global",
+  breadthMode: "focused" as "focused" | "all",
   selectedWorkspaceId: "ws_alpha" as string | null,
 }));
 
@@ -87,35 +87,31 @@ const workspaceFixtures = vi.hoisted(() => [
   },
 ]);
 
-vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  // Mirrors resolveActiveWorkspace: the home row is never a project, a missing
-  // remembered id coerces to Global, and `pending` claims nothing.
-  useActiveWorkspace: (options: unknown) => {
-    workspaceMockState.options = options;
-    const projectWorkspaces = workspaceFixtures.filter(workspace => workspace.id !== "ws_home");
-    const remembered = projectWorkspaces.find(
-      workspace => workspace.id === workspaceMockState.selectedWorkspaceId
-    );
-    const pending = workspaceMockState.pending;
-    const scope = pending
-      ? workspaceMockState.scope
-      : workspaceMockState.scope === "workspace" && remembered
-        ? "workspace"
-        : "global";
-    const activeWorkspace = !pending && scope === "workspace" ? remembered : undefined;
-    return {
-      activeWorkspace,
-      activeWorkspaceId: activeWorkspace?.id ?? null,
-      error: workspaceMockState.error,
-      hasHydrated: workspaceMockState.hasHydrated,
-      isLoading: workspaceMockState.isLoading,
-      isPending: workspaceMockState.isLoading,
-      pending,
-      scope,
-      workspaces: projectWorkspaces,
-    };
-  },
-}));
+vi.mock("@/systems/workspace/hooks/use-active-workspace", async () => {
+  const { resolveActiveWorkspace } = await import("@/systems/workspace/lib/active-workspace");
+  return {
+    // The real resolver over the fixture catalog: a missing remembered project
+    // resolves to User, and `pending` claims nothing it cannot prove.
+    useActiveWorkspace: (options: unknown) => {
+      workspaceMockState.options = options;
+      const selected = workspaceMockState.selectedWorkspaceId;
+      const resolution = resolveActiveWorkspace({
+        workspaces: workspaceFixtures,
+        breadthMode: workspaceMockState.breadthMode,
+        focus: selected ? { kind: "project", workspaceId: selected } : { kind: "user" },
+        pending: workspaceMockState.pending,
+      });
+      return {
+        ...resolution,
+        error: workspaceMockState.error,
+        hasHydrated: workspaceMockState.hasHydrated,
+        isLoading: workspaceMockState.isLoading,
+        isPending: workspaceMockState.isLoading,
+        workspaces: resolution.projectWorkspaces,
+      };
+    },
+  };
+});
 
 import {
   approveTask,
@@ -237,7 +233,7 @@ beforeEach(() => {
   workspaceMockState.isLoading = false;
   workspaceMockState.options = undefined;
   workspaceMockState.pending = false;
-  workspaceMockState.scope = "workspace";
+  workspaceMockState.breadthMode = "focused";
   workspaceMockState.selectedWorkspaceId = "ws_alpha";
   vi.mocked(listTasks).mockImplementation((filters: TaskListFilter = {}) => {
     if (filters.query === "Fix") {
@@ -475,8 +471,21 @@ describe("useTasksPage", () => {
     );
   });
 
-  it("maps Global scope to global task queries", async () => {
-    workspaceMockState.scope = "global";
+  it("maps User focus to unbound (scope=global) task queries, never every task", async () => {
+    workspaceMockState.selectedWorkspaceId = null;
+    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+    expect(listFilters?.scope).toBe("global");
+    expect(listFilters?.workspace).toBeUndefined();
+  });
+
+  it("maps All projects to global task queries", async () => {
+    workspaceMockState.breadthMode = "all";
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
     await waitFor(() => {
@@ -601,8 +610,8 @@ describe("useTasksPage", () => {
     });
   });
 
-  it("maps Global scope into global dashboard and backlog queries", async () => {
-    workspaceMockState.scope = "global";
+  it("maps All projects into global dashboard and backlog queries", async () => {
+    workspaceMockState.breadthMode = "all";
     renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {
       wrapper: createWrapper(),
     });

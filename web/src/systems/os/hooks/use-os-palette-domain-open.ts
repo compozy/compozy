@@ -46,13 +46,8 @@ function openDomainRoute(coordinator: RoutingCoordinator, row: OsPaletteDomainRo
  */
 export function useOsPaletteDomainOpen(onDismiss: () => void): (row: OsPaletteDomainRow) => void {
   const { coordinator } = useOsShell();
-  const {
-    activeWorkspaceId,
-    registeredWorkspaces,
-    runtimeWorkspaceId,
-    scope,
-    setActiveWorkspaceId,
-  } = useActiveWorkspace();
+  const { activeWorkspaceId, registeredWorkspaces, runtimeWorkspaceId, setActiveWorkspaceId } =
+    useActiveWorkspace();
   const commandAvailable = useDesktop(windowManagerCommandsAvailable);
   const commandWorkspaceId = useDesktop(state => state.snapshot?.workspaceId.trim() || null);
   const worktreeScopeId = useFocusedWorktreeScopeId();
@@ -82,7 +77,6 @@ export function useOsPaletteDomainOpen(onDismiss: () => void): (row: OsPaletteDo
             workspaceId: row.worktreeSelection.workspaceId,
             worktree: { id: row.worktreeSelection.worktreeId },
           },
-          scope,
           setActiveWorkspaceId,
           worktreeScopeId,
         });

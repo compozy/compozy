@@ -1,22 +1,28 @@
 // Suite: session-window sidebar selection
 // Invariant: same-workspace selection retargets the current window; a foreign
-// session goes through the workspace-ready jump coordinator.
+// session goes through the workspace-ready jump coordinator. The rail lists the
+// window's own scope — a User session window lists User sessions (never the
+// aggregate, never a worktree filter) — and an unknown scope stays idle.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 
-const { jumpToSession, userRetarget, transport } = vi.hoisted(() => ({
-  transport: { degradedAt: null as number | null },
-  jumpToSession: vi.fn(),
-  userRetarget: vi.fn(),
-}));
+const { jumpToSession, userRetarget, transport, useSessionListView, useScopedWorktreeFilter } =
+  vi.hoisted(() => ({
+    transport: { degradedAt: null as number | null },
+    jumpToSession: vi.fn(),
+    userRetarget: vi.fn(),
+    useSessionListView: vi.fn(() => ({ sort: "last_activity", scope: "workspace" })),
+    useScopedWorktreeFilter: vi.fn((_workspaceId: string | null, _scopeId: string) => ({
+      resolved: true,
+      worktreeId: undefined,
+    })),
+  }));
 
 vi.mock("@/hooks/use-window-scope", () => ({ useWorktreeScopeId: () => "window:one" }));
-vi.mock("@/systems/workspace", () => ({
-  useScopedWorktreeFilter: () => ({ resolved: true, worktreeId: undefined }),
-}));
+vi.mock("@/systems/workspace", () => ({ useScopedWorktreeFilter }));
 vi.mock("../../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => jumpToSession,
 }));
@@ -35,7 +41,7 @@ vi.mock("@/systems/session", async () => ({
     deleteDialog: { open: false },
     renameDialog: { open: false },
   }),
-  useSessionListView: () => ({ sort: "last_activity", scope: "workspace" }),
+  useSessionListView,
   useSessions: () => ({ data: [], isError: false }),
   useSessionSidebarState: () => ({
     open: true,
@@ -85,6 +91,7 @@ describe("useSessionWindowSidebar", () => {
       useSessionWindowSidebar({
         windowId: "window-session",
         workspaceId: "workspace-1",
+        scope: { kind: "project", workspaceId: "workspace-1" },
         transportDisconnected: disconnected,
       })
     );
@@ -116,6 +123,7 @@ describe("useSessionWindowSidebar", () => {
       useSessionWindowSidebar({
         windowId: "window-session",
         workspaceId: "workspace-1",
+        scope: { kind: "project", workspaceId: "workspace-1" },
         sessionId: "session-current",
       })
     );
@@ -131,5 +139,31 @@ describe("useSessionWindowSidebar", () => {
       workspaceId: "workspace-2",
     });
     expect(userRetarget).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should list User sessions in a User session window without a worktree filter", () => {
+    renderHook(() =>
+      useSessionWindowSidebar({
+        windowId: "window-session",
+        workspaceId: "",
+        scope: { kind: "user" },
+        sessionId: "session-user",
+      })
+    );
+
+    expect(useScopedWorktreeFilter.mock.calls.at(-1)?.[0]).toBeNull();
+    expect(useSessionListView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: { kind: "user" }, enabled: true })
+    );
+  });
+
+  it("Should keep the rail idle while the window's scope is unknown", () => {
+    renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", workspaceId: "", scope: null })
+    );
+
+    expect(useSessionListView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: null, enabled: false })
+    );
   });
 });

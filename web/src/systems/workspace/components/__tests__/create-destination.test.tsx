@@ -1,6 +1,7 @@
 // Suite: the shared creation destination statement.
 // Invariant: the profile half of the destination appears only while the aggregate
-// is on, and it is a label rather than a control.
+// is on, and it is a label rather than a control; a destination outside any project
+// reads "User" without claiming the item is visible to every project.
 // Boundary IN: what the statement renders for a given destination.
 // Boundary OUT: which surfaces mount it, and whether their mutation sends the
 // same destination — the creation hosts and their mutation hooks own that.
@@ -11,14 +12,20 @@ import { UIProvider } from "@compozy/ui";
 
 import { CreateDestinationStatement } from "../create-destination";
 
-function renderStatement(profileDestination: string | null) {
+function renderStatement(
+  profileDestination: string | null,
+  destination: { scope: "project" | "user"; label: string } = {
+    scope: "project",
+    label: "acme-site",
+  }
+) {
   return render(
     <UIProvider reducedMotion="never" skipAnimations>
       <CreateDestinationStatement
-        destination="acme-site"
+        destination={destination.label}
         kind="create"
         profileDestination={profileDestination}
-        scope="workspace"
+        scope={destination.scope}
         variant="note"
       />
     </UIProvider>
@@ -41,5 +48,12 @@ describe("CreateDestinationStatement", () => {
       "Creates in acme-site"
     );
     expect(screen.getByTestId("profile-destination-chip")).toHaveTextContent("default");
+  });
+
+  it("Should state User as the destination outside any project", () => {
+    renderStatement(null, { scope: "user", label: "User" });
+    const statement = screen.getByTestId("workspace-scope-statement");
+    expect(statement).toHaveTextContent("Creates in User.");
+    expect(statement).not.toHaveTextContent("every project");
   });
 });

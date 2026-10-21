@@ -39,17 +39,29 @@ export type { CreateWorkspaceParams, ResolveWorkspaceParams } from "./adapters/w
 // Query infrastructure
 export { contractHomePath } from "./lib/display-path";
 export { copyWorktreePath } from "./lib/copy-worktree-path";
-export { isOperatorHomeWorkspace, partitionProjectWorkspaces } from "./lib/project-workspaces";
-export type { ProjectWorkspacePartition, WorkspaceHomeCandidate } from "./lib/project-workspaces";
-export {
-  GLOBAL_DESKTOP_WORKSPACE_ID,
-  resolveActiveWorkspace,
-  workspaceMonogram,
-} from "./lib/active-workspace";
+export { isOperatorHomeWorkspace } from "./lib/project-workspaces";
+export type { WorkspaceHomeCandidate } from "./lib/project-workspaces";
+export { resolveActiveWorkspace, workspaceMonogram } from "./lib/active-workspace";
 export type { ActiveWorkspaceResolution, WorkspaceChipIdentity } from "./lib/active-workspace";
+export {
+  ALL_DATA_SCOPE,
+  dataScopeForFocus,
+  dataScopeFromSelector,
+  desktopPartitionFor,
+  focusedWorkspaceSelector,
+  GLOBAL_DESKTOP_WORKSPACE_ID,
+  isReservedDesktopPartition,
+  ownerDataScope,
+  sameDataScope,
+  USER_DESKTOP_WORKSPACE_ID,
+  USER_FOCUS,
+  USER_SCOPE_SELECTOR,
+  workspaceSelectorForScope,
+  workspaceSelectorOrAll,
+} from "./lib/destination";
+export type { BreadthMode, DataScope, Focus, FocusedDataScope } from "./lib/destination";
 export { toWorkspaceCommandSelectOptions } from "./lib/workspace-command-select-options";
 export { workspaceProviderToOption } from "./lib/provider-runtime-option";
-export type { WorkspaceScopeMode } from "./lib/workspace-scope-mode";
 export { workspaceKeys } from "./lib/query-keys";
 export {
   workspaceDetailOptions,
@@ -60,10 +72,12 @@ export {
   worktreeStatusOptions,
 } from "./lib/query-options";
 export {
-  GLOBAL_SCOPE_COPY,
+  allProjectsTooltipOn,
+  DESTINATION_COPY,
   destinationLabel,
-  globalScopeTooltipOn,
+  focusLabel,
 } from "./lib/workspace-scope-copy";
+export type { DestinationKind } from "./lib/workspace-scope-copy";
 
 // Worktree data layer
 export {
@@ -140,26 +154,29 @@ export { groupWorkspaceTree } from "./lib/workspace-tree";
 export type { WorkspaceTreeNode, WorktreeListingByWorkspace } from "./lib/workspace-tree";
 
 // Hooks
-export { useActiveWorkspace } from "./hooks/use-active-workspace";
+export { useActiveWorkspace, useDataScope } from "./hooks/use-active-workspace";
 export {
   activeWorkspaceStore,
   isActiveWorkspaceStoreHydrated,
   rehydrateActiveWorkspaceStore,
+  useBreadthMode,
+  useFocus,
   useSelectedWorkspaceId,
-  useWorkspaceScopeMode,
 } from "./hooks/use-active-workspace-store";
 export { useUserHomeDir } from "./hooks/use-user-home-dir";
 export {
   ACTIVE_WORKSPACE_PERSIST_KEY,
   clearActiveWorkspaceSelection,
   clearActiveWorktreeSelection,
-  disableGlobalScope,
-  enableGlobalScope,
+  disableAllProjects,
+  enableAllProjects,
+  focusDestination,
+  focusUser,
   pruneWorktreeScopes,
   setActiveWorkspaceId,
   setActiveWorktreeId,
   SHELL_WORKTREE_SCOPE,
-  toggleGlobalScope,
+  toggleAllProjects,
 } from "./stores/active-workspace-store";
 export {
   useCreateWorkspace,

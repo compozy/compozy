@@ -134,7 +134,8 @@ const paletteMocks = vi.hoisted(() => {
     openForAgent: vi.fn(),
     pending: false,
     profileAggregate: false,
-    scope: "workspace" as "workspace" | "global",
+    /** Destination: a project (`activeWorkspaceId`), User, or All projects (`global`). */
+    scope: "workspace" as "workspace" | "global" | "user",
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
     paletteIntentCleared: vi.fn(),
     paletteIntentRequested: vi.fn(),
@@ -149,7 +150,6 @@ const paletteMocks = vi.hoisted(() => {
     previousCatalogPage: vi.fn(),
     sessionGroupWorkspaces: vi.fn(),
     setSessionListScope: vi.fn(),
-    toggleLocked: false,
     windowCommands: {
       arrangeCommands: [],
       commandsAvailable: true,
@@ -205,10 +205,20 @@ vi.mock("@/systems/session", async importOriginal => ({
     return { pending: paletteMocks.fallbackPending, run: paletteMocks.runFallback };
   },
   useSessionCatalog: (
-    workspaceId: string | null,
+    scope: { kind: "all" } | { kind: "user" } | { kind: "project"; workspaceId: string } | null,
     filters: { q?: string; badge?: string; attention?: boolean },
     enabled: boolean
   ) => {
+    // Recorded as the selector the catalog sends: `null` = every project, `@user`
+    // = User, `undefined` = unsettled (the real hook reads nothing).
+    const workspaceId =
+      scope === null
+        ? undefined
+        : scope.kind === "all"
+          ? null
+          : scope.kind === "user"
+            ? "@user"
+            : scope.workspaceId;
     paletteMocks.sessionsWorkspaceId(workspaceId);
     paletteMocks.sessionsFilters(filters);
     paletteMocks.sessionsEnabled(enabled);
@@ -271,10 +281,19 @@ vi.mock("@/systems/session", async importOriginal => ({
   },
 }));
 
+function mockDataScope() {
+  if (paletteMocks.scope === "global") return { kind: "all" as const };
+  if (paletteMocks.scope === "user") return { kind: "user" as const };
+  // A stored project focus is unconfirmed while the catalog is pending.
+  return paletteMocks.pending || paletteMocks.activeWorkspaceId === null
+    ? null
+    : { kind: "project" as const, workspaceId: paletteMocks.activeWorkspaceId };
+}
+
 vi.mock("@/systems/workspace", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/workspace")>()),
   useSelectedWorkspaceId: () => paletteMocks.activeWorkspaceId,
-  useWorkspaceScopeMode: () => paletteMocks.scope,
+  useBreadthMode: () => (paletteMocks.scope === "global" ? "all" : "focused"),
   useWorktrees: () => ({ data: undefined }),
   useWorktreeListings: () => ({}),
   useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
@@ -285,12 +304,11 @@ vi.mock("@/systems/workspace", async importOriginal => ({
     setActiveWorkspaceId: paletteMocks.setActiveWorkspaceId,
     workspaces: paletteMocks.workspaces,
     registeredWorkspaces: paletteMocks.registeredWorkspaces,
-    scope: paletteMocks.scope,
+    breadthMode: paletteMocks.scope === "global" ? "all" : "focused",
+    dataScope: mockDataScope(),
     pending: paletteMocks.pending,
     hasHydrated: true,
-    toggleLocked: paletteMocks.toggleLocked,
-    canDisableGlobal: true,
-    toggleGlobalScope: vi.fn(),
+    toggleAllProjects: vi.fn(),
   }),
 }));
 
@@ -742,7 +760,6 @@ function resetPaletteHarness() {
   paletteMocks.notifyUser.mockClear();
   paletteMocks.workspaceGroups = [];
   paletteMocks.writeViewStack([]);
-  paletteMocks.toggleLocked = false;
   paletteMocks.windowSlots.clear();
   paletteMocks.windowCommands.commandsAvailable = true;
   paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
@@ -792,15 +809,23 @@ describe("useOsPaletteRoot", () => {
     expect(paletteDispatch.run.mock.lastCall?.[0]).toMatchObject({ id: "app.open.tasks" });
   });
 
-  it("Should keep session lookup on the runtime workspace while scope resolution is pending [RA0289]", () => {
+  it("Should never widen session lookup to every project while resolution is pending [RA0289]", () => {
     paletteMocks.pending = true;
-    paletteMocks.toggleLocked = true;
     renderRoot();
 
-    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith("workspace:alpha");
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith(undefined);
+    expect(paletteMocks.sessionsWorkspaceId).not.toHaveBeenCalledWith(null);
   });
 
-  it("Should omit workspace-name indexes outside global scope [RA0303]", () => {
+  it("Should look up only User sessions while User is focused", () => {
+    paletteMocks.scope = "user";
+    renderRoot();
+
+    expect(paletteMocks.sessionsWorkspaceId).toHaveBeenCalledWith("@user");
+    expect(paletteMocks.sessionsWorkspaceId).not.toHaveBeenCalledWith(null);
+  });
+
+  it("Should omit workspace-name indexes outside All projects [RA0303]", () => {
     renderRoot();
     expect(paletteMocks.domainWorkspaceNames).toHaveBeenLastCalledWith(new Map());
 
@@ -815,7 +840,7 @@ describe("useOsPaletteRoot", () => {
     );
   });
 
-  it("Should include the home workspace in global session search", async () => {
+  it("Should include the home workspace in All projects session search", async () => {
     vi.useFakeTimers();
     paletteMocks.scope = "global";
     paletteMocks.rankSignals = TEST_RANK_SIGNALS;
@@ -1463,7 +1488,7 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-command-palette.view.sessions")).toBeInTheDocument();
   });
 
-  it("Should enable the Global Sessions view without a project workspace", async () => {
+  it("Should enable the All projects Sessions view without a project workspace", async () => {
     const user = userEvent.setup();
     paletteMocks.scope = "global";
     paletteMocks.activeWorkspaceId = null;
@@ -1818,7 +1843,7 @@ describe("palette nested views", () => {
           value: "must-never-cross-the-projection",
         } as never,
       ],
-      "workspace",
+      { kind: "project", workspaceId: "ws-a" },
       new Map()
     );
 

@@ -50,12 +50,14 @@ export function useOsPaletteEntitySections(
   ];
 }
 
+/** Worktrees belong to projects: the focused project's, or every project's; none in User. */
 function useWorktreeSection(context: OsPaletteDomainContext, catalogs: OsPaletteWorkspaceCatalogs) {
-  const enabled =
-    context.open && context.targetDomain === "Worktrees" && context.scopedWorkspace !== null;
-  const worktrees = useWorktrees(context.scopedWorkspace, { enabled });
+  const projectId = context.scope.kind === "project" ? context.scope.workspaceId : null;
+  const enabled = context.open && context.targetDomain === "Worktrees" && projectId !== null;
+  const worktrees = useWorktrees(projectId, { enabled });
   if (context.signals === null) return EMPTY_SECTION("Worktrees");
-  const rows = context.scope === "global" ? catalogs.worktrees : (worktrees.data?.worktrees ?? []);
+  const all = context.scope.kind === "all";
+  const rows = all ? catalogs.worktrees : (worktrees.data?.worktrees ?? []);
   return section(
     "Worktrees",
     rows.map(worktree =>
@@ -64,35 +66,43 @@ function useWorktreeSection(context: OsPaletteDomainContext, catalogs: OsPalette
         workspaceLabel(context.scope, worktree.workspace_id, context.workspaceNames)
       )
     ),
-    context.scope === "global" ? catalogs.worktreeState : worktrees,
-    paletteDomainEnabled(context, "Worktrees"),
+    all ? catalogs.worktreeState : worktrees,
+    paletteDomainEnabled(context, "Worktrees") && context.scope.kind !== "user",
     context.query,
     context.signals,
     {
       limit: context.domainLimit,
-      catalogTotal:
-        context.scope === "global" ? catalogs.worktreeTotal : worktrees.data?.worktrees.length,
+      catalogTotal: all ? catalogs.worktreeTotal : worktrees.data?.worktrees.length,
     }
   );
 }
 
+/**
+ * Agents: a project's, or the user-layer agents (`workspace` omitted) — alone
+ * under User, joined by every project's under All projects.
+ */
 function useAgentSection(context: OsPaletteDomainContext, catalogs: OsPaletteWorkspaceCatalogs) {
-  const globalEnabled = paletteDomainEnabled(context, "Agents") && context.scope === "global";
-  const globalAgents = useAgents(null, { enabled: globalEnabled });
+  const all = context.scope.kind === "all";
+  const project = context.scope.kind === "project";
+  const userLayerAgents = useAgents(null, {
+    enabled: paletteDomainEnabled(context, "Agents") && !project,
+  });
   const workspaceAgents = useAgents(context.scopedWorkspace, {
-    enabled: paletteDomainEnabled(context, "Agents") && context.scope === "workspace",
+    enabled: paletteDomainEnabled(context, "Agents") && project,
   });
   if (context.signals === null) return EMPTY_SECTION("Agents");
-  const rows =
-    context.scope === "global"
-      ? [
-          ...(globalAgents.data ?? []).map(agent => ({ agent, workspaceId: agent.workspace_id })),
-          ...catalogs.workspaceAgents,
-        ]
-      : (workspaceAgents.data ?? []).map(agent => ({
+  const rows = !project
+    ? [
+        ...(userLayerAgents.data ?? []).map(agent => ({
           agent,
-          workspaceId: agent.workspace_id ?? context.workspaceId,
-        }));
+          workspaceId: agent.workspace_id,
+        })),
+        ...(all ? catalogs.workspaceAgents : []),
+      ]
+    : (workspaceAgents.data ?? []).map(agent => ({
+        agent,
+        workspaceId: agent.workspace_id ?? context.workspaceId,
+      }));
   return section(
     "Agents",
     rows.map(({ agent, workspaceId }) =>
@@ -110,13 +120,15 @@ function useAgentSection(context: OsPaletteDomainContext, catalogs: OsPaletteWor
         ...(agent.origin === "workspace" && workspaceId ? { workspaceId } : {}),
       })
     ),
-    context.scope === "global"
+    all
       ? {
-          isLoading: globalAgents.isLoading || catalogs.workspaceAgentState.isLoading,
-          isError: globalAgents.isError || catalogs.workspaceAgentState.isError,
-          error: globalAgents.error ?? catalogs.workspaceAgentState.error,
+          isLoading: userLayerAgents.isLoading || catalogs.workspaceAgentState.isLoading,
+          isError: userLayerAgents.isError || catalogs.workspaceAgentState.isError,
+          error: userLayerAgents.error ?? catalogs.workspaceAgentState.error,
         }
-      : workspaceAgents,
+      : project
+        ? workspaceAgents
+        : userLayerAgents,
     paletteDomainEnabled(context, "Agents"),
     context.query,
     context.signals,
@@ -126,7 +138,7 @@ function useAgentSection(context: OsPaletteDomainContext, catalogs: OsPaletteWor
 
 function useTaskSection(context: OsPaletteDomainContext) {
   const enabled = paletteDomainEnabled(context, "Tasks");
-  const tasks = useTasks(paletteTaskFilters(context.scope, context.workspaceId), { enabled });
+  const tasks = useTasks(paletteTaskFilters(context.scope), { enabled });
   usePaletteInfiniteCatalog(tasks, enabled);
   if (context.signals === null) return EMPTY_SECTION("Tasks");
   return section(
@@ -155,17 +167,20 @@ function useTaskSection(context: OsPaletteDomainContext) {
   );
 }
 
+/** Loops: the focused project's or User's (`@user`), or every project's under All projects. */
 function useLoopSection(context: OsPaletteDomainContext, catalogs: OsPaletteWorkspaceCatalogs) {
+  const all = context.scope.kind === "all";
   const workspaceEnabled =
     paletteDomainEnabled(context, "Loops") && Boolean(context.scopedWorkspace);
-  const globalEnabled = paletteDomainEnabled(context, "Loops") && context.scope === "global";
+  const globalEnabled = paletteDomainEnabled(context, "Loops") && all;
   const loops = useLoops(context.scopedWorkspace ?? "", {}, workspaceEnabled);
   usePaletteInfiniteCatalog(loops, workspaceEnabled);
   if (context.signals === null) return EMPTY_SECTION("Loops");
-  const rows =
-    context.scope === "global"
-      ? catalogs.loops
-      : loops.loops.map(loop => ({ loop, workspaceId: context.scopedWorkspace }));
+  // A User loop opens in place on the User desktop: it carries no project to switch to.
+  const ownerWorkspaceId = context.scope.kind === "project" ? context.scope.workspaceId : null;
+  const rows = all
+    ? catalogs.loops
+    : loops.loops.map(loop => ({ loop, workspaceId: ownerWorkspaceId }));
   return section(
     "Loops",
     rows.map(({ loop, workspaceId }) =>
@@ -179,24 +194,24 @@ function useLoopSection(context: OsPaletteDomainContext, catalogs: OsPaletteWork
         ...(workspaceId ? { workspaceId } : {}),
       })
     ),
-    context.scope === "global" ? catalogs.loopState : loops,
+    all ? catalogs.loopState : loops,
     workspaceEnabled || globalEnabled,
     context.query,
     context.signals,
     {
       limit: context.domainLimit,
-      catalogTotal: context.scope === "global" ? catalogs.loopTotal : loops.total,
+      catalogTotal: all ? catalogs.loopTotal : loops.total,
     }
   );
 }
 
 function useAutomationSection(context: OsPaletteDomainContext) {
   const enabled = paletteDomainEnabled(context, "Automations");
-  const filters = paletteWorkspaceCatalogFilters(context.scope, context.workspaceId);
+  const filters = paletteWorkspaceCatalogFilters(context.scope);
   const jobs = useAutomationJobs(filters, { enabled });
   const triggers = useAutomationTriggers(filters, { enabled });
   const timeZone = useAutomationTimeZone();
-  // `context.workspaceNames` is a Global-only label index; the sentence names the
+  // `context.workspaceNames` is an All projects label index; the sentence names the
   // project in every scope, exactly as the listing does.
   const { registeredWorkspaces } = useActiveWorkspace();
   usePaletteInfiniteCatalog(jobs, enabled);

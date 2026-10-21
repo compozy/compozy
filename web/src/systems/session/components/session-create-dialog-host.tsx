@@ -4,29 +4,27 @@ import {
 } from "../hooks/use-session-create-dialog";
 import { SessionCreateDialog } from "./session-create-dialog";
 import type { AgentPayload } from "@/systems/agent";
-import type { WorkspacePayload, WorkspaceScopeMode } from "@/systems/workspace";
+import type { DataScope, WorkspacePayload } from "@/systems/workspace";
 import { useAggregateDestination } from "@/systems/profiles";
 
 interface SessionCreateDialogHostProps extends SessionCreateDialogController {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
-  scope: WorkspaceScopeMode;
+  dataScope: DataScope | null;
   projectWorkspaceId: string | null;
-  homeWorkspaceId: string | undefined;
 }
 
 /** Isolates session-create selectors from the desktop chrome. */
 export function SessionCreateDialogHost({
   agents,
   activeWorkspace,
-  scope,
+  dataScope,
   projectWorkspaceId,
-  homeWorkspaceId,
   store,
 }: SessionCreateDialogHostProps) {
   const profileDestination = useAggregateDestination();
   const sessionCreate = useSessionCreateDialogViewModel(
-    { agents, activeWorkspace, scope, projectWorkspaceId, homeWorkspaceId },
+    { agents, activeWorkspace, dataScope, projectWorkspaceId },
     store
   );
 

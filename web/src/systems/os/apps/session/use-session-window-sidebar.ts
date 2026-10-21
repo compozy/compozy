@@ -1,4 +1,4 @@
-import { useScopedWorktreeFilter } from "@/systems/workspace";
+import { useScopedWorktreeFilter, type DataScope } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 import { runViewTransition } from "@compozy/ui";
@@ -53,12 +53,16 @@ export function useSessionWindowSidebar({
   transportDisconnected = false,
   windowId,
   workspaceId,
+  scope,
   sessionId,
 }: {
   /** The window's live stream is down; the rail must not read "connected" (US-018.AC-1). */
   transportDisconnected?: boolean;
   windowId: string;
+  /** The session's own workspace id; `""` for a User session. */
   workspaceId: string;
+  /** The sessions the rail lists — the session's project, or User; `null` keeps it idle. */
+  scope: DataScope | null;
   sessionId?: string;
 }): SessionWindowSidebarModel {
   const sidebar = useSessionSidebarState();
@@ -68,13 +72,16 @@ export function useSessionWindowSidebar({
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionListLifecycleActions();
-  const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
-    enabled: sidebar.open,
-  });
+  // Only a project narrows to a worktree.
+  const worktree = useScopedWorktreeFilter(
+    scope?.kind === "project" ? scope.workspaceId : null,
+    useWorktreeScopeId(),
+    { enabled: sidebar.open }
+  );
   const view = useSessionListView({
-    workspaceId,
+    scope,
     worktreeId: worktree.worktreeId,
-    enabled: sidebar.open && worktree.resolved && workspaceId !== "",
+    enabled: sidebar.open && worktree.resolved && scope !== null,
   });
 
   const reducedMotion = useOsReducedMotion();

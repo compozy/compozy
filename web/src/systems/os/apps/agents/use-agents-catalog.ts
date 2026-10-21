@@ -14,14 +14,15 @@ import {
   useAgentCreateHost,
 } from "@/systems/agent";
 import { useSessionCreateActions, useSessionCreateHasActiveWorkspace } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
-  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
+  const { dataScope, runtimeWorkspaceId, pending } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  // A project's agents, User's (`@user`), or the user layer under All projects.
+  const workspaceId = dataScope?.kind === "user" ? USER_SCOPE_SELECTOR : (runtimeWorkspaceId ?? "");
   const navigate = useNavigate({ from: "/agents" });
   const { openDialog } = useAgentCreateHost();
   const { openForAgent } = useSessionCreateActions();

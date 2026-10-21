@@ -23,7 +23,7 @@ export async function preloadTasksRoute(
   const profileScope = readProfileScopeParams(queryClient);
   const mode = parseTasksSurfaceMode(search);
   const resolution = await resolveActiveWorkspaceSelection(queryClient);
-  const scope = taskScopeForActiveWorkspace(resolution.scope, resolution.activeWorkspaceId);
+  const scope = taskScopeForActiveWorkspace(resolution.dataScope);
   if (!scope) {
     return;
   }

@@ -1,6 +1,7 @@
 // Suite: Automations listing model
 // Invariant: two list loads (minus `start`) merge into one sorted, honestly counted listing,
-//   and row actions wait for the daemon (never optimistic).
+//   and row actions wait for the daemon (never optimistic). Under User focus both lists read
+//   only automations without a project (`scope=global`), never every project.
 // Boundary IN: route search + automation HTTP adapter responses.
 // Boundary OUT: rendering (row/card suites) and editor internals (editor slice).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -22,6 +23,10 @@ const mocks = vi.hoisted(() => ({
   timeZone: undefined as string | undefined,
   aggregate: false,
   activeWorkspaceId: "ws_launch_hq" as string | null,
+  dataScope: { kind: "project", workspaceId: "ws_launch_hq" } as
+    | { kind: "project"; workspaceId: string }
+    | { kind: "user" }
+    | { kind: "all" },
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
@@ -61,6 +66,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspace: mocks.activeWorkspaceId ? { id: "ws_launch_hq", name: "checkout-api" } : null,
     activeWorkspaceId: mocks.activeWorkspaceId,
+    dataScope: mocks.dataScope,
     isLoading: false,
     pending: false,
     workspaces: [{ id: "ws_launch_hq", name: "checkout-api", root_dir: "/tmp" }],
@@ -101,6 +107,7 @@ describe("useAutomationsPage", () => {
     mocks.timeZone = undefined;
     mocks.aggregate = false;
     mocks.activeWorkspaceId = "ws_launch_hq";
+    mocks.dataScope = { kind: "project", workspaceId: "ws_launch_hq" };
     mocks.listJobs.mockResolvedValue(page("jobs", automationStoryJobs));
     mocks.listTriggers.mockResolvedValue(page("triggers", automationStoryTriggers));
   });
@@ -185,6 +192,18 @@ describe("useAutomationsPage", () => {
     expect(mocks.listTriggers).not.toHaveBeenCalled();
     expect(tasks.result.current.items).toEqual([]);
     expect(tasks.result.current.counts.event).toBe(0);
+  });
+
+  it("Should list only automations without a project under User focus", async () => {
+    mocks.activeWorkspaceId = null;
+    mocks.dataScope = { kind: "user" };
+    const { result } = renderHook(() => useAutomationsPage({}), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    for (const list of [mocks.listJobs, mocks.listTriggers]) {
+      expect(list.mock.calls[0]?.[0]).toMatchObject({ scope: "global" });
+      expect(list.mock.calls[0]?.[0].workspace_id).toBeUndefined();
+    }
   });
 
   it("Should load more only from the list that has more", async () => {

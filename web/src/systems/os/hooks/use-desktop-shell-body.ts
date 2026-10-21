@@ -254,7 +254,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     openNewSession: options.onNewSession,
     toggleSessions: () => overlays.toggleOverlay("sessions"),
     toggleSidebar: sessionSidebar.toggle,
-    toggleGlobalScope: model.toggleGlobalScope,
+    toggleAllProjects: model.toggleAllProjects,
     useProfile: (profile, beforeSwitch) => {
       if (profile === "") return;
       const view = { kind: "profile", profile } as const;

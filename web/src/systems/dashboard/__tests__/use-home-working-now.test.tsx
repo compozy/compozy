@@ -18,6 +18,7 @@ import { useHomeWorkingNow } from "../hooks/use-home-working-now";
 import type { HomeScope } from "../lib/home-scope";
 
 const scope = {
+  dataScope: { kind: "all" },
   workspaceParam: "",
   taskScope: { scope: "global" },
 } satisfies HomeScope;

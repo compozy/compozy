@@ -32,7 +32,7 @@ const SHELL_OPS: ReadonlyMap<string, PaletteClientOpHandler> = new Map<
   ["sidebar.toggle", context => context.shell.toggleSidebar()],
   ["shell.sessions.toggle", context => context.shell.toggleSessions()],
   ["session.new", context => context.shell.openNewSession()],
-  ["scope.global.toggle", context => context.shell.toggleGlobalScope()],
+  ["scope.global.toggle", context => context.shell.toggleAllProjects()],
   // `profile.use` switches directly; every other profile.* command navigates to
   // the canonical lifecycle flow instead of mutating from here (ADR-016).
   [

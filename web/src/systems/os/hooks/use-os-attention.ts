@@ -27,8 +27,9 @@ import {
 import {
   useActiveWorkspace,
   useScopedWorktreeFilter,
+  workspaceSelectorOrAll,
+  type DataScope,
   type WorkspacePayload,
-  type WorkspaceScopeMode,
 } from "@/systems/workspace";
 
 import { useBellNotifications } from "./use-bell-notifications";
@@ -68,22 +69,23 @@ export function useOsAttention(
   archived: boolean,
   modalEnabled = true
 ): OsAttentionModel {
-  const { scope, activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const { dataScope, workspaces } = useActiveWorkspace();
   const documentVisible = useDocumentVisible();
   const workspaceId = runtimeWorkspace?.id ?? null;
   const sessions = useSessionAttentionSources({
     archived,
-    scope,
+    dataScope,
     sessionCatalogStreamStatus,
     workspaceId,
     modalEnabled,
   });
-  const tasks = useTaskAttentionSources({ activeWorkspaceId, documentVisible, scope });
+  const tasks = useTaskAttentionSources({ dataScope, documentVisible });
   const loops = useLoopRequestAttention(workspaces, true, documentVisible);
+  // Terminals belong to a project or to User; All projects has no terminal badge.
   const terminal = useTerminalAttentionSources({
     documentVisible,
     sessionCatalogStreamStatus,
-    workspaceId,
+    workspaceId: dataScope === null ? null : workspaceSelectorOrAll(dataScope),
   });
   const policy = useAttentionPolicy();
 
@@ -119,20 +121,21 @@ export function useOsAttention(
 
 function useSessionAttentionSources({
   archived,
-  scope,
+  dataScope,
   sessionCatalogStreamStatus,
   workspaceId,
   modalEnabled,
 }: {
   modalEnabled: boolean;
   archived: boolean;
-  scope: WorkspaceScopeMode;
+  dataScope: DataScope | null;
   sessionCatalogStreamStatus: SessionCatalogStreamStatus;
+  /** The focused project; only a project narrows to a worktree. */
   workspaceId: string | null;
 }) {
-  const enabled = scope === "global" || workspaceId !== null;
+  const enabled = dataScope !== null;
   const worktree = useScopedWorktreeFilter(workspaceId, useFocusedWorktreeScopeId(), {
-    enabled: enabled && scope === "workspace",
+    enabled: enabled && dataScope.kind === "project",
   });
   // The modal renders the same order the operator chose everywhere else.
   const listPreferences = useSessionListPreferences();
@@ -140,7 +143,7 @@ function useSessionAttentionSources({
   // Sessions-modal content: a shell surface, so it follows the focused window's
   // scope exactly like the menubar chip. Distinct query key, no shared snapshot.
   const modalSessionsQuery = useSessionCatalog(
-    workspaceId,
+    dataScope,
     {
       include_health: true,
       limit: 100,
@@ -163,15 +166,13 @@ function useSessionAttentionSources({
 }
 
 function useTaskAttentionSources({
-  activeWorkspaceId,
+  dataScope,
   documentVisible,
-  scope,
 }: {
-  activeWorkspaceId: string | null;
+  dataScope: DataScope | null;
   documentVisible: boolean;
-  scope: WorkspaceScopeMode;
 }) {
-  const taskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
+  const taskScope = taskScopeForActiveWorkspace(dataScope);
   const enabled = taskScope !== null;
   const dashboardQuery = useTaskDashboard(taskScope ?? {}, {
     enabled,

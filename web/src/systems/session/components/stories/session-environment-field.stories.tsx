@@ -161,7 +161,7 @@ export const NonGitWorkspaceFieldAbsent: Story = {
         onSubmit={fn()}
         open
         restoreFocusOnClose
-        scope="workspace"
+        scope="project"
         selectedAgentName={agentFixtures[0]?.name ?? ""}
         sessionName="Investigate checkout latency"
         sessionRoot={workspace.root_dir}

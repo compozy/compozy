@@ -1,5 +1,5 @@
 import { useAgentCatalog } from "@/systems/agent";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 export interface HomeAgentRow {
   name: string;
@@ -18,8 +18,8 @@ export interface HomeAgentsModel {
 const HOME_AGENT_LIMIT = 6;
 
 export function useHomeAgents(): HomeAgentsModel {
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const { dataScope, runtimeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = dataScope?.kind === "user" ? USER_SCOPE_SELECTOR : (runtimeWorkspaceId ?? "");
   const catalogQuery = useAgentCatalog(workspaceId, { limit: HOME_AGENT_LIMIT });
 
   const agents = catalogQuery.agents;

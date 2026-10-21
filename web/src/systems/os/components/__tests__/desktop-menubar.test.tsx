@@ -1,6 +1,7 @@
 // Suite: DesktopMenubar scope-control wiring
 // Invariant: while scope resolution is pending the globe control is
-// aria-disabled, matching the runtime-workspace query lock at the root.
+// aria-disabled, matching the runtime-workspace query lock at the root; once
+// settled it is never locked, so zero projects can still turn All projects off.
 // The command-palette control carries the live palette chord as
 // aria-keyshortcuts once the keymap is known, and nothing before. The tray's
 // All desktops control toggles the desktops overlay; Settings is not a tray
@@ -126,12 +127,16 @@ afterEach(() => {
 function renderMenubar({
   commands = [],
   scopePending = false,
+  breadthMode = "focused",
+  onToggleAllProjects = vi.fn(),
   activeOverlay = null,
   onOverlayOpenChange = vi.fn(),
   usage,
 }: {
   commands?: readonly ResolvedPaletteCommand[];
   scopePending?: boolean;
+  breadthMode?: "all" | "focused";
+  onToggleAllProjects?: () => void;
   activeOverlay?: DesktopOverlay | null;
   onOverlayOpenChange?: (overlay: DesktopOverlay, open: boolean) => void;
   /** Cached and served usage envelope for the default profile. */
@@ -151,8 +156,10 @@ function renderMenubar({
           <DesktopMenubar
             workspaces={[]}
             activeWorkspace={undefined}
-            scope="workspace"
+            breadthMode={breadthMode}
+            focus={{ kind: "user" }}
             scopePending={scopePending}
+            onToggleAllProjects={onToggleAllProjects}
             onSelectWorkspace={vi.fn()}
             onAddWorkspace={vi.fn()}
             onRunCommand={vi.fn()}
@@ -172,6 +179,19 @@ describe("DesktopMenubar scope control", () => {
     renderMenubar({ scopePending: true });
 
     expect(screen.getByTestId("os-global-scope-toggle")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("Should leave the globe unlocked with zero projects so turning it off lands on User", async () => {
+    const user = userEvent.setup();
+    const onToggleAllProjects = vi.fn();
+    renderMenubar({ breadthMode: "all", onToggleAllProjects });
+
+    const globe = screen.getByTestId("os-global-scope-toggle");
+    expect(globe).not.toHaveAttribute("aria-disabled");
+    expect(globe).toHaveAttribute("aria-pressed", "true");
+    expect(globe).toHaveAccessibleName("All projects");
+    await user.click(globe);
+    expect(onToggleAllProjects).toHaveBeenCalledOnce();
   });
 });
 
@@ -438,7 +458,8 @@ describe("DesktopMenubar provider usage control", () => {
             <DesktopMenubar
               workspaces={[]}
               activeWorkspace={undefined}
-              scope="workspace"
+              breadthMode="focused"
+              focus={{ kind: "user" }}
               onSelectWorkspace={vi.fn()}
               onAddWorkspace={vi.fn()}
               onRunCommand={vi.fn()}

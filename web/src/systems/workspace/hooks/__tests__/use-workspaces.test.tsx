@@ -115,9 +115,10 @@ describe("workspace hooks", () => {
       wrapper: createWrapper(queryClient),
     });
 
-    // No selection means Global — the deleted `workspaces[0]` fallback must not return.
+    // No selection means All projects focused on User — never a `workspaces[0]` fallback.
     expect(result.current.workspaces).toHaveLength(1);
-    expect(result.current.scope).toBe("global");
+    expect(result.current.breadthMode).toBe("all");
+    expect(result.current.focus).toEqual({ kind: "user" });
     expect(result.current.activeWorkspaceId).toBeNull();
     expect(fetchWorkspaces).not.toHaveBeenCalled();
   });
@@ -270,7 +271,7 @@ describe("useActiveWorkspace", () => {
     vi.restoreAllMocks();
   });
 
-  it("Should preserve the Global desktop across catalog changes and rehydration", async () => {
+  it("Should keep the desktop on the destination across catalog changes and rehydration", async () => {
     const alpha = makeWorkspace({ id: "ws_alpha" });
     const beta = makeWorkspace({ id: "ws_beta", root_dir: "/workspace/beta" });
     vi.mocked(fetchWorkspaces).mockResolvedValue([alpha]);
@@ -278,14 +279,19 @@ describe("useActiveWorkspace", () => {
     queryClient.setQueryData(statusKeys.current(), statusFixture);
     const wrapper = createWrapper(queryClient);
     const first = renderHook(() => useActiveWorkspace(), { wrapper });
-    await waitFor(() => expect(first.result.current.desktopWorkspaceId).toBe(alpha.id));
+    await waitFor(() => expect(first.result.current.pending).toBe(false));
+    // All projects with User focused: catalog order never picks a project desktop.
+    expect(first.result.current.desktopWorkspaceId).toBe("global");
 
     act(() => queryClient.setQueryData(workspaceKeys.list(), [beta, alpha]));
     await waitFor(() => expect(first.result.current.projectWorkspaces[0]?.id).toBe(beta.id));
-    expect(first.result.current.desktopWorkspaceId).toBe(alpha.id);
-    expect(first.result.current.scope).toBe("global");
+    expect(first.result.current.desktopWorkspaceId).toBe("global");
+    expect(first.result.current.dataScope).toEqual({ kind: "all" });
     expect(first.result.current.selectedWorkspaceId).toBeNull();
     expect(first.result.current.runtimeWorkspaceId).toBeNull();
+
+    act(() => setActiveWorkspaceId(alpha.id));
+    await waitFor(() => expect(first.result.current.desktopWorkspaceId).toBe(alpha.id));
     const persisted = window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY);
     expect(persisted).not.toBeNull();
     first.unmount();
@@ -295,34 +301,34 @@ describe("useActiveWorkspace", () => {
 
     const restored = renderHook(() => useActiveWorkspace(), { wrapper });
     expect(restored.result.current.desktopWorkspaceId).toBe(alpha.id);
-    expect(restored.result.current.scope).toBe("global");
-    expect(restored.result.current.selectedWorkspaceId).toBeNull();
-
-    act(() => queryClient.setQueryData(workspaceKeys.list(), [beta]));
-    await waitFor(() => expect(restored.result.current.desktopWorkspaceId).toBe(beta.id));
-    expect(restored.result.current.scope).toBe("global");
+    expect(restored.result.current.dataScope).toEqual({ kind: "project", workspaceId: alpha.id });
   });
 
   it.each([
     ["added", ["window:editorial", "window:home"]],
     ["removed", []],
-  ])("Should retain another tab's saved Global scope when windows are %s", async (_, liveIds) => {
+  ])("Should retain another tab's saved destination when windows are %s", async (_, liveIds) => {
     const alpha = makeWorkspace();
     setActiveWorktreeId("window:editorial", alpha.id, "wt_review");
-    activeWorkspaceStore.trigger.desktopWorkspaceObserved({
-      workspaceId: alpha.id,
-      selectedWorkspaceId: alpha.id,
-      previousDesktopWorkspaceId: null,
-    });
-    // Another document explicitly chose Global; this open document keeps its project view.
-    const remembered = JSON.stringify({
-      context: { ...activeWorkspaceStore.getSnapshot().context, scope: "global" },
-      version: 1,
-    });
-    window.localStorage.setItem(ACTIVE_WORKSPACE_PERSIST_KEY, remembered);
+    // Another document explicitly chose User; this open document keeps its project view.
+    window.localStorage.setItem(
+      ACTIVE_WORKSPACE_PERSIST_KEY,
+      JSON.stringify({
+        context: {
+          ...activeWorkspaceStore.getSnapshot().context,
+          breadthMode: "focused",
+          focus: { kind: "user" },
+        },
+        version: 2,
+      })
+    );
+    const storedDestination = () => {
+      const stored = JSON.parse(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)!);
+      return { breadthMode: stored.context.breadthMode, focus: stored.context.focus };
+    };
 
-    pruneWorktreeScopes(liveIds);
-    expect(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toBe(remembered);
+    pruneWorktreeScopes(`${alpha.id}\u0000default`, liveIds);
+    expect(storedDestination()).toEqual({ breadthMode: "focused", focus: { kind: "user" } });
 
     vi.mocked(fetchWorkspaces).mockResolvedValue([alpha]);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -332,12 +338,12 @@ describe("useActiveWorkspace", () => {
       wrapper: createWrapper(queryClient),
     });
     await waitFor(() => expect(result.current.desktopWorkspaceId).toBe(alpha.id));
-    expect(result.current.scope).toBe("workspace");
-    expect(window.localStorage.getItem(ACTIVE_WORKSPACE_PERSIST_KEY)).toBe(remembered);
+    expect(result.current.dataScope).toEqual({ kind: "project", workspaceId: alpha.id });
+    expect(storedDestination()).toEqual({ breadthMode: "focused", focus: { kind: "user" } });
 
     await act(async () => rehydrateActiveWorkspaceStore());
-    expect(result.current.scope).toBe("global");
-    expect(result.current.desktopWorkspaceId).toBe(alpha.id);
+    expect(result.current.dataScope).toEqual({ kind: "user" });
+    expect(result.current.desktopWorkspaceId).toBe("user");
   });
 
   it("uses the persisted selected workspace after rehydration", async () => {
@@ -358,10 +364,11 @@ describe("useActiveWorkspace", () => {
       await rehydrateActiveWorkspaceStore();
     });
     expect(activeWorkspaceStore.getSnapshot().context).toEqual({
-      scope: "workspace",
+      breadthMode: "focused",
+      focus: { kind: "project", workspaceId: "ws_beta" },
       selectedWorkspaceId: "ws_beta",
-      desktopWorkspaceId: null,
       worktreeByScope: { shell: "wt_saved" },
+      worktreePartitionByScope: {},
     });
     vi.mocked(fetchWorkspaces).mockResolvedValue([
       makeWorkspace({ id: "ws_alpha", name: "alpha" }),
@@ -384,7 +391,7 @@ describe("useActiveWorkspace", () => {
     expect(result.current.activeWorkspace?.name).toBe("beta");
   });
 
-  it("stays Global when the remembered project is missing instead of falling back", async () => {
+  it("Should focus User when the remembered project is missing instead of falling back", async () => {
     setActiveWorkspaceId("ws_missing");
     vi.mocked(fetchWorkspaces).mockResolvedValue([
       makeWorkspace({ id: "ws_alpha", name: "alpha" }),
@@ -397,7 +404,8 @@ describe("useActiveWorkspace", () => {
       wrapper: createWrapper(queryClient),
     });
 
-    await waitFor(() => expect(result.current.scope).toBe("global"));
+    await waitFor(() => expect(result.current.dataScope).toEqual({ kind: "user" }));
+    expect(result.current.desktopWorkspaceId).toBe("user");
     expect(result.current.activeWorkspaceId).toBeNull();
     expect(result.current.selectedWorkspaceId).toBe("ws_missing");
     expect(activeWorkspaceStore.getSnapshot().context.selectedWorkspaceId).toBe("ws_missing");

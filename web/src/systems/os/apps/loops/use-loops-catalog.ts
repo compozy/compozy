@@ -7,12 +7,17 @@ import type { LoopsRouteSearch } from "@/systems/loops";
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { type LoopCatalogEntry, type LoopCatalogFilter, useLoops } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import {
+  DESTINATION_COPY,
+  focusedWorkspaceSelector,
+  useActiveWorkspace,
+} from "@/systems/workspace";
 
 /** View-model for the Loops catalog route: URL state, data, bindings, and Run launch. */
 function useLoopsCatalog(search: LoopsRouteSearch = {}) {
-  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const { activeWorkspace, dataScope } = useActiveWorkspace();
+  // A project's loops, or User's (`@user`).
+  const workspaceId = focusedWorkspaceSelector(dataScope);
   const navigate = useNavigate({ from: "/loops" });
 
   const searchQuery = search.q ?? "";
@@ -84,6 +89,7 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
 
   return {
     activeWorkspace,
+    workspaceLabel: dataScope?.kind === "user" ? DESTINATION_COPY.user : activeWorkspace?.name,
     hasActiveFilters:
       searchQuery.trim() !== "" ||
       filter.kind !== "all" ||

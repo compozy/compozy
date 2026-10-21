@@ -8,10 +8,19 @@ import {
   type ForeignProfileSessionState,
   type SessionPayload,
 } from "@/systems/session";
+import {
+  ownerDataScope,
+  sameDataScope,
+  type DataScope,
+  type FocusedDataScope,
+} from "@/systems/workspace";
 
 export interface SessionWindowResolution {
   session: SessionPayload | undefined;
+  /** The session's own workspace id (`""` for User), or the focused one before it resolves. */
   workspaceId: string | null;
+  /** What the window's session list shows: the session's scope, else the focused one. */
+  listScope: DataScope | null;
   isLoading: boolean;
   error: Error | null;
   /** The scoped read answered "not in this profile" — not yet "nowhere". */
@@ -31,11 +40,12 @@ export interface SessionWindowResolution {
  */
 export function useSessionWindowResolution({
   sessionId,
-  runtimeWorkspaceId,
+  focusedScope,
   liveTailEnabled,
 }: {
   sessionId: string | null;
-  runtimeWorkspaceId: string | null;
+  /** The focused destination (a project or User); `null` under All projects or unsettled. */
+  focusedScope: FocusedDataScope | null;
   liveTailEnabled: boolean;
 }): SessionWindowResolution {
   const { params } = useProfileReadScope();
@@ -50,16 +60,19 @@ export function useSessionWindowResolution({
   const foreignSession = foreign.status === "found" ? foreign.session : undefined;
   const resolvedSession = query.data ?? foreignSession;
   const sessionWorkspaceId = resolvedSession ? (resolvedSession.workspace_id?.trim() ?? "") : null;
+  const sessionScope = sessionWorkspaceId === null ? null : ownerDataScope(sessionWorkspaceId);
+  const focusedWorkspaceId =
+    focusedScope === null ? null : focusedScope.kind === "user" ? "" : focusedScope.workspaceId;
   return {
     session: query.data,
-    workspaceId: sessionWorkspaceId ?? runtimeWorkspaceId,
+    workspaceId: sessionWorkspaceId ?? focusedWorkspaceId,
+    listScope: sessionScope ?? focusedScope,
     isLoading: query.isLoading,
     error: query.error,
     scopedMiss,
     foreign,
+    // A project's session on the User desktop crosses too, and vice versa.
     crossesWorkspace:
-      sessionWorkspaceId !== null &&
-      runtimeWorkspaceId !== null &&
-      sessionWorkspaceId !== runtimeWorkspaceId,
+      sessionScope !== null && focusedScope !== null && !sameDataScope(sessionScope, focusedScope),
   };
 }

@@ -17,7 +17,7 @@ import { useAttentionJump } from "./use-attention-jump";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 import { useSessionLaunchCatalog } from "./use-session-launch-catalog";
-import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
 export interface DesktopDockModel {
   entries: OsDockItemData[];
@@ -87,7 +87,7 @@ export function useDesktopDock(
       active: sessionState === "focused",
       minimized: sessionState === "minimized",
       badge: dockBadgeFor(sessionApp, badges),
-      hint: needsProject ? GLOBAL_SCOPE_COPY.newSessionNeedsProject : undefined,
+      hint: needsProject ? DESTINATION_COPY.newSessionNeedsProject : undefined,
     },
     ...dockAppDescriptors()
       .flat()

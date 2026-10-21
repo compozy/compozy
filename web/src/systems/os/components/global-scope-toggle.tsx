@@ -3,7 +3,7 @@ import { Globe } from "lucide-react";
 
 import { Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 
-import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
 export interface GlobalScopeToggleProps {
   checked: boolean;
@@ -15,9 +15,9 @@ export interface GlobalScopeToggleProps {
 }
 
 /**
- * Menubar owner of Global vs workspace destination. The globe Toggle sits
- * between the mark and the workspace chip, outside `role="menubar"` — it is a
- * mode control, not a menu.
+ * Menubar owner of breadth: pressed is All projects, unpressed is the focus
+ * (a project or User). The globe Toggle sits between the mark and the
+ * workspace chip, outside `role="menubar"` — it is a mode control, not a menu.
  */
 export function GlobalScopeToggle({
   checked,
@@ -30,13 +30,13 @@ export function GlobalScopeToggle({
   const [announcement, setAnnouncement] = useState("");
   if (checked !== prevChecked) {
     setPrevChecked(checked);
-    setAnnouncement(checked ? GLOBAL_SCOPE_COPY.liveOn : GLOBAL_SCOPE_COPY.liveOff);
+    setAnnouncement(checked ? DESTINATION_COPY.liveOn : DESTINATION_COPY.liveOff);
   }
 
   const accessibleName =
     locked && lockedReason
-      ? `${GLOBAL_SCOPE_COPY.controlName} — ${lockedReason}`
-      : GLOBAL_SCOPE_COPY.controlName;
+      ? `${DESTINATION_COPY.allProjects} — ${lockedReason}`
+      : DESTINATION_COPY.allProjects;
 
   const handlePressedChange = (next: boolean) => {
     if (locked) return;

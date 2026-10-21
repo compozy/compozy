@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { useLoop, useLoopConfig, useLoopRuns } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
 
 /**
  * View-model for the run-form route: the loop definition, its effective config, and
@@ -13,8 +13,8 @@ import { useActiveWorkspace } from "@/systems/workspace";
  */
 export function useLoopRunFormPage(name: string) {
   const navigate = useNavigate();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const { dataScope } = useActiveWorkspace();
+  const workspaceId = focusedWorkspaceSelector(dataScope);
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const enabled = workspaceId !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, enabled);

@@ -77,8 +77,8 @@ export function DesktopShell() {
 function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: MenubarUpdateModel }) {
   const controller = useDesktopChromeController();
 
-  // Zero project workspaces boots Global-on; the home registration is not a
-  // project workspace and must not replace the shell with setup.
+  // Zero project workspaces boots into All projects with User focused; the
+  // shell never waits for a project before rendering.
 
   return (
     <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
@@ -113,9 +113,9 @@ function DesktopChromeContent(props: DesktopShellBodyProps) {
   // This projection reads the desktop topology, so it must mount below the
   // shell context that owns the window-manager store.
   const paletteRegistry = useCmdPaletteRegistry({
-    // The structural catalog belongs to the attached desktop client. Global
-    // changes the command lens, but it must not detach shell commands from the
-    // remembered project's window-manager partition.
+    // The structural catalog belongs to the attached desktop client. All
+    // projects changes the command lens, but it must not detach shell commands
+    // from the mounted window-manager partition.
     workspaceId: props.model.desktopWorkspaceId,
     client: props.client,
   });
@@ -131,9 +131,8 @@ function DesktopChromeContent(props: DesktopShellBodyProps) {
           <SessionCreateDialogHost
             activeWorkspace={props.model.runtimeWorkspace}
             agents={props.model.workspaceAgents}
-            homeWorkspaceId={props.model.homeWorkspace?.id}
             projectWorkspaceId={props.model.activeWorkspaceId}
-            scope={props.model.scope}
+            dataScope={props.model.dataScope}
             store={props.model.sessionCreate.store}
           />
         </AgentCreateHostProvider>
@@ -174,7 +173,7 @@ function DesktopShellScopedBody({
   // Scope and order are the operator's, persisted by the daemon; the modal
   // renders them rather than fetching its own.
   const sessionListView = useSessionListView({
-    workspaceId: model.runtimeWorkspaceId,
+    scope: model.dataScope,
     worktreeId: worktreeSelection.activeWorktree?.id,
     enabled: worktreeSelection.resolved,
   });
@@ -233,21 +232,22 @@ function DesktopShellScopedBody({
           "col-span-full transition-opacity duration-shell-slow motion-reduce:transition-none",
           firstRun && "opacity-68"
         )}
-        // Global changes the data lens, not the desktop layout partition. The
-        // window manager stays on the remembered project while data aggregates.
+        // The desktop follows the destination: a project's partition, `user`
+        // for User, and the focused project's (or `global`) under All projects.
         layoutUnbound={!model.pending && model.desktopWorkspaceId === null}
         workspaces={model.workspaces}
         activeWorkspace={model.activeWorkspace}
         chip={model.chip}
-        scope={model.scope}
+        breadthMode={model.breadthMode}
+        focus={model.focus}
         scopePending={model.pending}
-        toggleLocked={model.toggleLocked}
-        canDisableGlobal={model.canDisableGlobal}
-        rememberedWorkspaceName={model.rememberedWorkspace?.name ?? null}
-        onToggleGlobalScope={model.toggleGlobalScope}
+        focusWorkspaceName={model.rememberedWorkspace?.name ?? null}
+        onToggleAllProjects={model.toggleAllProjects}
         onSelectWorkspace={workspaceId =>
           model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
         }
+        onFocusUser={() => model.focusDestination({ kind: "user" })}
+        onEnableAllProjects={model.enableAllProjects}
         onAddWorkspace={model.openWorkspaceSetup}
         onRunCommand={commandId => void paletteDispatch.runById(commandId)}
         activeOverlay={overlays.activeOverlay}
@@ -385,7 +385,6 @@ function DesktopShellScopedBody({
         }}
         workspaces={model.workspaces}
         activeWorkspaceId={model.activeWorkspaceId}
-        scope={model.scope}
         onSelectWorkspace={workspaceId =>
           model.setActiveWorkspaceId(workspaceId, { scopeId: worktreeScopeId })
         }

@@ -40,12 +40,9 @@ export interface EmptyDesktopSession {
  * every attention surface uses.
  */
 export function useEmptyDesktopSession(): EmptyDesktopSession {
-  const { runtimeWorkspace, runtimeWorkspaceId, scope } = useActiveWorkspace();
+  const { runtimeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
   const scopeId = useWorktreeScopeId();
-  const scopedWorktree = useScopedWorktreeFilter(
-    scope === "workspace" ? runtimeWorkspaceId : null,
-    scopeId
-  );
+  const scopedWorktree = useScopedWorktreeFilter(runtimeWorkspaceId, scopeId);
   const agents = useAgents(runtimeWorkspaceId ?? "", { enabled: runtimeWorkspaceId !== null });
   const createStore = useSessionCreateStore();
   const jumpToSession = useAttentionJump();

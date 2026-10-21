@@ -1,5 +1,6 @@
 // Suite: Loop run detail route composition
-// Invariant: a run label identifies the same runtime workspace that loaded the run.
+// Invariant: a run label identifies the same runtime workspace that loaded the run; under User
+// focus the run loads through `@user`, never an aggregate.
 // Owning layer: LoopRunDetailLocation, which binds shell workspace state to the run page.
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +8,9 @@ import { useTopbarSlot } from "@compozy/ui";
 
 const workspace = vi.hoisted(() => ({
   activeWorkspace: { id: "ws_project", name: "Project workspace" },
-  runtimeWorkspaceId: "ws_home",
+  dataScope: { kind: "project", workspaceId: "ws_home" } as
+    | { kind: "project"; workspaceId: string }
+    | { kind: "user" },
   workspaces: [
     { id: "ws_home", name: "Home workspace" },
     { id: "ws_project", name: "Project workspace" },
@@ -41,7 +44,8 @@ vi.mock("@compozy/ui", () => ({
   useTopbarSlot: vi.fn(),
 }));
 
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace", async () => ({
+  ...(await import("@/systems/workspace/lib/destination")),
   useActiveWorkspace: () => workspace,
 }));
 
@@ -159,7 +163,7 @@ const { LoopRunDetailLocation } = await import("../loop-run-detail-location");
 describe("LoopRunDetailLocation", () => {
   beforeEach(() => {
     workspace.activeWorkspace = { id: "ws_project", name: "Project workspace" };
-    workspace.runtimeWorkspaceId = "ws_home";
+    workspace.dataScope = { kind: "project", workspaceId: "ws_home" };
     loopRunPageBodySpy.mockClear();
     quarantineSheetSpy.mockClear();
     loopRunPageSpy.mockClear();
@@ -175,8 +179,16 @@ describe("LoopRunDetailLocation", () => {
     );
   });
 
+  it("Should load a User run through @user", () => {
+    workspace.dataScope = { kind: "user" };
+
+    render(<LoopRunDetailLocation runId="run-1" />);
+
+    expect(loopRunPageSpy).toHaveBeenCalledWith("@user", "run-1", expect.anything());
+  });
+
   it("Should show the project name when it owns the runtime binding", () => {
-    workspace.runtimeWorkspaceId = "ws_project";
+    workspace.dataScope = { kind: "project", workspaceId: "ws_project" };
 
     render(<LoopRunDetailLocation runId="run-1" />);
 

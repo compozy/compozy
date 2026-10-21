@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useSession } from "@/systems/session";
-import { GLOBAL_DESKTOP_WORKSPACE_ID, useWorkspaceScopeMode } from "@/systems/workspace";
+import { isReservedDesktopPartition, useBreadthMode } from "@/systems/workspace";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
@@ -29,7 +29,7 @@ import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
-import { useSessionSidebarScopePruning } from "./use-session-sidebar-scope-pruning";
+import { useWindowScopePruning } from "./use-window-scope-pruning";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
 import { useWindowPaletteIntent } from "./use-window-manager-store";
@@ -72,7 +72,7 @@ export function useDesktopChrome(
 ): DesktopChromeModel {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const scope = useWorkspaceScopeMode();
+  const breadthMode = useBreadthMode();
   const paletteIntent = useWindowPaletteIntent();
   // Desks belong to the profile this client acts as. Under the aggregate that is
   // the destination profile, so the desk and the work opened on it stay in the
@@ -80,12 +80,14 @@ export function useDesktopChrome(
   const profileId = useProfileReadScope().destination;
   const query = useQuery(windowManagerSnapshotOptions(activeWorkspaceId ?? "", profileId));
   const client = useWindowManagerClient(activeWorkspaceId, profileId);
-  useSessionSidebarScopePruning(profileId, query);
+  useWindowScopePruning(profileId, query);
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
   // to reach the shell's own keymap, or the chord would not dispatch until a
-  // reload (US-022.AC-3).
-  const configWorkspaceId =
-    activeWorkspaceId === GLOBAL_DESKTOP_WORKSPACE_ID ? null : activeWorkspaceId;
+  // reload (US-022.AC-3). Reserved partitions (`global`, `user`) have no
+  // workspace overlay.
+  const configWorkspaceId = isReservedDesktopPartition(activeWorkspaceId)
+    ? null
+    : activeWorkspaceId;
   // The read names this client, so it waits until the client is attached to
   // the workspace it is about to present (a switch re-registers it).
   const configQuery = useQuery({
@@ -167,7 +169,7 @@ export function useDesktopChrome(
     registrationEpoch: client.registrationEpoch,
     currentClient: client.client,
     clientContext: resolveLivePaletteClientContext({
-      scope,
+      breadthMode,
       focusedSessionState: focusedSession.data?.state,
       registeredWorkspaceTrusted: client.client?.paletteContext.workspaceTrusted,
       destinationRoute,

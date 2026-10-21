@@ -2,12 +2,17 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { AutomationsRouteSearch } from "@/systems/automation";
 
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
+import {
+  resolveActiveWorkspaceId,
+  resolveActiveWorkspaceSelection,
+  settleRouteQueries,
+} from "./-route-preload";
 import {
   automationJobDetailOptions,
   automationJobRunsOptions,
   automationJobsListOptions,
   automationListLoopFilter,
+  automationListScope,
   automationRouteHasActiveFilters,
   automationMatchesActiveWorkspace,
   automationSuggestionsListOptions,
@@ -26,12 +31,15 @@ export async function preloadAutomationsRoute(
   search: AutomationsRouteSearch
 ): Promise<void> {
   const profileScope = readProfileScopeParams(queryClient);
-  const activeWorkspaceID =
-    search.scope === "global" ? null : await resolveActiveWorkspaceId(queryClient);
-  if (search.scope === "workspace" && !activeWorkspaceID) return;
+  // An explicit Global facet needs no destination; otherwise User narrows to it.
+  const selection =
+    search.scope === "global" ? null : await resolveActiveWorkspaceSelection(queryClient);
+  const scope = automationListScope(selection?.dataScope ?? null, search.scope);
+  const activeWorkspaceID = scope === "global" ? null : (selection?.runtimeWorkspaceId ?? null);
+  if (scope === "workspace" && !activeWorkspaceID) return;
   const filters = {
-    scope: search.scope,
-    workspace_id: search.scope === "workspace" ? (activeWorkspaceID ?? undefined) : undefined,
+    scope,
+    workspace_id: scope === "workspace" ? (activeWorkspaceID ?? undefined) : undefined,
     enabled: search.enabled,
     limit: 50,
     loop: automationListLoopFilter(search),

@@ -76,7 +76,6 @@ export function WorkspaceCommandSelect({
   onRemoveWorktree,
 }: WorkspaceCommandSelectProps) {
   const state = useWorkspaceCommandSelectState({
-    userHomeDir,
     workspaces,
     value,
     onChange,

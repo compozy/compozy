@@ -21,18 +21,10 @@ export function useSessionCreateStore(): SessionCreateStore {
 
 export function useSessionCreateActions() {
   const store = useSessionCreateStore();
-  const {
-    registeredWorkspaces,
-    runtimeWorkspace,
-    runtimeWorkspaceId,
-    scope,
-    setActiveWorkspaceId,
-  } = useActiveWorkspace();
+  const { registeredWorkspaces, runtimeWorkspace, runtimeWorkspaceId, setActiveWorkspaceId } =
+    useActiveWorkspace();
   const scopeId = useWorktreeScopeId();
-  const scopedWorktree = useScopedWorktreeFilter(
-    scope === "workspace" ? runtimeWorkspaceId : null,
-    scopeId
-  );
+  const scopedWorktree = useScopedWorktreeFilter(runtimeWorkspaceId, scopeId);
   const openForAgent = (agentName: string, options: { folderId?: string } = {}) => {
     if (runtimeWorkspaceId === null) {
       toast.error("Select an active workspace before starting a session.");
@@ -102,7 +94,7 @@ export function useSessionCreateActions() {
     }
     if (isSessionCreateSubmitting(store)) return;
     clearPendingTerminalQuote();
-    if (scope !== "workspace" || runtimeWorkspaceId !== workspaceId) {
+    if (runtimeWorkspaceId !== workspaceId) {
       setActiveWorkspaceId(workspaceId);
     }
     store.trigger.dialogOpened({

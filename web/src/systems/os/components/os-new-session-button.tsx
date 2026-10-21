@@ -2,10 +2,10 @@ import { Plus } from "lucide-react";
 
 import { Button, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
-import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
 export interface OsNewSessionButtonProps {
-  /** A project is active; Global scope has none to start a session in. */
+  /** A project is active; User and All projects have none to start a session in yet. */
   hasProject: boolean;
   /** Creation is already in flight. */
   busy?: boolean;
@@ -38,7 +38,7 @@ export function OsNewSessionButton({
       <TooltipTrigger
         render={
           <span
-            aria-label={GLOBAL_SCOPE_COPY.newSessionNeedsProjectName}
+            aria-label={DESTINATION_COPY.newSessionNeedsProjectName}
             className="inline-flex rounded-pill outline-none focus-visible:shadow-focus-ring"
             data-testid={disabledTestId}
             tabIndex={0}
@@ -47,7 +47,7 @@ export function OsNewSessionButton({
       >
         {button}
       </TooltipTrigger>
-      <TooltipContent>{GLOBAL_SCOPE_COPY.newSessionNeedsProject}</TooltipContent>
+      <TooltipContent>{DESTINATION_COPY.newSessionNeedsProject}</TooltipContent>
     </Tooltip>
   );
 }

@@ -1,7 +1,4 @@
-import { useEffect } from "react";
-
 import {
-  pruneWorktreeScopes,
   SHELL_WORKTREE_SCOPE,
   useActiveWorktree,
   type WorktreesResponse,
@@ -21,15 +18,12 @@ export function useFocusedWorktreeScopeId(): string {
   return focusedId ?? SHELL_WORKTREE_SCOPE;
 }
 
-/** Resolve shell worktree selection and keep persisted scopes aligned with live windows. */
+/**
+ * Resolve the shell worktree selection. Closed windows are pruned per
+ * partition by `useWindowScopePruning`, never against the projection alone.
+ */
 export function useDesktopWorktreeScope(listing: WorktreesResponse | undefined) {
   const worktreeScopeId = useFocusedWorktreeScopeId();
   const worktreeSelection = useActiveWorktree(worktreeScopeId, listing);
-  const liveWindowIds = useDesktop(state => Object.keys(state.windows).join(" "));
-
-  useEffect(() => {
-    pruneWorktreeScopes(liveWindowIds === "" ? [] : liveWindowIds.split(" "));
-  }, [liveWindowIds]);
-
   return { worktreeScopeId, worktreeSelection };
 }

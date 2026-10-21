@@ -10,7 +10,7 @@ import {
   type ProfileOwner,
   type ProfileOwnerLabel,
 } from "@/systems/profiles";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, workspaceSelectorOrAll, type DataScope } from "@/systems/workspace";
 
 import { sessionFoldersOptions } from "../lib/session-catalog-options";
 import type { SessionFolderPayload } from "../types";
@@ -85,10 +85,15 @@ export interface SessionListViewModel {
  * worth round-tripping through config.
  */
 export function useSessionListView(
-  options: { workspaceId?: string | null; worktreeId?: string; enabled?: boolean } = {}
+  options: {
+    /** The list's data scope; omitted follows the menubar destination. */
+    scope?: DataScope | null;
+    worktreeId?: string;
+    enabled?: boolean;
+  } = {}
 ): SessionListViewModel {
   const preferences = useSessionListPreferences();
-  const { registeredWorkspaces: workspaces, runtimeWorkspaceId, scope } = useActiveWorkspace();
+  const { registeredWorkspaces: workspaces, dataScope } = useActiveWorkspace();
   const profile = useProfileReadScope();
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
   const {
@@ -108,9 +113,11 @@ export function useSessionListView(
     search: remoteSearch,
   });
 
-  const workspaceId = options.workspaceId === undefined ? runtimeWorkspaceId : options.workspaceId;
+  const scope = options.scope === undefined ? dataScope : options.scope;
+  // Folders and manual order belong to one project or to User; the aggregate has none.
+  const workspaceId = scope === null ? null : workspaceSelectorOrAll(scope);
   const catalog = useSessionCatalog(
-    workspaceId,
+    scope,
     {
       include_health: true,
       limit: 100,
@@ -121,7 +128,7 @@ export function useSessionListView(
       worktree: options.worktreeId,
       ...(archived ? { archive: "only" as const } : {}),
     },
-    workspaceScoped && (scope === "global" || workspaceId !== null)
+    workspaceScoped
   );
 
   const profileFolders = useProfileFolderGroups(

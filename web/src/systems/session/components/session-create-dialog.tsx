@@ -17,7 +17,7 @@ import { SessionCreateAdvancedSection } from "./session-create-advanced-section"
 import { SessionEnvironmentField } from "./session-environment-field";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
 import type { AgentPayload } from "@/systems/agent";
-import { CreateDestinationStatement, type WorkspaceScopeMode } from "@/systems/workspace";
+import { CreateDestinationStatement, type DestinationKind } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
   /** The profile a creation lands in while the aggregate is on (ADR-005). */
@@ -28,7 +28,7 @@ export interface SessionCreateDialogProps {
   mode: EntityMode;
   onModeChange: (mode: EntityMode) => void;
   agents: AgentPayload[];
-  scope: WorkspaceScopeMode;
+  scope: DestinationKind;
   destinationLabel: string;
   sessionRoot: string;
   destinationReady: boolean;

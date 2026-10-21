@@ -1,5 +1,7 @@
 import { useDebouncedValue } from "@/hooks/use-debounced-input";
 
+import { ownerDataScope } from "@/systems/workspace";
+
 import type { SessionPayload } from "../types";
 import { useSessionCatalog } from "./use-session-catalog";
 import {
@@ -18,7 +20,7 @@ export interface SessionMentionSessionsView {
 }
 
 /**
- * Same-workspace sessions for the `@` picker through the existing catalog
+ * Same-scope sessions (the prompted session's project, or User) for the `@` picker through the existing catalog
  * (`listSessions` with `q`, newest first, archived excluded by the daemon).
  * The catalog has no "exclude this id" filter, so the page asks for one extra
  * row and drops the session being prompted before the five-row cut.
@@ -37,9 +39,9 @@ export function useSessionMentionSessions({
   const trimmed = query.trim();
   const debounced = useDebouncedValue(trimmed, SESSION_MENTION_DEBOUNCE_MS);
   const catalog = useSessionCatalog(
-    workspaceId,
+    ownerDataScope(workspaceId),
     { q: debounced, limit: SESSION_MENTION_SESSION_LIMIT + 1 },
-    enabled && workspaceId !== ""
+    enabled
   );
   const sessions = catalog.sessions
     .filter(session => session.id !== sessionId)

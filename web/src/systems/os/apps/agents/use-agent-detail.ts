@@ -21,7 +21,7 @@ import {
   useSessionCreateIsCreating,
   useSessionCreatePendingAgentName,
 } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 
@@ -72,7 +72,9 @@ export interface UseAgentDetailResult {
 /** Combines agent details and session catalogs with lifecycle actions scoped to each row. */
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
   const navigate = useNavigate();
-  const { runtimeWorkspaceId, pending } = useActiveWorkspace();
+  const { dataScope, runtimeWorkspaceId, pending } = useActiveWorkspace();
+  // Agent reads follow the destination: a project, User (`@user`), or none under All projects.
+  const agentWorkspace = dataScope?.kind === "user" ? USER_SCOPE_SELECTOR : runtimeWorkspaceId;
   const { openForAgent } = useSessionCreateActions();
   const hasRuntimeWorkspace = runtimeWorkspaceId !== null;
   const isCreating = useSessionCreateIsCreating();
@@ -83,8 +85,8 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     data: agent,
     isLoading: agentLoading,
     error: agentError,
-  } = useAgent(name, runtimeWorkspaceId);
-  const metrics = useAgentCatalogMetrics(runtimeWorkspaceId, name, { enabled: !pending });
+  } = useAgent(name, agentWorkspace);
+  const metrics = useAgentCatalogMetrics(agentWorkspace, name, { enabled: !pending });
   const {
     sessions,
     archivedSessions,
@@ -98,7 +100,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     isLoading: sessionsLoading,
     isError: sessionsError,
     retry: onRetrySessions,
-  } = useAgentSessions(runtimeWorkspaceId, name, { enabled: !pending });
+  } = useAgentSessions(agentWorkspace, name, { enabled: !pending });
   const sessionLifecycle = useSessionListLifecycleActions();
 
   const deleteFlow = useAgentDeleteFlow({

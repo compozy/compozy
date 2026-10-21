@@ -19,7 +19,7 @@ import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-hom
 import { useHomeSystem } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
 import { useDaemonHealth } from "@/systems/status";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
 import type { AttentionNotificationScope } from "@/systems/notifications";
 import { useProfileReadScope } from "@/systems/profiles";
 
@@ -63,18 +63,22 @@ function surfaceStatus(isLoading: boolean, isError: boolean, hasData: boolean): 
 }
 
 // Stable argument for disabled queries while workspace scope is undetermined.
-const UNSETTLED_HOME_SCOPE: HomeScope = { workspaceParam: "", taskScope: { scope: "global" } };
+const UNSETTLED_HOME_SCOPE: HomeScope = {
+  dataScope: { kind: "all" },
+  workspaceParam: "",
+  taskScope: { scope: "global" },
+};
 
 export function useHomeDashboard({
   liveEnabled = true,
 }: UseHomeDashboardOptions = {}): HomeDashboardModel {
   const { connectionStatus } = useDaemonHealth();
-  const { activeWorkspace, activeWorkspaceId, scope: workspaceScope } = useActiveWorkspace();
+  const { activeWorkspace, dataScope } = useActiveWorkspace();
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
 
   const { aggregate, params: profileScope, destination } = useProfileReadScope();
-  const resolvedScope = homeScopeForActiveWorkspace(workspaceScope, activeWorkspaceId);
+  const resolvedScope = homeScopeForActiveWorkspace(dataScope);
   const scopeSettled = resolvedScope !== null;
   const scope = resolvedScope ?? UNSETTLED_HOME_SCOPE;
 
@@ -145,7 +149,12 @@ export function useHomeDashboard({
     activity: activityQuery.data,
     activityStatus: activityPresentation.status,
     activityErrorMessage: activityPresentation.errorMessage,
-    activeWorkspaceName: workspaceScope === "global" ? "Global" : (activeWorkspace?.name ?? null),
+    activeWorkspaceName:
+      scope.dataScope.kind === "project"
+        ? (activeWorkspace?.name ?? null)
+        : scope.dataScope.kind === "user"
+          ? DESTINATION_COPY.user
+          : DESTINATION_COPY.allProjects,
     workingNow,
     agents,
     system,

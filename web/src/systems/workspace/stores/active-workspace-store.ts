@@ -1,9 +1,13 @@
 import { createStore } from "@xstate/store";
 import { persist } from "@xstate/store/persist";
 
-import type { WorkspaceScopeMode } from "../lib/workspace-scope-mode";
-
-export type { WorkspaceScopeMode };
+import { USER_FOCUS, type BreadthMode, type Focus } from "../lib/destination";
+import {
+  ACTIVE_WORKSPACE_SCHEMA_VERSION,
+  migrateActiveWorkspace,
+  type PersistedActiveWorkspace,
+} from "./active-workspace-migration";
+import { persistWorktreePrune, prunedWorktreeScopes } from "./active-workspace-worktree-pruning";
 
 /**
  * Scope id for surfaces outside a retained OS window (shell chrome, standalone
@@ -12,28 +16,39 @@ export type { WorkspaceScopeMode };
 export const SHELL_WORKTREE_SCOPE = "shell";
 
 export interface ActiveWorkspaceContext {
-  scope: WorkspaceScopeMode;
+  /** The globe: All projects, or only the focus. */
+  breadthMode: BreadthMode;
+  /** Last focus — a project or User. Turning All projects off returns to it. */
+  focus: Focus;
   /**
-   * Remembered project workspace. Survives Global mode so turning Global off
-   * returns to the same project. Never the operator-home registration.
+   * Remembered project: the last project focused. Equals the focus while a
+   * project is focused and survives User focus and All projects.
    */
   selectedWorkspaceId: string | null;
-  /** Last resolved layout partition; catalog order must not switch desktops. */
-  desktopWorkspaceId: string | null;
   /**
    * Per-scope worktree selection: each OS window carries its own worktree
-   * without a second window-manager binding.
+   * without a second window-manager binding. Window ids are unique across
+   * partitions, so a project's windows keep their picks while another
+   * destination is focused.
    */
   worktreeByScope: Record<string, string | null>;
+  /**
+   * The window-manager partition (workspace + profile) whose snapshot listed
+   * each window scope. A snapshot only lists its own partition's windows, so
+   * a prune drops only entries that partition claimed; an entry no snapshot
+   * has claimed yet is never pruned.
+   */
+  worktreePartitionByScope: Record<string, string>;
 }
 
 export const ACTIVE_WORKSPACE_PERSIST_KEY = "compozy:active-workspace:v4";
 
 const initialActiveWorkspaceContext: ActiveWorkspaceContext = {
-  scope: "global",
+  breadthMode: "all",
+  focus: USER_FOCUS,
   selectedWorkspaceId: null,
-  desktopWorkspaceId: null,
   worktreeByScope: {},
+  worktreePartitionByScope: {},
 };
 
 function withScope(
@@ -42,6 +57,26 @@ function withScope(
   worktreeId: string | null
 ): ActiveWorkspaceContext {
   return { ...context, worktreeByScope: { ...context.worktreeByScope, [scopeId]: worktreeId } };
+}
+
+/** The shell's ambient pick names a worktree of the remembered project; it cannot follow another. */
+function withoutShellScope(byScope: Record<string, string | null>): Record<string, string | null> {
+  const { [SHELL_WORKTREE_SCOPE]: _shell, ...windows } = byScope;
+  return windows;
+}
+
+/** Focus a project; a different project keeps window picks and drops the ambient one. */
+function focusedProject(context: ActiveWorkspaceContext, workspaceId: string) {
+  const sameProject = context.selectedWorkspaceId === workspaceId;
+  return {
+    ...context,
+    breadthMode: "focused" as const,
+    focus: { kind: "project" as const, workspaceId },
+    selectedWorkspaceId: workspaceId,
+    worktreeByScope: sameProject
+      ? context.worktreeByScope
+      : withoutShellScope(context.worktreeByScope),
+  };
 }
 
 /**
@@ -60,79 +95,45 @@ export function resolveScopedWorktreeId(
 export const activeWorkspaceStore = createStore({
   context: initialActiveWorkspaceContext,
   on: {
-    desktopWorkspaceObserved: (
-      context,
-      event: {
-        workspaceId: string;
-        selectedWorkspaceId: string | null;
-        previousDesktopWorkspaceId: string | null;
-      }
-    ) => {
-      if (
-        context.selectedWorkspaceId !== event.selectedWorkspaceId ||
-        context.desktopWorkspaceId !== event.previousDesktopWorkspaceId ||
-        context.desktopWorkspaceId === event.workspaceId
-      )
-        return;
-      return { ...context, desktopWorkspaceId: event.workspaceId };
-    },
     workspaceSelected: (context, event: { workspaceId: string; scopeId?: string }) => {
-      if (context.selectedWorkspaceId === event.workspaceId) {
-        const base = { ...context, scope: "workspace" as const };
-        if (event.scopeId === undefined) return base;
-        return {
-          ...base,
-          worktreeByScope: {
-            ...context.worktreeByScope,
-            [event.scopeId]: null,
-            [SHELL_WORKTREE_SCOPE]: null,
-          },
-        };
+      const next = focusedProject(context, event.workspaceId);
+      if (context.selectedWorkspaceId !== event.workspaceId || event.scopeId === undefined) {
+        return next;
       }
       return {
-        ...context,
-        scope: "workspace" as const,
-        selectedWorkspaceId: event.workspaceId,
-        worktreeByScope: {},
+        ...next,
+        worktreeByScope: {
+          ...context.worktreeByScope,
+          [event.scopeId]: null,
+          [SHELL_WORKTREE_SCOPE]: null,
+        },
       };
     },
-    globalScopeEnabled: context => ({
+    userFocused: context => ({
       ...context,
-      scope: "global" as const,
+      breadthMode: "focused" as const,
+      focus: USER_FOCUS,
     }),
-    globalScopeDisabled: context => {
-      if (!context.selectedWorkspaceId) return;
-      return {
-        ...context,
-        scope: "workspace" as const,
-      };
-    },
-    workspaceSelectionCleared: () => ({
-      scope: "global" as const,
-      selectedWorkspaceId: null,
-      desktopWorkspaceId: null,
-      worktreeByScope: {},
+    allProjectsEnabled: context => ({
+      ...context,
+      breadthMode: "all" as const,
     }),
+    /** Always possible: the focus is a project or User, and User is always a target. */
+    allProjectsDisabled: context => ({
+      ...context,
+      breadthMode: "focused" as const,
+    }),
+    workspaceSelectionCleared: () => initialActiveWorkspaceContext,
     /** Workspace and worktree move together so the pair is never inconsistent. */
     worktreeSelected: (
       context,
       event: { scopeId: string; workspaceId: string; worktreeId: string }
-    ) => {
-      const rebased =
-        context.selectedWorkspaceId === event.workspaceId
-          ? { ...context, scope: "workspace" as const }
-          : {
-              ...context,
-              scope: "workspace" as const,
-              selectedWorkspaceId: event.workspaceId,
-              worktreeByScope: {},
-            };
-      return withScope(
-        withScope(rebased, event.scopeId, event.worktreeId),
+    ) =>
+      withScope(
+        withScope(focusedProject(context, event.workspaceId), event.scopeId, event.worktreeId),
         SHELL_WORKTREE_SCOPE,
         event.worktreeId
-      );
-    },
+      ),
     worktreeRemoved: (context, event: { workspaceId: string; worktreeId: string }) => {
       if (context.selectedWorkspaceId !== event.workspaceId) return;
       return {
@@ -149,41 +150,35 @@ export const activeWorkspaceStore = createStore({
       withScope(context, event.scopeId, null),
     /**
      * Windows close from any client, so no single owner can release a scope
-     * deterministically — readers prune against the live window set instead.
+     * deterministically — readers prune against a fresh partition snapshot.
      */
-    worktreeScopesPruned: (context, event: { liveScopeIds: readonly string[] }) => {
-      const live = new Set<string>([SHELL_WORKTREE_SCOPE, ...event.liveScopeIds]);
-      const worktreeByScope: Record<string, string | null> = {};
-      for (const [scopeId, worktreeId] of Object.entries(context.worktreeByScope)) {
-        if (live.has(scopeId)) worktreeByScope[scopeId] = worktreeId;
-      }
-      return { ...context, worktreeByScope };
-    },
+    worktreeScopesPruned: (
+      context,
+      event: { partition: string; liveScopeIds: readonly string[] }
+    ) => prunedWorktreeScopes(context, event.partition, event.liveScopeIds, SHELL_WORKTREE_SCOPE),
   },
 }).with(
   persist({
     name: ACTIVE_WORKSPACE_PERSIST_KEY,
-    version: 1,
+    version: ACTIVE_WORKSPACE_SCHEMA_VERSION,
     // Window cleanup is derived from the daemon, not a new navigation preference.
     // Persisting it would let a background document overwrite another tab's choice.
     filter: event => event.type !== "worktreeScopesPruned",
-    migrate: (persisted: Omit<ActiveWorkspaceContext, "desktopWorkspaceId">) => ({
-      ...persisted,
-      desktopWorkspaceId: null,
-    }),
-    pick: context => ({
-      scope: context.scope,
+    migrate: migrateActiveWorkspace,
+    pick: (context): PersistedActiveWorkspace => ({
+      breadthMode: context.breadthMode,
+      focus: context.focus,
       selectedWorkspaceId: context.selectedWorkspaceId,
-      desktopWorkspaceId: context.desktopWorkspaceId,
       worktreeByScope: context.worktreeByScope,
+      worktreePartitionByScope: context.worktreePartitionByScope,
     }),
   })
 );
 
 export const activeWorkspaceSelectors = {
   selectedWorkspaceId: activeWorkspaceStore.select(context => context.selectedWorkspaceId),
-  desktopWorkspaceId: activeWorkspaceStore.select(context => context.desktopWorkspaceId),
-  scope: activeWorkspaceStore.select(context => context.scope),
+  breadthMode: activeWorkspaceStore.select(context => context.breadthMode),
+  focus: activeWorkspaceStore.select(context => context.focus),
   worktreeByScope: activeWorkspaceStore.select(context => context.worktreeByScope),
 };
 
@@ -198,25 +193,39 @@ export function setActiveWorkspaceId(
   activeWorkspaceStore.trigger.workspaceSelected({ workspaceId, scopeId: options.scopeId });
 }
 
-export function enableGlobalScope(): void {
-  activeWorkspaceStore.trigger.globalScopeEnabled();
+/** Focus the User destination: its own desktop, User-scope items only. */
+export function focusUser(): void {
+  activeWorkspaceStore.trigger.userFocused();
 }
 
-export function disableGlobalScope(): void {
-  activeWorkspaceStore.trigger.globalScopeDisabled();
+/** Focus a destination from the switcher; both leave All projects. */
+export function focusDestination(focus: Focus, options: { scopeId?: string } = {}): void {
+  if (focus.kind === "user") {
+    focusUser();
+    return;
+  }
+  setActiveWorkspaceId(focus.workspaceId, options);
+}
+
+export function enableAllProjects(): void {
+  activeWorkspaceStore.trigger.allProjectsEnabled();
+}
+
+export function disableAllProjects(): void {
+  activeWorkspaceStore.trigger.allProjectsDisabled();
 }
 
 /**
- * Flip relative to the *resolved* scope, not the stored one — the store may
- * hold a stale `workspace` request the resolver already coerced to global.
+ * Flip relative to the *resolved* breadth, not the stored one. Turning All
+ * projects off returns to the resolved focus, which the resolver already
+ * coerced to User when the remembered project is gone.
  */
-export function toggleGlobalScope(input: { scope: WorkspaceScopeMode; canDisable: boolean }): void {
-  if (input.scope === "global") {
-    if (!input.canDisable) return;
-    disableGlobalScope();
+export function toggleAllProjects(input: { breadthMode: BreadthMode; focus: Focus }): void {
+  if (input.breadthMode === "focused") {
+    enableAllProjects();
     return;
   }
-  enableGlobalScope();
+  focusDestination(input.focus);
 }
 
 export function clearActiveWorkspaceSelection(): void {
@@ -239,6 +248,14 @@ export function clearActiveWorktreeSelection(scopeId: string): void {
   activeWorkspaceStore.trigger.worktreeSelectionCleared({ scopeId });
 }
 
-export function pruneWorktreeScopes(liveScopeIds: readonly string[]): void {
-  activeWorkspaceStore.trigger.worktreeScopesPruned({ liveScopeIds });
+/**
+ * Drop worktree picks of windows that closed in `partition` (workspace +
+ * profile). `liveScopeIds` must come from a snapshot of exactly that
+ * partition fetched since it mounted.
+ */
+export function pruneWorktreeScopes(partition: string, liveScopeIds: readonly string[]): void {
+  activeWorkspaceStore.trigger.worktreeScopesPruned({ partition, liveScopeIds });
+  persistWorktreePrune(ACTIVE_WORKSPACE_PERSIST_KEY, ACTIVE_WORKSPACE_SCHEMA_VERSION, state =>
+    prunedWorktreeScopes(state, partition, liveScopeIds, SHELL_WORKTREE_SCOPE)
+  );
 }

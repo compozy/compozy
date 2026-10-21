@@ -1,8 +1,9 @@
 // Suite: desktop chrome boot
 // Invariant: useDesktopChrome owns OsShellHandle and mounts without OsShellContext;
-// the settings read that names this client waits for its registration; per-window
-// sessions-rail state is pruned only against a snapshot fresh since mount, never
-// the cached window list a returning workspace starts from.
+// the settings read that names this client waits for its registration and reads no
+// workspace overlay on a reserved partition (`global`, `user`); per-window
+// sessions-rail state and worktree picks are pruned only against a snapshot fresh
+// since mount, never the cached window list a returning destination starts from.
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -13,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const queryOptionsSeen = vi.hoisted(() => [] as Array<{ queryKey: unknown; enabled?: unknown }>);
 const registration = vi.hoisted(() => ({ status: "idle" as string }));
 const pruneSessionSidebarScopes = vi.hoisted(() => vi.fn());
+const pruneWorktreeScopes = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
@@ -36,7 +38,8 @@ vi.mock("@/systems/workspace", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/workspace")>();
   return {
     ...actual,
-    useWorkspaceScopeMode: () => "workspace",
+    useBreadthMode: () => "focused",
+    pruneWorktreeScopes,
   };
 });
 
@@ -66,7 +69,7 @@ vi.mock("../use-global-shortcut-reconciliation", () => ({
 
 import type { WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { useDesktopChrome } from "../use-desktop-chrome";
-import { useSessionSidebarScopePruning } from "../use-session-sidebar-scope-pruning";
+import { useWindowScopePruning } from "../use-window-scope-pruning";
 
 function wrapper() {
   const queryClient = new QueryClient({
@@ -109,11 +112,21 @@ describe("useDesktopChrome", () => {
     rerender();
     expect(settingsReads().at(-1)?.enabled).toBe(true);
   });
+
+  it("Should read no workspace overlay on the User partition", () => {
+    renderHook(() => useDesktopChrome("user"), { wrapper: wrapper() });
+
+    expect(settingsReads().length).toBeGreaterThan(0);
+    expect(
+      settingsReads().every(options => !(options.queryKey as unknown[]).includes("user"))
+    ).toBe(true);
+  });
 });
 
-describe("useSessionSidebarScopePruning", () => {
+describe("useWindowScopePruning", () => {
   beforeEach(() => {
     pruneSessionSidebarScopes.mockClear();
+    pruneWorktreeScopes.mockClear();
   });
 
   it("Should wait for a fresh snapshot before pruning against the cached window list", () => {
@@ -123,13 +136,18 @@ describe("useSessionSidebarScopePruning", () => {
     } as unknown as WindowManagerSnapshot;
     const { rerender } = renderHook(
       ({ fresh }) =>
-        useSessionSidebarScopePruning("default", { data: snapshot, isFetchedAfterMount: fresh }),
+        useWindowScopePruning("default", { data: snapshot, isFetchedAfterMount: fresh }),
       { initialProps: { fresh: false } }
     );
     expect(pruneSessionSidebarScopes).not.toHaveBeenCalled();
+    expect(pruneWorktreeScopes).not.toHaveBeenCalled();
 
     rerender({ fresh: true });
     expect(pruneSessionSidebarScopes).toHaveBeenCalledExactlyOnceWith("ws_a\u0000default", [
+      "win_one",
+      "win_two",
+    ]);
+    expect(pruneWorktreeScopes).toHaveBeenCalledExactlyOnceWith("ws_a\u0000default", [
       "win_one",
       "win_two",
     ]);

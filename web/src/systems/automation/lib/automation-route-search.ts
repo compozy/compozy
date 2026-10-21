@@ -1,4 +1,5 @@
 import { normalizeListingSearchValue } from "@/lib/listing-search";
+import type { DataScope } from "@/systems/workspace";
 import type { AutomationScope, AutomationSource } from "../types";
 import type { AutomationEditorSection } from "./automation-form-draft";
 import type { AutomationDoes, AutomationStart } from "./automation-sentence";
@@ -49,6 +50,17 @@ export function automationsStartView(
   search: AutomationsRouteSearch
 ): "schedule" | "event" | undefined {
   return search.start === "schedule" || search.start === "event" ? search.start : undefined;
+}
+
+/**
+ * List scope for the destination: User lists only automations without a
+ * project (`scope=global`); a project or All projects keeps the facet.
+ */
+export function automationListScope(
+  dataScope: DataScope | null,
+  facet: AutomationScope | undefined
+): AutomationScope | undefined {
+  return dataScope?.kind === "user" ? "global" : facet;
 }
 
 /** `loop` filters the list unless it is the one-shot `create=loop` seed. */

@@ -1,9 +1,14 @@
 // Suite: workspace-switch hydration barrier
-// Invariant: selecting a different workspace enters hydration synchronously before route effects run.
+// Invariant: changing the destination's desktop partition — another project, or project ↔ User —
+// enters hydration synchronously before route effects run; a change that keeps the partition does not.
 // Owning layer: active-workspace store ↔ routing coordinator boundary.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { setActiveWorkspaceId } from "@/systems/workspace/stores/active-workspace-store";
+import {
+  enableAllProjects,
+  focusUser,
+  setActiveWorkspaceId,
+} from "@/systems/workspace/stores/active-workspace-store";
 
 import { subscribeWorkspaceSwitchBarrier } from "../workspace-switch-barrier";
 
@@ -37,6 +42,33 @@ describe("subscribeWorkspaceSwitchBarrier", () => {
     );
 
     setActiveWorkspaceId("workspace:one");
+
+    expect(beginWorkspaceSwitch).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it("Should enter the barrier when focus moves between a project and User", () => {
+    setActiveWorkspaceId("workspace:one");
+    const beginWorkspaceSwitch = vi.fn();
+    const unsubscribe = subscribeWorkspaceSwitchBarrier({ beginWorkspaceSwitch });
+
+    focusUser();
+    expect(beginWorkspaceSwitch).toHaveBeenCalledOnce();
+
+    setActiveWorkspaceId("workspace:one");
+    expect(beginWorkspaceSwitch).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
+
+  it("Should keep routing live when All projects keeps the focused project's desktop", () => {
+    setActiveWorkspaceId("workspace:one");
+    const beginWorkspaceSwitch = vi.fn();
+    const unsubscribe = subscribeWorkspaceSwitchBarrier(
+      { beginWorkspaceSwitch },
+      () => "workspace:one"
+    );
+
+    enableAllProjects();
 
     expect(beginWorkspaceSwitch).not.toHaveBeenCalled();
     unsubscribe();

@@ -28,7 +28,7 @@ import {
   type TerminalViewerIdentity,
   useTerminalJournalUnlocked,
 } from "@/systems/terminal";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { focusedWorkspaceSelector, useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
@@ -86,7 +86,8 @@ export function useTerminalWindowControllerState(windowId: string) {
   const viewerToken = useDesktop(state => state.clientAttachmentToken);
   const viewer: TerminalViewerIdentity | null =
     viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null;
-  const workspaceId = workspace.runtimeWorkspaceId ?? "";
+  // A project's terminals, or User's (`@user`); All projects has no terminal list yet.
+  const workspaceId = focusedWorkspaceSelector(workspace.dataScope);
   const journalUnlocked = useTerminalJournalUnlocked(workspaceId);
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);

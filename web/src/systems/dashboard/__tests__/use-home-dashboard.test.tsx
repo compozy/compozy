@@ -87,7 +87,10 @@ const activeWorkspaceState = {
   activeWorkspace: { id: "ws-home", root_dir: "/Users/tester", name: "home" } as unknown,
   activeWorkspaceId: "ws-home",
   runtimeWorkspaceId: "ws-home",
-  scope: "global" as "global" | "workspace",
+  dataScope: { kind: "all" } as
+    | { kind: "all" }
+    | { kind: "user" }
+    | { kind: "project"; workspaceId: string },
   isLoading: false,
 };
 
@@ -135,13 +138,33 @@ describe("useHomeDashboard", () => {
     };
     activeWorkspaceState.activeWorkspaceId = "ws-home";
     activeWorkspaceState.runtimeWorkspaceId = "ws-home";
-    activeWorkspaceState.scope = "global";
+    activeWorkspaceState.dataScope = { kind: "all" };
     activeWorkspaceState.isLoading = false;
     profileScope.aggregate = false;
     profileScope.params = { profile: "default" };
   });
 
-  it("Should resolve Global menubar scope to the empty workspace param", async () => {
+  it("Should read User-scope Home through @user, never the whole-system aggregate", async () => {
+    activeWorkspaceState.activeWorkspace = undefined;
+    activeWorkspaceState.activeWorkspaceId = "";
+    activeWorkspaceState.runtimeWorkspaceId = "";
+    activeWorkspaceState.dataScope = { kind: "user" };
+    getHomeOverview.mockResolvedValue(makeHomeOverview());
+
+    const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.overviewStatus).toBe("ready"));
+
+    expect(result.current.scope.workspaceParam).toBe("@user");
+    expect(result.current.activeWorkspaceName).toBe("User");
+    for (const [filter] of getHomeOverview.mock.calls) {
+      expect(filter).toMatchObject({ workspace: "@user" });
+    }
+    for (const [filter] of getHomeActivity.mock.calls) {
+      expect(filter).toMatchObject({ workspace_id: "@user" });
+    }
+  });
+
+  it("Should resolve All projects to the empty workspace param", async () => {
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 
     const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
@@ -218,7 +241,7 @@ describe("useHomeDashboard", () => {
     };
     activeWorkspaceState.activeWorkspaceId = "ws-proj";
     activeWorkspaceState.runtimeWorkspaceId = "ws-proj";
-    activeWorkspaceState.scope = "workspace";
+    activeWorkspaceState.dataScope = { kind: "project", workspaceId: "ws-proj" };
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 
     const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });

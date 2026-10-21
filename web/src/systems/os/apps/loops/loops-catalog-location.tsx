@@ -90,7 +90,7 @@ export function LoopsCatalogLocation({ search }: { search: LoopsRouteSearch }) {
 
   return (
     <ListingPage data-testid="loops-catalog">
-      <LoopCatalogLede total={loopCount} workspaceLabel={page.activeWorkspace?.name} />
+      <LoopCatalogLede total={loopCount} workspaceLabel={page.workspaceLabel} />
       <LoopCatalog
         entries={loops}
         errorMessage={page.loopsQuery.error?.message}

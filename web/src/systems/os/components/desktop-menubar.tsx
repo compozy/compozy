@@ -32,9 +32,10 @@ import { WorkspaceMenu } from "./menubar/workspace-menu";
 import {
   workspaceMonogram,
   type ActiveWorktreeSelection,
+  type BreadthMode,
+  type Focus,
   type WorkspaceChipIdentity,
   type WorkspacePayload,
-  type WorkspaceScopeMode,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
 } from "@/systems/workspace";
@@ -47,14 +48,20 @@ export interface DesktopMenubarProps {
   workspaces: WorkspacePayload[];
   activeWorkspace: WorkspacePayload | undefined;
   chip?: WorkspaceChipIdentity;
-  scope?: WorkspaceScopeMode;
-  /** True while workspace/scope resolution is still loading — mutes locked-state claims. */
+  /** The globe: All projects, or only the focus. */
+  breadthMode?: BreadthMode;
+  /** The focused destination; under All projects, where the globe returns. */
+  focus?: Focus;
+  /** True while destination resolution is still loading — the globe waits. */
   scopePending?: boolean;
-  toggleLocked?: boolean;
-  canDisableGlobal?: boolean;
-  rememberedWorkspaceName?: string | null;
-  onToggleGlobalScope?: () => void;
+  /** Name of the focused project, for the globe's "Back to …" tooltip. */
+  focusWorkspaceName?: string | null;
+  onToggleAllProjects?: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
+  /** Switcher "User" row: focus User. */
+  onFocusUser?: () => void;
+  /** Switcher "All projects" row: turn All projects on. */
+  onEnableAllProjects?: () => void;
   onAddWorkspace: () => void;
   /** Runs a registry command through the one dispatch seam. */
   onRunCommand: (commandId: string) => void;
@@ -118,13 +125,14 @@ export function DesktopMenubar({
   workspaces,
   activeWorkspace,
   chip,
-  scope = activeWorkspace ? "workspace" : "global",
+  breadthMode = activeWorkspace ? "focused" : "all",
+  focus = activeWorkspace ? { kind: "project", workspaceId: activeWorkspace.id } : { kind: "user" },
   scopePending = false,
-  toggleLocked = false,
-  canDisableGlobal = Boolean(activeWorkspace),
-  rememberedWorkspaceName,
-  onToggleGlobalScope,
+  focusWorkspaceName,
+  onToggleAllProjects,
   onSelectWorkspace,
+  onFocusUser,
+  onEnableAllProjects,
   onAddWorkspace,
   onRunCommand,
   activeOverlay,
@@ -148,12 +156,11 @@ export function DesktopMenubar({
   const paletteOpen = usePaletteCommand("palette.open");
   const scopeModel = desktopMenubarScopeModel({
     activeWorkspace,
-    canDisableGlobal,
+    breadthMode,
     chip,
-    rememberedWorkspaceName,
-    scope,
+    focus,
+    focusWorkspaceName,
     scopePending,
-    toggleLocked,
     worktreeSelection,
   });
   const overlay = (id: DesktopOverlay) => ({
@@ -211,10 +218,9 @@ export function DesktopMenubar({
       )}
       scopeControl={
         <GlobalScopeToggle
-          checked={scopeModel.globalOn}
-          locked={scopePending || toggleLocked || (scopeModel.globalOn && !canDisableGlobal)}
-          lockedReason={scopeModel.toggleLockedReason}
-          onCheckedChange={() => onToggleGlobalScope?.()}
+          checked={scopeModel.allProjectsOn}
+          locked={scopePending}
+          onCheckedChange={() => onToggleAllProjects?.()}
           tooltip={scopeModel.toggleTooltip}
         />
       }
@@ -223,17 +229,19 @@ export function DesktopMenubar({
           trigger={trigger}
           {...overlay("workspace-menu")}
           workspaces={workspaces}
-          activeWorkspaceId={scopeModel.globalOn ? undefined : activeWorkspace?.id}
-          globalScopeOn={scopeModel.globalOn}
+          breadthMode={breadthMode}
+          focus={focus}
           monogram={workspaceMonogram}
           onSelectWorkspace={onSelectWorkspace}
+          onFocusUser={onFocusUser}
+          onEnableAllProjects={onEnableAllProjects}
           onRun={onRunCommand}
           onAddWorkspace={onAddWorkspace}
           worktreesByWorkspace={worktreesByWorkspace}
           workingSessionsByWorkspace={workingSessionsByWorkspace}
           userHomeDir={userHomeDir}
           selectedWorktreeId={
-            scopeModel.globalOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)
+            scopeModel.allProjectsOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)
           }
           onSelectWorktree={onSelectWorktree}
           onCreateWorktree={onCreateWorktree}

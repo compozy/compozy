@@ -15,7 +15,7 @@ import { profileFixtures } from "@/systems/profiles/mocks";
 import { createSessionCreateStore, SessionCreateProvider } from "@/systems/session";
 import { sessionFixtures } from "@/systems/session/mocks";
 import {
-  enableGlobalScope,
+  enableAllProjects,
   rehydrateActiveWorkspaceStore,
   setActiveWorkspaceId,
 } from "@/systems/workspace";
@@ -385,13 +385,13 @@ export const ProfileLifecycleHandoff: Story = {
   },
 };
 
-/** Global and All profiles compose in the real Sessions palette view with owner-labeled rows. */
+/** All projects and All profiles compose in the real Sessions palette view with owner-labeled rows. */
 export const AllProfilesGlobal: Story = {
   args: OPEN_ARGS,
   parameters: paletteHandlers(AGGREGATE_PALETTE_SESSIONS, "all-workspaces"),
   loaders: [
     async () => {
-      enableGlobalScope();
+      enableAllProjects();
       setProfileView({ kind: "aggregate" });
       windowManagerStore.trigger.paletteViewStackSet({ stack: [{ viewId: "sessions" }] });
       return {};

@@ -2,13 +2,13 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { useTopbarSlot } from "@compozy/ui";
 import { useLoop, useLoopConfig } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
 import { useCurrentWindowLiveDataEnabled } from "../../../hooks/use-window-live-data-enabled";
 
 export function useLoopConfigureLocation(name: string) {
   const navigate = useNavigate();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const { dataScope } = useActiveWorkspace();
+  const workspaceId = focusedWorkspaceSelector(dataScope);
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const queryEnabled = workspaceId !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, queryEnabled);

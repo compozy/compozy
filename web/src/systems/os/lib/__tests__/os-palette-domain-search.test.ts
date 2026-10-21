@@ -1,5 +1,6 @@
 // Suite: palette domain search projection
-// Invariant: domain rows honor workspace scope filters, per-domain landing
+// Invariant: domain rows honor the destination (a project, User — never an aggregate — or All
+// projects) in filters and labels, per-domain landing
 // routes, automation rows of both kinds, server catalog totals, and an optional visible cap without a numeric
 // sentinel for uncapped pushed views.
 // Owning layer: unit — the domain-search helpers.
@@ -87,7 +88,7 @@ describe("os-palette-domain-search helpers", () => {
         installedName: "ops-extension",
         source: "compozy-catalog",
         profileName: "marketing",
-        scope: "workspace",
+        scope: { kind: "project", workspaceId: "ws-a" },
         workspaceId: "ws-a",
       })
     ).toEqual({
@@ -100,6 +101,16 @@ describe("os-palette-domain-search helpers", () => {
         workspace_id: "ws-a",
       },
     });
+  });
+
+  it("Should route a marketplace entry outside a project to the user scope", () => {
+    expect(
+      marketplaceEntryRoute({
+        entryId: "ops/extension",
+        scope: { kind: "user" },
+        workspaceId: "@user",
+      })
+    ).toEqual({ pathname: "/marketplace/ops%2Fextension", search: { scope: "user" } });
   });
 
   it("Should select a Vault secret by ref instead of filtering by its display name", () => {
@@ -152,14 +163,14 @@ describe("os-palette-domain-search helpers", () => {
       },
     ];
 
-    const rows = projectAutomationRows(views, "global", new Map([["ws-a", "Alpha"]]));
+    const rows = projectAutomationRows(views, { kind: "all" }, new Map([["ws-a", "Alpha"]]));
 
     expect(rows).toEqual([
       {
         key: "job:digest/am",
         label: "morning-digest",
         detail: "Every weekday at 09:00 UTC, ask summarizer.",
-        workspaceLabel: "Global",
+        workspaceLabel: "User",
         app: "automations",
         icon: Clock3,
         route: { pathname: "/automations/jobs/digest%2Fam", search: {} },
@@ -177,24 +188,28 @@ describe("os-palette-domain-search helpers", () => {
     ]);
   });
 
-  it("Should scope catalog filters to one workspace or every workspace", () => {
-    expect(paletteTaskFilters("workspace", "ws-a")).toEqual({
-      scope: "workspace",
-      workspace: "ws-a",
-    });
-    expect(paletteTaskFilters("global", "ws-home")).toEqual({ scope: "all" });
-    expect(paletteWorkspaceCatalogFilters("workspace", "ws-a")).toEqual({
+  it("Should scope catalog filters to one project, User, or every project", () => {
+    const project = { kind: "project", workspaceId: "ws-a" } as const;
+    expect(paletteTaskFilters(project)).toEqual({ scope: "workspace", workspace: "ws-a" });
+    expect(paletteTaskFilters({ kind: "all" })).toEqual({ scope: "all" });
+    expect(paletteWorkspaceCatalogFilters(project)).toEqual({
       scope: "workspace",
       workspace_id: "ws-a",
     });
-    expect(paletteWorkspaceCatalogFilters("global", "ws-home")).toEqual({});
+    expect(paletteWorkspaceCatalogFilters({ kind: "all" })).toEqual({});
   });
 
-  it("Should label workspace rows only while the globe is selected", () => {
+  it("Should read only workspace-less items under User, never the aggregate", () => {
+    expect(paletteTaskFilters({ kind: "user" })).toEqual({ scope: "global" });
+    expect(paletteWorkspaceCatalogFilters({ kind: "user" })).toEqual({ scope: "global" });
+  });
+
+  it("Should label rows only under All projects, naming project-less rows User", () => {
     const names = new Map([["ws-a", "Alpha"]]);
-    expect(workspaceLabel("workspace", "ws-a", names)).toBeUndefined();
-    expect(workspaceLabel("global", "ws-a", names)).toBe("Alpha");
-    expect(workspaceLabel("global", undefined, names)).toBe("Global");
+    expect(workspaceLabel({ kind: "project", workspaceId: "ws-a" }, "ws-a", names)).toBeUndefined();
+    expect(workspaceLabel({ kind: "user" }, undefined, names)).toBeUndefined();
+    expect(workspaceLabel({ kind: "all" }, "ws-a", names)).toBe("Alpha");
+    expect(workspaceLabel({ kind: "all" }, undefined, names)).toBe("User");
   });
 
   it("Should keep the server catalog total when the visible list is capped", () => {
@@ -228,12 +243,16 @@ describe("os-palette-domain-search helpers", () => {
 });
 
 describe("paletteAutomationViews", () => {
-  it("Should name the project in the sentence even without the Global label index", () => {
+  it("Should name the project in the sentence even without the All projects label index", () => {
     const views = paletteAutomationViews(automationStoryJobs, automationStoryTriggers, {
       names: new Map(),
       projects: [{ id: storyWorkspaceIds.hq, name: "checkout-api" }],
     });
-    const rows = projectAutomationRows(views, "workspace", new Map());
+    const rows = projectAutomationRows(
+      views,
+      { kind: "project", workspaceId: storyWorkspaceIds.hq },
+      new Map()
+    );
     const rerun = rows.find(row => row.label === "rerun-delivery");
     expect(rerun?.detail).toBe(
       "When a session stops in checkout-api with an error, start the Loop software-delivery."

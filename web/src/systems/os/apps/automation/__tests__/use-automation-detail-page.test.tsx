@@ -44,10 +44,15 @@ vi.mock("@/systems/settings", () => ({
     data: { config: { timezone: "UTC" }, runtime: { available: true } },
   }),
 }));
-vi.mock("@/systems/workspace", () => ({
+vi.mock("@/systems/workspace", async () => ({
+  ...(await import("@/systems/workspace/lib/destination")),
+  ...(await import("@/systems/workspace/lib/workspace-scope-copy")),
   toWorkspaceCommandSelectOptions: () => [],
   useActiveWorkspace: () => ({
     activeWorkspaceId: state.activeWorkspaceId,
+    dataScope: state.activeWorkspaceId
+      ? { kind: "project", workspaceId: state.activeWorkspaceId }
+      : { kind: "all" },
     isLoading: false,
     workspaces: [{ id: "ws_checkout_api", name: "checkout-api" }],
   }),

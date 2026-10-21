@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
+import { sessionRouteOwnership, type SessionRouteOwnership } from "./-session-route-ownership";
 import {
   cachedForeignSessionOwner,
   resolveSessionOwner,
@@ -35,45 +36,45 @@ export async function prefetchAgentSessionRoute({
   queryClient: QueryClient;
   sessionId: string;
 }): Promise<AgentSessionRouteLoaderData> {
-  const selection = await resolveActiveWorkspaceSelection(queryClient);
-  const workspaceId = selection.desktopWorkspaceId;
-  if (!workspaceId) {
+  const ownership = sessionRouteOwnership(await resolveActiveWorkspaceSelection(queryClient));
+  if (!ownership) {
     return { status: "not-found" };
   }
 
-  const knownOwner = cachedForeignSessionOwner(queryClient, sessionId, workspaceId);
+  const knownOwner = cachedForeignSessionOwner(queryClient, sessionId, ownership.ownerWorkspaceId);
   if (knownOwner) {
-    if (knownOwner.workspaceId === "" && selection.scope === "global") {
-      return resolveForeignSession(queryClient, sessionId, workspaceId, true);
+    if (ownership.accepts(knownOwner.workspaceId)) {
+      return resolveForeignSession(queryClient, sessionId, ownership);
     }
     return { status: "foreign", owner: knownOwner };
   }
+  if (ownership.proofSelector === null) {
+    return resolveForeignSession(queryClient, sessionId, ownership);
+  }
 
   try {
-    // Prove workspace ownership before the profile-aware by-id read. The by-id
-    // endpoint enforces the profile lens but is intentionally workspace-agnostic;
-    // using it alone would silently open a foreign workspace's session.
-    await queryClient.ensureQueryData(sessionDetailOptions(workspaceId, sessionId));
+    // Prove ownership before the profile-aware by-id read. The by-id endpoint
+    // enforces the profile lens but is intentionally workspace-agnostic; using
+    // it alone would silently open another destination's session. The User
+    // desktop proves through `@user`, which resolves to the request's profile.
+    await queryClient.ensureQueryData(sessionDetailOptions(ownership.proofSelector, sessionId));
     await queryClient.ensureQueryData(
       sessionScopedDetailOptions(sessionId, readProfileScopeParams(queryClient))
     );
   } catch (error) {
     if (error instanceof SessionNotFoundError) {
-      return resolveForeignSession(
-        queryClient,
-        sessionId,
-        workspaceId,
-        selection.scope === "global"
-      );
+      return resolveForeignSession(queryClient, sessionId, ownership);
     }
     throw error;
   }
 
   await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(workspaceId, sessionId)),
+    queryClient.ensureInfiniteQueryData(
+      sessionTranscriptOptions(ownership.ownerWorkspaceId, sessionId)
+    ),
   ]);
 
-  return { status: "loaded", workspaceId };
+  return { status: "loaded", workspaceId: ownership.ownerWorkspaceId };
 }
 
 /**
@@ -83,14 +84,13 @@ export async function prefetchAgentSessionRoute({
 async function resolveForeignSession(
   queryClient: QueryClient,
   sessionId: string,
-  activeWorkspaceId: string,
-  globalScope: boolean
+  ownership: SessionRouteOwnership
 ): Promise<AgentSessionRouteLoaderData> {
   const owner = await resolveSessionOwner(queryClient, sessionId);
   if (!owner) {
     return { status: "not-found" };
   }
-  if (owner.workspaceId === activeWorkspaceId || (globalScope && owner.workspaceId === "")) {
+  if (ownership.accepts(owner.workspaceId)) {
     await queryClient.ensureQueryData(sessionAcrossProfilesOptions(sessionId));
     await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),

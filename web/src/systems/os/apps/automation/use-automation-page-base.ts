@@ -10,6 +10,7 @@ import { notifyUser } from "@/lib/user-feedback";
 import {
   AutomationApiError,
   automationListLoopFilter,
+  automationListScope,
   automationRouteHasActiveFilters,
   automationsStartView,
   type AutomationDoes,
@@ -95,7 +96,10 @@ export function useAutomationCreateSeed(
  */
 export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
   const navigate = useNavigate();
-  const { activeWorkspace, activeWorkspaceId, pending, workspaces } = useActiveWorkspace();
+  const { activeWorkspace, activeWorkspaceId, dataScope, pending, workspaces } =
+    useActiveWorkspace();
+  // User lists only automations without a project; elsewhere the facet decides.
+  const scope = automationListScope(dataScope, search.scope);
   const settingsQuery = useSettingsAutomation();
 
   const start = automationsStartView(search) ?? null;
@@ -119,10 +123,10 @@ export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
     enabled: search.enabled,
     loop: automationListLoopFilter(search),
     q: committedSearchQuery,
-    scope: search.scope,
+    scope,
     source: search.source,
     target: search.target,
-    workspace_id: search.scope === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
+    workspace_id: scope === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
   };
 
   const clearFilters = () => {
@@ -141,7 +145,7 @@ export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
   return {
     activeWorkspace,
     activeWorkspaceId,
-    /** The project or Global lens is known (no longer loading). */
+    /** The project, User, or All projects lens is known (no longer loading). */
     workspaceResolved: !pending,
     automationRuntime: settingsQuery.data?.runtime ?? null,
     /** The global automation time zone every listing sentence reads in. */

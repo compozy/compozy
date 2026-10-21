@@ -19,7 +19,7 @@ import {
   LoopRunControlDialog,
   LoopRunPageBody,
 } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
 
 export function LoopRunDetailLocation({
   runId,
@@ -31,9 +31,9 @@ export function LoopRunDetailLocation({
   requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
 }) {
   const navigate = useNavigate();
-  const { activeWorkspace, runtimeWorkspaceId, workspaces } = useActiveWorkspace();
+  const { activeWorkspace, dataScope, workspaces } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const workspaceId = routeWorkspaceId ?? runtimeWorkspaceId ?? "";
+  const workspaceId = routeWorkspaceId ?? focusedWorkspaceSelector(dataScope);
   const workspaceName = workspaces.find(workspace => workspace.id === workspaceId)?.name;
   const openLoops = () => {
     void navigate({ to: "/loops" });
