@@ -30,7 +30,7 @@ type Story = StoryObj<typeof meta>;
 
 const PATH = "/settings/provider-usage";
 
-/** On, every 5 minutes, Cursor turned off; the daemon is not on macOS, so no Keychain row. */
+/** On, every 5 minutes, OpenRouter turned off; the daemon is not on macOS, so no Keychain row. */
 export const Default: Story = {
   parameters: appRouteParameters(PATH),
   render: () => <StorybookWorkspaceSetup />,

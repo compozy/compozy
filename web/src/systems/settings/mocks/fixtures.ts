@@ -97,7 +97,10 @@ export const settingsProviderUsageSectionFixture: SettingsProviderUsageSection =
   config: {
     enabled: true,
     refresh_interval: "5m0s",
-    providers: { cursor: { enabled: false }, claude: { enabled: true, keychain_access: false } },
+    providers: {
+      openrouter: { enabled: false },
+      claude: { enabled: true, keychain_access: false },
+    },
   },
 };
 

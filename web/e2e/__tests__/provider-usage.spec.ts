@@ -156,7 +156,7 @@ test("opens the Usage app from the popover with Codex expanded (E2E-004)", async
   await expect(usagePopover(appPage)).toBeHidden();
   const usageWindow = appWindow(appPage, "usage");
   await expect(usageWindow).toBeVisible();
-  await expect(usageWindow.getByRole("heading", { name: "Usage", level: 2 })).toBeVisible();
+  await expect(usageWindow.getByRole("region", { name: "Usage" })).toBeVisible();
   await expect(usageWindow.getByRole("button", { name: /^Codex/ })).toHaveAttribute(
     "aria-expanded",
     "true"
