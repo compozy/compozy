@@ -224,6 +224,35 @@ export function applySessionOrder(
   return next;
 }
 
+/**
+ * Optimistic Manual-sort patch for a bulk move: the listed sessions take the
+ * folder and lead its members in the listed order, as the daemon pins them.
+ * The root also leads with unplaced sessions the page cannot tell apart, so a
+ * move to the root keeps each session's slot and the reread settles the order.
+ */
+export function applySessionsMovedFirst(
+  sessions: readonly SessionPayload[],
+  folderId: string | null,
+  orderedIds: readonly string[]
+): SessionPayload[] {
+  if (folderId === null) return applySessionOrder(sessions, folderId, orderedIds);
+  const listed = new Set(orderedIds);
+  const byId = new Map(sessions.map(session => [session.id, session]));
+  const moved = orderedIds.flatMap(id => {
+    const session = byId.get(id);
+    return session ? [withFolder(session, folderId)] : [];
+  });
+  const firstMoved = sessions.findIndex(session => listed.has(session.id));
+  const rest = sessions.filter(session => !listed.has(session.id));
+  const firstMember = rest.findIndex(session => sessionFolderId(session) === folderId);
+  const insertAt =
+    firstMember >= 0
+      ? firstMember
+      : sessions.slice(0, Math.max(firstMoved, 0)).filter(session => !listed.has(session.id))
+          .length;
+  return [...rest.slice(0, insertAt), ...moved, ...rest.slice(insertAt)];
+}
+
 /** Optimistically moves one session to the end of a folder (or the root). */
 export function applySessionMove(
   sessions: readonly SessionPayload[],
@@ -258,4 +287,56 @@ function withFolder(session: SessionPayload, folderId: string | null): SessionPa
   if (folderId) return { ...session, folder_id: folderId };
   const { folder_id: _removed, ...rest } = session;
   return rest as SessionPayload;
+}
+
+/** What a selection can move into a folder. */
+export interface SessionBulkMove {
+  /**
+   * Selected thread roots in on-screen order; selected rows a filter or a fold
+   * hides follow in catalog order. Child rows follow their parent and never
+   * move on their own, and neither does a subagent whose parent is gone.
+   */
+  sessions: SessionPayload[];
+  /** Distinct owning profiles; a folder belongs to one profile's layout. */
+  profileIds: string[];
+}
+
+/** Collects the movable part of a selection in the order the operator sees it. */
+export function sessionBulkMove(
+  catalog: readonly SessionPayload[],
+  selectedIds: ReadonlySet<string>,
+  visibleOrder: readonly string[]
+): SessionBulkMove {
+  const rank = new Map(visibleOrder.map((id, index) => [id, index]));
+  const roots = new Set(buildSessionListThreads(catalog, "").map(thread => thread.session.id));
+  const sessions = catalog
+    .flatMap((session, index) =>
+      selectedIds.has(session.id) && roots.has(session.id) && sessionHasOwnPlacement(session)
+        ? [{ session, rank: rank.get(session.id) ?? visibleOrder.length + index }]
+        : []
+    )
+    .sort((left, right) => left.rank - right.rank)
+    .map(entry => entry.session);
+  const profileIds = [...new Set(sessions.map(session => session.profile_id ?? ""))];
+  return { sessions, profileIds };
+}
+
+/** The sessions a move into `folderId` (null: the root) would change; already-filed ones need no write. */
+export function sessionBulkMoveIds(
+  sessions: readonly SessionPayload[],
+  folderId: string | null
+): string[] {
+  return sessions.flatMap(session => (sessionFolderId(session) === folderId ? [] : [session.id]));
+}
+
+/** Why the selection cannot move into a folder, or null when it can. */
+export function sessionBulkMoveBlockedReason(move: SessionBulkMove): string | null {
+  if (move.sessions.length === 0) return "Child sessions move with their parent.";
+  if (move.profileIds.length > 1) return "Select sessions from one profile to move them.";
+  return null;
+}
+
+/** "1 session" or "N sessions", for counts in menus, toasts, and the drag preview. */
+export function sessionCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "session" : "sessions"}`;
 }

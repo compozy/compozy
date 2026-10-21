@@ -6,6 +6,7 @@ import {
   ConfirmDialog,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -84,9 +85,7 @@ export function SessionFolderDialogs({
         {state !== null ? (
           <SessionFolderNameForm
             key={rename?.id ?? "create"}
-            title={rename ? "Rename folder" : "New folder"}
-            confirmLabel={rename ? "Rename folder" : "Create folder"}
-            confirmIcon={rename ? Pencil : FolderPlus}
+            {...folderNameCopy(state)}
             initialName={rename?.name ?? ""}
             pending={pending}
             requestError={error}
@@ -99,8 +98,29 @@ export function SessionFolderDialogs({
   );
 }
 
+/** Title, description, and confirm button for the create and rename dialogs. */
+function folderNameCopy(state: Exclude<SessionFolderDialogState, null | { kind: "delete" }>) {
+  if (state.kind === "rename") {
+    return { title: "Rename folder", confirmLabel: "Rename folder", confirmIcon: Pencil };
+  }
+  const count = state.moveCount;
+  if (count === undefined) {
+    return { title: "New folder", confirmLabel: "Create folder", confirmIcon: FolderPlus };
+  }
+  return {
+    title: "New folder",
+    description:
+      count === 1
+        ? "The session you selected moves into it."
+        : `The ${count} sessions you selected move into it.`,
+    confirmLabel: "Create and move",
+    confirmIcon: FolderPlus,
+  };
+}
+
 function SessionFolderNameForm({
   title,
+  description,
   confirmLabel,
   confirmIcon: ConfirmIcon,
   initialName,
@@ -110,6 +130,7 @@ function SessionFolderNameForm({
   onConfirm,
 }: {
   title: string;
+  description?: string;
   confirmLabel: string;
   confirmIcon: typeof Pencil;
   initialName: string;
@@ -137,6 +158,7 @@ function SessionFolderNameForm({
     <form onSubmit={submit} className="flex flex-col gap-4">
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
+        {description ? <DialogDescription>{description}</DialogDescription> : null}
       </DialogHeader>
       <Field data-invalid={Boolean(shownError)}>
         <FieldLabel htmlFor="session-folder-name">Name</FieldLabel>

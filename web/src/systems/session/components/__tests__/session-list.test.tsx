@@ -1023,6 +1023,7 @@ describe("SessionList folders and manual order", () => {
       moveFolder: vi.fn(),
       reorderFolders: vi.fn(),
       moveSession: vi.fn(),
+      moveSessions: vi.fn(async () => undefined),
       reorderSessions: vi.fn(),
       ...overrides,
     };
@@ -1420,6 +1421,250 @@ describe("SessionList folders and manual order", () => {
     expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
     expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
+
+  // Invariant: a selection moves into a folder or the root through the bar's
+  // Move to folder menu or by dragging a selected row, as one layout write of
+  // its thread roots in on-screen order; success ends the selection, a refusal
+  // keeps it, and a selection that cannot move says why.
+  const rowNames: Record<string, string> = {
+    r1: "Root one",
+    r2: "Root two",
+    f1: "Filed one",
+    c1: "Child one",
+  };
+  /** Enters selection with the first row's checkbox, then toggles the rest by click. */
+  async function selectRows(...ids: string[]) {
+    // Submenus open on top of their parent menu, whose guard layer the pointer check would hit.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const [first, ...rest] = ids;
+    await user.click(screen.getByRole("checkbox", { name: `Select ${rowNames[first!]}` }));
+    for (const id of rest) await user.click(screen.getByTestId(`session-sidebar-session-${id}`));
+    return user;
+  }
+  /**
+   * Opens the selection bar's More menu and, from the keyboard, its Move to
+   * folder submenu; resolves once focus sits inside the submenu.
+   */
+  async function openMoveMenu(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByTestId("session-sidebar-selection-more"));
+    const trigger = await screen.findByTestId("session-sidebar-selection-move");
+    await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
+    trigger.focus();
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => {
+      const submenu = document.activeElement?.closest('[role="menu"]');
+      expect(submenu).toBeTruthy();
+      expect(submenu).not.toContainElement(trigger);
+    });
+  }
+  /** Activates one submenu target from the keyboard, as the row menu suite does. */
+  async function chooseMoveTarget(user: ReturnType<typeof userEvent.setup>, name: string) {
+    const item = await screen.findByRole("menuitem", { name });
+    item.focus();
+    await user.keyboard("{Enter}");
+  }
+
+  it("Should move the selection to a folder from the selection menu and end the selection", async () => {
+    const { layout } = renderLayout("created");
+    const user = await selectRows("r1", "f1");
+    await openMoveMenu(user);
+    const items = await screen.findAllByTestId(/^session-sidebar-selection-move-/);
+    expect(items.map(item => item.textContent)).toEqual([
+      "Alpha",
+      "Beta",
+      "No folder",
+      "New folder…",
+    ]);
+    await chooseMoveTarget(user, "Beta");
+
+    await waitFor(() => expect(layout.moveSessions).toHaveBeenCalledWith(["f1", "r1"], "fb"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-sidebar-selection-bar")).not.toBeInTheDocument()
+    );
+  });
+
+  it("Should skip targets that change nothing and keep the selection when the move is refused", async () => {
+    let refuse: (error: Error) => void = () => undefined;
+    const layout = fakeLayout({
+      moveSessions: vi.fn(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            refuse = reject;
+          })
+      ),
+    });
+    renderList({ sessions: layoutRows, view: { ...view, layout } });
+    const user = await selectRows("f1");
+    await openMoveMenu(user);
+    expect(await screen.findByRole("menuitem", { name: "Alpha" })).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    await chooseMoveTarget(user, "No folder");
+
+    expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null);
+    await waitFor(() =>
+      expect(screen.getByTestId("session-sidebar-selection-more")).toBeDisabled()
+    );
+    await act(async () => refuse(new Error("layout changed concurrently")));
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
+    expect(screen.getByTestId("session-sidebar-selection-more")).toBeEnabled();
+  });
+
+  it("Should create a folder around the selection and move it in", async () => {
+    const { layout } = renderLayout("created");
+    const user = await selectRows("r1", "r2");
+    await openMoveMenu(user);
+    await chooseMoveTarget(user, "New folder…");
+    expect(await screen.findByText("The 2 sessions you selected move into it.")).toBeVisible();
+    await user.type(screen.getByTestId("session-folder-name"), "Launch");
+    await user.click(screen.getByRole("button", { name: "Create and move" }));
+
+    expect(layout.createFolder).toHaveBeenCalledWith("Launch");
+    await waitFor(() => expect(layout.moveSessions).toHaveBeenCalledWith(["r1", "r2"], "fa"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-folder-name-dialog")).not.toBeInTheDocument()
+    );
+    expect(screen.queryByTestId("session-sidebar-selection-bar")).not.toBeInTheDocument();
+  });
+
+  it("Should say a selection of child rows moves with its parent", async () => {
+    const child = {
+      ...layoutRows[2]!,
+      id: "c1",
+      name: "Child one",
+      lineage: {
+        parent_session_id: "r1",
+        root_session_id: "r1",
+        spawn_depth: 1,
+        auto_stop_on_parent: false,
+        notify_creator: false,
+        spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+        permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+      },
+    };
+    const layout = fakeLayout();
+    renderList({ sessions: [...layoutRows, child], view: { ...view, layout } });
+    const user = await selectRows("c1");
+    await openMoveMenu(user);
+
+    // The reason takes focus, so keyboard and screen reader users hear it.
+    expect(
+      await screen.findByRole("menuitem", { name: "Child sessions move with their parent." })
+    ).toHaveFocus();
+    expect(screen.queryByRole("menuitem", { name: "Beta" })).not.toBeInTheDocument();
+  });
+
+  it("Should drag the selection onto a folder, and drag an unselected row alone", async () => {
+    const { layout } = renderLayout("created");
+    await selectRows("r1");
+    fireEvent.dragStart(rowContainer("r2"));
+    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
+    expect(layout.moveSession).toHaveBeenCalledWith("r2", "fb");
+    expect(layout.moveSessions).not.toHaveBeenCalled();
+
+    fireEvent.dragStart(rowContainer("r1"));
+    expect(rowContainer("r1")).toHaveAttribute("data-dragging", "true");
+    // Rows never take a dragged selection, so it lands on the folder around them.
+    fireEvent.dragOver(rowContainer("f1"));
+    expect(screen.getByTestId("session-sidebar-folder-fa-header")).toHaveAttribute(
+      "data-drop",
+      "into"
+    );
+    fireEvent.drop(rowContainer("f1"));
+    await waitFor(() => expect(layout.moveSessions).toHaveBeenCalledWith(["r1"], "fa"));
+    expect(layout.reorderSessions).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["another bulk operation starts", "busy"],
+    ["a carried session leaves the list", "pruned"],
+  ])("Should refuse a selection drop once %s mid-drag", async (_case, change) => {
+    const layout = fakeLayout();
+    const layoutView = { ...view, sort: "created" as const, layout };
+    const { actions, update } = renderList({ sessions: layoutRows, view: layoutView });
+    await selectRows("r1", "r2");
+    fireEvent.dragStart(rowContainer("r1"));
+    if (change === "busy") {
+      (actions as { pendingAction: string | null }).pendingAction = "stop";
+      update(layoutRows, layoutView);
+    } else {
+      update(
+        layoutRows.filter(row => row.id !== "r2"),
+        layoutView
+      );
+    }
+
+    fireEvent.dragOver(screen.getByTestId("session-sidebar-folder-fb"));
+    expect(screen.getByTestId("session-sidebar-folder-fb-header")).not.toHaveAttribute("data-drop");
+    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb"));
+    expect(layout.moveSessions).not.toHaveBeenCalled();
+  });
+
+  it("Should take a dragged selection back to the root, writing only its filed sessions", async () => {
+    const { layout } = renderLayout("created");
+    await selectRows("r2", "f1");
+    fireEvent.dragStart(rowContainer("f1"));
+    expect(rowContainer("r2")).toHaveAttribute("data-dragging", "true");
+    fireEvent.dragOver(screen.getByTestId("session-sidebar-folder-fa"));
+    expect(screen.getByTestId("session-sidebar-folder-fa-header")).toHaveAttribute(
+      "data-drop",
+      "into"
+    );
+    fireEvent.drop(screen.getByTestId("session-sidebar-root"));
+    await waitFor(() => expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null));
+  });
+
+  it.each([
+    ["one profile", ["f1"], "Alpha"],
+    ["two profiles", ["f1", "foreign"], "Select sessions from one profile to move them."],
+  ])(
+    "Should scope an aggregate selection's moves to its profile (%s)",
+    async (_case, ids, item) => {
+      const groups = [
+        {
+          owner: { id: "default", name: "default", archived: false },
+          workspaceId: "ws",
+          folders: [folderA],
+          canCreateSession: true,
+        },
+        {
+          owner: { id: "other", name: "other", archived: false },
+          workspaceId: "ws",
+          folders: [{ ...folderB, profile_id: "other" }],
+          canCreateSession: false,
+        },
+      ];
+      const { queryClient } = renderList({
+        sessions: [
+          { ...layoutRows[1]!, profile_id: "default", profile_name: "default" },
+          { ...layoutRows[0]!, id: "foreign", profile_id: "other", profile_name: "other" },
+        ],
+        view: {
+          ...view,
+          aggregate: true,
+          profileFolderGroups: groups,
+          ownerOf: session => groups.find(group => group.owner.id === session.profile_id)!.owner,
+        },
+      });
+      act(() => {
+        for (const group of groups)
+          queryClient.setQueryData(
+            sessionFoldersOptions({ workspaceId: "ws", profile: group.owner.name }).queryKey,
+            group.folders
+          );
+      });
+      await screen.findByTestId("session-sidebar-folder-fa");
+      const user = await selectRows(...ids);
+      await openMoveMenu(user);
+      expect(await screen.findByRole("menuitem", { name: item })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Beta" })).not.toBeInTheDocument();
+
+      fireEvent.dragStart(rowContainer("f1"));
+      if (ids.length > 1) expect(rowContainer("f1")).not.toHaveAttribute("data-dragging");
+      else expect(rowContainer("f1")).toHaveAttribute("data-dragging", "true");
+    }
+  );
 
   it("Should reorder folders by dragging one header onto another", () => {
     const { layout } = renderLayout("created");

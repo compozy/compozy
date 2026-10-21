@@ -121,6 +121,16 @@ profile inside one workspace, persist in the daemon, and appear in every open wi
 Right-click a folder header to start a **New session in folder**, rename the folder, move it, or
 delete it. Deleting a folder moves its sessions back to the list; no session is deleted.
 
+To file several sessions at once, select them (checkbox, or **⌘**/**Ctrl**-click), then either drag
+any selected row onto a folder or back onto the list, or open **…** in the selection bar and choose
+**Move to folder**. The submenu lists your folders, **No folder** when a selected session is filed,
+and **New folder…**, which names a new folder and moves the selection into it. The move is one
+change: either every selected session moves or none does, and a refused move keeps the selection so
+you can retry. Sessions already in the target stay where they are, and the moved sessions keep their
+on-screen order at the top of the target in **Manual** sort. Child sessions follow their parent, so
+a selected child moves only with its selected parent. A folder belongs to one profile, so a
+selection that spans profiles in the all-profiles view can't move until you narrow it to one.
+
 Which folders and threads are expanded is a view choice, not shared data. Each session window keeps
 its own sessions sidebar: whether it is open and which folders and threads are collapsed. A new
 window starts from the sidebar you used last, each window's sidebar survives a reload, and **⌘B**

@@ -28,6 +28,8 @@ export interface SessionListFolderProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   drag?: SessionDragHandlers;
+  /** The whole folder as the drop target for a dragged selection. */
+  dropZone?: SessionDragHandlers;
   dropEdge?: SessionDropPosition | "into" | null;
   dragging?: boolean;
   testIdPrefix: string;
@@ -49,6 +51,7 @@ export function SessionListFolder({
   onMoveUp,
   onMoveDown,
   drag,
+  dropZone,
   dropEdge = null,
   dragging = false,
   testIdPrefix,
@@ -100,7 +103,7 @@ export function SessionListFolder({
     </div>
   );
   return (
-    <div data-testid={testId} role="group" aria-label={folder.name}>
+    <div {...dropZone} data-testid={testId} role="group" aria-label={folder.name}>
       <ContextMenu>
         <ContextMenuTrigger
           data-testid={`${testId}-menu`}
