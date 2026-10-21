@@ -43,6 +43,34 @@ The issue-specific automated verdict, exact commit and CI job receipts are recor
 That record covers this stopped/unbound deletion slice; the historical evidence above is separate
 and is not promoted to a new full manual-scenario pass.
 
+## Live session with delegated descendants
+
+In an isolated daemon, create a parent session that delegates a child which delegates a
+grandchild holding an active turn. Delete the parent through the workspace-scoped HTTP route;
+repeat with the child as the deletion target. Each request must complete, retained descendants
+must be stopped, and a subsequent session must reach active state and delete successfully
+through UDS without restarting the daemon.
+
+The owning suite is `TestSubagentRootHostedMCPDaemonIntegration` in
+`internal/daemon/subagent_integration_test.go`. It runs the real daemon, SQLite, hosted MCP,
+HTTP/UDS, and ACP fixture subprocesses. Before the fix, parent deletion exhausted the request's
+60-second deadline: deletion held the global lifecycle mutex while synchronous subagent
+settlement tried to acquire it again. Session creation uses the same mutex. The fix settles
+execution and Goals before entering the globally serialized history-removal phase, while
+retaining the conversation-operation lock for the target session.
+
+The incident log at 2026-10-21 13:23:48 -03:00 recorded a canceled deletion waiting for that
+session's conversation operation. Shutdown began at 13:26:50; the next boot classified
+interrupted sessions as `agent_crashed`. Those recovery labels do not independently establish
+a provider crash. The original process has no retained goroutine dump; the deterministic
+regression establishes the deadlock path and its repair, rather than every historical interleaving.
+
+Automated retest 2026-10-21: both deletion variants and the existing hosted-MCP delegation/cancel
+cases passed with `go test -tags=integration ./internal/daemon -run '^TestSubagentRootHostedMCPDaemonIntegration$' -count=1 -timeout=240s -v`.
+The targeted `TestManagerDelete` suite also passed with race detection.
+These receipts cover this live-tree slice; they do not promote the historical manual scenarios
+above to a new full-scenario pass.
+
 
 QA impact 2026-10-10 (verification pending): On native Windows, remove a stopped session with attachment files and nested directories after querying its history and again after a daemon restart. Confirm no Access is denied error, no remaining catalog row, and no staged/committed tombstone leak. Exercise catalog-failure rollback and interrupted tombstone recovery. Owning suite: TestManagerDelete, including pooled-reader quiescence, rollback, and recovery cases.
 
