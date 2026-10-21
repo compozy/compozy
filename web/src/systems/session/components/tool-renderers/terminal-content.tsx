@@ -223,7 +223,7 @@ function SessionTerminalPreview({
                 },
               }
             : {})}
-          {...(scope ? { scope } : {})}
+          {...(scope && catalog?.mode === "pty" && catalog.state === "running" ? { scope } : {})}
         />
       </Suspense>
     </div>

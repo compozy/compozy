@@ -129,7 +129,7 @@ export function useWorktreeCatalogStream(
       })
     ),
   ];
-  const workspaceKey = JSON.stringify(workspaceIds);
+  const workspaceKey = JSON.stringify(workspaceIds.sort());
   const canConnect =
     enabled &&
     // Checked on the list, not the serialized key: an empty array still

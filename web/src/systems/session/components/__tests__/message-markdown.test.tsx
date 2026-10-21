@@ -8,6 +8,25 @@ vi.mock("@/lib/utils", () => ({
 import { MessageMarkdown } from "../message-markdown";
 
 describe("MessageMarkdown", () => {
+  it("Should keep an unfinished streaming image pending until its authored path arrives", () => {
+    const { container, rerender } = render(<MessageMarkdown streaming content="![Preview](" />);
+    expect(container).not.toHaveTextContent("streamdown:incomplete-image");
+    expect(container.querySelector("img")).toBeNull();
+    rerender(<MessageMarkdown content="![Preview](/tmp/demo/complete.png)" />);
+    expect(screen.getByText("/tmp/demo/complete.png")).toBeInTheDocument();
+  });
+
+  it("Should preserve authored image references without requesting filesystem paths from the app", () => {
+    const { container, rerender } = render(
+      <MessageMarkdown content="![Preview](/tmp/demo/screen.png)" />
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("/tmp/demo/screen.png")).toBeInTheDocument();
+    rerender(<MessageMarkdown reveal content="![Preview](/tmp/demo/screen.png)" />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("/tmp/demo/screen.png")).toBeInTheDocument();
+  });
+
   it("renders fenced code through the shared CodeBlock primitive", async () => {
     const { container } = render(
       <MessageMarkdown content={"```typescript\nconst value = 1;\n```"} />

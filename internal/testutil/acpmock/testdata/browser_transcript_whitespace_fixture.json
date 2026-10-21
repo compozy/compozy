@@ -11,7 +11,7 @@
                     "name": "split-markdown-boundaries",
                     "match": {
                         "turn_source": "user",
-                        "user_text": "show the diagram"
+                        "user_text": "show the diagram\non a separate line\n\n- first item\n- second item"
                     },
                     "steps": [
                         {

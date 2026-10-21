@@ -13,6 +13,7 @@ const TERMINAL_GONE_CODES = new Set<TerminalErrorCode>([
   "terminal_exited",
   "terminal_expired",
   "terminal_not_found",
+  "terminal_not_interactive",
 ]);
 
 export function terminalStreamFatalCode(cause: unknown): TerminalErrorCode | null {

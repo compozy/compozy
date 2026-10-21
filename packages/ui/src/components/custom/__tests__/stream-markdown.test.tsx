@@ -70,6 +70,17 @@ function slotted(lines: readonly string[]): string {
 }
 
 describe("StreamMarkdown", () => {
+  it("Should compose a caller image renderer with the shared fenced code renderer", () => {
+    const { container } = render(
+      <StreamMarkdown components={{ img: ({ alt }) => <span>{alt}</span> }}>
+        {"![Reference](/local.png)\n\n```text\nhello\n```"}
+      </StreamMarkdown>
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("Reference")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="code-block"]')).not.toBeNull();
+  });
+
   it("Should render the reading density by default", () => {
     const { container } = render(<StreamMarkdown># Title</StreamMarkdown>);
     expect(proseRoot(container)).not.toHaveAttribute("data-compact");

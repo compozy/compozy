@@ -49,3 +49,7 @@ missing dismissal with branch deletion, archived-owner disabled reason, single r
 unmerged refusal then forced retry, and a mixed ready+missing bulk batch with per-row branch outcomes
 all passed; Git state was verified after each step and the lab teardown was clean. Evidence is in
 the PR description.
+
+## Console lifecycle regression (#873)
+
+Reorder the workspace list without changing its members: retain the catalog connection. Adding/removing a workspace still reconciles the subscription and rejects foreign frames. The hook suite covers these invariants; browser re-walk remains pending.

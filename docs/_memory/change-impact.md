@@ -29,6 +29,26 @@ history and its recording/artifact index are absent from the new journal. Existi
 SQLite files and retained artifact bytes are left intact. No files from a running older daemon
 are deleted. The release note includes migration notes; internal constructors change together.
 
+## Console lifecycle failures — issue #873
+
+Owner: `fix/issue-873-console-lifecycle`. Web session detail polling and presence acquisition stop
+after a scoped 404/410; profile boundaries remain enforced and the existing foreign-owner lookup
+remains authoritative. Worktree catalog subscriptions use a canonical workspace set so list reorder
+does not reconnect the socket. Transcript terminal previews attach only to a catalog-confirmed
+running PTY. Pipe terminals retain recorded output and their terminal-window action. Attach-ticket
+admission returns the existing `terminal_not_interactive` refusal for pipes before issuing a useless
+ticket; the Web client treats that refusal as terminal rather than retrying.
+
+Native tool IDs, CLI/UDS DTOs, hooks, extension contracts, config keys, persisted state and workspace
+isolation are unchanged. HTTP retains the existing terminal error shape; no generator or migration
+is needed. Session Markdown displays image references as text instead of interpreting host paths
+as app-origin URLs. Validated attachment tiles retain their existing byte routes. `StreamMarkdown`
+exposes the component override contract of its underlying primitive. Official `skills/compozy/`
+operations are unchanged: pipe output remains available through read/wait. QA owners are
+`ET-terminal-session-block-handoff`, `RT-session-done-presence`,
+`ET-web-session-deep-link-isolation`, and `RT-worktree-web-missing-resolution`.
+Historical HTTP 500s remain under investigation; these changes do not suppress them.
+
 ## Intel macOS release recovery — 2026-10-20
 
 Owner: `.github/workflows/release.yml`, release run `39431274097`. The production
@@ -3874,3 +3894,12 @@ Owner: workflow `opencode-model-discovery` (Tasks 01–03 implement; Tasks 04–
 - **Official CompozyOS skill:** `skills/compozy/references/extensions.md` documents the two targets, the setup skill, the record, and the Loop `target` input.
 - **Web/Docs:** no Web change. The site guide `extensions/open-design.mdx` adds the library prototyping section and the updated resource count. `ET-open-design` step 7 owns the library-target QA walk (passed 2026-10-20 on three projects).
 - **Compatibility:** additive. Existing HTML requests, artifact paths, lint calls, and Loop invocations without `target` behave as before (`auto` follows the skill, which defaults to HTML without a record).
+
+## Issue #872 — Session message formatting and editing
+
+- Web: preserve authored soft line breaks in user prose/list items; keep both message action rows visible; expose the existing conversation rewind as Edit message with an explicit draft/conversation consequence.
+- Native tools and HTTP/UDS/CLI: reuse the existing fenced rewind and prompt submission contracts; no schema or tool ID changes.
+- Extensibility, hooks, configuration: unchanged.
+- Workspace/profile isolation and user data: unchanged; rewind remains daemon-authoritative and archives the discarded suffix without undoing file/tool effects. No migration.
+- Official runtime skill: existing rewind contract remains accurate; no skill changes.
+- Docs/QA: update RT-conversation-rewind and RT-session-transcript-whitespace; browser suites cover authored layout, persistent controls, and Stop/edit/resend.

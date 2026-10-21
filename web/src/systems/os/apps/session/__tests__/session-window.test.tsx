@@ -48,16 +48,6 @@ vi.mock("@tanstack/react-query", () => ({
   },
 }));
 
-vi.mock("@/systems/session/adapters/session-api", () => ({
-  SessionNotFoundError: class SessionNotFoundError extends Error {
-    readonly status = 404;
-
-    constructor(sessionId: string) {
-      super(`Session not found: ${sessionId}`);
-    }
-  },
-}));
-
 const scopedDetailSpy = vi.fn((..._args: unknown[]) => ({}));
 const foreignState: { current: Record<string, unknown> } = { current: { status: "disabled" } };
 const profileScope = { aggregate: false };
@@ -131,6 +121,7 @@ vi.mock("../session-window-view", () => ({
 
 import { SessionWindow } from "../session-window";
 import { SessionNotFoundError } from "@/systems/session";
+import { SessionApiError } from "@/systems/session/adapters/session-api-errors";
 
 describe("SessionWindow", () => {
   beforeEach(() => {
@@ -288,35 +279,41 @@ describe("SessionWindow", () => {
     expect(userRetireSession).not.toHaveBeenCalled();
   });
 
-  it("Should retire a restored missing session onto the empty session route (UT-087)", async () => {
-    queryState.data = undefined;
-    queryState.error = new SessionNotFoundError("sess-1");
-    queryState.isError = true;
-    foreignState.current = { status: "missing" };
-    render(<SessionWindow windowId="session:sess-1" />);
+  it.each([404, 410])(
+    "Should retire a restored missing session after HTTP %s (UT-087)",
+    async status => {
+      queryState.data = undefined;
+      queryState.error = new SessionApiError("Session unavailable", status, "sess-1");
+      queryState.isError = true;
+      foreignState.current = { status: "missing" };
+      render(<SessionWindow windowId="session:sess-1" />);
 
-    await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
-    );
-    expect(userClose).not.toHaveBeenCalled();
-    expect(userOpen).not.toHaveBeenCalled();
-    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ windowId: "session:sess-1" })
-    );
-  });
+      await waitFor(() =>
+        expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+      );
+      expect(userClose).not.toHaveBeenCalled();
+      expect(userOpen).not.toHaveBeenCalled();
+      expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
+        expect.objectContaining({ windowId: "session:sess-1" })
+      );
+    }
+  );
 
-  it("Should retire an aggregate 404 without rendering the missing-session notice", async () => {
-    profileScope.aggregate = true;
-    queryState.data = undefined;
-    queryState.error = new SessionNotFoundError("sess-1");
-    queryState.isError = true;
-    render(<SessionWindow windowId="session:sess-1" />);
-    await waitFor(() =>
-      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
-    );
-    expect(sessionWindowEmptySpy).toHaveBeenCalled();
-    expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
-  });
+  it.each([404, 410])(
+    "Should retire an aggregate HTTP %s without rendering the missing-session notice",
+    async status => {
+      profileScope.aggregate = true;
+      queryState.data = undefined;
+      queryState.error = new SessionApiError("Session unavailable", status, "sess-1");
+      queryState.isError = true;
+      render(<SessionWindow windowId="session:sess-1" />);
+      await waitFor(() =>
+        expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+      );
+      expect(sessionWindowEmptySpy).toHaveBeenCalled();
+      expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
+    }
+  );
 
   it.each([false, true])("Should preserve transport errors with aggregate=%s", aggregate => {
     profileScope.aggregate = aggregate;

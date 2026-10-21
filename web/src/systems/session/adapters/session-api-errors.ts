@@ -79,3 +79,7 @@ export function throwSessionRequestError(
     }
   );
 }
+
+export function isSessionUnavailable(error: unknown): boolean {
+  return error instanceof SessionApiError && (error.status === 404 || error.status === 410);
+}
