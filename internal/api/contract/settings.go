@@ -50,6 +50,7 @@ const (
 	SettingsSectionCmdPalette      SettingsSectionName = "cmd-palette"
 	SettingsSectionAttention       SettingsSectionName = "attention"
 	SettingsSectionShell           SettingsSectionName = "shell"
+	SettingsSectionProviderUsage   SettingsSectionName = "provider-usage"
 	SettingsSectionObservability   SettingsSectionName = "observability"
 	SettingsSectionHooksExtensions SettingsSectionName = "hooks-extensions"
 	SettingsSectionMarketplace     SettingsSectionName = "marketplace"
@@ -77,6 +78,7 @@ const (
 	SettingsApplyTargetCmdPalette      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionCmdPalette)
 	SettingsApplyTargetAttention       SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAttention)
 	SettingsApplyTargetShell           SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionShell)
+	SettingsApplyTargetProviderUsage   SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionProviderUsage)
 	SettingsApplyTargetObservability   SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionObservability)
 	SettingsApplyTargetHooksExtensions SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionHooksExtensions)
 	SettingsApplyTargetMarketplace     SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMarketplace)

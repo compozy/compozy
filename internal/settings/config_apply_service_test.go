@@ -2845,3 +2845,107 @@ func openSettingsTestGlobalDB(ctx context.Context, t *testing.T, path string) (*
 	}
 	return globaldb.OpenGlobalDB(ctx, path)
 }
+
+func TestProviderUsageSettingsApply(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should persist and apply provider usage live without activating pending settings IT-006",
+		func(t *testing.T) {
+			t.Parallel()
+			ctx := WithMutationSource(t.Context(), "http")
+			home := testHomePaths(t)
+			writeFile(t, home.ConfigFile, baseSettingsConfig())
+			db, err := openSettingsTestGlobalDB(ctx, t, home.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			applier := &fakeConfigRuntimeApplier{}
+			svc := testService(
+				t,
+				home,
+				Dependencies{RuntimeApplier: applier, ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil)},
+			)
+			initial, err := svc.ActiveConfig(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(
+				t,
+				home.ConfigFile,
+				strings.Replace(baseSettingsConfig(), `provider = "codex"`, `provider = "claude"`, 1),
+			)
+			desired := compozyconfig.DefaultProviderUsageConfig()
+			desired.Enabled = false
+			desired.RefreshInterval = 10 * time.Minute
+			desired.Providers = map[string]compozyconfig.ProviderUsageProviderConfig{
+				"cursor": {Enabled: false}, "claude": {Enabled: true, KeychainAccess: true},
+			}
+			result, err := svc.ApplySection(
+				ctx,
+				SectionUpdateRequest{Section: SectionProviderUsage, ProviderUsage: &desired},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !result.Applied || result.RestartRequired || result.Record.Lifecycle != lifecycle.Live ||
+				applier.calls != 1 {
+				t.Fatalf("apply = %#v, calls %d", result, applier.calls)
+			}
+			if !reflect.DeepEqual(applier.snapshots[0].ProviderUsage, desired) ||
+				applier.snapshots[0].Defaults.Provider != initial.Defaults.Provider {
+				t.Fatalf("runtime snapshot = %#v", applier.snapshots[0].ProviderUsage)
+			}
+			envelope, err := svc.GetSection(ctx, SectionRequest{Section: SectionProviderUsage})
+			if err != nil || envelope.ProviderUsage == nil ||
+				!reflect.DeepEqual(envelope.ProviderUsage.Config, desired) {
+				t.Fatalf("read = %#v, %v", envelope, err)
+			}
+			bad := desired.Clone()
+			bad.RefreshInterval = 10 * time.Second
+			if _, err := svc.ApplySection(
+				ctx,
+				SectionUpdateRequest{Section: SectionProviderUsage, ProviderUsage: &bad},
+			); err == nil {
+				t.Fatal("accepted invalid interval")
+			}
+			persisted, err := compozyconfig.LoadForHome(home)
+			if err != nil || !reflect.DeepEqual(persisted.ProviderUsage, desired) {
+				t.Fatalf("persisted = %#v, %v", persisted.ProviderUsage, err)
+			}
+			desired.Providers = nil
+			if _, err := svc.ApplySection(
+				ctx,
+				SectionUpdateRequest{Section: SectionProviderUsage, ProviderUsage: &desired},
+			); err != nil {
+				t.Fatal(err)
+			}
+			persisted, err = compozyconfig.LoadForHome(home)
+			if err != nil || len(persisted.ProviderUsage.Providers) != 0 {
+				t.Fatalf("removed overrides = %#v, %v", persisted.ProviderUsage, err)
+			}
+			if got := classifyReloadLifecycle(&initial, &persisted); got != lifecycle.Live {
+				t.Fatalf("reload lifecycle = %s", got)
+			}
+		},
+	)
+	t.Run("Should reject provider usage settings outside user scope", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, baseSettingsConfig())
+		svc := testService(t, home, Dependencies{})
+		desired := compozyconfig.DefaultProviderUsageConfig()
+		for _, scope := range []ScopeKind{ScopeWorkspace, ScopeProfile, ScopeAgent} {
+			if _, err := svc.UpdateSection(
+				t.Context(),
+				SectionUpdateRequest{Section: SectionProviderUsage, Scope: scope, ProviderUsage: &desired},
+			); err == nil {
+				t.Fatalf("accepted %s", scope)
+			}
+		}
+	})
+}

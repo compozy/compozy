@@ -49,6 +49,8 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | `mcp.oauth.*`                                      | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `observability.*`                                  | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `permissions.*`                                    | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `provider_usage.*`                                 | `live`             | `live`             | `none`                                  |
+| `provider_usage.providers.*.*`                     | `live`             | `live`             | `none`                                  |
 | `providers.*`                                      | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `providers.*.models`                               | `live`             | `live`             | `none`                                  |
 | `providers.*.models.*`                             | `live`             | `live`             | `none`                                  |

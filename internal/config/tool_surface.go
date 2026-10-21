@@ -51,6 +51,8 @@ var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
 
 	agentMutableConfigKinds = mergeAgentMutableConfigKinds(map[string]ValueKind{
+		"provider_usage.enabled":                                   ConfigValueBool,
+		"provider_usage.refresh_interval":                          ConfigValueDuration,
 		"subagents.result_max_chars":                               ConfigValueInt,
 		"app.update_check":                                         ConfigValueBool,
 		appUpdateCheckIntervalPath:                                 ConfigValueDuration,
@@ -230,6 +232,10 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 	}
 	if configPathIsTrustRoot(clean) {
 		policy.Denial = ConfigPathTrustForbidden
+		return policy, nil
+	}
+	if providerUsageToolPath(clean) {
+		policy.Kind = ConfigValueBool
 		return policy, nil
 	}
 	if len(clean) == 3 && clean[0] == providersConfigKey {

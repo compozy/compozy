@@ -79,6 +79,8 @@ type Rule struct {
 var Matrix = []Rule{
 	{Pattern: "subagents.result_max_chars", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "attention.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "provider_usage.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "provider_usage.providers.*.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "shell.*.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.disabled_skills", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.sources", Lifecycle: Live, DiffClass: DiffClassLive},
@@ -183,7 +185,16 @@ func ClassifyPaths(paths []string) (Lifecycle, DiffClass, error) {
 // DiffClassForRoot maps a settings section or collection name onto a diff class.
 func DiffClassForRoot(root string) DiffClass {
 	switch strings.TrimSpace(root) {
-	case "marketplace", "skills", pathRoles, "window-manager", "cmd-palette", "gateway", "attention", "shell":
+	case "marketplace",
+		"skills",
+		pathRoles,
+		"window-manager",
+		"cmd-palette",
+		"gateway",
+		"attention",
+		"shell",
+		"provider-usage",
+		"provider_usage":
 		return DiffClassLive
 	default:
 		return DiffClassRestartRequired

@@ -29,6 +29,8 @@ func SettingsSectionResponseFromEnvelope(envelope settingspkg.SectionEnvelope) (
 		return settingsCmdPaletteSectionResponse(envelope)
 	case settingspkg.SectionAttention:
 		return settingsAttentionSectionResponse(envelope)
+	case settingspkg.SectionProviderUsage:
+		return settingsProviderUsageSectionResponse(envelope)
 	case settingspkg.SectionShell:
 		return settingsShellSectionResponse(envelope)
 	case settingspkg.SectionObservability:
@@ -169,6 +171,7 @@ func SettingsSectionMutationResultPayloadFromResult(result settingspkg.MutationR
 	switch result.Section {
 	case settingspkg.SectionGeneral,
 		settingspkg.SectionAutomation,
+		settingspkg.SectionProviderUsage,
 		settingspkg.SectionShell,
 		settingspkg.SectionObservability,
 		settingspkg.SectionHooksExtensions, settingspkg.SectionMarketplace:

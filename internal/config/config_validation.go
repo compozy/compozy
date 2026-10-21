@@ -22,6 +22,9 @@ func (c *Config) validateWithEnv(lookup envLookup) error {
 	if err := c.validateFeatures(lookup); err != nil {
 		return err
 	}
+	if err := c.ProviderUsage.Validate(c.Providers); err != nil {
+		return err
+	}
 	if err := c.validateProviders(); err != nil {
 		return err
 	}
