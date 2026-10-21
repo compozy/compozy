@@ -266,8 +266,8 @@ func TestOpen(t *testing.T) {
 		}
 		if _, err := NewPool("", func(context.Context, string) (ResolvedRoot, error) {
 			return ResolvedRoot{}, nil
-		}); err == nil {
-			t.Fatal("NewPool(blank home) error = nil, want validation error")
+		}); err == nil || !strings.Contains(err.Error(), "absolute home directory is required") {
+			t.Fatalf("NewPool(blank home) error = %v, want absolute home validation error", err)
 		}
 		var nilDB *DB
 		if nilDB.Path() != "" || nilDB.WorkspaceID() != "" || nilDB.WorkspaceRoot() != "" || nilDB.DB() != nil {
@@ -284,8 +284,8 @@ func TestOpen(t *testing.T) {
 			_, err := Open(t.Context(), Options{
 				HomeDir: t.TempDir(), WorkspaceID: workspaceID, WorkspaceRoot: t.TempDir(),
 			})
-			if err == nil {
-				t.Fatal("Open(unsafe workspace id) error = nil, want validation error")
+			if err == nil || !strings.Contains(err.Error(), "canonical workspace id is required") {
+				t.Fatalf("Open(unsafe workspace id) error = %v, want canonical workspace id validation error", err)
 			}
 		})
 	}
