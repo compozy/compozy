@@ -1,8 +1,9 @@
 # Desktop update investigation and repair
 
 Date: 2026-10-21. Baseline: `b1008af26`. Branch: `fix/desktop-update-flow` in the
-isolated `desktop-update-flow` worktree. The implementation is local; no release,
-push, merge, or change to the operator's installed app is part of this work.
+isolated `desktop-update-flow` worktree. Subsequent review and delivery are tracked
+in [PR #886](https://github.com/compozy/compozy/pull/886). No release publication
+or change to the operator's installed app is part of this work.
 
 ## Outcome
 
@@ -36,6 +37,8 @@ keep their existing behavior. A compatible newer runtime remains installed.
 | beta.35 rejects newer runtime journal phases | Exact released parser reproduction; already repaired in beta.36/37, but an old running updater cannot acquire that parser fix before installation |
 | Rosetta plan and downloader choose different ZIPs | Pinned MacUpdater selection plus Go boundary regression; app planning follows Apple Silicon hardware and disables cross-architecture differential download |
 | Joint desktop update swaps runtime before replacing its owner | Verified planner regression; normalize eligible desktop-owned joint intent to the app bundle without downloading another runtime archive |
+| A handoff error after cleanup can leave a windowless shell | Native filesystem-failure regression; finish existing cleanup and quit after failure is journaled |
+| CLI copies a restart flag that omits successful app-owned restarts | Real discovery/HTTP regression; compare daemon PID and start time before and after the update |
 | App success can precede daemon readiness | Real local HTTP client regression; CLI waits for published daemon identity, compatible versions and a matching runtime snapshot |
 | Settled failure offers diagnostics but no direct retry | Existing Web suite regressions; menubar and Settings expose Retry update when a release is eligible and the channel is free |
 
@@ -84,4 +87,5 @@ installation and Linux. Those results must not be inferred from the local run.
 An already running broken updater cannot be repaired by code it has not installed.
 Affected historical versions may require one recovery installation or a separately
 verified bridge. Network/native-staging failures are recoverable before cleanup;
-an exceptional failure during final destructive cleanup can still require relaunch.
+an exceptional failure during final destructive cleanup is journaled and exits the
+drained shell so it can be relaunched.

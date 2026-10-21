@@ -406,7 +406,13 @@ async function start(): Promise<void> {
           }
         },
       }),
-      onError: error => logger.error("consume app update operation", error),
+      onError: error => {
+        logger.error("consume app update operation", error);
+        if (cleanupPromise) {
+          installerOwnsQuit = false;
+          void quitCleanly();
+        }
+      },
     });
     operationWatcher = new OperationWatcher({
       path: paths.operation,

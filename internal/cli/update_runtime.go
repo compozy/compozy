@@ -19,14 +19,33 @@ import (
 )
 
 type cliUpdateRuntime struct {
-	deps      commandDeps
-	homePaths compozyconfig.HomePaths
+	deps               commandDeps
+	homePaths          compozyconfig.HomePaths
+	daemonBeforeUpdate compozydaemon.Info
 }
 
 var _ compozyupdate.CoordinatorRuntime = (*cliUpdateRuntime)(nil)
 
 func newCLIUpdateRuntime(deps commandDeps, homePaths compozyconfig.HomePaths) *cliUpdateRuntime {
 	return &cliUpdateRuntime{deps: deps, homePaths: homePaths}
+}
+
+func (r *cliUpdateRuntime) captureDaemonBeforeAppUpdate(
+	request compozyupdate.OperationRequest,
+	runtime compozyupdate.RuntimeTrackState,
+) error {
+	if request.App == nil || request.Runtime != nil || runtime.Managed ||
+		runtime.InstallMethod != string(compozyupdate.InstallMethodDesktopApp) {
+		return nil
+	}
+	info, running, err := daemonInfo(r.homePaths, r.deps)
+	if err != nil {
+		return err
+	}
+	if running {
+		r.daemonBeforeUpdate = info
+	}
+	return nil
 }
 
 func newUpdateHolder(surface compozyupdate.Actor, now time.Time) (compozyupdate.Holder, error) {
@@ -205,7 +224,7 @@ func (r *cliUpdateRuntime) waitForBundledRuntime(
 				return compozyupdate.RuntimeTrackState{}, false, nil
 			}
 			snapshot, err := client.GetSettingsUpdate(pollCtx)
-			if isDaemonUnavailableTransportError(err) {
+			if pollCtx.Err() != nil || isDaemonUnavailableTransportError(err) {
 				return compozyupdate.RuntimeTrackState{}, false, nil
 			}
 			if err != nil {
@@ -227,7 +246,9 @@ func (r *cliUpdateRuntime) waitForBundledRuntime(
 				InstallMethod: string(state.InstallMethod), Managed: state.Managed,
 				CurrentVersion: state.CurrentVersion, LatestVersion: state.LatestVersion,
 				ReleaseURL: state.ReleaseURL, Recommendation: state.Recommendation,
-				RestoredVersion: state.RestoredVersion, DaemonRestarted: state.DaemonRestarted,
+				RestoredVersion: state.RestoredVersion,
+				DaemonRestarted: r.daemonBeforeUpdate.PID > 0 &&
+					(status.PID != r.daemonBeforeUpdate.PID || !status.StartedAt.Equal(r.daemonBeforeUpdate.StartedAt)),
 				Message: state.Message, LastError: state.LastError,
 			}, true, nil
 		},

@@ -136,6 +136,70 @@ formatter despite the build using Go 1.27.1; selecting that toolchain's `gofmt`
 fixed the check and returned its incidental formatting edits to their original
 content. Only the intended update/research paths remain in the commit.
 
+## PR #886 review remediation
+
+The first PR head (`250e8a919`) completed 33 successful checks and 18 conditional
+skips. Its bot reviews still identified actionable changes; that green check
+rollup was not treated as merge approval. Current-head remote delivery remains
+tracked in [PR #886](https://github.com/compozy/compozy/pull/886).
+
+- **Windowless process after failed handoff (CodeRabbit):** the existing native
+  update suite now replaces the fixture's control-token file with a directory,
+  causing a real cleanup failure after native staging. Before the fix, the
+  operation archived as failed and the product window closed, but the process
+  remained alive past the ten-second assertion. The error handler now releases
+  installer quit ownership and joins the existing cleanup before ordinary quit.
+  This also covers a deadline error arriving while cleanup is still draining.
+  The unchanged regression passed after the production change.
+- **Restart observation (Greptile):** the CLI captures live daemon PID/start time
+  before acquiring the update operation and compares that identity with the
+  validated ready daemon afterward. Two red regressions returned false for a
+  replaced PID and a reused PID with a different start time. Both pass after the
+  fix; preserved daemons and an initially absent daemon keep a false restart flag.
+- **Specific failure assertions (CodeRabbit):** the owning CLI projection table
+  requires the snapshot error or the wrapped deadline error for its failure rows,
+  while retaining the app/runtime status assertions. The four owning CLI suites
+  passed with the race detector (3.825 seconds), and the test-shape checker passed.
+  The broader gate then exposed a race when the deadline interrupted an in-flight
+  HTTP snapshot request: it returned a raw transport error instead of the update
+  deadline message. A deterministic blocked-request regression reproduced that
+  failure. The production observer now returns deadline handling to its polling
+  owner, preserving the specific error assertion and context cancellation cause.
+- **Shared template claims (Greptile):** reusable prompts and empty checkboxes are
+  restored. The user-requested complete implementation record remains in the same
+  file inside an explicitly labeled, non-rendering historical comment for PR #886.
+  The current PR description carries the complete visible report.
+
+The local desktop check exposed an existing health-monitor test that stopped the
+monitor after 30 ms of wall-clock time during concurrent packaging. Its canonical
+suite now advances a controlled clock and checks zero notifications after one
+failure, one notification after the second, and no duplicate afterward. The
+production monitor and its failure threshold are unchanged. All 191 desktop tests,
+lint and typecheck passed afterward via root Turborepo.
+
+The post-review native run exercised nine cases with rebuilt baseline/candidate
+packages: **7 passed, 2 failed**. Both native installation/recovery journeys and
+the new failed-cleanup regression passed. The two failures were existing shell
+teardown checks after cleanup had completed, in the healthy relaunch and
+unverified-bundle scenarios. The macOS log for PID 6777 records cleanup ending at
+22:01:46.918 UTC and process termination at 22:01:56.456 UTC; the exact native
+exit-delay cause remains unestablished. The unverified runtime was rejected before
+its update consumer started.
+
+A focused rerun of exactly those two scenarios using the same packaged artifacts
+passed **2/2 in 14.1 seconds**, without changing their assertions, timeouts or
+production source. Thus all nine cases have passing evidence, but this is not
+reported as a single clean nine-test run. The original errors and OS log remain
+preserved in `.cache/update-research/review-native-first-contexts/` and
+`.cache/update-research/review-shell-6777-os.log`.
+
+Additional local receipts: `review-go-red.log`, `review-go-green.log`,
+`review-native-red.log`, `review-native-green.log`, `review-native-rerun.log`, and
+`review-desktop-final.log` under `.cache/update-research/`. `review-deadline-red.log`
+captures the HTTP deadline reproduction; the final affected gate owns its green
+verification. No production signing,
+Rosetta or Linux runtime claim is added by these review fixes.
+
 ## Release acceptance still outside this local proof
 
 - Install an actually published older app and update through the production-signed
@@ -148,6 +212,6 @@ content. Only the intended update/research paths remain in the commit.
   branches, including shutdown with active agent work, managed installs and install-directory
   permission failures. The local native tests start from a verified staged plan.
 
-No release was published, no host app was replaced, and no CI/production success
-is claimed. The [research summary](../../research/desktop-update-flow/README.md)
+No release was published and no host app was replaced. Final-head CI and review
+status are tracked in the PR; production success is not claimed. The [research summary](../../research/desktop-update-flow/README.md)
 links causal reproductions, competitor evidence and the cross-surface audit.

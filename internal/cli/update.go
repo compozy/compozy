@@ -109,6 +109,10 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 	if err != nil {
 		return writeUpdateFailure(cmd, failedUpdateRecord(record, err, targets...), err)
 	}
+	runtime := newCLIUpdateRuntime(deps, homePaths)
+	if err := runtime.captureDaemonBeforeAppUpdate(request, record.Runtime); err != nil {
+		return writeUpdateFailure(cmd, failedUpdateRecord(record, err, compozyupdate.TargetRuntime), err)
+	}
 	operation, err := manager.AcquireOperation(cmd.Context(), request)
 	if err != nil {
 		if blocked, ok := errors.AsType[*compozyupdate.BlockedError](err); ok {
@@ -117,7 +121,6 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 		return writeUpdateFailure(cmd, record, err)
 	}
 
-	runtime := newCLIUpdateRuntime(deps, homePaths)
 	coordinator, err := compozyupdate.NewCoordinator(compozyupdate.CoordinatorConfig{
 		Store: manager.OperationStore(), ReleaseManager: manager, BinaryManager: manager, Runtime: runtime,
 	})

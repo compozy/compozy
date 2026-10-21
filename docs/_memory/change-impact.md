@@ -4046,11 +4046,13 @@ Owner: `docs/research/desktop-update-flow/README.md`; branch `fix/desktop-update
 - **Desktop:** verify the app archive, await native installer readiness, then let the installer
   own shutdown. Executable deadlines cancel stalled work; transient acquisition failures retry
   through the existing watcher. Rosetta app selection follows hardware while runtime-only
-  archive selection remains unchanged.
+  archive selection remains unchanged. A failed handoff after cleanup starts drains that same
+  cleanup before quitting, avoiding a windowless process that cannot receive another update.
 - **CLI/HTTP/UDS:** existing verbs, routes, target ordering, and DTOs remain accepted. After
   validating the original request, a joint update on a proven desktop-owned runtime becomes
   one app operation; bootstrap installs the bundled runtime. CLI completion reads the observed
-  daemon version. Explicit runtime-only and standalone/managed behavior is preserved.
+  daemon version and compares PID/start time with the pre-update discovery identity for the
+  existing `daemon_restarted` field. Explicit runtime-only and standalone/managed behavior is preserved.
 - **Native tools:** no new or changed `compozy__*` IDs; host update remains CLI/HTTP/UDS owned.
 - **Extensibility/hooks/config:** no configuration keys, hooks, SDK contracts, or dependency
   changes. The one-action product flow uses the existing update consent.
@@ -4064,5 +4066,6 @@ Owner: `docs/research/desktop-update-flow/README.md`; branch `fix/desktop-update
 - **QA:** APP-app-auto-update, APP-update-recovery-state, APP-runtime-update-app-owned,
   APP-single-command-multi-target-update, APP-web-update-indicator, and APP-web-update-two-track.
   Packaged E2E-016/017 must check both app replacement and the running bundled daemon version.
+  E2E-017 also induces a real filesystem cleanup failure and requires archived failure plus shell exit.
   Signed release delivery and upgrades from already shipped broken updater code remain distinct
   from local fixture evidence; the research report records these limits.

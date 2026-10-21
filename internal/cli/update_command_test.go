@@ -213,21 +213,29 @@ func TestUpdateTerminalProjection(t *testing.T) {
 	t.Run("Should refresh the app-owned runtime from the local daemon after verified app install", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
-			name           string
-			runtimeVersion string
-			staged         bool
-			starting       bool
-			unavailable    bool
-			stalled        bool
-			incompatible   bool
+			name            string
+			runtimeVersion  string
+			staged          bool
+			starting        bool
+			unavailable     bool
+			stalled         bool
+			incompatible    bool
+			restarted       bool
+			reusedPID       bool
+			absent          bool
+			snapshotTimeout bool
+			wantErr         string
 		}{
-			{name: "Should observe the bundled runtime after bootstrap", runtimeVersion: "v1.1.0"},
+			{name: "Should observe the bundled runtime and a replaced daemon", runtimeVersion: "v1.1.0", restarted: true},
+			{name: "Should recognize a new daemon start even when the PID is reused", runtimeVersion: "v1.1.0", restarted: true, reusedPID: true},
 			{name: "Should preserve a newer compatible runtime", runtimeVersion: "v1.2.0"},
-			{name: "Should wait for an incompatible stable runtime to be replaced for a beta app", runtimeVersion: "v0.3.0", incompatible: true},
+			{name: "Should not claim a restart when no daemon was initially running", runtimeVersion: "v1.1.0", absent: true},
+			{name: "Should wait for an incompatible stable runtime to be replaced for a beta app", runtimeVersion: "v0.3.0", incompatible: true, wantErr: "cli: bundled runtime did not become ready before the update deadline: context deadline exceeded"},
 			{name: "Should wait for the new daemon to report running", runtimeVersion: "v1.1.0", starting: true},
 			{name: "Should keep a closed app staged without claiming runtime completion", staged: true},
-			{name: "Should report a runtime observation failure after app success", unavailable: true},
-			{name: "Should not report completion while the old runtime remains active", stalled: true},
+			{name: "Should report a runtime observation failure after app success", unavailable: true, wantErr: "daemon snapshot failed"},
+			{name: "Should report the update deadline when the runtime snapshot request is interrupted", snapshotTimeout: true, wantErr: "cli: bundled runtime did not become ready before the update deadline: context deadline exceeded"},
+			{name: "Should not report completion while the old runtime remains active", stalled: true, wantErr: "cli: bundled runtime did not become ready before the update deadline: context deadline exceeded"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
@@ -243,9 +251,17 @@ func TestUpdateTerminalProjection(t *testing.T) {
 				info := compozydaemon.Info{
 					PID: os.Getpid(), Port: 2123, StartedAt: mustProcessStartedAt(t),
 				}
-				if err := compozydaemon.WriteInfo(paths.DaemonInfo, info); err != nil {
-					t.Fatal(err)
+				previousInfo := info
+				if tc.restarted {
+					if tc.reusedPID {
+						previousInfo.StartedAt = info.StartedAt.Add(-time.Hour)
+					} else {
+						previousInfo.PID++
+					}
 				}
+				// Process liveness is the unit I/O boundary; discovery and HTTP status remain real.
+				deps.processAlive = func(int) bool { return true }
+				deps.processMatchesStartTime = func(int, time.Time) bool { return true }
 				var requests, statusRequests atomic.Int32
 				server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 					if request.URL.Path == "/api/status" {
@@ -275,6 +291,10 @@ func TestUpdateTerminalProjection(t *testing.T) {
 						return
 					}
 					attempt := requests.Add(1)
+					if tc.snapshotTimeout {
+						<-request.Context().Done()
+						return
+					}
 					if tc.unavailable {
 						http.Error(writer, "daemon snapshot failed", http.StatusInternalServerError)
 						return
@@ -312,6 +332,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 				}
 				deps.now = func() time.Time { return time.Now().UTC() }
 				deps.pollInterval = time.Millisecond
+				updateRuntime := newCLIUpdateRuntime(deps, paths)
 				base := updateRecord{
 					Runtime: compozyupdate.RuntimeTrackState{
 						Status:         compozyupdate.StatusAvailable,
@@ -329,6 +350,17 @@ func TestUpdateTerminalProjection(t *testing.T) {
 					Targets: []compozyupdate.Target{compozyupdate.TargetApp}, Deadline: time.Now().Add(time.Second),
 					App: &compozyupdate.AppOperationState{ToVersion: targetVersion, AttemptID: "attempt-1"},
 				}
+				if !tc.absent {
+					if err := compozydaemon.WriteInfo(paths.DaemonInfo, previousInfo); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := updateRuntime.captureDaemonBeforeAppUpdate(request, base.Runtime); err != nil {
+					t.Fatal(err)
+				}
+				if err := compozydaemon.WriteInfo(paths.DaemonInfo, info); err != nil {
+					t.Fatal(err)
+				}
 				archived := &compozyupdate.Operation{App: &compozyupdate.AppOperationState{
 					ToVersion: targetVersion, AttemptID: "attempt-1", Phase: compozyupdate.PhaseVerified,
 				}}
@@ -336,15 +368,12 @@ func TestUpdateTerminalProjection(t *testing.T) {
 					archived = nil
 				}
 				timeout := time.Second
-				if tc.stalled || tc.incompatible {
+				if tc.stalled || tc.incompatible || tc.snapshotTimeout {
 					timeout = 200 * time.Millisecond
 				}
 				ctx, cancel := context.WithTimeout(t.Context(), timeout)
 				defer cancel()
-				record, err := newCLIUpdateRuntime(
-					deps,
-					paths,
-				).finalizeUpdateRecord(ctx, base, request, nil, archived, nil)
+				record, err := updateRuntime.finalizeUpdateRecord(ctx, base, request, nil, archived, nil)
 				if tc.staged {
 					if err != nil || record.Status != compozyupdate.StatusStaged || record.Runtime != base.Runtime ||
 						requests.Load() != 0 {
@@ -352,8 +381,9 @@ func TestUpdateTerminalProjection(t *testing.T) {
 					}
 					return
 				}
-				if tc.unavailable || tc.stalled || tc.incompatible {
-					if err == nil || record.Status != compozyupdate.StatusFailed ||
+				if tc.unavailable || tc.stalled || tc.incompatible || tc.snapshotTimeout {
+					assertErrorContains(t, err, tc.wantErr)
+					if record.Status != compozyupdate.StatusFailed ||
 						record.Runtime.Status != compozyupdate.StatusFailed || record.Runtime.CurrentVersion != fromVersion ||
 						record.App.Status != compozyupdate.StatusUpdated {
 						t.Fatalf(
@@ -366,7 +396,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 				}
 				if err != nil || record.Status != compozyupdate.StatusUpdated ||
 					record.Runtime.Status != compozyupdate.StatusUpToDate || record.Runtime.CurrentVersion != tc.runtimeVersion ||
-					record.Runtime.LatestVersion != targetVersion || record.Runtime.DaemonRestarted ||
+					record.Runtime.LatestVersion != targetVersion || record.Runtime.DaemonRestarted != tc.restarted ||
 					record.Runtime.Message != "Current daemon runtime." || record.App.Status != compozyupdate.StatusUpdated ||
 					requests.Load() < 2 {
 					t.Fatalf(

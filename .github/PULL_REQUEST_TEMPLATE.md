@@ -1,3 +1,39 @@
+<!--
+Title format: <type>: <description> — type is one of feat | fix | refactor | perf | docs | test | build | ci.
+  Good: fix: drop stale session sockets on daemon restart
+  Bad:  Fixed a bug · update stuff · fix #123
+-->
+
+## What & why
+
+<!-- What changes for someone using CompozyOS, and why.
+     Link the issue if there is one: Fixes #123 -->
+
+## How you verified it
+
+<!-- Commands you ran and what they showed. Screenshots or a short clip for UI changes.
+     If you added no tests, say why. -->
+
+## Impact
+
+<!-- Does this change a CLI command, an HTTP/UDS route, a config.toml key, or a web surface?
+     Name which, and whether the docs (packages/site) need an update.
+     "No impact" is a fine answer — just say it. -->
+
+---
+
+- [ ] `make gate` passes locally; this PR is delivered only after its required CI checks are green
+- [ ] New or changed behavior is covered by tests, or I explained above why not
+- [ ] If an agent wrote or co-wrote this, I named it above and verified the result myself
+
+<!-- First time here? See .github/CONTRIBUTING.md. For anything bigger than a bug fix,
+     open an issue first — it protects your time as much as ours. -->
+
+<!--
+Historical reference: desktop update repair, PR #886 (2026-10-21).
+This retained report applies only to PR #886. It is not verification, authorship,
+or scope evidence for a new pull request. New PRs must fill the prompts above.
+
 ## What & why
 
 Desktop updates could remain staged indefinitely or close the application before the native installer was ready. Users then had to cancel the staged operation in Settings and download a new app manually. This change repairs the installation lifecycle, stalled-operation recovery, app/runtime coordination and retry action.
@@ -61,6 +97,7 @@ These source inspections establish implementation patterns, not measured competi
 - Build distinct baseline/candidate runtimes in the existing native fixture and assert actual daemon readiness after installation.
 - Isolate native Squirrel identity/cache using a worktree-specific E2E bundle ID; derive the existing ad-hoc signature requirement from that ID.
 - Preserve process state and desktop logs on restarted-shell teardown failure. No timeout or behavior assertion was weakened.
+- After review, add a native filesystem-failure regression and finish existing cleanup before quitting on a failed installer handoff. Compare pre-update and post-update daemon PID/start time instead of copying an incomplete restart flag, and assert specific CLI observation errors.
 
 ## How you verified it
 
@@ -106,7 +143,7 @@ The owning [cross-surface impact audit](../docs/_memory/change-impact.md) record
 - Native fixtures use local ad-hoc signatures and a seeded verified operation. Both app versions contain the repaired code. They prove native replacement and runtime bootstrap, not the production GitHub/Sigstore/notarization chain or an already shipped old updater consuming a signed candidate.
 - A real Rosetta installation, Linux AppImage update and complete browser/CLI apply journey are not claimed as executed. Broader charter branches, including active-agent shutdown and install-directory permission failures, remain outside this targeted rehearsal.
 - An already installed broken updater cannot receive its own fix before it installs new code. Affected historical versions may need one recovery install or a separately verified bridge.
-- Download/native-staging failures remain recoverable before cleanup. An exceptional failure during final destructive cleanup can still require relaunch.
+- Download/native-staging failures remain recoverable before cleanup. An exceptional failure during final destructive cleanup is journaled; the drained shell exits and can be relaunched.
 - This PR does not publish a release. Local evidence does not substitute for current-head CI, CodeRabbit, Greptile or React Doctor review results.
 
 ---
@@ -118,3 +155,5 @@ The owning [cross-surface impact audit](../docs/_memory/change-impact.md) record
 - [ ] CodeRabbit and Greptile findings have evidence-backed dispositions and no unresolved actionable threads.
 - [ ] React Doctor is green on the current PR head.
 - [ ] Squash merge is performed only after the current head passes the delivery checks above.
+
+-->

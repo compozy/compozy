@@ -455,6 +455,47 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
   }
 });
 
+test("E2E-017: a failed installer cleanup exits after archiving the failure", async ({
+  copyPackagedExecutable,
+  launchDesktop,
+}) => {
+  const fixture = await updateFixture();
+  const packaged = await copyPackagedExecutable(fixture.baseline_executable);
+  const feed = await startMockFeed(fixture);
+  let restoreEnvironment: RestoreEnvironment = () => Promise.resolve();
+  let cleanupCache = () => Promise.resolve();
+  try {
+    cleanupCache = await configureFeed(packaged, feed.url);
+    const digest = await artifactDigest(fixture);
+    const desktop = await launchDesktop({
+      executablePath: packaged.executablePath,
+      environment: await updaterEnvironment(fixture, packaged),
+      prepare: async ({ home }) => {
+        restoreEnvironment = await configureRelaunchHome(home);
+        await seedUpdateCache(home, fixture);
+      },
+    });
+    const product = await desktop.product();
+    // A real filesystem failure exercises cleanup after native preparation, without mocking quit.
+    const tokenPath = join(desktop.home, "app.token");
+    await rename(tokenPath, `${tokenPath}.saved`);
+    await mkdir(tokenPath);
+    await stageAppOperation(desktop, fixture, digest);
+    await expect
+      .poll(async () => (await history(desktop.home)).at(-1)?.outcome, { timeout: 60_000 })
+      .toBe("failed");
+    expect(product.isClosed()).toBe(true);
+    expect((await readAppRecord(desktop.home)).app_version).toBe(fixture.current_version);
+    await expect.poll(() => desktop.shellProcess.exitCode, { timeout: 10_000 }).toBe(0);
+  } finally {
+    try {
+      await closeFixture(feed, restoreEnvironment);
+    } finally {
+      await cleanupCache();
+    }
+  }
+});
+
 test("A staged app update starts while runtime bootstrap is failing", async ({
   copyPackagedExecutable,
   launchDesktop,
