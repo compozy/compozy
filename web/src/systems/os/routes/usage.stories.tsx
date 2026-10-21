@@ -15,7 +15,7 @@ import {
 } from "@/systems/provider-usage/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
-  title: "systems/os/apps/UsageApp",
+  title: "systems/os/routes/Usage",
   component: StorybookRouteCanvas,
   parameters: {
     layout: "fullscreen",

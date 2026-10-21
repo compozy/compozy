@@ -233,6 +233,19 @@ func (c *daemonClient) UpdateSettingsShell(
 	return response, nil
 }
 
+func (c *daemonClient) UpdateSettingsProviderUsage(
+	ctx context.Context,
+	request UpdateSettingsProviderUsageRequest,
+) (SettingsMutationRecord, error) {
+	var response SettingsMutationRecord
+	if err := c.doJSON(
+		ctx, http.MethodPatch, "/api/settings/provider-usage", nil, request, &response,
+	); err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *daemonClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {
 	var response SettingsMutationRecord
 	if err := c.doJSON(ctx, http.MethodPost, "/api/settings/reload", nil, nil, &response); err != nil {

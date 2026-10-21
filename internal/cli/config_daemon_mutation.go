@@ -266,6 +266,13 @@ func applyDaemonManagedConfigValue(
 		return client.UpdateSettingsAttention(ctx, UpdateSettingsAttentionRequest{
 			Config: settingsAttentionPayloadFromConfig(cfg.Attention),
 		})
+	case compozyconfig.ProviderUsageConfigKey:
+		if applyErr := applyProviderUsageConfigValue(&cfg.ProviderUsage, path, value); applyErr != nil {
+			return SettingsMutationRecord{}, applyErr
+		}
+		return client.UpdateSettingsProviderUsage(ctx, UpdateSettingsProviderUsageRequest{
+			Config: settingsProviderUsagePayloadFromConfig(cfg.ProviderUsage),
+		})
 	case configShellKey:
 		if applyErr := applyShellConfigValue(&cfg.Shell, path, value); applyErr != nil {
 			return SettingsMutationRecord{}, applyErr
@@ -326,7 +333,9 @@ func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTar
 	if target.Scope() != compozyconfig.WriteScopeUser {
 		return false
 	}
-	return len(path) >= 2 && (path[0] == configAttentionKey || path[0] == configShellKey)
+	return len(path) >= 2 &&
+		(path[0] == configAttentionKey || path[0] == configShellKey ||
+			path[0] == compozyconfig.ProviderUsageConfigKey)
 }
 
 func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {

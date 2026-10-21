@@ -130,7 +130,17 @@ test("drops the control when provider usage is turned off (E2E-003)", async ({
 }) => {
   await openShell(appPage, runtime);
 
-  await runCLI(runtime, ["config", "set", "provider_usage.enabled", "false"]);
+  // The daemon applies the section live even with unrelated restart-required
+  // edits (the onboarding provider save) already on disk.
+  const set = await runCLI(runtime, [
+    "config",
+    "set",
+    "provider_usage.enabled",
+    "false",
+    "-o",
+    "json",
+  ]);
+  expect(JSON.parse(set.stdout)).toMatchObject({ lifecycle: "live", applied: true });
   await expect
     .poll(
       async () =>

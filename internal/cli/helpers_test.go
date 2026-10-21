@@ -56,25 +56,29 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
-	listMarketplaceSourcesFn   func(context.Context) (contract.MarketplaceSourcesResponse, error)
-	getSessionUsageTurnsFn     func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
-	searchSessionTranscriptFn  func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
-	getSessionOutlineFn        func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
-	statusFn                   func(context.Context) (StatusRecord, error)
-	observeOverviewFn          func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
-	doctorFn                   func(context.Context, DoctorQuery) (DoctorRecord, error)
-	daemonStatusFn             func(context.Context) (DaemonStatus, error)
-	drainFn                    func(context.Context) (DrainStatusRecord, error)
-	undrainFn                  func(context.Context) (DrainStatusRecord, error)
-	triggerSettingsRestartFn   func(context.Context) (SettingsRestartActionRecord, error)
-	getSettingsRestartStatusFn func(context.Context, string) (SettingsRestartStatusRecord, error)
-	createSupportBundleFn      func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
-	getSupportBundleFn         func(context.Context, string) (SupportBundleOperationRecord, error)
-	downloadSupportBundleFn    func(context.Context, string, io.Writer) error
-	getSettingsUpdateFn        func(context.Context) (SettingsUpdateRecord, error)
-	updateSettingsSkillsFn     func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
-	updateSettingsAttentionFn  func(context.Context, UpdateSettingsAttentionRequest) (SettingsMutationRecord, error)
-	updateSettingsShellFn      func(context.Context, UpdateSettingsShellRequest) (SettingsMutationRecord, error)
+	listMarketplaceSourcesFn      func(context.Context) (contract.MarketplaceSourcesResponse, error)
+	getSessionUsageTurnsFn        func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
+	searchSessionTranscriptFn     func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
+	getSessionOutlineFn           func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
+	statusFn                      func(context.Context) (StatusRecord, error)
+	observeOverviewFn             func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
+	doctorFn                      func(context.Context, DoctorQuery) (DoctorRecord, error)
+	daemonStatusFn                func(context.Context) (DaemonStatus, error)
+	drainFn                       func(context.Context) (DrainStatusRecord, error)
+	undrainFn                     func(context.Context) (DrainStatusRecord, error)
+	triggerSettingsRestartFn      func(context.Context) (SettingsRestartActionRecord, error)
+	getSettingsRestartStatusFn    func(context.Context, string) (SettingsRestartStatusRecord, error)
+	createSupportBundleFn         func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
+	getSupportBundleFn            func(context.Context, string) (SupportBundleOperationRecord, error)
+	downloadSupportBundleFn       func(context.Context, string, io.Writer) error
+	getSettingsUpdateFn           func(context.Context) (SettingsUpdateRecord, error)
+	updateSettingsSkillsFn        func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	updateSettingsAttentionFn     func(context.Context, UpdateSettingsAttentionRequest) (SettingsMutationRecord, error)
+	updateSettingsShellFn         func(context.Context, UpdateSettingsShellRequest) (SettingsMutationRecord, error)
+	updateSettingsProviderUsageFn func(
+		context.Context,
+		UpdateSettingsProviderUsageRequest,
+	) (SettingsMutationRecord, error)
 	reloadSettingsFn           func(context.Context) (SettingsMutationRecord, error)
 	listSettingsApplyRecordsFn func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	getOnboardingStatusFn      func(context.Context) (contract.OnboardingStatusResponse, error)
@@ -707,6 +711,16 @@ func (s *stubClient) UpdateSettingsAttention(
 		return s.updateSettingsAttentionFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsAttention call")
+}
+
+func (s *stubClient) UpdateSettingsProviderUsage(
+	ctx context.Context,
+	request UpdateSettingsProviderUsageRequest,
+) (SettingsMutationRecord, error) {
+	if s.updateSettingsProviderUsageFn != nil {
+		return s.updateSettingsProviderUsageFn(ctx, request)
+	}
+	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsProviderUsage call")
 }
 
 func (s *stubClient) UpdateSettingsShell(
