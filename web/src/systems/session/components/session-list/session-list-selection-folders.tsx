@@ -39,7 +39,13 @@ export function SessionSelectionFolderMenu({
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="max-w-64 min-w-44">
         {menu.blockedReason !== null ? (
-          <DropdownMenuItem disabled data-testid={`${testId}-blocked`}>
+          // Focusable but inert, unlike a disabled item: keyboard and screen
+          // reader users land on the reason instead of an empty submenu.
+          <DropdownMenuItem
+            closeOnClick={false}
+            className="text-muted focus:text-muted"
+            data-testid={`${testId}-blocked`}
+          >
             {menu.blockedReason}
           </DropdownMenuItem>
         ) : (

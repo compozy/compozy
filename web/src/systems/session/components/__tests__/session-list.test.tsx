@@ -1441,10 +1441,27 @@ describe("SessionList folders and manual order", () => {
     for (const id of rest) await user.click(screen.getByTestId(`session-sidebar-session-${id}`));
     return user;
   }
-  /** Opens the selection bar's More menu and its Move to folder submenu. */
+  /**
+   * Opens the selection bar's More menu and, from the keyboard, its Move to
+   * folder submenu; resolves once focus sits inside the submenu.
+   */
   async function openMoveMenu(user: ReturnType<typeof userEvent.setup>) {
     await user.click(screen.getByTestId("session-sidebar-selection-more"));
-    await user.click(await screen.findByTestId("session-sidebar-selection-move"));
+    const trigger = await screen.findByTestId("session-sidebar-selection-move");
+    await waitFor(() => expect(trigger.closest('[role="menu"]')).toBeInTheDocument());
+    trigger.focus();
+    await user.keyboard("{ArrowRight}");
+    await waitFor(() => {
+      const submenu = document.activeElement?.closest('[role="menu"]');
+      expect(submenu).toBeTruthy();
+      expect(submenu).not.toContainElement(trigger);
+    });
+  }
+  /** Activates one submenu target from the keyboard, as the row menu suite does. */
+  async function chooseMoveTarget(user: ReturnType<typeof userEvent.setup>, name: string) {
+    const item = await screen.findByRole("menuitem", { name });
+    item.focus();
+    await user.keyboard("{Enter}");
   }
 
   it("Should move the selection to a folder from the selection menu and end the selection", async () => {
@@ -1458,7 +1475,7 @@ describe("SessionList folders and manual order", () => {
       "No folder",
       "New folder…",
     ]);
-    await user.click(screen.getByRole("menuitem", { name: "Beta" }));
+    await chooseMoveTarget(user, "Beta");
 
     await waitFor(() => expect(layout.moveSessions).toHaveBeenCalledWith(["f1", "r1"], "fb"));
     await waitFor(() =>
@@ -1483,7 +1500,7 @@ describe("SessionList folders and manual order", () => {
       "aria-disabled",
       "true"
     );
-    await user.click(screen.getByRole("menuitem", { name: "No folder" }));
+    await chooseMoveTarget(user, "No folder");
 
     expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null);
     await waitFor(() =>
@@ -1498,7 +1515,7 @@ describe("SessionList folders and manual order", () => {
     const { layout } = renderLayout("created");
     const user = await selectRows("r1", "r2");
     await openMoveMenu(user);
-    await user.click(await screen.findByRole("menuitem", { name: "New folder…" }));
+    await chooseMoveTarget(user, "New folder…");
     expect(await screen.findByText("The 2 sessions you selected move into it.")).toBeVisible();
     await user.type(screen.getByTestId("session-folder-name"), "Launch");
     await user.click(screen.getByRole("button", { name: "Create and move" }));
@@ -1531,9 +1548,10 @@ describe("SessionList folders and manual order", () => {
     const user = await selectRows("c1");
     await openMoveMenu(user);
 
+    // The reason takes focus, so keyboard and screen reader users hear it.
     expect(
       await screen.findByRole("menuitem", { name: "Child sessions move with their parent." })
-    ).toHaveAttribute("aria-disabled", "true");
+    ).toHaveFocus();
     expect(screen.queryByRole("menuitem", { name: "Beta" })).not.toBeInTheDocument();
   });
 
