@@ -25,6 +25,7 @@ func registryWorktreeOperations() []OperationSpec {
 		cancelWorktreeExitActionOperationSpec(),
 		cancelWorktreeOperationSpec(),
 		removeWorktreeOperationSpec(),
+		removeDiscoveredWorktreeOperationSpec(),
 		dismissWorktreeOperationSpec(),
 		streamWorktreeOperationSpec(),
 		streamWorktreeCatalogOperationSpec(),
@@ -216,6 +217,35 @@ func removeWorktreeOperationSpec() OperationSpec {
 			{Status: 400, Description: "Invalid removal query", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: "Profile does not permit removal", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: worktreeNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      409,
+				Description: "Removal requires another decision",
+				Body:        contract.WorktreeRemovalRefusalPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: worktreeUnavailableDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+// removeDiscoveredWorktreeOperationSpec removes a Git-only checkout by its listed
+// path and answers refusals with the same 409 payload as record removal.
+func removeDiscoveredWorktreeOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        specAPIWorktreesPath + "/discovered/remove",
+		AppAccess:   AppAccessDenied,
+		OperationID: "removeDiscoveredWorktree",
+		Summary:     "Remove a discovered worktree",
+		Tags:        []string{specWorktreesKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters:  withProfileSelector(worktreeWorkspaceParams()...),
+		RequestBody: contract.RemoveDiscoveredWorktreeRequest{},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: specNoContentDescription},
+			{Status: 400, Description: "Invalid discovered removal request", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Hook or profile does not permit removal", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Discovered worktree or workspace not found", Body: contract.ErrorPayload{}},
 			{
 				Status:      409,
 				Description: "Removal requires another decision",

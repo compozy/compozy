@@ -67,6 +67,11 @@ export function useWorktreeDialogTargets(): WorktreeDialogTargets {
     },
     requestRemove: (workspaceId, entry) => {
       if (entry.worktree) setRemoveTarget({ workspaceId, worktree: entry.worktree });
+      // A discovered checkout has no record; the batch flow removes it by its
+      // Git path with the same refusal and force escalation.
+      else if (entry.discovered) {
+        setRemovalBatch({ workspaceId, worktrees: [], discovered: [entry.discovered] });
+      }
     },
     requestResolveMissing: (workspaceId, entry) => {
       if (entry.worktree) setMissingTarget({ workspaceId, worktree: entry.worktree });

@@ -9,6 +9,30 @@ import (
 	"strings"
 )
 
+// ResetCmdPalettePersonalizationParams carries the path, query, and header parameters.
+type ResetCmdPalettePersonalizationParams struct {
+	Workspace string  `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
+// ResetCmdPalettePersonalization Reset command palette personalization
+func (c *Client) ResetCmdPalettePersonalization(ctx context.Context, params ResetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResetResponse, error) {
+	path := "/api/cmd-palette/personalization"
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPalettePersonalizationResetResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ResetOnboarding Clear the onboarding completion flag
 func (c *Client) ResetOnboarding(ctx context.Context) (*OnboardingStatusResponse, error) {
 	path := "/api/onboarding"

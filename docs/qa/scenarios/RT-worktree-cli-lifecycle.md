@@ -43,3 +43,8 @@ remain unchanged, with the old branch kept. Git read failure/cancellation must p
 original error instead of claiming `branch_absent`, and a subsequent valid retry must acquire the
 released usage/repository locks. The existing real-Git lifecycle integration suite passes these
 cases with race detection, including default `trunk`, replacement branch and failed-read retries.
+
+2026-10-20 discovered-removal impact: `remove --path <listed path>` removes a discovered checkout
+without adoption. Isolated-lab walk on 2026-10-20: a prunable entry cleared; a dirty checkout
+refused with `worktree_dirty_requires_force` (exit 65, file kept) and `--force` removed it while its
+branch survived; `<ref>` plus `--path` and `--path` plus `--delete-branch` fail as usage errors.

@@ -215,14 +215,29 @@ describe("cmd-palette row actions — entity rows (UT-126)", () => {
     expect(remove?.intent).toEqual({ kind: "remove-worktree", entry });
   });
 
-  it("Should not offer removing a worktree that was never adopted", () => {
-    const entry = worktree({ kind: "discovered", worktree: null });
+  it("Should offer removing a discovered worktree without adopting it first", () => {
+    const entry = worktree({
+      kind: "discovered",
+      worktree: null,
+      discovered: {
+        name: "acme",
+        branch: "main",
+        path: "/tmp/acme",
+        detached: false,
+        stale: false,
+        selectable: true,
+        unavailable: false,
+      },
+    });
     const model = paletteRowActions({
       subject: { kind: "worktree", entry },
       registry: registryFixture([]),
       pins: [],
     });
-    expect(flattenRowActions(model.sections).map(action => action.id)).toEqual(["worktree.scope"]);
+    expect(flattenRowActions(model.sections).map(action => action.id)).toEqual([
+      "worktree.scope",
+      "worktree.remove",
+    ]);
   });
 
   it("Should lend a tab's close action the window-close chord from the registry", () => {

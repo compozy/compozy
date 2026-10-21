@@ -9,7 +9,12 @@ import {
   cn,
 } from "@compozy/ui";
 
-import { copyWorktreePath, WorktreeNestRow, type WorktreeNestEntry } from "@/systems/workspace";
+import {
+  copyWorktreePath,
+  isStaleDiscovered,
+  WorktreeNestRow,
+  type WorktreeNestEntry,
+} from "@/systems/workspace";
 
 const ROW_CLASS = cn(
   "group/wtnest grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-0.5 rounded-md",
@@ -26,7 +31,7 @@ export interface OsWorkspacesWorktreeRowProps {
   focused: boolean;
   actionsOpen: boolean;
   onActionsOpenChange: (open: boolean) => void;
-  /** Delete stays gated to adopted, ready records — the remove flow's gate. */
+  /** Offered for adopted ready records and for discovered checkouts. */
   onResolveMissing?: () => void;
   onDelete?: () => void;
   /** Why cleanup is refused; the offered action stays visible but disabled. */
@@ -135,7 +140,11 @@ export function OsWorkspacesWorktreeRow({
               onClick={onDelete}
             >
               <Trash2 className="size-deck-glyph" />
-              <RefusalLabel reason={cleanupReason}>Delete worktree…</RefusalLabel>
+              <RefusalLabel reason={cleanupReason}>
+                {entry.discovered && isStaleDiscovered(entry.discovered)
+                  ? "Remove stale entry…"
+                  : "Delete worktree…"}
+              </RefusalLabel>
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuContent>

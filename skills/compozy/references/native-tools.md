@@ -342,7 +342,9 @@ the stale mutation.
 Worktree tools: `compozy__worktree_list`, `compozy__worktree_inspect`,
 `compozy__worktree_create`, and `compozy__worktree_remove`. List and inspect are read tools; create is
 mutating; remove is destructive and approval-gated, and its opt-in `delete_branch` input also deletes
-the local branch with the safety rules in `references/worktrees.md`. All carry an explicit or caller-resolved
+the local branch with the safety rules in `references/worktrees.md`. Remove takes `path` instead of
+`ref` for a discovered (not adopted) checkout, exactly as `worktree_list` reports it; that form keeps
+the branch and rejects `ref` and `delete_branch`. All carry an explicit or caller-resolved
 workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
 CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 

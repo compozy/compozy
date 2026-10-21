@@ -17,6 +17,10 @@ func (s *Service) removalRisk(ctx context.Context, item Worktree) (RemovalRisk, 
 	if err != nil {
 		return RemovalRisk{}, err
 	}
+	return s.removalRiskFromStatus(ctx, item, status)
+}
+
+func (s *Service) removalRiskFromStatus(ctx context.Context, item Worktree, status *Status) (RemovalRisk, error) {
 	if status.ReadError != "" {
 		return RemovalRisk{}, refusal(ErrStatusUnreadable, status.ReadError)
 	}
@@ -73,7 +77,9 @@ func removalCommitComparison(item Worktree, status *Status) []string {
 	case item.BaseRef != "":
 		return []string{item.BaseRef + "..HEAD"}
 	case status.Detached != nil && *status.Detached:
-		return []string{removalHeadRef, "--not", "--all"}
+		// --all would include every linked worktree's HEAD, this one too, and
+		// hide the commits that removal would orphan.
+		return []string{removalHeadRef, "--not", "--branches", "--tags", "--remotes"}
 	case status.HasUpstream != nil && *status.HasUpstream:
 		if status.Ahead != nil {
 			return []string{"@{upstream}..HEAD"}

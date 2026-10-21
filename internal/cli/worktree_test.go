@@ -216,6 +216,61 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 			t.Fatalf("removal refusal = %s, want %s", got, body)
 		}
 	})
+
+	t.Run("Should remove a discovered path without resolving a ref and keep its refusal", func(t *testing.T) {
+		t.Parallel()
+
+		const body = `{"code":"worktree_unpushed_requires_force","risk":{"changed_files":0,"insertions":0,"deletions":0,"unpushed_commits":1,"exists_on_remote":false},"downgrade":false}`
+		calls := 0
+		client := withWorkspaceResolution(&stubClient{removeDiscoveredFn: func(
+			_ context.Context,
+			workspaceID, path string,
+			force bool,
+		) error {
+			calls++
+			if workspaceID != "workspace-a" || path != "/private/tmp/detached-a" {
+				t.Fatalf("RemoveDiscoveredWorktree() args = %q, %q", workspaceID, path)
+			}
+			if !force {
+				return readAPIErrorBody(http.StatusConflict, "409 Conflict", []byte(body))
+			}
+			return nil
+		}})
+		deps := newWorkspaceTestDeps(t, client)
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"worktree",
+			"remove",
+			"--path",
+			"/private/tmp/detached-a",
+			"--workspace",
+			"workspace-a",
+			"-o",
+			"json",
+		)
+		if exitCode == 0 || strings.TrimSpace(stderr) != body {
+			t.Fatalf("unforced discovered removal = (%d, %s), want refusal %s", exitCode, stderr, body)
+		}
+		exitCode, stdout, stderr := executeRootCommandWithExit(
+			t, deps, "worktree", "remove", "--path", "/private/tmp/detached-a", "--force",
+			"--workspace", "workspace-a", "-o", "json",
+		)
+		var removed struct {
+			Worktree WorktreeRecord `json:"worktree"`
+		}
+		if exitCode != 0 || json.Unmarshal([]byte(stdout), &removed) != nil ||
+			removed.Worktree.Path != "/private/tmp/detached-a" || removed.Worktree.State != "removed" {
+			t.Fatalf("forced discovered removal = (%d, %s, %s), want removed path", exitCode, stdout, stderr)
+		}
+		exitCode, _, _ = executeRootCommandWithExit(
+			t, deps, "worktree", "remove", "feature-a", "--path", "/private/tmp/detached-a",
+			"--workspace", "workspace-a",
+		)
+		if exitCode == 0 || calls != 2 {
+			t.Fatalf("ref plus --path = exit %d after %d calls, want usage failure without a call", exitCode, calls)
+		}
+	})
 }
 
 // Invariant: every CLI mutation resolves a name once, forwards the canonical

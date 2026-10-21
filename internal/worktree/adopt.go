@@ -180,14 +180,23 @@ func (s *Service) inspectAdoptionCandidate(
 	if matched == nil || matched.Main || matched.Bare || matched.Prunable {
 		return adoptionIdentity{}, nil, refusal(ErrAdoptionUnreadable, "candidate is not an attached linked worktree")
 	}
-	stdout, stderr, configErr := s.runner.Run(ctx, candidate, "config", "--get", "core.worktree")
-	if configErr == nil && strings.TrimSpace(string(stdout)) != "" {
-		return adoptionIdentity{}, nil, refusal(ErrAdoptionUnreadable, "core.worktree redirects the checkout")
-	}
-	if configErr != nil && strings.TrimSpace(string(stderr)) != "" {
-		return adoptionIdentity{}, nil, refusal(ErrAdoptionUnreadable, "core.worktree configuration is unreadable")
+	if err := s.rejectCoreWorktreeRedirect(ctx, candidate); err != nil {
+		return adoptionIdentity{}, nil, err
 	}
 	return identity, matched, nil
+}
+
+// rejectCoreWorktreeRedirect refuses a checkout whose Git config points its
+// working tree elsewhere, so lifecycle operations never act on another directory.
+func (s *Service) rejectCoreWorktreeRedirect(ctx context.Context, candidate string) error {
+	stdout, stderr, configErr := s.runner.Run(ctx, candidate, "config", "--get", "core.worktree")
+	if configErr == nil && strings.TrimSpace(string(stdout)) != "" {
+		return refusal(ErrAdoptionUnreadable, "core.worktree redirects the checkout")
+	}
+	if configErr != nil && strings.TrimSpace(string(stderr)) != "" {
+		return refusal(ErrAdoptionUnreadable, "core.worktree configuration is unreadable")
+	}
+	return nil
 }
 
 type adoptionIdentity struct {

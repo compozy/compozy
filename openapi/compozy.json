@@ -18917,6 +18917,20 @@
         ],
         "type": "object"
       },
+      "RemoveDiscoveredWorktreeRequest": {
+        "properties": {
+          "force": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
       "RenameProfilePlan": {
         "properties": {
           "dormant_placements": {
@@ -90165,6 +90179,115 @@
           }
         },
         "summary": "Adopt an existing linked worktree",
+        "tags": [
+          "worktrees"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/worktrees/discovered/remove": {
+      "post": {
+        "operationId": "removeDiscoveredWorktree",
+        "parameters": [
+          {
+            "description": "Workspace id or path",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveDiscoveredWorktreeRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid discovered removal request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Hook or profile does not permit removal"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Discovered worktree or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorktreeRemovalRefusalPayload"
+                }
+              }
+            },
+            "description": "Removal requires another decision"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree service is unavailable"
+          }
+        },
+        "summary": "Remove a discovered worktree",
         "tags": [
           "worktrees"
         ],

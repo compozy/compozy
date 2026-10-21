@@ -2500,6 +2500,13 @@
             "resource": "settings",
             "app_access": "denied"
         },
+        "removeDiscoveredWorktree": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.worktrees.removeDiscoveredWorktree({ path: { \"workspace_id\": \"workspace_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nerr = c.RemoveDiscoveredWorktree(ctx, client.RemoveDiscoveredWorktreeParams{WorkspaceID: \"workspace_id\"}, client.RemoveDiscoveredWorktreeRequest{ /* request fields */ })\nif err != nil { return err }",
+            "kind": "json",
+            "resource": "worktrees",
+            "app_access": "denied"
+        },
         "removeExtension": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.extensions.removeExtension({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RemoveExtension(ctx, client.RemoveExtensionParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",

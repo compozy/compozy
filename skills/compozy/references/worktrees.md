@@ -117,11 +117,28 @@ deletion without `--force`. Missing, expired, or mismatched evidence does not ex
 dirty files and active sessions still block removal. The exit plan describes an unavailable upstream
 instead of claiming that no push is pending. Removal checks evidence again after pre-remove hooks.
 
+A discovered (not adopted) linked worktree can be removed without adopting it. Pass the path exactly
+as `compozy worktree list -o json` reports it in `discovered[].path`, because Git matches stale
+entries by that spelling (on macOS, `/private/tmp/...` is not `/tmp/...`):
+
+    compozy worktree remove --path /private/tmp/detached-a217e52e -o json
+
+HTTP/UDS use `POST /api/workspaces/{workspace_id}/worktrees/discovered/remove` with
+`{path, force?}`; native `compozy__worktree_remove` takes `path` instead of `ref`. A stale entry
+(`stale` or `unavailable`) only loses its Git metadata. A live checkout gets the same identity checks
+as adoption and the same `worktree_dirty_requires_force` / `worktree_unpushed_requires_force`
+refusal with a risk inventory. A detached HEAD counts commits that no branch, tag or remote keeps.
+Retry with `--force` after review. Discovered removal never deletes a branch, so `--path` cannot be
+combined with a ref or `--delete-branch`. A path that a registry row owns is refused with
+`worktree_registered`: remove that record by its ref. The `worktree.pre_remove` gate runs with
+`discovered: true`, an empty `worktree_id` and no `origin`.
+
 In Web bulk removal, **Retry failed** remains non-force. A dirty/unpushed refusal with a risk
 inventory offers **Force remove…**, which opens a second confirmation listing only eligible
 worktrees and their changed files and unique commits. Confirming retries only those targets with
 force. With **Also delete local branches** selected, this also authorizes deletion of their unmerged
-branches; the root and default branches remain protected. Other refusals cannot be forced.
+branches; the root and default branches remain protected. Other refusals cannot be forced. Discovered rows offer **Delete worktree…** (stale rows: **Remove
+stale entry…**) and join **Select worktrees…**. They are removed by Git path and keep their branch.
 
 ## Configuration And Errors
 
@@ -138,7 +155,7 @@ Branch on the deterministic API/CLI code before free-form text. The worktree voc
 `branch_checked_out_at_root`, `base_ref_not_found`, `repo_has_no_commits`, `worktree_not_found`,
 `worktree_not_ready`, `worktree_pending`, `worktree_missing`, `worktree_ref_invalid`,
 `adoption_main_checkout`, `adoption_foreign_repository`, `adoption_unreadable`,
-`worktree_operation_in_progress`, `worktree_session_active`, `worktree_status_unreadable`,
+`worktree_registered`, `worktree_operation_in_progress`, `worktree_session_active`, `worktree_status_unreadable`,
 `worktree_dirty_requires_force`, `worktree_unpushed_requires_force`,
 `worktree_safety_check_failed`, `worktree_removal_failed`, `per_run_materialization_failed`,
 `worktree_config_invalid`, `worktree_denied_by_hook`, `worktree_not_pending`, `forge_unavailable`,

@@ -24,6 +24,7 @@ type nativeWorktreeServiceStub struct {
 	resolve       func(context.Context, string, string) (*worktree.Worktree, error)
 	inspect       func(context.Context, string, string) (*worktree.Inspection, error)
 	remove        func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	removeFound   func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	deleteBranch  func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
 	capabilityErr error
 }
@@ -134,6 +135,18 @@ func (s *nativeWorktreeServiceStub) RunExitAction(
 
 func (s *nativeWorktreeServiceStub) CancelExitAction(context.Context, string, string, string) error {
 	return fmt.Errorf("unexpected CancelExitAction call")
+}
+
+func (s *nativeWorktreeServiceStub) RemoveDiscovered(
+	ctx context.Context,
+	workspaceID string,
+	path string,
+	force bool,
+) (*worktree.RemovalRefusal, error) {
+	if s.removeFound == nil {
+		return nil, fmt.Errorf("unexpected RemoveDiscovered call")
+	}
+	return s.removeFound(ctx, workspaceID, path, force)
 }
 
 func (s *nativeWorktreeServiceStub) Remove(
@@ -297,6 +310,66 @@ func TestNativeWorktreeTools(t *testing.T) {
 		if refusal.Code != worktree.ErrDirtyRequiresForce.Error() ||
 			refusal.Risk.ChangedFiles != 2 || refusal.Risk.UnpushedCommits != 3 {
 			t.Fatalf("removal refusal = %#v", refusal)
+		}
+	})
+
+	t.Run("Should remove a discovered path without resolving a record", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		service := &nativeWorktreeServiceStub{removeFound: func(
+			_ context.Context,
+			workspaceID, path string,
+			force bool,
+		) (*worktree.RemovalRefusal, error) {
+			calls++
+			if workspaceID != "registry-a" || path != "/private/tmp/detached-a" {
+				t.Fatalf("RemoveDiscovered() args = %q, %q", workspaceID, path)
+			}
+			if !force {
+				return &worktree.RemovalRefusal{
+					Code: worktree.ErrUnpushedRequiresForce.Error(),
+					Risk: worktree.RemovalRisk{UnpushedCommits: 1},
+				}, worktree.ErrUnpushedRequiresForce
+			}
+			return nil, nil
+		}}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeWorktreeWorkspaceService(), Worktrees: service,
+		}, nativeApproveAllPolicyInputs())
+		call := func(input string) (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorktreeRemove, Input: json.RawMessage(input),
+			})
+		}
+		_, err := call(`{"workspace":"ws-a","path":"/private/tmp/detached-a"}`)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		var refusal contract.WorktreeRemovalRefusalPayload
+		if !ok || toolErr.PartialResult == nil ||
+			json.Unmarshal(toolErr.PartialResult.Structured, &refusal) != nil ||
+			refusal.Code != worktree.ErrUnpushedRequiresForce.Error() || refusal.Risk.UnpushedCommits != 1 {
+			t.Fatalf("worktree_remove(path) error = %T %v, want unpushed partial refusal", err, err)
+		}
+		result, err := call(`{"workspace":"ws-a","path":"/private/tmp/detached-a","force":true}`)
+		var payload struct {
+			Path  string `json:"path"`
+			State string `json:"state"`
+		}
+		if err != nil || json.Unmarshal(result.Structured, &payload) != nil ||
+			payload.Path != "/private/tmp/detached-a" || payload.State != string(worktree.StateRemoved) {
+			t.Fatalf("worktree_remove(path, force) = %s, %v, want removed path", result.Structured, err)
+		}
+		for _, input := range []string{
+			`{"workspace":"ws-a","path":"/private/tmp/detached-a","ref":"feature-a"}`,
+			`{"workspace":"ws-a","path":"/private/tmp/detached-a","delete_branch":true}`,
+		} {
+			_, err := call(input)
+			if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+				toolErr.Code != toolspkg.ErrorCodeInvalidInput {
+				t.Fatalf("worktree_remove(%s) error = %v, want invalid input", input, err)
+			}
+		}
+		if calls != 2 {
+			t.Fatalf("RemoveDiscovered() calls = %d, want 2", calls)
 		}
 	})
 

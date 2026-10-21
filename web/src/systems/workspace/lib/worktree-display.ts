@@ -53,9 +53,18 @@ export function worktreeSignalFacts(worktree: WorktreePayload | null): WorktreeS
   };
 }
 
-/** Removal is available only for an adopted worktree whose checkout is ready. */
+/**
+ * Removal is offered for an adopted worktree whose checkout is ready, and for
+ * any discovered checkout — live or stale — which is removed by its Git path.
+ */
 export function canRemoveWorktree(entry: WorktreeNestEntry): boolean {
+  if (entry.discovered) return true;
   return entry.worktree !== null && entry.displayState === "ready";
+}
+
+/** A discovered entry whose checkout is gone; removal only clears Git's record of it. */
+export function isStaleDiscovered(discovered: DiscoveredWorktreePayload): boolean {
+  return discovered.stale || discovered.unavailable;
 }
 
 /**

@@ -386,9 +386,9 @@ describe("WorkspaceMenu", () => {
     expect(refused).toHaveTextContent("Owning profile is unavailable");
   });
 
-  it("Should omit Remove from a discovered row's actions", async () => {
+  it("Should offer Remove on a discovered row and route it without adopting", async () => {
     const user = userEvent.setup();
-    renderMenu({
+    const { onRemoveWorktree } = renderMenu({
       worktreesByWorkspace: {
         [gitAlpha.id]: discoveredOnlyWorktreeListingFixture,
         [gitBeta.id]: emptyWorktreeListingFixture,
@@ -398,9 +398,12 @@ describe("WorkspaceMenu", () => {
 
     await openSubmenuByKeyboard(user, `os-workspace-option-${gitAlpha.id}`);
     await openSubmenuByKeyboard(user, `os-worktree-actions-${DISCOVERED_KEY}`);
+    act(() => screen.getByTestId(`os-worktree-remove-${DISCOVERED_KEY}`).focus());
+    await user.keyboard("{Enter}");
 
-    await screen.findByTestId(`os-worktree-copy-path-${DISCOVERED_KEY}`);
-    expect(screen.queryByTestId(`os-worktree-remove-${DISCOVERED_KEY}`)).not.toBeInTheDocument();
+    expect(onRemoveWorktree).toHaveBeenCalledTimes(1);
+    expect(onRemoveWorktree.mock.calls[0]?.[0]).toBe(gitAlpha.id);
+    expect(onRemoveWorktree.mock.calls[0]?.[1]?.discovered?.path).toBeTruthy();
   });
 
   it("Should omit info and warning notices from the menu", () => {

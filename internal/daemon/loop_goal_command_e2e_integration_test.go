@@ -102,7 +102,13 @@ func TestDaemonE2EGoalCommandsShouldSurviveControlsDisconnectAndRestart(t *testi
 			}
 		}
 		var defaultPage compozycontract.SessionCatalogResponse
-		if err := harness.UDSJSON(ctx, http.MethodGet, "/api/sessions?workspace_id="+url.QueryEscape(harness.WorkspaceID), nil, &defaultPage); err != nil {
+		if err := harness.UDSJSON(
+			ctx,
+			http.MethodGet,
+			"/api/sessions?workspace_id="+url.QueryEscape(harness.WorkspaceID),
+			nil,
+			&defaultPage,
+		); err != nil {
 			t.Fatal(err)
 		}
 		for _, item := range defaultPage.Sessions {

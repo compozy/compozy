@@ -4,6 +4,25 @@ package client
 
 import "time"
 
+// SearchResult is a daemon API value.
+type SearchResult struct {
+	Matches   []SearchMatch `json:"matches"`
+	Truncated bool          `json:"truncated"`
+}
+
+// Section is a daemon API value.
+type Section struct {
+	Title string `json:"title,omitempty"`
+	Rows  []Row  `json:"rows"`
+}
+
+// Selection is a daemon API value.
+type Selection struct {
+	ID        string `json:"id"`
+	ValueID   string `json:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitzero"`
+}
+
 // SendPromptResultPayload is a daemon API value.
 type SendPromptResultPayload struct {
 	ReplyWatch            *ReplyWatchRefPayload `json:"reply_watch,omitempty"`

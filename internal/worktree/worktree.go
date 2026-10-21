@@ -187,6 +187,7 @@ var (
 	ErrAdoptionMainCheckout   = errors.New("adoption_main_checkout")
 	ErrAdoptionForeignRepo    = errors.New("adoption_foreign_repository")
 	ErrAdoptionUnreadable     = errors.New("adoption_unreadable")
+	ErrDiscoveredRegistered   = errors.New("worktree_registered")
 	ErrOperationInProgress    = errors.New("worktree_operation_in_progress")
 	ErrSessionActive          = errors.New("worktree_session_active")
 	ErrStatusUnreadable       = errors.New("worktree_status_unreadable")

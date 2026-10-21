@@ -39,6 +39,7 @@ func ExpectedWorktreeRouteKeys() []string {
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/actions",
 		"POST /api/workspaces/:workspace_id/worktrees/:worktree_id/exit/cancel",
 		"POST /api/workspaces/:workspace_id/worktrees/adopt",
+		"POST /api/workspaces/:workspace_id/worktrees/discovered/remove",
 	}
 	slices.Sort(keys)
 	return keys

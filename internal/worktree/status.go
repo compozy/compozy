@@ -38,29 +38,43 @@ func (s *Service) Status(ctx context.Context, workspaceID, id string, refresh bo
 }
 
 func (s *Service) refreshStatus(ctx context.Context, item Worktree) (*Status, error) {
+	status := s.collectStatus(ctx, item)
+	if err := s.store.SaveStatus(ctx, item.WorkspaceID, item.ID, status); err != nil {
+		if status.ReadError != "" {
+			return nil, fmt.Errorf("worktree: persist status read failure: %w", err)
+		}
+		return nil, fmt.Errorf("worktree: persist status: %w", err)
+	}
+	s.emit(ctx, EventStatusRefreshed, item)
+	return &status, nil
+}
+
+// collectStatus reads the checkout's Git status without persisting it. A Git
+// read failure is reported through ReadError so callers keep one result shape.
+func (s *Service) collectStatus(ctx context.Context, item Worktree) Status {
 	statusOutput, stderr, err := s.runner.Run(ctx, item.Path, "status", "--porcelain=v2", "--branch", "-z")
 	if err != nil {
-		return s.persistStatusError(ctx, item, stderr, err)
+		return s.statusReadFailure(item, stderr, err)
 	}
 	parsed, err := ParseStatusV2(statusOutput)
 	if err != nil {
-		return s.persistStatusError(ctx, item, nil, err)
+		return s.statusReadFailure(item, nil, err)
 	}
 	unstagedOutput, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--numstat", "-z")
 	if err != nil {
-		return s.persistStatusError(ctx, item, stderr, err)
+		return s.statusReadFailure(item, stderr, err)
 	}
 	stagedOutput, stderr, err := s.runner.Run(ctx, item.Path, "diff", "--cached", "--numstat", "-z")
 	if err != nil {
-		return s.persistStatusError(ctx, item, stderr, err)
+		return s.statusReadFailure(item, stderr, err)
 	}
 	unstaged, err := ParseNumstat(unstagedOutput)
 	if err != nil {
-		return s.persistStatusError(ctx, item, nil, err)
+		return s.statusReadFailure(item, nil, err)
 	}
 	staged, err := ParseNumstat(stagedOutput)
 	if err != nil {
-		return s.persistStatusError(ctx, item, nil, err)
+		return s.statusReadFailure(item, nil, err)
 	}
 	merged := MergeNumstat(unstaged, staged)
 	var aheadOfBase *int
@@ -76,37 +90,22 @@ func (s *Service) refreshStatus(ctx context.Context, item Worktree) (*Status, er
 	dirtyFiles, insertions, deletions := parsed.DirtyFiles, merged.Insertions, merged.Deletions
 	hasUpstream := parsed.HasUpstream
 	refreshedAt := s.now().UTC()
-	status := Status{
+	return Status{
 		WorktreeID: item.ID, Branch: &branch, Detached: &detached, HeadSHA: &headSHA,
 		DirtyFiles: &dirtyFiles, Insertions: &insertions, Deletions: &deletions,
 		HasUpstream: &hasUpstream, Ahead: parsed.Ahead, AheadOfBase: aheadOfBase, Behind: parsed.Behind,
 		RefreshedAt: &refreshedAt,
 	}
-	if err := s.store.SaveStatus(ctx, item.WorkspaceID, item.ID, status); err != nil {
-		return nil, fmt.Errorf("worktree: persist status: %w", err)
-	}
-	s.emit(ctx, EventStatusRefreshed, item)
-	return &status, nil
 }
 
-func (s *Service) persistStatusError(
-	ctx context.Context,
-	item Worktree,
-	stderr []byte,
-	cause error,
-) (*Status, error) {
+func (s *Service) statusReadFailure(item Worktree, stderr []byte, cause error) Status {
 	detail := strings.TrimSpace(string(stderr))
 	if detail == "" {
 		detail = cause.Error()
 	}
 	refreshedAt := s.now().UTC()
-	status := Status{
+	return Status{
 		WorktreeID: item.ID, ReadError: diagnostics.RedactAndBound(detail, setupDiagnosticLimit),
 		RefreshedAt: &refreshedAt,
 	}
-	if err := s.store.SaveStatus(ctx, item.WorkspaceID, item.ID, status); err != nil {
-		return nil, fmt.Errorf("worktree: persist status read failure: %w", err)
-	}
-	s.emit(ctx, EventStatusRefreshed, item)
-	return &status, nil
 }

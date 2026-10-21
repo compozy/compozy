@@ -148,7 +148,8 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 					(got.Meta.Origin == nil || got.Meta.Origin.SessionID != target.ID || got.Meta.Origin.Hop != 1) {
 					t.Fatalf("queued agent origin = %#v", got.Meta.Origin)
 				}
-				if got.TurnID == agentEntry.TurnID && !strings.Contains(got.Message, "replied to your message goal-question") {
+				if got.TurnID == agentEntry.TurnID &&
+					!strings.Contains(got.Message, "replied to your message goal-question") {
 					t.Fatalf("batched turn lacks the reply wake:\n%s", got.Message)
 				}
 				if got.TurnID == entry.TurnID && got.Meta.Origin != nil {
@@ -162,7 +163,8 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		batchedWake, err := fixture.goalStore.GetSessionInputQueueEntryByID(ctx, wake.ID)
-		if err != nil || batchedWake.Status != store.SessionInputQueueStatusSent || batchedWake.TurnID != agentEntry.TurnID {
+		if err != nil || batchedWake.Status != store.SessionInputQueueStatusSent ||
+			batchedWake.TurnID != agentEntry.TurnID {
 			t.Fatalf("reply wake = %q/%q, %v; want sent in the batched turn %s",
 				batchedWake.Status, batchedWake.TurnID, err, agentEntry.TurnID)
 		}

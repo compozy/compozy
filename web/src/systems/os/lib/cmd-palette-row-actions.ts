@@ -264,9 +264,9 @@ function worktreeModel(entry: OsPaletteWorktreeResult): PaletteRowActionModel {
       intent: { kind: "scope-worktree", entry },
     },
   ];
-  // Removal exists only for an adopted worktree; a discovered row has nothing
-  // to remove yet, and offering it would be a control the runtime cannot honour.
-  if (entry.worktree !== null) {
+  // Adopted records and discovered checkouts are both removable; a discovered
+  // row is removed by its Git path through the batch confirmation.
+  if (entry.worktree !== null || entry.discovered) {
     actions.push({
       id: "worktree.remove",
       title: "Remove worktree",

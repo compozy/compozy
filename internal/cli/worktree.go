@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -164,14 +165,21 @@ func newWorktreeStatusCommand(deps commandDeps) *cobra.Command {
 }
 
 func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
-	var workspaceRef string
+	var workspaceRef, discoveredPath string
 	var opts WorktreeCleanupOptions
 	cmd := &cobra.Command{
-		Use: "remove <ref>", Short: "Remove a worktree", Args: exactOneNonBlankArg(),
+		Use: "remove <ref> | --path <path>", Short: "Remove a worktree", Args: worktreeRemoveArgs(&discoveredPath),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := worktreeCommandContext(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
+			}
+			if path := strings.TrimSpace(discoveredPath); path != "" {
+				if err := client.RemoveDiscoveredWorktree(cmd.Context(), workspaceID, path, opts.Force); err != nil {
+					return err
+				}
+				item := WorktreeRecord{WorkspaceID: workspaceID, Path: path, State: lifecycleRemovedKey}
+				return writeCommandOutput(cmd, worktreeMutationBundle(lifecycleRemovedKey, item, nil))
 			}
 			item, err := resolveWorktreeCommandTarget(cmd.Context(), client, workspaceID, args[0])
 			if err != nil {
@@ -189,7 +197,23 @@ func newWorktreeRemoveCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&opts.Force, "force", false,
 		"Confirm destructive removal; with --delete-branch, also delete an unmerged branch")
 	addWorktreeDeleteBranchFlag(cmd, &opts.DeleteBranch)
+	cmd.Flags().StringVar(&discoveredPath, "path", "",
+		"Remove a discovered (not adopted) worktree by its listed path; its branch is kept")
+	cmd.MarkFlagsMutuallyExclusive("path", "delete-branch")
 	return cmd
+}
+
+// worktreeRemoveArgs accepts either one registered ref or a discovered --path.
+func worktreeRemoveArgs(discoveredPath *string) cobra.PositionalArgs {
+	return func(cmd *cobra.Command, args []string) error {
+		if strings.TrimSpace(*discoveredPath) == "" {
+			return exactOneNonBlankArg()(cmd, args)
+		}
+		if len(args) != 0 {
+			return fmt.Errorf("cli: %q accepts either <ref> or --path, not both", cmd.CommandPath())
+		}
+		return nil
+	}
 }
 
 func newWorktreeDismissCommand(deps commandDeps) *cobra.Command {

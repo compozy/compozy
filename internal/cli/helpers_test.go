@@ -195,6 +195,7 @@ type stubClient struct {
 	) (WorktreeExitOperationRecord, error)
 	cancelWorktreeExitFn func(context.Context, string, string, string) error
 	removeWorktreeFn     func(context.Context, string, string, WorktreeCleanupOptions) (*contract.WorktreeBranchOutcomePayload, error)
+	removeDiscoveredFn   func(context.Context, string, string, bool) error
 	dismissWorktreeFn    func(context.Context, string, string, WorktreeCleanupOptions) (*contract.WorktreeBranchOutcomePayload, error)
 	listLoopsFn          func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
 	createLoopFn         func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
@@ -1770,6 +1771,13 @@ func (s *stubClient) RemoveWorktree(
 		return s.removeWorktreeFn(ctx, workspace, ref, opts)
 	}
 	return nil, errors.New("unexpected RemoveWorktree call")
+}
+
+func (s *stubClient) RemoveDiscoveredWorktree(ctx context.Context, workspace, path string, force bool) error {
+	if s.removeDiscoveredFn != nil {
+		return s.removeDiscoveredFn(ctx, workspace, path, force)
+	}
+	return errors.New("unexpected RemoveDiscoveredWorktree call")
 }
 
 func (s *stubClient) DismissWorktree(

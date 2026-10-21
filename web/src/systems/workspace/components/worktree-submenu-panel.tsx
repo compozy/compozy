@@ -22,7 +22,11 @@ import {
 } from "@compozy/ui";
 
 import type { WorkspaceTreeNode } from "../lib/workspace-tree";
-import { canRemoveWorktree, type WorktreeNestEntry } from "../lib/worktree-display";
+import {
+  canRemoveWorktree,
+  isStaleDiscovered,
+  type WorktreeNestEntry,
+} from "../lib/worktree-display";
 import { copyWorktreePath } from "../lib/copy-worktree-path";
 import { WorktreeNest } from "./worktree-nest";
 import { WorktreeNestRow } from "./worktree-nest-row";
@@ -117,7 +121,9 @@ function WorktreeSubmenuRowActions({
           disabledReason={cleanupReason}
           onSelect={() => onRemoveWorktree?.(entry)}
         >
-          Remove…
+          {entry.discovered && isStaleDiscovered(entry.discovered)
+            ? "Remove stale entry…"
+            : "Remove…"}
         </ActionItem>
       ) : null}
     </>

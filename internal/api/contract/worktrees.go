@@ -14,6 +14,13 @@ type AdoptWorktreeRequest struct {
 	Path string `json:"path"`
 }
 
+// RemoveDiscoveredWorktreeRequest names a Git-only linked worktree by the path
+// exactly as the listing reports it. Force acknowledges dirty or unpushed loss.
+type RemoveDiscoveredWorktreeRequest struct {
+	Path  string `json:"path"`
+	Force bool   `json:"force,omitempty"`
+}
+
 type WorktreeStatusPayload struct {
 	Branch      *string    `json:"branch"`
 	Detached    *bool      `json:"detached"`

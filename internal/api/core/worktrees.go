@@ -318,6 +318,37 @@ func (h *BaseHandlers) RemoveWorktree(c *gin.Context) {
 	h.respondWorktreeCleanup(c, scope.RegistryID, id, deleteBranch, force)
 }
 
+// RemoveDiscoveredWorktree deletes a Git-only checkout named by its listed path.
+// No registry row owns it, so the caller only needs mutation authority. Refusals
+// share the record removal 409 payload so clients reuse one force escalation.
+func (h *BaseHandlers) RemoveDiscoveredWorktree(c *gin.Context) {
+	scope, ok := h.worktreeWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	var request contract.RemoveDiscoveredWorktreeRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("api: decode remove discovered worktree request: %w", err))
+		return
+	}
+	if _, err := h.resolveProfileMutationScope(c); err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	refusal, err := h.Worktrees.RemoveDiscovered(
+		c.Request.Context(), scope.RegistryID, strings.TrimSpace(request.Path), request.Force,
+	)
+	if refusal != nil {
+		c.JSON(http.StatusConflict, WorktreeRemovalRefusalPayload(*refusal))
+		return
+	}
+	if err != nil {
+		h.respondError(c, StatusForWorktreeError(err), err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 // DismissWorktree authorizes metadata cleanup without deleting files or history.
 // The lifecycle service owns repeated-request and concurrent-state handling.
 // Only an explicit delete_branch request touches Git, after the record is dismissed.

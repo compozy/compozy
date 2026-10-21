@@ -189,6 +189,35 @@ export async function removeWorktree(
 }
 
 /**
+ * Removes a Git-only (discovered) checkout by the path exactly as the listing
+ * reports it; a stale entry only loses its Git metadata and its branch is kept.
+ * Without `force`, a dirty or unpushed checkout refuses with the same 409 risk
+ * payload as record removal.
+ */
+export async function removeDiscoveredWorktree(
+  workspaceID: string,
+  path: string,
+  options: { force?: boolean } = {},
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
+    {
+      params: { path: { workspace_id: workspaceID } },
+      body: { path, force: options.force || undefined },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throw new WorktreeApiError(
+      defaultApiErrorMessage("Failed to remove discovered worktree", response, error),
+      response.status,
+      error
+    );
+  }
+}
+
+/**
  * Drops the tombstone record only; sessions and run history are preserved.
  * Git is touched only when `deleteBranch` opts into deleting the local branch.
  */

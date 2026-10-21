@@ -5,7 +5,7 @@ title: Read and mutate identical worktree state across agent surfaces
 persona: Bruno
 journey: J-worktree-management
 expected: HTTP, UDS, CLI, native tools, and both worktree streams pass name and ID references to one workspace-scoped runtime contract, report not-ready only for a real state refusal, and preserve canonical payloads, deterministic error codes, risk and approval metadata, ordered replay, redacted events, repository capability diagnostics, and cache isolation.
-entry_points: HTTP/UDS GET|POST /api/workspaces/:workspace_id/worktrees; POST .../adopt; GET .../:worktree_id; GET .../status|exit|stream; POST .../cancel|dismiss|exit/actions|exit/cancel; DELETE .../:worktree_id; GET /api/worktrees/catalog-stream; compozy__worktree_list|inspect|create|remove
+entry_points: HTTP/UDS GET|POST /api/workspaces/:workspace_id/worktrees; POST .../adopt; POST .../discovered/remove; GET .../:worktree_id; GET .../status|exit|stream; POST .../cancel|dismiss|exit/actions|exit/cancel; DELETE .../:worktree_id; GET /api/worktrees/catalog-stream; compozy__worktree_list|inspect|create|remove
 qa_status: pass
 bug_ids: BUG-20260813-base-ref-accepted-before-validation
 fix_status: fixed
@@ -49,3 +49,10 @@ Current run: `docs/qa/reports/2026-09-16-worktree-bulk-delete.md` (targeted rend
 `delete_branch` (dismiss also `force`) and answer `200 {"branch": {...}}` only when it is set;
 requests without it keep `204`. `compozy__worktree_remove` accepts `delete_branch` and returns the
 same outcome as `branch`. Parity is covered by the handler, transport-parity and native-tool suites.
+
+2026-10-20 discovered-removal impact: `POST …/worktrees/discovered/remove` `{path, force?}` on HTTP
+and UDS, and `compozy__worktree_remove` `path`. Isolated-lab walk: HTTP detached HEAD with a unique
+commit → 409 `worktree_unpushed_requires_force` (1 commit), forced → 204; UDS clean live → 204;
+registered path → 409 `worktree_registered` with checkout intact; main checkout → 409
+`adoption_main_checkout`; unlisted → 404; blank → 400. Byte parity is owned by the transport-parity
+suite; the native-tool suite owns the `path` input.

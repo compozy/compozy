@@ -33,6 +33,7 @@ HTTP and Unix-domain-socket transports use the same handlers and payloads:
 | `GET`    | `/api/workspaces/{workspace_id}/worktrees`                            |
 | `POST`   | `/api/workspaces/{workspace_id}/worktrees`                            |
 | `POST`   | `/api/workspaces/{workspace_id}/worktrees/adopt`                      |
+| `POST`   | `/api/workspaces/{workspace_id}/worktrees/discovered/remove`          |
 | `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}`              |
 | `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status`       |
 | `GET`    | `/api/workspaces/{workspace_id}/worktrees/{worktree_id}/exit`         |
@@ -66,8 +67,9 @@ The lazy `compozy__worktree` toolset contains:
 | `compozy__worktree_create`  | mutating    | Accept durable phased creation.              |
 | `compozy__worktree_remove`  | destructive | Remove after safety evaluation and approval. |
 
-`compozy__worktree_remove` also accepts `delete_branch: true` to delete the local branch after the
-checkout is removed. The result then carries a `branch` outcome; see
+`compozy__worktree_remove` takes `path` instead of `ref` to remove a discovered checkout by the path
+`compozy__worktree_list` reports; that form keeps the branch. It also accepts `delete_branch: true`
+with `ref` to delete the local branch after the checkout is removed. The result then carries a `branch` outcome; see
 [Delete the local branch](/docs/worktrees/removal-and-recovery#delete-the-local-branch) for the
 safety rules and kept-branch reasons.
 
@@ -86,22 +88,24 @@ one of `worktree.exit_action_completed`, `worktree.exit_action_failed`, or
 `worktree.exit_action_canceled`.
 
 Extensions may register synchronous `worktree.pre_create` and `worktree.pre_remove` gates. An
-explicit denial blocks the operation; a hook execution failure fails open and is logged. The
+explicit denial blocks the operation; a hook execution failure fails open and is logged. For a
+discovered checkout, the `worktree.pre_remove` payload carries `discovered: true`, an empty
+`worktree_id` and no `origin`; stale entries skip the gate because nothing on disk is removed. The
 `worktree.created`, `worktree.adopted`, and `worktree.removed` hooks are observe-only and fail open.
 
 ## Deterministic error codes
 
 These wire codes are stable decision inputs:
 
-| Area                | Codes                                                                                                                                                                                   |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host and repository | `worktree_git_unavailable`, `worktree_git_version_unsupported`, `workspace_not_git_backed`, `repo_has_no_commits`                                                                       |
-| Name, path, branch  | `worktree_name_taken`, `worktree_path_exists`, `branch_held_by_worktree`, `branch_checked_out_at_root`, `base_ref_not_found`                                                            |
-| Lookup and state    | `worktree_not_found`, `worktree_not_ready`, `worktree_pending`, `worktree_missing`, `worktree_ref_invalid`, `worktree_not_pending`, `worktree_operation_in_progress`                    |
-| Adoption            | `adoption_main_checkout`, `adoption_foreign_repository`, `adoption_unreadable`                                                                                                          |
-| Safety and removal  | `worktree_session_active`, `worktree_status_unreadable`, `worktree_dirty_requires_force`, `worktree_unpushed_requires_force`, `worktree_safety_check_failed`, `worktree_removal_failed` |
-| Creation and policy | `per_run_materialization_failed`, `worktree_config_invalid`, `worktree_denied_by_hook`                                                                                                  |
-| Forge and exit      | `forge_unavailable`, `forge_error`, `worktree_exit_action_invalid`                                                                                                                      |
+| Area                | Codes                                                                                                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host and repository | `worktree_git_unavailable`, `worktree_git_version_unsupported`, `workspace_not_git_backed`, `repo_has_no_commits`                                                                                              |
+| Name, path, branch  | `worktree_name_taken`, `worktree_path_exists`, `branch_held_by_worktree`, `branch_checked_out_at_root`, `base_ref_not_found`                                                                                   |
+| Lookup and state    | `worktree_not_found`, `worktree_not_ready`, `worktree_pending`, `worktree_missing`, `worktree_ref_invalid`, `worktree_not_pending`, `worktree_operation_in_progress`                                           |
+| Adoption            | `adoption_main_checkout`, `adoption_foreign_repository`, `adoption_unreadable`                                                                                                                                 |
+| Safety and removal  | `worktree_session_active`, `worktree_status_unreadable`, `worktree_dirty_requires_force`, `worktree_unpushed_requires_force`, `worktree_safety_check_failed`, `worktree_removal_failed`, `worktree_registered` |
+| Creation and policy | `per_run_materialization_failed`, `worktree_config_invalid`, `worktree_denied_by_hook`                                                                                                                         |
+| Forge and exit      | `forge_unavailable`, `forge_error`, `worktree_exit_action_invalid`                                                                                                                                             |
 
 Handle the code before free-form text. Conflict payloads for dirty or unpushed removal also include a
 bounded `risk` object. Forge diagnostics preserve only the safe cause vocabulary; secrets and remote

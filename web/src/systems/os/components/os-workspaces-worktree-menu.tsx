@@ -257,8 +257,7 @@ function WorktreeMenuRows({
             actionsOpen={actionsKey === entry.key}
             onActionsOpenChange={open => setActionsKey(open ? entry.key : null)}
             onDelete={
-              // Delete stays gated to adopted, ready records — the remove
-              // flow's production gate; discovered rows have no record.
+              // Adopted ready records and discovered checkouts (by Git path).
               canRemoveWorktree(entry) ? () => onDeleteRow(entry) : undefined
             }
             registerRow={registerRow(entry.key)}

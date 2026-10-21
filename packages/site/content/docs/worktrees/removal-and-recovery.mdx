@@ -189,6 +189,38 @@ Use `feature-auth` for `<retained-branch>` when the original Worktree used its d
 creates a new Worktree ID while the dismissed record and its history remain readable by the old ID.
 Use `--branch <new-branch>` instead when the replacement should start from a different branch.
 
+## Remove a discovered Worktree
+
+A discovered row is a linked checkout that Git lists but CompozyOS never created or adopted, such as a
+checkout made by another tool. You can remove it without adopting it first.
+
+### 1. Find the exact path
+
+```bash
+compozy worktree list --workspace . --refresh -o json
+```
+
+Copy the entry's `path` from `discovered[]` exactly as listed. Git matches stale entries by that
+spelling, so on macOS `/private/tmp/...` and `/tmp/...` are different paths.
+
+### 2. Remove it by path
+
+```bash
+compozy worktree remove --path /private/tmp/detached-a217e52e --workspace . -o json
+```
+
+Expected result reports `action: "removed"` with that `path`. A stale entry, shown as unavailable
+because its directory is gone, only loses Git's record of it. A live checkout gets the same checks as
+a registered one: uncommitted changes, or commits that no branch, tag or remote keeps, are refused
+with `worktree_dirty_requires_force` or `worktree_unpushed_requires_force` and a `risk` inventory.
+Review it, then repeat with `--force` to discard that work.
+
+Removing a discovered Worktree never deletes its branch, so `--path` cannot be combined with a
+Worktree name or `--delete-branch`. A path that already has a CompozyOS record is refused with
+`worktree_registered`; remove that record by its name instead. In the app, choose
+**Delete worktree…** on a discovered row, or **Remove stale entry…** on an unavailable one. Both open
+the batch confirmation below.
+
 ## Remove several Worktrees in the app
 
 In the menubar workspace submenu or Workspaces overview, choose **Select worktrees…**.
@@ -196,7 +228,8 @@ Select individual rows, use Shift to select a range, or choose **Select all elig
 Select all captures only eligible rows currently represented by that list; later arrivals are not
 added. Escape clears selection. Selection never navigates into a checkout or adopts a discovered one.
 
-Ready and missing rows can be selected together. **Remove selected** freezes the workspace and
+Ready, missing and discovered rows can be selected together. Discovered rows are removed by their Git
+path, with no owner profile, and always keep their branch. **Remove selected** freezes the workspace and
 Worktree IDs. The confirmation separates checkout removal from dismissal of missing records and
 offers **Also delete local branches**, unchecked by default. Missing rows can also be resolved
 individually through **Clean up missing record…**, which retains **It's back** and offers the same
@@ -211,9 +244,8 @@ edits and unpublished work remain refused on the first attempt. For dirty or unp
 unique commits. Confirming retries only those targets with force; canceling removes nothing.
 With **Also delete local branches** selected, the force confirmation also warns that unmerged
 branches may be deleted. The root and default branches remain protected. Other refusal codes
-cannot be forced, and the batch never stops sessions. Rows whose owner profile is archived or no longer exists, rows with
-an active session, and unregistered discovered checkouts are ineligible: their row action stays
-visible but disabled, and names the reason.
+cannot be forced, and the batch never stops sessions. Rows whose owner profile is archived or no longer exists and rows with
+an active session are ineligible: their row action stays visible but disabled, and names the reason.
 
 Results report each success and refusal independently, including whether each branch was deleted
 or kept and why. Successful targets stay recorded in the

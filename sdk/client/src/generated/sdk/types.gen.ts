@@ -5259,6 +5259,11 @@ export type ReloadExtensionRequest = {
   generation_hash: string;
 };
 
+export type RemoveDiscoveredWorktreeRequest = {
+  force?: boolean;
+  path: string;
+};
+
 export type RenameProfilePlan = {
   dormant_placements: Array<ProfilePlacement>;
   machine_folders: Array<string>;
@@ -35712,6 +35717,66 @@ export type AdoptWorktreeResponses = {
 };
 
 export type AdoptWorktreeResponse = AdoptWorktreeResponses[keyof AdoptWorktreeResponses];
+
+export type RemoveDiscoveredWorktreeData = {
+  /**
+   * JSON request body
+   */
+  body: RemoveDiscoveredWorktreeRequest;
+  path: {
+    /**
+     * Workspace id or path
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/worktrees/discovered/remove";
+};
+
+export type RemoveDiscoveredWorktreeErrors = {
+  /**
+   * Invalid discovered removal request
+   */
+  400: ErrorPayload;
+  /**
+   * Hook or profile does not permit removal
+   */
+  403: ErrorPayload;
+  /**
+   * Discovered worktree or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Removal requires another decision
+   */
+  409: WorktreeRemovalRefusalPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveDiscoveredWorktreeError =
+  RemoveDiscoveredWorktreeErrors[keyof RemoveDiscoveredWorktreeErrors];
+
+export type RemoveDiscoveredWorktreeResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type RemoveDiscoveredWorktreeResponse =
+  RemoveDiscoveredWorktreeResponses[keyof RemoveDiscoveredWorktreeResponses];
 
 export type RemoveWorktreeData = {
   body?: never;

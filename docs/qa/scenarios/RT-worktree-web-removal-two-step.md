@@ -71,3 +71,10 @@ pre-remove hook that introduces a unique commit. The lifecycle Web suite verifie
 confirmed force against a mixed success/dirty/unpushed/active-session batch. The interactive
 Storybook confirmation was inspected at 1440×900 and 320×800, including branch-deletion consent.
 This is scoped evidence, not a claim that the older full journey was re-walked.
+
+2026-10-20 discovered-removal impact: discovered rows offer **Delete worktree…** (stale:
+**Remove stale entry…**) and join **Select worktrees…**; single delete opens the batch dialog.
+Walked on the menubar workspace submenu against an isolated daemon with Vite: a stale row cleared
+("Stale Git entry cleared. Branch kept."); select-all counted registered + discovered rows; the
+batch removed two and refused a detached unique commit with its risk row; **Force remove… (1)**
+completed it (3 succeeded). Evidence screenshots are linked from the PR.

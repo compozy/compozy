@@ -12,8 +12,12 @@ import {
   FieldDescription,
   FieldLabel,
 } from "@compozy/ui";
-import { useWorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-batch";
+import {
+  useWorktreeRemovalBatch,
+  type WorktreeRemovalTarget,
+} from "@/systems/workspace/hooks/use-worktree-removal-batch";
 import type { WorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-selection";
+import { isStaleDiscovered } from "@/systems/workspace/lib/worktree-display";
 
 import { WorktreeRemovalRiskRows } from "./worktree-remove-risk-rows";
 import {
@@ -21,6 +25,55 @@ import {
   REMOVE_HISTORY_NOTE,
   REMOVE_BRANCH_HISTORY_NOTE,
 } from "./worktree-remove-copy";
+
+/** Name, path, branch and the action one frozen target will take. */
+function describeTarget(target: WorktreeRemovalTarget) {
+  if (target.kind === "worktree") {
+    const { row } = target;
+    return {
+      name: row.name,
+      path: row.path,
+      branch: row.branch,
+      action: row.state === "missing" ? "Dismiss record" : "Remove checkout",
+      owner: row.profile_name,
+    };
+  }
+  const { discovered } = target;
+  return {
+    name: discovered.name,
+    path: discovered.path,
+    branch: discovered.branch,
+    action: isStaleDiscovered(discovered) ? "Clear stale Git entry" : "Remove discovered checkout",
+    owner: null,
+  };
+}
+
+function plural(count: number, one: string, many: string) {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/** Names only the consequences present in this batch; discovered rows keep their branch. */
+function batchConsequences(batch: WorktreeRemovalBatch) {
+  const live = (batch.discovered ?? []).filter(discovered => !isStaleDiscovered(discovered));
+  const stale = (batch.discovered ?? []).length - live.length;
+  const removed = batch.worktrees.filter(row => row.state === "ready").length + live.length;
+  const dismissed = batch.worktrees.filter(row => row.state !== "ready").length;
+  const parts = [];
+  if (removed > 0) {
+    parts.push(`${plural(removed, "checkout", "checkouts")} will be removed through Git.`);
+  }
+  if (dismissed > 0) {
+    parts.push(
+      `${plural(dismissed, "missing record", "missing records")} will be dismissed from the list; files at those paths are preserved.`
+    );
+  }
+  if (stale > 0) {
+    parts.push(
+      `${plural(stale, "stale Git entry", "stale Git entries")} will be cleared; nothing is left on disk.`
+    );
+  }
+  return parts.join(" ");
+}
 
 /** Presents the frozen removal/dismissal consequences and non-atomic per-item results. */
 export function WorktreeBulkRemoveDialog({
@@ -31,8 +84,9 @@ export function WorktreeBulkRemoveDialog({
   onClose: () => void;
 }) {
   const model = useWorktreeRemovalBatch(batch);
-  const removed = model.batch.worktrees.filter(row => row.state === "ready").length;
-  const dismissed = model.batch.worktrees.length - removed;
+  const total = model.results.length;
+  const hasRecords = model.batch.worktrees.length > 0;
+  const hasDiscovered = (model.batch.discovered ?? []).length > 0;
   const successes = model.results.filter(result => result.status === "success").length;
   const failures = model.results.filter(result => result.status === "failed").length;
   const done = successes === model.results.length;
@@ -47,67 +101,67 @@ export function WorktreeBulkRemoveDialog({
     >
       <DialogContent showCloseButton={false} data-testid="worktree-bulk-remove-dialog">
         <DialogHeader>
-          <DialogTitle>
-            Remove {model.batch.worktrees.length}{" "}
-            {model.batch.worktrees.length === 1 ? "worktree" : "worktrees"}?
-          </DialogTitle>
+          <DialogTitle>Remove {plural(total, "worktree", "worktrees")}?</DialogTitle>
           <DialogDescription>
-            {removed} {removed === 1 ? "checkout" : "checkouts"} will be removed through Git.{" "}
-            {dismissed} missing {dismissed === 1 ? "record" : "records"} will be dismissed from the
-            list; files at those paths are preserved. Sessions and task or Loop history stay
-            readable. Each target is checked separately. A refusal does not undo other successes.
+            {batchConsequences(model.batch)} Sessions and task or Loop history stay readable. Each
+            target is checked separately. A refusal does not undo other successes.
           </DialogDescription>
         </DialogHeader>
-        <Field orientation="horizontal">
-          <Checkbox
-            id="worktree-bulk-delete-branch"
-            aria-describedby="worktree-bulk-delete-branch-hint"
-            checked={model.deleteBranch}
-            disabled={model.attempted}
-            data-testid="worktree-bulk-delete-branch"
-            onCheckedChange={checked => model.setDeleteBranch(checked === true)}
-          />
-          <div className="grid gap-1">
-            <FieldLabel htmlFor="worktree-bulk-delete-branch">
-              Also delete local branches
-            </FieldLabel>
-            <FieldDescription id="worktree-bulk-delete-branch-hint">
-              Without force, only merged branches are deleted. The main checkout’s branch and the
-              default branch are always kept. Results are reported per worktree.
-            </FieldDescription>
-          </div>
-        </Field>
-        <div className="max-h-64 overflow-y-auto" aria-live="polite">
-          {model.results.map(result => (
-            <div
-              key={result.row.id}
-              className="border-b border-line py-2"
-              data-testid={`worktree-bulk-result-${result.row.id}`}
-              data-status={result.status}
-            >
-              <p className="truncate text-form-label font-medium">
-                {result.row.name} ·{" "}
-                {result.row.state === "missing" ? "Dismiss record" : "Remove checkout"}
-                {owners.size > 1 ? ` · ${result.row.profile_name}` : null}
-              </p>
-              <p className="break-all text-form-hint text-subtle">{result.row.path}</p>
-              {result.refusal?.risk ? (
-                <WorktreeRemovalRiskRows
-                  risk={result.refusal.risk}
-                  worktreeName={result.row.name}
-                  branch={result.row.branch}
-                />
-              ) : null}
-              {result.message ? (
-                <p
-                  role={result.status === "failed" ? "alert" : undefined}
-                  className="text-form-hint"
-                >
-                  {result.message}
-                </p>
-              ) : null}
+        {hasRecords ? (
+          <Field orientation="horizontal">
+            <Checkbox
+              id="worktree-bulk-delete-branch"
+              aria-describedby="worktree-bulk-delete-branch-hint"
+              checked={model.deleteBranch}
+              disabled={model.attempted}
+              data-testid="worktree-bulk-delete-branch"
+              onCheckedChange={checked => model.setDeleteBranch(checked === true)}
+            />
+            <div className="grid gap-1">
+              <FieldLabel htmlFor="worktree-bulk-delete-branch">
+                Also delete local branches
+              </FieldLabel>
+              <FieldDescription id="worktree-bulk-delete-branch-hint">
+                Without force, only merged branches are deleted. The main checkout’s branch and the
+                default branch are always kept. Results are reported per worktree.
+                {hasDiscovered ? " Discovered worktrees always keep their branch." : null}
+              </FieldDescription>
             </div>
-          ))}
+          </Field>
+        ) : null}
+        <div className="max-h-64 overflow-y-auto" aria-live="polite">
+          {model.results.map(result => {
+            const target = describeTarget(result.target);
+            return (
+              <div
+                key={result.target.key}
+                className="border-b border-line py-2"
+                data-testid={`worktree-bulk-result-${result.target.key}`}
+                data-status={result.status}
+              >
+                <p className="truncate text-form-label font-medium">
+                  {target.name} · {target.action}
+                  {owners.size > 1 && target.owner ? ` · ${target.owner}` : null}
+                </p>
+                <p className="break-all text-form-hint text-subtle">{target.path}</p>
+                {result.refusal?.risk ? (
+                  <WorktreeRemovalRiskRows
+                    risk={result.refusal.risk}
+                    worktreeName={target.name}
+                    branch={target.branch}
+                  />
+                ) : null}
+                {result.message ? (
+                  <p
+                    role={result.status === "failed" ? "alert" : undefined}
+                    className="text-form-hint"
+                  >
+                    {result.message}
+                  </p>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
         {model.attempted ? (
           <p role="status">
@@ -168,19 +222,22 @@ function WorktreeBulkForceConfirmation({
         <div className="flex flex-col gap-4">
           {model.deleteBranch ? <p className="text-form-hint">{FORCE_DELETE_BRANCH_HINT}</p> : null}
           <div className="flex max-h-80 flex-col gap-4 overflow-y-auto">
-            {model.forceTargets.map(result => (
-              <div key={result.row.id}>
-                <p className="text-form-label font-medium">{result.row.name}</p>
-                <p className="break-all text-form-hint text-subtle">{result.row.path}</p>
-                {result.refusal?.risk ? (
-                  <WorktreeRemovalRiskRows
-                    risk={result.refusal.risk}
-                    worktreeName={result.row.name}
-                    branch={result.row.branch}
-                  />
-                ) : null}
-              </div>
-            ))}
+            {model.forceTargets.map(result => {
+              const target = describeTarget(result.target);
+              return (
+                <div key={result.target.key}>
+                  <p className="text-form-label font-medium">{target.name}</p>
+                  <p className="break-all text-form-hint text-subtle">{target.path}</p>
+                  {result.refusal?.risk ? (
+                    <WorktreeRemovalRiskRows
+                      risk={result.refusal.risk}
+                      worktreeName={target.name}
+                      branch={target.branch}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </div>
       }

@@ -1446,6 +1446,116 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	// Invariant: Git-only checkouts are removable by their listed path without
+	// adoption; live loss still needs force, branches stay, registry rows refuse.
+	// Owner: worktree domain removal; canonical real Git lifecycle integration suite.
+	t.Run("Should remove discovered worktrees by listed path with the same loss refusals", func(t *testing.T) {
+		f := newRealGitFixture(t)
+		discoveredPaths := func() []string {
+			t.Helper()
+			listing, err := f.service.List(t.Context(), f.workspace.ID, true)
+			if err != nil {
+				t.Fatalf("List(refresh) error = %v", err)
+			}
+			paths := make([]string, 0, len(listing.Discovered))
+			for _, entry := range listing.Discovered {
+				paths = append(paths, entry.Path)
+			}
+			return paths
+		}
+		listedPath := func(target string) string {
+			t.Helper()
+			for _, path := range discoveredPaths() {
+				if canonicalComparablePath(path) == canonicalComparablePath(target) || path == target {
+					return path
+				}
+			}
+			t.Fatalf("discovered paths %v do not include %q", discoveredPaths(), target)
+			return ""
+		}
+
+		f.git(f.workspace.Root, "branch", "stale-discovered", "main")
+		stalePath := filepath.Join(t.TempDir(), "stale-discovered")
+		f.git(f.workspace.Root, "worktree", "add", stalePath, "stale-discovered")
+		staleListed := listedPath(stalePath)
+		if err := os.RemoveAll(stalePath); err != nil {
+			t.Fatalf("RemoveAll(stale) error = %v", err)
+		}
+		if refusalResult, err := f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, staleListed, false,
+		); err != nil || refusalResult != nil {
+			t.Fatalf("RemoveDiscovered(stale) = (%#v, %v), want success", refusalResult, err)
+		}
+		if strings.Contains(f.git(f.workspace.Root, "worktree", "list", "--porcelain"), "stale-discovered") {
+			t.Fatal("stale admin entry survived removal")
+		}
+
+		f.git(f.workspace.Root, "branch", "live-discovered", "main")
+		livePath := filepath.Join(t.TempDir(), "live-discovered")
+		f.git(f.workspace.Root, "worktree", "add", livePath, "live-discovered")
+		liveListed := listedPath(livePath)
+		lostPath := filepath.Join(livePath, "lost.txt")
+		if err := os.WriteFile(lostPath, []byte("lost\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(lost) error = %v", err)
+		}
+		refusalResult, err := f.service.RemoveDiscovered(t.Context(), f.workspace.ID, liveListed, false)
+		if !errors.Is(err, ErrDirtyRequiresForce) || refusalResult == nil || refusalResult.Risk.ChangedFiles != 1 {
+			t.Fatalf("RemoveDiscovered(dirty) = (%#v, %v), want one-file refusal", refusalResult, err)
+		}
+		if _, err := os.Stat(lostPath); err != nil {
+			t.Fatalf("refused removal touched the checkout: %v", err)
+		}
+		if refusalResult, err = f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, liveListed, true,
+		); err != nil || refusalResult != nil {
+			t.Fatalf("RemoveDiscovered(force) = (%#v, %v), want success", refusalResult, err)
+		}
+		if _, err := os.Stat(livePath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(live after force) error = %v, want not-exist", err)
+		}
+		f.git(f.workspace.Root, "rev-parse", "--verify", "refs/heads/live-discovered")
+
+		detachedPath := filepath.Join(t.TempDir(), "detached-discovered")
+		f.git(f.workspace.Root, "worktree", "add", "--detach", detachedPath, "main")
+		if err := os.WriteFile(filepath.Join(detachedPath, "unique.txt"), []byte("unique\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(unique) error = %v", err)
+		}
+		f.git(detachedPath, "add", "unique.txt")
+		f.git(detachedPath, "commit", "-m", "unique detached")
+		refusalResult, err = f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, listedPath(detachedPath), false,
+		)
+		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
+			refusalResult.Risk.UnpushedCommits != 1 {
+			t.Fatalf("RemoveDiscovered(detached unique) = (%#v, %v), want one-commit refusal", refusalResult, err)
+		}
+
+		registered, err := f.service.Create(
+			t.Context(), f.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: "Registered"},
+		)
+		if err != nil {
+			t.Fatalf("Create(registered) error = %v", err)
+		}
+		if _, err := f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, registered.Path, true,
+		); !errors.Is(err, ErrDiscoveredRegistered) {
+			t.Fatalf("RemoveDiscovered(registered) error = %v, want ErrDiscoveredRegistered", err)
+		}
+		if _, err := os.Stat(registered.Path); err != nil {
+			t.Fatalf("registered checkout changed: %v", err)
+		}
+		if _, err := f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, f.workspace.Root, true,
+		); !errors.Is(err, ErrAdoptionMainCheckout) {
+			t.Fatalf("RemoveDiscovered(main) error = %v, want ErrAdoptionMainCheckout", err)
+		}
+		if _, err := f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, filepath.Join(t.TempDir(), "unlisted"), true,
+		); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("RemoveDiscovered(unlisted) error = %v, want ErrNotFound", err)
+		}
+	})
+
 	// Invariant: opt-in branch deletion runs only after cleanup, keeps protected
 	// and unmerged branches, and releases only the cleaned record's stale entry.
 	t.Run("Should delete local branches after cleanup only when Git safety allows it", func(t *testing.T) {
