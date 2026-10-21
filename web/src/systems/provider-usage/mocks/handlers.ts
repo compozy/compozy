@@ -4,8 +4,8 @@ import type { ProviderUsageEnvelope } from "../types";
 
 import { defaultUsageEnvelope } from "./fixtures";
 
-// The provider-usage routes are not in the generated OpenAPI paths yet, so
-// these use plain `http` handlers instead of `compozyApiMock`.
+// Plain `http` handlers: the stream is a raw SSE response and story overrides
+// swap one envelope across every read, which the typed mock cannot express.
 
 const encoder = new TextEncoder();
 

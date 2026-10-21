@@ -44,6 +44,7 @@ describe("settings openapi contract", () => {
       | "shell"
       | "observability"
       | "hooks-extensions"
+      | "provider-usage"
     >();
     expectTypeOf<GetSettingsGeneralResponse["scope"]>().toEqualTypeOf<"user">();
     expectTypeOf<GetSettingsGeneralResponse["available_scopes"][number]>().toEqualTypeOf<"user">();

@@ -1,8 +1,12 @@
 // Wire types for the experimental provider-usage surface (`_dx.md`).
 //
-// Hand-written mirrors of the daemon's OpenAPI schemas, under the schema names,
-// until the generated client carries them. Swap each one for its
-// `components["schemas"]["ProviderUsage…"]` alias in this file only.
+// Aliases of the generated OpenAPI schemas. The daemon documents its enums as
+// plain strings, so the fields this system branches on are narrowed to the
+// closed sets `_dx.md` defines; every other field is the generated shape.
+
+import type { components } from "@compozy/client";
+
+type Schemas = components["schemas"];
 
 export type ProviderUsageStatus =
   | "ok"
@@ -39,108 +43,56 @@ export type ProviderUsageErrorAction =
 
 export type ProviderUsageRefreshIntent = "background" | "explicit";
 
-export interface ProviderUsageAmount {
-  /** Decimal string; never rounded through a float. */
-  value: string;
-  /** "USD", "CNY", "credits", "requests", "tokens". */
-  unit: string;
-}
+/** Replaces the generated `string` fields named in `Narrow` with their closed sets. */
+type Narrowed<Schema, Narrow> = Omit<Schema, keyof Narrow> & Narrow;
 
-export interface ProviderUsageWindow {
-  id: string;
-  label: string;
-  kind: ProviderUsageWindowKind;
-  duration_seconds: number | null;
-  /** Percent used in `[0, ∞)`; `null` is unknown, never 0. */
-  used_percent: number | null;
-  used: ProviderUsageAmount | null;
-  limit: ProviderUsageAmount | null;
-  resets_at: string | null;
-  /** Provider text when no timestamp exists. */
-  reset_text: string;
-}
+export type ProviderUsageAmount = Schemas["ProviderUsageAmount"];
 
-export interface ProviderUsageBalance {
-  id: string;
-  label: string;
-  remaining: ProviderUsageAmount;
-  expires_at: string | null;
-}
+export type ProviderUsageWindow = Narrowed<
+  Schemas["ProviderUsageWindow"],
+  { kind: ProviderUsageWindowKind }
+>;
 
-export interface ProviderUsageSpendCap {
-  id: string;
-  label: string;
-  used: ProviderUsageAmount;
-  /** `null` = no cap reported, which is not "unlimited". */
-  limit: ProviderUsageAmount | null;
-  used_percent: number | null;
-  resets_at: string | null;
-  enabled: boolean | null;
-}
+export type ProviderUsageBalance = Schemas["ProviderUsageBalance"];
 
-export interface ProviderUsageSource {
-  kind: ProviderUsageSourceKind;
-  label: string;
-}
+export type ProviderUsageSpendCap = Schemas["ProviderUsageSpendCap"];
 
-export interface ProviderUsageAccount {
-  label: string;
-  plan: string;
-}
+export type ProviderUsageSource = Narrowed<
+  Schemas["ProviderUsageSource"],
+  { kind: ProviderUsageSourceKind }
+>;
 
-export interface ProviderUsageError {
-  code: string;
-  message: string;
-  action: ProviderUsageErrorAction;
-  retry_after: string | null;
-}
+export type ProviderUsageAccount = Schemas["ProviderUsageAccount"];
 
-export interface ProviderUsageTarget {
-  provider_id: string;
-  provider_name: string;
-  status: ProviderUsageStatus;
-  source: ProviderUsageSource | null;
-  account: ProviderUsageAccount | null;
-  windows: ProviderUsageWindow[];
-  balances: ProviderUsageBalance[];
-  spend_caps: ProviderUsageSpendCap[];
-  confidence: ProviderUsageConfidence;
-  measured_at: string | null;
-  checked_at: string | null;
-  next_refresh_at: string | null;
-  refreshing: boolean;
-  error: ProviderUsageError | null;
-}
+export type ProviderUsageError = Narrowed<
+  Schemas["ProviderUsageError"],
+  { action: ProviderUsageErrorAction }
+>;
 
-export interface ProviderUsageTraySignal {
-  provider_id: string;
-  window_id: string;
-  /** "Codex · Weekly". */
-  label: string;
-  used_percent: number;
-  resets_at: string | null;
-  severity: ProviderUsageSeverity;
-  stale: boolean;
-}
+export type ProviderUsageTarget = Narrowed<
+  Schemas["ProviderUsageTarget"],
+  {
+    status: ProviderUsageStatus;
+    confidence: ProviderUsageConfidence;
+    source: ProviderUsageSource | null;
+    windows: ProviderUsageWindow[];
+    error: ProviderUsageError | null;
+  }
+>;
 
-export interface ProviderUsageEnvelope {
-  profile_id: string;
-  revision: number;
-  generated_at: string;
-  enabled: boolean;
-  tray: ProviderUsageTraySignal | null;
-  targets: ProviderUsageTarget[];
-}
+export type ProviderUsageTraySignal = Narrowed<
+  Schemas["ProviderUsageTraySignal"],
+  { severity: ProviderUsageSeverity }
+>;
 
-export interface ProviderUsageRefreshRequest {
-  profile?: string;
-  provider_ids?: string[];
-  max_age_seconds?: number;
-  wait_ms?: number;
-  intent?: ProviderUsageRefreshIntent;
-}
+export type ProviderUsageEnvelope = Narrowed<
+  Schemas["ProviderUsageEnvelope"],
+  { targets: ProviderUsageTarget[]; tray: ProviderUsageTraySignal | null }
+>;
 
-export interface ProviderUsageStreamEvent {
-  revision: number;
-  boot_id: string;
-}
+export type ProviderUsageRefreshRequest = Narrowed<
+  Schemas["ProviderUsageRefreshRequest"],
+  { intent?: ProviderUsageRefreshIntent }
+>;
+
+export type ProviderUsageStreamEvent = Schemas["ProviderUsageStreamEvent"];

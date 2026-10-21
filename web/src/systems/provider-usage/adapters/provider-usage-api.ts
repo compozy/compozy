@@ -1,11 +1,9 @@
-import { apiBaseUrl, apiErrorCode, apiErrorMessage, runtimeFetch } from "@/lib/api-client";
-import { reportGatewayResponse } from "@/lib/gateway-access-signal";
+import { apiClient, apiErrorCode, apiErrorMessage } from "@/lib/api-client";
 
 import type { ProviderUsageEnvelope, ProviderUsageRefreshRequest } from "../types";
 
-// The provider-usage routes are not in the generated client yet, so these calls
-// go through the same low-level fetch the window manager uses. Every request of
-// this system lives in this file so the switch to `apiClient` stays local.
+// Every request of this system lives in this file. Reads and refresh go
+// through the typed client; the stream path feeds the ticketed EventSource.
 
 export class ProviderUsageApiError extends Error {
   constructor(
@@ -36,9 +34,9 @@ export async function getProviderUsage(
   profile: string,
   signal?: AbortSignal
 ): Promise<ProviderUsageEnvelope> {
-  return send(
-    `${PROVIDER_USAGE_PATH}?${new URLSearchParams({ profile }).toString()}`,
-    { signal },
+  return settle(
+    apiClient.GET("/api/provider-usage", { params: { query: { profile } }, signal }),
+    signal,
     "Failed to load provider usage"
   );
 }
@@ -53,9 +51,12 @@ export async function getProviderUsageProvider(
   if (id === "") {
     throw new ProviderUsageApiError("provider_id is required", 400, "invalid_request");
   }
-  return send(
-    `${PROVIDER_USAGE_PATH}/providers/${encodeURIComponent(id)}?${new URLSearchParams({ profile }).toString()}`,
-    { signal },
+  return settle(
+    apiClient.GET("/api/provider-usage/providers/{provider_id}", {
+      params: { path: { provider_id: id }, query: { profile } },
+      signal,
+    }),
+    signal,
     `Failed to load usage for "${id}"`
   );
 }
@@ -65,51 +66,44 @@ export async function refreshProviderUsage(
   body: ProviderUsageRefreshRequest,
   signal?: AbortSignal
 ): Promise<ProviderUsageEnvelope> {
-  return send(
-    `${PROVIDER_USAGE_PATH}/refresh`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal,
-    },
+  return settle(
+    apiClient.POST("/api/provider-usage/refresh", { body, signal }),
+    signal,
     "Couldn't refresh provider usage"
   );
 }
 
-async function send(
-  path: string,
-  init: RequestInit,
-  fallback: string
-): Promise<ProviderUsageEnvelope> {
-  let response: Response;
-  try {
-    response = await runtimeFetch(new Request(`${apiBaseUrl}${path}`, init));
-  } catch (error) {
-    if (init.signal?.aborted) throw error;
-    throw new ProviderUsageApiError("Daemon unavailable", 0);
-  }
-  await reportGatewayResponse(response.clone());
-  const payload = await readJson(response);
-  if (!response.ok) {
-    throw new ProviderUsageApiError(
-      errorMessage(payload) ?? `${fallback}: ${response.status}`,
-      response.status,
-      errorCode(payload)
-    );
-  }
-  if (!isEnvelope(payload)) {
-    throw new ProviderUsageApiError(`${fallback}: unexpected response`, response.status);
-  }
-  return payload;
+interface ClientResult {
+  data?: unknown;
+  error?: unknown;
+  response: Response;
 }
 
-async function readJson(response: Response): Promise<unknown> {
+/** Maps a client call to the envelope or a typed error; no answer at all is "unreachable". */
+async function settle(
+  request: Promise<ClientResult>,
+  signal: AbortSignal | undefined,
+  fallback: string
+): Promise<ProviderUsageEnvelope> {
+  let result: ClientResult;
   try {
-    return (await response.json()) as unknown;
-  } catch {
-    return undefined;
+    result = await request;
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    throw new ProviderUsageApiError("Daemon unavailable", 0);
   }
+  const { data, error, response } = result;
+  if (!response.ok || error !== undefined) {
+    throw new ProviderUsageApiError(
+      errorMessage(error) ?? `${fallback}: ${response.status}`,
+      response.status,
+      errorCode(error)
+    );
+  }
+  if (!isEnvelope(data)) {
+    throw new ProviderUsageApiError(`${fallback}: unexpected response`, response.status);
+  }
+  return data;
 }
 
 /**
