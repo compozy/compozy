@@ -498,11 +498,11 @@ func TestBaseHandlersAgentSpawnBindsWorktreeAndSendsFirstPrompt(t *testing.T) {
 		rec := post(t, agentSpawnRouter(manager, worktrees), `{
 			"agent_name":"coder","spawn_role":"worker","ttl_seconds":60,"new_worktree":{}
 		}`)
-		if rec.Code < http.StatusBadRequest || worktrees.removed != "" {
+		if rec.Code != http.StatusInternalServerError ||
+			!strings.Contains(rec.Body.String(), "spawn.created hook failed") || worktrees.removed != "" {
 			t.Fatalf(
-				"status = %d removed = %q, want an error that keeps the live child's worktree",
-				rec.Code,
-				worktrees.removed,
+				"status = %d body = %s removed = %q, want the hook error and the live child's worktree kept",
+				rec.Code, rec.Body.String(), worktrees.removed,
 			)
 		}
 	})

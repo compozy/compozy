@@ -9,14 +9,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/compozy/compozy/internal/acp"
-	core "github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
-	speedpkg "github.com/compozy/compozy/internal/speed"
-	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -718,88 +713,6 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"worktree":{"id":"wt-1","name":"auth","branch":"feat/auth","path":"/wt/auth","base_sha":"abc","created":true},
 			"prompt":{"message_id":"spawn-prompt-sess-child","status":"accepted","reply_watch_id":"rw-1","reply_watch_state":"armed"}
 		}`)
-	})
-
-	t.Run("Should accept shared session payloads in every session result output schema", func(t *testing.T) {
-		t.Parallel()
-
-		// Invariant: native session mutation/read results validate against their advertised output schema.
-		startedAt := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-		nextAttemptAt := startedAt.Add(30 * time.Second)
-		createdAt := startedAt.Add(-time.Hour)
-		boolValue := true
-		withProvider := func(info *session.Info) *session.Info {
-			info.Provider = "codex"
-			info.Model = "gpt-6"
-			info.ReasoningEffort = "high"
-			info.Speed = speedpkg.SpeedFast
-			info.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "sandbox", BoolValue: &boolValue}}
-			info.SelectedRuntime = &session.RuntimeSelection{Provider: "codex", Model: "gpt-6"}
-			info.RuntimeSelectionRevision = 2
-			return info
-		}
-		base := func(status session.RuntimeStatus) *session.Info {
-			return &session.Info{
-				ID:            "sess-1",
-				Name:          "worker",
-				AgentName:     "codex",
-				WorkspaceID:   "ws-1",
-				RuntimeStatus: status,
-				State:         session.StateActive,
-				CreatedAt:     createdAt,
-				UpdatedAt:     startedAt,
-			}
-		}
-		recovering := withProvider(base(session.RuntimeStatusRecovering))
-		recovering.RuntimeTransition = session.RuntimeTransitionAutomaticRecovery
-		recovering.RuntimeGeneration = 3
-		recovering.RuntimeRecovery = &store.SessionRuntimeRecovery{
-			Attempt:       1,
-			MaxAttempts:   3,
-			Generation:    4,
-			StartedAt:     startedAt,
-			LastAttemptAt: startedAt,
-			NextAttemptAt: &nextAttemptAt,
-			LastError:     "provider exited",
-		}
-		ready := withProvider(base(session.RuntimeStatusReady))
-		ready.RuntimeTransition = session.RuntimeTransitionInitialBind
-		ready.RuntimeGeneration = 1
-		ready.ACPSessionID = "acp-1"
-		ready.ACPCapsKnown = true
-		unbound := base(session.RuntimeStatusUnbound)
-		unbound.State = session.StateStarting
-
-		const recoveringCase = "Should accept a recovering session with last-known runtime"
-		cases := map[string]*session.Info{
-			recoveringCase: recovering,
-			"Should accept a ready session with effective runtime": ready,
-			"Should accept an unbound session before first bind":   unbound,
-		}
-		toolIDs := []toolspkg.ToolID{
-			toolspkg.ToolIDSessionCreate,
-			toolspkg.ToolIDSessionStatus,
-			toolspkg.ToolIDSessionRename,
-			toolspkg.ToolIDSessionArchive,
-			toolspkg.ToolIDSessionRuntimeSet,
-			toolspkg.ToolIDSessionRuntimeClear,
-		}
-		for name, info := range cases {
-			t.Run(name, func(t *testing.T) {
-				t.Parallel()
-
-				envelope, err := json.Marshal(map[string]any{"session": core.SessionPayloadFromInfo(info)})
-				if err != nil {
-					t.Fatalf("marshal session envelope error = %v", err)
-				}
-				if name == recoveringCase && !strings.Contains(string(envelope), `"last_known"`) {
-					t.Fatalf("envelope %s, want last_known runtime", envelope)
-				}
-				for _, toolID := range toolIDs {
-					assertNativeOutputSchemaAccepts(t, descriptors[toolID], string(envelope))
-				}
-			})
-		}
 	})
 
 	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {

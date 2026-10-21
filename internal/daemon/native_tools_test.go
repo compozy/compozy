@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/santhosh-tekuri/jsonschema/v6"
+
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -14340,7 +14342,8 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 					`"prompt":"Do the task."}`),
 			})
 		}
-		if _, err := call(); err == nil || removed != "" {
+		if _, err := call(); err == nil || !strings.Contains(err.Error(), "spawn.created hook failed") ||
+			removed != "" {
 			t.Fatalf("spawn with live child error = %v removed = %q, want error and kept worktree", err, removed)
 		}
 		hookFailure = false
@@ -14374,4 +14377,114 @@ func TestDaemonNativeSessionSpawnOrchestration(t *testing.T) {
 		})
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
+}
+
+func TestDaemonNativeSessionResultsMatchOutputSchemas(t *testing.T) {
+	t.Parallel()
+
+	descriptors := make(map[toolspkg.ToolID]toolspkg.Descriptor)
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		descriptors[descriptor.ID] = descriptor
+	}
+	// Invariant: native session mutation/read results validate against their advertised output schema.
+	startedAt := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	nextAttemptAt := startedAt.Add(30 * time.Second)
+	createdAt := startedAt.Add(-time.Hour)
+	boolValue := true
+	withProvider := func(info *session.Info) *session.Info {
+		info.Provider = "codex"
+		info.Model = "gpt-6"
+		info.ReasoningEffort = "high"
+		info.Speed = speedpkg.SpeedFast
+		info.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "sandbox", BoolValue: &boolValue}}
+		info.SelectedRuntime = &session.RuntimeSelection{Provider: "codex", Model: "gpt-6"}
+		info.RuntimeSelectionRevision = 2
+		return info
+	}
+	base := func(status session.RuntimeStatus) *session.Info {
+		return &session.Info{
+			ID:            "sess-1",
+			Name:          "worker",
+			AgentName:     "codex",
+			WorkspaceID:   "ws-1",
+			RuntimeStatus: status,
+			State:         session.StateActive,
+			CreatedAt:     createdAt,
+			UpdatedAt:     startedAt,
+		}
+	}
+	recovering := withProvider(base(session.RuntimeStatusRecovering))
+	recovering.RuntimeTransition = session.RuntimeTransitionAutomaticRecovery
+	recovering.RuntimeGeneration = 3
+	recovering.RuntimeRecovery = &store.SessionRuntimeRecovery{
+		Attempt:       1,
+		MaxAttempts:   3,
+		Generation:    4,
+		StartedAt:     startedAt,
+		LastAttemptAt: startedAt,
+		NextAttemptAt: &nextAttemptAt,
+		LastError:     "provider exited",
+	}
+	ready := withProvider(base(session.RuntimeStatusReady))
+	ready.RuntimeTransition = session.RuntimeTransitionInitialBind
+	ready.RuntimeGeneration = 1
+	ready.ACPSessionID = "acp-1"
+	ready.ACPCapsKnown = true
+	unbound := base(session.RuntimeStatusUnbound)
+	unbound.State = session.StateStarting
+
+	const recoveringCase = "Should accept a recovering session with last-known runtime"
+	cases := map[string]*session.Info{
+		recoveringCase: recovering,
+		"Should accept a ready session with effective runtime": ready,
+		"Should accept an unbound session before first bind":   unbound,
+	}
+	toolIDs := []toolspkg.ToolID{
+		toolspkg.ToolIDSessionCreate,
+		toolspkg.ToolIDSessionStatus,
+		toolspkg.ToolIDSessionRename,
+		toolspkg.ToolIDSessionArchive,
+		toolspkg.ToolIDSessionRuntimeSet,
+		toolspkg.ToolIDSessionRuntimeClear,
+	}
+	for name, info := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			envelope, err := json.Marshal(map[string]any{"session": core.SessionPayloadFromInfo(info)})
+			if err != nil {
+				t.Fatalf("marshal session envelope error = %v", err)
+			}
+			if name == recoveringCase && !strings.Contains(string(envelope), `"last_known"`) {
+				t.Fatalf("envelope %s, want last_known runtime", envelope)
+			}
+			for _, toolID := range toolIDs {
+				requireNativeOutputSchemaAccepts(t, descriptors[toolID], envelope)
+			}
+		})
+	}
+}
+
+func requireNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload []byte) {
+	t.Helper()
+	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.OutputSchema))
+	if err != nil {
+		t.Fatalf("%s output schema parse error = %v", descriptor.ID, err)
+	}
+	compiler := jsonschema.NewCompiler()
+	resource := descriptor.ID.String() + "-output.json"
+	if err := compiler.AddResource(resource, schema); err != nil {
+		t.Fatalf("%s output schema add error = %v", descriptor.ID, err)
+	}
+	compiled, err := compiler.Compile(resource)
+	if err != nil {
+		t.Fatalf("%s output schema compile error = %v", descriptor.ID, err)
+	}
+	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(payload))
+	if err != nil {
+		t.Fatalf("%s payload parse error = %v", descriptor.ID, err)
+	}
+	if err := compiled.Validate(instance); err != nil {
+		t.Fatalf("%s output schema rejected %s: %v", descriptor.ID, payload, err)
+	}
 }

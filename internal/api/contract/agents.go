@@ -78,9 +78,7 @@ type SpawnPermissionRequestPayload struct {
 
 // Policy returns the literal requested atoms as a policy payload.
 func (p SpawnPermissionRequestPayload) Policy() SpawnPermissionPolicyPayload {
-	return SpawnPermissionPolicyPayload{
-		Tools: p.Tools, Skills: p.Skills, MCPServers: p.MCPServers, WorkspacePaths: p.WorkspacePaths,
-	}
+	return SpawnPermissionPolicyPayload(p)
 }
 
 // AgentCapabilityPayload describes one caller capability atom.
