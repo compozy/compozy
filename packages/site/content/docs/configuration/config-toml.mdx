@@ -59,6 +59,7 @@ CompozyOS archives them on load instead of failing; see
 | `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                                | empty list                                                                                            |
 | `[providers.<name>]`                 | Built-in provider override or custom provider definition.                              | empty map plus built-ins                                                                              |
 | `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                       | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                        |
+| `[provider_usage]`                   | Experimental provider usage cadence, per-provider opt-out, and Keychain consent.       | enabled, `5m` refresh, all supported providers, no Keychain access                                    |
 | `[marketplace.catalog]`              | Curated marketplace feed location and fetch timing.                                    | CompozyOS `main` catalog, 1 h TTL, 10 s timeout                                                       |
 | `[[marketplace.plugin_sources]]`     | Plugin marketplace registrations and preset choices.                                   | Preset defaults; custom registrations enabled by default                                              |
 | `[observability]`                    | Event summary retention and global byte cap.                                           | enabled, 7 days, 1 GiB                                                                                |
@@ -476,6 +477,15 @@ enabled = true
 endpoint = "https://models.dev/api.json"
 ttl = "24h"
 timeout = "10s"
+
+[provider_usage]
+# Experimental. Topbar usage meter and daemon-owned usage collection.
+enabled = true
+refresh_interval = "5m"
+
+[provider_usage.providers.claude]
+# macOS only: consent to read Claude Code's Keychain login on an explicit refresh.
+keychain_access = false
 
 [marketplace.catalog]
 # Base directory containing mcp.json, extensions.json, and skills.json.
@@ -1775,6 +1785,47 @@ Discovery refresh is serialized per `provider_id` before any subprocess or provi
 concurrent refresh requests for the same provider coalesce behind the in-flight refresh.
 Cursor's discovery command defaults to `cursor-agent models`; its session launch command remains
 `cursor-agent acp`. A configured discovery command must emit the same model-list format.
+
+## `[provider_usage]`
+
+Provider usage is **experimental**: these keys may change without the usual deprecation window.
+The section is user/machine config only. A workspace `config.toml` that sets it fails to load with
+`provider_usage settings are global-only`, and profile overlays reject it with
+`profile_config_key_denied`. Every path applies live. Operators can use Settings → Provider usage;
+agents and scripts can use `compozy config set provider_usage.<key> <value>`. See
+[Provider usage](/docs/agents/provider-usage) for the feature.
+
+| Field                              | Type     | Default | Validation                  | Description                                                                                                      |
+| ---------------------------------- | -------- | ------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `enabled`                          | boolean  | `true`  | `true` or `false`           | Master switch. `false` removes the topbar meter, stops all usage collection, and returns empty usage reads.      |
+| `refresh_interval`                 | duration | `5m`    | `1m` to `1h`                | Background refresh cadence per provider. Popover open and explicit refreshes are not bound by it.                |
+| `providers.<id>.enabled`           | boolean  | `true`  | Known canonical provider ID | Per-provider opt-out. A turned-off provider is not collected and leaves the usage views.                         |
+| `providers.claude.keychain_access` | boolean  | `false` | Only valid under `claude`   | macOS consent to read Claude Code's Keychain login, only on an explicit local refresh. Ignored on other systems. |
+
+```toml
+[provider_usage]
+enabled = true
+refresh_interval = "5m"
+
+[provider_usage.providers.cursor]
+enabled = false
+
+[provider_usage.providers.claude]
+keychain_access = true
+```
+
+Validation errors name the path:
+
+```console
+$ compozy config set provider_usage.refresh_interval 10s
+error: validate config write for "global-config": provider_usage.refresh_interval must be between 1m and 1h
+```
+
+A provider ID that is neither built in nor configured under `[providers.<id>]` is rejected with
+`unknown canonical provider ID`. In `config.toml` and Settings, `keychain_access` under any provider
+other than `claude` is rejected with `is only valid for claude`; `compozy config set` does not accept
+that path. Turning `keychain_access` off clears the Claude login the
+daemon loaded from the Keychain and its usage snapshot.
 
 ## `[marketplace.catalog]`
 

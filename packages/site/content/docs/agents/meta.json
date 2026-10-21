@@ -8,6 +8,7 @@
         "heartbeat",
         "providers",
         "model-catalog",
+        "provider-usage",
         "spawning"
     ]
 }

@@ -1,0 +1,358 @@
+---
+title: Provider usage
+description: See how much of each provider subscription you have used and when it resets, from the topbar, the Usage app, the CLI, and native tools.
+---
+
+**Provider usage** shows how much of each subscription you have used and when each limit resets,
+without leaving CompozyOS. Claude Code has a 5-hour session limit and weekly limits, Codex has
+session and weekly windows plus credits, and API-key providers have balances and spending caps. The
+daemon collects these numbers for the active profile, keeps them fresh in the background, and shows
+them in the topbar, in a **Usage** app, in the CLI, and to agents through native tools.
+
+<OperatorNote>
+  Provider usage is **experimental**. The CLI output, HTTP/UDS routes, native tools, and
+  `[provider_usage]` keys may change in a later release without the usual deprecation window. The
+  CLI prints `Experimental: provider usage output may change.` under every table.
+</OperatorNote>
+
+By the end of this page you will have read your usage in the topbar, opened the details, refreshed
+them, allowed Claude to be read on macOS, read the same numbers from the terminal, and changed what
+CompozyOS collects.
+
+## Before you start
+
+- CompozyOS is running (`compozy status`) and the desktop app or Web UI is open.
+- At least one supported provider is set up and signed in for the active profile, for example
+  Codex (`codex login`) or Claude Code (`claude`, then `/login`). See
+  [supported providers](#supported-providers) for the full list.
+- There is nothing to turn on. Provider usage is on by default.
+
+CompozyOS only reads the login each provider already keeps. It never signs you in, never opens a
+browser, and never asks for a password while you browse the usage views.
+
+## Step 1: Find the usage meter in the topbar
+
+Look at the right side of the topbar, between **All desktops** and the notification bell. The
+**Provider usage** control is a small meter. It shows your most used limit across all providers.
+
+Hover it. The tooltip names that limit:
+
+```text
+Codex · Weekly 72% used · resets in 2d 4h
+```
+
+The meter's color follows how close you are:
+
+| Meter               | Meaning                                                     |
+| ------------------- | ----------------------------------------------------------- |
+| Neutral             | Below 80% used.                                             |
+| Warning             | 80% to 99% used.                                            |
+| Danger              | 100% or more. The tooltip says `limit reached`.             |
+| Plain glyph         | No provider has reported a percentage yet.                  |
+| Dimmed, with a ring | The numbers are old. The tooltip says when they were taken. |
+
+The control appears once the active profile has at least one provider to show. It is absent when
+provider usage is turned off.
+
+## Step 2: Open the popover
+
+Click the meter, or focus it and press Enter. A **Provider usage** popover opens:
+
+```text
+Provider usage                         Updated 1 min ago   ⟳
+─────────────────────────────────────────────────────────────
+Claude Code    Max 20x   Weekly · Opus   ████████▉  88% used   3d 2h
+Codex          Pro       Weekly          ███████▏   72% used   2d 4h
+Cursor Agent             Signed out · Sign in with Cursor to read usage
+Pi                       Usage not available for this provider
+─────────────────────────────────────────────────────────────
+Open Usage                                           Settings
+```
+
+Each row shows the provider, its plan, its most used limit, and the time until that limit resets.
+There is one row for every provider CompozyOS knows, including providers you have not set up; those
+read `Signed out` or `Usage not available for this provider`. [Step 7](#step-7-choose-what-compozyos-collects)
+shows how to hide the ones you do not use.
+Click a row to expand it. The detail lists every limit with its own bar and reset time, then
+balances and spending caps in their own units (`120 credits`, `$12.40`), the account, where the
+numbers came from (for example `Claude Code OAuth`), and when they were measured.
+
+Things to know about the popover:
+
+- Opening it asks the daemon to update rows older than one minute. Rows keep their numbers while
+  they update.
+- A limit without a known percentage shows `Usage unknown`, never an empty bar or `0%`.
+- A countdown appears only when the provider reports an exact reset time.
+- Press Esc to close. Focus returns to the meter.
+
+## Step 3: Refresh
+
+Click **⟳** in the popover header. The daemon asks every provider again and the rows fill in as
+results arrive. The daemon refreshes in the background every five minutes either way, so you only
+need this button after something changed, such as signing in to a provider.
+
+A provider measured less than 30 seconds ago keeps its current numbers. A row that cannot
+refresh says why, and offers a button when you can fix it from here. See
+[statuses](#statuses-and-what-to-do).
+
+## Step 4: Open the Usage app
+
+Click **Open Usage** in the popover footer. The **Usage** window opens with every provider expanded
+and its own **⟳** button. It reads the same numbers as the popover and updates live. Use it when you
+want all limits side by side, for example before starting a long run.
+
+## Step 5: Allow Claude on macOS
+
+On macOS, Claude Code usually keeps its login in the macOS Keychain instead of a file. CompozyOS
+reads the Keychain only with your consent and only when you ask for it. Until then the Claude row
+reads:
+
+```text
+Claude Code   Needs Keychain access                       [Allow]
+```
+
+1. Click **Allow**. CompozyOS saves your consent (the **Claude Keychain access** switch in Settings)
+   and refreshes Claude once.
+2. macOS asks whether `security` may use the confidential information stored in
+   `Claude Code-credentials` in your keychain. `security` is the macOS Keychain tool CompozyOS uses
+   for this one read.
+3. Click **Allow** to approve this read only, or **Always Allow** so later reads do not ask again.
+   **Always Allow** lets any program on your Mac that runs `security` read that item without asking.
+   Choose **Allow** if you prefer macOS to ask each time.
+4. The Claude row fills in with Session, Weekly, and per-model weekly limits, plus Extra usage when
+   your plan has it.
+
+What happens next:
+
+- The daemon keeps the Claude login in memory only, and uses it for background refreshes until it
+  expires, usually a few hours later. It never writes it to disk.
+- When it expires, the row reads `Refresh to reload your Claude login`. Click **Refresh** on the row
+  or **⟳** in the header. With **Always Allow** this is silent, otherwise macOS asks again.
+- Background refreshes never touch the Keychain and never show a macOS prompt.
+- After a daemon restart the login is gone from memory, so the row reads `Needs Keychain access`
+  again. Click **Allow** once more; your consent is already saved.
+- If you click **Deny**, the row reads `Keychain access denied` with **Try again**. Nothing is
+  retried until you click it. The same message appears when Claude Code has no login in the
+  Keychain: run `claude` and sign in first.
+- If you sign in to Claude Code with another account, or sign out, CompozyOS drops the old login and
+  its numbers.
+- To withdraw consent, turn off **Claude Keychain access** in Settings → Provider usage. CompozyOS
+  forgets the login right away.
+
+When Claude Code keeps a `.credentials.json` file in its config directory, CompozyOS reads that file
+and never touches the Keychain. If you reach CompozyOS from another device through the
+[Gateway](/docs/gateway), the row says
+`Approve on the host Mac: open CompozyOS there and refresh`: only someone at the Mac that runs the
+daemon can approve a Keychain read.
+
+## Step 6: Read usage from the terminal
+
+`compozy provider usage list` prints the numbers the daemon already has. It never contacts
+providers:
+
+```console
+$ compozy provider usage list
+PROVIDER      STATUS       TIGHTEST WINDOW  USED  RESETS IN  UPDATED
+Claude Code   ok           Weekly · Opus    88%   3d 2h      1m ago
+Codex         ok           Weekly           72%   2d 4h      1m ago
+Cursor Agent  signed_out   —                —     —          —
+Pi            unsupported  —                —     —          —
+
+Experimental: provider usage output may change.
+```
+
+`TIGHTEST WINDOW` is the limit with the highest percentage used. `UPDATED` is how long ago the
+numbers were measured.
+
+`compozy provider usage refresh` asks the providers again, waits up to 15 seconds, and prints the
+same table. Pass a provider ID, as in `compozy provider usage refresh codex`, to refresh only that
+provider. When a Claude row needs Keychain consent, the table ends with the command that grants it:
+
+```console
+$ compozy provider usage refresh
+PROVIDER      STATUS         TIGHTEST WINDOW  USED  RESETS IN  UPDATED
+Claude Code   needs_consent  —                —     —          —
+Codex         ok             Weekly           72%   2d 4h      <1m ago
+
+Claude: Needs Keychain access. Allow it with: compozy config set provider_usage.providers.claude.keychain_access true
+Experimental: provider usage output may change.
+```
+
+A refresh from the CLI on the daemon's own machine counts as you asking, so on macOS it may read the
+Claude Keychain item once consent is on, and macOS may show its prompt.
+
+Useful flags and forms:
+
+| Command                                       | What it does                                                                                  |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `compozy provider usage list codex`           | Shows one provider.                                                                           |
+| `compozy provider usage list -o json`         | Prints the full JSON envelope: every window, balance, spending cap, status, and error.        |
+| `compozy provider usage refresh --wait 0s`    | Starts the refresh and returns at once. Rows still collecting read `refreshing`.              |
+| `compozy provider usage refresh --max-age 2m` | Skips providers measured in the last two minutes (the minimum is always 30 seconds).          |
+| `compozy provider usage list --profile work`  | Reads another [profile](/docs/profiles). Each profile has its own logins and its own numbers. |
+
+`--wait` accepts `0s` to `30s`. Both commands exit `0` even when some providers end in an error
+status; they exit `1` for a bad request:
+
+```console
+$ compozy provider usage refresh --wait 90s
+error: --wait must be between 0s and 30s (invalid_request)
+$ compozy provider usage list nope
+error: provider "nope" not found (provider_not_found)
+```
+
+Full flag reference: [`compozy provider usage`](/docs/cli/provider/usage).
+
+## Step 7: Choose what CompozyOS collects
+
+Open **Settings → Provider usage**, or click **Settings** in the popover footer:
+
+- **Show provider usage** turns the whole feature on or off. Off removes the topbar meter and stops
+  every usage request to providers.
+- **Refresh in the background** sets how often the daemon refreshes: every 1, 2, 5 (default), 10,
+  15, or 30 minutes, or every hour. Opening the popover or pressing **⟳** still refreshes right away.
+- **Providers** has one switch per configured provider that CompozyOS can read. Off stops collecting
+  that provider, and it disappears from the usage views.
+- **Claude Keychain access** (macOS only) is the consent from [Step 5](#step-5-allow-claude-on-macos).
+
+The same settings are `config.toml` keys. To turn usage off and back on from the terminal:
+
+```console
+$ compozy config set provider_usage.enabled false
+$ compozy provider usage list
+Provider usage is turned off. Enable it with: compozy config set provider_usage.enabled true
+$ compozy config set provider_usage.enabled true
+```
+
+Changes apply live. You do not need to restart the daemon.
+
+## Supported providers
+
+CompozyOS reads usage for these providers. Every other provider appears with
+`Usage not available for this provider`.
+
+| Provider ID         | What you see                                          | What CompozyOS reads                                                                                                                              |
+| ------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `codex`             | Session and Weekly limits, credits, plan              | The Codex login in `$CODEX_HOME` (`~/.codex`), through `codex app-server`. File credential store only, see [Codex](#codex-file-credential-store). |
+| `claude`            | Session, Weekly, per-model weekly limits, Extra usage | Claude Code's login: `.credentials.json` in its config directory, or the macOS Keychain with [consent](#step-5-allow-claude-on-macos).            |
+| `openrouter`        | Key spending cap, account balance                     | The provider's bound API key.                                                                                                                     |
+| `vercel-ai-gateway` | Team balance, lifetime spend                          | The provider's bound API key.                                                                                                                     |
+| `zai`               | Coding plan limits                                    | The provider's bound API key. A key without a coding plan shows `No coding plan on this key`.                                                     |
+| `moonshot`          | Kimi Coding 5-hour, weekly, and monthly limits        | The provider's bound Kimi API key.                                                                                                                |
+| `kimi-cli`          | Kimi Coding limits                                    | The Kimi CLI login (`~/.kimi-code/credentials/kimi-code.json`, or under `KIMI_CODE_HOME`).                                                        |
+| `cursor`            | Monthly included usage, extra usage                   | The `cursor-agent` login (`~/.config/cursor/auth.json`, or under `XDG_CONFIG_HOME`).                                                              |
+| `gemini`            | Per-model quotas                                      | The Gemini CLI login (`~/.gemini/oauth_creds.json`).                                                                                              |
+
+API-key providers use the key you already configured for the provider; see
+[wrapped API-key providers](/docs/agents/providers#configure-wrapped-api-key-providers). CompozyOS
+uses only the login or key that the profile's provider route resolves: it never borrows another
+profile's login, never reads browser cookies, and never writes to another tool's credential files.
+The one exception is Codex, which may renew its own login while it answers, exactly as it does when
+CompozyOS runs a Codex session.
+
+### Codex: file credential store
+
+Codex can keep its login in a file (`~/.codex/auth.json`) or in the system keyring. CompozyOS reads
+Codex usage only from the file store, so that it never triggers a keyring prompt. When
+`$CODEX_HOME/config.toml` sets `cli_auth_credentials_store = "keyring"` or `"auto"`, the Codex row
+reads:
+
+```text
+Codex keeps its login in the system keyring; usage needs cli_auth_credentials_store = "file"
+```
+
+To fix it, set `cli_auth_credentials_store = "file"` in `~/.codex/config.toml` (or remove the line),
+then sign in again with `codex login` so Codex writes `auth.json`. CompozyOS never changes this
+setting for you. The `codex` executable must be installed; if it cannot start, CompozyOS reads the
+same numbers over HTTPS with the login in `auth.json`.
+
+## Statuses and what to do
+
+Every provider row has one status. The CLI prints the status name; the popover prints the message.
+
+| Status          | Popover says                                                                                | What to do                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ok`            | The numbers                                                                                 | Nothing.                                                                                     |
+| `refreshing`    | `Loading…`                                                                                  | Wait. This is the first collection after a daemon start.                                     |
+| `stale`         | `Stale · updated 25 min ago`, old numbers kept                                              | Click **Retry** or **Refresh**. The last refresh failed or the numbers are old.              |
+| `signed_out`    | `Signed out · Sign in with Claude to read usage`                                            | Sign in with the provider's own CLI, then refresh.                                           |
+| `needs_consent` | `Needs Keychain access`, `Keychain access denied`, or `Refresh to reload your Claude login` | Click **Allow**, **Try again**, or **Refresh**. See [Step 5](#step-5-allow-claude-on-macos). |
+| `rate_limited`  | `Rate limited · retry in 4m`                                                                | Wait, or click **Retry** once.                                                               |
+| `error`         | `Couldn't load usage`                                                                       | Click **Retry**. The JSON `error.message` says what failed.                                  |
+| `unsupported`   | `Usage not available for this provider`, or the reason                                      | Nothing, or follow the reason (for example the Codex credential store).                      |
+| `disabled`      | `Turned off in settings`                                                                    | Turn the provider back on in Settings → Provider usage.                                      |
+
+Numbers are kept when a refresh fails with the same login, marked stale with their original
+measurement time. They are dropped when the login changes, because they describe another account.
+
+## Configuration
+
+`[provider_usage]` lives in your user `config.toml` (`~/.compozy/config.toml`). Workspace and
+profile config files cannot set it.
+
+```toml
+[provider_usage]
+enabled = true            # false removes the topbar meter and stops collection
+refresh_interval = "5m"   # background cadence, 1m to 1h
+
+[provider_usage.providers.cursor]
+enabled = false           # stop collecting one provider
+
+[provider_usage.providers.claude]
+keychain_access = false   # macOS only: allow reading Claude Code's Keychain login
+```
+
+| Key                                               | Default | Description                                                                                            |
+| ------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `provider_usage.enabled`                          | `true`  | Master switch. `false` hides the meter, stops collection, and empties every usage read.                |
+| `provider_usage.refresh_interval`                 | `"5m"`  | Background refresh cadence, from `1m` to `1h`.                                                         |
+| `provider_usage.providers.<id>.enabled`           | `true`  | Per-provider opt-out. `<id>` is a canonical provider ID.                                               |
+| `provider_usage.providers.claude.keychain_access` | `false` | Consent to read Claude Code's macOS Keychain login. Ignored on other systems; only valid for `claude`. |
+
+See [`[provider_usage]`](/docs/configuration/config-toml#providerusage) for validation details.
+
+## For agents and scripts
+
+Agents read the same numbers with two native tools, in toolset `compozy__provider_usage`:
+
+| Tool                              | Input (all optional)              | What it does                                                                                |
+| --------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------- |
+| `compozy__provider_usage_list`    | `provider_id`                     | Returns the cached envelope for the session's profile. Read-only, never contacts providers. |
+| `compozy__provider_usage_refresh` | `provider_ids`, `max_age_seconds` | Refreshes, waits up to 15 seconds, and returns the envelope.                                |
+
+An agent always works on its own session's profile. Its refreshes run in the background: they
+never read the Keychain, never show a prompt, and respect provider rate limits.
+
+Scripts can use the same HTTP and UDS routes as the CLI:
+
+| Route                                        | Purpose                                                                                                                           |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/provider-usage?profile=<name>`     | The envelope for one profile, with the topbar signal in `tray`.                                                                   |
+| `GET /api/provider-usage/providers/{id}`     | One provider's row.                                                                                                               |
+| `POST /api/provider-usage/refresh`           | Refresh all or some providers, with `wait_ms` (0–30000) and `max_age_seconds`.                                                    |
+| `GET /api/provider-usage/stream`             | Server-Sent Events: `ready` and `provider_usage_changed`, each with `revision` and `boot_id`. Re-read the envelope on each event. |
+| `GET` / `PATCH /api/settings/provider-usage` | Read or change the `[provider_usage]` settings.                                                                                   |
+
+Only the desktop app and the CLI on the daemon's own machine can make a refresh that reads the
+Keychain. Agents, paired remote devices, and app tokens always refresh in the background, and
+app tokens from another origin cannot refresh at all. No route ever returns a credential. Request
+and response schemas: [Providers API](/docs/api/providers).
+
+## Troubleshooting
+
+| Symptom                                                         | Fix                                                                                                             |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| No meter in the topbar                                          | Check `compozy config get provider_usage.enabled` and that a supported provider is configured for this profile. |
+| Claude row says `Keychain access denied` right after **Allow**  | Claude Code may have no login in the Keychain. Run `claude`, sign in, then click **Try again**.                 |
+| Claude row says `Signed out` on Linux or Windows                | Claude Code keeps a file login there. Run `claude`, sign in, then refresh.                                      |
+| macOS prompt appears every few hours                            | Expected after **Allow**. Choose **Always Allow** to make later reads silent.                                   |
+| Codex row says the login is in the system keyring               | Switch Codex to the file store: see [Codex](#codex-file-credential-store).                                      |
+| Numbers differ between two profiles                             | Expected. Each profile has its own logins and keys.                                                             |
+| `error: provider usage is turned off (provider_usage_disabled)` | Run `compozy config set provider_usage.enabled true`.                                                           |
+
+## Related pages
+
+- [Providers](/docs/agents/providers): provider IDs, logins, and API keys.
+- [Profiles](/docs/profiles): separate logins per operator profile.
+- [`compozy provider usage`](/docs/cli/provider/usage): CLI reference.
+- [`[provider_usage]`](/docs/configuration/config-toml#providerusage): configuration reference.
