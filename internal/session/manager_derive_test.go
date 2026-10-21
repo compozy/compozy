@@ -1598,6 +1598,59 @@ func TestDeriveReceiptScope(t *testing.T) {
 func TestDeriveLineageReadModel(t *testing.T) {
 	t.Parallel()
 
+	for _, kind := range []store.LineageKind{store.LineageKindFork, store.LineageKindContinue} {
+		t.Run("Should derive "+string(kind)+" after the root ancestor was deleted", func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			root := h.newDeriveSource(t)
+			source := root
+			for i := range 2 {
+				result, err := h.manager.ForkSession(t.Context(), h.forkOpts(source, fmt.Sprintf("ancestor-%d", i)))
+				if err != nil {
+					t.Fatalf("ForkSession(ancestor) error = %v", err)
+				}
+				var ok bool
+				source, ok = h.manager.Get(result.Child.ID)
+				if !ok {
+					t.Fatal("forked source is missing")
+				}
+			}
+			if err := h.manager.Delete(t.Context(), root.ID); err != nil {
+				t.Fatalf("Delete(root) error = %v", err)
+			}
+			before := h.childMeta(t, source.ID)
+			if before.Lineage.RootSessionID != root.ID {
+				t.Fatalf("source root = %q, want deleted root %q", before.Lineage.RootSessionID, root.ID)
+			}
+			var childID string
+			if kind == store.LineageKindFork {
+				result, err := h.manager.ForkSession(t.Context(), h.forkOpts(source, "after-delete"))
+				if err != nil {
+					t.Fatalf("ForkSession(deleted root) error = %v", err)
+				}
+				childID = result.Child.ID
+			} else {
+				result, err := h.manager.ContinueSession(t.Context(), h.continueOpts(source, "after-delete"))
+				if err != nil {
+					t.Fatalf("ContinueSession(deleted root) error = %v", err)
+				}
+				childID = result.Child.ID
+			}
+			lineage := h.childMeta(t, childID).Lineage
+			if lineage.ParentSessionID != source.ID || lineage.RootSessionID != source.ID ||
+				lineage.Kind != kind || lineage.SpawnDepth != before.Lineage.SpawnDepth+1 {
+				t.Fatalf("child lineage = %+v, want %s parent/root %s and preserved depth", lineage, kind, source.ID)
+			}
+			after := h.childMeta(t, source.ID)
+			if after.Lineage.RootSessionID != before.Lineage.RootSessionID {
+				t.Fatal("derivation rewrote the source root")
+			}
+			if len(h.importedMessages(t, childID)) == 0 {
+				t.Fatal("derived child lost the carried conversation")
+			}
+		})
+	}
+
 	t.Run("Should expose lineage on catalog list rows and derivation on the child read", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t)

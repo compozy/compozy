@@ -208,6 +208,17 @@ func (m *Manager) prepareProvenanceLineage(
 	if rootID == "" {
 		rootID = parent.ID
 	}
+	if rootID != parent.ID {
+		root, rootErr := m.readSessionMetaReadOnly(ctx, rootID)
+		switch {
+		case errors.Is(rootErr, ErrSessionNotFound):
+			rootID = parent.ID
+		case rootErr != nil:
+			return nil, fmt.Errorf("session: resolve provenance root %q: %w", rootID, rootErr)
+		case strings.TrimSpace(root.WorkspaceID) != strings.TrimSpace(parent.WorkspaceID):
+			return nil, fmt.Errorf("%w: provenance root belongs to another workspace", ErrValidation)
+		}
+	}
 	filled := *lineage
 	filled.ParentSessionID = parentID
 	filled.RootSessionID = rootID
