@@ -33,7 +33,7 @@ func (g *LoopRepo) ListGenerationOutputs(
 	if err := g.checkReady(ctx, "list loop generation outputs"); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(string(workspaceID)) == "" || runID == "" {
+	if runID == "" {
 		return nil, fmt.Errorf("%w: workspace and loop run id are required", looppkg.ErrValidation)
 	}
 	if generation <= 0 {
@@ -69,7 +69,7 @@ func (g *LoopRepo) RecordAppliedRuntime(
 	if err := g.checkReady(ctx, "record loop applied runtime"); err != nil {
 		return err
 	}
-	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(loopRunID)) == "" ||
+	if strings.TrimSpace(string(loopRunID)) == "" ||
 		generation <= 0 || strings.TrimSpace(string(nodeID)) == "" || itemIndex < 0 {
 		return fmt.Errorf("%w: applied runtime output identity is invalid", looppkg.ErrValidation)
 	}
@@ -158,7 +158,7 @@ func (g *LoopRepo) LookupLoopGenerationOutputStatus(
 	workspaceID = strings.TrimSpace(workspaceID)
 	loopRunID = strings.TrimSpace(loopRunID)
 	taskRunID = strings.TrimSpace(taskRunID)
-	if workspaceID == "" || loopRunID == "" || taskRunID == "" {
+	if loopRunID == "" || taskRunID == "" {
 		return "", false, fmt.Errorf(
 			"%w: workspace_id, loop_run_id, and task_run_id are required",
 			looppkg.ErrValidation,
@@ -193,7 +193,7 @@ func (g *LoopRepo) GetGenerationOutputPayload(
 	runID := strings.TrimSpace(string(key.RunID))
 	nodeID := strings.TrimSpace(string(key.NodeID))
 	outputRef := strings.TrimSpace(key.OutputRef)
-	if workspaceID == "" || runID == "" || key.Generation <= 0 || nodeID == "" || key.ItemIndex < 0 {
+	if runID == "" || key.Generation <= 0 || nodeID == "" || key.ItemIndex < 0 {
 		return nil, fmt.Errorf("%w: generation output payload identity is invalid", looppkg.ErrValidation)
 	}
 	if !looppkg.OutputRefLooksContentAddressed(outputRef) {

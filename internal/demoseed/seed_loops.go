@@ -116,7 +116,7 @@ func writeLoopAnnotations(
 		})
 	}
 	if err := db.ReplaceLoopUIAnnotations(
-		ctx, looppkg.WorkspaceID(workspaceID), placement.name, annotations,
+		ctx, looppkg.WorkspaceID(workspaceID), "", placement.name, annotations,
 	); err != nil {
 		return fmt.Errorf("demo seed: write Loop annotations for %q: %w", placement.name, err)
 	}

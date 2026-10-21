@@ -34,7 +34,7 @@ func findGoalReportTargetWithExecutor(
 ) (target goal.ToolReportTarget, found bool, err error) {
 	workspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(workspaceID)))
 	sessionID = strings.TrimSpace(sessionID)
-	if workspaceID == "" || sessionID == "" {
+	if sessionID == "" {
 		return goal.ToolReportTarget{}, false, fmt.Errorf(
 			"%w: Goal report workspace_id and session_id are required",
 			looppkg.ErrValidation,
@@ -79,7 +79,7 @@ func (g *GoalRepo) ResolveActiveGoalOriginAlias(
 	}
 	workspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(workspaceID)))
 	sessionID = strings.TrimSpace(sessionID)
-	if workspaceID == "" || sessionID == "" {
+	if sessionID == "" {
 		return "", false, fmt.Errorf(
 			"%w: Goal alias workspace_id and session_id are required",
 			looppkg.ErrValidation,

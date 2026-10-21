@@ -1232,18 +1232,18 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "", "delivery", []looppkg.UIAnnotation{
 			{NodeID: "draft", X: 10, Y: 20},
 		}); err != nil {
 			t.Fatalf("ReplaceLoopUIAnnotations(ws-a) error = %v", err)
 		}
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-b", "delivery", []looppkg.UIAnnotation{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-b", "", "delivery", []looppkg.UIAnnotation{
 			{NodeID: "draft", X: 30, Y: 40},
 		}); err != nil {
 			t.Fatalf("ReplaceLoopUIAnnotations(ws-b) error = %v", err)
 		}
 
-		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-a) error = %v", err)
 		}
@@ -1254,7 +1254,7 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("alpha annotation = %#v", alpha[0])
 		}
 
-		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "delivery")
+		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-b) error = %v", err)
 		}
@@ -1265,12 +1265,12 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("beta annotation = %#v", beta[0])
 		}
 
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "", "delivery", []looppkg.UIAnnotation{
 			{NodeID: "review", X: 50, Y: 60},
 		}); err != nil {
 			t.Fatalf("ReplaceLoopUIAnnotations(ws-a replace) error = %v", err)
 		}
-		alpha, err = globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		alpha, err = globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-a replace) error = %v", err)
 		}
@@ -1281,7 +1281,7 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("alpha replaced annotation = %#v", alpha[0])
 		}
 
-		beta, err = globalDB.ListLoopUIAnnotations(ctx, "ws-b", "delivery")
+		beta, err = globalDB.ListLoopUIAnnotations(ctx, "ws-b", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-b after replace) error = %v", err)
 		}
@@ -1296,12 +1296,12 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 		globalDB := openLoopTestGlobalDB(t, "ws-a", "ws-b")
 		ctx := testutil.Context(t)
 		for _, workspaceID := range []looppkg.WorkspaceID{"ws-a", "ws-b"} {
-			if err := globalDB.UpsertLoopConfig(ctx, workspaceID, "delivery", looppkg.LoopConfig{
+			if err := globalDB.UpsertLoopConfig(ctx, workspaceID, "", "delivery", looppkg.LoopConfig{
 				IterationCap: new(7),
 			}); err != nil {
 				t.Fatalf("UpsertLoopConfig(%s) error = %v", workspaceID, err)
 			}
-			if err := globalDB.ReplaceLoopUIAnnotations(ctx, workspaceID, "delivery", []looppkg.UIAnnotation{{
+			if err := globalDB.ReplaceLoopUIAnnotations(ctx, workspaceID, "", "delivery", []looppkg.UIAnnotation{{
 				NodeID: "draft",
 				X:      10,
 				Y:      20,
@@ -1310,23 +1310,23 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			}
 		}
 
-		if _, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "delivery"); err != nil {
+		if _, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "", "delivery"); err != nil {
 			t.Fatalf("DeleteLoopDefinitionState(ws-a) error = %v", err)
 		}
-		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "delivery"); !errors.Is(err, looppkg.ErrConfigNotFound) {
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "", "delivery"); !errors.Is(err, looppkg.ErrConfigNotFound) {
 			t.Fatalf("GetLoopConfig(ws-a after delete) error = %v, want ErrConfigNotFound", err)
 		}
-		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		alpha, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-a after delete) error = %v", err)
 		}
 		if len(alpha) != 0 {
 			t.Fatalf("ws-a annotations after delete = %#v, want empty", alpha)
 		}
-		if _, err := globalDB.GetLoopConfig(ctx, "ws-b", "delivery"); err != nil {
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-b", "", "delivery"); err != nil {
 			t.Fatalf("GetLoopConfig(ws-b after ws-a delete) error = %v", err)
 		}
-		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "delivery")
+		beta, err := globalDB.ListLoopUIAnnotations(ctx, "ws-b", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(ws-b after ws-a delete) error = %v", err)
 		}
@@ -1340,12 +1340,12 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 
 		globalDB := openLoopTestGlobalDB(t, "ws-a")
 		ctx := testutil.Context(t)
-		if err := globalDB.UpsertLoopConfig(ctx, "ws-a", "delivery", looppkg.LoopConfig{
+		if err := globalDB.UpsertLoopConfig(ctx, "ws-a", "", "delivery", looppkg.LoopConfig{
 			IterationCap: new(7),
 		}); err != nil {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
 		}
-		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "delivery", []looppkg.UIAnnotation{{
+		if err := globalDB.ReplaceLoopUIAnnotations(ctx, "ws-a", "", "delivery", []looppkg.UIAnnotation{{
 			NodeID: "draft",
 			X:      10,
 			Y:      20,
@@ -1362,14 +1362,14 @@ func TestGlobalDBLoopAPIAnnotationsShouldRemainWorkspaceScoped(t *testing.T) {
 			t.Fatalf("create delete failure trigger: %v", err)
 		}
 
-		_, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "delivery")
+		_, err := globalDB.DeleteLoopDefinitionState(ctx, "ws-a", "", "delivery")
 		if err == nil || !strings.Contains(err.Error(), "injected loop config delete failure") {
 			t.Fatalf("DeleteLoopDefinitionState() error = %v, want injected failure", err)
 		}
-		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "delivery"); err != nil {
+		if _, err := globalDB.GetLoopConfig(ctx, "ws-a", "", "delivery"); err != nil {
 			t.Fatalf("GetLoopConfig(after rollback) error = %v", err)
 		}
-		annotations, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "delivery")
+		annotations, err := globalDB.ListLoopUIAnnotations(ctx, "ws-a", "", "delivery")
 		if err != nil {
 			t.Fatalf("ListLoopUIAnnotations(after rollback) error = %v", err)
 		}

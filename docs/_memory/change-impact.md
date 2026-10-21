@@ -1,5 +1,31 @@
 # Compozy Change Impact
 
+
+## User loops, Goals, terminals, and heartbeat — U3, 2026-10-21
+
+Owner: `user-scope-work` step 4 / `all-projects` slice U3 (BR-1, BR-8; T-11–T-16 and the journal leg of T-28).
+CLI and shared HTTP/UDS loop/Goal/terminal routes accept the explicit `@user` selector.
+Native loop request reads carry the authenticated profile; request payloads add `profile_id`.
+User runs store an empty workspace and a concrete owner. Run inventories use exact workspace
+matching, including aggregate reads. Configuration, snapshots, annotations, admission and queue
+promotion separate User profiles; project sidecars retain the empty profile key. Migration
+`00145_schema.sql` rebuilds those four tables and reinstalls the workspace cleanup trigger.
+The U4 pseudo-workspace normalization/data-copy migration remains separate.
+
+User terminal journals use `<COMPOZY_HOME>/workspaces/user-<profile_id>/` without registering a
+workspace or creating workspace identity files. Profile deletion closes terminals and journals the
+removal for lifecycle retry. User journal reads require one profile; live terminal inventories retain
+owner-labeled aggregate reads. Watch events compare workspace IDs exactly. Heartbeat accepts User
+session identities. The creation-profile validation seam needed by Goals overlaps U2; session runtime
+and window-manager implementation remain U2-owned.
+
+No new hook, extension permission, config key, or grant is introduced. Existing project storage and
+public route shapes remain supported (SD-013). Generated OpenAPI/SDK payloads co-ship. Web destination
+and presentation changes are outside U3. Official skill routing is unchanged; its integrated User
+operations examples should be reconciled with U2/U4 by the integration owner. QA scenario additions
+below require the integrated CLI/Web journey; worker evidence is scoped Go integration/unit suites,
+not a browser/E2E verdict.
+
 ## User scope foundation — all-projects U1
 
 Owner: `user-scope-work` BR-2/3/5/6/7/16-validation/17, branch `ap/u1c-user-ref`.

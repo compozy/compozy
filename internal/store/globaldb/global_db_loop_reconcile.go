@@ -139,6 +139,7 @@ func (g *LoopRepo) enqueueLoopCoordinatorWakeWithRunID(
 func (g *LoopRepo) PromoteOldestQueuedLoopRun(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	loopName string,
 	origin taskpkg.Origin,
 	now time.Time,
@@ -162,6 +163,7 @@ func (g *LoopRepo) PromoteOldestQueuedLoopRun(
 				ctx,
 				exec,
 				strings.TrimSpace(workspaceID),
+				profileID,
 				strings.TrimSpace(loopName),
 			)
 			if err != nil {

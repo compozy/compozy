@@ -35,6 +35,39 @@ import (
 func TestManagerAdmissionAndScope(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should open and reconnect User terminals within their profile", func(t *testing.T) {
+		t.Parallel()
+		manager, _, root := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "@user", "profile-a")
+		info := handle.Info()
+		root, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if info.WS != "" || info.ProfileID != "profile-a" || info.Cwd != root {
+			t.Fatalf("wrong User terminal: %+v", info)
+		}
+		if _, err := manager.Get(t.Context(), "@user", "profile-b", info.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("foreign profile read: %v", err)
+		}
+		items, err := manager.List(t.Context(), "@user", store.ReadScope{ProfileID: "profile-a"})
+		if err != nil || len(items) != 1 {
+			t.Fatalf("User list = %+v, %v", items, err)
+		}
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		ticket, err := manager.MintAttachTicket(t.Context(), AttachTicketBinding{WorkspaceID: "@user", ProfileID: "profile-a", TerminalID: info.ID, Mode: terminalAccessRead}, actor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, sub, _, err := manager.AttachWithTicket(t.Context(), ticket.Token, "@user", info.ID, terminalAccessRead, AttachOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := sub.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
 	for _, shape := range []string{"open", "exec", "pipe"} {
 		for _, name := range []string{"default", "absolute", "relative", "parent", "sibling", "parent-relative", "symlink"} {
 			t.Run("Should confine "+shape+" cwd "+name+" to its bound worktree", func(t *testing.T) {

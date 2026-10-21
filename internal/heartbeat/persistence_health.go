@@ -71,8 +71,6 @@ func (s WakeState) Normalize() WakeState {
 func (s WakeState) Validate() error {
 	normalized := s.Normalize()
 	switch {
-	case normalized.WorkspaceID == "":
-		return fmt.Errorf("%w: workspace id is required", ErrInvalidWakeState)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidWakeState)
 	case normalized.SessionID == "":
@@ -117,8 +115,6 @@ func (e WakeEvent) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return fmt.Errorf("%w: id is required", ErrInvalidWakeEvent)
-	case normalized.WorkspaceID == "":
-		return fmt.Errorf("%w: workspace id is required", ErrInvalidWakeEvent)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidWakeEvent)
 	case !ValidWakeSource(normalized.Source):

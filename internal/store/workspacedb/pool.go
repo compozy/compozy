@@ -113,7 +113,13 @@ func (p *Pool) Open(ctx context.Context, workspaceID string) (*DB, error) {
 }
 
 func (p *Pool) openWorkspace(ctx context.Context, workspaceID string) (*DB, error) {
-	resolved, err := p.resolveRoot(ctx, workspaceID)
+	var resolved ResolvedRoot
+	var err error
+	if strings.HasPrefix(workspaceID, "user-") && len(workspaceID) > len("user-") {
+		resolved = ResolvedRoot{WorkspaceID: workspaceID, RootDir: filepath.Join(p.homeDir, "workspaces", workspaceID)}
+	} else {
+		resolved, err = p.resolveRoot(ctx, workspaceID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("store: resolve workspace database root %q: %w", workspaceID, err)
 	}

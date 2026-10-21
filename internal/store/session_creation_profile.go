@@ -105,7 +105,6 @@ func (p SessionCreationProfile) Validate() error {
 	}{
 		{name: "agent_name", value: p.AgentName},
 		{name: "provider", value: p.Provider},
-		{name: "workspace_id", value: p.WorkspaceID},
 		{name: "cwd", value: p.CWD},
 	}
 	for _, field := range required {
@@ -113,7 +112,7 @@ func (p SessionCreationProfile) Validate() error {
 			return fmt.Errorf("store: session creation profile %s is required", field.name)
 		}
 	}
-	if p.Version >= 4 && p.ProfileID == "" {
+	if (p.Version >= 4 || p.WorkspaceID == "") && p.ProfileID == "" {
 		return fmt.Errorf("store: session creation profile profile_id is required")
 	}
 	return nil

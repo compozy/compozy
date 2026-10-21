@@ -187,7 +187,11 @@ func (g *loopSessionPolicyGate) resolveWorkspace(
 	}
 	workspacePath := strings.TrimSpace(opts.WorkspacePath)
 	if workspacePath == "" {
-		return workspacepkg.ResolvedWorkspace{}, errors.New("daemon: loop session workspace is required")
+		resolver, ok := g.workspaceResolver.(workspacepkg.UserRuntimeResolver)
+		if !ok {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceResolverUnavailable
+		}
+		return resolver.ResolveUser(ctx, opts.ProfileID)
 	}
 	resolved, err := resolveRuntimeProfileWorkspace(
 		ctx,

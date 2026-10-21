@@ -47,7 +47,7 @@ func (g *HeartbeatRepo) GetHeartbeatWakeState(
 	workspaceID = strings.TrimSpace(workspaceID)
 	agentName = strings.TrimSpace(agentName)
 	sessionID = strings.TrimSpace(sessionID)
-	if workspaceID == "" || agentName == "" || sessionID == "" {
+	if agentName == "" || sessionID == "" {
 		return heartbeat.WakeState{}, fmt.Errorf(
 			"%w: workspace id, agent name, and session id are required",
 			heartbeat.ErrInvalidWakeState,

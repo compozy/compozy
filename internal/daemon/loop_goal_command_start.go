@@ -35,7 +35,7 @@ func (s *daemonLoopAPIService) startSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
-	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, runtime, prepared.originProvider, prepared.originModel)
+	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, prepared.profileID, runtime, prepared.originProvider, prepared.originModel)
 	if err != nil {
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}
@@ -84,7 +84,7 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
-	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, runtime, prepared.originProvider, prepared.originModel)
+	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, prepared.profileID, runtime, prepared.originProvider, prepared.originModel)
 	if err != nil {
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}
@@ -149,11 +149,12 @@ func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
 	if reason != "" {
 		return sessionGoalDefinitionInput{}, goalCommandErrorDecision(reason, nil), nil
 	}
-	cfg, err := resolveLoopServiceConfig(
+	cfg, err := resolveLoopProfileConfig(
 		ctx,
 		s.homePaths,
 		s.workspaceResolver,
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
+		details.profile.ProfileID,
 	)
 	if err != nil {
 		return sessionGoalDefinitionInput{}, session.GoalDispatchDecision{}, err
@@ -185,6 +186,7 @@ func firstNonEmptyGoalRuntime(values ...string) string {
 func (s *daemonLoopAPIService) resolveGoalRuntime(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	runtime *looppkg.RuntimeSpec,
 	originProvider string,
 	originModel string,
@@ -200,11 +202,12 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 			Field: watchEventsPayloadProviderKey, Value: resolved.Provider, Reason: daemonRequiredValue,
 		})
 	}
-	cfg, err := resolveLoopServiceConfig(
+	cfg, err := resolveLoopProfileConfig(
 		ctx,
 		s.homePaths,
 		s.workspaceResolver,
 		looppkg.WorkspaceID(strings.TrimSpace(workspaceID)),
+		profileID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve Goal runtime config: %w", err)

@@ -557,7 +557,7 @@ func TestDaemonLoopAPIServiceAnnotationsRequireDefinition(t *testing.T) {
 		if !errors.Is(err, looppkg.ErrDefinitionNotFound) {
 			t.Fatalf("PutLoopAnnotations(missing definition) error = %v, want ErrDefinitionNotFound", err)
 		}
-		annotations, listErr := db.ListLoopUIAnnotations(t.Context(), "ws-missing", "missing-loop")
+		annotations, listErr := db.ListLoopUIAnnotations(t.Context(), "ws-missing", "", "missing-loop")
 		if listErr != nil {
 			t.Fatalf("ListLoopUIAnnotations(after rejected write) error = %v", listErr)
 		}
@@ -841,7 +841,7 @@ type loopRunHistoryPersistenceStub struct {
 
 func (s *loopRunHistoryPersistenceStub) GetLoopDefinitionSnapshot(
 	_ context.Context,
-	workspaceID looppkg.WorkspaceID,
+	workspaceID looppkg.WorkspaceID, profileID string,
 	digest string,
 ) (looppkg.DefinitionSnapshot, error) {
 	if s.definitionSnapshot == nil || s.definitionSnapshot.WorkspaceID != workspaceID ||

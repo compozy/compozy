@@ -33,6 +33,7 @@ func (s *Service) WriteArtifact(
 	contents []byte,
 	expiresAt time.Time,
 ) (terminalpkg.SpillRef, error) {
+	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, profileID)
 	s.artifactMu.Lock()
 	defer s.artifactMu.Unlock()
 	id, err := s.newArtifactID()
@@ -87,6 +88,10 @@ func (s *Service) Artifact(
 	scope store.ReadScope,
 	id string,
 ) (io.ReadCloser, error) {
+	if (workspaceID == "" || workspaceID == "@user") && scope.AllProfiles {
+		return nil, os.ErrNotExist
+	}
+	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, scope.ProfileID)
 	if err := scope.Validate(); err != nil {
 		return nil, os.ErrNotExist
 	}
@@ -111,6 +116,10 @@ func (s *Service) Recording(
 	scope store.ReadScope,
 	id string,
 ) (*terminalpkg.RecordingRef, io.ReadCloser, error) {
+	if (workspaceID == "" || workspaceID == "@user") && scope.AllProfiles {
+		return nil, nil, os.ErrNotExist
+	}
+	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, scope.ProfileID)
 	if err := scope.Validate(); err != nil {
 		return nil, nil, os.ErrNotExist
 	}

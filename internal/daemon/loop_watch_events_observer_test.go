@@ -18,6 +18,34 @@ import (
 func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {
 	t.Parallel()
 
+	for _, tc := range []struct {
+		name       string
+		subscriber string
+		event      string
+		want       int
+	}{
+		{"Should not deliver User events to project subscribers", "ws-1", "", 0},
+		{"Should not deliver project events to User subscribers", "", "ws-1", 0},
+		{"Should deliver User events to User subscribers", "", "", 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixedNow := time.Date(2026, 7, 8, 17, 0, 0, 0, time.UTC)
+			watchStore := newRecordingLoopWatchEventsStore()
+			subscription := watchEventsParkedSubscriptionForTest("")
+			subscription.WorkspaceID = tc.subscriber
+			watchStore.setParked([]looppkg.ParkedWatchEventSubscription{subscription})
+			observer := newLoopWatchEventsObserverForTest(t, watchStore, &recordingWatchEventsBackstop{}, fixedNow)
+			payload := watchEventsTaskStatusPayloadForTest(tc.event, "task-target", "blocked", fixedNow)
+			if err := observer.OnTaskStatusChanged(t.Context(), payload); err != nil {
+				t.Fatal(err)
+			}
+			if got := len(watchStore.snapshotWakes()); got != tc.want {
+				t.Fatalf("wake calls = %d, want %d", got, tc.want)
+			}
+		})
+	}
+
 	t.Run("Should enqueue one wake and coalesce the second matching doorbell", func(t *testing.T) {
 		t.Parallel()
 

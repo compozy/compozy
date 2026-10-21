@@ -16,8 +16,8 @@ func newLoopDefaultsResolver(
 	homePaths compozyconfig.HomePaths,
 	workspaceResolver workspacepkg.RuntimeResolver,
 ) looppkg.DefaultsResolver {
-	return func(ctx context.Context, ws looppkg.WorkspaceID) (looppkg.LoopDefaults, error) {
-		cfg, err := resolveLoopServiceConfig(ctx, homePaths, workspaceResolver, ws)
+	return func(ctx context.Context, ws looppkg.WorkspaceID, profileID string) (looppkg.LoopDefaults, error) {
+		cfg, err := resolveLoopProfileConfig(ctx, homePaths, workspaceResolver, ws, profileID)
 		if err != nil {
 			return looppkg.LoopDefaults{}, err
 		}
@@ -32,15 +32,34 @@ func newLoopInputDefaultsResolver(
 	return func(
 		ctx context.Context,
 		ws looppkg.WorkspaceID,
+		profileID string,
 		loopName string,
 	) (looppkg.InputDefaultLayers, error) {
-		cfg, err := resolveLoopServiceConfig(ctx, homePaths, workspaceResolver, ws)
+		cfg, err := resolveLoopProfileConfig(ctx, homePaths, workspaceResolver, ws, profileID)
 		if err != nil {
 			return looppkg.InputDefaultLayers{}, err
 		}
 		global, workspace := cfg.Loops.InputDefaultLayers(loopName)
 		return looppkg.InputDefaultLayers{Global: global, Workspace: workspace}, nil
 	}
+}
+
+func resolveLoopProfileConfig(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	resolver workspacepkg.RuntimeResolver,
+	ws looppkg.WorkspaceID,
+	profileID string,
+) (compozyconfig.Config, error) {
+	if ws != "" {
+		return resolveLoopServiceConfig(ctx, homePaths, resolver, ws)
+	}
+	userResolver, ok := resolver.(workspacepkg.UserRuntimeResolver)
+	if !ok {
+		return compozyconfig.Config{}, workspacepkg.ErrWorkspaceResolverUnavailable
+	}
+	resolved, err := userResolver.ResolveUser(ctx, profileID)
+	return resolved.Config, err
 }
 
 func resolveLoopServiceConfig(

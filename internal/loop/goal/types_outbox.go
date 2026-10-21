@@ -51,7 +51,6 @@ func (r EnqueueSessionOutboxRequest) Validate() error {
 		value string
 	}{
 		{name: "event_id", value: r.EventID},
-		{name: "workspace_id", value: string(r.WorkspaceID)},
 		{name: "origin_session_id", value: r.OriginSessionID},
 		{name: "loop_run_id", value: string(r.LoopRunID)},
 	}

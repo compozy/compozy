@@ -461,6 +461,27 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 
 func TestUserWorkspaceReferenceGuard(t *testing.T) {
 	t.Parallel()
+	t.Run("Should admit User loops goals and terminals while rejecting worktrees", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		router := gin.New()
+		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+		for _, surface := range []string{"loops", "loop-runs", "loop-requests", "terminals", "goal"} {
+			path := "/workspaces/:workspace_id/" + surface
+			router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			for _, suffix := range []string{"", "?worktree=feature"} {
+				resp := performRequest(t, router, http.MethodGet, "/workspaces/@user/"+surface+suffix, nil)
+				expected := http.StatusNoContent
+				if suffix != "" {
+					expected = http.StatusBadRequest
+				}
+				if resp.Code != expected {
+					t.Fatalf("%s%s = %d", surface, suffix, resp.Code)
+				}
+			}
+		}
+	})
+
 	for _, tc := range []struct{ path, code string }{
 		{"/workspaces/@user", "user_scope_unsupported"},
 		{"/workspaces/@user/worktrees", "user_scope_worktree_unsupported"},

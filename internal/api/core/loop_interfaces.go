@@ -259,10 +259,11 @@ type LoopRunListQuery struct {
 
 // LoopRequestListQuery contains request inventory filters shared by HTTP and UDS.
 type LoopRequestListQuery struct {
-	RunID  string
-	State  string
-	Cursor string
-	Limit  int
+	ReadScope store.ReadScope
+	RunID     string
+	State     string
+	Cursor    string
+	Limit     int
 }
 
 // LoopNodeListQuery contains workspace node-inventory filters.

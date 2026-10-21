@@ -34,3 +34,11 @@ regardless of the configured interval, and the fact that only later sweeps obser
 QA result 2026-08-21: the default was `1m`; `2s` persisted; `0s` named
 `loops.reconcile_interval` and preserved `2s`; unset restored `1m`. The boot sweep ran independently
 of the ticker setting.
+
+### User scope (U3 integration leg)
+
+Run the same user-layer Loop with `@user` under two profiles at concurrency one. Configure distinct
+limits and annotations, queue a second run in each profile, then complete the first run in A. Only
+A's queue advances. Verify snapshots and admission keys cannot cross profiles, and a project run
+never appears in the User aggregate. Worker coverage: `TestGlobalDBLoopUserScope` with real SQLite;
+the integrated CLI journey remains pending.

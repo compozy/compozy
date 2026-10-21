@@ -161,7 +161,7 @@ func (m *Service) List(ctx context.Context, workspaceID string, scope store.Read
 	m.mu.RLock()
 	items := make([]Info, 0)
 	for key, session := range m.terminals {
-		if key.workspaceID == workspaceID && scope.Matches(key.profileID) {
+		if key.workspaceID == terminalWorkspaceID(workspaceID) && scope.Matches(key.profileID) {
 			items = append(items, session.Info())
 		}
 	}
@@ -192,7 +192,7 @@ func (m *Service) ActiveRecordings(
 	m.mu.RLock()
 	items := make([]RecordingRef, 0)
 	for key, session := range m.terminals {
-		if key.workspaceID != workspaceID || !scope.Matches(key.profileID) {
+		if key.workspaceID != terminalWorkspaceID(workspaceID) || !scope.Matches(key.profileID) {
 			continue
 		}
 		if recording, ok := session.activeRecording(); ok {
@@ -370,6 +370,7 @@ func (m *Service) tombstoneExpiry(item *session) time.Time {
 }
 
 func (m *Service) lookup(key terminalKey) (*session, error) {
+	key.workspaceID = terminalWorkspaceID(key.workspaceID)
 	m.mu.RLock()
 	item := m.terminals[key]
 	stone, tombstoned := m.tombstones[key]
@@ -385,13 +386,6 @@ func (m *Service) lookup(key terminalKey) (*session, error) {
 }
 
 func (m *Service) admit(ctx context.Context, workspaceID string, actor Actor) error {
-	if strings.TrimSpace(workspaceID) == "" {
-		return &Error{
-			Code:    ErrorCodeRequiresWorkspace,
-			Message: "terminal operations require a workspace",
-			Err:     ErrRequiresWorkspace,
-		}
-	}
 	if strings.TrimSpace(actor.ProfileID) == "" {
 		return errors.New("terminal: actor profile is required")
 	}

@@ -255,6 +255,7 @@ type CommandRunner interface {
 
 // CommandRequest is one command criterion invocation.
 type CommandRequest struct {
+	ProfileID   string
 	WorkspaceID string
 	GateID      string
 	CriterionID string

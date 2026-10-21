@@ -124,8 +124,6 @@ func (s Snapshot) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return fmt.Errorf("%w: id is required", ErrInvalidSnapshot)
-	case normalized.WorkspaceID == "":
-		return fmt.Errorf("%w: workspace id is required", ErrInvalidSnapshot)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidSnapshot)
 	case normalized.SourcePath == "":

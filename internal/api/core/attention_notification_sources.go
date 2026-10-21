@@ -172,7 +172,7 @@ func (h *BaseHandlers) loopNotificationItems(
 ) ([]contract.AttentionNotificationPayload, error) {
 	items := make([]contract.AttentionNotificationPayload, 0)
 	requests := make(map[string]bool)
-	query := LoopRequestListQuery{State: "pending", Limit: 200}
+	query := LoopRequestListQuery{ReadScope: store.ReadScope{AllProfiles: true}, State: "pending", Limit: 200}
 	for {
 		page, err := h.Loops.ListLoopRequests(ctx, workspace, query)
 		if err != nil {

@@ -13,6 +13,15 @@ func (h *BaseHandlers) RequireProjectReference(c *gin.Context, raw string) bool 
 	if workspacepkg.ParseWorkspaceRef(raw).Kind != workspacepkg.RefUser {
 		return true
 	}
+	path := c.FullPath()
+	if !strings.Contains(path, "/worktrees") && c.Query("worktree") == "" && c.Query("worktree_id") == "" {
+		for _, segment := range strings.Split(path, "/") {
+			switch segment {
+			case "loops", "loop-runs", "loop-requests", "terminals", "goal":
+				return true
+			}
+		}
+	}
 	err := workspacepkg.ErrUserScopeUnsupported
 	if strings.Contains(c.FullPath(), "/worktrees") || c.Query("worktree") != "" || c.Query("worktree_id") != "" {
 		err = workspacepkg.ErrUserScopeWorktreeUnsupported

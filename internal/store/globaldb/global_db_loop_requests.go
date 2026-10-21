@@ -12,6 +12,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 )
 
 var _ looppkg.RequestStore = (*LoopRepo)(nil)
@@ -35,7 +36,7 @@ type storedRequest struct {
 	answeredNote  string
 }
 
-const requestSelectColumns = `request.rowid, request.loop_run_id, run.loop_name,
+const requestSelectColumns = `request.rowid, request.loop_run_id, run.loop_name, run.profile_id,
 	request.generation, request.node_id, request.item_index, request.kind, request.state,
 	request.prompt, request.context_preview_json, request.context_ref,
 	request.answer_schema_json, request.edit_schema_json, request.respond_schema_json,
@@ -53,14 +54,24 @@ func (g *LoopRepo) ListRequests(
 		return looppkg.RequestPage{}, err
 	}
 	workspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(workspaceID)))
-	if workspaceID == "" {
-		return looppkg.RequestPage{}, fmt.Errorf("%w: workspace id is required", looppkg.ErrValidation)
+	if query.ReadScope == (store.ReadScope{}) && query.RunID != "" {
+		run, loadErr := g.GetLoopRun(ctx, workspaceID, query.RunID)
+		if loadErr != nil {
+			return looppkg.RequestPage{}, loadErr
+		}
+		query.ReadScope = store.ReadScope{ProfileID: run.ProfileID}
+	}
+	if query.ReadScope == (store.ReadScope{}) && workspaceID != "" {
+		query.ReadScope = store.ReadScope{AllProfiles: true}
+	}
+	if err := query.ReadScope.Validate(); err != nil {
+		return looppkg.RequestPage{}, err
 	}
 	state, limit, cursor, err := normalizeRequestQuery(query)
 	if err != nil {
 		return looppkg.RequestPage{}, err
 	}
-	rows, err := g.queryRequestRows(ctx, workspaceID, query.RunID, state, cursor, limit+1)
+	rows, err := g.queryRequestRows(ctx, workspaceID, query.ReadScope, query.RunID, state, cursor, limit+1)
 	if err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: list Loop requests: %w", err)
 	}
@@ -74,8 +85,9 @@ func (g *LoopRepo) ListRequests(
 	if err != nil {
 		return looppkg.RequestPage{}, err
 	}
-	if err := g.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_requests
-		WHERE workspace_id = ? AND state = 'pending'`, workspaceID).Scan(&page.Pending); err != nil {
+	if err := g.db.QueryRowContext(ctx, `SELECT count(*) FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id
+		WHERE request.workspace_id = ? AND (? OR run.profile_id = ?) AND request.state = 'pending'`,
+		workspaceID, query.ReadScope.AllProfiles, query.ReadScope.ProfileID).Scan(&page.Pending); err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: count pending Loop requests: %w", err)
 	}
 	return page, nil
@@ -207,7 +219,7 @@ func scanStoredRequest(scanner rowScanner) (storedRequest, error) {
 	var answeredDecision, answeredRef, answeredNote sql.NullString
 	var actorKind, actorID sql.NullString
 	var resolvedAt, expiresAt sql.NullTime
-	err := scanner.Scan(&stored.rowID, &stored.request.LoopRunID, &stored.request.LoopName,
+	err := scanner.Scan(&stored.rowID, &stored.request.LoopRunID, &stored.request.LoopName, &stored.request.ProfileID,
 		&stored.request.Generation, &stored.request.NodeID, &stored.request.ItemIndex,
 		&stored.request.Kind, &stored.request.State, &stored.request.Prompt, &contextPreview,
 		&contextRef, &answerSchema, &editSchema, &respondSchema, &decisions, &proposedRef,

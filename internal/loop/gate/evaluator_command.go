@@ -32,6 +32,7 @@ func (e *Evaluator) evaluateCommand(
 	expect = normalizeCommandExpectation(expect)
 	req := CommandRequest{
 		WorkspaceID: in.ToolScope.WorkspaceID,
+		ProfileID:   in.ToolScope.ProfileID,
 		GateID:      gate.ID,
 		CriterionID: criterion.ID,
 		Command:     criterion.Check,

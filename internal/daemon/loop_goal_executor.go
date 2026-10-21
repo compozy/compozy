@@ -102,7 +102,7 @@ func (e *loopGoalJudgeEvaluator) EvaluateGoal(
 	if err != nil {
 		return goalpkg.JudgeResult{}, err
 	}
-	snapshot, err := e.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
+	snapshot, err := e.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.ProfileID, run.DefinitionDigest)
 	if err != nil {
 		return goalpkg.JudgeResult{}, err
 	}

@@ -295,7 +295,7 @@ func (m *Service) resolveOpenWorkspace(
 		)
 	}
 	canonicalID := strings.TrimSpace(resolved.ID)
-	if canonicalID == "" {
+	if canonicalID == "" && resolved.Scope != workspacepkg.ScopeUser {
 		return "", "", errors.New(
 			"terminal: resolved workspace registration is required",
 		)
@@ -323,6 +323,13 @@ func (m *Service) resolveWorkspace(
 	workspaceID string,
 	profileID string,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if workspacepkg.ParseWorkspaceRef(workspaceID).Kind == workspacepkg.RefUser || workspaceID == "" {
+		resolver, ok := m.workspaces.(workspacepkg.UserRuntimeResolver)
+		if !ok {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrUserScopeUnsupported
+		}
+		return resolver.ResolveUser(ctx, profileID)
+	}
 	profileResolver, supportsProfiles := m.workspaces.(ProfileWorkspaceResolver)
 	if !supportsProfiles || m.profileNames == nil {
 		return m.workspaces.Resolve(ctx, workspaceID)

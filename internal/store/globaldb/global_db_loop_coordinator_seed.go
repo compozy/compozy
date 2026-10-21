@@ -160,10 +160,14 @@ func loopCoordinatorTaskRecordForRun(run looppkg.Run, taskID string, now time.Ti
 	if err != nil {
 		return taskpkg.Task{}, fmt.Errorf("store: marshal Loop coordinator metadata: %w", err)
 	}
+	scope := taskpkg.ScopeWorkspace
+	if run.WorkspaceID == "" {
+		scope = taskpkg.ScopeGlobal
+	}
 	return taskpkg.Task{
 		ID:                 taskID,
 		ProfileID:          run.ProfileID,
-		Scope:              taskpkg.ScopeWorkspace,
+		Scope:              scope,
 		WorkspaceID:        string(run.WorkspaceID),
 		Title:              fmt.Sprintf("Loop coordinator %s", strings.TrimSpace(run.LoopName)),
 		Priority:           taskpkg.DefaultPriority,

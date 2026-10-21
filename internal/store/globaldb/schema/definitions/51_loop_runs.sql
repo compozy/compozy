@@ -159,12 +159,13 @@ CREATE TABLE loop_session_bindings (
 );
 
 CREATE TABLE loop_ui_annotations (
+	profile_id TEXT NOT NULL DEFAULT '',
 			workspace_id TEXT NOT NULL,
 			loop_name    TEXT NOT NULL,
 			node_id      TEXT NOT NULL,
 			x            REAL NOT NULL,
 			y            REAL NOT NULL,
-			PRIMARY KEY (workspace_id, loop_name, node_id)
+			PRIMARY KEY (workspace_id, profile_id, loop_name, node_id)
 		);
 
 CREATE INDEX idx_loop_gate_decisions_workspace_run

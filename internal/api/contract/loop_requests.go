@@ -7,6 +7,7 @@ import (
 
 // LoopRequestPayload is the public request projection; private execution refs never appear here.
 type LoopRequestPayload struct {
+	ProfileID        string          `json:"profile_id"`
 	LoopRunID        string          `json:"loop_run_id"`
 	LoopName         string          `json:"loop_name,omitempty"`
 	Generation       int             `json:"generation"`

@@ -210,13 +210,20 @@ func (r loopGateCommandRunner) RunCommand(
 		return gate.CommandResult{}, fmt.Errorf("%w: command check is required", looppkg.ErrValidation)
 	}
 	workspaceID := strings.TrimSpace(req.WorkspaceID)
-	if workspaceID == "" {
-		return gate.CommandResult{}, fmt.Errorf("%w: command workspace_id is required", looppkg.ErrValidation)
-	}
 	if r.workspaceResolver == nil {
 		return gate.CommandResult{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}
-	resolved, err := r.workspaceResolver.Resolve(ctx, workspaceID)
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	if workspaceID == "" {
+		resolver, ok := r.workspaceResolver.(workspacepkg.UserRuntimeResolver)
+		if !ok {
+			return gate.CommandResult{}, workspacepkg.ErrWorkspaceResolverUnavailable
+		}
+		resolved, err = resolver.ResolveUser(ctx, req.ProfileID)
+	} else {
+		resolved, err = r.workspaceResolver.Resolve(ctx, workspaceID)
+	}
 	if err != nil {
 		return gate.CommandResult{}, fmt.Errorf("daemon: resolve command workspace %q: %w", workspaceID, err)
 	}

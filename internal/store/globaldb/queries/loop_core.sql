@@ -33,6 +33,7 @@ SELECT * FROM loop_runs WHERE id = sqlc.arg(id);
 -- name: FindActiveLoopRun :one
 SELECT * FROM loop_runs
 WHERE workspace_id = sqlc.arg(workspace_id)
+  AND (workspace_id <> '' OR profile_id = sqlc.arg(profile_id))
   AND loop_name = sqlc.arg(loop_name)
   AND historical = 0
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')
@@ -68,12 +69,12 @@ SELECT workspace_id, state, creation_profile_ref, policy_spec_digest, creation_d
 FROM sessions WHERE id = sqlc.arg(session_id);
 
 -- name: InsertLoopConfigIfMissing :exec
-INSERT OR IGNORE INTO loop_config (
+INSERT OR IGNORE INTO loop_config (profile_id,
   workspace_id, loop_name, human_gate_enabled, reattempt_strategy, enabled_checks_json,
   iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
   no_progress_window, fan_out_width, gate_max_revisions,
   runtime_defaults_json, runtime_rules_json, environment_json
-) VALUES (
+) VALUES (sqlc.arg(profile_id),
   sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(human_gate_enabled),
   sqlc.narg(reattempt_strategy), sqlc.arg(enabled_checks_json), sqlc.narg(iteration_cap),
   sqlc.narg(budget_tokens), sqlc.narg(budget_wall_sec), sqlc.narg(budget_on_exceeded),
@@ -96,18 +97,18 @@ UPDATE loop_config SET
   runtime_defaults_json = CASE WHEN sqlc.arg(patch_runtime_defaults) THEN sqlc.narg(runtime_defaults_json) ELSE runtime_defaults_json END,
   runtime_rules_json = CASE WHEN sqlc.arg(patch_runtime_rules) THEN sqlc.narg(runtime_rules_json) ELSE runtime_rules_json END,
   environment_json = CASE WHEN sqlc.arg(patch_environment) THEN sqlc.narg(environment_json) ELSE environment_json END
-WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
 
 -- name: GetLoopConfig :one
 SELECT human_gate_enabled, reattempt_strategy, enabled_checks_json,
        iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
        no_progress_window, fan_out_width, gate_max_revisions,
        runtime_defaults_json, runtime_rules_json, environment_json
-FROM loop_config WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
+FROM loop_config WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
 
 -- name: DeleteLoopConfig :exec
 DELETE FROM loop_config
-WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
 
 -- name: ListLoopRunEvents :many
 SELECT watch_seq, id, loop_run_id, workspace_id, seq, kind, payload_json, at, delivery_key
@@ -153,12 +154,12 @@ SELECT COALESCE(MAX(seq), 0) + 1 FROM loop_run_events WHERE loop_run_id = sqlc.a
 
 -- name: ListLoopUIAnnotations :many
 SELECT node_id, x, y FROM loop_ui_annotations
-WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name)
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name)
 ORDER BY node_id ASC;
 
 -- name: DeleteLoopUIAnnotations :exec
-DELETE FROM loop_ui_annotations WHERE workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
+DELETE FROM loop_ui_annotations WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id) AND loop_name = sqlc.arg(loop_name);
 
 -- name: InsertLoopUIAnnotation :exec
-INSERT INTO loop_ui_annotations (workspace_id, loop_name, node_id, x, y)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(node_id), sqlc.arg(x), sqlc.arg(y));
+INSERT INTO loop_ui_annotations (profile_id, workspace_id, loop_name, node_id, x, y)
+VALUES (sqlc.arg(profile_id), sqlc.arg(workspace_id), sqlc.arg(loop_name), sqlc.arg(node_id), sqlc.arg(x), sqlc.arg(y));

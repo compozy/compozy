@@ -87,6 +87,21 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should start and project a Goal in User scope", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "cursor", goalCommandCursorModel, goalCommandActiveCursorModel, true)
+		objective := "Ship User work\nverify: make verify"
+		result, err := fixture.service.Handle(t.Context(), "", fixture.sessionID, session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}, session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: objective})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertGoalCommandOutcome(t, result, session.GoalOutcomeStarted, "")
+		run := fixture.mustRun(t, result.Result.Snapshot.RunID)
+		if run.WorkspaceID != "" || run.ProfileID != fixture.profileID {
+			t.Fatalf("wrong Goal owner: %+v", run)
+		}
+	})
+
 	// Invariant: terminal Run truth and live quarantine outrank stale active checkpoints.
 	// Owner: daemon Goal snapshot projection; canonical Goal command suite.
 	t.Run("Should project terminal runs and quarantined live work coherently", func(t *testing.T) {
@@ -492,8 +507,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 
 		snapshot, err := fixture.db.GetLoopDefinitionSnapshot(
 			testutil.Context(t),
-			run.WorkspaceID,
-			run.DefinitionDigest,
+			run.WorkspaceID, "", run.DefinitionDigest,
 		)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
@@ -529,7 +543,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		assertGoalCommandOutcome(t, decision, session.GoalOutcomeStarted, "")
 		run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
 		definition, err := fixture.db.GetLoopDefinitionSnapshot(
-			testutil.Context(t), run.WorkspaceID, run.DefinitionDigest,
+			testutil.Context(t), run.WorkspaceID, "", run.DefinitionDigest,
 		)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
@@ -597,7 +611,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 			}
 			assertGoalCommandOutcome(t, decision, want, "")
 			run := fixture.mustRun(t, decision.Result.Snapshot.RunID)
-			snapshot, err := fixture.db.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
+			snapshot, err := fixture.db.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, "", run.DefinitionDigest)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -938,8 +952,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 
 			definition, err := fixture.db.GetLoopDefinitionSnapshot(
 				testutil.Context(t),
-				run.WorkspaceID,
-				run.DefinitionDigest,
+				run.WorkspaceID, "", run.DefinitionDigest,
 			)
 			if err != nil {
 				t.Fatalf("GetLoopDefinitionSnapshot(%q) error = %v", result.childID, err)
@@ -998,6 +1011,7 @@ func newGoalCommandHandlerFixtureWithRuntime(
 	profileProvider string,
 	profileModel string,
 	activeModel string,
+	userScope ...bool,
 ) goalCommandHandlerFixture {
 	t.Helper()
 
@@ -1027,6 +1041,18 @@ context_nudge_ratio = 0.0
 		CreatedAt: now, UpdatedAt: now,
 	}); err != nil {
 		t.Fatalf("InsertWorkspace() error = %v", err)
+	}
+	var userResolver *workspacepkg.Resolver
+	var defaultsResolver workspacepkg.RuntimeResolver
+	var apiResolver loopAPIWorkspaceResolver
+	if len(userScope) > 0 && userScope[0] {
+		workspaceID = ""
+		userResolver, err = workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(homePaths), workspacepkg.WithProfileAvailabilityChecker(profiles))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defaultsResolver = userResolver
+		apiResolver = userResolver
 	}
 	profile := store.SessionCreationProfile{
 		Version: store.SessionCreationProfileVersion, AgentName: "operator-agent",
@@ -1094,7 +1120,7 @@ context_nudge_ratio = 0.0
 			},
 		),
 		newGoalRunPolicyResolver(homePaths, nil),
-		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, nil)),
+		looppkg.WithDefaultsResolver(newLoopDefaultsResolver(homePaths, defaultsResolver)),
 		looppkg.WithClock(func() time.Time { return now }),
 		looppkg.WithRunIDFactory(func() (looppkg.RunID, error) {
 			nextRunMu.Lock()
@@ -1124,7 +1150,7 @@ context_nudge_ratio = 0.0
 	return goalCommandHandlerFixture{
 		service: &daemonLoopAPIService{
 			aggregate: aggregate, persistence: db, goalPersistence: db,
-			homePaths: homePaths, now: func() time.Time { return now },
+			homePaths: homePaths, workspaceResolver: apiResolver, now: func() time.Time { return now },
 			sessionStatus: status, creationStore: db,
 		},
 		db: db, workspaceID: workspaceID, sessionID: sessionID, profileRef: profileRef, profileID: profileOwner.ID,
@@ -1146,7 +1172,7 @@ func (f goalCommandHandlerFixture) assertPinnedGoalDefinition(
 	wantRuntimeModel string,
 ) {
 	t.Helper()
-	snapshot, err := f.db.GetLoopDefinitionSnapshot(testutil.Context(t), run.WorkspaceID, run.DefinitionDigest)
+	snapshot, err := f.db.GetLoopDefinitionSnapshot(testutil.Context(t), run.WorkspaceID, "", run.DefinitionDigest)
 	if err != nil {
 		t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 	}

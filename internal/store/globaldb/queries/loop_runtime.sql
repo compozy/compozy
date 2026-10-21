@@ -8,7 +8,8 @@ SELECT lr.loop_name, COUNT(*) AS runs,
 FROM requested_names AS requested
 JOIN loop_runs AS lr INDEXED BY idx_loop_runs_catalog
   ON lr.workspace_id = sqlc.arg(workspace_id) AND lr.loop_name = requested.loop_name
-WHERE lr.created_at >= sqlc.arg(aggregate_after)
+WHERE (lr.workspace_id <> '' OR lr.profile_id = sqlc.arg(profile_id))
+ AND lr.created_at >= sqlc.arg(aggregate_after)
 GROUP BY lr.loop_name;
 
 -- name: ListLoopCatalogLatestRuns :many
@@ -18,6 +19,7 @@ WITH requested_names(loop_name) AS (
   SELECT (
     SELECT candidate.id FROM loop_runs AS candidate INDEXED BY idx_loop_runs_catalog
     WHERE candidate.workspace_id = sqlc.arg(workspace_id)
+ AND (candidate.workspace_id <> '' OR candidate.profile_id = sqlc.arg(profile_id))
       AND candidate.loop_name = requested.loop_name
     ORDER BY candidate.created_at DESC, candidate.id DESC LIMIT 1
   )
@@ -30,18 +32,19 @@ FROM loop_runs AS lr JOIN latest_ids ON latest_ids.id = lr.id;
 SELECT q.id, q.workspace_id, q.loop_name, q.generation
 FROM loop_runs q
 WHERE q.workspace_id = sqlc.arg(workspace_id)
+ AND (q.workspace_id <> '' OR q.profile_id = sqlc.arg(profile_id))
   AND q.loop_name = sqlc.arg(loop_name)
   AND q.historical = 0
   AND q.status = 'queued'
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active
-    WHERE active.workspace_id = q.workspace_id AND active.loop_name = q.loop_name
+    WHERE active.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR active.profile_id = q.profile_id) AND active.loop_name = q.loop_name
       AND active.historical = 0
       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
   )
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs older
-    WHERE older.workspace_id = q.workspace_id AND older.loop_name = q.loop_name
+    WHERE older.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR older.profile_id = q.profile_id) AND older.loop_name = q.loop_name
       AND older.historical = 0
       AND older.status = 'queued'
       AND (older.created_at < q.created_at OR (older.created_at = q.created_at AND older.id < q.id))
@@ -67,13 +70,13 @@ WHERE q.status = 'queued'
   AND q.historical = 0
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs active
-    WHERE active.workspace_id = q.workspace_id AND active.loop_name = q.loop_name
+    WHERE active.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR active.profile_id = q.profile_id) AND active.loop_name = q.loop_name
       AND active.historical = 0
       AND active.status IN ('running', 'watching', 'needs-approval', 'paused')
   )
   AND NOT EXISTS (
     SELECT 1 FROM loop_runs older
-    WHERE older.workspace_id = q.workspace_id AND older.loop_name = q.loop_name
+    WHERE older.workspace_id = q.workspace_id AND (q.workspace_id <> '' OR older.profile_id = q.profile_id) AND older.loop_name = q.loop_name
       AND older.historical = 0
       AND older.status = 'queued'
       AND (older.created_at < q.created_at OR (older.created_at = q.created_at AND older.id < q.id))
@@ -321,14 +324,14 @@ SELECT status, pause_requested, control_actor_kind, control_actor_id
 FROM loop_runs WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
 
 -- name: UpsertLoopDefinitionSnapshot :execrows
-INSERT INTO loop_definition_snapshots (
+INSERT INTO loop_definition_snapshots (profile_id,
   workspace_id, definition_digest, definition_version, definition_json, byte_size,
   created_at, last_used_at
-) VALUES (
+) VALUES (sqlc.arg(profile_id),
   sqlc.arg(workspace_id), sqlc.arg(definition_digest), sqlc.arg(definition_version),
   sqlc.arg(definition_json), sqlc.arg(byte_size), sqlc.arg(created_at), sqlc.arg(last_used_at)
 )
-ON CONFLICT(workspace_id, definition_digest) DO UPDATE SET
+ON CONFLICT(workspace_id, profile_id, definition_digest) DO UPDATE SET
   last_used_at = excluded.last_used_at
 WHERE loop_definition_snapshots.definition_version = excluded.definition_version
   AND loop_definition_snapshots.definition_json = excluded.definition_json
@@ -338,7 +341,7 @@ WHERE loop_definition_snapshots.definition_version = excluded.definition_version
 SELECT workspace_id, definition_digest, definition_version, definition_json, byte_size,
        created_at, last_used_at
 FROM loop_definition_snapshots
-WHERE workspace_id = sqlc.arg(workspace_id) AND definition_digest = sqlc.arg(definition_digest);
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id) AND definition_digest = sqlc.arg(definition_digest);
 
 -- name: ActivateLoopApproval :execrows
 UPDATE loop_runs

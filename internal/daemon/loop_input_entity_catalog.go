@@ -86,6 +86,10 @@ func (c daemonLoopInputEntityCatalog) resolvedWorkspace(
 	if c.state.workspaceResolver == nil {
 		return nil, nil
 	}
+	if strings.TrimSpace(workspaceID) == "" {
+		resolved, err := c.state.workspaceResolver.ResolveUser(ctx, profileID)
+		return &resolved, err
+	}
 	lens, err := resolveLoopResourceLens(ctx, c.state.profiles, workspaceID, profileID)
 	if err != nil {
 		return nil, err

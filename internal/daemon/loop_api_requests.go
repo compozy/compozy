@@ -22,7 +22,7 @@ func (s *daemonLoopAPIService) ListLoopRequests(
 		return contract.LoopRequestsResponse{}, err
 	}
 	page, err := s.aggregate.ListRequests(ctx, ws, looppkg.RequestQuery{
-		RunID: looppkg.RunID(strings.TrimSpace(query.RunID)), State: strings.TrimSpace(query.State),
+		ReadScope: query.ReadScope, RunID: looppkg.RunID(strings.TrimSpace(query.RunID)), State: strings.TrimSpace(query.State),
 		Cursor: strings.TrimSpace(query.Cursor), Limit: query.Limit,
 	})
 	if err != nil {
@@ -113,6 +113,7 @@ func (s *daemonLoopAPIService) RespondLoopRequest(
 
 func loopRequestPayload(request looppkg.Request) contract.LoopRequestPayload {
 	payload := contract.LoopRequestPayload{
+		ProfileID:  request.ProfileID,
 		LoopRunID:  string(request.LoopRunID),
 		LoopName:   request.LoopName,
 		Generation: request.Generation,

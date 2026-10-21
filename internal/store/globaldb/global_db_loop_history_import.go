@@ -109,7 +109,7 @@ func (g *LoopRepo) DeleteRunHistory(
 	}
 	trimmedWorkspace := strings.TrimSpace(string(workspaceID))
 	trimmedRun := strings.TrimSpace(string(runID))
-	if trimmedWorkspace == "" || trimmedRun == "" {
+	if trimmedRun == "" {
 		return fmt.Errorf("%w: workspace_id and run id are required", looppkg.ErrValidation)
 	}
 	return g.withTaskImmediateTransaction(ctx, "delete loop run history", func(exec taskSQLExecutor) error {

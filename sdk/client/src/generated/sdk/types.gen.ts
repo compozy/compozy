@@ -3913,6 +3913,7 @@ export type LoopRequestPayload = {
   loop_run_id: string;
   node_id: string;
   opened_at: string;
+  profile_id: string;
   prompt: string;
   proposed_preview?: unknown;
   resolved_at?: string | null;

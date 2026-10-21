@@ -32,7 +32,7 @@ func (s *service) prepareForkRun(ctx context.Context, input ForkInput) (forkPrep
 	if err := validateForkGenerationOutputs(outputs, input.Generation); err != nil {
 		return forkPreparation{}, err
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, source.WorkspaceID, source.DefinitionDigest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, source.WorkspaceID, source.ProfileID, source.DefinitionDigest)
 	if err != nil {
 		return forkPreparation{}, err
 	}

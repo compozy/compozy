@@ -63,6 +63,7 @@ func evaluateGateNode(
 		ctx,
 		runtimeCatalog,
 		run.WorkspaceID,
+		run.ProfileID,
 		effective.RuntimeDefaults.Judge,
 		runtimeGate.Criteria,
 	); err != nil {
@@ -157,13 +158,14 @@ func validateJudgeGateRuntimes(
 	ctx context.Context,
 	factory WorkspaceRuntimeCatalog,
 	workspaceID WorkspaceID,
+	profileID string,
 	defaults RuntimeSpec,
 	criteria []dsl.GateCriterion,
 ) error {
 	if factory == nil {
 		return nil
 	}
-	catalog, err := factory.ForWorkspace(ctx, workspaceID)
+	catalog, err := factory.ForWorkspace(ctx, workspaceID, profileID)
 	if err != nil {
 		return fmt.Errorf("resolve judge runtime catalog: %w", err)
 	}

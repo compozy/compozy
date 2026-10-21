@@ -31,9 +31,10 @@ func (s *Service) Query(
 	if err := scope.Validate(); err != nil {
 		return nil, fmt.Errorf("terminal journal: validate query scope: %w", err)
 	}
-	if strings.TrimSpace(workspaceID) == "" {
-		return &terminalpkg.Page{Entries: []terminalpkg.CommandRow{}}, nil
+	if (workspaceID == "" || workspaceID == "@user") && scope.AllProfiles {
+		return nil, errors.New("terminal journal: User journal reads require one profile")
 	}
+	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, scope.ProfileID)
 	workspaceID = strings.TrimSpace(workspaceID)
 	scope.ProfileID = strings.TrimSpace(scope.ProfileID)
 	query = normalizeQuery(query)

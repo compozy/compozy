@@ -124,9 +124,6 @@ func (d *Daemon) bootRegistryState(
 	if err := d.bootWindowManager(ctx, state, cleanup); err != nil {
 		return err
 	}
-	if err := recoverProfiles(ctx, state); err != nil {
-		return err
-	}
 
 	return nil
 }

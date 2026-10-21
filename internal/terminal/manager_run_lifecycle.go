@@ -7,7 +7,7 @@ import (
 
 // RunEnded resolves pending input requests created by a completed run.
 func (m *Service) RunEnded(_ context.Context, workspaceID string, actor Actor) int {
-	if strings.TrimSpace(workspaceID) == "" || !validRunActor(actor) {
+	if !validRunActor(actor) {
 		return 0
 	}
 	items := m.sessionsForRun(workspaceID, actor.ProfileID, actor.SessionID, actor.RunID)
@@ -26,7 +26,7 @@ func (m *Service) SessionRunEnded(
 	workspaceID, profileID, sessionID, runID string,
 	generation int64,
 ) int {
-	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(profileID) == "" ||
+	if strings.TrimSpace(profileID) == "" ||
 		strings.TrimSpace(sessionID) == "" || strings.TrimSpace(runID) == "" || generation <= 0 {
 		return 0
 	}
@@ -51,7 +51,7 @@ func (m *Service) SessionRunEnded(
 // RuntimeRecovered advances provenance to the replacement runtime generation.
 func (m *Service) RuntimeRecovered(_ context.Context, workspaceID string, previous, current Actor) int {
 	if !validRunActor(previous) || !validRunActor(current) || !sameRun(previous, current) ||
-		strings.TrimSpace(workspaceID) == "" || current.Generation <= previous.Generation {
+		current.Generation <= previous.Generation {
 		return 0
 	}
 	items := m.sessionsForRun(workspaceID, previous.ProfileID, previous.SessionID, previous.RunID)

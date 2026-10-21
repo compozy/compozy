@@ -318,6 +318,7 @@ type LoopRequestAggregates struct {
 
 // LoopRequestPayload is a daemon API value.
 type LoopRequestPayload struct {
+	ProfileID        string          `json:"profile_id"`
 	LoopRunID        string          `json:"loop_run_id"`
 	LoopName         string          `json:"loop_name,omitempty"`
 	Generation       int             `json:"generation"`

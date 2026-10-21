@@ -262,7 +262,7 @@ func (g *LoopRepo) ClearInlineGoal(
 }
 
 func validateInlineGoalClearRequest(request looppkg.InlineGoalClearStoreRequest) error {
-	if request.WorkspaceID == "" || request.OriginSessionID == "" || request.ClearedAt.IsZero() {
+	if request.OriginSessionID == "" || request.ClearedAt.IsZero() {
 		return fmt.Errorf("%w: inline Goal clear identity is incomplete", looppkg.ErrValidation)
 	}
 	if err := request.Actor.Validate(); err != nil {

@@ -167,6 +167,7 @@ func loopConfigPatchParams(
 	patch loopConfigPatchFlags,
 ) sqlcgen.PatchLoopConfigParams {
 	return sqlcgen.PatchLoopConfigParams{
+		ProfileID:      insert.ProfileID,
 		PatchHumanGate: int64(boolToInt(patch.HumanGate)), HumanGateEnabled: insert.HumanGateEnabled,
 		PatchReattempt: loopPatchStringFlag(patch.Reattempt), ReattemptStrategy: insert.ReattemptStrategy,
 		PatchEnabledChecks: map[bool]string{false: "0", true: "1"}[patch.EnabledChecks],

@@ -747,7 +747,7 @@ func (s *goalJudgeLoopStore) GetLoopRun(
 
 func (s *goalJudgeLoopStore) GetLoopDefinitionSnapshot(
 	context.Context,
-	looppkg.WorkspaceID,
+	looppkg.WorkspaceID, string,
 	string,
 ) (looppkg.DefinitionSnapshot, error) {
 	return s.snapshot, nil

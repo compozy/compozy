@@ -10693,6 +10693,7 @@ export interface components {
       node_id: string;
       /** Format: date-time */
       opened_at: string;
+      profile_id: string;
       prompt: string;
       proposed_preview?: unknown;
       /** Format: date-time */

@@ -21,7 +21,7 @@ func (g *LoopRepo) ListLoopRosterOutputs(
 	if err := g.checkReady(ctx, "list loop roster outputs"); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(runID)) == "" {
+	if strings.TrimSpace(string(runID)) == "" {
 		return nil, fmt.Errorf("%w: roster output scope is invalid", looppkg.ErrValidation)
 	}
 	rows, err := g.queries.ListLoopRosterOutputs(ctx, sqlcgen.ListLoopRosterOutputsParams{
@@ -58,7 +58,7 @@ func (g *LoopRepo) ListLoopRosterRouteCauses(
 	if err := g.checkReady(ctx, "list loop roster route causes"); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(runID)) == "" {
+	if strings.TrimSpace(string(runID)) == "" {
 		return nil, fmt.Errorf("%w: roster route-cause scope is invalid", looppkg.ErrValidation)
 	}
 	rows, err := g.queries.ListLoopRosterRouteCauses(ctx, sqlcgen.ListLoopRosterRouteCausesParams{

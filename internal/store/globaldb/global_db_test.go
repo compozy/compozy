@@ -1563,7 +1563,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				}
 			}
 		})
-		preserved, err := upgraded.GetLoopConfig(ctx, "ws-loop-environment", "delivery")
+		preserved, err := upgraded.GetLoopConfig(ctx, "ws-loop-environment", "", "delivery")
 		if err != nil {
 			t.Fatalf("GetLoopConfig(preserved) error = %v", err)
 		}
@@ -1571,7 +1571,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 			t.Fatalf("preserved loop config = %#v, want iteration cap 7 and no environment", preserved)
 		}
 		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
-		if err := upgraded.UpsertLoopConfig(ctx, "ws-loop-environment", "delivery", looppkg.LoopConfig{
+		if err := upgraded.UpsertLoopConfig(ctx, "ws-loop-environment", "", "delivery", looppkg.LoopConfig{
 			Environment: &environment,
 		}); err != nil {
 			t.Fatalf("UpsertLoopConfig(environment) error = %v", err)
@@ -1590,7 +1590,7 @@ func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
 			}
 		})
-		stored, err := reopened.GetLoopConfig(ctx, "ws-loop-environment", "delivery")
+		stored, err := reopened.GetLoopConfig(ctx, "ws-loop-environment", "", "delivery")
 		if err != nil {
 			t.Fatalf("GetLoopConfig(reopened) error = %v", err)
 		}

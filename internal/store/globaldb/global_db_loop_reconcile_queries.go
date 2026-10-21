@@ -18,14 +18,15 @@ func oldestQueuedLoopRunReadyForPromotion(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	workspaceID string,
+	profileID string,
 	loopName string,
 ) (*loopCoordinatorCandidate, error) {
-	if workspaceID == "" || loopName == "" {
+	if loopName == "" {
 		return nil, nil
 	}
 	row, err := sqlcgen.New(exec).OldestQueuedLoopRunReadyForPromotion(
 		ctx,
-		sqlcgen.OldestQueuedLoopRunReadyForPromotionParams{WorkspaceID: workspaceID, LoopName: loopName},
+		sqlcgen.OldestQueuedLoopRunReadyForPromotionParams{WorkspaceID: workspaceID, ProfileID: profileID, LoopName: loopName},
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

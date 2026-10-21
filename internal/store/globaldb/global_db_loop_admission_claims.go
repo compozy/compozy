@@ -15,15 +15,19 @@ import (
 // GetAdmissionClaim returns one workspace-scoped admission tombstone.
 func (g *LoopRepo) GetAdmissionClaim(
 	ctx context.Context,
-	workspaceID looppkg.WorkspaceID,
+	workspaceID looppkg.WorkspaceID, profileID string,
 	loopName string,
 	sourceKey string,
 	eventKey string,
 ) (looppkg.AdmissionClaim, error) {
+	if err := validateLoopStateScope(workspaceID, profileID); err != nil {
+		return looppkg.AdmissionClaim{}, err
+	}
 	if err := g.checkReady(ctx, "get admission claim"); err != nil {
 		return looppkg.AdmissionClaim{}, err
 	}
 	row, err := g.queries.GetLoopAdmissionClaim(ctx, sqlcgen.GetLoopAdmissionClaimParams{
+		ProfileID:   loopStateProfileID(workspaceID, profileID),
 		WorkspaceID: string(workspaceID),
 		LoopName:    loopName,
 		SourceKey:   sourceKey,
@@ -60,16 +64,18 @@ func claimLoopAdmission(
 	}
 	admissionIdentity := identity.Identity
 	if _, err := exec.ExecContext(ctx, `DELETE FROM loop_admission_claims
-		WHERE workspace_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?
-		AND expires_at <= ?`, run.WorkspaceID, run.LoopName, admissionIdentity.SourceKey,
+		WHERE workspace_id = ? AND profile_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?
+		AND expires_at <= ?`, run.WorkspaceID, loopStateProfileID(run.WorkspaceID, run.ProfileID),
+		run.LoopName, admissionIdentity.SourceKey,
 		admissionIdentity.EventKey, storepkg.FormatTimestamp(now)); err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, fmt.Errorf(
 			"store: expire matching Loop admission claim: %w", err,
 		)
 	}
 	result, err := exec.ExecContext(ctx, `INSERT OR IGNORE INTO loop_admission_claims (
-		workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at, expires_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?)`, run.WorkspaceID, run.LoopName, admissionIdentity.SourceKey,
+		workspace_id, profile_id, loop_name, source_key, event_key, loop_run_id, claimed_at, expires_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, run.WorkspaceID, loopStateProfileID(run.WorkspaceID, run.ProfileID),
+		run.LoopName, admissionIdentity.SourceKey,
 		admissionIdentity.EventKey, run.ID, storepkg.FormatTimestamp(now),
 		storepkg.FormatTimestamp(now.Add(admissionIdentity.Horizon)))
 	if err != nil {
@@ -85,14 +91,16 @@ func claimLoopAdmission(
 	if affected == 1 {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, nil
 	}
-	claim, err := getAdmissionClaimWithExecutor(ctx, exec, run.WorkspaceID, run.LoopName, admissionIdentity)
+	claim, err := getAdmissionClaimWithExecutor(
+		ctx, exec, run.WorkspaceID, loopStateProfileID(run.WorkspaceID, run.ProfileID), run.LoopName, admissionIdentity,
+	)
 	if err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, err
 	}
 	if _, err := exec.ExecContext(ctx, `UPDATE loop_admission_claims SET
 		suppressed_count = suppressed_count + 1, last_suppressed_at = ?
-		WHERE workspace_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?`,
-		storepkg.FormatTimestamp(now), run.WorkspaceID, run.LoopName,
+		WHERE workspace_id = ? AND profile_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?`,
+		storepkg.FormatTimestamp(now), run.WorkspaceID, loopStateProfileID(run.WorkspaceID, run.ProfileID), run.LoopName,
 		admissionIdentity.SourceKey, admissionIdentity.EventKey); err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, fmt.Errorf(
 			"store: count suppressed Loop admission: %w",
@@ -106,7 +114,7 @@ func claimLoopAdmission(
 	if err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, err
 	}
-	if winner.WorkspaceID != run.WorkspaceID {
+	if winner.WorkspaceID != run.WorkspaceID || (run.WorkspaceID == "" && winner.ProfileID != run.ProfileID) {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, fmt.Errorf(
 			"%w: admission winner escaped workspace scope", looppkg.ErrTransitionConflict,
 		)
@@ -125,6 +133,7 @@ func getAdmissionClaimWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	loopName string,
 	identity looppkg.AdmissionIdentity,
 ) (looppkg.AdmissionClaim, error) {
@@ -132,8 +141,8 @@ func getAdmissionClaimWithExecutor(
 	var lastSuppressedAt sql.NullTime
 	err := exec.QueryRowContext(ctx, `SELECT workspace_id, loop_name, source_key, event_key,
 		loop_run_id, claimed_at, expires_at, suppressed_count, last_suppressed_at FROM loop_admission_claims
-		WHERE workspace_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?`,
-		workspaceID, loopName, identity.SourceKey, identity.EventKey).Scan(&claim.WorkspaceID,
+		WHERE workspace_id = ? AND profile_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?`,
+		workspaceID, profileID, loopName, identity.SourceKey, identity.EventKey).Scan(&claim.WorkspaceID,
 		&claim.LoopName, &claim.SourceKey, &claim.EventKey, &claim.LoopRunID, &claim.ClaimedAt,
 		&claim.ExpiresAt, &claim.SuppressedCount, &lastSuppressedAt)
 	if err != nil {

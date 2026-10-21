@@ -14,7 +14,7 @@ func (s *service) pinnedResolvedDefinition(
 	if digest == "" {
 		return nil, fmt.Errorf("%w: executed definition digest is required", ErrValidation)
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, digest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.ProfileID, digest)
 	if err != nil {
 		return nil, fmt.Errorf("load pinned Loop definition %q: %w", digest, err)
 	}

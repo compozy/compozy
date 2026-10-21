@@ -52,6 +52,7 @@ type AutomationReconciler interface {
 }
 
 type Manager struct {
+	userJournal UserJournalRemover
 	automations AutomationReconciler
 	store       *globaldb.GlobalDB
 	home        compozyconfig.HomePaths

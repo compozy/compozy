@@ -132,7 +132,7 @@ func (s *service) planRerunGeneration(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.DefinitionDigest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, run.WorkspaceID, run.ProfileID, run.DefinitionDigest)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -326,7 +326,7 @@ func validateRerunInput(input RerunInput) error {
 	if err := input.Actor.Validate(); err != nil {
 		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
-	if strings.TrimSpace(string(input.WorkspaceID)) == "" || strings.TrimSpace(string(input.RunID)) == "" ||
+	if strings.TrimSpace(string(input.RunID)) == "" ||
 		strings.TrimSpace(string(input.FromNode)) == "" {
 		return fmt.Errorf("%w: rerun workspace_id, run_id, and from_node are required", ErrValidation)
 	}
@@ -340,7 +340,7 @@ func validateForkInput(input ForkInput) error {
 	if err := input.Actor.Validate(); err != nil {
 		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
-	if strings.TrimSpace(string(input.WorkspaceID)) == "" || strings.TrimSpace(string(input.RunID)) == "" ||
+	if strings.TrimSpace(string(input.RunID)) == "" ||
 		input.Generation < 1 {
 		return fmt.Errorf("%w: fork workspace_id, run_id, and generation are required", ErrValidation)
 	}

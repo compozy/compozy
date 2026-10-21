@@ -44,7 +44,10 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 		return nil, err
 	}
 
-	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
+	identity := compozyworkspace.Identity{WorkspaceID: opts.WorkspaceID}
+	if !strings.HasPrefix(opts.WorkspaceID, "user-") || len(opts.WorkspaceID) <= len("user-") {
+		identity, err = compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("store: resolve workspace identity for %q: %w", workspaceRoot, err)
 	}

@@ -14263,6 +14263,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "profile_id": {
+            "type": "string"
+          },
           "prompt": {
             "type": "string"
           },
@@ -14287,6 +14290,7 @@
           "loop_run_id",
           "node_id",
           "opened_at",
+          "profile_id",
           "prompt",
           "state"
         ],

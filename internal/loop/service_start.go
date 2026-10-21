@@ -157,7 +157,7 @@ func (s *service) prepareResolvedStart(
 	if err := origin.Validate(); err != nil {
 		return Run{}, err
 	}
-	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, loopName, resolved.Definition, inputs.Values)
+	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, inputs.ProfileID, loopName, resolved.Definition, inputs.Values)
 	if err != nil {
 		return Run{}, err
 	}
@@ -169,6 +169,7 @@ func (s *service) prepareResolvedStart(
 	effective, err := s.effectiveConfig(
 		ctx,
 		ws,
+		inputs.ProfileID,
 		loopName,
 		resolved,
 		inputs.InheritedEnvironment,

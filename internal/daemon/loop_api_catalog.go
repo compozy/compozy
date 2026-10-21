@@ -48,6 +48,7 @@ func (s *daemonLoopAPIService) ListLoops(
 	}
 	summaries, err := s.catalogRuns.ListLoopCatalogRunSummaries(ctx, looppkg.CatalogRunQuery{
 		WorkspaceID:    ws,
+		ProfileID:      query.ProfileID,
 		LoopNames:      names,
 		AggregateAfter: s.now().Add(-loopCatalogAggregateWindow),
 	})
@@ -77,6 +78,9 @@ func (s *daemonLoopAPIService) validateLoopCatalogWorkspace(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
 ) error {
+	if workspaceID == "" {
+		return nil
+	}
 	if s == nil || s.workspaceResolver == nil {
 		return workspacepkg.ErrWorkspaceResolverUnavailable
 	}

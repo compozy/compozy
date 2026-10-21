@@ -116,9 +116,6 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	if query.Limit == 0 {
 		query.Limit = DefaultCatalogLimit
 	}
-	if query.WorkspaceID == "" {
-		return CatalogQuery{}, fmt.Errorf("%w: workspace_id is required", ErrCatalogQueryInvalid)
-	}
 	if query.ProfileID == "" || query.ProfileName == "" {
 		return CatalogQuery{}, fmt.Errorf("%w: profile id and name are required", ErrCatalogQueryInvalid)
 	}

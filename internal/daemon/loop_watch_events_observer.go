@@ -394,7 +394,7 @@ func loopWatchEventsWakeKey(loopRunID string, nodeID string) string {
 func watchEventsWorkspaceMayMatch(subscriptionWorkspaceID string, eventWorkspaceID string) bool {
 	subscriptionWorkspaceID = strings.TrimSpace(subscriptionWorkspaceID)
 	eventWorkspaceID = strings.TrimSpace(eventWorkspaceID)
-	return subscriptionWorkspaceID == "" || eventWorkspaceID == "" || subscriptionWorkspaceID == eventWorkspaceID
+	return subscriptionWorkspaceID == eventWorkspaceID
 }
 
 func loopWatchEventsOutcome(eventType string) string {

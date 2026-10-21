@@ -534,6 +534,7 @@ type GatewaySurfaceExposure struct {
 }
 
 type LoopAdmissionClaim struct {
+	ProfileID        string       `json:"profile_id"`
 	WorkspaceID      string       `json:"workspace_id"`
 	LoopName         string       `json:"loop_name"`
 	SourceKey        string       `json:"source_key"`
@@ -546,6 +547,7 @@ type LoopAdmissionClaim struct {
 }
 
 type LoopConfig struct {
+	ProfileID           string         `json:"profile_id"`
 	WorkspaceID         string         `json:"workspace_id"`
 	LoopName            string         `json:"loop_name"`
 	HumanGateEnabled    int64          `json:"human_gate_enabled"`
@@ -564,6 +566,7 @@ type LoopConfig struct {
 }
 
 type LoopDefinitionSnapshot struct {
+	ProfileID         string `json:"profile_id"`
 	WorkspaceID       string `json:"workspace_id"`
 	DefinitionDigest  string `json:"definition_digest"`
 	DefinitionVersion int64  `json:"definition_version"`
@@ -1007,6 +1010,7 @@ type LoopTimetravelOp struct {
 }
 
 type LoopUiAnnotation struct {
+	ProfileID   string  `json:"profile_id"`
 	WorkspaceID string  `json:"workspace_id"`
 	LoopName    string  `json:"loop_name"`
 	NodeID      string  `json:"node_id"`

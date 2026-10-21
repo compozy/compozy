@@ -82,14 +82,15 @@ func (q *Queries) DeleteExpiredLoopAdmissionClaims(ctx context.Context, expiresB
 }
 
 const getLoopAdmissionClaim = `-- name: GetLoopAdmissionClaim :one
-SELECT workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at, expires_at, suppressed_count, last_suppressed_at FROM loop_admission_claims
-WHERE workspace_id = ?1
-  AND loop_name = ?2
-  AND source_key = ?3
-  AND event_key = ?4
+SELECT profile_id, workspace_id, loop_name, source_key, event_key, loop_run_id, claimed_at, expires_at, suppressed_count, last_suppressed_at FROM loop_admission_claims
+WHERE profile_id = ?1 AND workspace_id = ?2
+  AND loop_name = ?3
+  AND source_key = ?4
+  AND event_key = ?5
 `
 
 type GetLoopAdmissionClaimParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	LoopName    string `json:"loop_name"`
 	SourceKey   string `json:"source_key"`
@@ -98,6 +99,7 @@ type GetLoopAdmissionClaimParams struct {
 
 func (q *Queries) GetLoopAdmissionClaim(ctx context.Context, arg GetLoopAdmissionClaimParams) (LoopAdmissionClaim, error) {
 	row := q.db.QueryRowContext(ctx, getLoopAdmissionClaim,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.LoopName,
 		arg.SourceKey,
@@ -105,6 +107,7 @@ func (q *Queries) GetLoopAdmissionClaim(ctx context.Context, arg GetLoopAdmissio
 	)
 	var i LoopAdmissionClaim
 	err := row.Scan(
+		&i.ProfileID,
 		&i.WorkspaceID,
 		&i.LoopName,
 		&i.SourceKey,

@@ -118,6 +118,13 @@ func terminalSettingsProvider(state *bootState) terminalpkg.SettingsProvider {
 		if state == nil || state.workspaceResolver == nil || state.profiles == nil {
 			return terminalpkg.Settings{}, errors.New("daemon: terminal settings dependencies are unavailable")
 		}
+		if workspaceID == "" || workspaceID == "@user" {
+			resolved, err := state.workspaceResolver.ResolveUser(ctx, profileID)
+			if err != nil {
+				return terminalpkg.Settings{}, err
+			}
+			return terminalSettings(resolved.Config.Terminal), nil
+		}
 		profileName, err := state.profiles.ProfileName(ctx, profileID)
 		if err != nil {
 			return terminalpkg.Settings{}, err

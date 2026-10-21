@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -115,7 +116,7 @@ func (i RequestIntent) validate() error {
 }
 
 func (i RequestIntent) hasValidIdentity() bool {
-	return i.WorkspaceID != "" && i.NodeID != "" && i.ItemIndex >= 0 &&
+	return i.NodeID != "" && i.ItemIndex >= 0 &&
 		(i.Kind == RequestKindAsk || i.Kind == RequestKindReview) &&
 		i.Prompt != "" && i.IssuedEpoch >= 1 && !i.OpenedAt.IsZero()
 }
@@ -152,6 +153,7 @@ type RequestRef struct {
 
 // Request is the public redaction-safe request projection.
 type Request struct {
+	ProfileID        string                   `json:"profile_id"`
 	LoopRunID        RunID                    `json:"loop_run_id"`
 	LoopName         string                   `json:"loop_name,omitempty"`
 	Generation       int                      `json:"generation"`
@@ -176,10 +178,11 @@ type Request struct {
 }
 
 type RequestQuery struct {
-	RunID  RunID
-	State  string
-	Cursor string
-	Limit  int
+	ReadScope store.ReadScope
+	RunID     RunID
+	State     string
+	Cursor    string
+	Limit     int
 }
 
 type RequestPage struct {

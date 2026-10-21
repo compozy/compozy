@@ -112,7 +112,7 @@ LIMIT sqlc.arg(page_limit);
 
 -- name: GetLoopAdmissionClaim :one
 SELECT * FROM loop_admission_claims
-WHERE workspace_id = sqlc.arg(workspace_id)
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id)
   AND loop_name = sqlc.arg(loop_name)
   AND source_key = sqlc.arg(source_key)
   AND event_key = sqlc.arg(event_key);

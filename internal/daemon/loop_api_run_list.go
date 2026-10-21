@@ -217,8 +217,7 @@ func decodeLoopRunListCursor(value string) (*loopRunListCursor, error) {
 	}
 	var cursor loopRunListCursor
 	if err := json.Unmarshal(raw, &cursor); err != nil || cursor.Rank < 0 || cursor.Rank > 2 ||
-		cursor.CreatedAt.IsZero() || strings.TrimSpace(cursor.ID) == "" ||
-		strings.TrimSpace(cursor.WorkspaceID) == "" {
+		cursor.CreatedAt.IsZero() || strings.TrimSpace(cursor.ID) == "" {
 		return nil, fmt.Errorf("%w: malformed Loop run list cursor", looppkg.ErrInvalidRunListCursor)
 	}
 	return &cursor, nil
