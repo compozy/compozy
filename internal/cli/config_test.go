@@ -2276,6 +2276,9 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			wantRedact  bool
 			wantAllowed bool
 		}{
+			{name: "Should allow operator Claude Keychain consent",
+				path: "provider_usage.providers.claude.keychain_access", wantKind: configSetBool, wantAllowed: true},
+
 			{
 				name:        "Should allow provider command",
 				path:        "providers.claude.command",

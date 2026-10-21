@@ -2,7 +2,6 @@ package providerusage
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -182,6 +181,21 @@ func TestClaudeCollector(t *testing.T) {
 }
 
 func TestClaudeKeychain(t *testing.T) {
+	t.Run("Should report a missing Keychain login as signed out", func(t *testing.T) {
+		t.Parallel()
+		target, _, _ := claudeFixture(t, false)
+		reader := &fakeClaudeKeychain{err: os.ErrNotExist}
+		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
+		c.platform = "darwin"
+		_, err := c.Identity(t.Context(), target, IntentExplicit)
+		outcome := AsUsageError(err, "Claude")
+		requireEqual(t, ErrorCodeAuthMissing, outcome.Code)
+		requireEqual(t, StatusSignedOut, outcome.Status())
+		requireEqual(t, "Sign in with claude to read usage", outcome.Message)
+		requireEqual(t, string(ActionSignIn), outcome.Action)
+		requireEqual(t, int32(1), reader.calls.Load())
+	})
+
 	t.Run("Should clear one profile or all cached logins without background Keychain reads", func(t *testing.T) {
 		t.Parallel()
 		first, _, credential := claudeFixture(t, false)
@@ -237,7 +251,7 @@ func TestClaudeKeychain(t *testing.T) {
 				target.Route.KeychainAccess = tc.consent
 				reader := &fakeClaudeKeychain{data: credential}
 				if tc.denied {
-					reader.err = errors.New("sensitive OS output")
+					reader.err = os.ErrPermission
 				}
 				c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
 				c.platform = tc.platform

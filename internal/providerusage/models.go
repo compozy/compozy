@@ -3,12 +3,13 @@ package providerusage
 import "time"
 
 type Envelope struct {
-	ProfileID   string
-	Revision    uint64 // monotonic per profile within one daemon process
-	GeneratedAt time.Time
-	Enabled     bool
-	Tray        *TraySignal // nil when no known window
-	Targets     []Snapshot  // ordered by provider catalog order
+	KeychainSupported bool
+	ProfileID         string
+	Revision          uint64 // monotonic per profile within one daemon process
+	GeneratedAt       time.Time
+	Enabled           bool
+	Tray              *TraySignal // nil when no known window
+	Targets           []Snapshot  // ordered by provider catalog order
 }
 
 type TraySignal struct {

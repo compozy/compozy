@@ -9,6 +9,9 @@ import (
 	"time"
 )
 
+// KeychainSupported reports whether the daemon host has the Claude Keychain source.
+func KeychainSupported() bool { return runtime.GOOS == "darwin" }
+
 type KeychainReader interface {
 	Read(ctx context.Context, service, account string) ([]byte, error)
 }

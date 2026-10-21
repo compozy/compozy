@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -64,6 +65,17 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	t.Run("Should advertise the daemon host Keychain capability even when disabled", func(t *testing.T) {
+		t.Parallel()
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+		for _, enabled := range []bool{true, false} {
+			requireNoError(t, f.service.SetEnabled(t.Context(), enabled))
+			env, err := f.service.Envelope(t.Context(), "personal")
+			requireNoError(t, err)
+			requireEqual(t, runtime.GOOS == "darwin", env.KeychainSupported)
+		}
+	})
+
 	t.Run("Should coalesce concurrent flights and enforce success based freshness floors", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

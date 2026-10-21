@@ -192,11 +192,12 @@ func (s *Manager) envelopeLocked(profile string) Envelope {
 	p := s.profileLocked(profile)
 	now := s.options.Clock.Now()
 	result := Envelope{
-		ProfileID:   profile,
-		Revision:    p.revision,
-		GeneratedAt: now,
-		Enabled:     s.enabled,
-		Targets:     []Snapshot{},
+		KeychainSupported: KeychainSupported(),
+		ProfileID:         profile,
+		Revision:          p.revision,
+		GeneratedAt:       now,
+		Enabled:           s.enabled,
+		Targets:           []Snapshot{},
 	}
 	if !s.enabled {
 		return result

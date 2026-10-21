@@ -19,6 +19,17 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		kind     ValueKind
 		redacted bool
 	}{
+		{name: "Should reject agent mutation of Claude Keychain consent",
+			path: "provider_usage.providers.claude.keychain_access", denial: ConfigPathForbidden},
+		{name: "Should allow provider usage enablement",
+			path: "provider_usage.enabled", kind: ConfigValueBool},
+		{name: "Should allow provider usage refresh interval",
+			path: "provider_usage.refresh_interval", kind: ConfigValueDuration},
+		{name: "Should allow Claude usage enablement",
+			path: "provider_usage.providers.claude.enabled", kind: ConfigValueBool},
+		{name: "Should reject parent provider usage replacement",
+			path: "provider_usage.providers.claude", denial: ConfigPathForbidden},
+
 		{
 			name: "Should reject Vault key provider trust root",
 			path: "vault.key_provider", denial: ConfigPathTrustForbidden,

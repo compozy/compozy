@@ -5076,6 +5076,7 @@ export type ProviderUsageBalance = {
 export type ProviderUsageEnvelope = {
   enabled: boolean;
   generated_at: string;
+  keychain_supported: boolean;
   profile_id: string;
   revision: number;
   targets: Array<ProviderUsageTarget>;
@@ -7809,6 +7810,7 @@ export type SettingsProviderUsageProviderPayload = {
 export type SettingsProviderUsageResponse = {
   available_scopes: Array<"user">;
   config: SettingsProviderUsagePayload;
+  keychain_supported: boolean;
   scope: "user";
   section:
     | "general"

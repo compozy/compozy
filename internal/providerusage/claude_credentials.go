@@ -75,7 +75,14 @@ func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Int
 	data, err := c.keychain.Read(ctx, service, username)
 	defer clear(data)
 	if err != nil {
-		return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			return nil, NewUsageError(ErrorCodeAuthMissing, "claude")
+		case errors.Is(err, os.ErrPermission):
+			return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
+		default:
+			return nil, AsUsageError(err, "Claude")
+		}
 	}
 	record, err = parseClaudeCredential(data, c.now())
 	if err != nil {

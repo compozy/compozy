@@ -7,12 +7,13 @@ import (
 
 func ProviderUsageEnvelopePayload(v providerusage.Envelope) contract.ProviderUsageEnvelope {
 	return contract.ProviderUsageEnvelope{
-		ProfileID:   v.ProfileID,
-		Revision:    v.Revision,
-		GeneratedAt: v.GeneratedAt,
-		Enabled:     v.Enabled,
-		Tray:        usagePointer(v.Tray, providerUsageTraySignal),
-		Targets:     usageMap(v.Targets, providerUsageSnapshot),
+		KeychainSupported: v.KeychainSupported,
+		ProfileID:         v.ProfileID,
+		Revision:          v.Revision,
+		GeneratedAt:       v.GeneratedAt,
+		Enabled:           v.Enabled,
+		Tray:              usagePointer(v.Tray, providerUsageTraySignal),
+		Targets:           usageMap(v.Targets, providerUsageSnapshot),
 	}
 }
 

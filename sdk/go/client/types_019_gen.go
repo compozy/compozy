@@ -99,10 +99,11 @@ type SettingsProviderUsageProviderPayload struct {
 
 // SettingsProviderUsageResponse is a daemon API value.
 type SettingsProviderUsageResponse struct {
-	Section         SettingsSectionName          `json:"section"`
-	Scope           SettingsUserScopeKind        `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind      `json:"available_scopes"`
-	Config          SettingsProviderUsagePayload `json:"config"`
+	KeychainSupported bool                         `json:"keychain_supported"`
+	Section           SettingsSectionName          `json:"section"`
+	Scope             SettingsUserScopeKind        `json:"scope"`
+	AvailableScopes   []SettingsUserScopeKind      `json:"available_scopes"`
+	Config            SettingsProviderUsagePayload `json:"config"`
 }
 
 // SettingsProviderUsageUpdateRequest is a daemon API value.

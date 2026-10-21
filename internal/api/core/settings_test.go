@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -4454,7 +4455,7 @@ func TestSettingsProviderUsageHandlers(t *testing.T) {
 			t.Fatal(err)
 		}
 		if response.Code != http.StatusOK || !body.Config.Enabled || body.Config.RefreshInterval != "5m0s" ||
-			body.Config.Providers == nil {
+			body.Config.Providers == nil || body.KeychainSupported != (runtime.GOOS == "darwin") {
 			t.Fatalf("GET = %d %s", response.Code, response.Body.String())
 		}
 		response = httptest.NewRecorder()

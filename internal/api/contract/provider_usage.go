@@ -3,12 +3,13 @@ package contract
 import "time"
 
 type ProviderUsageEnvelope struct {
-	ProfileID   string                   `json:"profile_id"`
-	Revision    uint64                   `json:"revision"`
-	GeneratedAt time.Time                `json:"generated_at"`
-	Enabled     bool                     `json:"enabled"`
-	Tray        *ProviderUsageTraySignal `json:"tray"`
-	Targets     []ProviderUsageTarget    `json:"targets"`
+	KeychainSupported bool                     `json:"keychain_supported"`
+	ProfileID         string                   `json:"profile_id"`
+	Revision          uint64                   `json:"revision"`
+	GeneratedAt       time.Time                `json:"generated_at"`
+	Enabled           bool                     `json:"enabled"`
+	Tray              *ProviderUsageTraySignal `json:"tray"`
+	Targets           []ProviderUsageTarget    `json:"targets"`
 }
 
 type ProviderUsageTraySignal struct {

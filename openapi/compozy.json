@@ -18472,6 +18472,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "keychain_supported": {
+            "type": "boolean"
+          },
           "profile_id": {
             "type": "string"
           },
@@ -18503,6 +18506,7 @@
         "required": [
           "enabled",
           "generated_at",
+          "keychain_supported",
           "profile_id",
           "revision",
           "targets",
@@ -28155,6 +28159,9 @@
           "config": {
             "$ref": "#/components/schemas/SettingsProviderUsagePayload"
           },
+          "keychain_supported": {
+            "type": "boolean"
+          },
           "scope": {
             "enum": [
               "user"
@@ -28183,6 +28190,7 @@
         "required": [
           "available_scopes",
           "config",
+          "keychain_supported",
           "scope",
           "section"
         ],

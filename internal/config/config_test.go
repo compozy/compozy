@@ -3115,14 +3115,14 @@ enabled = false
 			}
 		}
 	})
-	t.Run("Should allow typed user mutations and reject scoped writes", func(t *testing.T) {
+	t.Run("Should restrict provider usage writes to user scope", func(t *testing.T) {
 		t.Parallel()
 		for _, path := range []string{"provider_usage.enabled", "provider_usage.refresh_interval", "provider_usage.providers.codex.enabled", "provider_usage.providers.claude.keychain_access"} {
 			parts := strings.Split(path, ".")
-			policy, err := ClassifyToolConfigPath(parts)
-			if err != nil || policy.Denial != "" {
-				t.Fatalf("policy = %#v, %v", policy, err)
+			if err := ValidateConfigWriteScope(WriteScopeUser, parts); err != nil {
+				t.Fatal(err)
 			}
+
 			for _, scope := range []WriteScope{WriteScopeWorkspace, WriteScopeProfile} {
 				if err := ValidateConfigWriteScope(scope, parts); err == nil {
 					t.Fatalf("accepted %s at %s", path, scope)

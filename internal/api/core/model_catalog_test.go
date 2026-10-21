@@ -910,3 +910,15 @@ func TestProviderUsageRefreshBounds(t *testing.T) {
 		t.Fatalf("default: %+v, %v", request, err)
 	}
 }
+
+func TestProviderUsageHostCapability(t *testing.T) {
+	t.Run("Should preserve the daemon host capability in the wire envelope", func(t *testing.T) {
+		t.Parallel()
+		for _, supported := range []bool{true, false} {
+			payload := ProviderUsageEnvelopePayload(providerusage.Envelope{KeychainSupported: supported})
+			if payload.KeychainSupported != supported {
+				t.Fatalf("host capability was lost: %+v", payload)
+			}
+		}
+	})
+}

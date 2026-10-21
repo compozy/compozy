@@ -11899,6 +11899,7 @@ export interface components {
       enabled: boolean;
       /** Format: date-time */
       generated_at: string;
+      keychain_supported: boolean;
       profile_id: string;
       /** Format: uint64 */
       revision: number;
@@ -14688,6 +14689,7 @@ export interface components {
     SettingsProviderUsageResponse: {
       available_scopes: "user"[];
       config: components["schemas"]["SettingsProviderUsagePayload"];
+      keychain_supported: boolean;
       /** @enum {string} */
       scope: "user";
       /** @enum {string} */

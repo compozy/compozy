@@ -16,6 +16,7 @@ type SettingsProviderUsageUpdateRequest struct {
 }
 
 type SettingsProviderUsageResponse struct {
+	KeychainSupported bool `json:"keychain_supported"`
 	SettingsUserSectionResponseMetaPayload
 	Config SettingsProviderUsagePayload `json:"config"`
 }

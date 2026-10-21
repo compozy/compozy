@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providerusage"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
 )
@@ -38,6 +39,7 @@ func settingsProviderUsageSectionResponse(envelope settingspkg.SectionEnvelope) 
 		providers[id] = value
 	}
 	return contract.SettingsProviderUsageResponse{
+		KeychainSupported:                      providerusage.KeychainSupported(),
 		SettingsUserSectionResponseMetaPayload: settingsUserSectionMetaPayload(envelope),
 		Config: contract.SettingsProviderUsagePayload{
 			Enabled: cfg.Enabled, RefreshInterval: cfg.RefreshInterval.String(), Providers: providers,

@@ -4,7 +4,10 @@ package providerusage
 
 import (
 	"context"
+	"errors"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -23,9 +26,16 @@ func (claudeExecKeychain) Read(ctx context.Context, service, account string) ([]
 	command.WaitDelay = time.Second
 	output := &claudeSecretBuffer{}
 	command.Stdout = output
+	diagnostic := &claudeSecretBuffer{}
+	command.Stderr = diagnostic
+	defer func() { clear(diagnostic.data) }()
 	if err := command.Run(); err != nil {
 		clear(output.data)
-		return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
+		code := -1
+		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
+			code = exit.ExitCode()
+		}
+		return nil, claudeKeychainFailure(code, diagnostic.data)
 	}
 	return output.data, nil
 }
@@ -38,4 +48,18 @@ func (b *claudeSecretBuffer) Write(data []byte) (int, error) {
 	}
 	b.data = append(b.data, data...)
 	return len(data), nil
+}
+
+// claudeKeychainFailure classifies OS results without exposing diagnostic text.
+func claudeKeychainFailure(code int, diagnostic []byte) error {
+	message := strings.ToLower(string(diagnostic))
+	if code == 44 || strings.Contains(message, "could not be found") {
+		return os.ErrNotExist
+	}
+	if code == 36 || code == 128 || code == 51 ||
+		strings.Contains(message, "user canceled") ||
+		strings.Contains(message, "interaction is not allowed") || strings.Contains(message, "authorization denied") {
+		return os.ErrPermission
+	}
+	return NewUsageError(ErrorCodeProviderUnavailable, "Claude")
 }

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -69,6 +70,13 @@ func newProviderUsageAction(deps commandDeps, refresh bool) *cobra.Command {
 			}
 			if err != nil {
 				return providerUsageCLIError(err)
+			}
+			if refresh && providerArgValue(args) != "" {
+				provider := providerArgValue(args)
+				envelope.Targets = slices.DeleteFunc(envelope.Targets, func(target contract.ProviderUsageTarget) bool {
+					return target.ProviderID != provider
+				})
+				envelope.Tray = nil
 			}
 			return writeCommandOutput(
 				cmd,

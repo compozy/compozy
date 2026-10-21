@@ -47,5 +47,5 @@ func (c ProviderUsageConfig) Validate(providers map[string]ProviderConfig) error
 
 func providerUsageToolPath(path []string) bool {
 	return len(path) == 4 && path[0] == ProviderUsageConfigKey && path[1] == "providers" &&
-		(path[3] == "enabled" || (path[2] == "claude" && path[3] == "keychain_access"))
+		path[3] == "enabled"
 }
