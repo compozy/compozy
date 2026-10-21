@@ -2725,7 +2725,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
-	terminalDatabases, err := workspacedb.NewPool(func(
+	terminalDatabases, err := workspacedb.NewPool(homePaths.HomeDir, func(
 		resolveCtx context.Context,
 		workspaceID string,
 	) (workspacedb.ResolvedRoot, error) {

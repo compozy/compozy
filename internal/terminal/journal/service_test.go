@@ -665,13 +665,14 @@ func TestService(t *testing.T) {
 	t.Run("Should cancel lanes and clear live tails after a lane close failure", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)
-		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+		homeDir := t.TempDir()
+		pool, err := workspacedb.NewPool(homeDir, func(context.Context, string) (workspacedb.ResolvedRoot, error) {
 			return workspacedb.ResolvedRoot{}, errors.New("unexpected workspace open")
 		})
 		if err != nil {
 			t.Fatalf("NewPool() error = %v", err)
 		}
-		service, err := New(ctx, Options{Databases: pool, HomeDir: t.TempDir()})
+		service, err := New(ctx, Options{Databases: pool, HomeDir: homeDir})
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -712,7 +713,8 @@ func TestService(t *testing.T) {
 			recordStarted := make(chan struct{})
 			releaseStore := make(chan struct{})
 			var recordStartedOnce sync.Once
-			pool, err := workspacedb.NewPool(func(
+			homeDir := t.TempDir()
+			pool, err := workspacedb.NewPool(homeDir, func(
 				ctx context.Context,
 				_ string,
 			) (workspacedb.ResolvedRoot, error) {
@@ -729,7 +731,7 @@ func TestService(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewPool() error = %v", err)
 			}
-			service, err := New(runCtx, Options{Databases: pool, HomeDir: t.TempDir()})
+			service, err := New(runCtx, Options{Databases: pool, HomeDir: homeDir})
 			if err != nil {
 				t.Fatalf("New() error = %v", err)
 			}
@@ -843,7 +845,8 @@ func TestService(t *testing.T) {
 				secondIdentity.WorkspaceID: errors.New("second store write aborted"),
 			}
 			recordStarted := make(chan string, len(storeErrors))
-			pool, err := workspacedb.NewPool(func(
+			homeDir := t.TempDir()
+			pool, err := workspacedb.NewPool(homeDir, func(
 				ctx context.Context,
 				workspaceID string,
 			) (workspacedb.ResolvedRoot, error) {
@@ -858,7 +861,7 @@ func TestService(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewPool() error = %v", err)
 			}
-			service, err := New(runCtx, Options{Databases: pool, HomeDir: t.TempDir()})
+			service, err := New(runCtx, Options{Databases: pool, HomeDir: homeDir})
 			if err != nil {
 				t.Fatalf("New() error = %v", err)
 			}
@@ -1181,7 +1184,8 @@ func TestService(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 		var available atomic.Bool
-		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+		homeDir := t.TempDir()
+		pool, err := workspacedb.NewPool(homeDir, func(context.Context, string) (workspacedb.ResolvedRoot, error) {
 			if !available.Load() {
 				return workspacedb.ResolvedRoot{}, fmt.Errorf("store unavailable: %w", context.DeadlineExceeded)
 			}
@@ -1194,7 +1198,7 @@ func TestService(t *testing.T) {
 			t.Fatalf("NewPool() error = %v", err)
 		}
 		ownerCtx, cancelOwner := context.WithCancelCause(context.WithoutCancel(t.Context()))
-		service, err := New(ownerCtx, Options{Databases: pool, HomeDir: t.TempDir()})
+		service, err := New(ownerCtx, Options{Databases: pool, HomeDir: homeDir})
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -1242,7 +1246,8 @@ func TestService(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 		var available atomic.Bool
-		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+		homeDir := t.TempDir()
+		pool, err := workspacedb.NewPool(homeDir, func(context.Context, string) (workspacedb.ResolvedRoot, error) {
 			if !available.Load() {
 				return workspacedb.ResolvedRoot{}, fmt.Errorf("store unavailable: %w", context.DeadlineExceeded)
 			}
@@ -1252,7 +1257,7 @@ func TestService(t *testing.T) {
 			t.Fatalf("NewPool() error = %v", err)
 		}
 		ownerCtx, cancelOwner := context.WithCancelCause(context.WithoutCancel(t.Context()))
-		service, err := New(ownerCtx, Options{Databases: pool, HomeDir: t.TempDir()})
+		service, err := New(ownerCtx, Options{Databases: pool, HomeDir: homeDir})
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -1335,7 +1340,8 @@ func newJournalTestService(ctx context.Context, t *testing.T) (*Service, string)
 	if err != nil {
 		t.Fatalf("EnsureIdentity() error = %v", err)
 	}
-	pool, err := workspacedb.NewPool(func(
+	homeDir := t.TempDir()
+	pool, err := workspacedb.NewPool(homeDir, func(
 		_ context.Context,
 		workspaceID string,
 	) (workspacedb.ResolvedRoot, error) {
@@ -1351,7 +1357,7 @@ func newJournalTestService(ctx context.Context, t *testing.T) (*Service, string)
 		t.Fatalf("NewPool() error = %v", err)
 	}
 	ownerCtx, cancelOwner := context.WithCancelCause(context.WithoutCancel(t.Context()))
-	service, err := New(ownerCtx, Options{Databases: pool, HomeDir: t.TempDir()})
+	service, err := New(ownerCtx, Options{Databases: pool, HomeDir: homeDir})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}

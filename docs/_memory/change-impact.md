@@ -1,5 +1,34 @@
 # Compozy Change Impact
 
+## Terminal journal storage under the daemon home — 2026-10-21
+
+Owner: `internal/store/workspacedb/` and `internal/daemon/terminal_boot.go`.
+The terminal database now uses `<COMPOZY_HOME>/workspaces/<registered-workspace-id>/compozy.db`,
+matching the existing terminal artifact and recording directory. The daemon injects its resolved
+home; storage never derives it from the project working directory or an ambient environment lookup.
+Workspace removal uses the same path after restart, including when the project root is missing.
+
+- Native `compozy__terminal_*`, CLI/HTTP/UDS, Web journal queries, hooks, extension SDKs and config
+  keys keep their existing shapes. No SQLite schema or generated contract changes.
+- Workspace registration IDs partition files; the existing durable identity check and profile-owned
+  rows remain. A different daemon home has independent storage for the same workspace.
+- Site journal documentation and `ET-terminal-journal-recording` step 6 describe the new location.
+  The official `skills/compozy/references/terminal.md` still describes the same journal and profile
+  operations and does not promise a project-local storage path, so it needs no change.
+- Canonical verification: `workspacedb.TestOpen` owns storage, reopen, isolation and removal;
+  terminal journal suites cover persistence consumers; existing HTTP/UDS terminal integration
+  journeys exercise real processes. Test fixture constructors now pass an explicit isolated home.
+
+### ADR: accepted storage hard cut
+
+Decision: retire project-local database reads and writes without automatic import or fallback.
+The user explicitly approved a hard cut on 2026-10-21 ("pode fazer hardcut mesmo"). This is a
+specific exception to SD-013 regime 1's automatic upgrade rule, not a general policy change.
+The conventional alternative is a lossless migration; the accepted tradeoff is that old command
+history and its recording/artifact index are absent from the new journal. Existing project-local
+SQLite files and retained artifact bytes are left intact. No files from a running older daemon
+are deleted. The release note includes migration notes; internal constructors change together.
+
 ## Intel macOS release recovery — 2026-10-20
 
 Owner: `.github/workflows/release.yml`, release run `39431274097`. The production
