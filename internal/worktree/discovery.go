@@ -66,6 +66,17 @@ func ownsCheckoutPath(row Worktree) bool {
 	return row.State != StateRemoved && row.State != StateDismissed
 }
 
+// ownedCheckoutPaths keys every path a registry row still claims.
+func ownedCheckoutPaths(rows []Worktree) map[string]struct{} {
+	paths := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if ownsCheckoutPath(row) {
+			paths[canonicalComparablePath(row.Path)] = struct{}{}
+		}
+	}
+	return paths
+}
+
 // List combines registered and discovered checkouts, reconciling vanished ready
 // rows without overwriting concurrent lifecycle changes or guessing on stat errors.
 func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*Listing, error) {
@@ -102,13 +113,8 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 		listing.Repo.Diagnostic = scanDiagnostic
 		return listing, nil
 	}
-	registeredPaths := make(map[string]struct{}, len(rows))
+	registeredPaths := ownedCheckoutPaths(rows)
 	gitPaths := make(map[string]GitWorktree, len(entries))
-	for _, row := range rows {
-		if ownsCheckoutPath(row) {
-			registeredPaths[canonicalComparablePath(row.Path)] = struct{}{}
-		}
-	}
 	for _, entry := range entries {
 		pathKey := canonicalComparablePath(entry.Path)
 		gitPaths[pathKey] = entry
