@@ -173,7 +173,13 @@ async function cleanupDiscovered(
   try {
     await removeDiscoveredWorktree(workspaceId, discovered.path, { force });
   } catch (error) {
-    if (error instanceof WorktreeApiError && error.status === 404) {
+    // Only the target-specific code proves Git no longer lists the path; a
+    // missing workspace also answers 404 without any Git check.
+    if (
+      error instanceof WorktreeApiError &&
+      error.status === 404 &&
+      decodeWorktreeRefusal(error)?.code === WORKTREE_ERROR_CODES.notFound
+    ) {
       return "No longer listed by Git; confirmed by CompozyOS.";
     }
     throw error;

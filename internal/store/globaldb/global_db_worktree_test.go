@@ -174,6 +174,37 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 	})
 
+	// Invariant: discovered removal must see a live owner in any workspace that
+	// shares the repository, while terminal records release the path.
+	t.Run("Should report live path ownership across workspaces only", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceA := registerWorkspaceForGlobalTests(t, globalDB, "owner-a", filepath.Join(t.TempDir(), "a"))
+		now := time.Date(2026, 10, 21, 3, 0, 0, 0, time.UTC)
+		livePath := filepath.Join(t.TempDir(), "live")
+		removedPath := filepath.Join(t.TempDir(), "removed")
+		for _, item := range []worktreepkg.Worktree{
+			{ID: "wt_owner_live", Name: "live", Path: livePath, State: worktreepkg.StateReady},
+			{ID: "wt_owner_removed", Name: "removed", Path: removedPath, State: worktreepkg.StateRemoved},
+		} {
+			item.ProfileID, item.WorkspaceID = store.DefaultProfileID, workspaceA
+			item.Origin, item.SetupState = worktreepkg.OriginManual, worktreepkg.SetupNone
+			item.CreatedAt, item.UpdatedAt = now, now
+			if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+				t.Fatalf("Insert(%s) error = %v", item.ID, err)
+			}
+		}
+		for path, want := range map[string]bool{
+			livePath: true, removedPath: false, filepath.Join(t.TempDir(), "unknown"): false,
+		} {
+			got, err := globalDB.Worktrees.PathOwnedByAnyWorkspace(ctx, path)
+			if err != nil || got != want {
+				t.Fatalf("PathOwnedByAnyWorkspace(%q) = %v, %v; want %v", path, got, err, want)
+			}
+		}
+	})
+
 	t.Run("Should isolate every repository read and side-table mutation by workspace", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

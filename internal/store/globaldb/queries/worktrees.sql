@@ -33,6 +33,11 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND state NOT IN ('removed', 'dismissed')
 LIMIT 1;
 
+-- name: CountLiveWorktreesByPath :one
+SELECT COUNT(*) FROM worktrees
+WHERE path = sqlc.arg(path)
+  AND state NOT IN ('removed', 'dismissed');
+
 -- name: ListWorktrees :many
 SELECT * FROM worktrees
 WHERE workspace_id = sqlc.arg(workspace_id)

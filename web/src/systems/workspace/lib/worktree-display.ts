@@ -62,9 +62,13 @@ export function canRemoveWorktree(entry: WorktreeNestEntry): boolean {
   return entry.worktree !== null && entry.displayState === "ready";
 }
 
-/** A discovered entry whose checkout is gone; removal only clears Git's record of it. */
+/**
+ * A discovered entry Git reports as prunable: its checkout is gone, so removal
+ * only clears Git's record. `unavailable` alone can be an unreadable directory
+ * that still holds files, so it does not qualify.
+ */
 export function isStaleDiscovered(discovered: DiscoveredWorktreePayload): boolean {
-  return discovered.stale || discovered.unavailable;
+  return discovered.stale;
 }
 
 /**

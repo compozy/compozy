@@ -78,6 +78,19 @@ func (g *WorktreeRepo) GetByPath(ctx context.Context, workspaceID, path string) 
 	return worktreeFromSQLC(row)
 }
 
+// PathOwnedByAnyWorkspace crosses workspaces on purpose: one repository can back
+// several workspaces, and Git lists every linked worktree to each of them.
+func (g *WorktreeRepo) PathOwnedByAnyWorkspace(ctx context.Context, path string) (bool, error) {
+	if err := g.checkReady(ctx, "find worktree path owner"); err != nil {
+		return false, err
+	}
+	count, err := g.queries.CountLiveWorktreesByPath(ctx, strings.TrimSpace(path))
+	if err != nil {
+		return false, fmt.Errorf("store: find worktree path owner: %w", err)
+	}
+	return count > 0, nil
+}
+
 func (g *WorktreeRepo) List(ctx context.Context, workspaceID string) ([]worktree.Worktree, error) {
 	if err := g.checkReady(ctx, "list worktrees"); err != nil {
 		return nil, err

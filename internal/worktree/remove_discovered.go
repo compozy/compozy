@@ -124,6 +124,19 @@ func (s *Service) readDiscoveredRemovalTarget(
 			)
 		}
 	}
+	// One repository can back several workspaces, and Git lists every linked
+	// worktree to each of them. A live record anywhere keeps its own removal path.
+	for _, candidate := range []string{matched.Path, matchedKey} {
+		owned, err := s.store.PathOwnedByAnyWorkspace(ctx, candidate)
+		if err != nil {
+			return discoveredRemovalTarget{}, fmt.Errorf("worktree: find path owner: %w", err)
+		}
+		if owned {
+			return discoveredRemovalTarget{}, refusal(
+				ErrDiscoveredRegistered, "another workspace registers this worktree",
+			)
+		}
+	}
 	stale := matched.Prunable
 	if !stale {
 		if _, statErr := os.Lstat(matched.Path); errors.Is(statErr, os.ErrNotExist) {

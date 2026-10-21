@@ -124,13 +124,13 @@ entries by that spelling (on macOS, `/private/tmp/...` is not `/tmp/...`):
     compozy worktree remove --path /private/tmp/detached-a217e52e -o json
 
 HTTP/UDS use `POST /api/workspaces/{workspace_id}/worktrees/discovered/remove` with
-`{path, force?}`; native `compozy__worktree_remove` takes `path` instead of `ref`. A stale entry
-(`stale` or `unavailable`) only loses its Git metadata. A live checkout gets the same identity checks
+`{path, force?}`; native `compozy__worktree_remove` takes `path` instead of `ref`. A stale (prunable) entry
+only loses its Git metadata. A live checkout gets the same identity checks
 as adoption and the same `worktree_dirty_requires_force` / `worktree_unpushed_requires_force`
 refusal with a risk inventory. A detached HEAD counts commits that no branch, tag or remote keeps.
 Retry with `--force` after review. Discovered removal never deletes a branch, so `--path` cannot be
-combined with a ref or `--delete-branch`. A path that a registry row owns is refused with
-`worktree_registered`: remove that record by its ref. The `worktree.pre_remove` gate runs with
+combined with a ref or `--delete-branch`. A path that a live record owns, in this or any other
+workspace on the same repository, is refused with `worktree_registered`: remove that record by its ref. The `worktree.pre_remove` gate runs with
 `discovered: true`, an empty `worktree_id` and no `origin`.
 
 In Web bulk removal, **Retry failed** remains non-force. A dirty/unpushed refusal with a risk

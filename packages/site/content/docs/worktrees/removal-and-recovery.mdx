@@ -209,16 +209,17 @@ spelling, so on macOS `/private/tmp/...` and `/tmp/...` are different paths.
 compozy worktree remove --path /private/tmp/detached-a217e52e --workspace . -o json
 ```
 
-Expected result reports `action: "removed"` with that `path`. A stale entry, shown as unavailable
-because its directory is gone, only loses Git's record of it. A live checkout gets the same checks as
+Expected result reports `action: "removed"` with that `path`. A stale entry, one Git reports as
+prunable because its directory is gone, only loses Git's record of it. A live checkout gets the same checks as
 a registered one: uncommitted changes, or commits that no branch, tag or remote keeps, are refused
 with `worktree_dirty_requires_force` or `worktree_unpushed_requires_force` and a `risk` inventory.
 Review it, then repeat with `--force` to discard that work.
 
 Removing a discovered Worktree never deletes its branch, so `--path` cannot be combined with a
-Worktree name or `--delete-branch`. A path that already has a CompozyOS record is refused with
-`worktree_registered`; remove that record by its name instead. In the app, choose
-**Delete worktree…** on a discovered row, or **Remove stale entry…** on an unavailable one. Both open
+Worktree name or `--delete-branch`. A path that already has a CompozyOS record, in this or another
+workspace on the same repository, is refused with `worktree_registered`; remove that record by its
+name instead. In the app, choose
+**Delete worktree…** on a discovered row, or **Remove stale entry…** on a prunable one. Both open
 the batch confirmation below.
 
 ## Remove several Worktrees in the app

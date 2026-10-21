@@ -1490,6 +1490,27 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatal("stale admin entry survived removal")
 		}
 
+		f.git(f.workspace.Root, "branch", "foreign-owned", "main")
+		foreignPath := filepath.Join(t.TempDir(), "foreign-owned")
+		f.git(f.workspace.Root, "worktree", "add", foreignPath, "foreign-owned")
+		foreignListed := listedPath(foreignPath)
+		if err := f.store.Insert(t.Context(), Worktree{
+			ID: "wt_foreign_owner", ProfileID: testWorktreeProfileID, WorkspaceID: "ws-other-same-repo",
+			Name: "foreign-owned", Branch: "foreign-owned", Path: canonicalComparablePath(foreignPath),
+			State: StateReady, Origin: OriginAdopted, SetupState: SetupNone,
+			CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("Insert(foreign owner) error = %v", err)
+		}
+		if _, err := f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, foreignListed, true,
+		); !errors.Is(err, ErrDiscoveredRegistered) {
+			t.Fatalf("RemoveDiscovered(other workspace owner) error = %v, want ErrDiscoveredRegistered", err)
+		}
+		if _, err := os.Stat(foreignPath); err != nil {
+			t.Fatalf("foreign-owned checkout changed: %v", err)
+		}
+
 		f.git(f.workspace.Root, "branch", "live-discovered", "main")
 		livePath := filepath.Join(t.TempDir(), "live-discovered")
 		f.git(f.workspace.Root, "worktree", "add", livePath, "live-discovered")

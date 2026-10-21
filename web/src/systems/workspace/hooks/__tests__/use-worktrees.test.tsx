@@ -370,6 +370,7 @@ describe("worktree batch lifecycle", () => {
     const stale = discovered("/private/tmp/detached-stale", true);
     const live = discovered("/Users/ada/dev/detached-live", false);
     const lost = discovered("/Users/ada/dev/detached-lost", false);
+    const orphaned = discovered("/Users/ada/dev/workspace-gone", false);
     mocks.removeDiscoveredWorktree.mockImplementation(async (_workspace, path, options) => {
       if (path === live.path && !options.force) {
         throw new WorktreeApiError("refused", 409, {
@@ -386,13 +387,16 @@ describe("worktree batch lifecycle", () => {
       if (path === lost.path) {
         throw new WorktreeApiError("gone", 404, { code: "worktree_not_found" });
       }
+      if (path === orphaned.path) {
+        throw new WorktreeApiError("workspace gone", 404, { code: "workspace_not_found" });
+      }
     });
     const { result } = renderHook(
       () =>
         useWorktreeRemovalBatch({
           workspaceId: "ws_alpha",
           worktrees: [],
-          discovered: [stale, live, lost],
+          discovered: [stale, live, lost, orphaned],
         }),
       { wrapper: createWrapper(new QueryClient()) }
     );
@@ -403,6 +407,7 @@ describe("worktree batch lifecycle", () => {
       ["success", "Stale Git entry cleared. Branch kept."],
       ["failed", expect.any(String)],
       ["success", "No longer listed by Git; confirmed by CompozyOS."],
+      ["failed", expect.any(String)],
     ]);
     expect(mocks.inspectWorktree).not.toHaveBeenCalled();
     expect(result.current.forceEligible).toHaveLength(1);
@@ -419,6 +424,7 @@ describe("worktree batch lifecycle", () => {
         [stale.path, false],
         [live.path, false],
         [lost.path, false],
+        [orphaned.path, false],
         [live.path, true],
       ]
     );

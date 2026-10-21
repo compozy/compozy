@@ -151,6 +151,8 @@ type Store interface {
 	Insert(context.Context, Worktree) error
 	Get(context.Context, string, string) (*Worktree, error)
 	GetByPath(context.Context, string, string) (*Worktree, error)
+	// PathOwnedByAnyWorkspace reports whether a live record in any workspace owns the path.
+	PathOwnedByAnyWorkspace(context.Context, string) (bool, error)
 	List(context.Context, string) ([]Worktree, error)
 	ListRecoverable(context.Context) ([]Worktree, error)
 	DeletePending(context.Context, string, string) error

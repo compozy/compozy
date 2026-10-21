@@ -42,7 +42,8 @@ function describeTarget(target: WorktreeRemovalTarget) {
   return {
     name: discovered.name,
     path: discovered.path,
-    branch: discovered.branch,
+    // A detached checkout has no branch; the risk copy still needs a subject.
+    branch: discovered.branch || `Detached ${discovered.name}`,
     action: isStaleDiscovered(discovered) ? "Clear stale Git entry" : "Remove discovered checkout",
     owner: null,
   };
