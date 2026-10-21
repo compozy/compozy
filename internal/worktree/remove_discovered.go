@@ -172,7 +172,8 @@ func (s *Service) evaluateDiscoveredRemoval(
 	target discoveredRemovalTarget,
 	force bool,
 ) (Worktree, RemovalRisk, *RemovalRefusal, error) {
-	candidate, err := fileutil.CanonicalExistingDirectory(target.entry.Path)
+	// Verbatim: the safety checks must inspect the same checkout Git removes.
+	candidate, err := fileutil.CanonicalExistingDirectoryExact(target.entry.Path)
 	if err != nil {
 		return Worktree{}, RemovalRisk{}, nil, refusal(ErrAdoptionUnreadable, err.Error())
 	}

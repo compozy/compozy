@@ -89,9 +89,15 @@ func realpathDeepestExisting(path string) (string, error) {
 }
 
 // CanonicalExistingDirectory returns the absolute symlink-resolved identity of
-// an existing directory.
+// an existing directory, ignoring edge whitespace in operator-typed input.
 func CanonicalExistingDirectory(path string) (string, error) {
-	absolute, err := filepath.Abs(filepath.Clean(strings.TrimSpace(path)))
+	return CanonicalExistingDirectoryExact(strings.TrimSpace(path))
+}
+
+// CanonicalExistingDirectoryExact resolves path verbatim, for paths read from
+// Git where edge whitespace is part of a distinct checkout's name.
+func CanonicalExistingDirectoryExact(path string) (string, error) {
+	absolute, err := filepath.Abs(filepath.Clean(path))
 	if err != nil {
 		return "", fmt.Errorf("fileutil: make directory %q absolute: %w", path, err)
 	}

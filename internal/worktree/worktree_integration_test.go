@@ -1580,6 +1580,29 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("RemoveDiscovered(detached unique) = (%#v, %v), want one-commit refusal", refusalResult, err)
 		}
 
+		// Twins differing by a trailing space are distinct checkouts: the safety
+		// checks must inspect the one Git would remove, not its trimmed sibling.
+		twinRoot := t.TempDir()
+		cleanTwin := filepath.Join(twinRoot, "twin")
+		spacedTwin := cleanTwin + " "
+		f.git(f.workspace.Root, "worktree", "add", "--detach", cleanTwin, "main")
+		f.git(f.workspace.Root, "worktree", "add", "--detach", spacedTwin, "main")
+		if err := os.WriteFile(filepath.Join(spacedTwin, "unique.txt"), []byte("unique\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(spaced twin) error = %v", err)
+		}
+		f.git(spacedTwin, "add", "unique.txt")
+		f.git(spacedTwin, "commit", "-m", "unique spaced twin")
+		refusalResult, err = f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, spacedTwin, RemoveDiscoveredOptions{},
+		)
+		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
+			refusalResult.Risk.UnpushedCommits != 1 {
+			t.Fatalf("RemoveDiscovered(spaced twin) = (%#v, %v), want one-commit refusal", refusalResult, err)
+		}
+		if _, err := os.Stat(spacedTwin); err != nil {
+			t.Fatalf("refused removal touched the spaced twin: %v", err)
+		}
+
 		registered, err := f.service.Create(
 			t.Context(), f.workspace.ID, CreateOptions{ProfileID: testWorktreeProfileID, Name: "Registered"},
 		)
