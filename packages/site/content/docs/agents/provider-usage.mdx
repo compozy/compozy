@@ -154,7 +154,7 @@ daemon can approve a Keychain read.
 `compozy provider usage list` prints the numbers the daemon already has. It never contacts
 providers:
 
-```console
+```bash
 $ compozy provider usage list
 PROVIDER      STATUS       TIGHTEST WINDOW  USED  RESETS IN  UPDATED
 Claude Code   ok           Weekly · Opus    88%   3d 2h      1m ago
@@ -172,7 +172,7 @@ numbers were measured.
 same table. Pass a provider ID to refresh and print only that provider. When a Claude row needs
 Keychain consent, the table ends with the command that grants it:
 
-```console
+```bash
 $ compozy provider usage refresh claude
 PROVIDER      STATUS         TIGHTEST WINDOW  USED  RESETS IN  UPDATED
 Claude Code   needs_consent  —                —     —          —
@@ -197,7 +197,7 @@ Useful flags and forms:
 `--wait` accepts `0s` to `30s`. Both commands exit `0` even when some providers end in an error
 status; they exit `1` for a bad request:
 
-```console
+```bash
 $ compozy provider usage refresh --wait 90s
 error: --wait must be between 0s and 30s (invalid_request)
 $ compozy provider usage list nope
@@ -220,7 +220,7 @@ Open **Settings → Provider usage**, or click **Settings** in the popover foote
 
 The same settings are `config.toml` keys. To turn usage off and back on from the terminal:
 
-```console
+```bash
 $ compozy config set provider_usage.enabled false
 $ compozy provider usage list
 Provider usage is turned off. Enable it with: compozy config set provider_usage.enabled true

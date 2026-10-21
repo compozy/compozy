@@ -974,6 +974,7 @@ test("E2E-011: the daemon-served shell preserves Settings, Chromium effects, and
       "Layouts",
       "Profiles",
       "Providers",
+      "Provider usage",
       "Palette",
       "Notifications",
       "Diagnostics",
