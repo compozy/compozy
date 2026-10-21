@@ -3845,3 +3845,12 @@ Owner: workflow `opencode-model-discovery` (Tasks 01–03 implement; Tasks 04–
 - **Official CompozyOS skill:** `skills/compozy/references/extensions.md` documents the two targets, the setup skill, the record, and the Loop `target` input.
 - **Web/Docs:** no Web change. The site guide `extensions/open-design.mdx` adds the library prototyping section and the updated resource count. `ET-open-design` step 7 owns the library-target QA walk (passed 2026-10-20 on three projects).
 - **Compatibility:** additive. Existing HTML requests, artifact paths, lint calls, and Loop invocations without `target` behave as before (`auto` follows the skill, which defaults to HTML without a record).
+
+## Issue #872 — Session message formatting and editing
+
+- Web: preserve authored soft line breaks in user prose/list items; keep both message action rows visible; expose the existing conversation rewind as Edit message with an explicit draft/conversation consequence.
+- Native tools and HTTP/UDS/CLI: reuse the existing fenced rewind and prompt submission contracts; no schema or tool ID changes.
+- Extensibility, hooks, configuration: unchanged.
+- Workspace/profile isolation and user data: unchanged; rewind remains daemon-authoritative and archives the discarded suffix without undoing file/tool effects. No migration.
+- Official runtime skill: existing rewind contract remains accurate; no skill changes.
+- Docs/QA: update RT-conversation-rewind and RT-session-transcript-whitespace; browser suites cover authored layout, persistent controls, and Stop/edit/resend.

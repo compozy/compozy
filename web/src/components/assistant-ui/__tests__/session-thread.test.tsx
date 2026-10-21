@@ -2131,7 +2131,7 @@ describe("SessionThread transcript states", () => {
       forkRequest: null,
     });
     expect(await screen.findByTestId("user-message-rewind")).toBeInTheDocument();
-    const rewind = screen.getByRole("button", { name: "Rewind to here" });
+    const rewind = screen.getByRole("button", { name: "Edit message" });
     await waitFor(() => expect(rewind).toBeEnabled());
     expect(screen.getAllByTestId("user-message-rewind")).toHaveLength(1);
     expect(screen.queryByTestId("user-message-fork")).not.toBeInTheDocument();

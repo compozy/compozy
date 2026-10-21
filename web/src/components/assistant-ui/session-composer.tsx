@@ -214,6 +214,7 @@ function SessionComposerInput() {
   const mentionsAvailable = useMentionWorkspaceId() !== "";
   return (
     <LexicalComposerInput
+      aria-label="Session prompt"
       data-testid="composer-input"
       inert={!meta.canPrompt}
       placeholder={
@@ -240,10 +241,7 @@ function SessionComposerInput() {
         !meta.canPrompt ? "opacity-60" : null
       )}
     >
-      <SessionComposerHandleBridge
-        onHandle={actions.setComposerInputElement}
-        editableAriaLabel="Session prompt"
-      />
+      <SessionComposerHandleBridge onHandle={actions.setComposerInputElement} />
       <SessionBusyEnterPlugin
         active={state.busyEnterActive}
         blocker={state.sendBlocker}
