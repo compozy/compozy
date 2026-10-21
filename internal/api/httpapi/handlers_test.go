@@ -4043,6 +4043,41 @@ func TestSessionMonitorHandlers(t *testing.T) {
 			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 		}
 	})
+
+	t.Run("Should hide another profile's monitors from list and cancel", func(t *testing.T) {
+		foreign, err := monitors.Create(t.Context(), monitorpkg.Spec{
+			WorkspaceID: "ws-workspace", SessionID: "sess-foreign", Kind: monitorpkg.KindTimer,
+			Description: "foreign wake", Delay: time.Hour,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		foreignHandlers := newTestHandlers(t, stubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, WorkspaceID: "ws-workspace", ProfileID: "profile-marketing",
+					State: session.StateActive,
+				}, nil
+			},
+		}, stubObserver{}, newTestHomePaths(t))
+		foreignHandlers.SessionMonitors = monitors
+		foreignEngine := newTestRouter(t, foreignHandlers)
+		foreignBase := "/api/workspaces/ws-workspace/sessions/sess-foreign"
+
+		response := performRequest(t, foreignEngine, http.MethodGet, foreignBase+"/monitors", nil)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("list status=%d body=%s", response.Code, response.Body.String())
+		}
+		response = performRequest(
+			t, foreignEngine, http.MethodPost, foreignBase+"/monitors/"+foreign.ID+"/cancel", []byte("{}"),
+		)
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("cancel status=%d body=%s", response.Code, response.Body.String())
+		}
+		if counts := monitors.ActiveCounts([]string{"sess-foreign"}); counts["sess-foreign"] != 1 {
+			t.Fatalf("active after denied cancel=%v, want the monitor kept", counts)
+		}
+	})
 }
 
 // UT-012 UT-017: queue origin reaches HTTP and protects agent-authored edits/promotions.

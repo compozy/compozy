@@ -26,7 +26,8 @@ export function useSessionMonitors(
 ): SessionMonitorsModel {
   const queryClient = useQueryClient();
   const options = sessionMonitorsOptions(workspaceId, sessionId);
-  const query = useQuery({ ...options, enabled: options.enabled && enabled });
+  const queryEnabled = options.enabled === true && enabled;
+  const query = useQuery({ ...options, enabled: queryEnabled });
   const mutation = useMutation({
     mutationFn: (monitorId: string) => cancelSessionMonitor(workspaceId, sessionId, monitorId),
     onSettled: () =>
@@ -40,7 +41,7 @@ export function useSessionMonitors(
   });
   return {
     monitors: (query.data?.monitors ?? []).filter(item => WAITING_STATUSES.has(item.status)),
-    loading: query.isPending && enabled,
+    loading: query.isPending && queryEnabled,
     failed: query.isError,
     retry: () => void query.refetch(),
     cancel: monitorId => mutation.mutateAsync(monitorId),

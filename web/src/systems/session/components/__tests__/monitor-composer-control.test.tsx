@@ -98,4 +98,16 @@ describe("MonitorComposerControl", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledOnce();
   });
+
+  it("Should keep cached monitors visible and offer a retry when a refresh fails", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    renderControl({ failed: true, onRetry, monitors: [monitor()] });
+    await user.click(screen.getByRole("button", { name: "Monitors, 1 active" }));
+
+    expect(screen.getByTestId("composer-monitor-mon-1")).toHaveTextContent("Check CI on PR #875");
+    expect(screen.getByText("Couldn't refresh monitors.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
 });

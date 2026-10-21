@@ -3,13 +3,15 @@ package monitor
 // Suite: daemon-owned session monitors.
 // Invariant: a fired monitor admits exactly one wake to its owning session, never
 // wakes after cancel or session stop, and holds bounded state and cap slots;
-// every change to a session's monitors reaches the observer off the caller's path.
+// every change to a session's monitors is followed by an observer refresh off the
+// caller's path, coalesced per session but never dropped.
 // Boundary IN: terminal watch outcomes, timers, waker refusals. Boundary OUT: Notifications and Monitor state.
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -267,10 +269,15 @@ func TestServiceCancelAndLimits(t *testing.T) {
 		})
 	})
 
-	t.Run("Should count occupied slots and notify the observer on every monitor change", func(t *testing.T) {
+	t.Run("Should count occupied slots and notify the observer after every monitor change", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			var mu sync.Mutex
 			var observed []string
+			calls := func() int {
+				mu.Lock()
+				defer mu.Unlock()
+				return len(observed)
+			}
 			terminals := &channelTerminals{results: make(chan Outcome, 1)}
 			service, err := NewService(
 				t.Context(),
@@ -286,13 +293,20 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("NewService() error = %v", err)
 			}
 			t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
-			watched, err := service.Create(t.Context(), terminalSpec("sess-a"))
-			if err != nil {
+			if _, err := service.Create(t.Context(), terminalSpec("sess-a")); err != nil {
 				t.Fatalf("Create() error = %v", err)
+			}
+			synctest.Wait()
+			if got := calls(); got != 1 {
+				t.Fatalf("observer calls after first create = %d, want 1", got)
 			}
 			timer, err := service.Create(t.Context(), timerSpec("sess-a"))
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
+			}
+			synctest.Wait()
+			if got := calls(); got != 2 {
+				t.Fatalf("observer calls after second create = %d, want 2", got)
 			}
 			if got := service.ActiveCounts([]string{"sess-a", "sess-b"}); got["sess-a"] != 2 || len(got) != 1 {
 				t.Fatalf("ActiveCounts() = %v, want sess-a=2 only", got)
@@ -300,17 +314,64 @@ func TestServiceCancelAndLimits(t *testing.T) {
 			if _, err := service.Cancel("sess-a", timer.ID); err != nil {
 				t.Fatalf("Cancel() error = %v", err)
 			}
+			synctest.Wait()
+			if got := calls(); got != 3 {
+				t.Fatalf("observer calls after cancel = %d, want 3", got)
+			}
 			terminals.results <- Outcome{Reason: ReasonExit}
 			synctest.Wait()
 			if got := service.ActiveCounts([]string{"sess-a"}); len(got) != 0 {
 				t.Fatalf("ActiveCounts() after cancel and fire = %v, want none", got)
 			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(observed) < 4 || observed[len(observed)-1] != "sess-a" {
+				t.Fatalf("observer calls = %v, want a sess-a refresh after the terminal fired", observed)
+			}
+		})
+	})
+
+	t.Run("Should coalesce a burst into one pending refresh per session without dropping any", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var observed []string
+			gate := make(chan struct{})
+			service, err := NewService(
+				t.Context(),
+				nil,
+				&recordingWaker{},
+				WithObserver(func(ctx context.Context, id string) {
+					mu.Lock()
+					first := len(observed) == 0
+					observed = append(observed, id)
+					mu.Unlock()
+					if first {
+						select {
+						case <-gate:
+						case <-ctx.Done():
+						}
+					}
+				}),
+			)
+			if err != nil {
+				t.Fatalf("NewService() error = %v", err)
+			}
+			t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+			if _, err := service.Create(t.Context(), timerSpec("sess-a")); err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			synctest.Wait()
+			for _, sessionID := range []string{"sess-b", "sess-b", "sess-c", "sess-a", "sess-c"} {
+				if _, err := service.Create(t.Context(), timerSpec(sessionID)); err != nil {
+					t.Fatalf("Create(%s) error = %v", sessionID, err)
+				}
+			}
+			close(gate)
 			synctest.Wait()
 			mu.Lock()
 			defer mu.Unlock()
-			// create, create, cancel, fired (delivering), delivered
-			if len(observed) != 5 {
-				t.Fatalf("observer calls = %v, want 5 for sess-a (watched %s)", observed, watched.ID)
+			if want := []string{"sess-a", "sess-b", "sess-c", "sess-a"}; !slices.Equal(observed, want) {
+				t.Fatalf("observer calls = %v, want %v", observed, want)
 			}
 		})
 	})
@@ -337,6 +398,8 @@ func TestServiceCancelAndLimits(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
+			// Park the dispatcher inside the observer so shutdown must cancel it.
+			synctest.Wait()
 			if _, err := service.Cancel("sess-a", created.ID); err != nil {
 				t.Fatalf("Cancel() error = %v", err)
 			}

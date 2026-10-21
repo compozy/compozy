@@ -84,6 +84,19 @@ function MonitorRow({
   );
 }
 
+function MonitorLoadError({ message, onRetry }: { message: string; onRetry?: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 px-0.5">
+      <p className="text-transcript-caption text-muted">{message}</p>
+      {onRetry ? (
+        <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
+          Try again
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
 function MonitorComposerBody({
   monitors,
   loading = false,
@@ -94,29 +107,25 @@ function MonitorComposerBody({
 }: Omit<MonitorComposerControlProps, "active" | "onOpenChange">) {
   if (monitors.length > 0) {
     return (
-      <ul className="flex flex-col gap-0.5">
-        {monitors.map(monitor => (
-          <MonitorRow
-            key={monitor.monitor_id}
-            monitor={monitor}
-            canceling={cancelingId === monitor.monitor_id}
-            onCancel={onCancel}
-          />
-        ))}
-      </ul>
-    );
-  }
-  if (failed) {
-    return (
-      <div className="flex items-center justify-between gap-2 px-0.5">
-        <p className="text-transcript-caption text-muted">Couldn't load monitors.</p>
-        {onRetry ? (
-          <Button type="button" variant="ghost" size="xs" onClick={onRetry}>
-            Try again
-          </Button>
+      <div className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-0.5">
+          {monitors.map(monitor => (
+            <MonitorRow
+              key={monitor.monitor_id}
+              monitor={monitor}
+              canceling={cancelingId === monitor.monitor_id}
+              onCancel={onCancel}
+            />
+          ))}
+        </ul>
+        {failed ? (
+          <MonitorLoadError message="Couldn't refresh monitors." onRetry={onRetry} />
         ) : null}
       </div>
     );
+  }
+  if (failed) {
+    return <MonitorLoadError message="Couldn't load monitors." onRetry={onRetry} />;
   }
   if (loading) {
     return (

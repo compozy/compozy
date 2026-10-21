@@ -51,7 +51,8 @@ func WithClock(now func() time.Time) Option {
 // WithObserver registers a callback for every change to a session's monitors:
 // one starts, fires, is canceled, delivered, or abandoned. Calls run one at a
 // time on a service-owned goroutine with a bounded context, never on the
-// caller's path, and stop when the service shuts down.
+// caller's path, and stop when the service shuts down. Changes that arrive
+// while a session's refresh is still pending coalesce into that one call.
 func WithObserver(observe func(ctx context.Context, sessionID string)) Option {
 	return func(s *Service) {
 		s.observer = observe
@@ -67,7 +68,7 @@ type Service struct {
 	logger    *slog.Logger
 	now       func() time.Time
 	observer  func(ctx context.Context, sessionID string)
-	notices   chan string
+	notices   *noticeQueue
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -115,7 +116,7 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 		opt(service)
 	}
 	if service.observer != nil {
-		service.notices = make(chan string, noticeBuffer)
+		service.notices = newNoticeQueue()
 		service.wg.Go(service.dispatchNotices)
 	}
 	return service, nil
