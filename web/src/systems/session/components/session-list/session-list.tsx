@@ -18,6 +18,7 @@ import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListProfileGroups, SessionListProfileStatus } from "./session-list-profile-group";
 import { SessionListSections } from "./session-list-sections";
 import { SessionListSelectionBar } from "./session-list-selection-bar";
+import { SessionListSelectionFolders } from "./session-list-selection-folders";
 import { SessionListThreadList } from "./session-list-thread-list";
 import { SessionListToolbar } from "./session-list-toolbar";
 import { SessionListWorkspaceGroups } from "./session-list-workspace-groups";
@@ -101,6 +102,7 @@ export function SessionList({
     threads: folders.visibleThreads,
     collapsedThreads,
     sessionActions,
+    folders: { layout, groups: profileGroups },
   });
 
   return (
@@ -139,6 +141,7 @@ export function SessionList({
           onSelectSession={onSelectSession}
           onNewSessionInFolder={folderId => onNewSession({ folderId })}
           selection={bulk.rowSelection}
+          selectionDrag={bulk.drag}
           sessionActions={sessionActions}
           testIdPrefix={testIdPrefix}
           emptyMessage={emptySessionListMessage(filtering, view)}
@@ -182,6 +185,9 @@ export function SessionList({
           onRename={layout.renameFolder}
           onDelete={layout.deleteFolder}
         />
+      ) : null}
+      {bulk.folderMove ? (
+        <SessionListSelectionFolders folders={bulk.folderMove} active={bulk.active} />
       ) : null}
     </div>
   );
@@ -259,7 +265,8 @@ function SessionListFolderBody({
       <SessionListSections
         sections={sections}
         layout={layout}
-        dnd={bulk.active ? undefined : dnd}
+        dnd={dnd}
+        selectionDrag={bulk.drag}
         orderable={folders.orderable}
         filtering={filtering}
         collapsedThreads={collapsedThreads}

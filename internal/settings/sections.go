@@ -225,6 +225,9 @@ func populateSimpleSectionEnvelope(envelope *SectionEnvelope, cfg *compozyconfig
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeProfile, ScopeWorkspace}
 		section := buildCmdPaletteSection(cfg)
 		envelope.CmdPalette = &section
+	case SectionProviderUsage:
+		section := ProviderUsageSection{Config: cfg.ProviderUsage.Clone()}
+		envelope.ProviderUsage = &section
 	case SectionShell:
 		envelope.Scope = ScopeUser
 		section := buildShellSection(cfg)

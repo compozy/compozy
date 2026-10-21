@@ -5056,6 +5056,102 @@ export type ProviderSummaryPayload = {
   session_env_status?: Array<SettingsProviderCredentialStatusPayload>;
 };
 
+export type ProviderUsageAccount = {
+  label: string;
+  plan: string;
+};
+
+export type ProviderUsageAmount = {
+  unit: string;
+  value: string;
+};
+
+export type ProviderUsageBalance = {
+  expires_at: string | null;
+  id: string;
+  label: string;
+  remaining: ProviderUsageAmount;
+};
+
+export type ProviderUsageEnvelope = {
+  enabled: boolean;
+  generated_at: string;
+  keychain_supported: boolean;
+  profile_id: string;
+  revision: number;
+  targets: Array<ProviderUsageTarget>;
+  tray: ProviderUsageTraySignal | null;
+};
+
+export type ProviderUsageError = {
+  action: string;
+  code: string;
+  message: string;
+  retry_after: string | null;
+};
+
+export type ProviderUsageRefreshRequest = {
+  intent?: string;
+  max_age_seconds?: number;
+  profile?: string;
+  provider_ids?: Array<string>;
+  wait_ms?: number | null;
+};
+
+export type ProviderUsageSource = {
+  kind: string;
+  label: string;
+};
+
+export type ProviderUsageSpendCap = {
+  enabled: boolean | null;
+  id: string;
+  label: string;
+  limit: ProviderUsageAmount | null;
+  resets_at: string | null;
+  used: ProviderUsageAmount;
+  used_percent: number | null;
+};
+
+export type ProviderUsageTarget = {
+  account: ProviderUsageAccount | null;
+  balances: Array<ProviderUsageBalance>;
+  checked_at: string | null;
+  confidence: string;
+  error: ProviderUsageError | null;
+  measured_at: string | null;
+  next_refresh_at: string | null;
+  provider_id: string;
+  provider_name: string;
+  refreshing: boolean;
+  source: ProviderUsageSource | null;
+  spend_caps: Array<ProviderUsageSpendCap>;
+  status: string;
+  windows: Array<ProviderUsageWindow>;
+};
+
+export type ProviderUsageTraySignal = {
+  label: string;
+  provider_id: string;
+  resets_at: string | null;
+  severity: string;
+  stale: boolean;
+  used_percent: number;
+  window_id: string;
+};
+
+export type ProviderUsageWindow = {
+  duration_seconds: number | null;
+  id: string;
+  kind: string;
+  label: string;
+  limit: ProviderUsageAmount | null;
+  reset_text: string;
+  resets_at: string | null;
+  used: ProviderUsageAmount | null;
+  used_percent: number | null;
+};
+
 export type PutLoopAnnotationsRequest = {
   annotations: Array<LoopAnnotationPayload>;
 };
@@ -5257,6 +5353,12 @@ export type Reference = {
 export type ReloadExtensionRequest = {
   confirm_gateway_digest?: string;
   generation_hash: string;
+};
+
+export type RemoveDiscoveredWorktreeRequest = {
+  expect_stale?: boolean;
+  force?: boolean;
+  path: string;
 };
 
 export type RenameProfilePlan = {
@@ -6481,6 +6583,34 @@ export type SessionLineagePayload = {
   ttl_expires_at?: string | null;
 };
 
+export type SessionMonitorPayload = {
+  created_at: string;
+  deadline_at: string;
+  description: string;
+  exit_code?: number | null;
+  fired_at?: string | null;
+  kind: string;
+  monitor_id: string;
+  pattern?: string;
+  reason?: string;
+  session_id: string;
+  status: string;
+  terminal_id?: string;
+  until?: string;
+};
+
+export type SessionMonitorResponse = {
+  monitor: SessionMonitorPayload;
+};
+
+export type SessionMonitorSummaryPayload = {
+  active: number;
+};
+
+export type SessionMonitorsResponse = {
+  monitors: Array<SessionMonitorPayload>;
+};
+
 export type SessionOwner = {
   session_id: string;
   workspace_id: string;
@@ -6507,6 +6637,7 @@ export type SessionPayload = {
   health?: SessionHealthPayload | null;
   id: string;
   lineage?: SessionLineagePayload | null;
+  monitor_summary?: SessionMonitorSummaryPayload | null;
   name?: string;
   pending_interactions: Array<PendingInteractionPayload>;
   profile_archived?: boolean;
@@ -6816,6 +6947,7 @@ export type SettingsApplyResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace"
@@ -6859,6 +6991,7 @@ export type SettingsAttentionResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -6888,6 +7021,7 @@ export type SettingsAutomationResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -6928,6 +7062,7 @@ export type SettingsCmdPaletteResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7072,6 +7207,7 @@ export type SettingsGeneralResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7236,6 +7372,7 @@ export type SettingsHooksExtensionsResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7456,6 +7593,7 @@ export type SettingsMarketplaceResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7484,6 +7622,7 @@ export type SettingsObservabilityResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7529,6 +7668,7 @@ export type SettingsPersonaResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7654,6 +7794,44 @@ export type SettingsProviderSettingsPayload = {
   transport?: string;
 };
 
+export type SettingsProviderUsagePayload = {
+  enabled: boolean;
+  providers: {
+    [key: string]: SettingsProviderUsageProviderPayload;
+  };
+  refresh_interval: string;
+};
+
+export type SettingsProviderUsageProviderPayload = {
+  enabled?: boolean | null;
+  keychain_access?: boolean | null;
+};
+
+export type SettingsProviderUsageResponse = {
+  available_scopes: Array<"user">;
+  config: SettingsProviderUsagePayload;
+  keychain_supported: boolean;
+  scope: "user";
+  section:
+    | "general"
+    | "persona"
+    | "roles"
+    | "skills"
+    | "automation"
+    | "window-manager"
+    | "cmd-palette"
+    | "attention"
+    | "shell"
+    | "provider-usage"
+    | "observability"
+    | "hooks-extensions"
+    | "marketplace";
+};
+
+export type SettingsProviderUsageUpdateRequest = {
+  config: SettingsProviderUsagePayload;
+};
+
 export type SettingsProviderWritePayload = {
   auth_acp_method?: string | null;
   auth_login_command?: string | null;
@@ -7728,6 +7906,7 @@ export type SettingsRolesResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7752,6 +7931,7 @@ export type SettingsShellResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7850,6 +8030,7 @@ export type SettingsSkillsMutationResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -7896,6 +8077,7 @@ export type SettingsSkillsResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -8189,6 +8371,7 @@ export type SettingsWindowManagerMutationResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -8222,6 +8405,7 @@ export type SettingsWindowManagerResponse = {
     | "cmd-palette"
     | "attention"
     | "shell"
+    | "provider-usage"
     | "observability"
     | "hooks-extensions"
     | "marketplace";
@@ -19234,6 +19418,162 @@ export type UnarchiveProfileResponses = {
 
 export type UnarchiveProfileResponse2 = UnarchiveProfileResponses[keyof UnarchiveProfileResponses];
 
+export type ListProviderUsageData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Profile name; defaults to the caller session profile or default
+     */
+    profile?: string;
+  };
+  url: "/api/provider-usage";
+};
+
+export type ListProviderUsageErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * App token route forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Profile or provider not found
+   */
+  404: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Usage disabled or session profile conflict
+   */
+  409: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Usage service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListProviderUsageError = ListProviderUsageErrors[keyof ListProviderUsageErrors];
+
+export type ListProviderUsageResponses = {
+  /**
+   * Profile-scoped usage envelope
+   */
+  200: ProviderUsageEnvelope;
+};
+
+export type ListProviderUsageResponse =
+  ListProviderUsageResponses[keyof ListProviderUsageResponses];
+
+export type GetProviderUsageData = {
+  body?: never;
+  path: {
+    /**
+     * Canonical provider ID
+     */
+    provider_id: string;
+  };
+  query?: {
+    /**
+     * Profile name; defaults to the caller session profile or default
+     */
+    profile?: string;
+  };
+  url: "/api/provider-usage/providers/{provider_id}";
+};
+
+export type GetProviderUsageErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * App token route forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Profile or provider not found
+   */
+  404: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Usage disabled or session profile conflict
+   */
+  409: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Usage service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type GetProviderUsageError = GetProviderUsageErrors[keyof GetProviderUsageErrors];
+
+export type GetProviderUsageResponses = {
+  /**
+   * Profile-scoped usage envelope
+   */
+  200: ProviderUsageEnvelope;
+};
+
+export type GetProviderUsageResponse = GetProviderUsageResponses[keyof GetProviderUsageResponses];
+
+export type RefreshProviderUsageData = {
+  /**
+   * JSON request body
+   */
+  body?: ProviderUsageRefreshRequest;
+  path?: never;
+  query?: never;
+  url: "/api/provider-usage/refresh";
+};
+
+export type RefreshProviderUsageErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * App token route forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Profile or provider not found
+   */
+  404: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Usage disabled or session profile conflict
+   */
+  409: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Usage service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RefreshProviderUsageError =
+  RefreshProviderUsageErrors[keyof RefreshProviderUsageErrors];
+
+export type RefreshProviderUsageResponses = {
+  /**
+   * Profile-scoped usage envelope
+   */
+  200: ProviderUsageEnvelope;
+};
+
+export type RefreshProviderUsageResponse =
+  RefreshProviderUsageResponses[keyof RefreshProviderUsageResponses];
+
 export type ListProvidersData = {
   body?: never;
   path?: never;
@@ -22536,6 +22876,84 @@ export type UpdateSettingsPersonaResponses = {
 
 export type UpdateSettingsPersonaResponse =
   UpdateSettingsPersonaResponses[keyof UpdateSettingsPersonaResponses];
+
+export type GetSettingsProviderUsageData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/api/settings/provider-usage";
+};
+
+export type GetSettingsProviderUsageErrors = {
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type GetSettingsProviderUsageError =
+  GetSettingsProviderUsageErrors[keyof GetSettingsProviderUsageErrors];
+
+export type GetSettingsProviderUsageResponses = {
+  /**
+   * OK
+   */
+  200: SettingsProviderUsageResponse;
+};
+
+export type GetSettingsProviderUsageResponse =
+  GetSettingsProviderUsageResponses[keyof GetSettingsProviderUsageResponses];
+
+export type UpdateSettingsProviderUsageData = {
+  /**
+   * JSON request body
+   */
+  body: SettingsProviderUsageUpdateRequest;
+  path?: never;
+  query?: {
+    /**
+     * Collection profile name or ID for local Keychain consent; independent of user config scope; defaults to default
+     */
+    collection_profile?: string;
+  };
+  url: "/api/settings/provider-usage";
+};
+
+export type UpdateSettingsProviderUsageErrors = {
+  /**
+   * Invalid settings payload
+   */
+  400: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Collection profile not found
+   */
+  404: ProfileErrorPayload;
+  /**
+   * Conflicting settings change
+   */
+  409: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+};
+
+export type UpdateSettingsProviderUsageError =
+  UpdateSettingsProviderUsageErrors[keyof UpdateSettingsProviderUsageErrors];
+
+export type UpdateSettingsProviderUsageResponses = {
+  /**
+   * OK
+   */
+  200: SettingsApplyResponse;
+};
+
+export type UpdateSettingsProviderUsageResponse =
+  UpdateSettingsProviderUsageResponses[keyof UpdateSettingsProviderUsageResponses];
 
 export type ListSettingsProvidersData = {
   body?: never;
@@ -32168,6 +32586,97 @@ export type ListSessionInteractionsResponses = {
 export type ListSessionInteractionsResponse =
   ListSessionInteractionsResponses[keyof ListSessionInteractionsResponses];
 
+export type ListSessionMonitorsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors";
+};
+
+export type ListSessionMonitorsErrors = {
+  /**
+   * Session or monitor not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session monitors unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionMonitorsError = ListSessionMonitorsErrors[keyof ListSessionMonitorsErrors];
+
+export type ListSessionMonitorsResponses = {
+  /**
+   * Success
+   */
+  200: SessionMonitorsResponse;
+};
+
+export type ListSessionMonitorsResponse =
+  ListSessionMonitorsResponses[keyof ListSessionMonitorsResponses];
+
+export type CancelSessionMonitorData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+    /**
+     * Monitor id
+     */
+    monitor_id: string;
+  };
+  query?: never;
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel";
+};
+
+export type CancelSessionMonitorErrors = {
+  /**
+   * Session or monitor not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session monitors unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type CancelSessionMonitorError =
+  CancelSessionMonitorErrors[keyof CancelSessionMonitorErrors];
+
+export type CancelSessionMonitorResponses = {
+  /**
+   * Success
+   */
+  200: SessionMonitorResponse;
+};
+
+export type CancelSessionMonitorResponse =
+  CancelSessionMonitorResponses[keyof CancelSessionMonitorResponses];
+
 export type MoveSessionData = {
   /**
    * JSON request body
@@ -35712,6 +36221,66 @@ export type AdoptWorktreeResponses = {
 };
 
 export type AdoptWorktreeResponse = AdoptWorktreeResponses[keyof AdoptWorktreeResponses];
+
+export type RemoveDiscoveredWorktreeData = {
+  /**
+   * JSON request body
+   */
+  body: RemoveDiscoveredWorktreeRequest;
+  path: {
+    /**
+     * Workspace id or path
+     */
+    workspace_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/worktrees/discovered/remove";
+};
+
+export type RemoveDiscoveredWorktreeErrors = {
+  /**
+   * Invalid discovered removal request
+   */
+  400: ErrorPayload;
+  /**
+   * Hook or profile does not permit removal
+   */
+  403: ErrorPayload;
+  /**
+   * Discovered worktree or workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Removal requires another decision
+   */
+  409: WorktreeRemovalRefusalPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type RemoveDiscoveredWorktreeError =
+  RemoveDiscoveredWorktreeErrors[keyof RemoveDiscoveredWorktreeErrors];
+
+export type RemoveDiscoveredWorktreeResponses = {
+  /**
+   * No Content
+   */
+  204: void;
+};
+
+export type RemoveDiscoveredWorktreeResponse =
+  RemoveDiscoveredWorktreeResponses[keyof RemoveDiscoveredWorktreeResponses];
 
 export type RemoveWorktreeData = {
   body?: never;

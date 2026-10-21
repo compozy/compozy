@@ -18408,6 +18408,460 @@
         ],
         "type": "object"
       },
+      "ProviderUsageAccount": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "plan"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageAmount": {
+        "properties": {
+          "unit": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "unit",
+          "value"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageBalance": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "remaining": {
+            "$ref": "#/components/schemas/ProviderUsageAmount"
+          }
+        },
+        "required": [
+          "expires_at",
+          "id",
+          "label",
+          "remaining"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageEnvelope": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "keychain_supported": {
+            "type": "boolean"
+          },
+          "profile_id": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderUsageTarget"
+            },
+            "type": "array"
+          },
+          "tray": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderUsageTraySignal"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          }
+        },
+        "required": [
+          "enabled",
+          "generated_at",
+          "keychain_supported",
+          "profile_id",
+          "revision",
+          "targets",
+          "tray"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageError": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retry_after": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "code",
+          "message",
+          "retry_after"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageRefreshRequest": {
+        "properties": {
+          "intent": {
+            "type": "string"
+          },
+          "max_age_seconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "profile": {
+            "type": "string"
+          },
+          "provider_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "wait_ms": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ProviderUsageSource": {
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageSpendCap": {
+        "properties": {
+          "enabled": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "limit": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderUsageAmount"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "resets_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "used": {
+            "$ref": "#/components/schemas/ProviderUsageAmount"
+          },
+          "used_percent": {
+            "format": "double",
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "required": [
+          "enabled",
+          "id",
+          "label",
+          "limit",
+          "resets_at",
+          "used",
+          "used_percent"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageStreamEvent": {
+        "properties": {
+          "boot_id": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "boot_id",
+          "revision"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageTarget": {
+        "properties": {
+          "account": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderUsageAccount"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "balances": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderUsageBalance"
+            },
+            "type": "array"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderUsageError"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "measured_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "next_refresh_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "provider_id": {
+            "type": "string"
+          },
+          "provider_name": {
+            "type": "string"
+          },
+          "refreshing": {
+            "type": "boolean"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderUsageSource"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "spend_caps": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderUsageSpendCap"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderUsageWindow"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "account",
+          "balances",
+          "checked_at",
+          "confidence",
+          "error",
+          "measured_at",
+          "next_refresh_at",
+          "provider_id",
+          "provider_name",
+          "refreshing",
+          "source",
+          "spend_caps",
+          "status",
+          "windows"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageTraySignal": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "provider_id": {
+            "type": "string"
+          },
+          "resets_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "used_percent": {
+            "format": "double",
+            "type": "number"
+          },
+          "window_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "provider_id",
+          "resets_at",
+          "severity",
+          "stale",
+          "used_percent",
+          "window_id"
+        ],
+        "type": "object"
+      },
+      "ProviderUsageWindow": {
+        "properties": {
+          "duration_seconds": {
+            "format": "int64",
+            "nullable": true,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "limit": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderUsageAmount"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "reset_text": {
+            "type": "string"
+          },
+          "resets_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "used": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ProviderUsageAmount"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "used_percent": {
+            "format": "double",
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "required": [
+          "duration_seconds",
+          "id",
+          "kind",
+          "label",
+          "limit",
+          "reset_text",
+          "resets_at",
+          "used",
+          "used_percent"
+        ],
+        "type": "object"
+      },
       "PutLoopAnnotationsRequest": {
         "properties": {
           "annotations": {
@@ -18914,6 +19368,23 @@
         },
         "required": [
           "generation_hash"
+        ],
+        "type": "object"
+      },
+      "RemoveDiscoveredWorktreeRequest": {
+        "properties": {
+          "expect_stale": {
+            "type": "boolean"
+          },
+          "force": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
         ],
         "type": "object"
       },
@@ -23578,6 +24049,100 @@
         ],
         "type": "object"
       },
+      "SessionMonitorPayload": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deadline_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "exit_code": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "fired_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "monitor_id": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "terminal_id": {
+            "type": "string"
+          },
+          "until": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "deadline_at",
+          "description",
+          "kind",
+          "monitor_id",
+          "session_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorResponse": {
+        "properties": {
+          "monitor": {
+            "$ref": "#/components/schemas/SessionMonitorPayload"
+          }
+        },
+        "required": [
+          "monitor"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorSummaryPayload": {
+        "properties": {
+          "active": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorsResponse": {
+        "properties": {
+          "monitors": {
+            "items": {
+              "$ref": "#/components/schemas/SessionMonitorPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "monitors"
+        ],
+        "type": "object"
+      },
       "SessionOwner": {
         "properties": {
           "session_id": {
@@ -23718,6 +24283,19 @@
             "oneOf": [
               {
                 "$ref": "#/components/schemas/SessionLineagePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "monitor_summary": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionMonitorSummaryPayload"
               },
               {
                 "enum": [
@@ -24962,6 +25540,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace",
@@ -25076,6 +25655,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -25157,6 +25737,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -25277,6 +25858,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -25730,6 +26312,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -26028,6 +26611,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -26835,6 +27419,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -26911,6 +27496,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -27054,6 +27640,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -27523,6 +28110,103 @@
         },
         "type": "object"
       },
+      "SettingsProviderUsagePayload": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "providers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SettingsProviderUsageProviderPayload"
+            },
+            "type": "object"
+          },
+          "refresh_interval": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "providers",
+          "refresh_interval"
+        ],
+        "type": "object"
+      },
+      "SettingsProviderUsageProviderPayload": {
+        "properties": {
+          "enabled": {
+            "nullable": true,
+            "type": "boolean"
+          },
+          "keychain_access": {
+            "nullable": true,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SettingsProviderUsageResponse": {
+        "properties": {
+          "available_scopes": {
+            "items": {
+              "enum": [
+                "user"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "config": {
+            "$ref": "#/components/schemas/SettingsProviderUsagePayload"
+          },
+          "keychain_supported": {
+            "type": "boolean"
+          },
+          "scope": {
+            "enum": [
+              "user"
+            ],
+            "type": "string"
+          },
+          "section": {
+            "enum": [
+              "general",
+              "persona",
+              "roles",
+              "skills",
+              "automation",
+              "window-manager",
+              "cmd-palette",
+              "attention",
+              "shell",
+              "provider-usage",
+              "observability",
+              "hooks-extensions",
+              "marketplace"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "available_scopes",
+          "config",
+          "keychain_supported",
+          "scope",
+          "section"
+        ],
+        "type": "object"
+      },
+      "SettingsProviderUsageUpdateRequest": {
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/SettingsProviderUsagePayload"
+          }
+        },
+        "required": [
+          "config"
+        ],
+        "type": "object"
+      },
       "SettingsProviderWritePayload": {
         "properties": {
           "auth_acp_method": {
@@ -27793,6 +28477,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -27855,6 +28540,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -28229,6 +28915,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -28397,6 +29084,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -29401,6 +30089,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -29523,6 +30212,7 @@
               "cmd-palette",
               "attention",
               "shell",
+              "provider-usage",
               "observability",
               "hooks-extensions",
               "marketplace"
@@ -57711,6 +58401,459 @@
         ]
       }
     },
+    "/api/provider-usage": {
+      "get": {
+        "operationId": "listProviderUsage",
+        "parameters": [
+          {
+            "description": "Profile name; defaults to the caller session profile or default",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderUsageEnvelope"
+                }
+              }
+            },
+            "description": "Profile-scoped usage envelope"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "App token route forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Profile or provider not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Usage disabled or session profile conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Usage service unavailable"
+          }
+        },
+        "summary": "Read cached provider usage (experimental)",
+        "tags": [
+          "providers"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
+    "/api/provider-usage/providers/{provider_id}": {
+      "get": {
+        "operationId": "getProviderUsage",
+        "parameters": [
+          {
+            "description": "Canonical provider ID",
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Profile name; defaults to the caller session profile or default",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderUsageEnvelope"
+                }
+              }
+            },
+            "description": "Profile-scoped usage envelope"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "App token route forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Profile or provider not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Usage disabled or session profile conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Usage service unavailable"
+          }
+        },
+        "summary": "Read cached provider usage (experimental)",
+        "tags": [
+          "providers"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
+    "/api/provider-usage/refresh": {
+      "post": {
+        "operationId": "refreshProviderUsage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderUsageRefreshRequest"
+              }
+            }
+          },
+          "description": "JSON request body"
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderUsageEnvelope"
+                }
+              }
+            },
+            "description": "Profile-scoped usage envelope"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "App token route forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Profile or provider not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Usage disabled or session profile conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Usage service unavailable"
+          }
+        },
+        "summary": "Refresh provider usage (experimental)",
+        "tags": [
+          "providers"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
+    "/api/provider-usage/stream": {
+      "get": {
+        "operationId": "streamProviderUsage",
+        "parameters": [
+          {
+            "description": "Profile name; defaults to the caller session profile or default",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderUsageStreamEvent"
+                }
+              }
+            },
+            "description": "ready and provider_usage_changed revision events"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "App token route forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Profile or provider not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Usage disabled or session profile conflict"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Usage service unavailable"
+          }
+        },
+        "summary": "Stream provider usage invalidations (experimental)",
+        "tags": [
+          "providers"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
     "/api/providers": {
       "get": {
         "operationId": "listProviders",
@@ -64206,6 +65349,151 @@
           }
         },
         "summary": "Update profile-layerable persona defaults",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/settings/provider-usage": {
+      "get": {
+        "operationId": "getSettingsProviderUsage",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsProviderUsageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Read the provider usage settings section",
+        "tags": [
+          "settings"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "patch": {
+        "operationId": "updateSettingsProviderUsage",
+        "parameters": [
+          {
+            "description": "Collection profile name or ID for local Keychain consent; independent of user config scope; defaults to default",
+            "in": "query",
+            "name": "collection_profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsProviderUsageUpdateRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsApplyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Invalid settings payload"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Collection profile not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Conflicting settings change"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          }
+        },
+        "summary": "Update the provider usage settings section",
         "tags": [
           "settings"
         ],
@@ -82641,6 +83929,167 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
+      "get": {
+        "operationId": "listSessionMonitors",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMonitorsResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session or monitor not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session monitors unavailable"
+          }
+        },
+        "summary": "List a session's monitors",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel": {
+      "post": {
+        "operationId": "cancelSessionMonitor",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Monitor id",
+            "in": "path",
+            "name": "monitor_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionMonitorResponse"
+                }
+              }
+            },
+            "description": "Success"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session or monitor not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session monitors unavailable"
+          }
+        },
+        "summary": "Cancel a session monitor without waking the session",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/move": {
       "post": {
         "operationId": "moveSession",
@@ -90165,6 +91614,115 @@
           }
         },
         "summary": "Adopt an existing linked worktree",
+        "tags": [
+          "worktrees"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/worktrees/discovered/remove": {
+      "post": {
+        "operationId": "removeDiscoveredWorktree",
+        "parameters": [
+          {
+            "description": "Workspace id or path",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveDiscoveredWorktreeRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid discovered removal request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Hook or profile does not permit removal"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Discovered worktree or workspace not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorktreeRemovalRefusalPayload"
+                }
+              }
+            },
+            "description": "Removal requires another decision"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree service is unavailable"
+          }
+        },
+        "summary": "Remove a discovered worktree",
         "tags": [
           "worktrees"
         ],

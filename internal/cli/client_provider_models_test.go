@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
@@ -185,6 +187,102 @@ func TestProviderModelListValues(t *testing.T) {
 		values := providerModelListValues(ProviderModelListQuery{View: providerModelViewAll})
 		if got, want := values.Get("view"), providerModelViewAll; got != want {
 			t.Fatalf("view query = %q, want %q", got, want)
+		}
+	})
+}
+
+// UT-043: the CLI sends the selected profile and explicit intent at the I/O boundary.
+func TestProviderUsageCLIRequest(t *testing.T) {
+	t.Run("Should filter refresh output to the requested provider in every output format", func(t *testing.T) {
+		t.Parallel()
+		for _, format := range []string{"json", "human"} {
+			t.Run("Should filter "+format+" output", func(t *testing.T) {
+				t.Parallel()
+				client := &daemonClient{
+					target: LocalClientTarget("/tmp/compozy.sock"),
+					httpClient: &http.Client{
+						Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+							var body contract.ProviderUsageRefreshRequest
+							if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+								t.Fatal(err)
+							}
+							if len(body.ProviderIDs) != 1 || body.ProviderIDs[0] != "claude" {
+								t.Fatalf("unexpected providers: %v", body.ProviderIDs)
+							}
+							return newHTTPResponse(
+								http.StatusOK,
+								`{"profile_id":"default","enabled":true,"tray":{"provider_id":"codex"},"targets":[{"provider_id":"codex","provider_name":"Codex","status":"ok"},{"provider_id":"claude","provider_name":"Claude","status":"signed_out"}]}`,
+							), nil
+						}),
+					},
+				}
+				args := []string{"provider", "usage", "refresh", "claude"}
+				if format == "json" {
+					args = append(args, "-o", format)
+				}
+				stdout, _, err := executeRootCommand(t, newTestDeps(t, client), args...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if format == "json" {
+					var env contract.ProviderUsageEnvelope
+					if err := json.Unmarshal([]byte(stdout), &env); err != nil {
+						t.Fatal(err)
+					}
+					if len(env.Targets) != 1 || env.Targets[0].ProviderID != "claude" || env.Tray != nil {
+						t.Fatalf("unexpected filtered envelope: %+v", env)
+					}
+				} else if !strings.Contains(stdout, "Claude") || strings.Contains(stdout, "Codex") {
+					t.Fatalf("unexpected filtered table: %s", stdout)
+				}
+			})
+		}
+	})
+
+	t.Run("Should send selected profile and explicit intent on refresh", func(t *testing.T) {
+		t.Parallel()
+		var called bool
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				called = true
+				var body contract.ProviderUsageRefreshRequest
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				if req.Method != http.MethodPost || req.URL.Path != "/api/provider-usage/refresh" ||
+					body.Profile != "work" ||
+					body.Intent != "explicit" ||
+					body.WaitMS == nil ||
+					*body.WaitMS != 15000 {
+					t.Fatalf("request: %+v", body)
+				}
+				return newHTTPResponse(http.StatusOK, `{"profile_id":"work","enabled":false,"targets":[]}`), nil
+			})},
+		}
+		ctx := context.WithValue(t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: "work"})
+		wait := (15 * time.Second).Milliseconds()
+		if _, err := client.RefreshProviderUsage(
+			ctx,
+			contract.ProviderUsageRefreshRequest{Intent: "explicit", WaitMS: &wait},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if !called {
+			t.Fatal("request was not sent")
+		}
+	})
+	t.Run("Should map provider and profile not found errors to exit code one", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{`{"error":"provider \"nope\" not found","code":"provider_not_found"}`, `{"error":{"code":"profile_not_found","message":"profile not found","action":"choose profile"}}`} {
+			err := providerUsageCLIError(readAPIErrorBody(http.StatusNotFound, "Not Found", []byte(body)))
+			exit, ok := errors.AsType[interface {
+				error
+				cliExitCode() int
+			}](err)
+			if !ok || exit.cliExitCode() != 1 {
+				t.Fatalf("exit contract: %v", err)
+			}
 		}
 	})
 }

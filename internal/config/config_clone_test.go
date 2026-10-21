@@ -32,6 +32,7 @@ func TestCloneConfig(t *testing.T) {
 		source := configCloneFixture()
 		cloned := CloneConfig(&source)
 
+		cloned.ProviderUsage.Providers["claude"] = ProviderUsageProviderConfig{Enabled: false}
 		cloned.WindowManager.Snap.RepeatRatios[0] = 0.75
 		cloned.WindowManager.Shortcuts["focus"][0] = "mutated"
 		cloned.MCPServers[0].Args[0] = "mutated"
@@ -81,6 +82,9 @@ func configCloneFixture() Config {
 	enabled := true
 	toolReadOnly := true
 	return Config{
+		ProviderUsage: ProviderUsageConfig{
+			Providers: map[string]ProviderUsageProviderConfig{"claude": {Enabled: true, KeychainAccess: true}},
+		},
 		MCP: MCPConfig{OAuth: MCPOAuthConfig{ClientMetadataURL: "https://example.com/client.json"}},
 		Marketplace: MarketplaceRuntimeConfig{
 			Catalog: MarketplaceCatalogConfig{BaseURL: "file:///catalog"},

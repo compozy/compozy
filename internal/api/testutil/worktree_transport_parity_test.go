@@ -51,6 +51,7 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 				{name: "exit cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/exit/cancel", body: `{"op_id":"op-parity"}`, wantStatus: http.StatusNoContent, wantRef: "parity"},
 				{name: "create cancel by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/cancel", wantStatus: http.StatusNoContent, wantRef: "parity"},
 				{name: "remove by name", method: http.MethodDelete, path: "/api/workspaces/ws-public/worktrees/parity", wantStatus: http.StatusNoContent, wantRef: "parity", wantMutationID: "wt-parity"},
+				{name: "remove discovered by path", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/discovered/remove", body: `{"path":"/repo/stale","force":true}`, wantStatus: http.StatusNoContent, wantMutationID: "/repo/stale"},
 				{name: "dismiss by name", method: http.MethodPost, path: "/api/workspaces/ws-public/worktrees/parity/dismiss", wantStatus: http.StatusNoContent, wantRef: "parity", wantMutationID: "wt-parity"},
 			} {
 				t.Run("Should match "+test.name, func(t *testing.T) {
@@ -118,6 +119,14 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 					"/api/workspaces/ws-public/worktrees/wt-parity", "",
 				)
 				assertWorktreeParityResponse(t, httpResponse, udsResponse, http.StatusConflict)
+				discoveredBody := `{"path":"/repo/stale"}`
+				discoveredPath := "/api/workspaces/ws-public/worktrees/discovered/remove"
+				assertWorktreeParityResponse(
+					t,
+					performWorktreeParityRequest(t, httpRouter, http.MethodPost, discoveredPath, discoveredBody),
+					performWorktreeParityRequest(t, udsRouter, http.MethodPost, discoveredPath, discoveredBody),
+					http.StatusConflict,
+				)
 			})
 		}
 	})
@@ -128,8 +137,8 @@ func TestWorktreeHTTPUDSTransportParityIT033(t *testing.T) {
 		httpRouter := newWorktreeParityHTTPRouter(t, service)
 		udsRouter := newWorktreeParityUDSRouter(t, service)
 		errorsByCode := worktreeParityErrors()
-		if len(errorsByCode) != 31 {
-			t.Fatalf("worktree parity error contract count = %d, want 31", len(errorsByCode))
+		if len(errorsByCode) != 32 {
+			t.Fatalf("worktree parity error contract count = %d, want 32", len(errorsByCode))
 		}
 		for _, test := range errorsByCode {
 			t.Run("Should match "+test.code, func(t *testing.T) {
@@ -382,6 +391,16 @@ func (s *parityWorktreeService) Remove(
 	return s.removal, nil
 }
 
+func (s *parityWorktreeService) RemoveDiscovered(
+	_ context.Context,
+	_ string,
+	path string,
+	_ worktree.RemoveDiscoveredOptions,
+) (*worktree.RemovalRefusal, error) {
+	s.mutationIDs = append(s.mutationIDs, path)
+	return s.removal, nil
+}
+
 func (s *parityWorktreeService) Dismiss(_ context.Context, _ string, ref string) error {
 	s.mutationIDs = append(s.mutationIDs, ref)
 	return nil
@@ -426,6 +445,7 @@ func worktreeParityErrors() []struct {
 		{worktree.ErrAdoptionMainCheckout, "adoption_main_checkout"},
 		{worktree.ErrAdoptionForeignRepo, "adoption_foreign_repository"},
 		{worktree.ErrAdoptionUnreadable, "adoption_unreadable"},
+		{worktree.ErrDiscoveredRegistered, "worktree_registered"},
 		{worktree.ErrOperationInProgress, "worktree_operation_in_progress"},
 		{worktree.ErrSessionActive, "worktree_session_active"},
 		{worktree.ErrStatusUnreadable, "worktree_status_unreadable"},

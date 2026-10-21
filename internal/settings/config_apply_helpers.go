@@ -70,6 +70,8 @@ func (s *service) classifyRuntimeSectionApplyRequest(
 			return lifecycle.Live
 		}
 		return s.classifyAttentionRequest(ctx, req)
+	case SectionProviderUsage:
+		return lifecycle.Live
 	case SectionMarketplace:
 		return lifecycle.Live
 	case SectionShell:
@@ -151,6 +153,7 @@ func automationSettingsFromConfig(cfg *compozyconfig.Config) AutomationSettings 
 
 func cloneActiveConfig(cfg *compozyconfig.Config) compozyconfig.Config {
 	cloned := *cfg
+	cloned.ProviderUsage = cfg.ProviderUsage.Clone()
 	cloned.Providers = compozyconfig.CloneProviderConfigs(cfg.Providers)
 	cloned.MCPServers = append([]compozyconfig.MCPServer(nil), cfg.MCPServers...)
 	cloned.Hooks.Declarations = append([]hookspkg.HookDecl(nil), cfg.Hooks.Declarations...)

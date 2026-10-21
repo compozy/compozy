@@ -99,6 +99,8 @@ export interface SessionComposerProps {
   contextControl?: ReactNode;
   /** After the context ring, before the attach button: this session's subagents. */
   subagentControl?: ReactNode;
+  /** Beside the attach button: the monitors still waiting to wake this session. */
+  monitorControl?: ReactNode;
   promptImageCapability?: SessionPromptCapability;
   promptEmbeddedContextCapability?: SessionPromptCapability;
   sessionId: string;
@@ -214,6 +216,7 @@ function SessionComposerInput() {
   const mentionsAvailable = useMentionWorkspaceId() !== "";
   return (
     <LexicalComposerInput
+      aria-label="Session prompt"
       data-testid="composer-input"
       inert={!meta.canPrompt}
       placeholder={
@@ -240,10 +243,7 @@ function SessionComposerInput() {
         !meta.canPrompt ? "opacity-60" : null
       )}
     >
-      <SessionComposerHandleBridge
-        onHandle={actions.setComposerInputElement}
-        editableAriaLabel="Session prompt"
-      />
+      <SessionComposerHandleBridge onHandle={actions.setComposerInputElement} />
       <SessionBusyEnterPlugin
         active={state.busyEnterActive}
         blocker={state.sendBlocker}
@@ -285,6 +285,7 @@ function SessionComposerControls() {
       environmentControl={meta.environmentControl}
       contextControl={meta.contextControl}
       subagentControl={meta.subagentControl}
+      monitorControl={meta.monitorControl}
       handleDisconnectedSend={
         state.transportDisconnected ? actions.handleDisconnectedSend : undefined
       }

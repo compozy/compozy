@@ -47,6 +47,7 @@ type Server struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	subagents             session.SubagentService
+	sessionMonitors       core.SessionMonitorService
 	sessionCatalog        core.SessionCatalog
 	taskDesignations      core.TaskDesignationStore
 	skillExposureStore    store.SkillExposureRepository
@@ -80,6 +81,7 @@ type Server struct {
 	agentSync             core.AgentDefinitionSync
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
+	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
 	coordinatorRole       core.CoordinatorRoleResolver

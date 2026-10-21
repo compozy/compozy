@@ -119,7 +119,7 @@ function caption() {
 }
 
 describe("OsWorkspacesOverview", () => {
-  it("Should select ready and missing rows with bounded select all and clear on Escape", async () => {
+  it("Should select ready, missing and discovered rows with bounded select all and clear on Escape", async () => {
     const user = userEvent.setup();
     const onRemoveWorktrees = vi.fn();
     const missing = { ...worktreeMissingFixture, workspace_id: COMPOZY.id };
@@ -137,8 +137,9 @@ describe("OsWorkspacesOverview", () => {
     await user.click(screen.getByText("Select worktrees…"));
     await user.click(screen.getByRole("menuitemcheckbox", { name: `Select ${missing.name}` }));
     await user.keyboard("{Control>}a{/Control}");
-    await user.click(screen.getByText("Remove selected (2)…"));
+    await user.click(screen.getByText("Remove 3 worktrees…"));
     expect(onRemoveWorktrees.mock.calls[0]?.[0].worktrees).toHaveLength(2);
+    expect(onRemoveWorktrees.mock.calls[0]?.[0].discovered).toEqual([discoveredWorktreeFixture]);
     expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();
     await user.keyboard("{Escape}");
     expect(screen.getByText("Select worktrees…")).toBeInTheDocument();

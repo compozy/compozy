@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"maps"
 
 	"fmt"
 
@@ -139,7 +140,11 @@ func (n *daemonNativeTools) observeMetrics(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := redactObserveHealthPayload(core.ObserveHealthPayloadFromHealth(&health))
-	return structuredResult(map[string]any{nativeToolsHealthKey: payload}, payload.Status)
+	result := map[string]any{nativeToolsHealthKey: payload}
+	if usage, ok := n.deps.ProviderUsage.(interface{ UsageMetrics() map[string]any }); ok {
+		maps.Copy(result, usage.UsageMetrics())
+	}
+	return structuredResult(result, payload.Status)
 }
 
 func (n *daemonNativeTools) observeSearch(

@@ -48,6 +48,17 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
+// WithObserver registers a callback for every change to a session's monitors:
+// one starts, fires, is canceled, delivered, or abandoned. Calls run one at a
+// time on a service-owned goroutine with a bounded context, never on the
+// caller's path, and stop when the service shuts down. Changes that arrive
+// while a session's refresh is still pending coalesce into that one call.
+func WithObserver(observe func(ctx context.Context, sessionID string)) Option {
+	return func(s *Service) {
+		s.observer = observe
+	}
+}
+
 // Service owns every live monitor and the goroutines that watch them. State is
 // indexed by owning session; active monitors are capped per session, per
 // terminal, and per daemon, and finished ones expire after finishedRetention.
@@ -56,6 +67,8 @@ type Service struct {
 	waker     Waker
 	logger    *slog.Logger
 	now       func() time.Time
+	observer  func(ctx context.Context, sessionID string)
+	notices   *noticeQueue
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -102,6 +115,10 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 	for _, opt := range opts {
 		opt(service)
 	}
+	if service.observer != nil {
+		service.notices = newNoticeQueue()
+		service.wg.Go(service.dispatchNotices)
+	}
 	return service, nil
 }
 
@@ -140,7 +157,16 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	}
 
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	created, err := s.startLocked(item, normalized, watch, now)
+	s.mu.Unlock()
+	if err != nil {
+		return Monitor{}, err
+	}
+	s.notify(created.SessionID)
+	return created, nil
+}
+
+func (s *Service) startLocked(item *entry, spec Spec, watch TerminalWatch, now time.Time) (Monitor, error) {
 	if s.stopped {
 		return Monitor{}, ErrStopped
 	}
@@ -154,7 +180,7 @@ func (s *Service) Create(ctx context.Context, spec Spec) (Monitor, error) {
 	created := item.state
 	s.wg.Go(func() {
 		defer cancel()
-		s.run(runCtx, created, normalized, watch)
+		s.run(runCtx, created, spec, watch)
 	})
 	return created, nil
 }
@@ -172,26 +198,55 @@ func (s *Service) List(sessionID string) []Monitor {
 	return items
 }
 
+// ActiveCounts reports, per requested session, how many monitors still hold a
+// slot (active or delivering). Sessions without one are omitted.
+func (s *Service) ActiveCounts(sessionIDs []string) map[string]int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	counts := make(map[string]int)
+	for _, sessionID := range sessionIDs {
+		for _, item := range s.sessions[sessionID] {
+			if item.occupies() {
+				counts[sessionID]++
+			}
+		}
+	}
+	return counts
+}
+
 // Cancel stops one active or delivering monitor owned by sessionID without waking the session.
 func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	item, ok := s.sessions[sessionID][id]
 	if !ok {
+		s.mu.Unlock()
 		return Monitor{}, fmt.Errorf("%w: %s", ErrNotFound, id)
 	}
 	if !item.occupies() {
-		return item.state, nil
+		state := item.state
+		s.mu.Unlock()
+		return state, nil
 	}
 	s.finishLocked(item, StatusCanceled, s.now())
 	item.cancel()
 	s.pruneSessionLocked(sessionID, s.now())
-	return item.state, nil
+	state := item.state
+	s.mu.Unlock()
+	s.notify(sessionID)
+	return state, nil
 }
 
 // CancelSession stops every monitor of a stopped or removed session and drops
 // its history; nothing it registered may wake a later incarnation.
 func (s *Service) CancelSession(sessionID string) int {
+	canceled := s.cancelSession(sessionID)
+	if canceled > 0 {
+		s.notify(sessionID)
+	}
+	return canceled
+}
+
+func (s *Service) cancelSession(sessionID string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	canceled := 0

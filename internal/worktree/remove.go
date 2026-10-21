@@ -27,9 +27,10 @@ type RemovalRefusal struct {
 }
 
 type HookPreRemovePayload struct {
-	Worktree HookWorktree `json:"worktree"`
-	Force    bool         `json:"force"`
-	Risk     RemovalRisk  `json:"risk"`
+	Worktree   HookWorktree `json:"worktree"`
+	Force      bool         `json:"force"`
+	Risk       RemovalRisk  `json:"risk"`
+	Discovered bool         `json:"discovered,omitempty"`
 }
 
 func (s *Service) Remove(

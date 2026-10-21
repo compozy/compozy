@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { isSessionUnavailable } from "../adapters/session-api-errors";
 
 import {
   acquireSessionPresence,
@@ -40,7 +41,8 @@ function startPresenceLoop(workspaceId: string, sessionId: string): () => void {
           return;
         }
         leaseId = acquired;
-      } catch {
+      } catch (error) {
+        if (isSessionUnavailable(error)) return;
         // Presence is best-effort. Failure leaves the session eligible for
         // `done`, which is the honest daemon-side outcome.
       }

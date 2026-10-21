@@ -83,6 +83,7 @@ type bootState struct {
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service
 	modelCatalog          *modelCatalogRuntime
+	providerUsage         *providerUsageRuntime
 	marketplace           *marketplaceRuntime
 	marketplaceNotifier   marketplacepkg.Notifier
 	tasks                 *taskRuntime

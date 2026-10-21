@@ -94,6 +94,9 @@ import type {
   CancelQueuedSessionPromptData,
   CancelQueuedSessionPromptErrors,
   CancelQueuedSessionPromptResponses,
+  CancelSessionMonitorData,
+  CancelSessionMonitorErrors,
+  CancelSessionMonitorResponses,
   CancelSessionPromptData,
   CancelSessionPromptErrors,
   CancelSessionPromptResponses,
@@ -508,6 +511,9 @@ import type {
   GetProviderModelStatusErrors,
   GetProviderModelStatusResponses,
   GetProviderResponses,
+  GetProviderUsageData,
+  GetProviderUsageErrors,
+  GetProviderUsageResponses,
   GetResourceData,
   GetResourceErrors,
   GetResourceResponses,
@@ -597,6 +603,9 @@ import type {
   GetSettingsProviderData,
   GetSettingsProviderErrors,
   GetSettingsProviderResponses,
+  GetSettingsProviderUsageData,
+  GetSettingsProviderUsageErrors,
+  GetSettingsProviderUsageResponses,
   GetSettingsRestartStatusData,
   GetSettingsRestartStatusErrors,
   GetSettingsRestartStatusResponses,
@@ -807,6 +816,9 @@ import type {
   ListProvidersData,
   ListProvidersErrors,
   ListProvidersResponses,
+  ListProviderUsageData,
+  ListProviderUsageErrors,
+  ListProviderUsageResponses,
   ListResourcesByKindData,
   ListResourcesByKindErrors,
   ListResourcesByKindResponses,
@@ -834,6 +846,9 @@ import type {
   ListSessionInteractionsData,
   ListSessionInteractionsErrors,
   ListSessionInteractionsResponses,
+  ListSessionMonitorsData,
+  ListSessionMonitorsErrors,
+  ListSessionMonitorsResponses,
   ListSessionsData,
   ListSessionsErrors,
   ListSessionsResponses,
@@ -1059,6 +1074,9 @@ import type {
   RefreshProviderModelsData,
   RefreshProviderModelsErrors,
   RefreshProviderModelsResponses,
+  RefreshProviderUsageData,
+  RefreshProviderUsageErrors,
+  RefreshProviderUsageResponses,
   RefreshSessionSoulData,
   RefreshSessionSoulErrors,
   RefreshSessionSoulResponses,
@@ -1080,6 +1098,9 @@ import type {
   ReloadSettingsData,
   ReloadSettingsErrors,
   ReloadSettingsResponses,
+  RemoveDiscoveredWorktreeData,
+  RemoveDiscoveredWorktreeErrors,
+  RemoveDiscoveredWorktreeResponses,
   RemoveExtensionData,
   RemoveExtensionErrors,
   RemoveExtensionResponses,
@@ -1323,6 +1344,9 @@ import type {
   UpdateSettingsPersonaData,
   UpdateSettingsPersonaErrors,
   UpdateSettingsPersonaResponses,
+  UpdateSettingsProviderUsageData,
+  UpdateSettingsProviderUsageErrors,
+  UpdateSettingsProviderUsageResponses,
   UpdateSettingsRolesData,
   UpdateSettingsRolesErrors,
   UpdateSettingsRolesResponses,
@@ -4867,6 +4891,56 @@ export class settings extends HeyApiClient {
   }
 
   /**
+   * Read the provider usage settings section
+   */
+  public getSettingsProviderUsage<ThrowOnError extends boolean = true>(
+    options?: Options<GetSettingsProviderUsageData, ThrowOnError>
+  ): RequestResult<
+    GetSettingsProviderUsageResponses,
+    GetSettingsProviderUsageErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      GetSettingsProviderUsageResponses,
+      GetSettingsProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/provider-usage",
+      ...options,
+    });
+  }
+
+  /**
+   * Update the provider usage settings section
+   */
+  public updateSettingsProviderUsage<ThrowOnError extends boolean = true>(
+    options: Options<UpdateSettingsProviderUsageData, ThrowOnError>
+  ): RequestResult<
+    UpdateSettingsProviderUsageResponses,
+    UpdateSettingsProviderUsageErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).patch<
+      UpdateSettingsProviderUsageResponses,
+      UpdateSettingsProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/settings/provider-usage",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
    * List settings-backed providers
    */
   public listSettingsProviders<ThrowOnError extends boolean = true>(
@@ -5388,6 +5462,75 @@ export class providers extends HeyApiClient {
       responseStyle: "data",
       url: "/api/model-catalog/sources/status",
       ...options,
+    });
+  }
+
+  /**
+   * Read cached provider usage (experimental)
+   *
+   * @stability experimental
+   */
+  public listProviderUsage<ThrowOnError extends boolean = true>(
+    options?: Options<ListProviderUsageData, ThrowOnError>
+  ): RequestResult<ListProviderUsageResponses, ListProviderUsageErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListProviderUsageResponses,
+      ListProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/provider-usage",
+      ...options,
+    });
+  }
+
+  /**
+   * Read cached provider usage (experimental)
+   *
+   * @stability experimental
+   */
+  public getProviderUsage<ThrowOnError extends boolean = true>(
+    options: Options<GetProviderUsageData, ThrowOnError>
+  ): RequestResult<GetProviderUsageResponses, GetProviderUsageErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetProviderUsageResponses,
+      GetProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/provider-usage/providers/{provider_id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Refresh provider usage (experimental)
+   *
+   * @stability experimental
+   */
+  public refreshProviderUsage<ThrowOnError extends boolean = true>(
+    options?: Options<RefreshProviderUsageData, ThrowOnError>
+  ): RequestResult<
+    RefreshProviderUsageResponses,
+    RefreshProviderUsageErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).post<
+      RefreshProviderUsageResponses,
+      RefreshProviderUsageErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/provider-usage/refresh",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
     });
   }
 
@@ -8179,6 +8322,47 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
+      ...options,
+    });
+  }
+
+  /**
+   * List a session's monitors
+   */
+  public listSessionMonitors<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionMonitorsData, ThrowOnError>
+  ): RequestResult<ListSessionMonitorsResponses, ListSessionMonitorsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionMonitorsResponses,
+      ListSessionMonitorsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel a session monitor without waking the session
+   */
+  public cancelSessionMonitor<ThrowOnError extends boolean = true>(
+    options: Options<CancelSessionMonitorData, ThrowOnError>
+  ): RequestResult<
+    CancelSessionMonitorResponses,
+    CancelSessionMonitorErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CancelSessionMonitorResponses,
+      CancelSessionMonitorErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel",
       ...options,
     });
   }
@@ -11095,6 +11279,33 @@ export class worktrees extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/worktrees/adopt",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove a discovered worktree
+   */
+  public removeDiscoveredWorktree<ThrowOnError extends boolean = true>(
+    options: Options<RemoveDiscoveredWorktreeData, ThrowOnError>
+  ): RequestResult<
+    RemoveDiscoveredWorktreeResponses,
+    RemoveDiscoveredWorktreeErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RemoveDiscoveredWorktreeResponses,
+      RemoveDiscoveredWorktreeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
       ...options,
       headers: {
         "Content-Type": "application/json",

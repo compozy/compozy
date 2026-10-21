@@ -8,6 +8,7 @@ import { StorySurface } from "@/storybook/story-layout";
 import {
   LONG_WORKTREE_PATH,
   buildWorktreeFixture,
+  discoveredStaleWorktreeFixture,
   discoveredWorktreeFixture,
   worktreeMissingFixture,
   worktreeReadyDirtyRunningFixture,
@@ -373,8 +374,59 @@ export const BulkForceConfirmation: Story = {
     await userEvent.click(
       await body.findByRole("checkbox", { name: "Also delete local branches" })
     );
-    await userEvent.click(await body.findByRole("button", { name: "Remove selected" }));
-    await userEvent.click(await body.findByRole("button", { name: "Force remove… (2)" }));
+    await userEvent.click(await body.findByRole("button", { name: /^Remove \d+ worktrees$/ }));
+    await userEvent.click(await body.findByRole("button", { name: "Force remove…" }));
+    await body.findByTestId("worktree-bulk-force-dialog");
+  },
+};
+
+/** Discovered checkouts join the batch by Git path: stale entries clear, live loss still needs force. */
+export const BulkRemoveDiscovered: Story = {
+  tags: ["play-fn"],
+  parameters: {
+    msw: {
+      handlers: [
+        compozyApiMock.post(
+          "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
+          async ({ request }) => {
+            const body = (await request.json()) as { path: string; force?: boolean };
+            if (body.path === discoveredStaleWorktreeFixture.path || body.force) {
+              return new HttpResponse(null, { status: 204 });
+            }
+            return HttpResponse.json(
+              {
+                code: "worktree_unpushed_requires_force",
+                error: "Removing this worktree would discard local work.",
+                risk: {
+                  changed_files: 0,
+                  insertions: 0,
+                  deletions: 0,
+                  unpushed_commits: 2,
+                  exists_on_remote: false,
+                },
+              },
+              { status: 409 }
+            );
+          }
+        ),
+      ],
+    },
+  },
+  render: () => (
+    <WorktreeBulkRemoveDialog
+      batch={{
+        workspaceId: "ws_alpha",
+        worktrees: [],
+        discovered: [discoveredWorktreeFixture, discoveredStaleWorktreeFixture],
+      }}
+      onClose={fn()}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await body.findByRole("button", { name: "Remove 2 worktrees" }));
+    await body.findByText("Stale Git entry cleared. Branch kept.");
+    await userEvent.click(await body.findByRole("button", { name: "Force remove…" }));
     await body.findByTestId("worktree-bulk-force-dialog");
   },
 };

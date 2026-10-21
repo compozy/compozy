@@ -251,6 +251,9 @@ export {
   ProviderInspectView,
   ProviderLogo,
   ProviderModelCatalogStatus,
+  ProviderUsageCollectionSection,
+  ProviderUsageKeychainSection,
+  ProviderUsageProvidersSection,
   TerminalSettingsSections,
   type TerminalSettingsConfig,
   ProvidersToolbar,
@@ -452,5 +455,23 @@ export {
   useUpdateSettingsMarketplace,
 } from "./hooks/use-settings-marketplace";
 export { settingsMarketplaceOptions } from "./lib/query-options";
+export { settingsProviderUsageOptions } from "./lib/query-options";
+export { useSettingsProviderUsagePage } from "./hooks/use-settings-provider-usage-page";
+export {
+  useAllowProviderUsageKeychain,
+  useSettingsProviderUsage,
+  useUpdateSettingsProviderUsage,
+} from "./hooks/use-settings-provider-usage";
+export {
+  PROVIDER_USAGE_COLLECTOR_IDS,
+  PROVIDER_USAGE_INTERVAL_OPTIONS,
+  providerUsageIntervalValue,
+  providerUsageKeychainAccess,
+  providerUsageProviderEnabled,
+  sameProviderUsageConfig,
+  withProviderUsageKeychainAccess,
+  withProviderUsageProviderEnabled,
+  type ProviderUsageSettingsConfig,
+} from "./lib/provider-usage-settings";
 
 export type { SettingsMarketplaceSection, SettingsUpdateMarketplaceRequest } from "./types";

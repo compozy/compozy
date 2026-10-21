@@ -38,6 +38,7 @@ type worktreeClientAPI interface {
 	DismissWorktree(
 		context.Context, string, string, WorktreeCleanupOptions,
 	) (*contract.WorktreeBranchOutcomePayload, error)
+	RemoveDiscoveredWorktree(context.Context, string, string, bool) error
 }
 
 func (c *daemonClient) ListWorktrees(
@@ -192,6 +193,18 @@ func (c *daemonClient) DismissWorktree(
 	opts WorktreeCleanupOptions,
 ) (*contract.WorktreeBranchOutcomePayload, error) {
 	return c.cleanupWorktree(ctx, http.MethodPost, worktreeItemPath(workspaceRef, ref)+"/dismiss", opts)
+}
+
+// RemoveDiscoveredWorktree removes a Git-only checkout by its listed path.
+func (c *daemonClient) RemoveDiscoveredWorktree(
+	ctx context.Context,
+	workspaceRef, path string,
+	force bool,
+) error {
+	return c.doJSON(
+		ctx, http.MethodPost, worktreeCollectionPath(workspaceRef)+"/discovered/remove", nil,
+		contract.RemoveDiscoveredWorktreeRequest{Path: path, Force: force}, nil,
+	)
 }
 
 func (c *daemonClient) cleanupWorktree(

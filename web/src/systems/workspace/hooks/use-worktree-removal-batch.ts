@@ -1,7 +1,12 @@
 import { createStoreLogic } from "@xstate/store";
 import { useSelector, useStore } from "@xstate/store-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { dismissWorktree, removeWorktree } from "@/systems/workspace/adapters/worktree-api";
+import {
+  dismissWorktree,
+  removeDiscoveredWorktree,
+  removeWorktree,
+  WorktreeApiError,
+} from "@/systems/workspace/adapters/worktree-api";
 import { inspectWorktree } from "@/systems/workspace/adapters/worktree-exit-api";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 import { describeBranchOutcome } from "@/systems/workspace/lib/worktree-branch-outcome";
@@ -10,21 +15,47 @@ import {
   WORKTREE_ERROR_CODES,
   type WorktreeRefusal,
 } from "@/systems/workspace/lib/worktree-refusal";
-import { removeWorktreeFromList } from "@/systems/workspace/lib/worktree-list-reconciliation";
+import {
+  removeDiscoveredFromList,
+  removeWorktreeFromList,
+} from "@/systems/workspace/lib/worktree-list-reconciliation";
+import { isStaleDiscovered } from "@/systems/workspace/lib/worktree-display";
 import { activeWorkspaceStore } from "@/systems/workspace/stores/active-workspace-store";
-import type { WorktreePayload, WorktreesResponse } from "@/systems/workspace/types";
+import type {
+  DiscoveredWorktreePayload,
+  WorktreePayload,
+  WorktreesResponse,
+} from "@/systems/workspace/types";
 import type { WorktreeRemovalBatch } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
+/** One frozen batch target: a registered record, or a Git-only checkout named by its path. */
+export type WorktreeRemovalTarget =
+  | { kind: "worktree"; key: string; row: WorktreePayload }
+  | { kind: "discovered"; key: string; discovered: DiscoveredWorktreePayload };
+
 interface RemovalResult {
-  row: WorktreePayload;
+  target: WorktreeRemovalTarget;
   status: "pending" | "running" | "success" | "failed";
   message: string;
   refusal?: WorktreeRefusal | null;
 }
+
+function batchTargets(batch: WorktreeRemovalBatch): WorktreeRemovalTarget[] {
+  return [
+    ...batch.worktrees.map(row => ({ kind: "worktree" as const, key: row.id, row })),
+    ...(batch.discovered ?? []).map(discovered => ({
+      kind: "discovered" as const,
+      key: `discovered:${discovered.path}`,
+      discovered,
+    })),
+  ];
+}
+
 function canForce(result: RemovalResult) {
+  const target = result.target;
   return (
     result.status === "failed" &&
-    result.row.state === "ready" &&
+    (target.kind === "discovered" || target.row.state === "ready") &&
     result.refusal?.risk != null &&
     (result.refusal.code === WORKTREE_ERROR_CODES.dirtyRequiresForce ||
       result.refusal.code === WORKTREE_ERROR_CODES.unpushedRequiresForce)
@@ -38,7 +69,9 @@ const batchLogic = createStoreLogic({
     running: false,
     attempted: false,
     forceTargets: [] as RemovalResult[],
-    results: batch.worktrees.map(row => ({ row, status: "pending", message: "" }) as RemovalResult),
+    results: batchTargets(batch).map(
+      target => ({ target, status: "pending", message: "" }) as RemovalResult
+    ),
   }),
   on: {
     requestForce: context =>
@@ -59,7 +92,7 @@ const batchLogic = createStoreLogic({
     outcome: (
       context,
       event: {
-        id: string;
+        key: string;
         status: RemovalResult["status"];
         message: string;
         refusal?: WorktreeRefusal | null;
@@ -67,7 +100,7 @@ const batchLogic = createStoreLogic({
     ) => ({
       ...context,
       results: context.results.map(result =>
-        result.row.id === event.id
+        result.target.key === event.key
           ? { ...result, status: event.status, message: event.message, refusal: event.refusal }
           : result
       ),
@@ -128,6 +161,43 @@ async function cleanupTarget(
   return branch ? `${record} ${describeBranchOutcome(branch)}` : record;
 }
 
+/**
+ * Removes one discovered checkout by its listed path. Git no longer listing the
+ * path is the terminal receipt, so a lost response retries into confirmation.
+ */
+async function cleanupDiscovered(
+  discovered: DiscoveredWorktreePayload,
+  workspaceId: string,
+  force: boolean
+) {
+  try {
+    // The confirmation for a stale entry only promised to clear Git's record;
+    // the daemon refuses if the checkout has reappeared since.
+    await removeDiscoveredWorktree(workspaceId, discovered.path, {
+      force,
+      expectStale: isStaleDiscovered(discovered),
+    });
+  } catch (error) {
+    // Only the target-specific code proves Git no longer lists the path; a
+    // missing workspace also answers 404 without any Git check.
+    if (
+      error instanceof WorktreeApiError &&
+      error.status === 404 &&
+      decodeWorktreeRefusal(error)?.code === WORKTREE_ERROR_CODES.notFound
+    ) {
+      return "No longer listed by Git; confirmed by CompozyOS.";
+    }
+    throw error;
+  }
+  return isStaleDiscovered(discovered)
+    ? "Stale Git entry cleared. Branch kept."
+    : "Worktree removed. Branch kept.";
+}
+
+/** A stale entry's checkout reappeared after confirmation; nothing was removed. */
+const DISCOVERED_CHANGED =
+  "The checkout is back on disk, so nothing was removed. Refresh and select it again.";
+
 /** Cleanup succeeded but the requested branch step is unconfirmed; retry repeats only it. */
 const BRANCH_UNCONFIRMED =
   "Worktree cleaned up, but the branch result is unconfirmed. Retry repeats only the branch step.";
@@ -153,10 +223,42 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
           previous.then(async () => {
             if (result.status === "success") return;
             const force =
-              forceTargets.some(target => target.row.id === result.row.id) && canForce(result);
+              forceTargets.some(target => target.target.key === result.target.key) &&
+              canForce(result);
             if (forceTargets.length > 0 && !force) return;
-            const row = result.row;
-            store.trigger.outcome({ id: row.id, status: "running", message: "Checking…" });
+            const target = result.target;
+            if (target.kind === "discovered") {
+              store.trigger.outcome({ key: target.key, status: "running", message: "Removing…" });
+              try {
+                const message = await cleanupDiscovered(
+                  target.discovered,
+                  batch.workspaceId,
+                  force
+                );
+                store.trigger.outcome({ key: target.key, status: "success", message });
+                queryClient.setQueryData<WorktreesResponse>(
+                  workspaceKeys.worktrees(batch.workspaceId),
+                  current => removeDiscoveredFromList(current, target.discovered.path)
+                );
+              } catch (error) {
+                const refusal = decodeWorktreeRefusal(error);
+                store.trigger.outcome({
+                  key: target.key,
+                  status: "failed",
+                  refusal,
+                  message:
+                    refusal?.code === WORKTREE_ERROR_CODES.discoveredChanged
+                      ? DISCOVERED_CHANGED
+                      : (refusal?.message ??
+                        (error instanceof Error
+                          ? error.message
+                          : "Result unconfirmed. Retry checks CompozyOS before acting.")),
+                });
+              }
+              return;
+            }
+            const row = target.row;
+            store.trigger.outcome({ key: row.id, status: "running", message: "Checking…" });
             let message = "Already removed or dismissed; confirmed by CompozyOS.";
             try {
               const terminal = await reconcileTarget(batch, row);
@@ -179,7 +281,7 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
               }
               if (!confirmed || deleteBranch) {
                 store.trigger.outcome({
-                  id: row.id,
+                  key: row.id,
                   status: "failed",
                   refusal: confirmed ? null : decodeWorktreeRefusal(error),
                   message: confirmed
@@ -192,7 +294,7 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
                 return;
               }
             }
-            store.trigger.outcome({ id: row.id, status: "success", message });
+            store.trigger.outcome({ key: row.id, status: "success", message });
             activeWorkspaceStore.trigger.worktreeRemoved({
               workspaceId: batch.workspaceId,
               worktreeId: row.id,

@@ -18,6 +18,7 @@ import {
   settingsMCPServerFixtures,
   settingsMCPServersCollectionFixture,
   settingsMarketplaceSectionFixture,
+  settingsProviderUsageSectionFixture,
   settingsObservabilitySectionFixture,
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
@@ -206,6 +207,13 @@ export const handlers: HttpHandler[] = [
   ),
   compozyApiMock.patch("/api/settings/marketplace", () =>
     HttpResponse.json(mutationResult("marketplace"))
+  ),
+
+  compozyApiMock.get("/api/settings/provider-usage", () =>
+    HttpResponse.json(settingsProviderUsageSectionFixture)
+  ),
+  compozyApiMock.patch("/api/settings/provider-usage", () =>
+    HttpResponse.json(mutationResult("provider-usage"))
   ),
 
   compozyApiMock.get("/api/settings/attention", () =>

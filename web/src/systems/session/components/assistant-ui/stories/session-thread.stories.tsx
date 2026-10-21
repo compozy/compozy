@@ -251,9 +251,9 @@ export const ChangedFilesRollup: Story = {
 };
 
 /**
- * Hover toolbar — durable user output exposes copy and conversation rewind.
+ * Persistent toolbar — durable user output exposes copy and message editing.
  */
-export const HoverToolbar: Story = {
+export const MessageToolbar: Story = {
   args: {
     sessionId: primarySessionFixture.id,
     agentName: primarySessionFixture.agent_name,
@@ -271,8 +271,7 @@ export const HoverToolbar: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.hover(await canvas.findByText("Summarize the launch readiness in one line."));
-    await expect(await canvas.findByRole("button", { name: "Rewind to here" })).toBeVisible();
+    await expect(await canvas.findByRole("button", { name: "Edit message" })).toBeVisible();
   },
 };
 

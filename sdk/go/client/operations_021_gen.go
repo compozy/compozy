@@ -5,8 +5,115 @@ package client
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// PinCmdPaletteCommand Pin one command palette command
+func (c *Client) PinCmdPaletteCommand(ctx context.Context, params PinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
+	path := "/api/cmd-palette/pins/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPalettePinResponse
+	if err := c.doContent(ctx, "PUT", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PrepareProfileArchiveParams carries the path, query, and header parameters.
+type PrepareProfileArchiveParams struct {
+	Name string `url:"name"`
+}
+
+// PrepareProfileArchive Preview profile archival
+func (c *Client) PrepareProfileArchive(ctx context.Context, params PrepareProfileArchiveParams) (*ArchiveProfilePlan, error) {
+	path := "/api/profiles/{name}/archive-plan"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out ArchiveProfilePlan
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PrepareProfileDeleteParams carries the path, query, and header parameters.
+type PrepareProfileDeleteParams struct {
+	Name string `url:"name"`
+}
+
+// PrepareProfileDelete Preview profile deletion
+func (c *Client) PrepareProfileDelete(ctx context.Context, params PrepareProfileDeleteParams) (*DeleteProfilePlan, error) {
+	path := "/api/profiles/{name}/delete-plan"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out DeleteProfilePlan
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PrepareProfileRenameParams carries the path, query, and header parameters.
+type PrepareProfileRenameParams struct {
+	Name    string `url:"name"`
+	NewName string `url:"new_name"`
+}
+
+// PrepareProfileRename Preview a profile rename
+func (c *Client) PrepareProfileRename(ctx context.Context, params PrepareProfileRenameParams) (*RenameProfilePlan, error) {
+	path := "/api/profiles/{name}/rename-plan"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	query.Set("new_name", params.NewName)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RenameProfilePlan
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PreviewExtensionEnableParams carries the path, query, and header parameters.
+type PreviewExtensionEnableParams struct {
+	Name        string  `url:"name"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// PreviewExtensionEnable Preview one extension enablement change
+func (c *Client) PreviewExtensionEnable(ctx context.Context, params PreviewExtensionEnableParams) (*ExtensionEnablePreviewPayload, error) {
+	path := "/api/extensions/{name}/preview"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionEnablePreviewPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PreviewExtensionInstallParams carries the path, query, and header parameters.
+type PreviewExtensionInstallParams struct {
+	Profile *string `url:"profile"`
+}
 
 // PreviewExtensionInstall Preview an extension install without changing state
 func (c *Client) PreviewExtensionInstall(ctx context.Context, params PreviewExtensionInstallParams, body InstallExtensionRequest) (*ExtensionInstallPreviewPayload, error) {
@@ -331,109 +438,4 @@ func (c *Client) PutSettingsHook(ctx context.Context, params PutSettingsHookPara
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PutSettingsMCPServerParams carries the path, query, and header parameters.
-type PutSettingsMCPServerParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-	Target      *string `url:"target"`
-}
-
-// PutSettingsMCPServer Replace a manual MCP server or its extension override
-func (c *Client) PutSettingsMCPServer(ctx context.Context, params PutSettingsMCPServerParams, body PutSettingsMCPServerRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/mcp-servers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if params.Target != nil {
-		query.Set("target", *params.Target)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutSettingsProviderParams carries the path, query, and header parameters.
-type PutSettingsProviderParams struct {
-	Name string `url:"name"`
-}
-
-// PutSettingsProvider Create or replace one settings-backed provider overlay
-func (c *Client) PutSettingsProvider(ctx context.Context, params PutSettingsProviderParams, body PutSettingsProviderRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/providers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutVaultSecret Create or update one write-only vault secret
-func (c *Client) PutVaultSecret(ctx context.Context, body PutVaultSecretRequest) (*VaultSecretResponse, error) {
-	path := "/api/vault/secrets"
-	var out VaultSecretResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutWindowManagerLayoutProfileParams carries the path, query, and header parameters.
-type PutWindowManagerLayoutProfileParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ProfileID   string  `url:"profile_id"`
-	Profile     *string `url:"profile"`
-}
-
-// PutWindowManagerLayoutProfile Create or replace one workspace-visible layout profile
-func (c *Client) PutWindowManagerLayoutProfile(ctx context.Context, params PutWindowManagerLayoutProfileParams, body PutResourceRequest) (*ResourceResponse, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{profile_id}", url.PathEscape(params.ProfileID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ResourceResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// QueryTerminalJournalParams carries the path, query, and header parameters.
-type QueryTerminalJournalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Actor       *string `url:"actor"`
-	Since       *string `url:"since"`
-	Failed      *bool   `url:"failed"`
-	TerminalID  *string `url:"terminal_id"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

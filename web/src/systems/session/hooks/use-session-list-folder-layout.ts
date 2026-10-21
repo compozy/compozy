@@ -13,7 +13,8 @@ import { useSessionSidebarState } from "./use-session-sidebar-state";
 
 /** Which folder dialog is open, if any. */
 export type SessionFolderDialogState =
-  | { kind: "create" }
+  /** `moveCount` set: the folder is created around the selection, which moves into it. */
+  | { kind: "create"; moveCount?: number }
   | { kind: "rename"; folder: NonNullable<SessionListViewModel["layout"]>["folders"][number] }
   | { kind: "delete"; folder: NonNullable<SessionListViewModel["layout"]>["folders"][number] }
   | null;

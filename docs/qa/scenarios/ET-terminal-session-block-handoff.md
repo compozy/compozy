@@ -69,3 +69,13 @@ injection, disposable socket injection, undeclared filtering, stale optional ove
 required-missing pre-launch failure, and output redaction. CLI/API/runtime behavior passed;
 manifest-owned teardown was clean. Agent transcript and Loop inheritance remain covered by focused
 runtime suites, with a provider-backed UI walk still unverified. See the issues verification report.
+
+## Console lifecycle regression (#873)
+
+Run long commands with and without visibility. Only the catalog-confirmed running PTY streams in the transcript; pipe and removed terminal blocks keep recorded output without socket retries. A direct pipe attach-ticket request returns terminal_not_interactive. Markdown host image paths render as references without app-origin requests. Terminal manager, real HTTP/SQLite/PTY/WebSocket lifecycle and component regressions pass; a provider-backed transcript walk remains unverified.
+
+Targeted browser evidence (2026-10-21): the isolated Web Storybook rendered
+`MessageMarkdown/HostImageReference` at 1920×963 with readable authored path, zero image elements,
+and zero resource requests for that host path. `SessionTerminalBlock/StillRunningHandoff` retained
+the output, running label and Open terminal action with no attach-ticket request. This is rendered
+component evidence, not a provider-backed session lifecycle claim.

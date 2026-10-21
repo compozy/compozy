@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   aggregate: true,
   createWorktree: vi.fn(),
   removeWorktree: vi.fn(),
+  removeDiscoveredWorktree: vi.fn(),
   dismissWorktree: vi.fn(),
   inspectWorktree: vi.fn(),
   destination: "default",
@@ -22,6 +23,7 @@ vi.mock("../../adapters/worktree-api", async importOriginal => ({
   createWorktree: mocks.createWorktree,
   dismissWorktree: mocks.dismissWorktree,
   removeWorktree: mocks.removeWorktree,
+  removeDiscoveredWorktree: mocks.removeDiscoveredWorktree,
 }));
 vi.mock("../../adapters/worktree-exit-api", () => ({ inspectWorktree: mocks.inspectWorktree }));
 vi.mock("@/lib/user-feedback", () => ({ notifyUser: mocks.notifyUser }));
@@ -331,18 +333,18 @@ describe("worktree batch lifecycle", () => {
       { wrapper: createWrapper(new QueryClient()) }
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Also delete local branches" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove selected" }));
-    await screen.findByText("1 succeeded · 3 failed · 0 pending");
+    fireEvent.click(screen.getByRole("button", { name: "Remove 4 worktrees" }));
+    await screen.findByText(/^1 of 4 done · 3 failed\./);
     expect(screen.getByText("2 changed files")).toBeInTheDocument();
     expect(screen.getByText("1 unpushed commit")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Force remove… (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Force remove…" }));
     expect(screen.getByTestId("worktree-bulk-force-dialog")).toBeInTheDocument();
     expect(mocks.removeWorktree).toHaveBeenCalledTimes(4);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(mocks.removeWorktree).toHaveBeenCalledTimes(4);
-    fireEvent.click(screen.getByRole("button", { name: "Force remove… (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Force remove…" }));
     fireEvent.click(screen.getByRole("button", { name: "Force remove" }));
-    await screen.findByText("3 succeeded · 1 failed · 0 pending");
+    await screen.findByText(/^3 of 4 done · 1 failed\./);
     expect(
       mocks.removeWorktree.mock.calls.filter(call => call[2].force).map(call => call[1])
     ).toEqual(["dirty", "unpushed"]);
@@ -352,6 +354,95 @@ describe("worktree batch lifecycle", () => {
       deleteBranch: true,
     });
     expect(screen.queryByRole("button", { name: /Force remove/ })).not.toBeInTheDocument();
+  });
+
+  it("Should remove discovered paths without a record and force only a refused live checkout", async () => {
+    const discovered = (path: string, stale: boolean) => ({
+      name: path.split("/").at(-1) ?? path,
+      branch: "",
+      path,
+      detached: true,
+      stale,
+      selectable: !stale,
+      unavailable: stale,
+      reason: stale ? "gitdir file points to non-existent location" : undefined,
+    });
+    const stale = discovered("/private/tmp/detached-stale", true);
+    const live = discovered("/Users/ada/dev/detached-live", false);
+    const lost = discovered("/Users/ada/dev/detached-lost", false);
+    const orphaned = discovered("/Users/ada/dev/workspace-gone", false);
+    const reappeared = discovered("/private/tmp/detached-back", true);
+    mocks.removeDiscoveredWorktree.mockImplementation(async (_workspace, path, options) => {
+      // A stale confirmation must not remove a checkout that came back.
+      if (path === reappeared.path && options.expectStale) {
+        throw new WorktreeApiError("changed", 409, { code: "worktree_discovered_changed" });
+      }
+      if (path === live.path && !options.force) {
+        throw new WorktreeApiError("refused", 409, {
+          code: "worktree_unpushed_requires_force",
+          risk: {
+            changed_files: 0,
+            insertions: 0,
+            deletions: 0,
+            unpushed_commits: 2,
+            exists_on_remote: false,
+          },
+        });
+      }
+      if (path === lost.path) {
+        throw new WorktreeApiError("gone", 404, { code: "worktree_not_found" });
+      }
+      if (path === orphaned.path) {
+        throw new WorktreeApiError("workspace gone", 404, { code: "workspace_not_found" });
+      }
+    });
+    const { result } = renderHook(
+      () =>
+        useWorktreeRemovalBatch({
+          workspaceId: "ws_alpha",
+          worktrees: [],
+          discovered: [stale, live, lost, orphaned, reappeared],
+        }),
+      { wrapper: createWrapper(new QueryClient()) }
+    );
+    await act(async () => {
+      await result.current.run();
+    });
+    expect(result.current.results.map(row => [row.status, row.message])).toEqual([
+      ["success", "Stale Git entry cleared. Branch kept."],
+      ["failed", expect.any(String)],
+      ["success", "No longer listed by Git; confirmed by CompozyOS."],
+      ["failed", expect.any(String)],
+      [
+        "failed",
+        "The checkout is back on disk, so nothing was removed. Refresh and select it again.",
+      ],
+    ]);
+    expect(mocks.inspectWorktree).not.toHaveBeenCalled();
+    expect(result.current.forceEligible).toHaveLength(1);
+    act(() => result.current.requestForce());
+    await act(async () => {
+      await result.current.confirmForce();
+    });
+    expect(result.current.results[1]).toMatchObject({
+      status: "success",
+      message: "Worktree removed. Branch kept.",
+    });
+    expect(
+      mocks.removeDiscoveredWorktree.mock.calls.map(call => [
+        call[1],
+        call[2].force,
+        call[2].expectStale,
+      ])
+    ).toEqual([
+      [stale.path, false, true],
+      [live.path, false, false],
+      [lost.path, false, false],
+      [orphaned.path, false, false],
+      [reappeared.path, false, true],
+      [live.path, true, false],
+    ]);
+    expect(mocks.removeWorktree).not.toHaveBeenCalled();
   });
 
   it("Should select ready and missing rows of any live owner and freeze the selection", () => {
@@ -375,9 +466,18 @@ describe("worktree batch lifecycle", () => {
       profile_archived: true,
     });
     const newer = buildWorktreeFixture({ id: "wt_new", workspace_id: "ws_alpha" });
+    const discovered = {
+      name: "detached-a217e52e",
+      branch: "",
+      path: "/private/tmp/detached-a217e52e",
+      detached: true,
+      stale: true,
+      selectable: false,
+      unavailable: true,
+    };
     const onRemove = vi.fn();
     const entries = (rows: (typeof row)[]) =>
-      toWorktreeNestEntries({ worktrees: rows, discovered: [] });
+      toWorktreeNestEntries({ worktrees: rows, discovered: [discovered] });
     const { result, rerender } = renderHook(
       ({ rows }) => useWorktreeRemovalSelection("ws_alpha", entries(rows), onRemove),
       { initialProps: { rows: [row, foreignMissing, orphan, archived] } }
@@ -394,6 +494,25 @@ describe("worktree batch lifecycle", () => {
       row.id,
       foreignMissing.id,
     ]);
+    expect(onRemove.mock.calls[0]?.[0].discovered).toEqual([discovered]);
+  });
+
+  it("Should judge select-all by row identity after a selected row leaves the list", () => {
+    const first = buildWorktreeFixture({ id: "wt_first", workspace_id: "ws_alpha" });
+    const second = buildWorktreeFixture({ id: "wt_second", workspace_id: "ws_alpha" });
+    const entries = (rows: (typeof first)[]) =>
+      toWorktreeNestEntries({ worktrees: rows, discovered: [] });
+    const { result, rerender } = renderHook(
+      ({ rows }) => useWorktreeRemovalSelection("ws_alpha", entries(rows), vi.fn()),
+      { initialProps: { rows: [first, second] } }
+    );
+    act(() => result.current.toggle(entries([first, second])[0]!));
+    rerender({ rows: [second] });
+    // One saved row and one eligible row, but the eligible one is unchecked.
+    expect(result.current.count).toBe(1);
+    expect(result.current.allEligibleSelected).toBe(false);
+    act(() => result.current.selectAll());
+    expect(result.current.allEligibleSelected).toBe(true);
   });
 });
 

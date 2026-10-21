@@ -33,9 +33,12 @@ func maybeApplyConfigSetViaDaemon(
 	}
 
 	var result SettingsMutationRecord
-	if isSkillSourceMutation(path) {
+	switch {
+	case isSkillSourceMutation(path):
 		result, err = applyDaemonSkillSourceValue(cmd, deps, client, target, workspaceRef, path, value)
-	} else {
+	case path[0] == compozyconfig.ProviderUsageConfigKey:
+		result, err = applyDaemonProviderUsageValue(cmd, deps, client, path, value)
+	default:
 		cfg, loadErr := deps.loadConfig()
 		if loadErr != nil {
 			return nil, fmt.Errorf("cli: load current config for daemon-backed config set: %w", loadErr)
@@ -326,7 +329,9 @@ func supportsDaemonManagedConfigSet(path []string, target compozyconfig.WriteTar
 	if target.Scope() != compozyconfig.WriteScopeUser {
 		return false
 	}
-	return len(path) >= 2 && (path[0] == configAttentionKey || path[0] == configShellKey)
+	return len(path) >= 2 &&
+		(path[0] == configAttentionKey || path[0] == configShellKey ||
+			path[0] == compozyconfig.ProviderUsageConfigKey)
 }
 
 func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {

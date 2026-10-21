@@ -1,6 +1,7 @@
 package config
 
 type configOverlay struct {
+	ProviderUsage *providerUsageOverlay      `toml:"provider_usage"`
 	Vault         *VaultConfig               `toml:"vault"`
 	Subagents     subagentsOverlay           `toml:"subagents"`
 	Daemon        daemonOverlay              `toml:"daemon"`
@@ -39,6 +40,11 @@ type configOverlay struct {
 }
 
 func (o *configOverlay) Apply(dst *Config) error {
+	if o.ProviderUsage != nil {
+		if err := o.ProviderUsage.Apply(&dst.ProviderUsage); err != nil {
+			return err
+		}
+	}
 	if o.Vault != nil {
 		dst.Vault = *o.Vault
 	}

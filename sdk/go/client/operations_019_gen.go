@@ -9,6 +9,98 @@ import (
 	"strings"
 )
 
+// ListTaskRunReviews List reviews for one task run
+func (c *Client) ListTaskRunReviews(ctx context.Context, params ListTaskRunReviewsParams) (*TaskRunReviewsResponse, error) {
+	path := "/api/task-runs/{id}/reviews"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.ReviewerSessionID != nil {
+		query.Set("reviewer_session_id", *params.ReviewerSessionID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunReviewsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListTaskRunsParams carries the path, query, and header parameters.
+type ListTaskRunsParams struct {
+	ID          string  `url:"id"`
+	Status      *string `url:"status"`
+	SessionID   *string `url:"session_id"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListTaskRuns List runs for one task
+func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*TaskRunsResponse, error) {
+	path := "/api/tasks/{id}/runs"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListTasksParams carries the path, query, and header parameters.
+type ListTasksParams struct {
+	Scope         *string `url:"scope"`
+	Workspace     *string `url:"workspace"`
+	Status        *string `url:"status"`
+	Priority      *string `url:"priority"`
+	IncludeDrafts *bool   `url:"include_drafts"`
+	IncludeLoop   *bool   `url:"include_loop"`
+	LoopRunID     *string `url:"loop_run_id"`
+	ApprovalState *string `url:"approval_state"`
+	OwnerKind     *string `url:"owner_kind"`
+	OwnerRef      *string `url:"owner_ref"`
+	ParentTaskID  *string `url:"parent_task_id"`
+	Worktree      *string `url:"worktree"`
+	Query         *string `url:"query"`
+	Sort          *string `url:"sort"`
+	Cursor        *string `url:"cursor"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // ListTasks List a bounded task catalog page
 func (c *Client) ListTasks(ctx context.Context, params ListTasksParams) (*TasksResponse, error) {
 	path := "/api/tasks"
@@ -330,113 +422,4 @@ type ListWorkspaceSessionsParams struct {
 	Limit         *int    `url:"limit"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// ListWorkspaceSessions List sessions
-func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspaceSessionsParams) (*SessionCatalogResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.IncludeHealth != nil {
-		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
-	}
-	if params.SkipTotal != nil {
-		query.Set("skip_total", strconv.FormatBool(*params.SkipTotal))
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.Subagents != nil {
-		query.Set("subagents", *params.Subagents)
-	}
-	if params.Parent != nil {
-		query.Set("parent", *params.Parent)
-	}
-	if params.Root != nil {
-		query.Set("root", *params.Root)
-	}
-	if params.Worktree != nil {
-		query.Set("worktree", *params.Worktree)
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.SearchFields != nil {
-		query.Set("search_fields", *params.SearchFields)
-	}
-	if params.Resumable != nil {
-		query.Set("resumable", strconv.FormatBool(*params.Resumable))
-	}
-	if params.Attention != nil {
-		query.Set("attention", strconv.FormatBool(*params.Attention))
-	}
-	if params.Badge != nil {
-		query.Set("badge", *params.Badge)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Sort != nil {
-		query.Set("sort", *params.Sort)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionCatalogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListWorkspaces List registered workspaces
-func (c *Client) ListWorkspaces(ctx context.Context) (*WorkspacesResponse, error) {
-	path := "/api/workspaces"
-	var out WorkspacesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListWorktreesParams carries the path, query, and header parameters.
-type ListWorktreesParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	Refresh     *bool  `url:"refresh"`
-}
-
-// ListWorktrees List registered and discovered worktrees
-func (c *Client) ListWorktrees(ctx context.Context, params ListWorktreesParams) (*WorktreesResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Refresh != nil {
-		query.Set("refresh", strconv.FormatBool(*params.Refresh))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreesResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

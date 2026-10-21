@@ -9,6 +9,21 @@ import (
 	"strings"
 )
 
+// CreateSupportBundle Create a support bundle
+func (c *Client) CreateSupportBundle(ctx context.Context, body CreateSupportBundleRequest) (*SupportBundleOperationResponse, error) {
+	path := "/api/support/bundles"
+	var out SupportBundleOperationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateTaskParams carries the path, query, and header parameters.
+type CreateTaskParams struct {
+	Profile *string `url:"profile"`
+}
+
 // CreateTask Create a task
 func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body CreateTaskRequest) (*TaskResponse, error) {
 	path := "/api/tasks"

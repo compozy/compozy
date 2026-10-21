@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
 import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
+import { sessionAwaitsMonitors } from "../../lib/session-monitor-summary";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionBadgeMark } from "../session-badge-mark";
 import type { SessionPayload } from "../../types";
@@ -208,6 +209,7 @@ function SessionRowTarget({
       <SessionBadgeMark
         badge={session.badge}
         delegated={sessionAwaitsSubagents(session)}
+        monitoring={sessionAwaitsMonitors(session)}
         className={badgeMarkClass(selection)}
       />
       <span className="min-w-0 truncate">{title}</span>

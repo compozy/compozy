@@ -3031,3 +3031,107 @@ func TestDaemonLoadConfigDefaultsAndValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestProviderUsageConfig(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve provider usage defaults and explicit overrides UT-040", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		usage := cfg.ProviderUsage
+		if !usage.Enabled || usage.RefreshInterval != 5*time.Minute || len(usage.Providers) != 0 ||
+			!usage.ProviderEnabled("claude") || usage.ClaudeKeychainAccess() {
+			t.Fatalf("defaults = %#v", usage)
+		}
+		overlay, err := loadConfigOverlayBytes([]byte(`[provider_usage]
+refresh_interval = "10m"
+[provider_usage.providers.claude]
+keychain_access = true
+[provider_usage.providers.cursor]
+enabled = false
+`), "test.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := overlay.Apply(&cfg); err != nil {
+			t.Fatal(err)
+		}
+		if err := cfg.ProviderUsage.Validate(cfg.Providers); err != nil {
+			t.Fatal(err)
+		}
+		if !cfg.ProviderUsage.ProviderEnabled("claude") || cfg.ProviderUsage.ProviderEnabled("cursor") ||
+			!cfg.ProviderUsage.ClaudeKeychainAccess() || cfg.ProviderUsage.RefreshInterval != 10*time.Minute {
+			t.Fatalf("merged = %#v", cfg.ProviderUsage)
+		}
+		cfg.ProviderUsage.Enabled = false
+		if cfg.ProviderUsage.ProviderEnabled("claude") {
+			t.Fatal("disabled feature admits provider")
+		}
+	})
+	for _, tc := range []struct{ name, content, want string }{
+		{"Should reject short refresh interval UT-041", "[provider_usage]\nrefresh_interval = '10s'", "provider_usage.refresh_interval must be between 1m and 1h"},
+		{"Should reject long refresh interval UT-041", "[provider_usage]\nrefresh_interval = '2h'", "provider_usage.refresh_interval must be between 1m and 1h"},
+		{"Should reject zero refresh interval", "[provider_usage]\nrefresh_interval = '0s'", "provider_usage.refresh_interval must be between 1m and 1h"},
+		{"Should reject unknown provider UT-041", "[provider_usage.providers.nonexistent]\nenabled = false", "provider_usage.providers.nonexistent"},
+		{"Should reject alias provider", "[provider_usage.providers.claude-code]\nenabled = false", "provider_usage.providers.claude-code"},
+		{"Should reject non Claude Keychain even when false", "[provider_usage.providers.codex]\nkeychain_access = false", "provider_usage.providers.codex.keychain_access"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := DefaultWithHome(HomePaths{})
+			overlay, err := loadConfigOverlayBytes([]byte(tc.content), "test.toml")
+			if err == nil {
+				err = overlay.Apply(&cfg)
+			}
+			if err == nil {
+				err = cfg.ProviderUsage.Validate(cfg.Providers)
+			}
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+	t.Run("Should accept interval boundaries and configured custom providers", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultProviderUsageConfig()
+		cfg.Providers = map[string]ProviderUsageProviderConfig{"custom": {Enabled: false}}
+		for _, interval := range []time.Duration{time.Minute, time.Hour} {
+			cfg.RefreshInterval = interval
+			if err := cfg.Validate(map[string]ProviderConfig{"custom": {}}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
+	t.Run("Should reject provider usage in workspace and profile overlays UT-042", func(t *testing.T) {
+		t.Parallel()
+		for _, contents := range []string{"[provider_usage]", "[provider_usage]\nenabled = false", "[provider_usage.providers.claude]\nkeychain_access = true"} {
+			for _, load := range []func([]byte, string) (configOverlay, error){loadWorkspaceConfigOverlayBytes, loadProfileConfigOverlayBytes} {
+				if _, err := load(
+					[]byte(contents),
+					"overlay.toml",
+				); err == nil ||
+					!strings.Contains(err.Error(), "provider_usage") {
+					t.Fatalf("overlay error = %v", err)
+				}
+			}
+		}
+	})
+	t.Run("Should restrict provider usage writes to user scope", func(t *testing.T) {
+		t.Parallel()
+		for _, path := range []string{"provider_usage.enabled", "provider_usage.refresh_interval", "provider_usage.providers.codex.enabled", "provider_usage.providers.claude.keychain_access"} {
+			parts := strings.Split(path, ".")
+			if err := ValidateConfigWriteScope(WriteScopeUser, parts); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := ValidateConfigWriteScope(WriteScopeWorkspace, parts); err == nil ||
+				!strings.Contains(err.Error(), "global-only") || !strings.Contains(err.Error(), path) {
+				t.Fatalf("workspace write error = %v, want global-only denial for %s", err, path)
+			}
+			err := ValidateConfigWriteScope(WriteScopeProfile, parts)
+			validationErr, ok := errors.AsType[ValidationError](err)
+			if !ok || validationErr.Code != profileConfigKeyDeniedCode || validationErr.Path != path {
+				t.Fatalf("profile write error = %#v, want typed denial for %s", err, path)
+			}
+		}
+	})
+}

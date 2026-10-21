@@ -89,4 +89,30 @@ describe("useDesktopOverlays", () => {
     expect(result.current.activeOverlay).toBeNull();
     expect(windowManagerStore.getSnapshot().context.paletteIntent).toBeNull();
   });
+
+  it("Should keep the usage popover exclusive with the bell and the desktops overview [UT-053]", () => {
+    const { result } = renderHook(() => useDesktopOverlays());
+
+    act(() => {
+      result.current.setOverlayOpen("bell", true);
+    });
+    act(() => {
+      result.current.setOverlayOpen("usage", true);
+    });
+    expect(result.current.activeOverlay).toBe("usage");
+
+    act(() => {
+      result.current.setOverlayOpen("bell", true);
+    });
+    expect(result.current.activeOverlay).toBe("bell");
+
+    act(() => {
+      result.current.setOverlayOpen("desktops", true);
+    });
+    act(() => {
+      result.current.setOverlayOpen("usage", true);
+    });
+    expect(result.current.activeOverlay).toBe("usage");
+    expect(windowManagerStore.getSnapshot().context.activeOverlay).toBeNull();
+  });
 });

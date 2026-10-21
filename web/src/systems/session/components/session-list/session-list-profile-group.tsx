@@ -21,6 +21,7 @@ type ProfileGroupProps = Pick<
   | "onSelectSession"
   | "onNewSessionInFolder"
   | "selection"
+  | "selectionDrag"
   | "sessionActions"
   | "testIdPrefix"
 > & {
@@ -66,7 +67,7 @@ export function SessionListProfileGroup({ group, view, threads, ...props }: Prof
           onNewSessionInFolder={group.canCreateSession ? props.onNewSessionInFolder : undefined}
           sections={sections}
           layout={layout}
-          dnd={props.selection.mode ? undefined : folders.dnd}
+          dnd={folders.dnd}
           orderable={folders.orderable}
           collapsedFolders={folders.collapsedFolders}
           onToggleFolder={folders.toggleFolder}

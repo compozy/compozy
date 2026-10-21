@@ -56,25 +56,30 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
-	listMarketplaceSourcesFn   func(context.Context) (contract.MarketplaceSourcesResponse, error)
-	getSessionUsageTurnsFn     func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
-	searchSessionTranscriptFn  func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
-	getSessionOutlineFn        func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
-	statusFn                   func(context.Context) (StatusRecord, error)
-	observeOverviewFn          func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
-	doctorFn                   func(context.Context, DoctorQuery) (DoctorRecord, error)
-	daemonStatusFn             func(context.Context) (DaemonStatus, error)
-	drainFn                    func(context.Context) (DrainStatusRecord, error)
-	undrainFn                  func(context.Context) (DrainStatusRecord, error)
-	triggerSettingsRestartFn   func(context.Context) (SettingsRestartActionRecord, error)
-	getSettingsRestartStatusFn func(context.Context, string) (SettingsRestartStatusRecord, error)
-	createSupportBundleFn      func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
-	getSupportBundleFn         func(context.Context, string) (SupportBundleOperationRecord, error)
-	downloadSupportBundleFn    func(context.Context, string, io.Writer) error
-	getSettingsUpdateFn        func(context.Context) (SettingsUpdateRecord, error)
-	updateSettingsSkillsFn     func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
-	updateSettingsAttentionFn  func(context.Context, UpdateSettingsAttentionRequest) (SettingsMutationRecord, error)
-	updateSettingsShellFn      func(context.Context, UpdateSettingsShellRequest) (SettingsMutationRecord, error)
+	listMarketplaceSourcesFn      func(context.Context) (contract.MarketplaceSourcesResponse, error)
+	getSessionUsageTurnsFn        func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
+	searchSessionTranscriptFn     func(context.Context, string, transcript.SearchQuery) (contract.SessionTranscriptSearchResponse, error)
+	getSessionOutlineFn           func(context.Context, string) (contract.SessionTranscriptOutlineResponse, error)
+	statusFn                      func(context.Context) (StatusRecord, error)
+	observeOverviewFn             func(context.Context, ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
+	doctorFn                      func(context.Context, DoctorQuery) (DoctorRecord, error)
+	daemonStatusFn                func(context.Context) (DaemonStatus, error)
+	drainFn                       func(context.Context) (DrainStatusRecord, error)
+	undrainFn                     func(context.Context) (DrainStatusRecord, error)
+	triggerSettingsRestartFn      func(context.Context) (SettingsRestartActionRecord, error)
+	getSettingsRestartStatusFn    func(context.Context, string) (SettingsRestartStatusRecord, error)
+	createSupportBundleFn         func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
+	getSupportBundleFn            func(context.Context, string) (SupportBundleOperationRecord, error)
+	downloadSupportBundleFn       func(context.Context, string, io.Writer) error
+	getSettingsUpdateFn           func(context.Context) (SettingsUpdateRecord, error)
+	updateSettingsSkillsFn        func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	updateSettingsAttentionFn     func(context.Context, UpdateSettingsAttentionRequest) (SettingsMutationRecord, error)
+	updateSettingsShellFn         func(context.Context, UpdateSettingsShellRequest) (SettingsMutationRecord, error)
+	updateSettingsProviderUsageFn func(
+		context.Context,
+		UpdateSettingsProviderUsageRequest,
+		string,
+	) (SettingsMutationRecord, error)
 	reloadSettingsFn           func(context.Context) (SettingsMutationRecord, error)
 	listSettingsApplyRecordsFn func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	getOnboardingStatusFn      func(context.Context) (contract.OnboardingStatusResponse, error)
@@ -195,6 +200,7 @@ type stubClient struct {
 	) (WorktreeExitOperationRecord, error)
 	cancelWorktreeExitFn func(context.Context, string, string, string) error
 	removeWorktreeFn     func(context.Context, string, string, WorktreeCleanupOptions) (*contract.WorktreeBranchOutcomePayload, error)
+	removeDiscoveredFn   func(context.Context, string, string, bool) error
 	dismissWorktreeFn    func(context.Context, string, string, WorktreeCleanupOptions) (*contract.WorktreeBranchOutcomePayload, error)
 	listLoopsFn          func(context.Context, string, LoopListQuery) (contract.LoopsResponse, error)
 	createLoopFn         func(context.Context, string, contract.CreateLoopRequest, agentidentity.Credentials) (contract.LoopResponse, error)
@@ -706,6 +712,17 @@ func (s *stubClient) UpdateSettingsAttention(
 		return s.updateSettingsAttentionFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsAttention call")
+}
+
+func (s *stubClient) UpdateSettingsProviderUsage(
+	ctx context.Context,
+	request UpdateSettingsProviderUsageRequest,
+	collectionProfile string,
+) (SettingsMutationRecord, error) {
+	if s.updateSettingsProviderUsageFn != nil {
+		return s.updateSettingsProviderUsageFn(ctx, request, collectionProfile)
+	}
+	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsProviderUsage call")
 }
 
 func (s *stubClient) UpdateSettingsShell(
@@ -1770,6 +1787,13 @@ func (s *stubClient) RemoveWorktree(
 		return s.removeWorktreeFn(ctx, workspace, ref, opts)
 	}
 	return nil, errors.New("unexpected RemoveWorktree call")
+}
+
+func (s *stubClient) RemoveDiscoveredWorktree(ctx context.Context, workspace, path string, force bool) error {
+	if s.removeDiscoveredFn != nil {
+		return s.removeDiscoveredFn(ctx, workspace, path, force)
+	}
+	return errors.New("unexpected RemoveDiscoveredWorktree call")
 }
 
 func (s *stubClient) DismissWorktree(

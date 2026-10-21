@@ -10,6 +10,13 @@ export const settingsRouteStories = [
   },
   {
     system: "settings",
+    routePath: "/settings/provider-usage",
+    storybookPath: "/settings/provider-usage",
+    title: "systems/settings/routes/SettingsProviderUsage",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/mcp",
     storybookPath: "/settings/mcp",
     title: "systems/settings/routes/McpServers",

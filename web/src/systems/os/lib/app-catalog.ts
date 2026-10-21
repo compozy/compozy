@@ -1,5 +1,6 @@
 import {
   Bot,
+  Gauge,
   Home,
   KeyRound,
   ListChecks,
@@ -123,6 +124,13 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     icon: KeyRound,
     paths: ["/vault"],
     dock: { group: 4 },
+  },
+  usage: {
+    id: "usage",
+    title: "Usage",
+    icon: Gauge,
+    paths: ["/usage"],
+    dock: null,
   },
   settings: {
     id: "settings",

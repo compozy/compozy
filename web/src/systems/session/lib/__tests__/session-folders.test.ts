@@ -3,7 +3,8 @@
 // in served order (children follow their parent, empty folders show unless a
 // filter or the archive narrows the list), collapsed folders drop out of the
 // visible row order (the session-cycle shortcut follows the same projection),
-// and optimistic layout edits only move what they name.
+// optimistic layout edits only move what they name, and a selection moves only
+// its thread roots, in on-screen order, writing only what would change.
 // Owning layer: unit (systems/session/lib)
 import { describe, expect, it } from "vitest";
 
@@ -13,9 +14,13 @@ import {
   applyFolderRemoval,
   applySessionMove,
   applySessionOrder,
+  applySessionsMovedFirst,
   buildSessionListSections,
   placeId,
   sectionsVisibleOrder,
+  sessionBulkMove,
+  sessionBulkMoveBlockedReason,
+  sessionBulkMoveIds,
   shiftId,
   visibleSessionOrder,
 } from "../session-folders";
@@ -266,5 +271,93 @@ describe("visibleSessionOrder", () => {
       "r1",
     ]);
     expect(order(visibleSessionOrder(results, options))).toEqual(["r1"]);
+  });
+});
+
+describe("applySessionsMovedFirst", () => {
+  const order = (sessions: readonly SessionPayload[]) =>
+    sessions.map(entry => [entry.id, entry.folder_id ?? null]);
+
+  it("Should lead the folder's members with the moved sessions in listed order", () => {
+    const page = [session("r1"), session("f1", "fa"), session("f2", "fa"), session("r2")];
+
+    expect(order(applySessionsMovedFirst(page, "fa", ["r2", "r1"]))).toEqual([
+      ["r2", "fa"],
+      ["r1", "fa"],
+      ["f1", "fa"],
+      ["f2", "fa"],
+    ]);
+    expect(order(applySessionsMovedFirst(page, "fb", ["f2", "r1"]))).toEqual([
+      ["f2", "fb"],
+      ["r1", "fb"],
+      ["f1", "fa"],
+      ["r2", null],
+    ]);
+  });
+
+  it("Should keep slots for a move to the root, whose unplaced sessions lead", () => {
+    const page = [session("r1"), session("f1", "fa"), session("r2")];
+
+    expect(order(applySessionsMovedFirst(page, null, ["f1"]))).toEqual([
+      ["r1", null],
+      ["f1", null],
+      ["r2", null],
+    ]);
+  });
+});
+
+describe("sessionBulkMove", () => {
+  const subagent = (id: string, parentId: string): SessionPayload => {
+    const base = session(id, undefined, parentId);
+    return { ...base, lineage: { ...base.lineage!, spawn_role: "subagent" } };
+  };
+
+  it("Should move selected thread roots in on-screen order, hidden ones last in catalog order", () => {
+    const catalog = [
+      session("r1"),
+      session("child", undefined, "r1"),
+      session("hidden-b"),
+      session("f1", "fa"),
+      session("hidden-a"),
+    ];
+    const move = sessionBulkMove(catalog, new Set(["hidden-a", "r1", "child", "f1", "hidden-b"]), [
+      "f1",
+      "r1",
+      "child",
+    ]);
+
+    expect(move.sessions.map(entry => entry.id)).toEqual(["f1", "r1", "hidden-b", "hidden-a"]);
+    expect(move.profileIds).toEqual([primarySessionFixture.profile_id ?? ""]);
+    expect(sessionBulkMoveBlockedReason(move)).toBeNull();
+  });
+
+  it("Should write only sessions outside the target container", () => {
+    const sessions = [session("f1", "fa"), session("r1"), session("f2", "fb")];
+
+    expect(sessionBulkMoveIds(sessions, "fa")).toEqual(["r1", "f2"]);
+    expect(sessionBulkMoveIds(sessions, null)).toEqual(["f1", "f2"]);
+    expect(sessionBulkMoveIds([session("f1", "fa")], "fa")).toEqual([]);
+  });
+
+  it("Should block a selection of child rows or one spanning profiles", () => {
+    const children = sessionBulkMove(
+      [session("r1"), session("child", undefined, "r1"), subagent("orphan", "gone")],
+      new Set(["child", "orphan"]),
+      []
+    );
+    expect(children.sessions).toEqual([]);
+    expect(sessionBulkMoveBlockedReason(children)).toBe("Child sessions move with their parent.");
+
+    const profiles = sessionBulkMove(
+      [
+        { ...session("a"), profile_id: "p1" },
+        { ...session("b"), profile_id: "p2" },
+      ],
+      new Set(["a", "b"]),
+      ["a", "b"]
+    );
+    expect(sessionBulkMoveBlockedReason(profiles)).toBe(
+      "Select sessions from one profile to move them."
+    );
   });
 });

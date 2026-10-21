@@ -64,6 +64,7 @@ type daemonRuntimeState struct {
 	windowManagerRuntime
 	skillsRegistry    *skills.Registry
 	modelCatalog      *modelCatalogRuntime
+	providerUsage     *providerUsageRuntime
 	marketplace       *marketplaceRuntime
 	skillsCancel      context.CancelFunc
 	skillsDone        chan struct{}

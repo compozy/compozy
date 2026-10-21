@@ -393,6 +393,16 @@ export type PickFilesEffect = {
   directories?: boolean;
 };
 
+export type ProfileError = {
+  action: string;
+  code: string;
+  message: string;
+};
+
+export type ProfileErrorPayload = {
+  error: ProfileError;
+};
+
 export type ProfileLens = {
   profile_lens_id: string;
   profile_name: string;
@@ -418,6 +428,11 @@ export type ProviderErrorDiagnostic = {
   next_action: string;
   occurrence_count: number;
   provider: string;
+};
+
+export type ProviderUsageStreamEvent = {
+  boot_id: string;
+  revision: number;
 };
 
 export type Row = {
@@ -1136,6 +1151,57 @@ export type StreamLogsResponses = {
 };
 
 export type StreamLogsResponse = StreamLogsResponses[keyof StreamLogsResponses];
+
+export type StreamProviderUsageData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Profile name; defaults to the caller session profile or default
+     */
+    profile?: string;
+  };
+  url: "/api/provider-usage/stream";
+};
+
+export type StreamProviderUsageErrors = {
+  /**
+   * Invalid request
+   */
+  400: ErrorPayload;
+  /**
+   * App token route forbidden
+   */
+  403: ErrorPayload;
+  /**
+   * Profile or provider not found
+   */
+  404: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Usage disabled or session profile conflict
+   */
+  409: ErrorPayload | ProfileErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Usage service unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type StreamProviderUsageError = StreamProviderUsageErrors[keyof StreamProviderUsageErrors];
+
+export type StreamProviderUsageResponses = {
+  /**
+   * ready and provider_usage_changed revision events
+   */
+  200: ProviderUsageStreamEvent;
+};
+
+export type StreamProviderUsageResponse =
+  StreamProviderUsageResponses[keyof StreamProviderUsageResponses];
 
 export type StreamSessionCatalogData = {
   body?: never;

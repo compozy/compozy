@@ -19,6 +19,8 @@ export type {
   SettingsAttentionFilter,
   SettingsAttentionSection,
   SettingsAutomationSection,
+  SettingsProviderUsageSection,
+  SettingsUpdateProviderUsageRequest,
   SettingsCmdPaletteFilter,
   SettingsCmdPaletteSection,
   SettingsCollectionName,

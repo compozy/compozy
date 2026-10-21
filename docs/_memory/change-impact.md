@@ -26,6 +26,101 @@ change. The provider site guide co-ships; official `skills/compozy/` already doc
 selection and requires no contract change. Regression owners: the daemon Agy catalog/context suite
 and the existing AGY picker-to-prompt browser case; QA owner: `RT-agy-acp-provider` reasoning slice.
 
+## Session monitor visibility — 2026-10-21
+
+Owner: branch `feat/session-monitor-visibility`. Additive across every public surface (SD-013); no
+delete targets. HTTP/UDS gain `listSessionMonitors` and `cancelSessionMonitor` under
+`/api/workspaces/{workspace_id}/sessions/{session_id}/monitors`, and `SessionPayload` gains the
+optional `monitor_summary` (OpenAPI, TS and Go SDKs regenerated). Every monitor start, cancel, or
+settled delivery publishes a session catalog `upserted` event. Native monitor tools, hooks, extension
+SDKs, config keys, and persisted user state are unchanged; monitors stay daemon-memory only.
+Operator reads use the existing workspace-scoped session route guard, so workspace isolation is
+unchanged. `@compozy/ui` `StateGlyph` gains the amber `monitoring` state; Web shows it on session rows
+and adds the composer monitor popover. Site docs (`sessions/monitors.mdx`), the official skill
+(`references/native-tools.md`), and QA scenario `RT-session-monitor-wake` step 8 are updated.
+
+
+## Terminal journal storage under the daemon home — 2026-10-21
+
+Owner: `internal/store/workspacedb/` and `internal/daemon/terminal_boot.go`.
+The terminal database now uses `<COMPOZY_HOME>/workspaces/<registered-workspace-id>/compozy.db`,
+matching the existing terminal artifact and recording directory. The daemon injects its resolved
+home; storage never derives it from the project working directory or an ambient environment lookup.
+Workspace removal uses the same path after restart, including when the project root is missing.
+
+- Native `compozy__terminal_*`, CLI/HTTP/UDS, Web journal queries, hooks, extension SDKs and config
+  keys keep their existing shapes. No SQLite schema or generated contract changes.
+- Workspace registration IDs partition files; the existing durable identity check and profile-owned
+  rows remain. A different daemon home has independent storage for the same workspace.
+- Site journal documentation and `ET-terminal-journal-recording` step 6 describe the new location.
+  The official `skills/compozy/references/terminal.md` still describes the same journal and profile
+  operations and does not promise a project-local storage path, so it needs no change.
+- Canonical verification: `workspacedb.TestOpen` owns storage, reopen, isolation and removal;
+  terminal journal suites cover persistence consumers; existing HTTP/UDS terminal integration
+  journeys exercise real processes. Test fixture constructors now pass an explicit isolated home.
+
+### ADR: accepted storage hard cut
+
+Decision: retire project-local database reads and writes without automatic import or fallback.
+The user explicitly approved a hard cut on 2026-10-21 ("pode fazer hardcut mesmo"). This is a
+specific exception to SD-013 regime 1's automatic upgrade rule, not a general policy change.
+The conventional alternative is a lossless migration; the accepted tradeoff is that old command
+history and its recording/artifact index are absent from the new journal. Existing project-local
+SQLite files and retained artifact bytes are left intact. No files from a running older daemon
+are deleted. The release note includes migration notes; internal constructors change together.
+
+## Console lifecycle failures — issue #873
+
+Owner: `fix/issue-873-console-lifecycle`. Web session detail polling and presence acquisition stop
+after a scoped 404/410; profile boundaries remain enforced and the existing foreign-owner lookup
+remains authoritative. Worktree catalog subscriptions use a canonical workspace set so list reorder
+does not reconnect the socket. Transcript terminal previews attach only to a catalog-confirmed
+running PTY. Pipe terminals retain recorded output and their terminal-window action. Attach-ticket
+admission returns the existing `terminal_not_interactive` refusal for pipes before issuing a useless
+ticket; the Web client treats that refusal as terminal rather than retrying.
+
+Native tool IDs, CLI/UDS DTOs, hooks, extension contracts, config keys, persisted state and workspace
+isolation are unchanged. HTTP retains the existing terminal error shape; no generator or migration
+is needed. Session Markdown displays image references as text instead of interpreting host paths
+as app-origin URLs. Validated attachment tiles retain their existing byte routes. `StreamMarkdown`
+exposes the component override contract of its underlying primitive. Official `skills/compozy/`
+operations are unchanged: pipe output remains available through read/wait. QA owners are
+`ET-terminal-session-block-handoff`, `RT-session-done-presence`,
+`ET-web-session-deep-link-isolation`, and `RT-worktree-web-missing-resolution`.
+Historical HTTP 500s remain under investigation; these changes do not suppress them.
+
+||||||| parent of e8a79c3ed (feat: remove discovered worktrees without adopting them)
+
+## Remove discovered worktrees without adoption — 2026-10-20
+
+Owner: `internal/worktree/remove_discovered.go` (`Service.RemoveDiscovered`). A Git-listed linked
+worktree with no registry row is removed by its listed path: stale entries only lose Git metadata;
+live checkouts reuse adoption identity checks and the dirty/unpushed refusals with a non-persisting
+status read, and branches are never touched. Registered paths refuse with the new
+`worktree_registered` code. Correction riding along: detached-HEAD removal risk compared
+`HEAD --not --all`, which includes every linked worktree's HEAD and hid unique commits (this also
+affected adopted detached worktrees); it now compares against branches, tags and remotes.
+
+- **Native tools:** `compozy__worktree_remove` gains optional `path` (replaces `ref`; rejects
+  `delete_branch`); `ref` is no longer schema-required but stays required in code unless `path`
+  is set. Catalog golden regenerated.
+- **CLI/HTTP/UDS:** `compozy worktree remove --path <path>`; `POST
+  /api/workspaces/{workspace_id}/worktrees/discovered/remove` `{path, force?, expect_stale?}` → 204
+  or the record removal 409 refusal payload; `expect_stale` refuses a checkout that reappeared with
+  `worktree_discovered_changed` (Web sends it for stale targets). Removed/dismissed tombstones no
+  longer claim their path in discovery or removal. OpenAPI and TS/Go clients regenerated.
+- **Extensibility and hooks:** `worktree.pre_remove` payload gains additive `discovered: true` with
+  an empty `worktree_id`/`origin`; stale entries skip the gate. No lifecycle event for discovered
+  removals (no record ID). No config key.
+- **Workspace data isolation:** the target must be listed by the workspace's own repository and
+  must not belong to any registry row; no profile ownership exists to cross.
+- **Official CompozyOS skill:** `references/worktrees.md` and `references/native-tools.md`.
+- **Web/Docs:** discovered rows offer Delete worktree… / Remove stale entry… and join batch
+  selection; single delete opens the batch dialog. Palette offers Remove for discovered rows. Site
+  `worktrees/removal-and-recovery.mdx` and `agent-surface.mdx`; generated CLI page.
+- **Compatibility:** additive public surface (SD-013); no shim, migration, or delete targets.
+  QA owners: `RT-worktree-cli-lifecycle`, `RT-worktree-api-surface-parity`,
+  `RT-worktree-web-removal-two-step`.
 ## Intel macOS release recovery — 2026-10-20
 
 Owner: `.github/workflows/release.yml`, release run `39431274097`. The production
@@ -36,6 +131,24 @@ inventory, signing, and publication checks. The optional dispatch input is
 additive. Native tools, CLI/HTTP/UDS, hooks, extension SDKs, config keys, workspace
 isolation, persisted user data, Web, site docs, and the official `skills/compozy/`
 contract are unaffected. Runbook: `docs/runbooks/release-recovery.md`.
+
+## Session deletion lifecycle deadlock — 2026-10-21
+
+Owner: `fix/session-lifecycle-freeze`, `internal/session/manager_delete.go`.
+Deletion settles active/recovered stops, descendant cancellation, and session-owned Goals
+before acquiring the global lifecycle lock for reversible history staging and catalog removal.
+The per-session conversation operation remains held throughout, preserving serialization with
+resume, another deletion, and workspace removal. This prevents subagent snapshot callbacks
+from reacquiring a lifecycle lock already held by deletion and blocking all new session starts.
+
+HTTP/UDS session DELETE and CLI session removal retain their existing contracts. Native session
+creation/resume/spawn tools benefit from the released lifecycle lock; no native tool IDs, payloads,
+hooks, extension contracts, config keys, persisted shapes, or workspace/profile boundaries change.
+No migration, code generation, compatibility shim, Web implementation change, site documentation,
+or official `skills/compozy/` update is required. Web deletion uses the repaired daemon path.
+QA owner: `RT-session-delete-owned-history`, live delegated-tree deletion slice. The existing
+daemon hosted-MCP integration suite exercises HTTP deletion followed by UDS creation/deletion;
+`TestManagerDelete` retains ownership of rollback, history preservation, and crash recovery.
 
 ## Preserve configured commands across pre-start hooks — 2026-10-19
 
@@ -3871,3 +3984,83 @@ Owner: workflow `opencode-model-discovery` (Tasks 01–03 implement; Tasks 04–
 - **Official CompozyOS skill:** `skills/compozy/references/extensions.md` documents the two targets, the setup skill, the record, and the Loop `target` input.
 - **Web/Docs:** no Web change. The site guide `extensions/open-design.mdx` adds the library prototyping section and the updated resource count. `ET-open-design` step 7 owns the library-target QA walk (passed 2026-10-20 on three projects).
 - **Compatibility:** additive. Existing HTML requests, artifact paths, lint calls, and Loop invocations without `target` behave as before (`auto` follows the skill, which defaults to HTML without a record).
+
+## Issue #872 — Session message formatting and editing
+
+- Web: preserve authored soft line breaks in user prose/list items; keep both message action rows visible; expose the existing conversation rewind as Edit message with an explicit draft/conversation consequence.
+- Native tools and HTTP/UDS/CLI: reuse the existing fenced rewind and prompt submission contracts; no schema or tool ID changes.
+- Extensibility, hooks, configuration: unchanged.
+- Workspace/profile isolation and user data: unchanged; rewind remains daemon-authoritative and archives the discarded suffix without undoing file/tool effects. No migration.
+- Official runtime skill: existing rewind contract remains accurate; no skill changes.
+- Docs/QA: update RT-conversation-rewind and RT-session-transcript-whitespace; browser suites cover authored layout, persistent controls, and Stop/edit/resend.
+
+## Provider usage — topbar usage mini-app, `[provider_usage]`, `compozy provider usage` — 2026-10-21
+
+Owner: `.compozy/tasks/provider-usage/` (`_spec.md` Part II §Impact Analysis, ADR-001…005, exploration in
+`analysis/`). Implementation slices cite this entry and update only the bullets they change. Every public
+surface below is documented **experimental** (SD-013 regime 2 exception) until the history follow-up
+promotes it.
+
+- **Native tools:** additive `compozy__provider_usage_list` (read-only, cache only, no network) and
+  `compozy__provider_usage_refresh` (mutating, always background intent, caller profile, waits up to 15 s),
+  toolset `compozy__provider_usage` (sibling of `compozy__provider_models`); catalog and digests regenerate.
+  No existing tool changes.
+- **CLI/HTTP/UDS:** additive `compozy provider usage list|refresh` (refresh sends `explicit`); `GET
+  /api/provider-usage`, `GET /api/provider-usage/providers/{provider_id}`, `POST /api/provider-usage/refresh`,
+  `GET /api/provider-usage/stream` (SSE `ready`, `provider_usage_changed`, both with `boot_id`), and
+  `GET/PATCH /api/settings/provider-usage`. `explicit` is honored only for local operators. Foreign-origin
+  app tokens may use the GETs and are denied refresh; no new token scopes. Usage codes use the flat
+  `ErrorPayload`, profile codes the profile envelope. Generated OpenAPI, Go/TypeScript SDKs, tool catalog, and
+  CLI reference co-ship. A provider-filtered read or `refresh <provider>` returns only those rows with
+  `tray: null`; the envelope and settings response carry read-only `keychain_supported` (macOS daemon only).
+  Settings PATCH accepts `collection_profile` (default `default`) independently of user/machine config scope; a local consent
+  apply starts exactly one explicit collection for that profile, while gateway/agent requests stay background.
+  Reload and unrelated settings mutations never seed consent; after restart, saved consent offers explicit
+  Refresh. Unsupported provider/auth-mode pairs use the existing `no_collector` code.
+- **Extensibility and hooks:** no hook event, manifest, Host API, extension SDK, or MCP sidecar change; alert
+  hooks are deferred with history.
+- **Config:** `provider_usage.enabled` (true), `provider_usage.refresh_interval` ("5m", 1m–1h),
+  `provider_usage.providers.<id>.enabled` (true), `provider_usage.providers.claude.keychain_access` (false,
+  darwin only). User/machine scope; workspace config fails to load and profile overlays reject the root;
+  live apply; additive (ladder (a)). `config set` accepts `keychain_access` only under `claude`; agents'
+  native config tools may write the other three keys but are refused `keychain_access` (operator-only
+  consent). Deleting a custom provider removes its companion usage override in the same write.
+- **Workspace data isolation:** no SQLite migration, tables, or workspace files; snapshots are in-memory and
+  keyed by `(profile, provider, route fingerprint)`, fenced by an in-memory credential identity; aggregate
+  profile reads are rejected; no credential, digest, account ID, or raw payload in any output. CompozyOS reads
+  provider credential files read-only; the Codex CLI may renew its own login (ADR-002), file store only
+  (`keyring`/`auto` → `unsupported`). The macOS Keychain is read only on explicit local-operator intent; the
+  token stays in memory, bound to Claude's account evidence, and is dropped on re-login, logout, consent
+  revocation, or indeterminate evidence. A missing Keychain item reports `signed_out` (`auth_missing`);
+  only a real OS denial reports `keychain_denied`, retained until another explicit action. Expired Claude
+  credentials retain owner evidence and same-owner last-good values as stale; Keychain expiry offers refresh,
+  while file expiry directs the operator to sign in through Claude. Bound-key
+  replacements are checked against freshly resolved secrets without adding secrets to public fingerprints.
+  File-backed reads recheck local ownership when file metadata changes and discard mismatched snapshots
+  before returning; replacement collection runs in the background without a Keychain read.
+  Removed targets cancel only their own flights; deleted profiles close subscriptions and clear credentials.
+  Profile events reconcile through one coalescing worker with bounded resolution and joined shutdown.
+  Replaced eligible routes collect promptly after invalidation. New targets added after the startup tick
+  receive a first background collection immediately; targets discovered during startup share its jitter. Scheduled resolution uses the scheduler's
+  owned cancellation context, so disable and shutdown cancel blocked profile/credential reads.
+  A failed publication fence retains same-owner last-good values and retries only publication checks within
+  the flight deadline, without repeating the upstream collection. If a concurrent resolution supersedes
+  the captured epoch, the admitted flight recollects the eligible replacement instead of leaving it loading.
+  Cancellation and removal still stop the flight. Reads cancel ineligible flights without
+  waiting for cleanup; lifecycle reconciliation and shutdown own bounded joins. Explicit official ChatGPT
+  origins normalize to the backend API before selecting the Codex usage path.
+- **Official CompozyOS skill:** `skills/compozy/SKILL.md` router row; `references/native-tools.md` (two
+  tools), `references/runtime-operations.md` §Provider Usage (verbs, routes, intent, statuses and recovery),
+  `references/configuration.md` §Provider Usage (keys, scope, settings route).
+- **Web/Docs:** `web/src/systems/provider-usage/` (domain), OS tray slot, popover, overlay `usage`, Usage app
+  (`/usage`), Settings → Provider usage section; `unsupported`/`disabled` rows fold into one closed trailing
+  group in the popover and Usage app; Allow and the Keychain setting render only when `keychain_supported`. Site: `agents/provider-usage.mdx` tutorial (tray, popover,
+  Usage app, Keychain consent, Codex store, support table, statuses, CLI, config, tools, routes),
+  `configuration/config-toml.mdx` `[provider_usage]`, `tools/toolsets.mdx` row, generated CLI pages.
+  The daemon owns initial consent collection; the Web invalidates its query and reserves refresh for
+  later Refresh/Try again actions. Failed explicit refreshes show one error toast even if the cache reread
+  succeeds; Allow retains its settings-owned error toast. Opening also refreshes first-fetch rows without
+  an active flight. Cursor partial auto/API percentages do not imply a monthly total.
+- **QA:** `APP-provider-usage-tray` (operator walk, journey `J-provider-usage`) and
+  `ET-provider-usage-surfaces` (transport, profiles, app tokens, SSE) — both `untested` until the trailing QA
+  pair walks them with real Claude and Codex logins.

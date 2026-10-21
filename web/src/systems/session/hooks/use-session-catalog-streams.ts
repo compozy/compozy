@@ -1,6 +1,6 @@
 import { useStore, useSelector } from "@xstate/store-react";
 import { useEffect, useRef } from "react";
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 
 import { notificationKeys } from "@/systems/notifications";
 
@@ -310,6 +310,11 @@ function createSessionReadReconciler(queryClient: QueryClient) {
   };
 }
 
+function isSessionMonitorsQuery(query: { queryKey: QueryKey }): boolean {
+  const key = query.queryKey;
+  return key[0] === sessionKeys.all[0] && key.at(-1) === "monitors" && key.includes("detail");
+}
+
 function openSessionCatalogStream(
   queryClient: QueryClient,
   eventSourceFactory: SessionCatalogEventSourceFactory,
@@ -339,6 +344,9 @@ function openSessionCatalogStream(
   const reconcileWorkspaces: EventListener = () => {
     markLive();
     reconciler.wake();
+    // Monitor changes missed while disconnected can fall outside the replay
+    // window, so an open monitor popover re-reads on every (re)connect.
+    void queryClient.invalidateQueries({ predicate: isSessionMonitorsQuery });
   };
   const handleCatalogChange: EventListener = event => {
     const payload = parseSessionCatalogEvent(event);
@@ -348,6 +356,12 @@ function openSessionCatalogStream(
     if (payload.kind === "layout") return;
     sessionReads.wake(payload.session_id, payload);
     subagentLists.wake(payload.workspace_id, payload.session_id);
+    // Only an open monitor popover observes this small read; elsewhere it is just
+    // marked stale. An in-flight read may predate the change, so it is replaced.
+    void queryClient.invalidateQueries({
+      queryKey: sessionKeys.monitors(payload.workspace_id, payload.session_id),
+      exact: true,
+    });
   };
   const handleAttentionEdge: EventListener = event => {
     const payload = parseNamedEvent<SessionAttentionEventPayload>(event, [

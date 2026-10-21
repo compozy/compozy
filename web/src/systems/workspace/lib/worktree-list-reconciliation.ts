@@ -25,6 +25,16 @@ export function reconcileWorktreeList(
   };
 }
 
+/** Drops a removed discovered checkout; registered records are untouched. */
+export function removeDiscoveredFromList(
+  current: WorktreesResponse | undefined,
+  path: string
+): WorktreesResponse | undefined {
+  if (!current) return current;
+
+  return { ...current, discovered: current.discovered.filter(item => item.path !== path) };
+}
+
 /** Drops a removed or dismissed record. Discovered entries are untouched. */
 export function removeWorktreeFromList(
   current: WorktreesResponse | undefined,

@@ -36,6 +36,7 @@ func (h *BaseHandlers) sessionPayloadsWithOptionalHealth(
 	if err := h.decorateSubagentSummaries(ctx, payloads); err != nil {
 		return nil, err
 	}
+	h.decorateMonitorSummaries(payloads)
 	return h.decorateSessionOwners(ctx, payloads)
 }
 

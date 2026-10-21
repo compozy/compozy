@@ -22,6 +22,7 @@ import {
   applyFolderRemoval,
   applySessionMove,
   applySessionOrder,
+  applySessionsMovedFirst,
   shiftId,
 } from "../lib/session-folders";
 import type { SessionCatalogPageResponse, SessionFolderPayload, SessionPayload } from "../types";
@@ -37,6 +38,12 @@ export interface SessionListLayout {
   reorderFolders: (folderIds: readonly string[]) => void;
   /** Moves a session to the end of a folder, or back to the root when `folderId` is null. */
   moveSession: (sessionId: string, folderId: string | null) => void;
+  /**
+   * Moves several sessions into a folder, or the root when `folderId` is null, in
+   * one atomic write. They land first in the container, in the listed order.
+   * Rejects after the daemon refuses; the failure is already reported.
+   */
+  moveSessions: (sessionIds: readonly string[], folderId: string | null) => Promise<void>;
   /** Pins a container's full visible order; `folderId` null is the workspace root. */
   reorderSessions: (folderId: string | null, sessionIds: readonly string[]) => void;
 }
@@ -75,15 +82,20 @@ export function useSessionFolders(options: {
       .map(([key, data]) => ({ key, data })),
     { key: foldersKey, data: queryClient.getQueryData(foldersKey) },
   ];
-  const patchSessions = (update: (sessions: readonly SessionPayload[]) => SessionPayload[]) => {
-    queryClient.setQueriesData<CatalogEnvelope>({ queryKey: catalogPrefix }, envelope =>
-      envelope
-        ? {
-            ...envelope,
-            pages: envelope.pages.map(page => ({ ...page, sessions: update(page.sessions) })),
-          }
-        : envelope
-    );
+  /** Patches every served catalog page; `manual` says whether that page is in Manual sort. */
+  const patchSessions = (
+    update: (sessions: readonly SessionPayload[], manual: boolean) => SessionPayload[]
+  ) => {
+    for (const [key, envelope] of queryClient.getQueriesData<CatalogEnvelope>({
+      queryKey: catalogPrefix,
+    })) {
+      if (!envelope) continue;
+      const manual = (key.at(-1) as { sort?: string } | undefined)?.sort === "manual";
+      queryClient.setQueryData<CatalogEnvelope>(key, {
+        ...envelope,
+        pages: envelope.pages.map(page => ({ ...page, sessions: update(page.sessions, manual) })),
+      });
+    }
   };
   const patchFolders = (update: (folders: SessionFolderPayload[]) => SessionFolderPayload[]) => {
     queryClient.setQueryData<SessionFolderPayload[]>(foldersKey, folders =>
@@ -174,6 +186,17 @@ export function useSessionFolders(options: {
         request: () => moveSessionToFolder(scope, sessionId, folderId),
         optimistic: () =>
           patchSessions(sessions => applySessionMove(sessions, sessionId, folderId)),
+      }),
+    moveSessions: (sessionIds, folderId) =>
+      write({
+        failure: "Couldn't move the sessions.",
+        request: () => reorderSessions(scope, folderId, sessionIds),
+        optimistic: () =>
+          patchSessions((sessions, manual) =>
+            manual
+              ? applySessionsMovedFirst(sessions, folderId, sessionIds)
+              : applySessionOrder(sessions, folderId, sessionIds)
+          ),
       }),
     reorderSessions: (folderId, sessionIds) =>
       fireAndForget({

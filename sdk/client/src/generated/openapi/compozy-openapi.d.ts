@@ -2057,6 +2057,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/provider-usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read cached provider usage (experimental) */
+    get: operations["listProviderUsage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/provider-usage/providers/{provider_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read cached provider usage (experimental) */
+    get: operations["getProviderUsage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/provider-usage/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh provider usage (experimental) */
+    post: operations["refreshProviderUsage"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/provider-usage/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream provider usage invalidations (experimental) */
+    get: operations["streamProviderUsage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/providers": {
     parameters: {
       query?: never;
@@ -2970,6 +3038,24 @@ export interface paths {
     head?: never;
     /** Update profile-layerable persona defaults */
     patch: operations["updateSettingsPersona"];
+    trace?: never;
+  };
+  "/api/settings/provider-usage": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read the provider usage settings section */
+    get: operations["getSettingsProviderUsage"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update the provider usage settings section */
+    patch: operations["updateSettingsProviderUsage"];
     trace?: never;
   };
   "/api/settings/providers": {
@@ -5436,6 +5522,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List a session's monitors */
+    get: operations["listSessionMonitors"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel a session monitor without waking the session */
+    post: operations["cancelSessionMonitor"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/move": {
     parameters: {
       query?: never;
@@ -6425,6 +6545,23 @@ export interface paths {
     put?: never;
     /** Adopt an existing linked worktree */
     post: operations["adoptWorktree"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/worktrees/discovered/remove": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Remove a discovered worktree */
+    post: operations["removeDiscoveredWorktree"];
     delete?: never;
     options?: never;
     head?: never;
@@ -11743,6 +11880,112 @@ export interface components {
       runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
       session_env_status?: components["schemas"]["SettingsProviderCredentialStatusPayload"][];
     };
+    ProviderUsageAccount: {
+      label: string;
+      plan: string;
+    };
+    ProviderUsageAmount: {
+      unit: string;
+      value: string;
+    };
+    ProviderUsageBalance: {
+      /** Format: date-time */
+      expires_at: string | null;
+      id: string;
+      label: string;
+      remaining: components["schemas"]["ProviderUsageAmount"];
+    };
+    ProviderUsageEnvelope: {
+      enabled: boolean;
+      /** Format: date-time */
+      generated_at: string;
+      keychain_supported: boolean;
+      profile_id: string;
+      /** Format: uint64 */
+      revision: number;
+      targets: components["schemas"]["ProviderUsageTarget"][];
+      tray: components["schemas"]["ProviderUsageTraySignal"] | null;
+    };
+    ProviderUsageError: {
+      action: string;
+      code: string;
+      message: string;
+      /** Format: date-time */
+      retry_after: string | null;
+    };
+    ProviderUsageRefreshRequest: {
+      intent?: string;
+      /** Format: int64 */
+      max_age_seconds?: number;
+      profile?: string;
+      provider_ids?: string[];
+      /** Format: int64 */
+      wait_ms?: number | null;
+    };
+    ProviderUsageSource: {
+      kind: string;
+      label: string;
+    };
+    ProviderUsageSpendCap: {
+      enabled: boolean | null;
+      id: string;
+      label: string;
+      limit: components["schemas"]["ProviderUsageAmount"] | null;
+      /** Format: date-time */
+      resets_at: string | null;
+      used: components["schemas"]["ProviderUsageAmount"];
+      /** Format: double */
+      used_percent: number | null;
+    };
+    ProviderUsageStreamEvent: {
+      boot_id: string;
+      /** Format: uint64 */
+      revision: number;
+    };
+    ProviderUsageTarget: {
+      account: components["schemas"]["ProviderUsageAccount"] | null;
+      balances: components["schemas"]["ProviderUsageBalance"][];
+      /** Format: date-time */
+      checked_at: string | null;
+      confidence: string;
+      error: components["schemas"]["ProviderUsageError"] | null;
+      /** Format: date-time */
+      measured_at: string | null;
+      /** Format: date-time */
+      next_refresh_at: string | null;
+      provider_id: string;
+      provider_name: string;
+      refreshing: boolean;
+      source: components["schemas"]["ProviderUsageSource"] | null;
+      spend_caps: components["schemas"]["ProviderUsageSpendCap"][];
+      status: string;
+      windows: components["schemas"]["ProviderUsageWindow"][];
+    };
+    ProviderUsageTraySignal: {
+      label: string;
+      provider_id: string;
+      /** Format: date-time */
+      resets_at: string | null;
+      severity: string;
+      stale: boolean;
+      /** Format: double */
+      used_percent: number;
+      window_id: string;
+    };
+    ProviderUsageWindow: {
+      /** Format: int64 */
+      duration_seconds: number | null;
+      id: string;
+      kind: string;
+      label: string;
+      limit: components["schemas"]["ProviderUsageAmount"] | null;
+      reset_text: string;
+      /** Format: date-time */
+      resets_at: string | null;
+      used: components["schemas"]["ProviderUsageAmount"] | null;
+      /** Format: double */
+      used_percent: number | null;
+    };
     PutLoopAnnotationsRequest: {
       annotations: components["schemas"]["LoopAnnotationPayload"][];
     };
@@ -11942,6 +12185,11 @@ export interface components {
     ReloadExtensionRequest: {
       confirm_gateway_digest?: string;
       generation_hash: string;
+    };
+    RemoveDiscoveredWorktreeRequest: {
+      expect_stale?: boolean;
+      force?: boolean;
+      path: string;
     };
     RenameProfilePlan: {
       dormant_placements: components["schemas"]["ProfilePlacement"][];
@@ -13206,6 +13454,33 @@ export interface components {
       /** Format: date-time */
       ttl_expires_at?: string | null;
     };
+    SessionMonitorPayload: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      deadline_at: string;
+      description: string;
+      exit_code?: number | null;
+      /** Format: date-time */
+      fired_at?: string | null;
+      kind: string;
+      monitor_id: string;
+      pattern?: string;
+      reason?: string;
+      session_id: string;
+      status: string;
+      terminal_id?: string;
+      until?: string;
+    };
+    SessionMonitorResponse: {
+      monitor: components["schemas"]["SessionMonitorPayload"];
+    };
+    SessionMonitorSummaryPayload: {
+      active: number;
+    };
+    SessionMonitorsResponse: {
+      monitors: components["schemas"]["SessionMonitorPayload"][];
+    };
     SessionOwner: {
       session_id: string;
       workspace_id: string;
@@ -13235,6 +13510,7 @@ export interface components {
       health?: components["schemas"]["SessionHealthPayload"] | null;
       id: string;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
+      monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
       pending_interactions: components["schemas"]["PendingInteractionPayload"][];
       profile_archived?: boolean;
@@ -13571,6 +13847,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace"
@@ -13615,6 +13892,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -13644,6 +13922,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -13685,6 +13964,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -13815,6 +14095,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -13979,6 +14260,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14191,6 +14473,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14220,6 +14503,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14267,6 +14551,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14390,6 +14675,42 @@ export interface components {
       steer_capability?: "steer_ext" | "concurrent_prompt" | "none";
       transport?: string;
     };
+    SettingsProviderUsagePayload: {
+      enabled: boolean;
+      providers: {
+        [key: string]: components["schemas"]["SettingsProviderUsageProviderPayload"];
+      };
+      refresh_interval: string;
+    };
+    SettingsProviderUsageProviderPayload: {
+      enabled?: boolean | null;
+      keychain_access?: boolean | null;
+    };
+    SettingsProviderUsageResponse: {
+      available_scopes: "user"[];
+      config: components["schemas"]["SettingsProviderUsagePayload"];
+      keychain_supported: boolean;
+      /** @enum {string} */
+      scope: "user";
+      /** @enum {string} */
+      section:
+        | "general"
+        | "persona"
+        | "roles"
+        | "skills"
+        | "automation"
+        | "window-manager"
+        | "cmd-palette"
+        | "attention"
+        | "shell"
+        | "provider-usage"
+        | "observability"
+        | "hooks-extensions"
+        | "marketplace";
+    };
+    SettingsProviderUsageUpdateRequest: {
+      config: components["schemas"]["SettingsProviderUsagePayload"];
+    };
     SettingsProviderWritePayload: {
       auth_acp_method?: string | null;
       auth_login_command?: string | null;
@@ -14465,6 +14786,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14489,6 +14811,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14590,6 +14913,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14637,6 +14961,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14940,6 +15265,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -14974,6 +15300,7 @@ export interface components {
         | "cmd-palette"
         | "attention"
         | "shell"
+        | "provider-usage"
         | "observability"
         | "hooks-extensions"
         | "marketplace";
@@ -28954,6 +29281,335 @@ export interface operations {
       };
     };
   };
+  listProviderUsage: {
+    parameters: {
+      query?: {
+        /** @description Profile name; defaults to the caller session profile or default */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Profile-scoped usage envelope */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProviderUsageEnvelope"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description App token route forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Profile or provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Usage disabled or session profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Usage service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getProviderUsage: {
+    parameters: {
+      query?: {
+        /** @description Profile name; defaults to the caller session profile or default */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Canonical provider ID */
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Profile-scoped usage envelope */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProviderUsageEnvelope"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description App token route forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Profile or provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Usage disabled or session profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Usage service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  refreshProviderUsage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ProviderUsageRefreshRequest"];
+      };
+    };
+    responses: {
+      /** @description Profile-scoped usage envelope */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProviderUsageEnvelope"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description App token route forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Profile or provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Usage disabled or session profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Usage service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  streamProviderUsage: {
+    parameters: {
+      query?: {
+        /** @description Profile name; defaults to the caller session profile or default */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description ready and provider_usage_changed revision events */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": components["schemas"]["ProviderUsageStreamEvent"];
+        };
+      };
+      /** @description Invalid request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description App token route forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Profile or provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Usage disabled or session profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Usage service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listProviders: {
     parameters: {
       query?: never;
@@ -33165,6 +33821,112 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getSettingsProviderUsage: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsProviderUsageResponse"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  updateSettingsProviderUsage: {
+    parameters: {
+      query?: {
+        /** @description Collection profile name or ID for local Keychain consent; independent of user config scope; defaults to default */
+        collection_profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SettingsProviderUsageUpdateRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SettingsApplyResponse"];
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Collection profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Internal server error */
@@ -45642,6 +46404,112 @@ export interface operations {
       };
     };
   };
+  listSessionMonitors: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMonitorsResponse"];
+        };
+      };
+      /** @description Session or monitor not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session monitors unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  cancelSessionMonitor: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Monitor id */
+        monitor_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMonitorResponse"];
+        };
+      };
+      /** @description Session or monitor not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session monitors unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   moveSession: {
     parameters: {
       query?: {
@@ -50746,6 +51614,89 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree service is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  removeDiscoveredWorktree: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id or path */
+        workspace_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RemoveDiscoveredWorktreeRequest"];
+      };
+    };
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Invalid discovered removal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Hook or profile does not permit removal */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Discovered worktree or workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Removal requires another decision */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorktreeRemovalRefusalPayload"];
         };
       };
       /** @description Internal server error */

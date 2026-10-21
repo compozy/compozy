@@ -36,6 +36,8 @@ export function useSessionWindowController(windowId: string) {
     resolution.workspaceId,
     sessionId,
     presenceEnabled &&
+      resolution.session !== undefined &&
+      !resolution.scopedMiss &&
       !deletedLocally &&
       !resolution.crossesWorkspace &&
       resolution.foreign.status !== "loading"

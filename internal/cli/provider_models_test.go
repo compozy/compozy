@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 )
@@ -372,6 +373,51 @@ func TestProviderModelsCommands(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), "model catalog service unavailable") {
 			t.Fatalf("provider models list error = %v, want service unavailable", err)
+		}
+	})
+}
+
+// UT-043: provider command output preserves usage semantics and rejects invalid waits.
+func TestProviderUsageRendering(t *testing.T) {
+	t.Run("Should render usage table values and statuses", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 20, 22, 10, 0, 0, time.UTC)
+		measured, resets, percent := now.Add(-time.Minute), now.Add(50*time.Hour), 72.0
+		envelope := contract.ProviderUsageEnvelope{Enabled: true, Targets: []contract.ProviderUsageTarget{
+			{ProviderID: "codex", ProviderName: "Codex", Status: "ok", MeasuredAt: &measured,
+				Windows: []contract.ProviderUsageWindow{{Label: "Weekly", UsedPercent: &percent, ResetsAt: &resets}}},
+			{ProviderID: "cursor", ProviderName: "Cursor", Status: "signed_out"},
+			{ProviderID: "pi", ProviderName: "Pi", Status: "unsupported"},
+		}}
+		output := renderProviderUsage(envelope, now)
+		for _, want := range []string{"TIGHTEST WINDOW", "Codex", "72%", "2d 2h", "1m ago", "signed_out", "unsupported", providerUsageExperimental} {
+			if !strings.Contains(output, want) {
+				t.Fatalf("missing %q in %s", want, output)
+			}
+		}
+	})
+	t.Run("Should render the disabled feature message", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 20, 22, 10, 0, 0, time.UTC)
+		if got := renderProviderUsage(
+			contract.ProviderUsageEnvelope{},
+			now,
+		); got != "Provider usage is turned off. Enable it with: compozy config set provider_usage.enabled true" {
+			t.Fatal(got)
+		}
+	})
+	t.Run("Should reject waits beyond thirty seconds", func(t *testing.T) {
+		t.Parallel()
+		cmd := newProviderUsageAction(commandDeps{}, true)
+		if err := cmd.Flags().Set("wait", "90s"); err != nil {
+			t.Fatal(err)
+		}
+		if err := cmd.RunE(
+			cmd,
+			nil,
+		); err == nil ||
+			err.Error() != "--wait must be between 0s and 30s (invalid_request)" {
+			t.Fatalf("invalid wait: %v", err)
 		}
 	})
 }

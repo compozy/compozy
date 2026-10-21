@@ -24,17 +24,17 @@ func applyAttentionConfigValue(cfg *compozyconfig.AttentionConfig, path []string
 	}
 	switch path[1] {
 	case "toasts":
-		return assignAttentionConfigValue(path, value, &cfg.Toasts, "boolean")
+		return assignConfigValue(path, value, &cfg.Toasts, "boolean")
 	case "sound":
-		return assignAttentionConfigValue(path, value, &cfg.Sound, "boolean")
+		return assignConfigValue(path, value, &cfg.Sound, "boolean")
 	case "system":
-		return assignAttentionConfigValue(path, value, &cfg.System, "boolean")
+		return assignConfigValue(path, value, &cfg.System, "boolean")
 	default:
 		return fmt.Errorf("cli: unsupported attention config path %q", strings.Join(path, "."))
 	}
 }
 
-func assignAttentionConfigValue[T any](path []string, value any, target *T, want string) error {
+func assignConfigValue[T any](path []string, value any, target *T, want string) error {
 	typed, ok := value.(T)
 	if !ok {
 		return fmt.Errorf(

@@ -11,6 +11,144 @@ import (
 	"strings"
 )
 
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsLoopGenerationStartedRunEventPayload decodes this payload as LoopGenerationStartedRunEventPayload.
+func (f StreamLoopRunEventsFrame) AsLoopGenerationStartedRunEventPayload() (*LoopGenerationStartedRunEventPayload, error) {
+	var out LoopGenerationStartedRunEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsLoopGateVerdictRunEventPayload decodes this payload as LoopGateVerdictRunEventPayload.
+func (f StreamLoopRunEventsFrame) AsLoopGateVerdictRunEventPayload() (*LoopGateVerdictRunEventPayload, error) {
+	var out LoopGateVerdictRunEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsLoopRunEventPayload decodes this payload as LoopRunEventPayload.
+func (f StreamLoopRunEventsFrame) AsLoopRunEventPayload() (*LoopRunEventPayload, error) {
+	var out LoopRunEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamLoopRunEvents Stream Loop run events
+func (c *Client) StreamLoopRunEvents(ctx context.Context, params StreamLoopRunEventsParams) (*Stream[StreamLoopRunEventsFrame], error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", *params.AfterSequence)
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamLoopRunEventsFrame](ctx, c, "GET", path, headers, nil, "streamLoopRunEvents")
+}
+
+// StreamProviderUsageParams carries the path, query, and header parameters.
+type StreamProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
+// StreamProviderUsage Stream provider usage invalidations (experimental) Experimental: pin the exact SDK version.
+func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderUsageParams) (*Stream[ProviderUsageStreamEvent], error) {
+	path := "/api/provider-usage/stream"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[ProviderUsageStreamEvent](ctx, c, "GET", path, nil, nil, "streamProviderUsage")
+}
+
+// StreamSessionParams carries the path, query, and header parameters.
+type StreamSessionParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Frames        *string `url:"frames"`
+	Epoch         *int64  `url:"epoch"`
+	Generation    *int64  `url:"generation"`
+	Limit         *int    `url:"limit"`
+}
+
+// StreamSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamSessionFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamSessionFrame)(nil)
+
+var _ json.Marshaler = StreamSessionFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamSessionFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamSessionFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
+func (f StreamSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
+	var out SubagentsSnapshotEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
+func (f StreamSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
+	var out SubagentUpdatedEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
+func (f StreamSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
+	var out SessionUsageChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
 func (f StreamSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
 	var out SessionConsumerDegradedPayload
@@ -304,143 +442,4 @@ func (c *Client) SubmitTaskRunReviewVerdict(ctx context.Context, params SubmitTa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// TriggerAutomationJobParams carries the path, query, and header parameters.
-type TriggerAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// TriggerAutomationJob Trigger one automation job immediately
-func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
-	path := "/api/automation/jobs/{id}/trigger"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// TriggerSettingsRestart Trigger a daemon restart using the persisted relaunch helper flow
-func (c *Client) TriggerSettingsRestart(ctx context.Context) (*RestartActionResponse, error) {
-	path := "/api/settings/actions/restart"
-	var out RestartActionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnarchiveProfileParams carries the path, query, and header parameters.
-type UnarchiveProfileParams struct {
-	Name string `url:"name"`
-}
-
-// UnarchiveProfile Unarchive a profile
-func (c *Client) UnarchiveProfile(ctx context.Context, params UnarchiveProfileParams, body UnarchiveProfileRequest) (*UnarchiveProfileResponse, error) {
-	path := "/api/profiles/{name}/unarchive"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out UnarchiveProfileResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnarchiveSessionParams carries the path, query, and header parameters.
-type UnarchiveSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UnarchiveSession Restore an archived session
-func (c *Client) UnarchiveSession(ctx context.Context, params UnarchiveSessionParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnbindGatewayIngressParams carries the path, query, and header parameters.
-type UnbindGatewayIngressParams struct {
-	SubjectKind string `url:"subject_kind"`
-	SubjectID   string `url:"subject_id"`
-}
-
-// UnbindGatewayIngress Remove one public ingress confirmation
-func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayIngressParams) (*GatewayIngressUnbindResponse, error) {
-	path := "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}"
-	path = strings.ReplaceAll(path, "{subject_kind}", url.PathEscape(params.SubjectKind))
-	path = strings.ReplaceAll(path, "{subject_id}", url.PathEscape(params.SubjectID))
-	var out GatewayIngressUnbindResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UndrainDaemon Resume admission of new work
-func (c *Client) UndrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
-	path := "/api/undrain"
-	var out DrainStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnexposeSkillParams carries the path, query, and header parameters.
-type UnexposeSkillParams struct {
-	Name     string  `url:"name"`
-	Profile  *string `url:"profile"`
-	ForAgent *string `url:"for_agent"`
-}
-
-// UnexposeSkill Remove owned provider-root links for one skill
-func (c *Client) UnexposeSkill(ctx context.Context, params UnexposeSkillParams, body SkillExposureRequest) (*SkillUnexposeResponse, error) {
-	path := "/api/skills/{name}/unexpose"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillUnexposeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnpinCmdPaletteCommandParams carries the path, query, and header parameters.
-type UnpinCmdPaletteCommandParams struct {
-	ID        string  `url:"id"`
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

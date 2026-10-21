@@ -58,6 +58,11 @@ export {
 } from "./setting-row";
 export type { SettingActionRowProps, SettingLinkRowProps, SettingRowProps } from "./setting-row";
 export { SettingsGroup } from "./settings-group";
+export {
+  ProviderUsageCollectionSection,
+  ProviderUsageKeychainSection,
+  ProviderUsageProvidersSection,
+} from "./provider-usage-settings-sections";
 export { MarketplaceSourceRow } from "./marketplace-source-row";
 export type { MarketplaceSourceRowProps } from "./marketplace-source-row";
 export {

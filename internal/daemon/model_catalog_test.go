@@ -3,9 +3,13 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,10 +18,18 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/providerusage"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/gin-gonic/gin"
 )
 
 func TestDaemonModelCatalogWiring(t *testing.T) {
@@ -2656,4 +2668,461 @@ func waitForCatalogTestError(t *testing.T, ch <-chan error, label string) error 
 		t.Fatalf("timeout waiting for %s", label)
 	}
 	return nil
+}
+
+func TestProviderUsageAuthAdmission(t *testing.T) {
+	for _, id := range []string{"claude", "codex", "cursor", "gemini", "kimi-cli", "openrouter", "vercel-ai-gateway", "zai", "moonshot"} {
+		for _, mode := range []compozyconfig.ProviderAuthMode{compozyconfig.ProviderAuthModeNone, compozyconfig.ProviderAuthModeBoundSecret, compozyconfig.ProviderAuthModeNativeCLI} {
+			native := id == "claude" || id == "codex" || id == "cursor" || id == "gemini" || id == "kimi-cli"
+			if (native && mode == compozyconfig.ProviderAuthModeNativeCLI) ||
+				(!native && mode == compozyconfig.ProviderAuthModeBoundSecret) {
+				continue
+			}
+			t.Run("Should reject "+string(mode)+" auth for "+id, func(t *testing.T) {
+				t.Parallel()
+				home := testHomePaths(t)
+				cfg := testConfig(t, home)
+				cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+				provider := compozyconfig.ProviderConfig{AuthMode: mode}
+				if mode == compozyconfig.ProviderAuthModeBoundSecret {
+					provider.CredentialSlots = compozyconfig.BuiltinProviders()["openrouter"].CredentialSlots
+				}
+				cfg.Providers[id] = provider
+				resolver := &providerUsageResolver{
+					cfg:        cfg,
+					home:       home,
+					collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+				}
+				targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				found := false
+				for _, target := range targets {
+					if target.ProviderID != id {
+						continue
+					}
+					found = true
+					if target.Status != providerusage.StatusUnsupported || target.Error == nil ||
+						target.Error.Code != providerusage.ErrorCodeNoCollector {
+						t.Fatalf("unsupported auth accepted: status=%s", target.Status)
+					}
+				}
+				if !found {
+					t.Fatalf("missing target for %s", id)
+				}
+			})
+		}
+	}
+}
+
+func TestProviderUsageResolver(t *testing.T) {
+	t.Run("Should resolve the route and bound secret", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		provider := compozyconfig.BuiltinProviders()["openrouter"]
+		provider.CredentialSlots[0].SecretRef = "env:USAGE_TEST_KEY"
+		cfg.Providers["openrouter"] = provider
+		daemon := newTestDaemon(t, home, &cfg)
+		daemon.getenv = func(key string) string {
+			if key == "USAGE_TEST_KEY" {
+				return "bound-value"
+			}
+			return ""
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home,
+			baseEnv:    []string{"HOME=" + t.TempDir(), "OPENROUTER_API_KEY=ambient-value"},
+			secrets:    daemon.modelCatalogSecretResolver(&bootState{}),
+			collectors: providerusage.Registry{"openrouter": providerusage.NewOpenRouterCollector()},
+		}
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var found bool
+		for _, target := range targets {
+			if target.ProviderID != "openrouter" {
+				if target.Status != providerusage.StatusUnsupported {
+					t.Fatalf("unexpected state: %+v", target)
+				}
+				continue
+			}
+			found = true
+			if target.Status != "" || target.Route.BoundSecrets["api_key"] != "bound-value" ||
+				target.RouteFingerprint == "" {
+				t.Fatalf("invalid resolved target: status=%s", target.Status)
+			}
+			for _, entry := range target.Route.Env {
+				if strings.HasPrefix(entry, "OPENROUTER_API_KEY=") {
+					t.Fatal("credential leaked into general environment")
+				}
+			}
+		}
+		if !found {
+			t.Fatal("missing configured provider")
+		}
+	})
+	t.Run("Should report disabled providers", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		provider := compozyconfig.BuiltinProviders()["openrouter"]
+		provider.CredentialSlots[0].SecretRef = "env:USAGE_TEST_KEY"
+		cfg.Providers["openrouter"] = provider
+		daemon := newTestDaemon(t, home, &cfg)
+		daemon.getenv = func(key string) string {
+			if key == "USAGE_TEST_KEY" {
+				return "bound-value"
+			}
+			return ""
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home,
+			baseEnv:    []string{"HOME=" + t.TempDir(), "OPENROUTER_API_KEY=ambient-value"},
+			secrets:    daemon.modelCatalogSecretResolver(&bootState{}),
+			collectors: providerusage.Registry{"openrouter": providerusage.NewOpenRouterCollector()},
+		}
+		resolver.cfg.ProviderUsage.Enabled = false
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, target := range targets {
+			if target.Status != providerusage.StatusDisabled {
+				t.Fatalf("disabled state: %s", target.Status)
+			}
+		}
+	})
+	t.Run("Should reject an unknown profile", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		provider := compozyconfig.BuiltinProviders()["openrouter"]
+		provider.CredentialSlots[0].SecretRef = "env:USAGE_TEST_KEY"
+		cfg.Providers["openrouter"] = provider
+		daemon := newTestDaemon(t, home, &cfg)
+		daemon.getenv = func(key string) string {
+			if key == "USAGE_TEST_KEY" {
+				return "bound-value"
+			}
+			return ""
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home,
+			baseEnv:    []string{"HOME=" + t.TempDir(), "OPENROUTER_API_KEY=ambient-value"},
+			secrets:    daemon.modelCatalogSecretResolver(&bootState{}),
+			collectors: providerusage.Registry{"openrouter": providerusage.NewOpenRouterCollector()},
+		}
+		if _, err := resolver.Targets(
+			t.Context(),
+			"foreign-profile",
+		); err == nil ||
+			providerusage.AsUsageError(err, "").Code != providerusage.ErrorCodeProfileNotFound {
+			t.Fatal("unknown profile accepted")
+		}
+	})
+}
+
+func TestProviderUsageNativeProfile(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer work-key" {
+			t.Error("wrong profile credential")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/api/v1/key" {
+			if _, err := w.Write([]byte(`{"data":{"limit":100,"usage":25}}`)); err != nil {
+				t.Error(err)
+			}
+			return
+		}
+		if _, err := w.Write([]byte(`{"data":{"total_credits":100,"total_usage":25}}`)); err != nil {
+			t.Error(err)
+		}
+	}))
+	t.Cleanup(upstream.Close)
+	catalog := &providerusage.TargetCatalog{}
+	catalog.Replace(
+		"work-id",
+		[]providerusage.Target{
+			{
+				ProfileID:        "work-id",
+				ProviderID:       "openrouter",
+				ProviderName:     "OpenRouter",
+				RouteFingerprint: "work-route",
+				Route:            providerusage.ResolvedRoute{BoundSecrets: map[string]string{"api_key": "work-key"}},
+			},
+		},
+	)
+	service := providerusage.NewService(
+		providerusage.Options{
+			Resolver: catalog,
+			Collectors: providerusage.Registry{
+				"openrouter": providerusage.NewOpenRouterCollector(providerusage.WithCollectorBaseURL(upstream.URL)),
+			},
+		},
+	)
+	t.Cleanup(func() {
+		if err := service.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	native := &daemonNativeTools{deps: &daemonNativeToolsDeps{ProviderUsage: service}}
+	scope := toolspkg.Scope{ProfileID: "work-id"}
+	t.Run("Should refresh and list the bound profile without leaking credentials", func(t *testing.T) {
+		t.Parallel()
+		refreshed, err := native.providerUsageRefresh(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderUsageRefresh,
+				Input:  json.RawMessage(`{"provider_ids":["openrouter"]}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload contract.ProviderUsageEnvelope
+		if err := json.Unmarshal(refreshed.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if payload.ProfileID != "work-id" || len(payload.Targets) != 1 || payload.Targets[0].Status != "ok" {
+			t.Fatalf("unexpected scope/result: %+v", payload)
+		}
+		listed, err := native.providerUsageList(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDProviderUsageList, Input: json.RawMessage(`{}`)},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(listed.Structured), "work-key") {
+			t.Fatal("credential leaked")
+		}
+	})
+	t.Run("Should reject native intent escalation", func(t *testing.T) {
+		t.Parallel()
+		if _, err := native.providerUsageRefresh(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderUsageRefresh,
+				Input:  json.RawMessage(`{"intent":"explicit"}`),
+			},
+		); !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("native intent escalation error = %v, want invalid input", err)
+		}
+	})
+}
+
+type usageConsentProfiles struct{ core.ProfileService }
+
+func (usageConsentProfiles) Resolve(_ context.Context, in profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	if in.Flag == "default" {
+		return profilepkg.Resolution{
+			Profile: profilepkg.Profile{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+		}, nil
+	}
+	if in.Flag != "work" {
+		return profilepkg.Resolution{}, fmt.Errorf("unexpected profile %q", in.Flag)
+	}
+	return profilepkg.Resolution{
+		Profile: profilepkg.Profile{ID: "work-id", Name: "work", State: profilepkg.StateActive},
+	}, nil
+}
+
+type usageConsentSettings struct {
+	core.SettingsService
+	runtime *providerUsageRuntime
+}
+
+func (s usageConsentSettings) ApplySection(
+	ctx context.Context,
+	req settingspkg.SectionUpdateRequest,
+) (settingspkg.ApplyResult, error) {
+	s.runtime.ApplyConsent(ctx, compozyconfig.DefaultProviderUsageConfig(), *req.ProviderUsage)
+	return settingspkg.ApplyResult{}, nil
+}
+
+func (s usageConsentSettings) Reload(ctx context.Context) (settingspkg.ApplyResult, error) {
+	if _, local := core.ProviderUsageConsentProfile(ctx); local {
+		return settingspkg.ApplyResult{}, fmt.Errorf("reload must not carry explicit consent")
+	}
+	previous := compozyconfig.DefaultProviderUsageConfig()
+	next := previous.Clone()
+	next.Providers = map[string]compozyconfig.ProviderUsageProviderConfig{
+		"claude": {Enabled: true, KeychainAccess: true},
+	}
+	s.runtime.ApplyConsent(ctx, previous, next)
+	return settingspkg.ApplyResult{}, nil
+}
+
+type usageConsentKeychain struct{ reads chan string }
+
+func (r usageConsentKeychain) Read(_ context.Context, _, account string) ([]byte, error) {
+	r.reads <- account
+	return nil, os.ErrNotExist
+}
+
+func TestProviderUsageConsentProfile(t *testing.T) {
+	for _, selection := range []struct {
+		remote                    bool
+		query, profileID, otherID string
+	}{
+		{false, "&collection_profile=work", "work-id", store.DefaultProfileID},
+		{true, "&collection_profile=work", "work-id", store.DefaultProfileID},
+		{false, "", store.DefaultProfileID, "work-id"},
+		{true, "", store.DefaultProfileID, "work-id"},
+	} {
+		remote := selection.remote
+		t.Run(
+			fmt.Sprintf(
+				"Should apply consent only for a local selected profile IT004 IT005 remote=%t profile=%s",
+				remote,
+				selection.profileID,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				reader := usageConsentKeychain{reads: make(chan string, 2)}
+				catalog := &providerusage.TargetCatalog{}
+				for _, id := range []string{store.DefaultProfileID, "work-id"} {
+					home := t.TempDir()
+					catalog.Replace(
+						id,
+						[]providerusage.Target{{ProfileID: id, ProviderID: "claude", ProviderName: "Claude",
+							RouteFingerprint: id, Route: providerusage.ResolvedRoute{KeychainAccess: true,
+								Env: []string{"HOME=" + home, "CLAUDE_CONFIG_DIR=" + home, "USER=" + id}}}},
+					)
+				}
+				manager := providerusage.NewService(providerusage.Options{
+					Resolver: catalog,
+					Collectors: providerusage.Registry{
+						"claude": providerusage.NewClaudeCollector(
+							providerusage.WithClaudeKeychain(reader),
+							providerusage.WithClaudePlatform("darwin"),
+						),
+					},
+				})
+				defer func() {
+					if err := manager.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				}()
+				initial, err := manager.Refresh(
+					t.Context(),
+					providerusage.RefreshRequest{
+						ProfileID: selection.profileID,
+						Intent:    providerusage.IntentBackground,
+						Wait:      15 * time.Second,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if initial.Targets[0].Error.Code != providerusage.ErrorCodeKeychainTokenExpired ||
+					initial.Targets[0].Error.Action != string(providerusage.ActionRefresh) ||
+					len(reader.reads) != 0 {
+					t.Fatal("restart/background must request Refresh without reading the Keychain")
+				}
+				before, err := manager.Envelope(t.Context(), selection.otherID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				revisions, unsubscribe := manager.Subscribe(selection.profileID)
+				defer unsubscribe()
+				runtime := &providerUsageRuntime{Manager: manager}
+				handlers := &core.BaseHandlers{
+					Profiles:      usageConsentProfiles{},
+					ProviderUsage: manager,
+					Settings:      usageConsentSettings{runtime: runtime},
+					TransportName: "http",
+				}
+				engine := gin.New()
+				engine.PATCH("/api/settings/provider-usage", handlers.UpdateSettingsProviderUsage)
+				engine.POST("/api/settings/reload", handlers.ReloadSettings)
+				reload := httptest.NewRecorder()
+				engine.ServeHTTP(
+					reload,
+					httptest.NewRequestWithContext(
+						t.Context(),
+						http.MethodPost,
+						"/api/settings/reload?profile=work",
+						http.NoBody,
+					),
+				)
+				if reload.Code != http.StatusOK || len(reader.reads) != 0 {
+					t.Fatalf("reload granted consent: status=%d reads=%d", reload.Code, len(reader.reads))
+				}
+				engine.POST("/api/provider-usage/refresh", handlers.RefreshProviderUsage)
+				requestCtx := t.Context()
+				if remote {
+					requestCtx = gateway.ContextWithDevice(requestCtx, gateway.DeviceSession{})
+				}
+				response := httptest.NewRecorder()
+				engine.ServeHTTP(response, httptest.NewRequestWithContext(
+					requestCtx,
+					http.MethodPatch,
+					"/api/settings/provider-usage?scope=user"+selection.query,
+					strings.NewReader(
+						`{"config":{"enabled":true,"refresh_interval":"5m","providers":{"claude":{"keychain_access":true}}}}`,
+					),
+				))
+				if response.Code != http.StatusOK {
+					t.Fatalf("PATCH: %d %s", response.Code, response.Body.String())
+				}
+				if remote {
+					refreshResponse := httptest.NewRecorder()
+					engine.ServeHTTP(
+						refreshResponse,
+						httptest.NewRequestWithContext(
+							requestCtx,
+							http.MethodPost,
+							"/api/provider-usage/refresh?profile=work",
+							strings.NewReader(
+								`{"profile":"work","provider_ids":["claude"],"intent":"explicit","wait_ms":15000}`,
+							),
+						),
+					)
+					if refreshResponse.Code != http.StatusOK {
+						t.Fatalf("refresh: %d %s", refreshResponse.Code, refreshResponse.Body.String())
+					}
+					if len(reader.reads) != 0 ||
+						!strings.Contains(refreshResponse.Body.String(), "keychain_token_expired") {
+						t.Fatalf("gateway prompted: %s", refreshResponse.Body.String())
+					}
+					return
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				for {
+					env, err := manager.Envelope(ctx, selection.profileID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if len(env.Targets) == 1 && !env.Targets[0].Refreshing &&
+						env.Targets[0].Status == providerusage.StatusSignedOut {
+						break
+					}
+					select {
+					case <-revisions:
+					case <-ctx.Done():
+						t.Fatal("selected profile collection did not finish")
+					}
+				}
+				if len(reader.reads) != 1 || <-reader.reads != selection.profileID {
+					t.Fatal("consent read another profile login")
+				}
+				after, err := manager.Envelope(ctx, selection.otherID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if after.Revision != before.Revision {
+					t.Fatalf("unselected profile was changed: before=%d after=%d", before.Revision, after.Revision)
+				}
+			},
+		)
+	}
 }

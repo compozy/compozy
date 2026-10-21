@@ -1,0 +1,157 @@
+import type {
+  ProviderUsageEnvelope,
+  ProviderUsageSeverity,
+  ProviderUsageTarget,
+  ProviderUsageTraySignal,
+  ProviderUsageWindow,
+} from "../types";
+
+import { formatAgo, formatPercent, formatResetsAt, isOlderThan } from "./format";
+import { hasKnownPercent, selectTightestWindow, severityForPercent } from "./severity";
+import { showsUsageData } from "./status";
+
+export interface ProviderUsageRowModel {
+  providerId: string;
+  target: ProviderUsageTarget;
+  /** The binding window when the row has usage data to draw. */
+  tightest: ProviderUsageWindow | null;
+  /** Severity of the tightest known percent; `null` when unknown. */
+  severity: ProviderUsageSeverity | null;
+  stale: boolean;
+}
+
+export interface ProviderUsageViewModel {
+  profileId: string;
+  revision: number;
+  enabled: boolean;
+  /** The daemon runs on macOS, where Claude Keychain consent exists. */
+  keychainSupported: boolean;
+  tray: ProviderUsageTraySignal | null;
+  /** When the tray window's data was measured, for the stale tooltip. */
+  trayMeasuredAt: string | null;
+  /** Ordered as the daemon returns them (provider catalog order). */
+  rows: ProviderUsageRowModel[];
+  /** Oldest `measured_at` among displayed rows: what "Updated N min ago" claims. */
+  oldestMeasuredAt: string | null;
+}
+
+export function toProviderUsageRow(target: ProviderUsageTarget): ProviderUsageRowModel {
+  const hasData = showsUsageData(target);
+  const tightest = hasData ? selectTightestWindow(target.windows) : null;
+  return {
+    providerId: target.provider_id,
+    target,
+    tightest,
+    severity:
+      tightest && hasKnownPercent(tightest) ? severityForPercent(tightest.used_percent) : null,
+    stale: target.status === "stale",
+  };
+}
+
+function oldestMeasuredAt(targets: readonly ProviderUsageTarget[]): string | null {
+  let oldest: { iso: string; time: number } | null = null;
+  for (const target of targets) {
+    if (!showsUsageData(target) || !target.measured_at) continue;
+    const time = Date.parse(target.measured_at);
+    if (!Number.isFinite(time)) continue;
+    if (oldest === null || time < oldest.time) oldest = { iso: target.measured_at, time };
+  }
+  return oldest?.iso ?? null;
+}
+
+export function buildProviderUsageViewModel(
+  envelope: ProviderUsageEnvelope
+): ProviderUsageViewModel {
+  const trayTarget = envelope.tray
+    ? envelope.targets.find(target => target.provider_id === envelope.tray?.provider_id)
+    : undefined;
+  return {
+    profileId: envelope.profile_id,
+    revision: envelope.revision,
+    enabled: envelope.enabled,
+    keychainSupported: envelope.keychain_supported,
+    tray: envelope.tray,
+    trayMeasuredAt: trayTarget?.measured_at ?? null,
+    rows: envelope.targets.map(toProviderUsageRow),
+    oldestMeasuredAt: oldestMeasuredAt(envelope.targets),
+  };
+}
+
+/** Rows with nothing to measure: no collector for the provider, or turned off. */
+export function isQuietProviderUsageRow(row: ProviderUsageRowModel): boolean {
+  return row.target.status === "unsupported" || row.target.status === "disabled";
+}
+
+/**
+ * Splits rows, each half in catalog order: those with usage data or a status
+ * to act on, and the quiet ones the surfaces fold into one trailing group.
+ */
+export function partitionProviderUsageRows(rows: readonly ProviderUsageRowModel[]): {
+  measured: ProviderUsageRowModel[];
+  quiet: ProviderUsageRowModel[];
+} {
+  const measured: ProviderUsageRowModel[] = [];
+  const quiet: ProviderUsageRowModel[] = [];
+  for (const row of rows) (isQuietProviderUsageRow(row) ? quiet : measured).push(row);
+  return { measured, quiet };
+}
+
+export function quietGroupLabel(count: number): string {
+  return `${count} ${count === 1 ? "provider" : "providers"} without usage data`;
+}
+
+/** The tray control exists only while the feature is on and the profile has a target. */
+export function hasProviderUsageTargets(viewModel: ProviderUsageViewModel | null): boolean {
+  return viewModel !== null && viewModel.enabled && viewModel.rows.length > 0;
+}
+
+export const PROVIDER_USAGE_TITLE = "Provider usage";
+
+/**
+ * The tray's accessible name and tooltip: "Codex · Weekly 72% used · resets
+ * in 2d 4h". At or above 100 the label says "limit reached" (the exact number
+ * lives in the detail); stale data says how old it is.
+ */
+export function formatTrayLabel(
+  tray: ProviderUsageTraySignal | null,
+  measuredAt: string | null,
+  now: number
+): string {
+  if (tray === null) return PROVIDER_USAGE_TITLE;
+  const usage =
+    tray.severity === "exhausted" ? "limit reached" : `${formatPercent(tray.used_percent)} used`;
+  const parts = [`${tray.label} ${usage}`];
+  const reset = formatResetsAt(tray.resets_at, now);
+  if (reset) parts.push(reset);
+  if (tray.stale) {
+    const ago = formatAgo(measuredAt, now);
+    parts.push(ago ? `updated ${ago}` : "stale");
+  }
+  return parts.join(" · ");
+}
+
+export const PROVIDER_USAGE_OPEN_MAX_AGE_SECONDS = 60;
+
+/**
+ * Targets a popover open should refresh: data older than the open threshold.
+ * Rows with nothing to collect (unsupported, disabled) or already collecting
+ * are left alone.
+ */
+export function targetsNeedingOpenRefresh(
+  envelope: ProviderUsageEnvelope,
+  now: number,
+  maxAgeSeconds = PROVIDER_USAGE_OPEN_MAX_AGE_SECONDS
+): string[] {
+  const ids: string[] = [];
+  for (const target of envelope.targets) {
+    if (
+      target.status !== "unsupported" &&
+      target.status !== "disabled" &&
+      !target.refreshing &&
+      isOlderThan(target.measured_at, now, maxAgeSeconds * 1_000)
+    ) {
+      ids.push(target.provider_id);
+    }
+  }
+  return ids;
+}

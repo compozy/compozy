@@ -319,6 +319,8 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PATCH("/cmd-palette", privileged, handlers.UpdateSettingsCmdPalette)
 	settings.GET("/attention", handlers.GetSettingsAttention)
 	settings.PATCH("/attention", privileged, handlers.UpdateSettingsAttention)
+	settings.GET("/provider-usage", handlers.GetSettingsProviderUsage)
+	settings.PATCH("/provider-usage", privileged, handlers.UpdateSettingsProviderUsage)
 	settings.GET("/shell", handlers.GetSettingsShell)
 	settings.PATCH("/shell", privileged, handlers.UpdateSettingsShell)
 
@@ -385,4 +387,11 @@ func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
 	webhooks := api.Group("/webhooks", handlers.gatewayIngressRateLimitMiddleware())
 	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
 	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
+}
+
+func registerProviderUsageRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/provider-usage", handlers.ListProviderUsage)
+	api.GET("/provider-usage/providers/:provider_id", handlers.ListProviderUsage)
+	api.POST("/provider-usage/refresh", handlers.RefreshProviderUsage)
+	api.GET("/provider-usage/stream", handlers.StreamProviderUsage)
 }

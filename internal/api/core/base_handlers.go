@@ -32,6 +32,7 @@ type BaseHandlerConfig struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Subagents                    session.SubagentService
+	SessionMonitors              SessionMonitorService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -72,6 +73,7 @@ type BaseHandlerConfig struct {
 	AgentDefinitionSync         AgentDefinitionSync
 	ContextWindowResolver       ContextWindowResolver
 	ModelCatalog                ModelCatalogService
+	ProviderUsage               ProviderUsageService
 	MarketplaceCatalog          MarketplaceCatalogService
 	OnProviderAuthSuccess       func()
 	ProviderAuthRunner          authproviders.ProviderAuthCommandRunner
@@ -119,6 +121,7 @@ type BaseHandlers struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Subagents                    session.SubagentService
+	SessionMonitors              SessionMonitorService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -157,6 +160,7 @@ type BaseHandlers struct {
 	AgentDefinitionSync          AgentDefinitionSync
 	ContextWindowResolver        ContextWindowResolver
 	ModelCatalog                 ModelCatalogService
+	ProviderUsage                ProviderUsageService
 	MarketplaceCatalog           MarketplaceCatalogService
 	OnProviderAuthSuccess        func()
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
@@ -232,6 +236,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Subagents:                    cfg.Subagents,
+		SessionMonitors:              cfg.SessionMonitors,
 		Sessions:                     cfg.Sessions,
 		SessionAcceptance:            cfg.SessionAcceptance,
 		DrainController:              cfg.DrainController,
@@ -270,6 +275,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		AgentDefinitionSync:          cfg.AgentDefinitionSync,
 		ContextWindowResolver:        cfg.ContextWindowResolver,
 		ModelCatalog:                 cfg.ModelCatalog,
+		ProviderUsage:                cfg.ProviderUsage,
 		MarketplaceCatalog:           cfg.MarketplaceCatalog,
 		OnProviderAuthSuccess:        cfg.OnProviderAuthSuccess,
 		ProviderAuthRunner:           defaults.providerAuthRunner,

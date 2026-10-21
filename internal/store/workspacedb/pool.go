@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -22,6 +23,7 @@ type RootResolver func(ctx context.Context, workspaceID string) (ResolvedRoot, e
 
 // Pool owns lazy, reusable database handles for daemon-known workspaces.
 type Pool struct {
+	homeDir     string
 	resolveRoot RootResolver
 
 	mu       sync.Mutex
@@ -53,11 +55,16 @@ func workspaceRemovalPendingError(workspaceID string) error {
 }
 
 // NewPool constructs an empty per-workspace database pool.
-func NewPool(resolveRoot RootResolver) (*Pool, error) {
+func NewPool(homeDir string, resolveRoot RootResolver) (*Pool, error) {
+	homeDir = strings.TrimSpace(homeDir)
+	if homeDir == "" || !filepath.IsAbs(homeDir) {
+		return nil, errors.New("store: absolute home directory is required")
+	}
 	if resolveRoot == nil {
 		return nil, errors.New("store: workspace database root resolver is required")
 	}
 	return &Pool{
+		homeDir:     homeDir,
 		resolveRoot: resolveRoot,
 		entries:     make(map[string]*DB),
 		opening:     make(map[string]*workspaceOpening),
@@ -115,7 +122,9 @@ func (p *Pool) openWorkspace(ctx context.Context, workspaceID string) (*DB, erro
 	if resolved.RootDir == "" || resolved.WorkspaceID == "" {
 		return nil, fmt.Errorf("store: resolved workspace database root %q is incomplete", workspaceID)
 	}
-	db, err := OpenWorkspace(ctx, resolved.RootDir)
+	db, err := Open(ctx, Options{
+		HomeDir: p.homeDir, WorkspaceID: workspaceID, WorkspaceRoot: resolved.RootDir,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -265,8 +274,9 @@ func (p *Pool) waitForWorkspaceOpening(ctx context.Context, workspaceID string) 
 
 func normalizeWorkspaceID(workspaceID string) (string, error) {
 	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return "", errors.New("store: workspace id is required")
+	if workspaceID == "" || workspaceID == "." || workspaceID == ".." ||
+		strings.ContainsAny(workspaceID, `/\:`) {
+		return "", errors.New("store: canonical workspace id is required")
 	}
 	return workspaceID, nil
 }

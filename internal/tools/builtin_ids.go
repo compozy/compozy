@@ -364,3 +364,9 @@ func BuiltinSource() SourceRef {
 		Scope: BuiltinSourceOwner,
 	}
 }
+
+const (
+	ToolIDProviderUsageList    ToolID    = "compozy__provider_usage_list"
+	ToolIDProviderUsageRefresh ToolID    = "compozy__provider_usage_refresh"
+	ToolsetIDProviderUsage     ToolsetID = "compozy__provider_usage"
+)

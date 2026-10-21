@@ -96,7 +96,8 @@ const (
 	// SectionAttention exposes operator attention delivery settings.
 	SectionAttention SectionName = "attention"
 	// SectionShell exposes operator shell preferences.
-	SectionShell SectionName = "shell"
+	SectionShell         SectionName = "shell"
+	SectionProviderUsage SectionName = "provider-usage"
 	// SectionObservability exposes observe and transcript settings.
 	SectionObservability SectionName = "observability"
 	// SectionHooksExtensions exposes hook declarations plus extension policy.
@@ -220,6 +221,7 @@ type SectionUpdateRequest struct {
 	CmdPalette                     *CmdPaletteUpdate
 	Attention                      *AttentionSettings
 	ReplaceAttentionWorkspaceMutes bool
+	ProviderUsage                  *compozyconfig.ProviderUsageConfig
 	Shell                          *compozyconfig.ShellConfig
 	Observability                  *compozyconfig.ObservabilityConfig
 	HooksExtensions                *compozyconfig.ExtensionsConfig
@@ -288,6 +290,7 @@ type SectionEnvelope struct {
 	WindowManager   *WindowManagerSection
 	CmdPalette      *CmdPaletteSection
 	Attention       *AttentionSection
+	ProviderUsage   *ProviderUsageSection
 	Shell           *ShellSection
 	Observability   *ObservabilitySection
 	HooksExtensions *HooksExtensionsSection

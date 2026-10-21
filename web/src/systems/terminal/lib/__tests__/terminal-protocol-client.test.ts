@@ -659,6 +659,21 @@ describe("TerminalProtocolClient", () => {
     expect(streamErrors).toHaveLength(0);
   });
 
+  it("Should refuse a pipe attachment without opening or retrying a socket", async () => {
+    const { client, statuses, streamErrors, calls, sockets } = buildClient({
+      ticketResponse: () => ({
+        status: 422,
+        body: { error: { code: "terminal_not_interactive", message: "pipe terminal" } },
+      }),
+    });
+    client.start();
+    await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
+    await new Promise(resolve => setTimeout(resolve, 30));
+    expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
+    expect(sockets.sockets).toHaveLength(0);
+    expect(streamErrors[0]).toMatchObject({ error: { code: "terminal_not_interactive" } });
+  });
+
   it("Should surface expiry as a stream refusal and settle closed", async () => {
     const { client, statuses, streamErrors } = buildClient({
       ticketResponse: () => ({

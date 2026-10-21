@@ -3,13 +3,7 @@ package workspacedb
 import (
 	"context"
 	"errors"
-	"fmt"
-	"path/filepath"
-	"strings"
 	"sync"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
 
 // WorkspaceRemovalPreparation owns a sealed database removal until commit or rollback.
@@ -42,31 +36,10 @@ func (p *Pool) RemoveWorkspace(ctx context.Context, workspaceID string) error {
 	return preparation.Commit(ctx)
 }
 
-// PrepareWorkspaceRemoval captures the database identity through the registered root resolver.
+// PrepareWorkspaceRemoval captures the database path independently of the project directory.
 func (p *Pool) PrepareWorkspaceRemoval(
 	ctx context.Context,
 	workspaceID string,
-) (*WorkspaceRemovalPreparation, error) {
-	return p.prepareWorkspaceRemoval(ctx, workspaceID, "")
-}
-
-// PrepareWorkspaceRemovalAt captures a database identity from a durable workspace snapshot.
-func (p *Pool) PrepareWorkspaceRemovalAt(
-	ctx context.Context,
-	workspaceID string,
-	rootDir string,
-) (*WorkspaceRemovalPreparation, error) {
-	rootDir = strings.TrimSpace(rootDir)
-	if rootDir == "" {
-		return nil, errors.New("store: workspace root directory is required for removal")
-	}
-	return p.prepareWorkspaceRemoval(ctx, workspaceID, rootDir)
-}
-
-func (p *Pool) prepareWorkspaceRemoval(
-	ctx context.Context,
-	workspaceID string,
-	durableRoot string,
 ) (*WorkspaceRemovalPreparation, error) {
 	if p == nil {
 		return nil, errors.New("store: workspace database pool is required")
@@ -87,29 +60,11 @@ func (p *Pool) prepareWorkspaceRemoval(
 		p.mu.Unlock()
 		return nil, workspaceRemovalPendingError(workspaceID)
 	}
-	db := p.entries[workspaceID]
 	p.mu.Unlock()
 
-	path := ""
-	if db != nil {
-		path = db.Path()
-	} else {
-		rootDir := durableRoot
-		if rootDir == "" {
-			resolved, resolveErr := p.resolveRoot(ctx, workspaceID)
-			if resolveErr != nil {
-				return nil, fmt.Errorf(
-					"store: resolve workspace database root %q for removal: %w",
-					workspaceID,
-					resolveErr,
-				)
-			}
-			rootDir = strings.TrimSpace(resolved.RootDir)
-		}
-		if rootDir == "" {
-			return nil, fmt.Errorf("store: resolved workspace database root %q is incomplete", workspaceID)
-		}
-		path = filepath.Join(rootDir, compozyconfig.DirName, store.GlobalDatabaseName)
+	path, err := workspaceDatabasePath(p.homeDir, workspaceID)
+	if err != nil {
+		return nil, err
 	}
 	return &WorkspaceRemovalPreparation{pool: p, workspaceID: workspaceID, path: path}, nil
 }

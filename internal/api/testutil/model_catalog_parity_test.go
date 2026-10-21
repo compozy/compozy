@@ -1,6 +1,7 @@
 package testutil_test
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,8 +10,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/providerusage"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -146,6 +153,7 @@ func newParityHTTPRouter(
 	t *testing.T,
 	service *parityModelCatalogService,
 	settings core.SettingsService,
+	usage ...core.ProviderUsageService,
 ) http.Handler {
 	t.Helper()
 
@@ -170,6 +178,7 @@ func newParityHTTPRouter(
 		httpapi.WithWorkspaceResolver(testutil.StubWorkspaceService{}),
 		httpapi.WithModelCatalogService(service),
 		httpapi.WithSettingsService(settings),
+		httpapi.WithProviderUsageService(parityUsageService(usage)),
 	); err != nil {
 		t.Fatalf("httpapi.New() error = %v", err)
 	}
@@ -180,6 +189,7 @@ func newParityUDSRouter(
 	t *testing.T,
 	service *parityModelCatalogService,
 	settings core.SettingsService,
+	usage ...core.ProviderUsageService,
 ) http.Handler {
 	t.Helper()
 
@@ -200,6 +210,7 @@ func newParityUDSRouter(
 		udsapi.WithWorkspaceResolver(testutil.StubWorkspaceService{}),
 		udsapi.WithModelCatalogService(service),
 		udsapi.WithSettingsService(settings),
+		udsapi.WithProviderUsageService(parityUsageService(usage)),
 	); err != nil {
 		t.Fatalf("udsapi.New() error = %v", err)
 	}
@@ -300,4 +311,162 @@ func parityCatalogModel(providerID string, modelID string) modelcatalog.Model {
 			{SourceID: modelcatalog.SourceIDConfig, SourceKind: modelcatalog.SourceKindConfig},
 		},
 	}
+}
+
+func parityUsageService(usage []core.ProviderUsageService) core.ProviderUsageService {
+	if len(usage) == 0 {
+		return nil
+	}
+	return usage[0]
+}
+
+// IT-001/002/003/006/007/010: transport parity is owned here; collection uses the
+// real manager, TargetCatalog, and OpenRouter collector against an HTTP provider.
+func TestProviderUsageTransportParity(t *testing.T) {
+	var calls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		calls.Add(1)
+		if req.Header.Get("Authorization") != "Bearer fixture-usage-secret" {
+			t.Error("missing bound credential")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if req.URL.Path == "/api/v1/key" {
+			_, _ = io.WriteString(w, `{"data":{"limit":100,"usage":37.5}}`)
+			return
+		}
+		_, _ = io.WriteString(w, `{"data":{"total_credits":50,"total_usage":12.5}}`)
+	}))
+	defer upstream.Close()
+	catalog := &providerusage.TargetCatalog{}
+	catalog.Replace(
+		store.DefaultProfileID,
+		[]providerusage.Target{
+			{
+				ProfileID:        store.DefaultProfileID,
+				ProviderID:       "openrouter",
+				ProviderName:     "OpenRouter",
+				RouteFingerprint: "fixture-route",
+				Route: providerusage.ResolvedRoute{
+					BoundSecrets: map[string]string{"api_key": "fixture-usage-secret"},
+				},
+			},
+		},
+	)
+	service := providerusage.NewService(providerusage.Options{
+		Resolver: catalog,
+		Clock:    clockwork.NewFakeClockAt(time.Date(2026, 10, 20, 22, 10, 0, 0, time.UTC)),
+		Collectors: providerusage.Registry{
+			"openrouter": providerusage.NewOpenRouterCollector(providerusage.WithCollectorBaseURL(upstream.URL)),
+		},
+	})
+	t.Cleanup(func() {
+		if err := service.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	httpRouter, udsRouter := newParityHTTPRouter(t, nil, nil, service), newParityUDSRouter(t, nil, nil, service)
+	// Ready is observable before triggering the first collection; no timing sleeps.
+	streamServer := httptest.NewServer(httpRouter)
+	defer streamServer.Close()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		streamServer.URL+"/api/provider-usage/stream",
+		http.NoBody,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := streamServer.Client().Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	scanner := bufio.NewScanner(response.Body)
+	readUsageFrame(t, scanner, "ready", service.BootID())
+	refreshed := performParityJSONRequest(
+		t,
+		udsRouter,
+		http.MethodPost,
+		"/api/provider-usage/refresh",
+		[]byte(`{"provider_ids":["openrouter"],"intent":"explicit"}`),
+	)
+	if refreshed.Code != http.StatusOK {
+		t.Fatalf("refresh: %d %s", refreshed.Code, refreshed.Body.String())
+	}
+	readUsageFrame(t, scanner, "provider_usage_changed", service.BootID())
+	for _, path := range []string{"/api/provider-usage", "/api/provider-usage/providers/openrouter"} {
+		left := performParityRequest(t, httpRouter, http.MethodGet, path)
+		right := performParityRequest(t, udsRouter, http.MethodGet, path)
+		if left.Code != http.StatusOK || right.Code != http.StatusOK || left.Body.String() != right.Body.String() {
+			t.Fatalf("parity: HTTP=%d %s UDS=%d %s", left.Code, left.Body.String(), right.Code, right.Body.String())
+		}
+		var envelope contract.ProviderUsageEnvelope
+		if err := json.Unmarshal(left.Body.Bytes(), &envelope); err != nil {
+			t.Fatal(err)
+		}
+		if len(envelope.Targets) != 1 || envelope.Targets[0].Status != "ok" ||
+			envelope.Targets[0].SpendCaps[0].Used.Value != "37.5" {
+			t.Fatalf("usage: %+v", envelope)
+		}
+		if strings.Contains(left.Body.String(), "fixture-usage-secret") {
+			t.Fatal("secret leaked")
+		}
+	}
+	before := calls.Load()
+	for range 2 {
+		result := performParityJSONRequest(
+			t,
+			httpRouter,
+			http.MethodPost,
+			"/api/provider-usage/refresh",
+			[]byte(`{"wait_ms":0}`),
+		)
+		if result.Code != http.StatusOK {
+			t.Fatal(result.Body.String())
+		}
+	}
+	if calls.Load() != before {
+		t.Fatal("refresh floor did not coalesce")
+	}
+	for _, tc := range []struct {
+		method, path, body, code string
+		status                   int
+	}{
+		{http.MethodPost, "/api/provider-usage/refresh", `{"wait_ms":45000}`, "invalid_request", 400},
+		{http.MethodGet, "/api/provider-usage/providers/nope", "", "provider_not_found", 404},
+		{http.MethodGet, "/api/provider-usage?all_profiles=true", "", "invalid_request", 400},
+	} {
+		result := performParityJSONRequest(t, httpRouter, tc.method, tc.path, []byte(tc.body))
+		if result.Code != tc.status || !strings.Contains(result.Body.String(), tc.code) {
+			t.Fatalf("%s: %d %s", tc.path, result.Code, result.Body.String())
+		}
+	}
+	if err := service.SetEnabled(t.Context(), false); err != nil {
+		t.Fatal(err)
+	}
+	result := performParityJSONRequest(t, udsRouter, http.MethodPost, "/api/provider-usage/refresh", []byte(`{}`))
+	if result.Code != http.StatusConflict || !strings.Contains(result.Body.String(), "provider_usage_disabled") {
+		t.Fatal(result.Body.String())
+	}
+}
+
+func readUsageFrame(t *testing.T, scanner *bufio.Scanner, event, bootID string) {
+	t.Helper()
+	name := ""
+	for scanner.Scan() {
+		line := scanner.Text()
+		if value, ok := strings.CutPrefix(line, "event:"); ok {
+			name = strings.TrimSpace(value)
+		}
+		if strings.HasPrefix(line, "data:") && name == event {
+			if !strings.Contains(line, bootID) || !strings.Contains(line, "revision") {
+				t.Fatalf("invalid revision: %s", line)
+			}
+			return
+		}
+	}
+	t.Fatalf("missing %s: %v", event, scanner.Err())
 }

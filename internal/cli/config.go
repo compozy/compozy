@@ -175,6 +175,7 @@ const (
 )
 
 var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetValueKind{
+	"provider_usage.providers.claude.keychain_access": configSetBool,
 	"daemon.socket":                                   configSetString,
 	"daemon.reload_timeouts.providers":                configSetDuration,
 	"daemon.reload_timeouts.mcp":                      configSetDuration,

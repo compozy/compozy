@@ -14,6 +14,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
+	compozyversion "github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -124,6 +125,7 @@ func runDaemonBootstrap(cmd *cobra.Command, deps commandDeps, options bootstrapO
 	execution := bootstrapExecution{
 		cmd: cmd, deps: deps, options: options, homePaths: homePaths,
 		bundlePath: bundlePath, installedPath: installedPath,
+		runtimeVersion: compozyversion.Current().Version,
 	}
 	return execution.resolveAndStart()
 }
@@ -135,6 +137,10 @@ type bootstrapExecution struct {
 	homePaths     compozyconfig.HomePaths
 	bundlePath    string
 	installedPath string
+	// runtimeVersion is the bundled runtime release this app provisions.
+	runtimeVersion string
+	// bundleRequired forces provisioning after a newer desktop runtime rejected this app.
+	bundleRequired bool
 }
 
 // resolveAndStart attaches to a compatible daemon or provisions and starts the selected runtime.
@@ -175,7 +181,7 @@ func (e *bootstrapExecution) resolveAndStart() error {
 		if versionErr != nil {
 			return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeUnavailable, versionErr)
 		}
-		if !matches && !newer {
+		if !matches && (!newer || e.bundleRequired) {
 			resolution = bootstrapResolutionProvision
 		}
 	}
@@ -271,6 +277,9 @@ func (e *bootstrapExecution) writeStarted(
 	owned bool,
 ) error {
 	if err := validateBootstrapCompatibility(status, e.options.minimumRuntime, e.options.appVersion); err != nil {
+		if e.restartRejectingDesktopRuntime(status, owned) {
+			return e.resolveAndStart()
+		}
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseReady, bootstrapProbeListeningUnhealthy, err)
 	}
 	daemon, err := bootstrapDaemonFromStatus(status, owned)

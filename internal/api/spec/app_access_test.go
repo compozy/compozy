@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"listProviderUsage", "getProviderUsage", "streamProviderUsage",
 			"acceptAutomationSuggestion",
 			"acknowledgeAttentionNotifications",
 			"addTaskDependency",
@@ -27,6 +28,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"cancelLoopNode",
 			"cancelLoopRun",
 			"cancelQueuedSessionPrompt",
+			"cancelSessionMonitor",
 			"cancelSessionPrompt",
 			"cancelSubagent",
 			"cancelTask",
@@ -128,6 +130,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"listSessionFolders",
 			"listSessionInputs",
 			"listSessionInteractions",
+			"listSessionMonitors",
 			"listSessionSubagents",
 			"listSessionTools",
 			"listSessions",
@@ -197,6 +200,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"refreshProviderUsage", "getSettingsProviderUsage", "updateSettingsProviderUsage",
 			"getStatus",
 			"resolveWorkspace",
 			"addMarketplaceSource",
@@ -413,6 +417,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"reloadSettings",
 			"removeExtension",
 			"removeMarketplaceSource",
+			"removeDiscoveredWorktree",
 			"removeWorktree",
 			"renameGatewayDevice",
 			"renameProfile",

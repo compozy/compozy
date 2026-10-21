@@ -2,7 +2,17 @@ import { useEffect, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent, within } from "storybook/test";
 
+import { storybookMswParameters } from "@/storybook/msw";
 import { AgentCreateHostProvider } from "@/systems/agent";
+import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
+import {
+  codexOkTarget,
+  defaultUsageEnvelope,
+  providerUsageHandlers,
+  statusTargets,
+  usageEnvelope,
+  usageTray,
+} from "@/systems/provider-usage/mocks";
 import type { SettingsUpdateStatus } from "@/systems/settings";
 import { settingsUpdateIndicatorState } from "@/systems/settings";
 import {
@@ -48,7 +58,7 @@ const meta: Meta<typeof OsMenuBar> = {
     docs: {
       description: {
         component:
-          'The desktop menubar: the CompozyOS system menu, the Global scope globe, the workspace switcher, the static Session / Go / Window / Help set, then the tray: desktop pager dots, All desktops, the approvals bell, and the ⌘K button. Settings lives in the system menu on the mark. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
+          'The desktop menubar: the CompozyOS system menu, the Global scope globe, the workspace switcher, the static Session / Go / Window / Help set, then the tray: desktop pager dots, All desktops, Provider usage, the approvals bell, and the ⌘K button. Settings lives in the system menu on the mark. The mark and the workspace chip are separate `role="menubar"`s so the globe can sit between them without becoming a menu item. Compact chrome keeps mark + globe + chip after the app menus hide.',
       },
     },
   },
@@ -409,3 +419,60 @@ export const UpdateIndicatorUpdating: Story = updateIndicatorStory(settingsUpdat
 
 /** The last update failed: the pill turns danger and opens Settings for the detail. */
 export const UpdateIndicatorFailed: Story = updateIndicatorStory(settingsUpdateRolledBackFixture);
+
+/** Provider usage in the tray (S1/S2): the shell's profile envelope served over MSW. */
+function usageStory(envelope: (now: number) => ProviderUsageEnvelope): Story {
+  return {
+    args: { workspace: { name: "compozy", monogram: "CO" } },
+    parameters: storybookMswParameters({
+      "provider-usage": providerUsageHandlers(() => envelope(Date.now())),
+    }),
+    render: () => <MenubarFixture />,
+  };
+}
+
+/**
+ * The popover over Claude and Codex: one row per target with its tightest
+ * window, header Refresh, and the Open Usage / Settings footer.
+ */
+export const UsagePopoverOpen: Story = {
+  ...usageStory(defaultUsageEnvelope),
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const control = await within(canvasElement).findByRole("button", {
+      name: /^Claude · Weekly · Opus/,
+    });
+    await userEvent.click(control);
+  },
+};
+
+/** Below 80 %: the meter fills in neutral ink. */
+export const UsageTrayNeutral: Story = usageStory(now =>
+  usageEnvelope([codexOkTarget(now)], { tray: usageTray({}, now) }, now)
+);
+
+/** The tightest window is spent: the meter fills in the danger tone; the label says so. */
+export const UsageTrayExhausted: Story = usageStory(now =>
+  usageEnvelope(
+    [codexOkTarget(now)],
+    { tray: usageTray({ used_percent: 112, severity: "exhausted" }, now) },
+    now
+  )
+);
+
+/** The tray window comes from old data: dimmed bar plus the ring marker. */
+export const UsageTrayStale: Story = usageStory(now =>
+  usageEnvelope(
+    [{ ...codexOkTarget(now), status: "stale" }],
+    { tray: usageTray({ stale: true }, now) },
+    now
+  )
+);
+
+/** Targets exist but none has a known window: the glyph alone, tooltip "Provider usage". */
+export const UsageTrayNoMeter: Story = usageStory(now =>
+  usageEnvelope([statusTargets(now).unsupported], {}, now)
+);
+
+/** Feature off: the control is absent from the tray, not disabled. */
+export const UsageTurnedOff: Story = usageStory(now => usageEnvelope([], { enabled: false }, now));

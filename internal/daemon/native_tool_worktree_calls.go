@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -31,6 +32,7 @@ type nativeWorktreeCreateInput struct {
 type nativeWorktreeRemoveInput struct {
 	Workspace    string `json:"workspace"`
 	Ref          string `json:"ref"`
+	Path         string `json:"path"`
 	Force        bool   `json:"force"`
 	DeleteBranch bool   `json:"delete_branch"`
 }
@@ -113,6 +115,9 @@ func (n *daemonNativeTools) worktreeRemove(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if strings.TrimSpace(input.Path) != "" {
+		return n.worktreeRemoveDiscovered(ctx, scope, req, input)
+	}
 	workspaceID, ref, err := n.nativeWorktreeTarget(ctx, scope, req.ToolID, input.Workspace, input.Ref)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -146,6 +151,44 @@ func (n *daemonNativeTools) worktreeRemove(
 		result["branch"] = branch
 	}
 	return structuredResult(result, worktreeID)
+}
+
+// worktreeRemoveDiscovered removes a Git-only checkout by its listed path. It
+// shares the record removal refusal payload so callers reuse one force retry.
+func (n *daemonNativeTools) worktreeRemoveDiscovered(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+	input nativeWorktreeRemoveInput,
+) (toolspkg.ToolResult, error) {
+	if strings.TrimSpace(input.Ref) != "" || input.DeleteBranch {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			req.ToolID,
+			"path cannot be combined with ref or delete_branch",
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	workspaceID, err := n.nativeWorkspaceID(ctx, req.ToolID, input.Workspace, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	path := input.Path
+	refusal, err := n.deps.Worktrees.RemoveDiscovered(
+		ctx, workspaceID, path, worktree.RemoveDiscoveredOptions{Force: input.Force},
+	)
+	if refusal != nil {
+		partial, marshalErr := structuredResult(core.WorktreeRemovalRefusalPayload(*refusal), refusal.Code)
+		if marshalErr != nil {
+			return toolspkg.ToolResult{}, marshalErr
+		}
+		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err).WithPartialResult(partial)
+	}
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeWorktreeToolError(req.ToolID, err)
+	}
+	return structuredResult(map[string]any{"path": path, nativePayloadStateKey: string(worktree.StateRemoved)}, path)
 }
 
 func (n *daemonNativeTools) nativeWorktreeTarget(

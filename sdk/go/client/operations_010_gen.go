@@ -194,6 +194,30 @@ func (c *Client) GetProviderModelStatusByProvider(ctx context.Context, params Ge
 	return &out, nil
 }
 
+// GetProviderUsageParams carries the path, query, and header parameters.
+type GetProviderUsageParams struct {
+	ProviderID string  `url:"provider_id"`
+	Profile    *string `url:"profile"`
+}
+
+// GetProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) GetProviderUsage(ctx context.Context, params GetProviderUsageParams) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage/providers/{provider_id}"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetResourceParams carries the path, query, and header parameters.
 type GetResourceParams struct {
 	Kind string `url:"kind"`
@@ -418,17 +442,4 @@ func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionHistoryParams carries the path, query, and header parameters.
-type GetSessionHistoryParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
 }

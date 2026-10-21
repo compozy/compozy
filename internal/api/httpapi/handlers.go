@@ -27,6 +27,7 @@ type handlerConfig struct {
 	sessions              core.SessionManager
 	drainController       core.DaemonDrainController
 	subagents             session.SubagentService
+	sessionMonitors       core.SessionMonitorService
 	sessionCatalog        core.SessionCatalog
 	taskDesignations      core.TaskDesignationStore
 	skillExposureStore    store.SkillExposureRepository
@@ -63,6 +64,7 @@ type handlerConfig struct {
 	agentSync             core.AgentDefinitionSync
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
+	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
 	coordinatorRole       core.CoordinatorRoleResolver
@@ -209,6 +211,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		SessionAcceptance:      sessionAcceptanceManager(cfg.sessions),
 		DrainController:        cfg.drainController,
 		Subagents:              cfg.subagents,
+		SessionMonitors:        cfg.sessionMonitors,
 		SessionCatalog:         cfg.sessionCatalog,
 		TaskDesignations:       cfg.taskDesignations,
 		Tasks:                  cfg.tasks,
@@ -245,6 +248,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AgentDefinitionSync:    cfg.agentSync,
 		ContextWindowResolver:  cfg.contextWindowResolver,
 		ModelCatalog:           cfg.modelCatalog,
+		ProviderUsage:          cfg.providerUsage,
 		MarketplaceCatalog:     cfg.marketplaceCatalog,
 		AgentContextService:    cfg.agentContext,
 		CoordinatorRole:        cfg.coordinatorRole,

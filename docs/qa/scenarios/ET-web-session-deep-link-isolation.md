@@ -55,3 +55,7 @@ QA 2026-07-29: before confirmation the browser fetched only the actor-scoped mis
 three-field owner projection; no target-scoped session detail or content rendered. Cancel preserved
 the actor workspace/arrangement, unknown IDs remained not found, and an actor-owned session opened
 directly on both route forms.
+
+## Console lifecycle regression (#873)
+
+Delete a previously cached active session. Detail polling must stop on 404/410 despite cached active status. Both statuses enter scoped-miss resolution; retire the window only after aggregate absence is confirmed. Foreign-profile reads keep the existing owner resolution without widening the selected profile. Transient server errors remain retryable. Focused query and window regressions pass; browser re-walk remains pending.

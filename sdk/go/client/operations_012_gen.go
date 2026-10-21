@@ -9,6 +9,37 @@ import (
 	"strings"
 )
 
+// GetSettingsRestartStatus Get the persisted status for one daemon restart operation
+func (c *Client) GetSettingsRestartStatus(ctx context.Context, params GetSettingsRestartStatusParams) (*RestartActionStatus, error) {
+	path := "/api/settings/actions/restart/{operation_id}"
+	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
+	var out RestartActionStatus
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsRoles Read the background-role routing settings section
+func (c *Client) GetSettingsRoles(ctx context.Context) (*SettingsRolesResponse, error) {
+	path := "/api/settings/roles"
+	var out SettingsRolesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsShell Read the operator shell settings section
+func (c *Client) GetSettingsShell(ctx context.Context) (*SettingsShellResponse, error) {
+	path := "/api/settings/shell"
+	var out SettingsShellResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSettingsSkillsParams carries the path, query, and header parameters.
 type GetSettingsSkillsParams struct {
 	Scope       *string `url:"scope"`
@@ -401,34 +432,6 @@ func (c *Client) GetTaskInbox(ctx context.Context, params GetTaskInboxParams) (*
 
 // GetTaskRunParams carries the path, query, and header parameters.
 type GetTaskRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetTaskRun Get one task run detail
-func (c *Client) GetTaskRun(ctx context.Context, params GetTaskRunParams) (*TaskRunDetailResponse, error) {
-	path := "/api/task-runs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunDetailResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskRunReviewParams carries the path, query, and header parameters.
-type GetTaskRunReviewParams struct {
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`

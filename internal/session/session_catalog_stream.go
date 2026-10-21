@@ -213,6 +213,20 @@ func (m *Manager) publishSessionCatalogWakeForEvent(session *Session, event acp.
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, session.Info()))
 }
 
+// PublishSessionCatalogChanged wakes catalog subscribers for one session whose
+// daemon-owned projection (such as its active monitors) changed outside the
+// session record. An unknown or deleted session publishes nothing.
+func (m *Manager) PublishSessionCatalogChanged(ctx context.Context, sessionID string) {
+	if m == nil || strings.TrimSpace(sessionID) == "" {
+		return
+	}
+	info, err := m.Status(ctx, sessionID)
+	if err != nil || info == nil {
+		return
+	}
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
+}
+
 func sessionCatalogEventFromInfo(kind CatalogEventKind, info *Info) CatalogEvent {
 	if !isPublicSessionCatalogInfo(info) {
 		return CatalogEvent{}

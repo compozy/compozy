@@ -80,6 +80,9 @@ type settingsSkillsReader interface {
 // UpdateSettingsAttentionRequest captures the shared attention settings update payload.
 type UpdateSettingsAttentionRequest = contract.UpdateSettingsAttentionRequest
 
+// UpdateSettingsProviderUsageRequest captures the provider usage settings update payload.
+type UpdateSettingsProviderUsageRequest = contract.SettingsProviderUsageUpdateRequest
+
 // UpdateSettingsShellRequest captures the shared shell settings update payload.
 type UpdateSettingsShellRequest = contract.UpdateSettingsShellRequest
 

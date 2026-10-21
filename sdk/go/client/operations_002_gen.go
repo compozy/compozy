@@ -268,6 +268,26 @@ func (c *Client) CancelQueuedSessionPrompt(ctx context.Context, params CancelQue
 	return &out, nil
 }
 
+// CancelSessionMonitorParams carries the path, query, and header parameters.
+type CancelSessionMonitorParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+	MonitorID   string `url:"monitor_id"`
+}
+
+// CancelSessionMonitor Cancel a session monitor without waking the session
+func (c *Client) CancelSessionMonitor(ctx context.Context, params CancelSessionMonitorParams) (*SessionMonitorResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{monitor_id}", url.PathEscape(params.MonitorID))
+	var out SessionMonitorResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CancelSessionPromptParams carries the path, query, and header parameters.
 type CancelSessionPromptParams struct {
 	WorkspaceID string `url:"workspace_id"`
@@ -422,24 +442,6 @@ func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTa
 	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
 	var out AgentTaskClaimResponse
 	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ClearSessionConversationParams carries the path, query, and header parameters.
-type ClearSessionConversationParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// ClearSessionConversation Clear conversation history and restart the session context
-func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessionConversationParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clear"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

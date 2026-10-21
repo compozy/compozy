@@ -70,7 +70,7 @@ journey:
       expected_observable: "The server-computed ladder pauses on unknown or unsafe state, shows the complete commit scope, publishes once, and either opens or reuses a request without hiding a zero-credential browser path."
     - step: 6
       verb: "Remove the checkout through the safety boundary"
-      expected_observable: "Clean removal confirms once; dirty or unique work refuses with quantified risk before a distinct force decision; the branch, session history, task history, and events remain readable."
+      expected_observable: "Clean removal confirms once; dirty or unique work refuses with quantified risk before a distinct force decision; the branch, session history, task history, and events remain readable. A discovered checkout is removable by its listed path without adoption, under the same refusals, and keeps its branch."
     - step: 7
       verb: "Resume, recover, or dismiss after the checkout remains ready, is removed, or disappears"
       expected_observable: "A ready checkout resumes in place; removed or missing state never falls back to root or cascades history; restoration accepts only the recorded Git identity; dismissal releases the name while the old record stays readable by ID."

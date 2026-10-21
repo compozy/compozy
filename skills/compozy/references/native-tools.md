@@ -128,6 +128,7 @@ current turn; a full input queue retries the wake for up to 15 minutes (`status:
 Stopping the session cancels its monitors and drops their history, and a stopped session is never
 revived. `monitor_cancel` only stops the wake, not the watched process. Finished monitors stay
 listable for one hour. Monitors live in the daemon process and do not survive a daemon restart.
+Operators see `monitor_summary.active` on session payloads and can cancel monitors (no wake).
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not
@@ -342,7 +343,9 @@ the stale mutation.
 Worktree tools: `compozy__worktree_list`, `compozy__worktree_inspect`,
 `compozy__worktree_create`, and `compozy__worktree_remove`. List and inspect are read tools; create is
 mutating; remove is destructive and approval-gated, and its opt-in `delete_branch` input also deletes
-the local branch with the safety rules in `references/worktrees.md`. All carry an explicit or caller-resolved
+the local branch with the safety rules in `references/worktrees.md`. Remove takes `path` instead of
+`ref` for a discovered (not adopted) checkout, exactly as `worktree_list` reports it; that form keeps
+the branch and rejects `ref` and `delete_branch`. All carry an explicit or caller-resolved
 workspace boundary. Adopt, creation cancel, exit planning/actions, exit cancel, and dismiss are
 CLI/HTTP/UDS-only; read `references/worktrees.md` before using either path.
 
@@ -395,6 +398,16 @@ path through the workspace management surface instead of browsing interactively.
 Workspace unregister is atomic with credential cleanup: it removes workspace-scoped MCP OAuth rows and their encrypted access/refresh values, preserves global and sibling-workspace credentials, and leaves all state intact when cleanup fails.
 
 Provider model tools: `compozy__provider_models_list`, `compozy__provider_models_curate`, `compozy__provider_models_refresh`, `compozy__provider_models_status`.
+
+Provider usage tools (experimental, toolset `compozy__provider_usage`): `compozy__provider_usage_list`
+(optional `provider_id`) is read-only and returns the cached envelope for the session's own profile
+without contacting providers. `compozy__provider_usage_refresh` (optional `provider_ids`,
+`max_age_seconds`) is mutating, always runs with background intent, waits up to 15 seconds, and
+returns the same envelope. Agent refreshes never read the macOS Keychain, never prompt, and honor
+provider rate-limit cooldowns, so a Claude row in `needs_consent` cannot be fixed from a tool, and
+`compozy__config_set` refuses `provider_usage.providers.claude.keychain_access`: report it to the
+operator. CLI fallbacks are `compozy provider usage list|refresh`; statuses and recovery are
+in `references/runtime-operations.md#provider-usage-experimental`.
 
 Vault catalog tool: `compozy__vault_list`. It returns global reference names and redacted metadata,
 optionally filtered by prefix. It never returns secret values.

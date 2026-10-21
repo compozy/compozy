@@ -16,7 +16,9 @@ import {
   TopbarOverflowIcon,
 } from "@compozy/ui";
 
+import type { SessionBulkFolderMenu } from "../../hooks/use-session-list-bulk-folders";
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
+import { SessionSelectionFolderMenu } from "./session-list-selection-folders";
 
 interface SessionListSelectionBarProps {
   count: number;
@@ -32,6 +34,8 @@ interface SessionListSelectionBarProps {
   onStop?: () => void;
   onArchive?: () => void;
   onUnarchive?: () => void;
+  /** Move to folder; absent while the list has no folders to move into. */
+  folders?: SessionBulkFolderMenu;
   testIdPrefix: string;
 }
 
@@ -50,6 +54,7 @@ export function SessionListSelectionBar({
   onStop,
   onArchive,
   onUnarchive,
+  folders,
   testIdPrefix,
 }: SessionListSelectionBarProps) {
   const allLabel = allSelected ? "Clear selection" : "Select all";
@@ -123,6 +128,16 @@ export function SessionListSelectionBar({
           <TooltipContent>More actions</TooltipContent>
         </Tooltip>
         <DropdownMenuContent align="end" className="min-w-50">
+          {folders ? (
+            <>
+              <SessionSelectionFolderMenu
+                menu={folders}
+                disabled={disabled}
+                testIdPrefix={testIdPrefix}
+              />
+              <DropdownMenuSeparator />
+            </>
+          ) : null}
           <DropdownMenuItem
             disabled={disabled || stoppable === 0 || !onStop}
             onClick={onStop}

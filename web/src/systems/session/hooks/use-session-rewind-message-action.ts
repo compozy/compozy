@@ -34,7 +34,7 @@ export function useSessionRewindMessageAction() {
   const trigger = () => {
     if (busy) return;
     if (composerText.trim().length > 0) {
-      toast.warning("Clear the draft before rewinding.");
+      toast.warning("Clear the draft before editing a sent message.");
       return;
     }
     idempotencyKeyRef.current = createClientId();
@@ -48,7 +48,7 @@ export function useSessionRewindMessageAction() {
       return;
     }
     if (composerText.trim().length > 0) {
-      toast.warning("Clear the draft before rewinding.");
+      toast.warning("Clear the draft before editing a sent message.");
       return;
     }
     // Only dismissing the dialog aborts the request. The row that owns this action can unmount

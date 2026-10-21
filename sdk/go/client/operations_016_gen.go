@@ -9,6 +9,58 @@ import (
 	"strings"
 )
 
+// ListGlobalSessionEvents List persisted session events for a Global session
+func (c *Client) ListGlobalSessionEvents(ctx context.Context, params ListGlobalSessionEventsParams) (*SessionEventsResponse, error) {
+	path := "/api/sessions/{session_id}/events"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.TurnID != nil {
+		query.Set("turn_id", *params.TurnID)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListGoalTurnsParams carries the path, query, and header parameters.
+type ListGoalTurnsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Node        *string `url:"node"`
+	Item        *int    `url:"item"`
+	AfterSeq    *int    `url:"after_seq"`
+	Limit       *int    `url:"limit"`
+}
+
 // ListGoalTurns List Goal turns in run-wide sequence order
 func (c *Client) ListGoalTurns(ctx context.Context, params ListGoalTurnsParams) (*GoalTurnPage, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/turns"
@@ -380,50 +432,4 @@ func (c *Client) ListMarketplaceSources(ctx context.Context) (*MarketplaceSource
 // ListOpenAIModelsParams carries the path, query, and header parameters.
 type ListOpenAIModelsParams struct {
 	ProviderID *string `url:"provider_id"`
-}
-
-// ListOpenAIModels List provider models using the OpenAI-compatible model shape
-func (c *Client) ListOpenAIModels(ctx context.Context, params ListOpenAIModelsParams) (*OpenAIModelListResponse, error) {
-	path := "/api/openai/v1/models"
-	query := url.Values{}
-	if params.ProviderID != nil {
-		query.Set("provider_id", *params.ProviderID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out OpenAIModelListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProfileOperations List profile lifecycle operations
-func (c *Client) ListProfileOperations(ctx context.Context) (*[]ProfileOperation, error) {
-	path := "/api/profiles/ops"
-	var out []ProfileOperation
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProfiles List profiles
-func (c *Client) ListProfiles(ctx context.Context) (*[]Profile, error) {
-	path := "/api/profiles"
-	var out []Profile
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListProviderModelsParams carries the path, query, and header parameters.
-type ListProviderModelsParams struct {
-	ProviderID   *string `url:"provider_id"`
-	View         *string `url:"view"`
-	SourceID     *string `url:"source_id"`
-	Refresh      *bool   `url:"refresh"`
-	IncludeStale *bool   `url:"include_stale"`
 }

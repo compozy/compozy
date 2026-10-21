@@ -36,6 +36,7 @@ func onlyGatewayClientProfileChanged(current *compozyconfig.Config, desired *com
 
 func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Config) []string {
 	var changed []string
+	changed = append(changed, diffProviderUsageSettings(current.ProviderUsage, desired.ProviderUsage)...)
 	if current.Subagents.ResultMaxChars != desired.Subagents.ResultMaxChars {
 		changed = append(changed, "subagents.result_max_chars")
 	}

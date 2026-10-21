@@ -90,6 +90,7 @@ vi.mock("@/systems/session", async () => ({
   SessionEnvironmentControl: () => null,
   SessionContextControl: () => null,
   SessionComposerSubagents: () => null,
+  SessionComposerMonitors: () => null,
   SessionPromptRuntimeSelector: () => null,
   SessionResumeFailure: ({ onRetry, retryLabel }: { onRetry: () => void; retryLabel?: string }) => (
     <button type="button" onClick={onRetry}>

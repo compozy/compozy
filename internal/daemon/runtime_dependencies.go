@@ -32,6 +32,7 @@ func (d *Daemon) runtimeDeps(
 		Logger:             state.logger,
 		Sessions:           sessions,
 		Subagents:          state.subagents,
+		SessionMonitors:    sessionMonitorService(state),
 		SessionAttachments: state.sessionAttachments,
 		SessionFiles:       newSessionFileIndex(state.logger),
 		DrainController:    d,
@@ -49,6 +50,7 @@ func (d *Daemon) runtimeDeps(
 		WindowManagers:        state.windowManagers,
 		Terminals:             state.terminals,
 		ModelCatalog:          state.modelCatalog,
+		ProviderUsage:         state.providerUsage,
 		MarketplaceCatalog:    state.marketplace,
 		AgentCatalog:          agentCatalog,
 		AgentResolver:         agentCatalog,
@@ -79,4 +81,12 @@ func (d *Daemon) runtimeDeps(
 		StartedAt:             state.startedAt,
 		OnProviderAuthSuccess: d.providerPreStarter.Clear,
 	}
+}
+
+// sessionMonitorService keeps a missing monitor service a nil interface.
+func sessionMonitorService(state *bootState) core.SessionMonitorService {
+	if state.sessionMonitors == nil {
+		return nil
+	}
+	return state.sessionMonitors
 }

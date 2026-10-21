@@ -193,7 +193,7 @@ describe("ExpandedToolContent", () => {
       />,
       // The conversation belongs to `work`, whatever profile the shell is
       // currently showing — a link or the all-profiles view changes neither.
-      { profileName: "work" }
+      { profileName: "work", catalog: [DEV_SERVER_TERMINAL] }
     );
 
     await waitFor(() => expect(blockProps).toHaveBeenCalled());
@@ -201,6 +201,34 @@ describe("ExpandedToolContent", () => {
       scope: { workspaceId: WORKSPACE_ID, profile: "work" },
     });
   });
+
+  it.each(["pipe", "missing"])(
+    "keeps the recorded output without a socket for %s terminals",
+    async mode => {
+      blockProps.mockClear();
+      render(
+        <ExpandedToolContent
+          message={makeMessage({
+            toolName: "compozy__terminal_exec",
+            toolResult: {
+              rawOutput: {
+                terminal_id: DEV_SERVER_TERMINAL.id,
+                output: "retained output",
+                still_running: true,
+              },
+            },
+          })}
+        />,
+        {
+          profileName: "work",
+          catalog: mode === "pipe" ? [{ ...DEV_SERVER_TERMINAL, mode: "pipe" }] : [],
+        }
+      );
+      await waitFor(() => expect(blockProps).toHaveBeenCalled());
+      expect(blockProps.mock.calls.at(-1)?.[0].scope).toBeUndefined();
+      expect(blockProps.mock.calls.at(-1)?.[0].preview).toBe("retained output");
+    }
+  );
 
   it("shows the recorded screen when the session's profile is not known yet", async () => {
     blockProps.mockClear();

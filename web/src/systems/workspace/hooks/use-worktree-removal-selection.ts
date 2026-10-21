@@ -2,25 +2,29 @@ import { createStoreLogic } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 import { useStoreBinding } from "@/hooks/use-store-binding";
 import type { WorktreeNestEntry } from "@/systems/workspace/lib/worktree-display";
-import type { WorktreePayload } from "@/systems/workspace/types";
+import type { DiscoveredWorktreePayload, WorktreePayload } from "@/systems/workspace/types";
 
 export interface WorktreeRemovalBatch {
   workspaceId: string;
   /** Frozen rows; each target acts with its own owner profile, as single cleanup does. */
   worktrees: readonly WorktreePayload[];
+  /** Git-only checkouts, removed by their listed path. They have no owner and keep their branch. */
+  discovered?: readonly DiscoveredWorktreePayload[];
 }
 
 /**
  * Explains why a represented row cannot be cleaned up, or `null` when it can.
  * Cleanup acts with the row's owner profile, so ownership refuses only when that
  * owner is unresolvable or archived — never because another profile is active.
+ * Discovered checkouts have no record or owner; the daemon guards their loss risk.
  */
 export function worktreeCleanupReason(
   entry: WorktreeNestEntry,
   workspaceId: string
 ): string | null {
+  if (entry.discovered) return null;
   const row = entry.worktree;
-  if (!row) return "Discovered checkout — adopt individually before removal";
+  if (!row) return "Worktree is not ready for removal";
   if (row.workspace_id !== workspaceId) return "Belongs to another workspace";
   if (!row.profile_name) return "Owning profile is unavailable";
   if (row.profile_archived) return "Archived profile — restore the profile first";
@@ -29,9 +33,24 @@ export function worktreeCleanupReason(
   return null;
 }
 
+/** A frozen copy of one selected row, keyed like its nest entry. */
+interface SelectedTarget {
+  key: string;
+  worktree: WorktreePayload | null;
+  discovered: DiscoveredWorktreePayload | null;
+}
+
+function selectedTarget(entry: WorktreeNestEntry): SelectedTarget {
+  return {
+    key: entry.key,
+    worktree: entry.worktree ? { ...entry.worktree } : null,
+    discovered: entry.discovered ? { ...entry.discovered } : null,
+  };
+}
+
 interface SelectionContext {
   mode: boolean;
-  selected: readonly WorktreePayload[];
+  selected: readonly SelectedTarget[];
   anchor: string | null;
 }
 
@@ -40,23 +59,23 @@ const selectionLogic = createStoreLogic({
   on: {
     start: context => ({ ...context, mode: true }),
     clear: (): SelectionContext => ({ mode: false, selected: [], anchor: null }),
-    toggle: (context, event: { row: WorktreePayload; range: readonly WorktreePayload[] }) => {
+    toggle: (context, event: { row: SelectedTarget; range: readonly SelectedTarget[] }) => {
       const additions = event.range.length ? event.range : [event.row];
       const selected =
-        event.range.length || !context.selected.some(row => row.id === event.row.id)
+        event.range.length || !context.selected.some(row => row.key === event.row.key)
           ? [
               ...context.selected,
-              ...additions.filter(row => !context.selected.some(old => old.id === row.id)),
+              ...additions.filter(row => !context.selected.some(old => old.key === row.key)),
             ]
-          : context.selected.filter(row => row.id !== event.row.id);
-      return { mode: true, selected, anchor: event.row.id };
+          : context.selected.filter(row => row.key !== event.row.key);
+      return { mode: true, selected, anchor: event.row.key };
     },
-    all: (context, event: { rows: readonly WorktreePayload[] }) => ({
+    all: (context, event: { rows: readonly SelectedTarget[] }) => ({
       ...context,
       mode: true,
       selected: [
         ...context.selected,
-        ...event.rows.filter(row => !context.selected.some(old => old.id === row.id)),
+        ...event.rows.filter(row => !context.selected.some(old => old.key === row.key)),
       ],
     }),
   },
@@ -75,29 +94,27 @@ export function useWorktreeRemovalSelection(
   const { store } = useStoreBinding(workspaceId, () => selectionLogic.createStore());
   const context = useSelector(store, snapshot => snapshot.context);
   const eligible = entries.filter(entry => worktreeCleanupReason(entry, workspaceId) === null);
-  const selectedIds = new Set(context.selected.map(row => row.id));
+  const selectedIds = new Set(context.selected.map(row => row.key));
   const toggle = (entry: WorktreeNestEntry, shift = false) => {
-    if (!entry.worktree || worktreeCleanupReason(entry, workspaceId)) return;
+    if (worktreeCleanupReason(entry, workspaceId)) return;
     const anchor = eligible.findIndex(row => row.key === context.anchor);
     const end = eligible.findIndex(row => row.key === entry.key);
     const range =
       shift && anchor >= 0 && end >= 0
-        ? eligible
-            .slice(Math.min(anchor, end), Math.max(anchor, end) + 1)
-            .flatMap(row => (row.worktree ? [row.worktree] : []))
+        ? eligible.slice(Math.min(anchor, end), Math.max(anchor, end) + 1).map(selectedTarget)
         : [];
-    store.trigger.toggle({ row: { ...entry.worktree }, range });
+    store.trigger.toggle({ row: selectedTarget(entry), range });
   };
-  const selectAll = () =>
-    store.trigger.all({
-      rows: eligible.flatMap(entry => (entry.worktree ? [{ ...entry.worktree }] : [])),
-    });
+  const selectAll = () => store.trigger.all({ rows: eligible.map(selectedTarget) });
   const clear = () => store.trigger.clear();
   return {
     enabled: Boolean(onRemove),
     mode: context.mode,
     count: context.selected.length,
     eligibleCount: eligible.length,
+    // By identity, not count: a saved row that left the list must not make the
+    // remaining unchecked rows look selected.
+    allEligibleSelected: eligible.length > 0 && eligible.every(row => selectedIds.has(row.key)),
     selectedIds,
     reason: (entry: WorktreeNestEntry) => worktreeCleanupReason(entry, workspaceId),
     start: () => store.trigger.start(),
@@ -105,8 +122,14 @@ export function useWorktreeRemovalSelection(
     selectAll,
     toggle,
     confirm: () => {
-      if (context.selected.length)
-        onRemove?.({ workspaceId, worktrees: context.selected.map(row => ({ ...row })) });
+      if (!context.selected.length) return;
+      onRemove?.({
+        workspaceId,
+        worktrees: context.selected.flatMap(row => (row.worktree ? [{ ...row.worktree }] : [])),
+        discovered: context.selected.flatMap(row =>
+          row.discovered ? [{ ...row.discovered }] : []
+        ),
+      });
     },
     onKeyDown: (event: React.KeyboardEvent) => {
       if (

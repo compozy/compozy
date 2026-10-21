@@ -32,6 +32,7 @@ func (d *Daemon) nativeToolsDeps(
 		Worktrees:           state.worktrees,
 		WorkspaceResolver:   state.workspaceResolver,
 		ModelCatalog:        state.deps.ModelCatalog,
+		ProviderUsage:       state.deps.ProviderUsage,
 		MarketplaceCatalog:  state.deps.MarketplaceCatalog,
 		Settings:            func() core.SettingsService { return state.deps.Settings },
 

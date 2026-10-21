@@ -28,6 +28,16 @@ Add `--actor agent`, `--failed`, or `--terminal <id>` to narrow the page. Contin
 when `next` is non-null. Use `--all-profiles` for an operator-owned aggregate view with profile owner
 labels. See [`compozy terminal journal`](/docs/cli/terminal/journal).
 
+## Storage
+
+The journal database lives at `~/.compozy/workspaces/<workspace-id>/compozy.db`, alongside the
+workspace's retained recordings and artifacts. `<workspace-id>` is the registered workspace ID.
+An overridden `COMPOZY_HOME` moves this entire storage tree. SQLite WAL and shared-memory files
+stay beside the database, outside the project directory.
+
+The move from `<project>/.compozy/compozy.db` is a hard cut: the new location starts with an empty
+journal. Older database files remain untouched and are not imported or read automatically.
+
 ## Record only when replay is needed
 
 Start and stop one recording explicitly:

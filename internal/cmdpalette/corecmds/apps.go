@@ -7,6 +7,7 @@ var appOnlyDefinitions = []domainDefinition{
 	{id: "session", title: "Session", icon: coreIconTerminal, keywords: []string{"agent"}},
 	{id: "terminal", title: "Terminal", icon: coreIconTerminal, keywords: []string{"terminal", "journal", "pty"}},
 	{id: "new-tab", title: "New tab", icon: coreIconPlus},
+	{id: "usage", title: "Usage", icon: "gauge", keywords: []string{"provider usage", "limits", "quota"}},
 	{id: coreSettingsKey, title: "Settings", icon: coreSettingsKey},
 }
 

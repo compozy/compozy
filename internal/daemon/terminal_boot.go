@@ -19,7 +19,7 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 	if state.workspaceResolver == nil {
 		return errors.New("daemon: terminal workspace resolver is required")
 	}
-	databasePool, err := newTerminalDatabasePool(state)
+	databasePool, err := newTerminalDatabasePool(d.homePaths.HomeDir, state)
 	if err != nil {
 		return err
 	}
@@ -46,8 +46,8 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 	return nil
 }
 
-func newTerminalDatabasePool(state *bootState) (*workspacedb.Pool, error) {
-	databasePool, err := workspacedb.NewPool(func(
+func newTerminalDatabasePool(homeDir string, state *bootState) (*workspacedb.Pool, error) {
+	databasePool, err := workspacedb.NewPool(homeDir, func(
 		resolveCtx context.Context,
 		workspaceID string,
 	) (workspacedb.ResolvedRoot, error) {

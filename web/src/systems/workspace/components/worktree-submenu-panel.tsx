@@ -3,7 +3,7 @@ import {
   type WorktreeRemovalBatch,
 } from "../hooks/use-worktree-removal-selection";
 import { WorktreeSelectionToolbar } from "./worktree-selection-toolbar";
-import { Ellipsis, Plus } from "lucide-react";
+import { Copy, Ellipsis, Eraser, FileSearch, Plus, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -22,7 +22,11 @@ import {
 } from "@compozy/ui";
 
 import type { WorkspaceTreeNode } from "../lib/workspace-tree";
-import { canRemoveWorktree, type WorktreeNestEntry } from "../lib/worktree-display";
+import {
+  canRemoveWorktree,
+  isStaleDiscovered,
+  type WorktreeNestEntry,
+} from "../lib/worktree-display";
 import { copyWorktreePath } from "../lib/copy-worktree-path";
 import { WorktreeNest } from "./worktree-nest";
 import { WorktreeNestRow } from "./worktree-nest-row";
@@ -87,6 +91,7 @@ function WorktreeSubmenuRowActions({
         testId={`${testIdPrefix}-worktree-copy-path-${entry.key}`}
         variant={variant}
         onSelect={() => copyWorktreePath(entry.path)}
+        icon={Copy}
       >
         Copy path
       </ActionItem>
@@ -95,6 +100,7 @@ function WorktreeSubmenuRowActions({
           testId={`${testIdPrefix}-worktree-context-${entry.key}`}
           variant={variant}
           onSelect={() => onOpenContext?.(entry)}
+          icon={FileSearch}
         >
           Context…
         </ActionItem>
@@ -105,6 +111,7 @@ function WorktreeSubmenuRowActions({
           variant={variant}
           disabledReason={cleanupReason}
           onSelect={() => onResolveMissing?.(entry)}
+          icon={Eraser}
         >
           Clean up missing record…
         </ActionItem>
@@ -116,8 +123,11 @@ function WorktreeSubmenuRowActions({
           destructive
           disabledReason={cleanupReason}
           onSelect={() => onRemoveWorktree?.(entry)}
+          icon={Trash2}
         >
-          Remove…
+          {entry.discovered && isStaleDiscovered(entry.discovered)
+            ? "Remove stale entry…"
+            : "Remove…"}
         </ActionItem>
       ) : null}
     </>
@@ -160,6 +170,7 @@ function ActionItem({
   variant,
   destructive = false,
   disabledReason = null,
+  icon: ItemIcon,
   onSelect,
   children,
 }: {
@@ -168,18 +179,31 @@ function ActionItem({
   destructive?: boolean;
   /** Keeps a refused action discoverable: disabled, with its reason on a second line. */
   disabledReason?: string | null;
+  icon: typeof Copy;
   onSelect: () => void;
   children: React.ReactNode;
 }) {
-  const content = disabledReason ? (
-    <span className="flex min-w-0 flex-col">
-      <span>{children}</span>
-      <span data-slot="worktree-action-reason" className="text-form-hint text-subtle">
-        {disabledReason}
-      </span>
-    </span>
-  ) : (
-    children
+  const content = (
+    <>
+      <ItemIcon
+        aria-hidden="true"
+        className={cn(
+          "size-deck-glyph",
+          disabledReason && "mt-0.5 self-start",
+          !destructive && "text-subtle"
+        )}
+      />
+      {disabledReason ? (
+        <span className="flex min-w-0 flex-col">
+          <span>{children}</span>
+          <span data-slot="worktree-action-reason" className="text-form-hint text-subtle">
+            {disabledReason}
+          </span>
+        </span>
+      ) : (
+        children
+      )}
+    </>
   );
   if (variant === "menu") {
     return (
@@ -237,23 +261,22 @@ export function WorktreeSubmenuPanel({
   const rows = node.worktrees.map(entry => {
     if (selection.mode) {
       const reason = selection.reason(entry);
+      const selected = selection.selectedIds.has(entry.key);
       const content = (
-        <>
-          <span className="flex min-w-0 flex-1 flex-col gap-1">
-            <WorktreeNestRow
-              entry={{ ...entry, adoptable: false }}
-              userHomeDir={userHomeDir}
-              checked={variant !== "menu" && selection.selectedIds.has(entry.key)}
-            />
-            {reason ? <span className="text-form-hint text-subtle">{reason}</span> : null}
-          </span>
-        </>
+        <WorktreeNestRow
+          entry={{ ...entry, adoptable: false }}
+          userHomeDir={userHomeDir}
+          selection={{ selected, reason }}
+          className="w-full"
+        />
       );
       return variant === "menu" ? (
         <MenubarCheckboxItem
           key={entry.key}
-          checked={selection.selectedIds.has(entry.key)}
-          className="group/wtnest min-w-0"
+          checked={selected}
+          // The leading selection mark replaces the item's trailing indicator,
+          // which would otherwise read as the scope check.
+          className="group/wtnest min-w-0 pr-2.5 *:data-[slot=dropdown-menu-checkbox-item-indicator]:hidden"
           disabled={Boolean(reason)}
           closeOnClick={false}
           aria-label={`Select ${entry.name}`}
@@ -267,11 +290,11 @@ export function WorktreeSubmenuPanel({
           key={entry.key}
           type="button"
           role="checkbox"
-          aria-checked={selection.selectedIds.has(entry.key)}
+          aria-checked={selected}
           disabled={Boolean(reason)}
           aria-label={`Select ${entry.name}`}
           title={reason ?? undefined}
-          className="flex w-full flex-wrap items-center gap-1 rounded-md p-2 text-left hover:bg-surface-2"
+          className="group/wtnest flex min-h-control-compact w-full min-w-0 items-center rounded-md px-1.5 py-1 text-left hover:bg-surface-2 disabled:hover:bg-transparent"
           onClick={event => selection.toggle(entry, event.shiftKey)}
         >
           {content}
@@ -338,9 +361,9 @@ export function WorktreeSubmenuPanel({
   const create = onCreateWorktree ? (
     variant === "menu" ? (
       <>
-        {hasListRows ? <MenubarSeparator /> : null}
+        {hasListRows && !selection.enabled ? <MenubarSeparator /> : null}
         <MenubarItem
-          className={FOOTER_ROW_CLASS}
+          className={cn(FOOTER_ROW_CLASS, "text-muted")}
           data-testid={`${testIdPrefix}-worktree-create-${workspaceId}`}
           onClick={() => {
             onCreateWorktree();
@@ -353,13 +376,13 @@ export function WorktreeSubmenuPanel({
       </>
     ) : (
       <>
-        {hasListRows ? <div className="my-1 h-px bg-line" /> : null}
+        {hasListRows && !selection.enabled ? <div className="my-1 h-px bg-line-soft" /> : null}
         <button
           type="button"
           data-testid={`${testIdPrefix}-worktree-create-${workspaceId}`}
           className={cn(
             FOOTER_ROW_CLASS,
-            "flex w-full items-center gap-2 rounded-md px-1.5 text-form-label text-subtle hover:bg-surface-2"
+            "flex w-full items-center gap-2 rounded-md px-2 text-small-body text-muted hover:bg-surface-2"
           )}
           onClick={() => {
             onCreateWorktree();
