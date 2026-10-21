@@ -96,6 +96,6 @@ CREATE TABLE extension_profile_markers (
 
 CREATE TABLE attention_workspace_mutes (
 	profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-	workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+	workspace_id TEXT NOT NULL ,
 	PRIMARY KEY (profile_id, workspace_id)
 );

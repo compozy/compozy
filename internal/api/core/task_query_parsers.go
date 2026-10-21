@@ -54,8 +54,12 @@ func ParseTaskStreamQuery(c *gin.Context) (contract.TaskStreamQuery, error) {
 }
 
 // ParseTaskDashboardQuery parses the shared task dashboard query parameters.
-func ParseTaskDashboardQuery(c *gin.Context) (contract.TaskDashboardQuery, error) {
-	breadth, err := parseWorkspaceBreadth(c, c.Param("workspace_id"), breadthEncoding{Selector: "workspace", OmissionIsAll: true})
+func ParseTaskDashboardQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract.TaskDashboardQuery, error) {
+	breadth, err := parseWorkspaceBreadth(
+		c,
+		c.Param("workspace_id"),
+		breadthEncoding{Selector: "workspace", OmissionIsAll: true},
+		workspaces...)
 	if err != nil {
 		return contract.TaskDashboardQuery{}, err
 	}

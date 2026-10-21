@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -54,6 +55,11 @@ func (d *Daemon) bootWindowManager(
 		return fmt.Errorf("daemon: open window-manager store: %w", err)
 	}
 	cleanup.add(func(context.Context) error { return engine.Close() })
+	if db, ok := state.registry.(*globaldb.GlobalDB); ok {
+		if err := reconcileUserScopeMigrations(ctx, db, engine, d.homePaths.HomeDir, state.logger); err != nil {
+			return err
+		}
+	}
 	if state.windowLayoutCatalog == nil {
 		state.windowLayoutCatalog = newResourceCatalog(windowmanager.CloneLayoutResource)
 	}

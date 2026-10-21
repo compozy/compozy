@@ -33,6 +33,7 @@ func ParseWorkspaceRef(raw string) WorkspaceRef {
 }
 
 var (
+	ErrWorkspaceReserved            = errors.New("workspace_reserved")
 	ErrWorkspaceNameReserved        = errors.New("workspace_name_reserved")
 	ErrUserScopeUnsupported         = errors.New("user_scope_unsupported")
 	ErrUserScopeWorktreeUnsupported = errors.New("user_scope_worktree_unsupported")

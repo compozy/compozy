@@ -2437,7 +2437,7 @@ func (h *managerHarness) newManager(t *testing.T, cfg compozyconfig.AutomationCo
 		WithWorkspaceResolver(h.resolver),
 		WithConfig(cfg),
 		WithLogger(discardAutomationLogger()),
-		WithGlobalWorkspacePath(h.homePaths.HomeDir),
+
 		WithWebhookSecretStore(h.webhookSecretStore(t)),
 	}
 	baseOpts = append(baseOpts, opts...)

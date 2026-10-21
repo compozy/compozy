@@ -20,7 +20,7 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		return
 	}
 
-	transportQuery, err := ParseTaskListQuery(c)
+	transportQuery, err := ParseTaskListQuery(c, h.Workspaces)
 	if err != nil {
 		if invalidField, ok := errors.AsType[*invalidTaskQueryFieldError](err); ok {
 			c.JSON(http.StatusBadRequest, contract.TaskQueryErrorPayload{
@@ -60,7 +60,14 @@ func (h *BaseHandlers) ListTasks(c *gin.Context) {
 		return
 	}
 	if transportQuery.AllWorkspaces && h.Logger != nil {
-		h.Logger.DebugContext(c.Request.Context(), "task aggregate read", "all_workspaces", true, "result_count", len(page.Tasks))
+		h.Logger.DebugContext(
+			c.Request.Context(),
+			"task aggregate read",
+			"all_workspaces",
+			true,
+			"result_count",
+			len(page.Tasks),
+		)
 	}
 	c.JSON(http.StatusOK, response)
 }

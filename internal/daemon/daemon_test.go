@@ -2921,9 +2921,6 @@ func TestBootAutomationBuildsManagerDepsAndAttachesHookBoundary(t *testing.T) {
 	if got, want := captured.Config.DefaultFireLimit, cfg.Automation.DefaultFireLimit; got != want {
 		t.Fatalf("captured.Config.DefaultFireLimit = %#v, want %#v", got, want)
 	}
-	if got, want := captured.GlobalWorkspacePath, homePaths.HomeDir; got != want {
-		t.Fatalf("captured.GlobalWorkspacePath = %q, want %q", got, want)
-	}
 	if manager.startCount != 1 {
 		t.Fatalf("manager start count = %d, want 1", manager.startCount)
 	}

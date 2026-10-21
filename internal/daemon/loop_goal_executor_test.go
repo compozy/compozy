@@ -53,7 +53,6 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 		runtime := newLoopGoalProductionRuntime(
 			store,
 			manager,
-			t.TempDir(),
 			&loopSessionPolicyGate{},
 			time.Now,
 			discardLogger(),

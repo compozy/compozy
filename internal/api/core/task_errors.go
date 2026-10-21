@@ -32,7 +32,9 @@ func StatusForTaskError(err error) int {
 		return http.StatusOK
 	case errors.Is(err, admission.ErrDraining):
 		return http.StatusServiceUnavailable
-	case errors.Is(err, taskpkg.ErrCatalogCursorInvalid), errors.Is(err, taskpkg.ErrValidation),
+	case errors.Is(err, workspacepkg.ErrWorkspaceReserved),
+		errors.Is(err, taskpkg.ErrCatalogCursorInvalid),
+		errors.Is(err, taskpkg.ErrValidation),
 		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
 		errors.Is(err, taskpkg.ErrImmutableField):
 		return http.StatusBadRequest

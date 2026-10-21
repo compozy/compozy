@@ -63,3 +63,8 @@ FROM workspaces WHERE name = sqlc.arg(name);
 -- name: ListWorkspaces :many
 SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces ORDER BY name ASC, id ASC;
+
+-- name: GetWorkspaceByLegacyName :one
+SELECT workspaces.* FROM workspace_name_aliases
+JOIN workspaces ON workspaces.id = workspace_name_aliases.workspace_id
+WHERE workspace_name_aliases.old_name = ?;

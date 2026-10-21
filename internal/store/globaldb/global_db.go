@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -117,6 +118,19 @@ func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) 
 		if err := prepareOperatorHomeMigrationContext(ctx, db, operatorHomeDir); err != nil {
 			return err
 		}
-		return applyGlobalMigrations(ctx, db)
+		if err := prepareUserScopeMigrationContext(ctx, db, filepath.Dir(path), operatorHomeDir); err != nil {
+			return err
+		}
+		before, err := store.Status(ctx, db, MigrationStream())
+		if err != nil {
+			return err
+		}
+		if err := applyGlobalMigrations(ctx, db); err != nil {
+			return err
+		}
+		if before.Version < userScopeMigrationVersion {
+			return logUserScopeMigration(ctx, db)
+		}
+		return nil
 	})
 }

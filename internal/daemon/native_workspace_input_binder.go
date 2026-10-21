@@ -142,14 +142,11 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	if !validString {
 		return nil
 	}
-	if requested == "global" {
+	if requested == "global" && descriptor.ExecutionMetadata().ReservedWorkspacePartition {
 		if !nativeWorkspaceScopeHasOperatorAuthority(scope) {
 			return nativeWorkspaceAccessDeniedError(id)
 		}
-		if descriptor.ExecutionMetadata().ReservedWorkspacePartition {
-			return setNativeWorkspaceInput(payload, requested)
-		}
-		return nativeInputError(id, fmt.Errorf("global is reserved for window-manager partitions"))
+		return setNativeWorkspaceInput(payload, requested)
 	}
 	trusted := strings.TrimSpace(scope.WorkspaceID)
 	hasOperatorAuthority := nativeWorkspaceScopeHasOperatorAuthority(scope)

@@ -2076,6 +2076,25 @@ type ToolProcess struct {
 	CompletedAt    sql.NullString `json:"completed_at"`
 }
 
+type UserScopeMigration struct {
+	SourceWorkspaceID     string         `json:"source_workspace_id"`
+	SourceRoot            string         `json:"source_root"`
+	Disposition           string         `json:"disposition"`
+	ProfileIds            string         `json:"profile_ids"`
+	SqlDoneAt             sql.NullString `json:"sql_done_at"`
+	JournalState          string         `json:"journal_state"`
+	LayoutState           string         `json:"layout_state"`
+	RegistrationRemovedAt sql.NullString `json:"registration_removed_at"`
+}
+
+type UserScopeMigrationArchive struct {
+	SourceWorkspaceID string `json:"source_workspace_id"`
+	TableName         string `json:"table_name"`
+	RowJson           string `json:"row_json"`
+	Reason            string `json:"reason"`
+	ArchivedAt        string `json:"archived_at"`
+}
+
 type VaultSecret struct {
 	Ref            string `json:"ref"`
 	Kind           string `json:"kind"`
@@ -2103,6 +2122,12 @@ type WorkspaceDeletionIntent struct {
 	CreatedAt    string         `json:"created_at"`
 	UpdatedAt    string         `json:"updated_at"`
 	RequestedAt  string         `json:"requested_at"`
+}
+
+type WorkspaceNameAlias struct {
+	OldName     string `json:"old_name"`
+	WorkspaceID string `json:"workspace_id"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type Worktree struct {

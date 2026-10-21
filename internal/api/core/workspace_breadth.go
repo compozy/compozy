@@ -1,9 +1,12 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,7 +34,12 @@ func invalidWorkspaceBreadth(message string) error {
 	return &workspaceBreadthError{code: "workspace_breadth_invalid", message: message}
 }
 
-func parseWorkspaceBreadth(c *gin.Context, routeParam string, enc breadthEncoding) (WorkspaceBreadth, error) {
+func parseWorkspaceBreadth(
+	c *gin.Context,
+	routeParam string,
+	enc breadthEncoding,
+	workspaces ...WorkspaceGetter,
+) (WorkspaceBreadth, error) {
 	values := c.Request.URL.Query()
 	allValues := values["all_workspaces"]
 	if len(allValues) > 1 {
@@ -53,8 +61,13 @@ func parseWorkspaceBreadth(c *gin.Context, routeParam string, enc breadthEncodin
 		}
 		selector = route
 	}
-	if selector == "global" {
-		return WorkspaceBreadth{}, &workspaceBreadthError{code: "workspace_reserved", message: "global is reserved; use all_workspaces=true"}
+	var getter WorkspaceGetter
+	if len(workspaces) > 0 {
+		getter = workspaces[0]
+	}
+	selector, err = resolveLegacyGlobalSelector(c, selector, getter)
+	if err != nil {
+		return WorkspaceBreadth{}, err
 	}
 	if all && (len(selectors) != 0 || route != "") {
 		return WorkspaceBreadth{}, invalidWorkspaceBreadth("all_workspaces conflicts with a workspace selector")
@@ -69,15 +82,41 @@ func parseWorkspaceBreadth(c *gin.Context, routeParam string, enc breadthEncodin
 		if id == "" {
 			return WorkspaceBreadth{}, invalidWorkspaceBreadth("workspace_ids must not be empty; use @user")
 		}
-		if id == "global" {
-			return WorkspaceBreadth{}, &workspaceBreadthError{code: "workspace_reserved", message: "global is reserved; use @user for User rows"}
+		id, err = resolveLegacyGlobalSelector(c, id, getter)
+		if err != nil {
+			return WorkspaceBreadth{}, err
 		}
 		normalized = append(normalized, id)
 	}
 	slices.Sort(normalized)
 	normalized = slices.Compact(normalized)
 	if !all && selector == "" && !enc.OmissionIsAll {
-		return WorkspaceBreadth{}, invalidWorkspaceBreadth(fmt.Sprintf("choose %s or all_workspaces=true", enc.Selector))
+		return WorkspaceBreadth{}, invalidWorkspaceBreadth(
+			fmt.Sprintf("choose %s or all_workspaces=true", enc.Selector),
+		)
 	}
-	return WorkspaceBreadth{AllWorkspaces: all || selector == "" && enc.OmissionIsAll, WorkspaceID: selector, WorkspaceIDs: normalized}, nil
+	return WorkspaceBreadth{
+		AllWorkspaces: all || selector == "" && enc.OmissionIsAll,
+		WorkspaceID:   selector,
+		WorkspaceIDs:  normalized,
+	}, nil
+}
+
+func resolveLegacyGlobalSelector(c *gin.Context, value string, workspaces WorkspaceGetter) (string, error) {
+	if value != "global" {
+		return value, nil
+	}
+	if workspaces != nil {
+		ws, err := workspaces.Get(c.Request.Context(), value)
+		if err == nil {
+			return ws.ID, nil
+		}
+		if !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) && !errors.Is(err, workspacepkg.ErrWorkspaceReserved) {
+			return "", err
+		}
+	}
+	return "", &workspaceBreadthError{
+		code:    "workspace_reserved",
+		message: "global is reserved without a migration alias",
+	}
 }

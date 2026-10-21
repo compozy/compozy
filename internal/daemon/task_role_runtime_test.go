@@ -880,7 +880,6 @@ func newTaskRoleRuntimeForTest(
 	runtime, err := newTaskRoleRuntime(
 		store,
 		sessions,
-		t.TempDir(),
 		discardLogger(),
 		func() time.Time { return taskRoleRuntimeClock },
 	)

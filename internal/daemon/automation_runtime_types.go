@@ -33,20 +33,20 @@ type automationRuntime interface {
 }
 
 type automationManagerDeps struct {
-	Store               automationpkg.Store
-	Sessions            SessionManager
-	Tasks               taskpkg.Manager
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	Config              compozyconfig.AutomationConfig
-	Hooks               automationpkg.HookDispatcher
-	WebhookSecrets      automationpkg.WebhookSecretStore
-	Logger              *slog.Logger
-	GlobalWorkspacePath string
-	ResourceStore       resources.RawStore
-	ResourceCodecs      *resources.CodecRegistry
-	ResourceTrigger     func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	LoopCatalog         *resourceCatalog[looppkg.ResourceSpec]
-	ToolRegistry        toolspkg.Registry
+	Store             automationpkg.Store
+	Sessions          SessionManager
+	Tasks             taskpkg.Manager
+	WorkspaceResolver workspacepkg.RuntimeResolver
+	Config            compozyconfig.AutomationConfig
+	Hooks             automationpkg.HookDispatcher
+	WebhookSecrets    automationpkg.WebhookSecretStore
+	Logger            *slog.Logger
+
+	ResourceStore   resources.RawStore
+	ResourceCodecs  *resources.CodecRegistry
+	ResourceTrigger func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	LoopCatalog     *resourceCatalog[looppkg.ResourceSpec]
+	ToolRegistry    toolspkg.Registry
 
 	LoopInputEntities  looppkg.InputEntityCatalog
 	LoopRuntimeCatalog looppkg.WorkspaceRuntimeCatalog

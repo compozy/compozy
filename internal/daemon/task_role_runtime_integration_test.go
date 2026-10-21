@@ -39,7 +39,7 @@ func TestTaskRoleRuntimeWorktreeReuseIntegrationIT030(t *testing.T) {
 			t.Fatalf("task.NewManager() error = %v", err)
 		}
 		sessions := &taskRoleRuntimeSessions{}
-		runtime, err := newTaskRoleRuntime(db, sessions, "", discardLogger(), func() time.Time { return now })
+		runtime, err := newTaskRoleRuntime(db, sessions, discardLogger(), func() time.Time { return now })
 		if err != nil {
 			t.Fatalf("newTaskRoleRuntime() error = %v", err)
 		}

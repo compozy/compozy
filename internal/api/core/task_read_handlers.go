@@ -291,7 +291,7 @@ func (h *BaseHandlers) TaskDashboard(c *gin.Context) {
 		return
 	}
 
-	transportQuery, err := ParseTaskDashboardQuery(c)
+	transportQuery, err := ParseTaskDashboardQuery(c, h.Workspaces)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -317,7 +317,14 @@ func (h *BaseHandlers) TaskDashboard(c *gin.Context) {
 	}
 
 	if transportQuery.AllWorkspaces && h.Logger != nil {
-		h.Logger.DebugContext(c.Request.Context(), "task aggregate read", "all_workspaces", true, "result_count", view.Totals.TasksTotal)
+		h.Logger.DebugContext(
+			c.Request.Context(),
+			"task aggregate read",
+			"all_workspaces",
+			true,
+			"result_count",
+			view.Totals.TasksTotal,
+		)
 	}
 	c.JSON(http.StatusOK, contract.TaskDashboardResponse{Dashboard: TaskDashboardPayloadFromView(&view)})
 }

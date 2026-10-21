@@ -4174,3 +4174,38 @@ Owner: `docs/research/desktop-update-flow/README.md`; branch `fix/desktop-update
   E2E-017 also induces a real filesystem cleanup failure and requires archived failure plus shell exit.
   Signed release delivery and upgrades from already shipped broken updater code remain distinct
   from local fixture evidence; the research report records these limits.
+
+## User runtime repoint and pseudo-workspace migration — U4, 2026-10-21
+
+Owner: `user-scope-work` step 5, BR-3/15/16, T-17–21/30–32/38/39.
+Tasks, automations, Loop judges and managed Goal sessions select User explicitly and keep their
+owning profile. The session resolver supplies the configured User directory. Loop-targeting global
+automations retain their concrete target. Removed all internal `globalWorkspacePath` dependencies.
+
+The global schema adds migration progress, recovery archives and reserved-name aliases. The data
+migration preserves profile ownership, merges usage/cursors/palette counters, retains incoming
+collisions and workspace-only extension/model context data in the archive, and leaves registration
+removal to daemon boot. Journal and layout profile ownership participates in pre-Goose seeding.
+Boot imports journal rows with a per-row ledger, verifies retained blob digests, rewrites paths,
+retains the source as `.migrated`, and copies layouts without overwriting existing User state.
+A live schema reference scan blocks registration deletion if any owned row remains. SQL executes
+before Loop recovery and all User writers. Existing session database owner stamps are untouched.
+
+The `global` data selector resolves only a migration-created project alias; WM keeps its reserved
+partition meaning. Aliases warn through v0.4.0 and are removed in v0.5.0. No new tool IDs, hooks,
+extension permissions or config keys. User work remains profile-isolated. Official configuration
+reference and release migration notes describe recovery. Web behavior is owned by UW; integrated
+browser/CLI journeys and heavy gates remain integration/CI responsibilities under the worker brief.
+
+Representation clarification: `task_run_terminal_commands.workspace_id` remains `''` for User,
+because the existing table and runtime use a non-null string. Tasks, runs and blocks use NULL.
+The migration temporarily removes and reinstalls the existing run-finalization guard inside its
+transaction so an admitted terminal command survives the workspace re-key unchanged.
+
+A4 integration: automation run attribution is re-keyed from the retired workspace to `''` (User),
+while NULL (unknown) and the recorded/derived attribution provenance remain unchanged.
+The inventory includes `automation_runs`, including profiles present only in historical runs.
+
+U5 integration: re-keyed tasks, automations, Loop runs and sessions preserve their persisted grant
+ceiling/effective access. Recovery archive JSON includes these fields. Final U4 global tail is
+00151 schema + 00152 data; the migration context version and fixture prefixes follow that tail.

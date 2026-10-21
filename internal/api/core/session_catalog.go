@@ -82,7 +82,15 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		}
 		return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
 	}
-	workspaceIDs, err := session.NormalizeWorkspaceIDs(c.QueryArray("workspace_ids"), allWorkspaces)
+	rawWorkspaceIDs := c.QueryArray("workspace_ids")
+	for index, value := range rawWorkspaceIDs {
+		resolved, resolveErr := resolveLegacyGlobalSelector(c, strings.TrimSpace(value), h.Workspaces)
+		if resolveErr != nil {
+			return session.ListQuery{}, false, fmt.Errorf("%w: %w", session.ErrWorkspaceSelectionReserved, resolveErr)
+		}
+		rawWorkspaceIDs[index] = resolved
+	}
+	workspaceIDs, err := session.NormalizeWorkspaceIDs(rawWorkspaceIDs, allWorkspaces)
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}

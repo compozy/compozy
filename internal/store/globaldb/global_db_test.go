@@ -28,6 +28,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -6401,5 +6402,339 @@ func TestGlobalDBAppTokenMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
+}
+
+func TestUserScopeMigration(t *testing.T) {
+	t.Run("Should preserve profiles collisions aliases and registration until verification", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		path := filepath.Join(home, GlobalDatabaseName)
+		db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00151_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		statements := []string{
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('legacy',?, 'user','2026-01-01','2026-01-01')`,
+			`INSERT INTO loop_config(workspace_id,profile_id,loop_name,iteration_cap) VALUES ('legacy','','shared',5),('','','shared',3)`,
+			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at) SELECT 's',id,'general','legacy','idle','2026-01-01','2026-01-01' FROM profiles WHERE name='default'`,
+			`INSERT INTO session_health(session_id,workspace_id,agent_name,state,health,active_prompt,attachable,eligible_for_wake,updated_at) VALUES ('s','legacy','general','idle','healthy',0,1,1,'2026-01-01')`,
+			`INSERT INTO cmd_palette_usage SELECT 'legacy',id,'cmd',2,2,10,10 FROM profiles WHERE name='default' UNION ALL SELECT '',id,'cmd',3,3,20,20 FROM profiles WHERE name='default'`,
+			`INSERT INTO profiles(id,name,color,icon,created_at) VALUES ('22222222222222222222222222','second','blue','user','2026-01-01T00:00:00Z')`,
+			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at) VALUES ('s2','22222222222222222222222222','general','legacy','idle','2026-01-01','2026-01-01')`,
+			`INSERT INTO session_folders(id,profile_id,workspace_id,name,position,created_at,updated_at) SELECT 'folder',id,'legacy','Folder',0,'2026-01-01','2026-01-01' FROM profiles WHERE name='default'`,
+			`INSERT INTO session_placements(session_id,profile_id,workspace_id,folder_id,position,updated_at) SELECT 's',id,'legacy','folder',0,'2026-01-01' FROM profiles WHERE name='default'`,
+			`INSERT INTO tasks(id,profile_id,scope,workspace_id,title,status,created_by_kind,created_by_ref,origin_kind,origin_ref,created_at,updated_at) SELECT 'task',id,'workspace','legacy','Migrate','ready','daemon','test','daemon','test','2026-01-01','2026-01-01' FROM profiles WHERE name='default'`,
+			`INSERT INTO task_runs(id,task_id,workspace_id,status,attempt,origin_kind,origin_ref,queued_at) VALUES ('run','task','legacy','running',1,'daemon','test','2026-01-01')`,
+			`INSERT INTO task_run_terminal_commands(command_id,run_id,task_id,workspace_id,kind,phase,source_status,source_session_id,source_claim_token_hash,intent_json,actor_json,command_at,admitted_at,updated_at) VALUES ('command','run','task','legacy','completed','admitted','running','s','hash','{}','{}','2026-01-01','2026-01-01','2026-01-01')`,
+			`INSERT INTO automation_jobs(id,profile_id,scope,workspace_id,name,agent_name,prompt,retry,fire_limit,created_at,updated_at) SELECT 'incoming',id,'workspace','legacy','collision','general','run','{}','{}','2026-01-01','2026-01-01' FROM profiles WHERE name='default'`,
+			`INSERT INTO automation_jobs(id,profile_id,scope,name,agent_name,prompt,retry,fire_limit,created_at,updated_at) SELECT 'existing',id,'global','collision','general','run','{}','{}','2026-01-01','2026-01-01' FROM profiles WHERE name='default'`,
+			`INSERT INTO automation_runs(id,job_id,status,workspace_id,attribution) VALUES ('legacy-run','incoming','completed','legacy','derived'),('user-run',NULL,'completed','','recorded'),('unknown-run',NULL,'completed',NULL,'unknown')`,
+			`UPDATE sessions SET effective_workspace_access='unrestricted' WHERE id='s'`,
+			`UPDATE tasks SET grant_ceiling='unrestricted' WHERE id='task'`,
+			`UPDATE automation_jobs SET grant_ceiling='unrestricted' WHERE id='incoming'`,
+			`INSERT INTO automation_triggers(id,profile_id,scope,workspace_id,name,agent_name,prompt,event,retry,fire_limit,created_at,updated_at,grant_ceiling) SELECT 'trigger',id,'workspace','legacy','Trigger','general','run','session.created','{}','{}','2026-01-01','2026-01-01','unrestricted' FROM profiles WHERE name='default'`,
+			`INSERT INTO loop_runs(id,profile_id,workspace_id,loop_name,status,last_progress_at,inputs_json,grant_ceiling) SELECT 'loop-run',id,'legacy','shared','done','2026-01-01','{}','unrestricted' FROM profiles WHERE name='default'`,
+			`INSERT INTO extension_inputs(extension,workspace_id,input_id,type,value_json,updated_at) VALUES ('example','legacy','input','string','"preserved"','2026-01-01')`,
+			`INSERT INTO token_usage_daily(day,profile_id,workspace_id,agent_name,total_tokens,total_cost,updated_at) SELECT '2026-01-01',id,'legacy','general',7,2,'2026-01-01' FROM profiles WHERE name='default' UNION ALL SELECT '2026-01-01',id,'','general',3,1,'2026-01-01' FROM profiles WHERE name='default'`,
+			`INSERT INTO notification_cursors(scope_kind,profile_id,workspace_id,consumer_id,stream_name,last_sequence,updated_at) SELECT 'workspace',id,'legacy','consumer','events',9,'2026-01-01' FROM profiles WHERE name='default' UNION ALL SELECT 'global',id,'','consumer','events',4,'2026-01-01' FROM profiles WHERE name='default'`,
+		}
+		for i, query := range statements {
+			var args []any
+			if i == 0 {
+				args = []any{home}
+			}
+			if _, err := db.ExecContext(t.Context(), query, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO profiles(id,name,color,icon,created_at) VALUES ('33333333333333333333333333','journal-only','blue','user','2026-01-01T00:00:00Z')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		journal, err := workspacedb.Open(
+			t.Context(),
+			workspacedb.Options{HomeDir: home, WorkspaceID: "legacy", WorkspaceRoot: home},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := journal.DB().
+			ExecContext(t.Context(), `INSERT INTO terminal_recordings(id,terminal_id,profile_id,digest,path,started_at,bytes,expires_at) VALUES ('recording','terminal','33333333333333333333333333','digest','/fixture',1,0,2)`); err != nil {
+			t.Fatal(err)
+		}
+		if err := journal.Close(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := prepareUserScopeMigrationContext(t.Context(), db, home, ""); err != nil {
+			t.Fatal(err)
+		}
+		if err := applyGlobalMigrationPrefix(
+			t,
+			db,
+			globalMigrationPrefixThrough(t, "00152_user_scope_data.sql"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		g := &GlobalDB{db: db}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		var workspace string
+		if err := db.QueryRowContext(t.Context(), "SELECT workspace_id FROM session_health WHERE session_id='s'").
+			Scan(&workspace); err != nil ||
+			workspace != "" {
+			t.Fatalf("workspace=%q err=%v", workspace, err)
+		}
+		var uses int
+		if err := db.QueryRowContext(t.Context(), "SELECT use_count FROM cmd_palette_usage WHERE workspace_id=''").
+			Scan(&uses); err != nil ||
+			uses != 5 {
+			t.Fatalf("uses=%d err=%v", uses, err)
+		}
+		var name string
+		if err := db.QueryRowContext(t.Context(), "SELECT name FROM workspaces WHERE id='legacy'").
+			Scan(&name); err != nil ||
+			name != "user-project" {
+			t.Fatalf("name=%q err=%v", name, err)
+		}
+		var cap int
+		if err := db.QueryRowContext(t.Context(), "SELECT iteration_cap FROM loop_config WHERE workspace_id='' AND profile_id<>'' ORDER BY profile_id LIMIT 1").
+			Scan(&cap); err != nil ||
+			cap != 3 {
+			t.Fatalf("cap=%d err=%v", cap, err)
+		}
+		for _, check := range []struct {
+			query string
+			want  int
+		}{
+			{"SELECT count(*) FROM loop_config WHERE workspace_id='' AND iteration_cap=3", 3},
+			{"SELECT count(*) FROM session_placements WHERE workspace_id='' AND folder_id='folder'", 1},
+			{"SELECT count(*) FROM tasks WHERE workspace_id IS NULL AND scope='global'", 1},
+			{"SELECT count(*) FROM task_runs WHERE workspace_id IS NULL", 1},
+			{"SELECT count(*) FROM task_run_terminal_commands WHERE workspace_id=''", 1},
+			{"SELECT count(*) FROM sessions WHERE id='s' AND workspace_id='' AND effective_workspace_access='unrestricted'", 1},
+			{"SELECT count(*) FROM sessions WHERE id='s2' AND workspace_id='' AND effective_workspace_access=''", 1},
+			{"SELECT count(*) FROM tasks WHERE id='task' AND workspace_id IS NULL AND grant_ceiling='unrestricted'", 1},
+			{"SELECT count(*) FROM automation_jobs WHERE id='incoming' AND workspace_id IS NULL AND grant_ceiling='unrestricted'", 1},
+			{"SELECT count(*) FROM automation_triggers WHERE id='trigger' AND workspace_id IS NULL AND grant_ceiling='unrestricted'", 1},
+			{"SELECT count(*) FROM loop_runs WHERE id='loop-run' AND workspace_id='' AND grant_ceiling='unrestricted'", 1},
+			{"SELECT count(*) FROM automation_runs WHERE id='legacy-run' AND workspace_id='' AND attribution='derived'", 1},
+			{"SELECT count(*) FROM automation_runs WHERE id='user-run' AND workspace_id='' AND attribution='recorded'", 1},
+			{"SELECT count(*) FROM automation_runs WHERE id='unknown-run' AND workspace_id IS NULL AND attribution='unknown'", 1},
+			{"SELECT count(*) FROM automation_jobs WHERE name='collision (migrated)' AND scope='global'", 1},
+			{"SELECT count(*) FROM user_scope_migration_archive WHERE table_name='extension_inputs' AND json_extract(row_json,'$.value_json')='\"preserved\"'", 1},
+			{"SELECT total_tokens FROM token_usage_daily WHERE workspace_id=''", 10},
+			{"SELECT last_sequence FROM notification_cursors WHERE workspace_id=''", 9},
+		} {
+			var got int
+			if err := db.QueryRowContext(t.Context(), check.query).Scan(&got); err != nil || got != check.want {
+				t.Fatalf("%s = %d want %d err=%v", check.query, got, check.want, err)
+			}
+		}
+		if _, err := db.ExecContext(t.Context(), "UPDATE task_runs SET status='completed' WHERE id='run'"); err == nil {
+			t.Fatal("terminal command guard was not restored")
+		}
+
+		if err := g.CompleteUserScopeMigration(t.Context(), "legacy"); err == nil {
+			t.Fatal("removed before verification")
+		}
+		for _, kind := range []string{"journal", "layout"} {
+			if err := g.MarkUserScopeStoreVerified(t.Context(), "legacy", kind); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.ExecContext(
+			t.Context(),
+			"CREATE TABLE unexpected_reference(workspace_id TEXT); INSERT INTO unexpected_reference VALUES ('legacy')",
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := g.CompleteUserScopeMigration(
+			t.Context(),
+			"legacy",
+		); err == nil ||
+			!strings.Contains(err.Error(), "unexpected_reference") {
+			t.Fatalf("unknown reference error=%v", err)
+		}
+		if _, err := db.ExecContext(t.Context(), "DELETE FROM unexpected_reference"); err != nil {
+			t.Fatal(err)
+		}
+		if err := g.CompleteUserScopeMigration(t.Context(), "legacy"); err != nil {
+			t.Fatal(err)
+		}
+		var remaining int
+		if err := db.QueryRowContext(t.Context(), "SELECT count(*) FROM workspaces WHERE id='legacy'").
+			Scan(&remaining); err != nil ||
+			remaining != 0 {
+			t.Fatalf("remaining=%d err=%v", remaining, err)
+		}
+	})
+	t.Run("Should account for every workspace reference in the migration inventory", func(t *testing.T) {
+		t.Parallel()
+		g, err := OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), GlobalDatabaseName))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := g.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		tx, err := g.DB().BeginTx(t.Context(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		references, err := workspaceReferenceColumns(t.Context(), tx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed := map[string]bool{}
+		for _, table := range userScopeMigrationInventory {
+			listed[table] = true
+		}
+		for table := range references {
+			if !listed[table] {
+				t.Errorf("unlisted workspace table %s", table)
+			}
+		}
+	})
+}
+
+func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
+	t.Run(
+		"Should rename reserved names deterministically and resolve aliases through the boundary",
+		func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00151_schema.sql"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i, name := range []string{"user-project", "user", "global", "@x", "@user"} {
+				if _, err := db.ExecContext(
+					t.Context(),
+					`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES (?,?,?,?,?)`,
+					fmt.Sprint(i),
+					t.TempDir(),
+					name,
+					fmt.Sprintf("2026-01-01T00:00:0%dZ", i),
+					fmt.Sprintf("2026-01-01T00:00:0%dZ", i),
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := prepareUserScopeMigrationContext(t.Context(), db, filepath.Dir(path), ""); err != nil {
+				t.Fatal(err)
+			}
+			if err := applyGlobalMigrationPrefix(
+				t,
+				db,
+				globalMigrationPrefixThrough(t, "00152_user_scope_data.sql"),
+			); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			repo := &WorkspaceRepo{repoBase: newRepoBase(db, nil, new(atomic.Int32))}
+			for old, want := range map[string]string{"user": "user-project-2", "global": "global-project", "@x": "x"} {
+				got, err := repo.GetWorkspaceByName(t.Context(), old)
+				if err != nil || got.Name != want {
+					t.Fatalf("alias %s=%#v err=%v", old, got, err)
+				}
+			}
+			got, err := repo.GetWorkspace(t.Context(), "4")
+			if err != nil || got.Name != "user-project-3" {
+				t.Fatalf("@user project=%#v err=%v", got, err)
+			}
+			if _, err := repo.GetWorkspaceByName(
+				t.Context(),
+				"@user",
+			); !errors.Is(
+				err,
+				compozyworkspace.ErrWorkspaceNotFound,
+			) {
+				t.Fatalf("@user alias error=%v", err)
+			}
+			if _, err := db.ExecContext(
+				t.Context(),
+				"DELETE FROM workspace_name_aliases WHERE old_name='global'",
+			); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := repo.GetWorkspaceByName(
+				t.Context(),
+				"global",
+			); !errors.Is(
+				err,
+				compozyworkspace.ErrWorkspaceReserved,
+			) {
+				t.Fatalf("global without alias error=%v", err)
+			}
+		},
+	)
+	t.Run("Should keep a pseudo workspace targeted by a Loop automation", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		path := filepath.Join(home, GlobalDatabaseName)
+		db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00151_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('keep',?,'legacy','2026-01-01','2026-01-01')`,
+			home,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO automation_jobs(id,profile_id,scope,name,agent_name,prompt,retry,fire_limit,target_kind,loop_workspace_id,loop_name,created_at,updated_at) SELECT 'job',id,'global','keep','general','','{}','{}','loop','keep','review','2026-01-01','2026-01-01' FROM profiles WHERE name='default'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO loop_config(workspace_id,loop_name) VALUES ('keep','review')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := prepareUserScopeMigrationContext(t.Context(), db, home, ""); err != nil {
+			t.Fatal(err)
+		}
+		if err := applyGlobalMigrationPrefix(
+			t,
+			db,
+			globalMigrationPrefixThrough(t, "00152_user_scope_data.sql"),
+		); err != nil {
+			t.Fatal(err)
+		}
+		var disposition string
+		if err := db.QueryRowContext(t.Context(), "SELECT disposition FROM user_scope_migrations WHERE source_workspace_id='keep'").
+			Scan(&disposition); err != nil ||
+			disposition != "keep_project" {
+			t.Fatalf("disposition=%s err=%v", disposition, err)
+		}
+		var count int
+		if err := db.QueryRowContext(t.Context(), "SELECT count(*) FROM loop_config WHERE workspace_id='keep'").
+			Scan(&count); err != nil ||
+			count != 1 {
+			t.Fatalf("count=%d err=%v", count, err)
+		}
 	})
 }

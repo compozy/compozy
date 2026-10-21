@@ -560,3 +560,12 @@ it verbatim. Project-only routes refuse it with `user_scope_unsupported`; worktr
 precedence with `user_scope_worktree_unsupported`. New registrations and renames reject `user`,
 `global`, and names starting with `@` (`workspace_name_reserved`). Registration also rejects both the
 operator home and `COMPOZY_HOME` (`workspace_home_forbidden`).
+
+User work upgrades from the former `COMPOZY_HOME` pseudo-project without registering a replacement.
+The daemon verifies profile journal rows and retained blobs, keeps the source journal as `.migrated`,
+and copies layouts before removing the old registration. Worktree-bearing sources and sources used
+by Loop-targeting automations remain projects. Migration collisions and workspace-only bindings are
+retained in `user_scope_migration_archive`; progress is recorded in `user_scope_migrations`.
+Do not remove retained directories or bypass a migration refusal. Reserved-name aliases warn through
+v0.4.0 and are removed in v0.5.0. On data selectors, `global` resolves only a migration-created alias;
+on window-manager surfaces it always means the reserved partition. `@user` always means User.

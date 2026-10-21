@@ -127,7 +127,11 @@ func statusForWorkspaceError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
 		errors.Is(err, workspacepkg.ErrWorkspaceHasActiveSessions):
 		return http.StatusConflict
-	case errors.Is(err, workspacepkg.ErrWorkspaceNameReserved), errors.Is(err, workspacepkg.ErrUserScopeUnsupported), errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported), errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid):
+	case errors.Is(err, workspacepkg.ErrWorkspaceReserved),
+		errors.Is(err, workspacepkg.ErrWorkspaceNameReserved),
+		errors.Is(err, workspacepkg.ErrUserScopeUnsupported),
+		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
+		errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceValidation):
 		return http.StatusBadRequest

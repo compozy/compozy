@@ -65,7 +65,7 @@ func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, erro
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = activation.WorkspaceID
 	case taskpkg.ScopeGlobal:
-		opts.WorkspacePath = activation.WorkspacePath
+		opts.Scope = "user"
 	default:
 		return session.CreateOpts{}, fmt.Errorf(
 			"%w: unsupported task scope %q for role session start",
@@ -262,8 +262,7 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 	case taskpkg.ScopeWorkspace:
 		return strings.TrimSpace(info.WorkspaceID) == activation.WorkspaceID
 	case taskpkg.ScopeGlobal:
-		return strings.TrimSpace(info.WorkspaceID) == "" &&
-			strings.TrimSpace(info.Workspace) == activation.WorkspacePath
+		return strings.TrimSpace(info.WorkspaceID) == ""
 	default:
 		return false
 	}

@@ -50,3 +50,14 @@ passes the warning-free affected gate and matches its recorded tree. This scenar
 Fixed for the current cycle; earlier pending notes record the progression of the walk.
 
 2026-10-21 qa-impact (user-scope-work, web destination model): **reset to `untested`**. Global split into All projects (breadth) and User (a focus). Re-walk User focus with zero projects and with projects present across Sessions, Tasks, Loops, Automations, Terminal and Home; daemon `@user` acceptance lands with the user-scope-work backend slices. Owned by the trailing QA pair.
+
+
+Upgrade checks (U4): seed a stopped fixture with a `COMPOZY_HOME` registration, two profiles,
+sessions/folders, tasks, Loop state, terminal recordings/spill artifacts and profile layouts. After
+upgrade, verify User-only ownership, readable retained files and unchanged session owner stamps.
+Interrupt journal import, then restart and confirm no duplicate imports. Keep an existing User
+layout and confirm the source remains exportable. A source with worktrees or a Loop-target automation
+must remain registered. Add an unknown referencing table and confirm the pre-delete assertion retains
+the registration. Check renamed `global` selectors through CLI/HTTP/native and reserved WM behavior.
+The U4 worker verifies SQLite, blob/restart, layout and dispatch fixtures; the full interface walk
+remains pending integration QA.

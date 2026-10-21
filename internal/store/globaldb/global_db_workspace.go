@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -208,6 +209,24 @@ func (g *WorkspaceRepo) GetWorkspaceByName(
 	}
 
 	row, err := g.queries.GetWorkspaceByName(ctx, trimmedName)
+	if errors.Is(err, sql.ErrNoRows) && trimmedName != "@user" {
+		row, err = g.queries.GetWorkspaceByLegacyName(ctx, trimmedName)
+		if err == nil {
+			slog.WarnContext(
+				ctx,
+				"workspace name is deprecated through v0.4.0; use the new name",
+				"old_name",
+				trimmedName,
+				"name",
+				row.Name,
+				"workspace_id",
+				row.ID,
+			)
+		}
+	}
+	if errors.Is(err, sql.ErrNoRows) && trimmedName == "global" {
+		return compozyworkspace.Workspace{}, compozyworkspace.ErrWorkspaceReserved
+	}
 	return workspaceFromGenerated(row, err)
 }
 

@@ -84,39 +84,43 @@ func TestDispatchWorkspaceAutomationUsesWorkspaceCreateOpts(t *testing.T) {
 	})
 }
 
-func TestDispatchGlobalAutomationUsesGlobalWorkspacePath(t *testing.T) {
-	t.Parallel()
+func TestDispatchGlobalAutomationUsesUserScope(t *testing.T) {
+	t.Run("Should dispatch global automation in User scope", func(t *testing.T) {
+		t.Parallel()
 
-	store := newMemoryRunStore()
-	creator := newRecordingSessionCreator()
-	globalPath := filepath.Join(t.TempDir(), "compozy-home")
-	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherGlobalWorkspacePath(globalPath))
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
+		dispatcher := newTestDispatcher(t, creator, store)
 
-	job := testJob(AutomationScopeGlobal, "job-global", "")
-	run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
-		Kind: DispatchKindManual,
-		Job:  &job,
+		job := testJob(AutomationScopeGlobal, "job-global", "")
+		run, err := dispatcher.Dispatch(testutil.Context(t), DispatchRequest{
+			Kind: DispatchKindManual,
+			Job:  &job,
+		})
+		if err != nil {
+			t.Fatalf("Dispatch() error = %v", err)
+		}
+
+		createCall := creator.createCalls()[0]
+		if createCall.Scope != "user" {
+			t.Fatalf("Scope = %q, want user", createCall.Scope)
+		}
+		if got := createCall.Workspace; got != "" {
+			t.Fatalf("Create().Workspace = %q, want empty", got)
+		}
+		if got := createCall.Provider; got != "" {
+			t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
+		}
+		if got, want := createCall.WorkspacePath, ""; got != want {
+			t.Fatalf("Create().WorkspacePath = %q, want %q", got, want)
+		}
+		if got, want := run.Status, RunCompleted; got != want {
+			t.Fatalf("run.Status = %q, want %q", got, want)
+		}
+		if got, want := run.JobID, job.ID; got != want {
+			t.Fatalf("run.JobID = %q, want %q", got, want)
+		}
 	})
-	if err != nil {
-		t.Fatalf("Dispatch() error = %v", err)
-	}
-
-	createCall := creator.createCalls()[0]
-	if got := createCall.Workspace; got != "" {
-		t.Fatalf("Create().Workspace = %q, want empty", got)
-	}
-	if got := createCall.Provider; got != "" {
-		t.Fatalf("Create().Provider = %q, want explicit empty provider", got)
-	}
-	if got, want := createCall.WorkspacePath, globalPath; got != want {
-		t.Fatalf("Create().WorkspacePath = %q, want %q", got, want)
-	}
-	if got, want := run.Status, RunCompleted; got != want {
-		t.Fatalf("run.Status = %q, want %q", got, want)
-	}
-	if got, want := run.JobID, job.ID; got != want {
-		t.Fatalf("run.JobID = %q, want %q", got, want)
-	}
 }
 
 func TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime(t *testing.T) {
@@ -1199,31 +1203,33 @@ func TestDispatchBackoffRetryRecordsAttemptMetadata(t *testing.T) {
 	}
 }
 
-func TestNewDispatcherRejectsMissingDependenciesAndGlobalWorkspacePath(t *testing.T) {
-	t.Parallel()
+func TestNewDispatcherRejectsMissingDependencies(t *testing.T) {
+	t.Run("Should require runtime dependencies without a workspace fallback", func(t *testing.T) {
+		t.Parallel()
 
-	store := newMemoryRunStore()
-	creator := newRecordingSessionCreator()
+		store := newMemoryRunStore()
+		creator := newRecordingSessionCreator()
 
-	if _, err := NewDispatcher(nil, store, WithDispatcherGlobalWorkspacePath(t.TempDir())); err == nil {
-		t.Fatal("NewDispatcher(nil sessions) error = nil, want non-nil")
-	}
-	if _, err := NewDispatcher(creator, nil, WithDispatcherGlobalWorkspacePath(t.TempDir())); err == nil {
-		t.Fatal("NewDispatcher(nil store) error = nil, want non-nil")
-	}
-	if _, err := NewDispatcher(creator, store); err == nil {
-		t.Fatal("NewDispatcher(missing global workspace path) error = nil, want non-nil")
-	}
-	if _, err := NewDispatcher(
-		creator,
-		store,
-		WithDispatcherGlobalWorkspacePath(t.TempDir()),
-		WithDispatcherLogger(nil),
-		WithDispatcherSleep(nil),
-		WithDispatcherNow(nil),
-	); err != nil {
-		t.Fatalf("NewDispatcher(with nil optional dependencies) error = %v", err)
-	}
+		if _, err := NewDispatcher(nil, store); err == nil {
+			t.Fatal("NewDispatcher(nil sessions) error = nil, want non-nil")
+		}
+		if _, err := NewDispatcher(creator, nil); err == nil {
+			t.Fatal("NewDispatcher(nil store) error = nil, want non-nil")
+		}
+		if _, err := NewDispatcher(creator, store); err != nil {
+			t.Fatalf("NewDispatcher(User scope) error = %v", err)
+		}
+		if _, err := NewDispatcher(
+			creator,
+			store,
+
+			WithDispatcherLogger(nil),
+			WithDispatcherSleep(nil),
+			WithDispatcherNow(nil),
+		); err != nil {
+			t.Fatalf("NewDispatcher(with nil optional dependencies) error = %v", err)
+		}
+	})
 }
 
 func TestNewDispatcherSessionStopTimeoutOption(t *testing.T) {
@@ -1254,7 +1260,7 @@ func TestNewDispatcherSessionStopTimeoutOption(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			options := []DispatcherOption{WithDispatcherGlobalWorkspacePath(t.TempDir())}
+			options := []DispatcherOption{}
 			if tc.opt != nil {
 				options = append(options, tc.opt)
 			}
@@ -2204,7 +2210,7 @@ func newTestDispatcher(t *testing.T, creator SessionCreator, store RunStore, opt
 	t.Helper()
 
 	allOpts := append([]DispatcherOption{
-		WithDispatcherGlobalWorkspacePath(t.TempDir()),
+
 		WithDispatcherNow(func() time.Time {
 			return time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 		}),

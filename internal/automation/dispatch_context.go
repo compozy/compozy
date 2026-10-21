@@ -22,7 +22,7 @@ func (d *Dispatcher) createOpts(req DispatchRequest) session.CreateOpts {
 	case AutomationScopeWorkspace:
 		opts.Workspace = req.workspaceID()
 	default:
-		opts.WorkspacePath = d.globalWorkspacePath
+		opts.Scope = "user"
 	}
 
 	return opts

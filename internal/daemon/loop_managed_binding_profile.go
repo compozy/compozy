@@ -148,7 +148,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
 		opts.Workspace = workspaceID
 	} else {
-		opts.WorkspacePath = strings.TrimSpace(b.globalWorkspacePath)
+		opts.Scope = "user"
 	}
 	return opts
 }
@@ -188,7 +188,7 @@ func createOptionsFromProfile(
 	req looppkg.ActionSessionBindRequest,
 	profile store.SessionCreationProfile,
 ) session.CreateOpts {
-	return session.CreateOpts{
+	opts := session.CreateOpts{
 		ProfileID:       profile.ProfileID,
 		AgentName:       profile.AgentName,
 		Provider:        profile.Provider,
@@ -210,6 +210,11 @@ func createOptionsFromProfile(
 		AllowedToolsOverride: append([]string(nil), profile.AllowedTools...),
 		DeniedToolsOverride:  mergeLoopActionDeniedTools(profile.DeniedTools, loopActionTerminalTools()),
 	}
+	if profile.WorkspaceID == "@user" {
+		opts.Scope = "user"
+		opts.Workspace = ""
+	}
+	return opts
 }
 
 func profileFromPolicyResolution(
@@ -221,6 +226,7 @@ func profileFromPolicyResolution(
 		permissions = strings.TrimSpace(resolution.agent.Permissions)
 	}
 	return session.BuildCreationProfile(session.CreationProfileInput{
+		Scope:           resolution.workspace.Scope,
 		AgentName:       resolution.agent.Name,
 		Provider:        resolution.agent.Provider,
 		Model:           resolution.agent.Model,

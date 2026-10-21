@@ -1,10 +1,13 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/gin-gonic/gin"
 )
@@ -34,7 +37,11 @@ func TestWorkspaceBreadth(t *testing.T) {
 			t.Parallel()
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+tc.query, nil)
-			got, err := parseWorkspaceBreadth(c, tc.route, breadthEncoding{Selector: tc.selector, OmissionIsAll: tc.omission})
+			got, err := parseWorkspaceBreadth(
+				c,
+				tc.route,
+				breadthEncoding{Selector: tc.selector, OmissionIsAll: tc.omission},
+			)
 			if tc.code != "" {
 				typed, ok := errors.AsType[*workspaceBreadthError](err)
 				if !ok || typed.code != tc.code {
@@ -53,4 +60,31 @@ func TestWorkspaceBreadth(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWorkspaceBreadthLegacyGlobalAlias(t *testing.T) {
+	t.Run("Should resolve the migration alias before applying data filters", func(t *testing.T) {
+		t.Parallel()
+		getter := workspaceGetterStub{get: func(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+			if ref != "global" {
+				t.Fatalf("ref=%q", ref)
+			}
+			return workspacepkg.Workspace{ID: "ws-renamed", Name: "global-project"}, nil
+		}}
+		for _, query := range []string{"workspace=global", "all_workspaces=true&workspace_ids=global"} {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+query, nil)
+			got, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace"}, getter)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.AllWorkspaces {
+				if len(got.WorkspaceIDs) != 1 || got.WorkspaceIDs[0] != "ws-renamed" {
+					t.Fatalf("breadth=%#v", got)
+				}
+			} else if got.WorkspaceID != "ws-renamed" {
+				t.Fatalf("breadth=%#v", got)
+			}
+		}
+	})
 }

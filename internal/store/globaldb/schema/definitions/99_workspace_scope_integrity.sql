@@ -156,6 +156,8 @@ END;
 CREATE TRIGGER workspace_scope_cleanup_after_delete
 AFTER DELETE ON workspaces
 BEGIN
+    DELETE FROM attention_workspace_mutes WHERE workspace_id = OLD.id;
+    DELETE FROM tool_approval_pending WHERE workspace_id = OLD.id;
 	DELETE FROM loop_ui_annotations WHERE workspace_id = OLD.id;
 	DELETE FROM loop_session_bindings WHERE workspace_id = OLD.id;
 	DELETE FROM loop_run_events WHERE workspace_id = OLD.id;
@@ -187,3 +189,23 @@ BEGIN
 	DELETE FROM notification_cursors WHERE workspace_id = OLD.id;
 	DELETE FROM skill_exposures WHERE workspace_id = OLD.id;
 END;
+
+CREATE TRIGGER attention_workspace_mutes_workspace_insert_guard
+BEFORE INSERT ON attention_workspace_mutes
+WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = NEW.workspace_id)
+BEGIN SELECT RAISE(ABORT, 'workspace not found'); END;
+
+CREATE TRIGGER attention_workspace_mutes_workspace_update_guard
+BEFORE UPDATE OF workspace_id ON attention_workspace_mutes
+WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = NEW.workspace_id)
+BEGIN SELECT RAISE(ABORT, 'workspace not found'); END;
+
+CREATE TRIGGER tool_approval_pending_workspace_insert_guard
+BEFORE INSERT ON tool_approval_pending
+WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = NEW.workspace_id)
+BEGIN SELECT RAISE(ABORT, 'workspace not found'); END;
+
+CREATE TRIGGER tool_approval_pending_workspace_update_guard
+BEFORE UPDATE OF workspace_id ON tool_approval_pending
+WHEN NEW.workspace_id <> '' AND NOT EXISTS (SELECT 1 FROM workspaces WHERE id = NEW.workspace_id)
+BEGIN SELECT RAISE(ABORT, 'workspace not found'); END;

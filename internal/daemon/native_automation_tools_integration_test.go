@@ -367,7 +367,6 @@ func newNativeAutomationIntegrationManager(t *testing.T, ctx context.Context) *a
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		}),
 		automationpkg.WithLogger(discardLogger()),
-		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
 	)
 	if err != nil {
 		t.Fatalf("automation.New() error = %v", err)

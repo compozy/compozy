@@ -89,7 +89,6 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 				},
 				Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 			},
-			WorkspacePath: "/unused",
 		}
 
 		got, err := taskRoleCreateOpts(activation)

@@ -13,7 +13,6 @@ var _ loopManagedInputLifecycleInstaller = (*session.Manager)(nil)
 func newLoopGoalProductionRuntime(
 	goalStore loopGoalProductionStore,
 	sessions SessionManager,
-	globalWorkspacePath string,
 	policyGate *loopSessionPolicyGate,
 	now func() time.Time,
 	logger *slog.Logger,
@@ -21,16 +20,16 @@ func newLoopGoalProductionRuntime(
 ) *loopGoalRuntime {
 	managedInputs, managedOK := sessions.(loopManagedInputSessionManager)
 	binder := &loopActionSessionBinder{
-		sessions:            sessions,
-		bindings:            goalStore,
-		bindingAllocator:    goalStore,
-		prompts:             goalStore,
-		creationStore:       goalStore,
-		managedInputs:       managedInputs,
-		globalWorkspacePath: globalWorkspacePath,
-		policyGate:          policyGate,
-		worktrees:           worktrees,
-		now:                 now,
+		sessions:         sessions,
+		bindings:         goalStore,
+		bindingAllocator: goalStore,
+		prompts:          goalStore,
+		creationStore:    goalStore,
+		managedInputs:    managedInputs,
+
+		policyGate: policyGate,
+		worktrees:  worktrees,
+		now:        now,
 	}
 	lifecycle := &loopGoalManagedInputLifecycle{store: goalStore, binder: binder, now: now}
 	if installer, ok := sessions.(loopManagedInputLifecycleInstaller); ok && managedOK {

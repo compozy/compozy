@@ -14,8 +14,12 @@ import (
 )
 
 // ParseTaskListQuery parses the bounded task catalog query parameters.
-func ParseTaskListQuery(c *gin.Context) (contract.TaskListQuery, error) {
-	breadth, err := parseWorkspaceBreadth(c, c.Param("workspace_id"), breadthEncoding{Selector: "workspace", OmissionIsAll: true})
+func ParseTaskListQuery(c *gin.Context, workspaces ...WorkspaceGetter) (contract.TaskListQuery, error) {
+	breadth, err := parseWorkspaceBreadth(
+		c,
+		c.Param("workspace_id"),
+		breadthEncoding{Selector: "workspace", OmissionIsAll: true},
+		workspaces...)
 	if err != nil {
 		return contract.TaskListQuery{}, err
 	}

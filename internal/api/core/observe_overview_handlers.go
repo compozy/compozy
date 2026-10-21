@@ -44,7 +44,14 @@ func (h *BaseHandlers) ObserveOverview(c *gin.Context) {
 	}
 
 	if query.TaskScope == taskpkg.CatalogScopeAll && h.Logger != nil {
-		h.Logger.DebugContext(c.Request.Context(), "overview aggregate read", "all_workspaces", true, "result_count", view.Attention.Total)
+		h.Logger.DebugContext(
+			c.Request.Context(),
+			"overview aggregate read",
+			"all_workspaces",
+			true,
+			"result_count",
+			view.Attention.Total,
+		)
 	}
 	c.JSON(http.StatusOK, contract.ObserveOverviewResponse{Overview: ObserveOverviewPayloadFromView(&view)})
 }
@@ -66,7 +73,12 @@ func parseOverviewUsageWindow(raw string) (int, error) {
 
 func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.OverviewQuery) bool {
 	query.TaskScope = taskpkg.CatalogScopeGlobal
-	breadth, err := parseWorkspaceBreadth(c, c.Param("workspace_id"), breadthEncoding{Selector: "workspace", OmissionIsAll: true})
+	breadth, err := parseWorkspaceBreadth(
+		c,
+		c.Param("workspace_id"),
+		breadthEncoding{Selector: "workspace", OmissionIsAll: true},
+		h.Workspaces,
+	)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return false
@@ -89,7 +101,12 @@ func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.O
 	}
 	if breadth.WorkspaceID != "" {
 		scope := taskpkg.CatalogScopeWorkspace
-		if err := h.resolveTaskCatalogWorkspace(c.Request.Context(), breadth.WorkspaceID, &scope, &query.WorkspaceID); err != nil {
+		if err := h.resolveTaskCatalogWorkspace(
+			c.Request.Context(),
+			breadth.WorkspaceID,
+			&scope,
+			&query.WorkspaceID,
+		); err != nil {
 			h.respondError(c, StatusForTaskError(err), err)
 			return false
 		}

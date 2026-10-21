@@ -247,14 +247,14 @@ type Dispatcher struct {
 	tasks       TaskService
 	loopStarter LoopStarter
 
-	logger              *slog.Logger
-	now                 func() time.Time
-	sleep               SleepFunc
-	globalWorkspacePath string
-	maxConcurrent       int
-	sessionStopTimeout  time.Duration
-	hooks               HookDispatcher
-	taskActors          SessionTaskActorRecorder
+	logger *slog.Logger
+	now    func() time.Time
+	sleep  SleepFunc
+
+	maxConcurrent      int
+	sessionStopTimeout time.Duration
+	hooks              HookDispatcher
+	taskActors         SessionTaskActorRecorder
 
 	gate            chan struct{}
 	capacityMu      sync.Mutex
@@ -295,9 +295,6 @@ func NewDispatcher(sessions SessionCreator, runs RunStore, opts ...DispatcherOpt
 	if dispatcher.sleep == nil {
 		dispatcher.sleep = sleepWithContext
 	}
-	if strings.TrimSpace(dispatcher.globalWorkspacePath) == "" {
-		return nil, errors.New("automation: global workspace path is required")
-	}
 	if dispatcher.maxConcurrent <= 0 {
 		dispatcher.maxConcurrent = DefaultMaxConcurrentJobs
 	}
@@ -327,13 +324,6 @@ func WithDispatcherNow(now func() time.Time) DispatcherOption {
 func WithDispatcherSleep(sleep SleepFunc) DispatcherOption {
 	return func(dispatcher *Dispatcher) {
 		dispatcher.sleep = sleep
-	}
-}
-
-// WithDispatcherGlobalWorkspacePath overrides the fallback path used for global automations.
-func WithDispatcherGlobalWorkspacePath(path string) DispatcherOption {
-	return func(dispatcher *Dispatcher) {
-		dispatcher.globalWorkspacePath = strings.TrimSpace(path)
 	}
 }
 

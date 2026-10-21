@@ -65,10 +65,10 @@ func (c loopCancellationSessionController) StopLoopSession(ctx context.Context, 
 }
 
 type loopGateJudgeRunner struct {
-	sessions            loopJudgeSessionManager
-	globalWorkspacePath string
-	policyGate          *loopSessionPolicyGate
-	executions          *loopJudgeExecutionRegistry
+	sessions loopJudgeSessionManager
+
+	policyGate *loopSessionPolicyGate
+	executions *loopJudgeExecutionRegistry
 }
 
 var _ gate.JudgeRunner = (*loopGateJudgeRunner)(nil)
@@ -163,11 +163,8 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 		opts.Workspace = workspaceID
 		return opts, nil
 	}
-	if workspacePath := strings.TrimSpace(r.globalWorkspacePath); workspacePath != "" {
-		opts.WorkspacePath = workspacePath
-		return opts, nil
-	}
-	return session.CreateOpts{}, errors.New("daemon: loop judge workspace is required")
+	opts.Scope = "user"
+	return opts, nil
 }
 
 func (r *loopGateJudgeRunner) stopJudgeSession(ctx context.Context, sessionID string, terminalErr error) error {
