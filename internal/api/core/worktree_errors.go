@@ -73,6 +73,8 @@ var worktreeErrorCodes = []struct {
 	{worktree.ErrAdoptionMainCheckout, "adoption_main_checkout"},
 	{worktree.ErrAdoptionForeignRepo, "adoption_foreign_repository"},
 	{worktree.ErrAdoptionUnreadable, "adoption_unreadable"},
+	{worktree.ErrDiscoveredRegistered, "worktree_registered"},
+	{worktree.ErrDiscoveredChanged, "worktree_discovered_changed"},
 	{worktree.ErrOperationInProgress, "worktree_operation_in_progress"},
 	{worktree.ErrSessionActive, "worktree_session_active"},
 	{worktree.ErrStatusUnreadable, "worktree_status_unreadable"},

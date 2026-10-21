@@ -40,6 +40,26 @@ func (c *Client) ReloadSettings(ctx context.Context) (*SettingsApplyResponse, er
 	return &out, nil
 }
 
+// RemoveDiscoveredWorktreeParams carries the path, query, and header parameters.
+type RemoveDiscoveredWorktreeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// RemoveDiscoveredWorktree Remove a discovered worktree
+func (c *Client) RemoveDiscoveredWorktree(ctx context.Context, params RemoveDiscoveredWorktreeParams, body RemoveDiscoveredWorktreeRequest) error {
+	path := "/api/workspaces/{workspace_id}/worktrees/discovered/remove"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "POST", path, nil, body, nil, "", "")
+}
+
 // RemoveExtensionParams carries the path, query, and header parameters.
 type RemoveExtensionParams struct {
 	Name      string  `url:"name"`
@@ -419,30 +439,6 @@ func (c *Client) RerunLoopRun(ctx context.Context, params RerunLoopRunParams, bo
 	}
 	var out RerunLoopResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ResetCmdPalettePersonalizationParams carries the path, query, and header parameters.
-type ResetCmdPalettePersonalizationParams struct {
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ResetCmdPalettePersonalization Reset command palette personalization
-func (c *Client) ResetCmdPalettePersonalization(ctx context.Context, params ResetCmdPalettePersonalizationParams) (*CmdPalettePersonalizationResetResponse, error) {
-	path := "/api/cmd-palette/personalization"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePersonalizationResetResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -151,6 +151,8 @@ type Store interface {
 	Insert(context.Context, Worktree) error
 	Get(context.Context, string, string) (*Worktree, error)
 	GetByPath(context.Context, string, string) (*Worktree, error)
+	// PathOwnedByAnyWorkspace reports whether a live record in any workspace owns the path.
+	PathOwnedByAnyWorkspace(context.Context, string) (bool, error)
 	List(context.Context, string) ([]Worktree, error)
 	ListRecoverable(context.Context) ([]Worktree, error)
 	DeletePending(context.Context, string, string) error
@@ -187,6 +189,8 @@ var (
 	ErrAdoptionMainCheckout   = errors.New("adoption_main_checkout")
 	ErrAdoptionForeignRepo    = errors.New("adoption_foreign_repository")
 	ErrAdoptionUnreadable     = errors.New("adoption_unreadable")
+	ErrDiscoveredRegistered   = errors.New("worktree_registered")
+	ErrDiscoveredChanged      = errors.New("worktree_discovered_changed")
 	ErrOperationInProgress    = errors.New("worktree_operation_in_progress")
 	ErrSessionActive          = errors.New("worktree_session_active")
 	ErrStatusUnreadable       = errors.New("worktree_status_unreadable")

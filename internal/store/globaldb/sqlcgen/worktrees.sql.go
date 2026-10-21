@@ -82,6 +82,19 @@ func (q *Queries) CompleteWorktreeCreate(ctx context.Context, arg CompleteWorktr
 	return result.RowsAffected()
 }
 
+const countLiveWorktreesByPath = `-- name: CountLiveWorktreesByPath :one
+SELECT COUNT(*) FROM worktrees
+WHERE path = ?1
+  AND state NOT IN ('removed', 'dismissed')
+`
+
+func (q *Queries) CountLiveWorktreesByPath(ctx context.Context, path string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countLiveWorktreesByPath, path)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deletePendingWorktree = `-- name: DeletePendingWorktree :execrows
 DELETE FROM worktrees
 WHERE workspace_id = ?1

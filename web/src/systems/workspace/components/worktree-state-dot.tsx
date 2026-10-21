@@ -13,8 +13,9 @@ export type WorktreeDotState = Exclude<WorktreeDisplayState, "ready">;
 const DOT_SHAPE: Record<WorktreeDotState, string> = {
   // Filled diamond — deliberately NOT the hollow ring, which means discovered.
   pending: "size-[5.5px] rotate-45 rounded-[1px] bg-warning",
-  discovered: "size-[7px] rounded-full shadow-[inset_0_0_0_1.4px_var(--color-info)]",
-  missing: "size-[7px] rounded-full shadow-[inset_0_0_0_1.4px_var(--color-info)]",
+  // Discovered and missing are taxonomy, not live state: neutral rings, never a signal hue.
+  discovered: "size-[7px] rounded-full shadow-[inset_0_0_0_1.4px_var(--color-faint)]",
+  missing: "size-[7px] rounded-full shadow-[inset_0_0_0_1.4px_var(--color-line-strong)]",
   error: "size-[7px] rounded-[1.5px] bg-danger",
   failed: "size-[7px] rounded-[1.5px] bg-danger",
 };

@@ -19,6 +19,9 @@ type WorktreeService interface {
 	RunExitAction(context.Context, string, string, worktree.ExitActionRequest) (string, error)
 	CancelExitAction(context.Context, string, string, string) error
 	Remove(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	RemoveDiscovered(
+		context.Context, string, string, worktree.RemoveDiscoveredOptions,
+	) (*worktree.RemovalRefusal, error)
 	Dismiss(context.Context, string, string) error
 	DeleteLocalBranch(context.Context, string, string, bool) (worktree.BranchOutcome, error)
 }

@@ -413,6 +413,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"reloadSettings",
 			"removeExtension",
 			"removeMarketplaceSource",
+			"removeDiscoveredWorktree",
 			"removeWorktree",
 			"renameGatewayDevice",
 			"renameProfile",

@@ -1080,6 +1080,9 @@ import type {
   ReloadSettingsData,
   ReloadSettingsErrors,
   ReloadSettingsResponses,
+  RemoveDiscoveredWorktreeData,
+  RemoveDiscoveredWorktreeErrors,
+  RemoveDiscoveredWorktreeResponses,
   RemoveExtensionData,
   RemoveExtensionErrors,
   RemoveExtensionResponses,
@@ -11095,6 +11098,33 @@ export class worktrees extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/worktrees/adopt",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Remove a discovered worktree
+   */
+  public removeDiscoveredWorktree<ThrowOnError extends boolean = true>(
+    options: Options<RemoveDiscoveredWorktreeData, ThrowOnError>
+  ): RequestResult<
+    RemoveDiscoveredWorktreeResponses,
+    RemoveDiscoveredWorktreeErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RemoveDiscoveredWorktreeResponses,
+      RemoveDiscoveredWorktreeErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
       ...options,
       headers: {
         "Content-Type": "application/json",

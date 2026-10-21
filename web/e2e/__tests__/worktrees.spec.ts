@@ -876,22 +876,29 @@ for (const surface of ["menubar", "overview"] as const) {
     await appPage.keyboard.press("Space");
     await expect(missingChoice).toHaveAttribute("aria-checked", "true");
     await appPage.keyboard.press("ControlOrMeta+a");
-    await expect(appPage.getByText("Remove selected (3)…", { exact: true })).toBeVisible();
+    await expect(appPage.getByText("Remove 4 worktrees…", { exact: true })).toBeVisible();
     await appPage.keyboard.press("Escape");
     await expect(appPage.getByText("Select worktrees…", { exact: true })).toBeVisible();
     await appPage.getByText("Select worktrees…", { exact: true }).click();
-    await appPage.getByText("Select all eligible (3)", { exact: true }).click();
+    // A discovered checkout is removable by its Git path without adoption.
+    await appPage.getByText("Select all", { exact: true }).click();
     await expect(
       appPage.getByRole("menuitemcheckbox", { name: "Select external-work" })
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-checked", "true");
     await appPage.screenshot({ path: testInfo.outputPath(`${surface}-selection.png`) });
-    await appPage.getByText("Remove selected (3)…", { exact: true }).click();
+    await appPage.getByText("Remove 4 worktrees…", { exact: true }).click();
     const dialog = appPage.getByTestId("worktree-bulk-remove-dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText("2 checkouts");
+    await expect(dialog).toContainText("3 checkouts");
     await expect(dialog).toContainText("1 missing record will be dismissed");
-    await dialog.getByRole("button", { name: "Remove selected", exact: true }).click();
-    await expect(dialog.getByRole("status")).toContainText("2 succeeded · 1 failed · 0 pending");
+    // A discovered checkout is removed by its Git path, like a registered one.
+    const external = dialog.locator('[data-testid^="worktree-bulk-result-discovered:"]', {
+      hasText: "external-work",
+    });
+    await expect(external).toBeVisible();
+    await expect(external).not.toContainText("Dismiss record");
+    await dialog.getByRole("button", { name: "Remove 4 worktrees", exact: true }).click();
+    await expect(dialog.getByRole("status")).toContainText("3 of 4 done · 1 failed");
     await appPage.screenshot({ path: testInfo.outputPath(`${surface}-partial-result.png`) });
     const partial = await listWorktrees(runtime, workspace.id, true);
     expect(partial.worktrees.find(row => row.id === clean.id)?.state).toBe("removed");
@@ -899,14 +906,14 @@ for (const surface of ["menubar", "overview"] as const) {
     expect(partial.worktrees.some(row => row.id === missing.id)).toBe(false);
     // Repair the disposable untracked edit, then use the UI's failed-only retry.
     await unlink(path.join(dirty.path, "uncommitted.txt"));
-    await dialog.getByRole("button", { name: "Retry failed (1)" }).click();
-    await expect(dialog.getByRole("status")).toContainText("3 succeeded · 0 failed · 0 pending");
+    await dialog.getByRole("button", { name: "Retry failed" }).click();
+    await expect(dialog.getByRole("status")).toContainText("4 of 4 done");
     await dialog.getByRole("button", { name: "Close", exact: true }).click();
     await appPage.reload({ waitUntil: "domcontentloaded" });
     const final = await listWorktrees(runtime, workspace.id, true);
     expect(final.worktrees.find(row => row.id === dirty.id)?.state).toBe("removed");
     expect(final.worktrees.some(row => row.id === missing.id)).toBe(false);
-    expect(final.discovered.some(row => row.path.endsWith("external-work"))).toBe(true);
+    expect(final.discovered.some(row => row.path.endsWith("external-work"))).toBe(false);
   });
 }
 
@@ -939,16 +946,17 @@ for (const surface of ["menubar", "overview"] as const) {
     if (surface === "menubar") await openWorkspaceNest(appPage, workspace.id);
     // Overview remains visible beneath its target dialog.
     await appPage.getByText("Select worktrees…", { exact: true }).click();
-    await appPage.getByText("Select all eligible (2)", { exact: true }).click();
-    await appPage.getByText("Remove selected (2)…", { exact: true }).click();
+    await appPage.getByText("Select all", { exact: true }).click();
+    await appPage.getByText("Remove 2 worktrees…", { exact: true }).click();
     const dialog = appPage.getByTestId("worktree-bulk-remove-dialog");
-    await expect(dialog).toContainText("0 checkouts");
+    await expect(dialog).toContainText("2 missing records will be dismissed");
+    await expect(dialog).not.toContainText("will be removed through Git");
     // A new directory at the stale path is outside metadata cleanup authority.
     await mkdir(first.path, { recursive: true });
     const preserved = path.join(first.path, "keep.txt");
     await writeFile(preserved, "keep replacement files\n");
-    await dialog.getByRole("button", { name: "Remove selected", exact: true }).click();
-    await expect(dialog.getByRole("status")).toContainText("2 succeeded · 0 failed · 0 pending");
+    await dialog.getByRole("button", { name: "Remove 2 worktrees", exact: true }).click();
+    await expect(dialog.getByRole("status")).toContainText("2 of 2 done");
     expect(await readFile(preserved, "utf8")).toBe("keep replacement files\n");
     const listing = await listWorktrees(runtime, workspace.id, true);
     expect(listing.worktrees.some(row => row.id === first.id || row.id === second.id)).toBe(false);

@@ -405,9 +405,17 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 			t.Fatalf("json.Unmarshal(extension install) error = %v; stdout=%s", err, installOut)
 		}
 		if installed.Source != "marketplace" || strings.TrimSpace(installStderr) != "" {
-			t.Fatalf("extension install payload = %#v, stderr = %q, want marketplace and no lifecycle guidance", installed, installStderr)
+			t.Fatalf(
+				"extension install payload = %#v, stderr = %q, want marketplace and no lifecycle guidance",
+				installed,
+				installStderr,
+			)
 		}
-		if info := getInstalledExtension(t, env.homePaths, "integration-update-ext"); info.Source != extensionpkg.SourceMarketplace {
+		if info := getInstalledExtension(
+			t,
+			env.homePaths,
+			"integration-update-ext",
+		); info.Source != extensionpkg.SourceMarketplace {
 			t.Fatalf("installed source = %v, want marketplace", info.Source)
 		}
 

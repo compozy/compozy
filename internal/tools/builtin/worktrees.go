@@ -32,7 +32,7 @@ func worktreeDescriptors() []toolspkg.Descriptor {
 			"worktree_remove",
 			"Worktree Remove",
 			"Remove one worktree after authoritative dirty, commit, identity, and session checks; "+
-				"optionally delete its local branch.",
+				"optionally delete its local branch. Pass path instead of ref for a discovered checkout.",
 			worktreeRemoveInputSchema,
 			toolspkg.RiskDestructive,
 			false,
@@ -82,10 +82,13 @@ const worktreeCreateInputSchema = `{
 
 const worktreeRemoveInputSchema = `{
 	"type":"object",
-	"required":["ref"],
 	"properties":{
 		"workspace":{"type":"string"},
-		"ref":{"type":"string"},
+		"ref":{"type":"string","description":"Registered worktree ID or name. Required unless path is set."},
+		"path":{
+			"type":"string",
+			"description":"Discovered worktree path exactly as worktree_list reports it; replaces ref, keeps the branch."
+		},
 		"force":{
 			"type":"boolean",
 			"description":"Confirm destructive removal; with delete_branch, also delete an unmerged branch."

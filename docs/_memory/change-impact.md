@@ -49,6 +49,38 @@ operations are unchanged: pipe output remains available through read/wait. QA ow
 `ET-web-session-deep-link-isolation`, and `RT-worktree-web-missing-resolution`.
 Historical HTTP 500s remain under investigation; these changes do not suppress them.
 
+||||||| parent of e8a79c3ed (feat: remove discovered worktrees without adopting them)
+
+## Remove discovered worktrees without adoption — 2026-10-20
+
+Owner: `internal/worktree/remove_discovered.go` (`Service.RemoveDiscovered`). A Git-listed linked
+worktree with no registry row is removed by its listed path: stale entries only lose Git metadata;
+live checkouts reuse adoption identity checks and the dirty/unpushed refusals with a non-persisting
+status read, and branches are never touched. Registered paths refuse with the new
+`worktree_registered` code. Correction riding along: detached-HEAD removal risk compared
+`HEAD --not --all`, which includes every linked worktree's HEAD and hid unique commits (this also
+affected adopted detached worktrees); it now compares against branches, tags and remotes.
+
+- **Native tools:** `compozy__worktree_remove` gains optional `path` (replaces `ref`; rejects
+  `delete_branch`); `ref` is no longer schema-required but stays required in code unless `path`
+  is set. Catalog golden regenerated.
+- **CLI/HTTP/UDS:** `compozy worktree remove --path <path>`; `POST
+  /api/workspaces/{workspace_id}/worktrees/discovered/remove` `{path, force?, expect_stale?}` → 204
+  or the record removal 409 refusal payload; `expect_stale` refuses a checkout that reappeared with
+  `worktree_discovered_changed` (Web sends it for stale targets). Removed/dismissed tombstones no
+  longer claim their path in discovery or removal. OpenAPI and TS/Go clients regenerated.
+- **Extensibility and hooks:** `worktree.pre_remove` payload gains additive `discovered: true` with
+  an empty `worktree_id`/`origin`; stale entries skip the gate. No lifecycle event for discovered
+  removals (no record ID). No config key.
+- **Workspace data isolation:** the target must be listed by the workspace's own repository and
+  must not belong to any registry row; no profile ownership exists to cross.
+- **Official CompozyOS skill:** `references/worktrees.md` and `references/native-tools.md`.
+- **Web/Docs:** discovered rows offer Delete worktree… / Remove stale entry… and join batch
+  selection; single delete opens the batch dialog. Palette offers Remove for discovered rows. Site
+  `worktrees/removal-and-recovery.mdx` and `agent-surface.mdx`; generated CLI page.
+- **Compatibility:** additive public surface (SD-013); no shim, migration, or delete targets.
+  QA owners: `RT-worktree-cli-lifecycle`, `RT-worktree-api-surface-parity`,
+  `RT-worktree-web-removal-two-step`.
 ## Intel macOS release recovery — 2026-10-20
 
 Owner: `.github/workflows/release.yml`, release run `39431274097`. The production

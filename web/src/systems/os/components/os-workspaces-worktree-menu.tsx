@@ -134,6 +134,7 @@ export function OsWorkspacesWorktreeMenu({
         <>
           <WorktreeSelectionToolbar selection={selection} />
           <WorktreeCreationFooter
+            ruled={!selection.enabled}
             selectionMode={selection.mode}
             canCreate={canCreate}
             focusedRowKey={focusedRowKey}
@@ -194,9 +195,9 @@ function SelectableWorktreeRow({
       }}
     >
       <WorktreeNestRow
-        entry={{ ...entry, adoptable: false, inertReason: reason }}
+        entry={{ ...entry, adoptable: false }}
         userHomeDir={userHomeDir}
-        checked={selection.selectedIds.has(entry.key)}
+        selection={{ selected: selection.selectedIds.has(entry.key), reason }}
       />
     </button>
   );
@@ -257,8 +258,7 @@ function WorktreeMenuRows({
             actionsOpen={actionsKey === entry.key}
             onActionsOpenChange={open => setActionsKey(open ? entry.key : null)}
             onDelete={
-              // Delete stays gated to adopted, ready records — the remove
-              // flow's production gate; discovered rows have no record.
+              // Adopted ready records and discovered checkouts (by Git path).
               canRemoveWorktree(entry) ? () => onDeleteRow(entry) : undefined
             }
             registerRow={registerRow(entry.key)}
@@ -272,6 +272,7 @@ function WorktreeMenuRows({
 
 /** Activates creation locally so selection focus cannot trigger the outer navigation cursor. */
 function WorktreeCreationFooter({
+  ruled,
   selectionMode,
   canCreate,
   focusedRowKey,
@@ -279,13 +280,15 @@ function WorktreeCreationFooter({
   onCreate,
 }: Pick<OsWorkspacesWorktreeMenuProps, "canCreate" | "focusedRowKey" | "registerRow"> & {
   onCreate: (() => void) | undefined;
+  /** The selection toolbar opens with its own hairline; draw one only without it. */
+  ruled: boolean;
   selectionMode: boolean;
 }) {
   return (
     <>
       {canCreate ? (
         <>
-          <hr className="mx-1.5 my-1 h-px border-0 bg-line-soft" />
+          {ruled ? <hr className="mx-1.5 my-1 h-px border-0 bg-line-soft" /> : null}
           <div
             ref={registerRow(WORKSPACES_MENU_CREATE_KEY)}
             role="menuitem"
@@ -311,7 +314,7 @@ function WorktreeCreationFooter({
             <Plus aria-hidden="true" className="size-3.5 justify-self-center text-subtle" />
             <b
               className={cn(
-                "truncate text-form-label font-medium text-muted",
+                "truncate text-small-body font-normal text-muted",
                 "group-hover/wsov-foot:text-fg-strong",
                 focusedRowKey === WORKSPACES_MENU_CREATE_KEY && "text-fg-strong"
               )}

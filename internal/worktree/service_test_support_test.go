@@ -178,6 +178,17 @@ func (s *memoryWorktreeStore) GetByPath(_ context.Context, workspaceID, path str
 	return nil, ErrNotFound
 }
 
+func (s *memoryWorktreeStore) PathOwnedByAnyWorkspace(_ context.Context, path string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, item := range s.items {
+		if item.Path == path && item.State != StateRemoved && item.State != StateDismissed {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (s *memoryWorktreeStore) DeleteRunMaterialization(
 	_ context.Context,
 	workspaceID string,

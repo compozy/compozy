@@ -119,6 +119,7 @@ export type {
 export { reconcileWorktreeList, removeWorktreeFromList } from "./lib/worktree-list-reconciliation";
 export {
   canRemoveWorktree,
+  isStaleDiscovered,
   toWorktreeDisplayState,
   toWorktreeNestEntries,
 } from "./lib/worktree-display";

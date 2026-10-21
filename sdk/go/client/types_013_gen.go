@@ -75,6 +75,13 @@ type ReloadExtensionRequest struct {
 	ConfirmGatewayDigest string `json:"confirm_gateway_digest,omitempty"`
 }
 
+// RemoveDiscoveredWorktreeRequest is a daemon API value.
+type RemoveDiscoveredWorktreeRequest struct {
+	Path        string `json:"path"`
+	Force       bool   `json:"force,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
+}
+
 // RenameProfilePlan is a daemon API value.
 type RenameProfilePlan struct {
 	Revision          string             `json:"revision"`
@@ -425,22 +432,4 @@ type RoleStatusResponse struct {
 // RolesResponse is a daemon API value.
 type RolesResponse struct {
 	Roles []RoleStatus `json:"roles"`
-}
-
-// RosterNode is a daemon API value.
-type RosterNode struct {
-	Generation     int               `json:"generation"`
-	NodeID         NodeID            `json:"node_id"`
-	ItemIndex      int               `json:"item_index"`
-	State          NodeState         `json:"state"`
-	Attempt        int               `json:"attempt"`
-	Attempts       []NodeAttemptView `json:"attempts"`
-	NextRetryAt    *time.Time        `json:"next_retry_at,omitempty"`
-	ChildLoopRunID string            `json:"child_loop_run_id,omitempty"`
-	Cancellation   *NodeCancellation `json:"cancellation,omitzero"`
-	StartedAt      *time.Time        `json:"started_at,omitempty"`
-	EndedAt        *time.Time        `json:"ended_at,omitempty"`
-	SessionID      string            `json:"session_id,omitempty"`
-	CellTaskID     string            `json:"cell_task_id,omitempty"`
-	Usage          *NodeUsage        `json:"usage,omitzero"`
 }

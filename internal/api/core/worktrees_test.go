@@ -31,6 +31,7 @@ type worktreeServiceStub struct {
 	adopt          func(context.Context, string, string, string) (*worktree.Worktree, error)
 	listDetails    func(context.Context, string, bool) (*worktree.DetailedListing, error)
 	remove         func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	removeFound    func(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
 	deleteBranch   func(context.Context, string, string, bool) (worktree.BranchOutcome, error)
 	inspect        func(context.Context, string, string) (*worktree.Inspection, error)
 	exitPlan       func(context.Context, string, string) (*worktree.ExitPlan, error)
@@ -456,6 +457,18 @@ func (s worktreeServiceStub) CancelExitAction(
 	return fmt.Errorf("unexpected CancelExitAction call")
 }
 
+func (s worktreeServiceStub) RemoveDiscovered(
+	ctx context.Context,
+	workspaceID string,
+	path string,
+	options worktree.RemoveDiscoveredOptions,
+) (*worktree.RemovalRefusal, error) {
+	if s.removeFound == nil {
+		return nil, fmt.Errorf("unexpected RemoveDiscovered call")
+	}
+	return s.removeFound(ctx, workspaceID, path, options.Force)
+}
+
 func (s worktreeServiceStub) Remove(
 	ctx context.Context,
 	workspaceID string,
@@ -863,6 +876,8 @@ func TestWorktreeErrorCodes(t *testing.T) {
 			{worktree.ErrAdoptionMainCheckout, "adoption_main_checkout"},
 			{worktree.ErrAdoptionForeignRepo, "adoption_foreign_repository"},
 			{worktree.ErrAdoptionUnreadable, "adoption_unreadable"},
+			{worktree.ErrDiscoveredRegistered, "worktree_registered"},
+			{worktree.ErrDiscoveredChanged, "worktree_discovered_changed"},
 			{worktree.ErrOperationInProgress, "worktree_operation_in_progress"},
 			{worktree.ErrSessionActive, "worktree_session_active"},
 			{worktree.ErrStatusUnreadable, "worktree_status_unreadable"},
