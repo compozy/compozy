@@ -53,8 +53,8 @@ type Collector interface {
 type Intent string
 
 const (
-	IntentBackground Intent = "background" // scheduler, popover open, agents, app tokens, remote: no Keychain, honors cooldowns
-	IntentExplicit   Intent = "explicit"   // local operator Refresh/Allow/CLI refresh: may read Keychain, may bypass one cooldown
+	IntentBackground Intent = "background" // No Keychain reads; honors cooldowns.
+	IntentExplicit   Intent = "explicit"   // Local operator action; may read Keychain.
 )
 
 // Service is the daemon-owned read model.
@@ -75,4 +75,13 @@ type RefreshRequest struct {
 type Revision struct {
 	Revision uint64 `json:"revision"`
 	BootID   string `json:"boot_id"`
+}
+
+// PublicationValidator validates one-shot credentials without loading them again.
+type PublicationValidator interface {
+	ValidateIdentity(ctx context.Context, t Target, captured CredentialIdentity) error
+}
+
+type CredentialCache interface {
+	ClearCredentials(profileID string)
 }

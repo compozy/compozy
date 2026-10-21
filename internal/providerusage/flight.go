@@ -1,0 +1,180 @@
+package providerusage
+
+import (
+	"context"
+	"time"
+)
+
+func (s *Manager) runFlight(root context.Context, profile, id string, state *targetState, f *flight) {
+	defer s.wg.Done()
+	defer func() { s.mu.Lock(); defer s.mu.Unlock(); s.finishFlightLocked(profile, state, f) }()
+	timeout := 30 * time.Second
+	if id == codexProviderID {
+		timeout = 60 * time.Second
+	}
+	ctx, cancel := context.WithCancel(root)
+	defer cancel()
+	deadline := s.options.Clock.AfterFunc(timeout, cancel)
+	defer deadline.Stop()
+	intent := f.intent
+	for ctx.Err() == nil {
+		outcome, retry := s.collectOnce(ctx, profile, id, state, f, intent)
+		if retry {
+			continue
+		}
+		s.mu.Lock()
+		follow := intent == IntentBackground && f.explicit && explicitRecovery(outcome)
+		if follow {
+			intent = IntentExplicit
+			f.intent = IntentExplicit
+		}
+		if !follow {
+			s.finishFlightLocked(profile, state, f)
+		}
+		s.mu.Unlock()
+		if !follow {
+			return
+		}
+	}
+}
+
+func explicitRecovery(e *UsageError) bool {
+	if e == nil {
+		return false
+	}
+	switch e.Code {
+	case ErrorCodeKeychainConsentRequired,
+		ErrorCodeKeychainDenied,
+		ErrorCodeKeychainTokenExpired,
+		ErrorCodeAuthExpired,
+		ErrorCodeProviderRateLimited:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Manager) collectOnce(
+	ctx context.Context,
+	profile, id string,
+	state *targetState,
+	f *flight,
+	intent Intent,
+) (*UsageError, bool) {
+	s.mu.Lock()
+	if !s.currentLocked(profile, id, state) {
+		s.mu.Unlock()
+		return nil, false
+	}
+	target := state.target
+	epoch := state.epoch
+	collector := s.options.Collectors[id]
+	s.mu.Unlock()
+	started := s.options.Clock.Now()
+	identity, err := collector.Identity(ctx, target, intent)
+	s.mu.Lock()
+	if !s.currentLocked(profile, id, state) {
+		s.mu.Unlock()
+		return nil, false
+	}
+	if state.target.RouteFingerprint != target.RouteFingerprint || state.epoch != epoch {
+		s.mu.Unlock()
+		return nil, true
+	}
+	allowed, skippedOutcome := s.admitLocked(profile, id, state, f, intent, identity, err, started)
+	s.mu.Unlock()
+	if !allowed {
+		return skippedOutcome, false
+	}
+	known := identity != (CredentialIdentity{})
+	snapshot := Snapshot{}
+	if err == nil {
+		snapshot, err = collector.Collect(ctx, target, intent, identity)
+	}
+	var outcome *UsageError
+	if err != nil {
+		outcome = AsUsageError(err, target.ProviderName)
+	}
+	// A completed timeout still needs a bounded ownership check before publishing its error.
+	fenceCtx, fenceCancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer fenceCancel()
+	if ctx.Err() != nil && outcome == nil {
+		outcome = NewUsageError(ErrorCodeProviderUnavailable, target.ProviderName)
+	}
+	if resolveErr := s.resolve(fenceCtx, profile); resolveErr != nil {
+		return outcome, false
+	}
+	if known {
+		mismatch, validationErr := validatePublication(fenceCtx, collector, target, identity)
+		if mismatch {
+			s.discardOwnership(profile, id, state)
+			return outcome, true
+		}
+		if validationErr != nil && outcome == nil {
+			outcome = AsUsageError(validationErr, target.ProviderName)
+		}
+	}
+
+	s.mu.Lock()
+	if !s.currentLocked(profile, id, state) {
+		s.mu.Unlock()
+		return outcome, false
+	}
+	if state.target.RouteFingerprint != target.RouteFingerprint || state.epoch != epoch {
+		s.mu.Unlock()
+		return outcome, true
+	}
+	s.publishLocked(profile, id, state, target, identity, snapshot, outcome)
+	status := state.snapshot.Status
+	source := ""
+	if state.snapshot.Source != nil {
+		source = string(state.snapshot.Source.Kind)
+	}
+	s.mu.Unlock()
+	s.observeCollection(profile, id, source, status, intent, started, outcome)
+
+	return outcome, false
+}
+
+func (s *Manager) currentLocked(profile, id string, state *targetState) bool {
+	return s.enabled && !s.stopped && s.profiles[profile] != nil && s.profiles[profile].targets[id] == state &&
+		state.target.Status == ""
+}
+
+func (s *Manager) finishFlightLocked(profile string, state *targetState, f *flight) {
+	if state.flight != f {
+		return
+	}
+	state.flight = nil
+	if s.enabled && !s.stopped {
+		s.changedLocked(s.profileLocked(profile))
+	}
+	close(f.done)
+}
+
+func validatePublication(
+	ctx context.Context,
+	collector Collector,
+	target Target,
+	identity CredentialIdentity,
+) (bool, error) {
+	if validator, ok := collector.(PublicationValidator); ok {
+		err := validator.ValidateIdentity(ctx, target, identity)
+		return err != nil, err
+	}
+	current, err := collector.Identity(ctx, target, IntentBackground)
+	return !identity.Same(current), err
+}
+
+func (s *Manager) discardOwnership(profile, id string, state *targetState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.currentLocked(profile, id, state) {
+		return
+	}
+	state.snapshot = initialSnapshot(state.target, s.options.Collectors[id])
+	state.hasIdentity = false
+	state.lastSuccess = time.Time{}
+	state.cooldown = nil
+	s.changedLocked(s.profileLocked(profile))
+}

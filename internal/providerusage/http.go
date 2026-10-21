@@ -35,7 +35,13 @@ func NewHTTPClient(baseURL string, transport http.RoundTripper, now func() time.
 	}}
 }
 
-func (c *HTTPClient) Do(ctx context.Context, method, path string, headers http.Header, body io.Reader, provider string) ([]byte, error) {
+func (c *HTTPClient) Do(
+	ctx context.Context,
+	method, path string,
+	headers http.Header,
+	body io.Reader,
+	provider string,
+) ([]byte, error) {
 	endpoint, err := url.Parse(c.baseURL + path)
 	if err != nil {
 		return nil, NewUsageError(ErrorCodeNetworkError, provider)

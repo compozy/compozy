@@ -1,0 +1,33 @@
+#!/usr/bin/python3
+import json
+import os
+import sys
+
+home = os.environ['CODEX_HOME']
+with open(os.path.join(home, 'spawned'), 'w') as marker:
+    marker.write(str(os.getpid()))
+for line in sys.stdin:
+    request = json.loads(line)
+    method = request.get('method')
+    if method == 'initialized':
+        continue
+    if method == 'initialize':
+        if os.path.exists(os.path.join(home, 'exit')):
+            sys.exit(1)
+        if os.path.exists(os.path.join(home, 'block')):
+            sys.stdin.read()
+            sys.exit(0)
+        result = {}
+    elif method == 'account/read':
+        renewal = os.path.join(home, 'renewal.json')
+        if os.path.exists(renewal):
+            with open(renewal) as source:
+                replacement = source.read()
+            with open(os.path.join(home, 'auth.json'), 'w') as auth:
+                auth.write(replacement)
+        result = {'account': {'email': 'fixture@example.test', 'planType': 'pro'}}
+    elif method == 'account/rateLimits/read':
+        result = {'rateLimits': {'primary': {'usedPercent': 23, 'windowDurationMins': 300, 'resetsAt': 1761010920}, 'secondary': {'usedPercent': 72, 'windowDurationMins': 10080, 'resetsAt': 1761185400}, 'credits': {'hasCredits': True, 'unlimited': False, 'balance': '120'}, 'planType': 'pro'}}
+    else:
+        result = {}
+    print(json.dumps({'id': request.get('id'), 'result': result}), flush=True)

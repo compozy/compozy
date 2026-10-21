@@ -1,10 +1,10 @@
 package providerusage
 
 import (
-	"context"
-	"github.com/jonboulle/clockwork"
 	"log/slog"
 	"time"
+
+	"github.com/jonboulle/clockwork"
 )
 
 type Registry map[string]Collector
@@ -23,32 +23,4 @@ type Options struct {
 	ProviderOrder   []string
 	// Disabled defaults to false; Start owns scheduling for the supplied profiles.
 	Disabled bool
-}
-
-type Manager struct{ options Options }
-
-func NewService(options Options) *Manager {
-	if options.Clock == nil {
-		options.Clock = clockwork.NewRealClock()
-	}
-	if options.RefreshInterval == 0 {
-		options.RefreshInterval = 5 * time.Minute
-	}
-	if options.Logger == nil {
-		options.Logger = slog.Default()
-	}
-	return &Manager{options: options}
-}
-
-var _ Service = (*Manager)(nil)
-
-func (s *Manager) Envelope(_ context.Context, profile string) (Envelope, error) {
-	return Envelope{ProfileID: profile, Enabled: !s.options.Disabled, GeneratedAt: s.options.Clock.Now(), Targets: []Snapshot{}}, nil
-}
-func (s *Manager) Refresh(ctx context.Context, req RefreshRequest) (Envelope, error) {
-	return s.Envelope(ctx, req.ProfileID)
-}
-func (s *Manager) Subscribe(_ string) (<-chan Revision, func()) {
-	c := make(chan Revision)
-	return c, func() {}
 }

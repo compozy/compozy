@@ -1,0 +1,124 @@
+package providerusage
+
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"time"
+)
+
+func (s *Manager) admitLocked(
+	profile, id string,
+	state *targetState,
+	f *flight,
+	intent Intent,
+	identity CredentialIdentity,
+	err error,
+	started time.Time,
+) (bool, *UsageError) {
+	target := state.target
+	collector := s.options.Collectors[id]
+	known := identity != (CredentialIdentity{})
+	if state.hasIdentity &&
+		((known && !state.identity.Same(identity)) ||
+			(!known && err != nil && AsUsageError(err, id).Code == ErrorCodeAuthMissing)) {
+		state.snapshot = initialSnapshot(target, collector)
+		state.lastSuccess = time.Time{}
+		state.hasIdentity = false
+		state.cooldown = nil
+		s.changedLocked(s.profileLocked(profile))
+		s.options.Logger.Info("provider_usage.ownership_changed", "provider", id)
+	}
+	if err == nil && !state.lastSuccess.IsZero() && started.Sub(state.lastSuccess) < f.maxAge {
+		return false, nil
+	}
+	if err == nil && state.cooldown != nil && state.cooldown.identity.Same(identity) &&
+		started.Before(state.cooldown.until) {
+		if intent != IntentExplicit || state.cooldown.bypassed {
+			return false, RateLimited(target.ProviderName, state.cooldown.until)
+		}
+		state.cooldown.bypassed = true
+	}
+	return true, nil
+}
+
+func (s *Manager) publishLocked(
+	profile, id string,
+	state *targetState,
+	target Target,
+	identity CredentialIdentity,
+	snapshot Snapshot,
+	outcome *UsageError,
+) {
+	now := s.options.Clock.Now()
+	if outcome == nil {
+		snapshot.ProviderID = id
+		snapshot.ProviderName = target.ProviderName
+		snapshot.Status = StatusOK
+		snapshot.Error = nil
+		if snapshot.MeasuredAt == nil {
+			snapshot.MeasuredAt = &now
+		}
+		snapshot.CheckedAt = &now
+		next := now.Add(s.options.RefreshInterval)
+		snapshot.NextRefreshAt = &next
+		state.snapshot = cloneSnapshot(snapshot)
+		state.identity = identity
+		state.hasIdentity = true
+		state.lastSuccess = now
+		state.cooldown = nil
+	} else {
+		if state.hasIdentity && state.identity.Same(identity) && state.snapshot.MeasuredAt != nil {
+			state.snapshot.Status = StatusStale
+		} else {
+			state.snapshot = initialSnapshot(target, s.options.Collectors[id])
+			state.snapshot.Status = outcome.Status()
+		}
+		state.snapshot.Error = clonePointer(outcome)
+		state.snapshot.CheckedAt = &now
+		if outcome.Code == ErrorCodeProviderRateLimited {
+			until := now.Add(5 * time.Minute)
+			if outcome.RetryAfter != nil {
+				until = *outcome.RetryAfter
+			}
+			bypassed := state.cooldown != nil && state.cooldown.identity.Same(identity) && state.cooldown.bypassed
+			state.cooldown = &cooldown{identity: identity, until: until, bypassed: bypassed}
+			state.snapshot.NextRefreshAt = &until
+			s.options.Logger.Info("provider_usage.cooldown", "provider", id, "until", until)
+		}
+	}
+	s.changedLocked(s.profileLocked(profile))
+}
+
+func (s *Manager) observeCollection(
+	profile, id, source string,
+	status Status,
+	intent Intent,
+	started time.Time,
+	outcome *UsageError,
+) {
+	hash := sha256.Sum256([]byte(profile))
+	code := ErrorCode("")
+	if outcome != nil {
+		code = outcome.Code
+	}
+	s.options.Logger.Info(
+		"provider_usage.collect",
+		"provider",
+		id,
+		"profile_hash",
+		hex.EncodeToString(hash[:8]),
+		"source",
+		source,
+		"status",
+		status,
+		"intent",
+		intent,
+		"duration_ms",
+		s.options.Clock.Now().Sub(started).Milliseconds(),
+		"error_code",
+		code,
+	)
+	if s.options.Metrics != nil {
+		s.options.Metrics.Collect(id, status, s.options.Clock.Now().Sub(started))
+	}
+}

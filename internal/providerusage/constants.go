@@ -30,7 +30,7 @@ type SourceKind string
 const (
 	SourceKindCLIRPC      SourceKind = "cli_rpc"
 	SourceKindOAuthHTTP   SourceKind = "oauth_http"
-	SourceKindAPIKeyHTTP  SourceKind = "api_key_http"
+	SourceKindAPIKeyHTTP  SourceKind = "api_key_http" //nolint:gosec // Public source-kind identifier, not a credential.
 	SourceKindACPObserved SourceKind = "acp_observed"
 )
 
@@ -67,7 +67,7 @@ const (
 	ErrorCodeProfileNotFound         ErrorCode = "profile_not_found"
 	ErrorCodeProfileSessionConflict  ErrorCode = "profile_session_conflict"
 	ErrorCodeInvalidRequest          ErrorCode = "invalid_request"
-	ErrorCodeAppTokenRouteForbidden  ErrorCode = "app_token_route_forbidden"
+	ErrorCodeAppTokenRouteForbidden  ErrorCode = "app_token_route_forbidden" //nolint:gosec // Public error code.
 	ErrorCodeProviderNotFound        ErrorCode = "provider_not_found"
 	ErrorCodeProviderUsageDisabled   ErrorCode = "provider_usage_disabled"
 	ErrorCodeAuthMissing             ErrorCode = "auth_missing"

@@ -38,7 +38,11 @@ func TestFoundations(t *testing.T) {
 		b := NewCredentialIdentity(SourceKindOAuthHTTP, []byte("secret-two"), "private-account")
 		requireEqual(t, true, a.Same(b))
 		requireEqual(t, false, a.Digest == b.Digest)
-		requireEqual(t, false, a.Same(NewCredentialIdentity(SourceKindOAuthHTTP, []byte("secret-two"), "other-account")))
+		requireEqual(
+			t,
+			false,
+			a.Same(NewCredentialIdentity(SourceKindOAuthHTTP, []byte("secret-two"), "other-account")),
+		)
 		encoded, err := json.Marshal(a)
 		requireNoError(t, err)
 		requireEqual(t, `{}`, string(encoded))
@@ -52,7 +56,7 @@ func TestFoundations(t *testing.T) {
 		})
 		origin := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path == "/redirect" {
-				http.Redirect(w, r, foreign.URL, 302)
+				http.Redirect(w, r, foreign.URL, http.StatusFound)
 				return
 			}
 			_, err := w.Write([]byte(strings.Repeat("x", MaxResponseBytes+1)))
@@ -61,7 +65,14 @@ func TestFoundations(t *testing.T) {
 		client := NewHTTPClient(origin.URL, nil, fixtureClock(t).Now)
 		_, err := client.Do(t.Context(), "GET", "/large", nil, nil, "Codex")
 		requireEqual(t, ErrorCodeParseError, AsUsageError(err, "Codex").Code)
-		_, err = client.Do(t.Context(), "GET", "/redirect", http.Header{"Authorization": []string{"Bearer secret"}}, nil, "Codex")
+		_, err = client.Do(
+			t.Context(),
+			"GET",
+			"/redirect",
+			http.Header{"Authorization": []string{"Bearer secret"}},
+			nil,
+			"Codex",
+		)
 		requireEqual(t, ErrorCodeProviderUnavailable, AsUsageError(err, "Codex").Code)
 	})
 	t.Run("Should bound provider cooldowns", func(t *testing.T) {

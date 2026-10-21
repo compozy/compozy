@@ -3,78 +3,63 @@ package providerusage
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
-var _ error = (*UsageError)(nil)
+var _ error = (*UsageError)(nil) //nolint:errcheck // Compile-time interface assertion, not an error result.
 
 func (e *UsageError) Error() string { return e.Message }
 
+type errorDescription struct{ message, action string }
+
+var errorDescriptions = map[ErrorCode]errorDescription{
+	ErrorCodeAuthMissing: {message: "Sign in with %s to read usage", action: string(ActionSignIn)},
+	ErrorCodeAuthExpired: {message: "Run %s to refresh your login", action: string(ActionSignIn)},
+	ErrorCodeAuthScope: {
+		message: "This %s login can't read usage. Sign in with %s to enable it.",
+		action:  string(ActionSignIn),
+	},
+	ErrorCodeKeychainConsentRequired: {message: "Needs Keychain access", action: string(ActionAllowKeychain)},
+	ErrorCodeKeychainDenied:          {message: "Keychain access denied", action: string(ActionAllowKeychain)},
+	ErrorCodeKeychainTokenExpired:    {message: "Refresh to reload your Claude login", action: string(ActionRefresh)},
+	ErrorCodeProviderRateLimited:     {message: "Rate limited by %s", action: string(ActionRetry)},
+	ErrorCodeProviderUnavailable:     {message: "%s usage service is unavailable", action: string(ActionRetry)},
+	ErrorCodeNetworkError:            {message: "Couldn't reach %s", action: string(ActionRetry)},
+	ErrorCodeParseError:              {message: "Unexpected response from %s", action: string(ActionRetry)},
+	ErrorCodeNoCollector:             {message: "Usage not available for this provider", action: ""},
+	ErrorCodeNoPlan:                  {message: "No coding plan on this key", action: string(ActionConfigure)},
+	ErrorCodeAuthStoreUnsupported: {
+		message: "Codex keeps its login in the system keyring; usage needs cli_auth_credentials_store = \"file\"",
+		action:  string(ActionConfigure),
+	},
+	ErrorCodeDisabled: {message: "Turned off in settings", action: string(ActionConfigure)},
+	ErrorCodeProviderUsageDisabled: {
+		message: "provider usage is turned off",
+		action:  "compozy config set provider_usage.enabled true",
+	},
+	ErrorCodeProviderNotFound:       {message: "provider %q not found", action: "use a canonical provider ID"},
+	ErrorCodeProfileNotFound:        {message: "profile %q not found", action: "pick an existing profile"},
+	ErrorCodeProfileSessionConflict: {message: "profile does not match the session's profile", action: "omit profile"},
+	ErrorCodeAppTokenRouteForbidden: {
+		message: "route not available to this app token",
+		action:  "refresh from the shell or CLI",
+	},
+	ErrorCodeInvalidRequest: {message: "invalid provider usage request", action: "fix the argument"},
+}
+
 // NewUsageError never includes upstream error text or response bodies.
 func NewUsageError(code ErrorCode, provider string) *UsageError {
-	e := &UsageError{Code: code}
-	switch code {
-	case ErrorCodeAuthMissing:
-		e.Message = "Sign in with " + provider + " to read usage"
-		e.Action = string(ActionSignIn)
-	case ErrorCodeAuthExpired:
-		e.Message = "Run " + provider + " to refresh your login"
-		e.Action = string(ActionSignIn)
-	case ErrorCodeAuthScope:
-		e.Message = "This " + provider + " login can't read usage. Sign in with " + provider + " to enable it."
-		e.Action = string(ActionSignIn)
-	case ErrorCodeKeychainConsentRequired:
-		e.Message = "Needs Keychain access"
-		e.Action = string(ActionAllowKeychain)
-	case ErrorCodeKeychainDenied:
-		e.Message = "Keychain access denied"
-		e.Action = string(ActionAllowKeychain)
-	case ErrorCodeKeychainTokenExpired:
-		e.Message = "Refresh to reload your Claude login"
-		e.Action = string(ActionRefresh)
-	case ErrorCodeProviderRateLimited:
-		e.Message = "Rate limited by " + provider
-		e.Action = string(ActionRetry)
-	case ErrorCodeProviderUnavailable:
-		e.Message = provider + " usage service is unavailable"
-		e.Action = string(ActionRetry)
-	case ErrorCodeNetworkError:
-		e.Message = "Couldn't reach " + provider
-		e.Action = string(ActionRetry)
-	case ErrorCodeParseError:
-		e.Message = "Unexpected response from " + provider
-		e.Action = string(ActionRetry)
-	case ErrorCodeNoCollector:
-		e.Message = "Usage not available for this provider"
-	case ErrorCodeNoPlan:
-		e.Message = "No coding plan on this key"
-		e.Action = string(ActionConfigure)
-	case ErrorCodeAuthStoreUnsupported:
-		e.Message = "Codex keeps its login in the system keyring; usage needs cli_auth_credentials_store = \"file\""
-		e.Action = string(ActionConfigure)
-	case ErrorCodeDisabled:
-		e.Message = "Turned off in settings"
-		e.Action = string(ActionConfigure)
-	case ErrorCodeProviderUsageDisabled:
-		e.Message = "provider usage is turned off"
-		e.Action = "compozy config set provider_usage.enabled true"
-	case ErrorCodeProviderNotFound:
-		e.Message = fmt.Sprintf("provider %q not found", provider)
-		e.Action = "use a canonical provider ID"
-	case ErrorCodeProfileNotFound:
-		e.Message = fmt.Sprintf("profile %q not found", provider)
-		e.Action = "pick an existing profile"
-	case ErrorCodeProfileSessionConflict:
-		e.Message = "profile does not match the session's profile"
-		e.Action = "omit profile"
-	case ErrorCodeAppTokenRouteForbidden:
-		e.Message = "route not available to this app token"
-		e.Action = "refresh from the shell or CLI"
-	case ErrorCodeInvalidRequest:
-		e.Message = "invalid provider usage request"
-		e.Action = "fix the argument"
+	description := errorDescriptions[code]
+	message := description.message
+	if strings.Contains(message, "%") {
+		if strings.Count(message, "%s") == 2 {
+			message = fmt.Sprintf(message, provider, provider)
+		} else {
+			message = fmt.Sprintf(message, provider)
+		}
 	}
-	return e
+	return &UsageError{Code: code, Message: message, Action: description.action}
 }
 
 func RateLimited(provider string, until time.Time) *UsageError {
@@ -102,8 +87,7 @@ func (e *UsageError) Status() Status {
 }
 
 func AsUsageError(err error, provider string) *UsageError {
-	var usage *UsageError
-	if errors.As(err, &usage) {
+	if usage, ok := errors.AsType[*UsageError](err); ok {
 		return usage
 	}
 	return NewUsageError(ErrorCodeProviderUnavailable, provider)
