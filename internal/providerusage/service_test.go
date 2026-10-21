@@ -106,7 +106,12 @@ func TestUsageService(t *testing.T) {
 			requireEqual(t, StatusStale, stale.Status)
 			requireEqual(t, *first.MeasuredAt, *stale.MeasuredAt)
 			requireEqual(t, 42.0, *stale.Windows[0].UsedPercent)
-			requireEqual(t, string(ActionRefresh), stale.Error.Action)
+			action := ActionRefresh
+			if file {
+				action = ActionSignIn
+				requireEqual(t, "Run Claude to refresh your login", stale.Error.Message)
+			}
+			requireEqual(t, string(action), stale.Error.Action)
 			renewed := strings.Replace(
 				credential,
 				fmt.Sprint(oldExpiry),
@@ -485,10 +490,20 @@ func TestUsageScheduling(t *testing.T) {
 	for _, slow := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should recover a failed publication fence slow=%t", slow), func(t *testing.T) {
 			t.Parallel()
-			f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+			var upstream atomic.Int32
+			f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) {
+				n := upstream.Add(1)
+				writeFixture(
+					w,
+					t,
+					strings.Replace(codexHTTPFixture, `"used_percent":40`, fmt.Sprintf(`"used_percent":%d`, 40+n), 1),
+				)
+			})
+			first := refreshFixture(t, f, IntentBackground).Targets[0]
+			f.clock.Advance(time.Minute)
 			var resolves atomic.Int32
 			f.service.options.Resolver = usageResolverFunc(func(ctx context.Context, profile string) ([]Target, error) {
-				if resolves.Add(1) == 2 {
+				if n := resolves.Add(1); n == 2 || n == 3 {
 					if slow {
 						<-ctx.Done()
 					}
@@ -504,22 +519,34 @@ func TestUsageScheduling(t *testing.T) {
 			requireNoError(t, err)
 			select {
 			case status := <-metrics:
-				requireEqual(t, StatusError, status)
+				requireEqual(t, StatusStale, status)
 			case <-time.After(3 * time.Second):
 				t.Fatal("fence failure emitted no collection metric")
 			}
 			row := f.service.cached("personal").Targets[0]
-			requireEqual(t, StatusError, row.Status)
+			requireEqual(t, StatusStale, row.Status)
 			requireEqual(t, ErrorCodeProviderUnavailable, row.Error.Code)
-			requireEqual(t, 0, len(row.Windows))
+			requireEqual(t, *first.MeasuredAt, *row.MeasuredAt)
+			requireEqual(t, *first.Windows[0].UsedPercent, *row.Windows[0].UsedPercent)
+			requireEqual(t, string(ActionRetry), row.Error.Action)
 			if !strings.Contains(logs.String(), "provider_unavailable") ||
 				strings.Contains(logs.String(), "private resolver detail") {
 				t.Fatal("missing or unsafe fence diagnostic")
 			}
 			f.clock.Advance(5 * time.Second)
+			select {
+			case status := <-metrics:
+				requireEqual(t, StatusStale, status)
+			case <-time.After(3 * time.Second):
+				t.Fatal("fence retry did not run")
+			}
+			requireEqual(t, int32(2), upstream.Load())
+			f.clock.Advance(5 * time.Second)
 			env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal", Wait: 15 * time.Second})
 			requireNoError(t, err)
 			requireEqual(t, StatusOK, env.Targets[0].Status)
+			requireEqual(t, 42.0, *env.Targets[0].Windows[0].UsedPercent)
+			requireEqual(t, int32(2), upstream.Load())
 		})
 	}
 	t.Run("Should apply interval bounds and recompute snapshot freshness", func(t *testing.T) {
@@ -676,6 +703,42 @@ func TestUsageScheduling(t *testing.T) {
 }
 
 func TestUsageFenceAndWait(t *testing.T) {
+	t.Run("Should return disabled reads before canceled transport cleanup", func(t *testing.T) {
+		t.Parallel()
+		entered, release := make(chan struct{}), make(chan struct{})
+		f := usageFixture(
+			t,
+			func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusInternalServerError) },
+		)
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		f.service.options.Collectors[codexProviderID] = NewCodexCollector(
+			CodexOptions{
+				Now: f.clock.Now,
+				Transport: codexFixtureTransport(func(r *http.Request) (*http.Response, error) {
+					close(entered)
+					<-r.Context().Done()
+					<-release
+					return nil, r.Context().Err()
+				}),
+			},
+		)
+		_, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"})
+		requireNoError(t, err)
+		<-entered
+		f.target.Status = StatusDisabled
+		f.catalog.Replace("personal", []Target{f.target})
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+		env, err := f.service.Envelope(ctx, "personal")
+		requireNoError(t, err)
+		requireEqual(t, StatusDisabled, env.Targets[0].Status)
+		requireEqual(t, false, env.Targets[0].Refreshing)
+		_, err = f.service.Refresh(ctx, RefreshRequest{ProfileID: "personal"})
+		requireNoError(t, err)
+		once.Do(func() { close(release) })
+		requireNoError(t, f.service.Start(t.Context(), []string{"personal"}))
+	})
 	t.Run("Should reject replaced bound keys before publication Astra", func(t *testing.T) {
 		var calls atomic.Int32
 		entered, release := make(chan struct{}), make(chan struct{})

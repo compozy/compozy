@@ -18,7 +18,11 @@ func (s *Manager) Start(ctx context.Context, profileIDs []string) error {
 		return err
 	}
 	for _, profile := range profileIDs {
-		if err := s.resolve(ctx, profile); err != nil {
+		canceled, err := s.resolveTargets(ctx, profile, nil)
+		if err != nil {
+			return err
+		}
+		if err := joinFlights(ctx, canceled); err != nil {
 			return err
 		}
 	}
@@ -249,13 +253,10 @@ func (s *Manager) SetRefreshInterval(interval time.Duration) {
 	}
 }
 
-// resolve joins only flights canceled by target reconciliation, with bounded cleanup.
+// resolve cancels ineligible flights without making readers wait for their cleanup.
 func (s *Manager) resolve(ctx context.Context, profile string) error {
-	canceled, err := s.resolveTargets(ctx, profile, nil)
-	if err != nil || len(canceled) == 0 {
-		return err
-	}
-	return joinFlights(ctx, canceled)
+	_, err := s.resolveTargets(ctx, profile, nil)
+	return err
 }
 
 func joinFlights(ctx context.Context, canceled []*flight) error {

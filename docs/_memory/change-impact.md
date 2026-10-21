@@ -3987,10 +3987,14 @@ promotes it.
   token stays in memory, bound to Claude's account evidence, and is dropped on re-login, logout, consent
   revocation, or indeterminate evidence. A missing Keychain item reports `signed_out` (`auth_missing`);
   only a real OS denial reports `keychain_denied`, retained until another explicit action. Expired Claude
-  credentials retain owner evidence and same-owner last-good values as stale with a refresh action. Bound-key
+  credentials retain owner evidence and same-owner last-good values as stale; Keychain expiry offers refresh,
+  while file expiry directs the operator to sign in through Claude. Bound-key
   replacements are checked against freshly resolved secrets without adding secrets to public fingerprints.
   Removed targets cancel only their own flights; deleted profiles close subscriptions and clear credentials.
-  A failed publication fence emits a sanitized error and retries within the flight deadline.
+  A failed publication fence retains same-owner last-good values and retries only publication checks within
+  the flight deadline, without repeating the upstream collection. Reads cancel ineligible flights without
+  waiting for cleanup; lifecycle reconciliation and shutdown own bounded joins. Explicit official ChatGPT
+  origins normalize to the backend API before selecting the Codex usage path.
 - **Official CompozyOS skill:** `skills/compozy/SKILL.md` router row; `references/native-tools.md` (two
   tools), `references/runtime-operations.md` §Provider Usage (verbs, routes, intent, statuses and recovery),
   `references/configuration.md` §Provider Usage (keys, scope, settings route).

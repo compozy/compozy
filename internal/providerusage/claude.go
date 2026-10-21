@@ -62,6 +62,11 @@ func WithClaudeClock(now func() time.Time) ClaudeOption {
 func WithClaudeKeychain(reader KeychainReader) ClaudeOption {
 	return func(c *ClaudeCollector) { c.keychain = reader }
 }
+
+// WithClaudePlatform overrides the host platform for collectors with an injected Keychain reader.
+func WithClaudePlatform(platform string) ClaudeOption {
+	return func(c *ClaudeCollector) { c.platform = platform }
+}
 func (*ClaudeCollector) ProviderID() string { return claudeProviderID }
 
 func (c *ClaudeCollector) ClearCredentials(profileID string) {

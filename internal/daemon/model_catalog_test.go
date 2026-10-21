@@ -2794,9 +2794,6 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 			fmt.Sprintf("Should apply consent only for a local selected profile IT004 IT005 remote=%t", remote),
 			func(t *testing.T) {
 				t.Parallel()
-				if !providerusage.KeychainSupported() {
-					t.Skip("Claude Keychain collection requires a macOS host")
-				}
 				reader := usageConsentKeychain{reads: make(chan string, 2)}
 				catalog := &providerusage.TargetCatalog{}
 				for _, id := range []string{store.DefaultProfileID, "work-id"} {
@@ -2811,7 +2808,10 @@ func TestProviderUsageConsentProfile(t *testing.T) {
 				manager := providerusage.NewService(providerusage.Options{
 					Resolver: catalog,
 					Collectors: providerusage.Registry{
-						"claude": providerusage.NewClaudeCollector(providerusage.WithClaudeKeychain(reader)),
+						"claude": providerusage.NewClaudeCollector(
+							providerusage.WithClaudeKeychain(reader),
+							providerusage.WithClaudePlatform("darwin"),
+						),
 					},
 				})
 				defer func() {

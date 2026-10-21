@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -142,14 +143,7 @@ func (c *CodexCollector) Collect(
 	if base == "" {
 		base = config.BaseURL
 	}
-	if base == "" {
-		base = "https://chatgpt.com/backend-api"
-	}
-	base = strings.TrimRight(base, "/")
-	usagePath := "/api/codex/usage"
-	if strings.HasSuffix(base, "/backend-api") {
-		usagePath = "/wham/usage"
-	}
+	base, usagePath := codexUsageEndpoint(base)
 	headers := http.Header{
 		headerAuthorization: []string{"Bearer " + auth.Tokens.AccessToken},
 		headerAccept:        []string{collectorJSONType},
@@ -171,4 +165,24 @@ func (c *CodexCollector) Collect(
 func tokenExpired(token string, now time.Time) bool {
 	claims, err := readCollectorClaims(token)
 	return err != nil || claims.Expiry == 0 || !now.Add(5*time.Minute).Before(time.Unix(claims.Expiry, 0))
+}
+
+func codexUsageEndpoint(base string) (string, string) {
+	if base == "" {
+		base = "https://chatgpt.com/backend-api"
+	}
+	base = strings.TrimRight(base, "/")
+	origin, err := url.Parse(base)
+	if err == nil && origin.Scheme == "https" && (origin.Host == "chatgpt.com" || origin.Host == "chat.openai.com") &&
+		origin.Path == "" &&
+		origin.RawQuery == "" &&
+		origin.Fragment == "" &&
+		origin.User == nil {
+		origin.Path = "/backend-api"
+		base = origin.String()
+	}
+	if strings.HasSuffix(base, "/backend-api") {
+		return base, "/wham/usage"
+	}
+	return base, "/api/codex/usage"
 }

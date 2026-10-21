@@ -131,36 +131,61 @@ func (s *Manager) observeCollection(
 	}
 }
 
-// retryFence exposes only a sanitized failure while ownership is unknown. The
-// existing flight retries promptly, bounded by its original cancellation budget.
+// resolvePublication retries reconciliation of the captured result, never collection.
+func (s *Manager) resolvePublication(
+	ctx context.Context,
+	profile, id string,
+	state *targetState,
+	epoch uint64,
+	identity CredentialIdentity,
+	intent Intent,
+	started time.Time,
+) *UsageError {
+	outcome := NewUsageError(ErrorCodeProviderUnavailable, id)
+	outcome.Message = "Usage could not be verified; retry shortly"
+	for {
+		fenceCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+		_, err := s.resolveTargets(fenceCtx, profile, state)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		if !s.retryFence(ctx, profile, id, state, epoch, identity, intent, started, outcome) {
+			return outcome
+		}
+	}
+}
+
+// retryFence retains same-owner last-good data while awaiting a fresh ownership check.
+// It never publishes the newly collected data until reconciliation succeeds.
 func (s *Manager) retryFence(
 	ctx context.Context,
 	profile, id string,
 	state *targetState,
 	epoch uint64,
+	identity CredentialIdentity,
 	intent Intent,
 	started time.Time,
-) (*UsageError, bool) {
-	outcome := NewUsageError(ErrorCodeProviderUnavailable, id)
+	outcome *UsageError,
+) bool {
 	s.mu.Lock()
 	if !s.currentLocked(profile, id, state) || state.epoch != epoch {
 		s.mu.Unlock()
-		return outcome, true
+		return false
 	}
-	s.publishLocked(profile, id, state, state.target, CredentialIdentity{}, Snapshot{}, outcome)
-	state.lastSuccess = time.Time{}
-	state.cooldown = nil
+	s.publishLocked(profile, id, state, state.target, identity, Snapshot{}, outcome)
+	status := state.snapshot.Status
 	next := s.options.Clock.Now().Add(5 * time.Second)
 	state.snapshot.NextRefreshAt = &next
 	timer := s.options.Clock.NewTimer(5 * time.Second)
 	s.mu.Unlock()
 	defer timer.Stop()
-	s.observeCollection(profile, id, "", StatusError, intent, started, outcome)
+	s.observeCollection(profile, id, "", status, intent, started, outcome)
 	select {
 	case <-ctx.Done():
-		return outcome, false
+		return false
 	case <-timer.Chan():
-		return outcome, true
+		return true
 	}
 }
 

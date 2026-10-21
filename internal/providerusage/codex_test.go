@@ -89,6 +89,10 @@ func TestCodexCollector(t *testing.T) {
 		{"Should normalize the backend API trailing slash", "/backend-api/", "/backend-api/wham/usage"},
 		{"Should honor a Codex API proxy prefix", "/proxy", "/proxy/api/codex/usage"},
 		{"Should honor a Codex API origin", "", "/api/codex/usage"},
+		{"Should normalize the ChatGPT origin", "https://chatgpt.com", "/backend-api/wham/usage"},
+		{"Should normalize the ChatGPT origin trailing slash", "https://chatgpt.com/", "/backend-api/wham/usage"},
+		{"Should normalize the original ChatGPT origin", "https://chat.openai.com", "/backend-api/wham/usage"},
+		{"Should normalize the original ChatGPT origin trailing slash", "https://chat.openai.com/", "/backend-api/wham/usage"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -102,9 +106,20 @@ func TestCodexCollector(t *testing.T) {
 				}
 				writeFixture(w, t, codexHTTPFixture)
 			})
-			config := fmt.Sprintf("chatgpt_base_url = %q\n", server.URL+tc.base)
+			base := tc.base
+			if !strings.HasPrefix(base, "https://") {
+				base = server.URL + base
+			}
+			local, err := url.Parse(server.URL)
+			requireNoError(t, err)
+			transport := codexFixtureTransport(func(r *http.Request) (*http.Response, error) {
+				request := r.Clone(r.Context())
+				request.URL.Scheme, request.URL.Host = local.Scheme, local.Host
+				return http.DefaultTransport.RoundTrip(request)
+			})
+			config := fmt.Sprintf("chatgpt_base_url = %q\n", base)
 			requireNoError(t, os.WriteFile(filepath.Join(codexHome(target), "config.toml"), []byte(config), 0o600))
-			_, err := collectFixture(t, NewCodexCollector(CodexOptions{Now: clock.Now}), target)
+			_, err = collectFixture(t, NewCodexCollector(CodexOptions{Now: clock.Now, Transport: transport}), target)
 			requireNoError(t, err)
 		})
 	}

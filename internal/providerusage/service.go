@@ -226,7 +226,7 @@ func (s *Manager) envelopeLocked(profile string) Envelope {
 			s.changedLocked(p)
 		}
 		snapshot := cloneSnapshot(row.snapshot)
-		snapshot.Refreshing = row.flight != nil
+		snapshot.Refreshing = row.flight != nil && row.target.Status == ""
 		result.Targets = append(result.Targets, snapshot)
 	}
 	result.Revision = p.revision

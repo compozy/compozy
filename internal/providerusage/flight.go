@@ -93,15 +93,15 @@ func (s *Manager) collectOnce(
 	if err != nil {
 		outcome = AsUsageError(err, target.ProviderName)
 	}
-	// A completed timeout still needs a bounded ownership check before publishing its error.
-	fenceCtx, fenceCancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
-	defer fenceCancel()
 	if ctx.Err() != nil && outcome == nil {
 		outcome = NewUsageError(ErrorCodeProviderUnavailable, target.ProviderName)
 	}
-	if _, resolveErr := s.resolveTargets(fenceCtx, profile, state); resolveErr != nil {
-		return s.retryFence(ctx, profile, id, state, epoch, intent, started)
+	if err := s.resolvePublication(ctx, profile, id, state, epoch, identity, intent, started); err != nil {
+		return err, false
 	}
+	// A completed timeout still needs a bounded ownership check before publishing its error.
+	fenceCtx, fenceCancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	defer fenceCancel()
 	currentTarget, valid := s.fenceTarget(profile, id, state, epoch)
 	if !valid {
 		return outcome, true

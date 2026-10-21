@@ -35,11 +35,10 @@ type claudeRead struct{ cancel context.CancelFunc }
 func (r *claudeCredential) expire() { clear(r.token); r.token = nil; r.expired = true }
 
 func claudeExpiryError(keychain bool) *UsageError {
-	err := NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
-	if !keychain {
-		err.Code = ErrorCodeAuthExpired
+	if keychain {
+		return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 	}
-	return err
+	return NewUsageError(ErrorCodeAuthExpired, "Claude")
 }
 
 type claudeOAuthFile struct {
