@@ -63,7 +63,7 @@ export interface UseProviderUsageActionsOptions {
   /**
    * Saves `provider_usage.providers.claude.keychain_access = true` through the
    * settings apply lifecycle. The OS layer owns settings, so it supplies this
-   * and reports a failed save itself; a rejected save sends no refresh.
+   * and reports a failed save itself. The daemon owns the consent collection.
    */
   allowKeychain?: (providerId: string) => Promise<void>;
   /**
@@ -89,6 +89,7 @@ export function useProviderUsageActions(
   profile: string,
   { allowKeychain, configure }: UseProviderUsageActionsOptions = {}
 ): ProviderUsageActions {
+  const queryClient = useQueryClient();
   const all = useRefreshProviderUsage(profile);
   const row = useRefreshProviderUsage(profile);
   const rowPending = row.isPending ? (row.variables?.providerIds ?? []) : [];
@@ -100,8 +101,15 @@ export function useProviderUsageActions(
         return;
       }
       const explicit = () => row.mutate({ intent: "explicit", providerIds: [providerId] });
-      if (action === "allow_keychain" && allowKeychain) {
-        void allowKeychain(providerId).then(explicit, () => undefined);
+      if (action === "allow_keychain") {
+        void allowKeychain?.(providerId).then(
+          () =>
+            queryClient.invalidateQueries({
+              queryKey: providerUsageKeys.envelope(profile.trim()),
+              exact: true,
+            }),
+          () => undefined
+        );
         return;
       }
       explicit();

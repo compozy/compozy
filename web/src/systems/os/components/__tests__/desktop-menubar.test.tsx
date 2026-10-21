@@ -384,7 +384,7 @@ describe("DesktopMenubar provider usage control", () => {
     }
   );
 
-  it("Should save Keychain consent and refresh for the active profile, not default", async () => {
+  it("Should save Keychain consent for the active profile without a duplicate refresh", async () => {
     const user = userEvent.setup();
     const consent = usageEnvelope(
       [codexOkTarget(NOW), statusTargets(NOW).needsConsent],
@@ -448,14 +448,10 @@ describe("DesktopMenubar provider usage control", () => {
         .mocked(globalThis.fetch)
         .mock.calls.map(([input]) => input as Request)
         .filter(request => request.method !== "GET");
-    await waitFor(() => expect(requests()).toHaveLength(2));
-    const [save, refresh] = requests();
+    await waitFor(() => expect(requests()).toHaveLength(1));
+    const [save] = requests();
     expect(save?.method).toBe("PATCH");
     expect(new URL(save?.url ?? "").searchParams.get("collection_profile")).toBe("work");
-    expect(await refresh?.clone().json()).toEqual({
-      profile: "work",
-      intent: "explicit",
-      provider_ids: ["claude"],
-    });
+    expect(usageRequests().filter(request => request.method === "POST")).toHaveLength(0);
   });
 });

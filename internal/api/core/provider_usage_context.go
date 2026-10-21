@@ -21,18 +21,7 @@ func ProviderUsageConsentProfile(ctx context.Context) (string, bool) {
 }
 
 func (h *BaseHandlers) settingsMutationContext(c *gin.Context) context.Context {
-	ctx := settingspkg.WithMutationSource(c.Request.Context(), h.TransportName)
-	if providerUsageIntent(c, providerusage.IntentExplicit) != providerusage.IntentExplicit {
-		return ctx
-	}
-	if _, valid := ProviderUsageConsentProfile(ctx); valid {
-		return ctx
-	}
-	scope, err := h.resolveProfileReadScope(c)
-	if err != nil || scope.AllProfiles {
-		return ctx
-	}
-	return context.WithValue(ctx, providerUsageConsentKey{}, scope.ProfileID)
+	return settingspkg.WithMutationSource(c.Request.Context(), h.TransportName)
 }
 
 // prepareProviderUsageConsent validates collection identity independently of settings scope.

@@ -32,7 +32,7 @@ func (s *Manager) Start(ctx context.Context, profileIDs []string) error {
 		return nil
 	}
 	s.started = true
-	s.startScheduleLocked(ctx)
+	s.startScheduleLocked(context.WithoutCancel(ctx))
 	return nil
 }
 

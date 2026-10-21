@@ -346,6 +346,10 @@ func TestCollectorBoundaries(t *testing.T) {
 		code                 ErrorCode
 		check                func(*testing.T, Snapshot)
 	}{
+		{"unknown Cursor total from partial percentages", "cursor", "/api/usage-summary", `{"individualUsage":{"plan":{"autoPercentUsed":100,"apiPercentUsed":0}}}`, "", func(t *testing.T, s Snapshot) {
+			t.Helper()
+			requireEqual(t, (*float64)(nil), s.Windows[0].UsedPercent)
+		}},
 		{"no z.ai plan", "zai", "/api/monitor/usage/quota/limit", `{"success":true,"code":200,"data":{}}`, ErrorCodeNoPlan, nil},
 		{"uncapped Cursor spend", "cursor", "/api/usage-summary", `{"individualUsage":{"onDemand":{"used":0}}}`, "", func(t *testing.T, s Snapshot) {
 			t.Helper()

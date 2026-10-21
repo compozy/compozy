@@ -24,7 +24,14 @@ func (s *service) deleteProvider(name string) (MutationResult, error) {
 			if !editor.HasPath(path) {
 				return notFoundError(fmt.Errorf("settings: provider %q overlay not found", name))
 			}
-			return editor.Delete(path)
+			if err := editor.Delete(path); err != nil {
+				return err
+			}
+			usagePath := []string{compozyconfig.ProviderUsageConfigKey, string(CollectionProviders), name}
+			if _, builtin := compozyconfig.BuiltinProviders()[name]; !builtin && editor.HasPath(usagePath) {
+				return editor.Delete(usagePath)
+			}
+			return nil
 		},
 	); err != nil {
 		return MutationResult{}, fmt.Errorf("settings: delete provider %q: %w", name, err)

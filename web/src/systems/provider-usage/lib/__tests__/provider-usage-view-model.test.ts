@@ -220,6 +220,10 @@ describe("describeProviderUsageStatus (UT-063)", () => {
     expect(presentation?.action?.label ?? null).toBe(actionLabel);
   });
 
+  it("Should retry denied Keychain access without saving consent again", () => {
+    expect(describeProviderUsageStatus(status.keychainDenied, mac)?.action?.kind).toBe("retry");
+  });
+
   it("Should keep unsupported and disabled rows text only", () => {
     expect(describeProviderUsageStatus(status.unsupported, mac)?.tone).toBeNull();
     expect(describeProviderUsageStatus(status.disabled, mac)?.tone).toBeNull();

@@ -66,6 +66,80 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	t.Run("Should discard a changed file login on read and collect the replacement", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		f := usageFixture(t, func(w http.ResponseWriter, r *http.Request) {
+			if calls.Add(1) > 1 {
+				requireEqual(t, "account-b", r.Header.Get("ChatGPT-Account-Id"))
+				close(entered)
+				<-release
+			}
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+		_, err := f.service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		path := filepath.Join(codexHome(f.target), "auth.json")
+		stat, err := os.Stat(path)
+		requireNoError(t, err)
+		requireNoError(
+			t,
+			os.WriteFile(path+".new", []byte(fixtureAuth(t, "account-b", f.clock.Now().Add(24*time.Hour))), 0o600),
+		)
+		requireNoError(t, os.Chtimes(path+".new", stat.ModTime(), stat.ModTime()))
+		requireNoError(t, os.Rename(path+".new", path))
+		env, err := f.service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		requireEqual(t, StatusRefreshing, env.Targets[0].Status)
+		requireEqual(t, 0, len(env.Targets[0].Windows))
+		requireEqual(t, (*Account)(nil), env.Targets[0].Account)
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("replacement collection was not scheduled")
+		}
+		once.Do(func() { close(release) })
+		requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+	})
+
+	for _, mutation := range []string{"logout", "malformed", "keyring"} {
+		t.Run("Should discard last good on read after "+mutation, func(t *testing.T) {
+			t.Parallel()
+			f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+			requireEqual(t, StatusOK, refreshFixture(t, f, IntentBackground).Targets[0].Status)
+			before, err := f.service.Envelope(t.Context(), "personal")
+			requireNoError(t, err)
+			unchanged, err := f.service.Envelope(t.Context(), "personal")
+			requireNoError(t, err)
+			requireEqual(t, before.Revision, unchanged.Revision)
+			path := filepath.Join(codexHome(f.target), "auth.json")
+			switch mutation {
+			case "logout":
+				requireNoError(t, os.Remove(path))
+			case "malformed":
+				requireNoError(t, os.WriteFile(path, []byte("{"), 0o600))
+			case "keyring":
+				requireNoError(
+					t,
+					os.WriteFile(
+						filepath.Join(codexHome(f.target), "config.toml"),
+						[]byte(`cli_auth_credentials_store = "keyring"`),
+						0o600,
+					),
+				)
+			}
+			env, err := f.service.Envelope(t.Context(), "personal")
+			requireNoError(t, err)
+			requireEqual(t, StatusRefreshing, env.Targets[0].Status)
+			requireEqual(t, 0, len(env.Targets[0].Windows))
+			requireEqual(t, (*Account)(nil), env.Targets[0].Account)
+		})
+	}
+
 	for _, file := range []bool{false, true} {
 		name := "Should retain same owner Claude Keychain data after expiry UT083"
 		if file {
@@ -645,7 +719,9 @@ func TestUsageScheduling(t *testing.T) {
 			writeFixture(w, t, codexHTTPFixture)
 			requests <- struct{}{}
 		})
-		requireNoError(t, f.service.Start(t.Context(), []string{"personal"}))
+		startCtx, stopStart := context.WithCancel(t.Context())
+		requireNoError(t, f.service.Start(startCtx, []string{"personal"}))
+		stopStart()
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 		requireNoError(t, f.clock.BlockUntilContext(ctx, 1))

@@ -228,7 +228,7 @@ func TestClaudeKeychain(t *testing.T) {
 		defer cancel()
 		select {
 		case err := <-background:
-			requireEqual(t, ErrorCodeKeychainConsentRequired, AsUsageError(err, "Claude").Code)
+			requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
 		case <-ctx.Done():
 			t.Fatal("another profile blocked behind the Keychain prompt")
 		}
@@ -242,7 +242,7 @@ func TestClaudeKeychain(t *testing.T) {
 			t.Fatal("revoked prompt was not canceled")
 		}
 		_, err := collector.Identity(t.Context(), target, IntentBackground)
-		requireEqual(t, ErrorCodeKeychainConsentRequired, AsUsageError(err, "Claude").Code)
+		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
 	})
 
 	t.Run("Should report a missing Keychain login as signed out", func(t *testing.T) {
@@ -255,7 +255,7 @@ func TestClaudeKeychain(t *testing.T) {
 		outcome := AsUsageError(err, "Claude")
 		requireEqual(t, ErrorCodeAuthMissing, outcome.Code)
 		requireEqual(t, StatusSignedOut, outcome.Status())
-		requireEqual(t, "Sign in with claude to read usage", outcome.Message)
+		requireEqual(t, "Sign in with Claude to read usage", outcome.Message)
 		requireEqual(t, string(ActionSignIn), outcome.Action)
 		requireEqual(t, int32(1), reader.calls.Load())
 	})
@@ -305,7 +305,7 @@ func TestClaudeKeychain(t *testing.T) {
 			calls          int32
 		}{
 			{"Should require consent", "darwin", false, IntentExplicit, false, ErrorCodeKeychainConsentRequired, 0},
-			{"Should never read on background", "darwin", true, IntentBackground, false, ErrorCodeKeychainConsentRequired, 0},
+			{"Should request refresh after restart without reading the Keychain", "darwin", true, IntentBackground, false, ErrorCodeKeychainTokenExpired, 0},
 			{"Should sanitize denied reader", "darwin", true, IntentExplicit, true, ErrorCodeKeychainDenied, 1},
 			{"Should not read on Linux", "linux", true, IntentExplicit, false, ErrorCodeAuthMissing, 0},
 		} {
@@ -517,7 +517,7 @@ func TestClaudeIsolation(t *testing.T) {
 		other := target
 		other.ProfileID = "other"
 		_, err = c.Identity(t.Context(), other, IntentBackground)
-		requireEqual(t, ErrorCodeKeychainConsentRequired, AsUsageError(err, "Claude").Code)
+		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)
 		requireNoError(t, os.WriteFile(filepath.Join(dir, ".credentials.json"), []byte(credential), 0o600))
 		err = c.ValidateIdentity(t.Context(), target, identity)
 		requireEqual(t, ErrorCodeKeychainTokenExpired, AsUsageError(err, "Claude").Code)

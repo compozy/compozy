@@ -18,17 +18,79 @@ import (
 )
 
 func TestDaemonProfileEventRecorder(t *testing.T) {
+	t.Run("Should reconcile usage asynchronously with bounded resolution and joined shutdown", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		entered := make(chan context.Context, 2)
+		cfg := testConfig(t, testHomePaths(t))
+		provider := compozyconfig.BuiltinProviders()["openrouter"]
+		provider.CredentialSlots[0].SecretRef = "env:USAGE_TEST_KEY"
+		cfg.Providers = map[string]compozyconfig.ProviderConfig{"openrouter": provider}
+		resolver := &providerUsageResolver{
+			cfg:     cfg,
+			home:    testHomePaths(t),
+			baseEnv: []string{"HOME=" + t.TempDir()},
+			collectors: providerusage.Registry{
+				"openrouter": providerusage.NewOpenRouterCollector(),
+			},
+			secrets: usageBlockedSecretResolver{entered: entered},
+		}
+		runtime := &providerUsageRuntime{
+			resolver: resolver,
+			ctx:      ctx,
+			Manager: providerusage.NewService(
+				providerusage.Options{Resolver: resolver, Collectors: resolver.collectors},
+			),
+		}
+		t.Cleanup(func() {
+			cancel()
+			if err := runtime.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		runtime.startProfileWorker(nil)
+		recorder := &daemonProfileEventRecorder{state: &bootState{providerUsage: runtime}}
+		recorded := make(chan struct{})
+		go func() { recorder.RecordProfileEvent(profile.Event{Name: eventspkg.ProfileCreated}); close(recorded) }()
+		var resolution context.Context
+		select {
+		case resolution = <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("resolution did not start")
+		}
+		select {
+		case <-recorded:
+		case <-time.After(time.Second):
+			t.Fatal("profile event blocked on credential resolution")
+		}
+		if _, bounded := resolution.Deadline(); !bounded {
+			t.Fatal("resolution context is unbounded")
+		}
+		for range 10 {
+			recorder.RecordProfileEvent(profile.Event{Name: eventspkg.ProfileCreated})
+		}
+		if err := runtime.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if resolution.Err() == nil {
+			t.Fatal("shutdown did not cancel resolution")
+		}
+	})
+
 	t.Run("Should close ProviderUsage subscriptions after profile deletion", func(t *testing.T) {
 		t.Parallel()
 		manager := providerusage.NewService(providerusage.Options{Resolver: &providerusage.TargetCatalog{}})
-		defer func() {
-			if err := manager.Shutdown(context.Background()); err != nil {
-				t.Error(err)
-			}
-		}()
+
 		deleted, unsubscribe := manager.Subscribe("deleted-profile")
 		defer unsubscribe()
 		runtime := &providerUsageRuntime{Manager: manager, resolver: &providerUsageResolver{}, ctx: t.Context()}
+		t.Cleanup(func() {
+			if err := runtime.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		runtime.startProfileWorker(nil)
 		recorder := &daemonProfileEventRecorder{state: &bootState{providerUsage: runtime}}
 		recorder.RecordProfileEvent(profile.Event{Name: eventspkg.ProfileDeleted, ProfileID: "deleted-profile"})
 		select {
@@ -36,7 +98,7 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 			if ok {
 				t.Fatal("deleted profile subscription remains open")
 			}
-		default:
+		case <-time.After(5 * time.Second):
 			t.Fatal("profile deletion did not reach provider usage")
 		}
 	})
@@ -303,4 +365,16 @@ func (s *profileEventSummaryWriterStub) ListEventSummaries(
 	store.EventSummaryQuery,
 ) ([]store.EventSummary, error) {
 	return nil, nil
+}
+
+type usageBlockedSecretResolver struct{ entered chan context.Context }
+
+func (r usageBlockedSecretResolver) ResolveRef(ctx context.Context, _ string) (string, error) {
+	select {
+	case r.entered <- ctx:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	<-ctx.Done()
+	return "", ctx.Err()
 }

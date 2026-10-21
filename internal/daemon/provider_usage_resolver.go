@@ -73,6 +73,9 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeDisabled, id)
 		case r.collectors[id] == nil:
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeNoCollector, id)
+		case !providerUsageAuthSupported(id, provider.EffectiveAuthMode()):
+			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeNoCollector, id)
+			target.Error.Message = "Usage collection does not support this provider authentication mode"
 		default:
 			route, fingerprint, routeErr := r.route(
 				ctx,
@@ -199,4 +202,15 @@ func (r *providerUsageResolver) bindSecrets(
 		}
 	}
 	return nil
+}
+
+func providerUsageAuthSupported(id string, mode config.ProviderAuthMode) bool {
+	switch id {
+	case "codex", nativeProviderClaude, "cursor", "gemini", "kimi-cli":
+		return mode == config.ProviderAuthModeNativeCLI
+	case "openrouter", "vercel-ai-gateway", "zai", "moonshot":
+		return mode == config.ProviderAuthModeBoundSecret
+	default:
+		return false
+	}
 }

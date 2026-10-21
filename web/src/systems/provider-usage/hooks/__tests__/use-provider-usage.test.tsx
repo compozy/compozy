@@ -160,7 +160,7 @@ describe("provider usage hooks", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("Should send explicit intent from the header Refresh and Allow (UT-063)", async () => {
+  it("Should leave consent collection to the daemon and explicitly refresh on retry (UT-063)", async () => {
     const { wrapper } = setup();
     vi.mocked(globalThis.fetch).mockImplementation(() =>
       Promise.resolve(jsonResponse(defaultUsageEnvelope()))
@@ -178,8 +178,11 @@ describe("provider usage hooks", () => {
     });
 
     act(() => result.current.runAction("claude", "allow_keychain"));
+    await waitFor(() => expect(allowKeychain).toHaveBeenCalledWith("claude"));
+    await Promise.resolve();
+    expect(refreshCalls()).toHaveLength(1);
+    act(() => result.current.runAction("claude", "retry"));
     await waitFor(() => expect(refreshCalls()).toHaveLength(2));
-    expect(allowKeychain).toHaveBeenCalledWith("claude");
     expect(await requestBody(refreshCalls()[1] ?? -1)).toEqual({
       profile: "default",
       intent: "explicit",

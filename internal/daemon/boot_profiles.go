@@ -97,11 +97,7 @@ func (r *daemonProfileEventRecorder) RecordProfileEvent(event profile.Event) {
 	}
 	r.archiveTerminalProfile(event)
 	if r.state != nil && r.state.providerUsage != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), profileLifecycleEventWriteTimeout)
-		if err := r.state.providerUsage.syncProfiles(ctx); err != nil {
-			r.warn(event, "provider_usage", err)
-		}
-		cancel()
+		r.state.providerUsage.requestProfileSync(event)
 	}
 	if r.writer == nil {
 		return

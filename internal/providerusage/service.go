@@ -39,6 +39,7 @@ type profileState struct {
 }
 
 type targetState struct {
+	readFence   *credentialReadFence
 	epoch       uint64
 	target      Target
 	snapshot    Snapshot
@@ -136,6 +137,7 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 			state.epoch++
 			state.snapshot = initialSnapshot(target, s.options.Collectors[target.ProviderID])
 			state.hasIdentity = false
+			state.readFence = nil
 			state.lastSuccess = time.Time{}
 			state.cooldown = nil
 			changed = true
@@ -198,6 +200,7 @@ func (s *Manager) Envelope(ctx context.Context, profile string) (Envelope, error
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.fenceReadLocked(ctx, profile)
 	return s.envelopeLocked(profile), nil
 }
 

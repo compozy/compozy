@@ -138,17 +138,7 @@ func (p *cursorPlan) percent() *float64 {
 	if p.Percent != nil {
 		return p.Percent
 	}
-	if percent := collectorPercent(p.Used, p.Limit); percent != nil {
-		return percent
-	}
-	if p.Auto != nil && p.API != nil {
-		average := (*p.Auto + *p.API) / 2
-		return &average
-	}
-	if p.API != nil {
-		return p.API
-	}
-	return p.Auto
+	return collectorPercent(p.Used, p.Limit)
 }
 
 func (p *cursorPlan) window(end string) (Window, error) {
@@ -156,7 +146,7 @@ func (p *cursorPlan) window(end string) (Window, error) {
 	if percent != nil && !validCollectorPercent(*percent) {
 		return Window{}, NewUsageError(ErrorCodeParseError, "Cursor")
 	}
-	if percent == nil && p.Used == "" && p.Limit == "" {
+	if percent == nil && p.Used == "" && p.Limit == "" && p.Auto == nil && p.API == nil {
 		return Window{}, NewUsageError(ErrorCodeParseError, "Cursor")
 	}
 	return Window{ID: string(WindowKindMonthly), Label: "Monthly", Kind: WindowKindMonthly, UsedPercent: percent,

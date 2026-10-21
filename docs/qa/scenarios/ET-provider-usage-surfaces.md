@@ -57,3 +57,18 @@ Review remediation supporting checks: `TestUsageFenceAndWait` (same-ref credenti
 per-target cancellation), `TestUsageScheduling` (failed fence recovery and deleted profiles),
 `TestProviderUsageConsentProfile` (IT-004/IT-005), `TestDaemonProfileEventRecorder` (deletion wiring),
 and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spec.ts`.
+
+## PR review regression checks
+
+- Switch a file-backed native login from account A to B, then list usage before the refresh interval.
+  Account A's values disappear immediately and background collection starts for B. Repeat with logout,
+  unreadable credentials, and a Codex auth-store change; no read may touch the Keychain.
+- Override a native-login provider with bound-secret auth, or a key provider with native auth.
+  Its row is `unsupported` with `no_collector`; no credential from the other auth mode is read.
+- Delete a custom provider with a saved usage toggle. The same config write removes its usage override.
+- When Cursor returns only auto/API percentages, the monthly total remains unknown, including 100/0.
+- Reload settings or change another section after enabling Claude Keychain access in config.
+  Neither action reads the Keychain, even with an ordinary profile selector. A local usage PATCH with
+  the collection profile owns the initial consent collection; a cold restart offers explicit Refresh.
+- Create or delete a profile while credential resolution is slow. The mutation completes independently
+  of usage reconciliation; queued events coalesce and daemon shutdown cancels and joins reconciliation.

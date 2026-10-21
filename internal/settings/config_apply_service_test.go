@@ -2910,8 +2910,8 @@ func TestProviderUsageSettingsApply(t *testing.T) {
 			if _, err := svc.ApplySection(
 				ctx,
 				SectionUpdateRequest{Section: SectionProviderUsage, ProviderUsage: &bad},
-			); err == nil {
-				t.Fatal("accepted invalid interval")
+			); !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "provider_usage.refresh_interval") {
+				t.Fatalf("invalid interval error = %v, want refresh_interval validation", err)
 			}
 			persisted, err := compozyconfig.LoadForHome(home)
 			if err != nil || !reflect.DeepEqual(persisted.ProviderUsage, desired) {
@@ -2943,8 +2943,8 @@ func TestProviderUsageSettingsApply(t *testing.T) {
 			if _, err := svc.UpdateSection(
 				t.Context(),
 				SectionUpdateRequest{Section: SectionProviderUsage, Scope: scope, ProviderUsage: &desired},
-			); err == nil {
-				t.Fatalf("accepted %s", scope)
+			); !errors.Is(err, ErrConflict) || !strings.Contains(err.Error(), "does not support "+string(scope)+" scope") {
+				t.Fatalf("scope %s error = %v, want unsupported scope conflict", scope, err)
 			}
 		}
 	})

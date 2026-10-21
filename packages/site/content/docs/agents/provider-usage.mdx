@@ -115,7 +115,7 @@ Claude Code   Needs Keychain access                       [Allow]
 ```
 
 1. Click **Allow**. CompozyOS saves your consent (the **Claude Keychain access** switch in Settings)
-   and refreshes Claude once.
+   and the daemon refreshes Claude once.
 2. macOS asks whether `security` may use the confidential information stored in
    `Claude Code-credentials` in your keychain. `security` is the macOS Keychain tool CompozyOS uses
    for this one read.
@@ -132,12 +132,12 @@ What happens next:
 - When it expires, the row reads `Refresh to reload your Claude login`. Click **Refresh** on the row
   or **⟳** in the header. With **Always Allow** this is silent, otherwise macOS asks again.
 - Background refreshes never touch the Keychain and never show a macOS prompt.
-- After a daemon restart the login is gone from memory, so the row reads `Needs Keychain access`
-  again. Click **Allow** once more; your consent is already saved.
+- After a daemon restart the login is gone from memory, so the row asks you to refresh
+  the login. Click **Refresh**; your consent is already saved.
 - If you click **Deny**, the row reads `Keychain access denied` with **Try again**. Nothing is
   retried until you click it.
 - If Claude Code has no login in the Keychain, the row reads
-  `Signed out · Sign in with claude to read usage`. Run `claude`, sign in, then refresh.
+  `Signed out · Sign in with Claude to read usage`. Run `claude`, sign in, then refresh.
 - If you sign in to Claude Code with another account, or sign out, CompozyOS drops the old login and
   its numbers.
 - To withdraw consent, turn off **Claude Keychain access** in Settings → Provider usage. CompozyOS

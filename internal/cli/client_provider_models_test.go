@@ -196,7 +196,7 @@ func TestProviderUsageCLIRequest(t *testing.T) {
 	t.Run("Should filter refresh output to the requested provider in every output format", func(t *testing.T) {
 		t.Parallel()
 		for _, format := range []string{"json", "human"} {
-			t.Run(format, func(t *testing.T) {
+			t.Run("Should filter "+format+" output", func(t *testing.T) {
 				t.Parallel()
 				client := &daemonClient{
 					target: LocalClientTarget("/tmp/compozy.sock"),
@@ -239,44 +239,50 @@ func TestProviderUsageCLIRequest(t *testing.T) {
 		}
 	})
 
-	var called bool
-	client := &daemonClient{
-		target: LocalClientTarget("/tmp/compozy.sock"),
-		httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
-			called = true
-			var body contract.ProviderUsageRefreshRequest
-			if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
-				t.Fatal(err)
-			}
-			if req.Method != http.MethodPost || req.URL.Path != "/api/provider-usage/refresh" ||
-				body.Profile != "work" ||
-				body.Intent != "explicit" ||
-				body.WaitMS == nil ||
-				*body.WaitMS != 15000 {
-				t.Fatalf("request: %+v", body)
-			}
-			return newHTTPResponse(http.StatusOK, `{"profile_id":"work","enabled":false,"targets":[]}`), nil
-		})},
-	}
-	ctx := context.WithValue(t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: "work"})
-	wait := (15 * time.Second).Milliseconds()
-	if _, err := client.RefreshProviderUsage(
-		ctx,
-		contract.ProviderUsageRefreshRequest{Intent: "explicit", WaitMS: &wait},
-	); err != nil {
-		t.Fatal(err)
-	}
-	if !called {
-		t.Fatal("request was not sent")
-	}
-	for _, body := range []string{`{"error":"provider \"nope\" not found","code":"provider_not_found"}`, `{"error":{"code":"profile_not_found","message":"profile not found","action":"choose profile"}}`} {
-		err := providerUsageCLIError(readAPIErrorBody(http.StatusNotFound, "Not Found", []byte(body)))
-		exit, ok := errors.AsType[interface {
-			error
-			cliExitCode() int
-		}](err)
-		if !ok || exit.cliExitCode() != 1 {
-			t.Fatalf("exit contract: %v", err)
+	t.Run("Should send selected profile and explicit intent on refresh", func(t *testing.T) {
+		t.Parallel()
+		var called bool
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				called = true
+				var body contract.ProviderUsageRefreshRequest
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					t.Fatal(err)
+				}
+				if req.Method != http.MethodPost || req.URL.Path != "/api/provider-usage/refresh" ||
+					body.Profile != "work" ||
+					body.Intent != "explicit" ||
+					body.WaitMS == nil ||
+					*body.WaitMS != 15000 {
+					t.Fatalf("request: %+v", body)
+				}
+				return newHTTPResponse(http.StatusOK, `{"profile_id":"work","enabled":false,"targets":[]}`), nil
+			})},
 		}
-	}
+		ctx := context.WithValue(t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: "work"})
+		wait := (15 * time.Second).Milliseconds()
+		if _, err := client.RefreshProviderUsage(
+			ctx,
+			contract.ProviderUsageRefreshRequest{Intent: "explicit", WaitMS: &wait},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if !called {
+			t.Fatal("request was not sent")
+		}
+	})
+	t.Run("Should map provider and profile not found errors to exit code one", func(t *testing.T) {
+		t.Parallel()
+		for _, body := range []string{`{"error":"provider \"nope\" not found","code":"provider_not_found"}`, `{"error":{"code":"profile_not_found","message":"profile not found","action":"choose profile"}}`} {
+			err := providerUsageCLIError(readAPIErrorBody(http.StatusNotFound, "Not Found", []byte(body)))
+			exit, ok := errors.AsType[interface {
+				error
+				cliExitCode() int
+			}](err)
+			if !ok || exit.cliExitCode() != 1 {
+				t.Fatalf("exit contract: %v", err)
+			}
+		}
+	})
 }

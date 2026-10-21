@@ -46,19 +46,19 @@ Claude on macOS (no `.credentials.json`, login in the Keychain):
 - with consent off the row reads `Needs Keychain access` with **Allow**, and the CLI table ends
   with the `keychain_access true` hint; no macOS prompt appears from opening the popover or waiting
   through a background interval;
-- **Allow** saves the Settings switch and runs one explicit refresh; macOS asks for
+- **Allow** saves the Settings switch; the daemon runs exactly one explicit collection and the web only invalidates its query (no follow-up refresh POST); macOS asks for
   `Claude Code-credentials`; **Allow** fills Session, Weekly, per-model weekly, and Extra usage;
 - **Deny** shows `Keychain access denied` with **Try again**; nothing retries until clicked;
 - with Claude Code signed out of the Keychain (no `Claude Code-credentials` item), **Allow** ends in
-  `Signed out · Sign in with claude to read usage`, not a denial;
+  `Signed out · Sign in with Claude to read usage`, not a denial;
 - while the loaded token is valid, background refreshes keep the row fresh without a prompt; once
   it expires the row reads `Refresh to reload your Claude login` and ⟳ reloads it (silent after
   **Always Allow**);
 - `compozy provider usage refresh claude` from the host terminal behaves like **Allow** once
   consent is on and prints only the Claude row; a gateway device sees `Approve on the host Mac: open CompozyOS there and refresh`
   and never triggers a prompt;
-- restart the daemon: rows read `Loading…` until their first collection; Claude asks for **Allow**
-  again with consent still on;
+- restart the daemon: rows read `Loading…` until their first collection; Claude asks for **Refresh**
+  with consent still on;
 - sign in to Claude Code with another account or sign out: the old numbers disappear instead of
   turning stale;
 - turn **Claude Keychain access** off: the loaded login and snapshot are dropped immediately.

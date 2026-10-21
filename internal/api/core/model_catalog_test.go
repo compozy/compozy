@@ -886,7 +886,7 @@ func TestProviderUsageIntent(t *testing.T) {
 			}
 			handler := &BaseHandlers{}
 			profileID, consent := ProviderUsageConsentProfile(handler.settingsMutationContext(c))
-			if consent != (caller == "operator") || (consent && profileID != store.DefaultProfileID) {
+			if consent || profileID != "" {
 				t.Fatalf("settings consent: profile=%s local=%v", profileID, consent)
 			}
 		})

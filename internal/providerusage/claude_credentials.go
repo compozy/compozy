@@ -71,7 +71,7 @@ func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Int
 	if intent != IntentExplicit {
 		record = c.records[target.ProfileID]
 		if record == nil {
-			return nil, NewUsageError(ErrorCodeKeychainConsentRequired, "Claude")
+			return nil, NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 		}
 		if err := c.validateLocked(target, record.identity); err != nil {
 			return nil, err
@@ -108,7 +108,7 @@ func (c *ClaudeCollector) readKeychainLocked(ctx context.Context, target Target)
 	if err != nil {
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			return nil, NewUsageError(ErrorCodeAuthMissing, claudeProviderID)
+			return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
 		case errors.Is(err, os.ErrPermission):
 			c.records[target.ProfileID] = &claudeCredential{
 				denied:          true,
@@ -238,7 +238,7 @@ func claudeCredentialPath(target Target) string {
 	return filepath.Join(dir, ".credentials.json")
 }
 func isClaudeFileAbsent(err error) bool { return errors.Is(err, os.ErrNotExist) }
-func claudeAccountEvidence(target Target) (string, string) {
+func claudeAccountPaths(target Target) (string, string) {
 	dir := claudeConfigDir(target)
 	if !filepath.IsAbs(dir) {
 		return "", ""
@@ -249,6 +249,13 @@ func claudeAccountEvidence(target Target) (string, string) {
 		modernDir = claudeHome(target)
 	}
 	modern := filepath.Join(norm.NFC.String(modernDir), ".claude.json")
+	return legacy, modern
+}
+func claudeAccountEvidence(target Target) (string, string) {
+	legacy, modern := claudeAccountPaths(target)
+	if legacy == "" {
+		return "", ""
+	}
 	path := legacy
 	if _, err := os.Stat(legacy); isClaudeFileAbsent(err) {
 		path = modern

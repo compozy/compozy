@@ -10,16 +10,20 @@ import (
 
 	"github.com/compozy/compozy/internal/api/core"
 	config "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerusage"
 	"github.com/compozy/compozy/internal/store"
 )
 
 type providerUsageRuntime struct {
 	*providerusage.Manager
-	mu       sync.Mutex
-	resolver *providerUsageResolver
-	metrics  *providerUsageMetrics
-	ctx      context.Context
+	mu            sync.Mutex
+	resolver      *providerUsageResolver
+	metrics       *providerUsageMetrics
+	ctx           context.Context
+	profileEvents chan profile.Event
+	profileCancel context.CancelFunc
+	profileDone   chan struct{}
 }
 
 func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -41,6 +45,7 @@ func (d *Daemon) bootProviderUsage(ctx context.Context, state *bootState, cleanu
 	if err := runtime.syncProfiles(ctx); err != nil {
 		return fmt.Errorf("daemon: start provider usage: %w", err)
 	}
+	runtime.startProfileWorker(state.logger)
 	state.providerUsage = runtime
 	return nil
 }
@@ -50,6 +55,8 @@ func providerUsageCollectors(now func() time.Time) providerusage.Registry {
 }
 
 func (r *providerUsageRuntime) syncProfiles(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, profileLifecycleEventWriteTimeout)
+	defer cancel()
 	ids := []string{store.DefaultProfileID}
 	if r.resolver.profiles != nil {
 		profiles, err := r.resolver.profiles.List(ctx)
@@ -61,7 +68,7 @@ func (r *providerUsageRuntime) syncProfiles(ctx context.Context) error {
 			ids = append(ids, item.ID)
 		}
 	}
-	return r.Start(r.ctx, ids)
+	return r.Start(ctx, ids)
 }
 
 func (r *providerUsageRuntime) ReconcileConfig(ctx context.Context, next *config.Config) error {

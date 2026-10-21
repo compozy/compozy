@@ -3123,10 +3123,14 @@ enabled = false
 				t.Fatal(err)
 			}
 
-			for _, scope := range []WriteScope{WriteScopeWorkspace, WriteScopeProfile} {
-				if err := ValidateConfigWriteScope(scope, parts); err == nil {
-					t.Fatalf("accepted %s at %s", path, scope)
-				}
+			if err := ValidateConfigWriteScope(WriteScopeWorkspace, parts); err == nil ||
+				!strings.Contains(err.Error(), "global-only") || !strings.Contains(err.Error(), path) {
+				t.Fatalf("workspace write error = %v, want global-only denial for %s", err, path)
+			}
+			err := ValidateConfigWriteScope(WriteScopeProfile, parts)
+			validationErr, ok := errors.AsType[ValidationError](err)
+			if !ok || validationErr.Code != profileConfigKeyDeniedCode || validationErr.Path != path {
+				t.Fatalf("profile write error = %#v, want typed denial for %s", err, path)
 			}
 		}
 	})

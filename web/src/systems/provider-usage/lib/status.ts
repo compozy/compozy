@@ -4,7 +4,7 @@ import { formatAgo, formatWaitUntil } from "./format";
 
 /**
  * Row actions the status line can offer. `configure` opens the provider usage
- * settings; every other one runs a refresh with explicit intent.
+ * settings; Allow saves consent, while Retry and Refresh request explicit collection.
  */
 export type ProviderUsageRowAction = "allow_keychain" | "retry" | "refresh" | "configure";
 
@@ -68,7 +68,7 @@ function describeNeedsConsent(
   const text = denied ? "Keychain access denied" : messageOr(target, "Needs Keychain access");
   if (!options.isMacHost) return presentation("warning", text);
   const action: ProviderUsageStatusAction = {
-    kind: "allow_keychain",
+    kind: denied ? "retry" : "allow_keychain",
     label: denied ? "Try again" : "Allow",
   };
   return presentation(
