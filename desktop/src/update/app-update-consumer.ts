@@ -6,7 +6,9 @@ import type { UpdateOperation } from "./operation-contract";
 import type { TransitionIdentity, UpdateTransitionPort } from "./transition-client";
 
 const APPLY_WATCHDOG_MS = 10 * 60 * 1000;
+const DOWNLOAD_IDLE_MS = 60 * 1000;
 const INSTALLER_WATCHDOG_MS = 5 * 60 * 1000;
+const QUIT_WATCHDOG_MS = 30 * 1000;
 const LEASE_RENEWAL_MS = 30 * 1000;
 
 export type AppUpdateTransitions = UpdateTransitionPort;
@@ -43,15 +45,16 @@ export class AppUpdateConsumer {
     this.#onError = options.onError;
   }
 
-  async handle(operation: UpdateOperation | null): Promise<void> {
+  async handle(operation: UpdateOperation | null): Promise<boolean> {
     this.#clearDeadline();
-    if (!operation || this.#activeOperation === operation.operation_id) return;
+    if (!operation) return true;
+    if (this.#activeOperation === operation.operation_id) return false;
     const decision = decideAppUpdateAction(operation, this.#currentVersion, this.#now());
     if (decision.kind === "wait") {
       this.#scheduleDeadline(operation);
-      return;
+      return true;
     }
-    if (decision.kind === "ignore") return;
+    if (decision.kind === "ignore") return true;
     this.#activeOperation = operation.operation_id;
     try {
       switch (decision.kind) {
@@ -68,8 +71,10 @@ export class AppUpdateConsumer {
           await this.#failInterrupted(operation, decision.reason);
           break;
       }
+      return true;
     } catch (error) {
       this.#onError(error instanceof Error ? error : new Error(String(error)));
+      return false;
     } finally {
       this.#activeOperation = "";
     }
@@ -110,19 +115,37 @@ export class AppUpdateConsumer {
     }, LEASE_RENEWAL_MS);
     renewal.unref();
     try {
-      const downloaded = await this.#installer.download(appOperation, async percent => {
-        await updateCurrent(
-          async value =>
-            await this.#transitions.progress(identity(value, this.#executorGeneration), percent)
-        );
-      });
+      let lastProgress = 0;
+      const downloaded = await withInstallerDeadline(
+        APPLY_WATCHDOG_MS,
+        "The app update download timed out. Retry the update.",
+        async (signal, heartbeat) =>
+          await this.#installer.download(
+            appOperation,
+            async percent => {
+              signal.throwIfAborted();
+              if (percent > lastProgress) {
+                lastProgress = percent;
+                heartbeat();
+              }
+              await updateCurrent(async value => {
+                signal.throwIfAborted();
+                return await this.#transitions.progress(
+                  identity(value, this.#executorGeneration),
+                  percent
+                );
+              });
+            },
+            signal
+          ),
+        DOWNLOAD_IDLE_MS
+      );
       if (
         downloaded.version.trim().replace(/^v/, "") !==
         appOperation.to_version.trim().replace(/^v/, "")
       ) {
         throw new Error("The downloaded app version does not match the update operation.");
       }
-      clearInterval(renewal);
       await transitionQueue;
       current = await updateCurrent(
         async value =>
@@ -141,12 +164,25 @@ export class AppUpdateConsumer {
             watchdogDeadline: new Date(this.#now().getTime() + INSTALLER_WATCHDOG_MS),
           })
       );
+      await withInstallerDeadline(
+        INSTALLER_WATCHDOG_MS,
+        "The app installer did not become ready. Retry the update.",
+        async signal => await this.#installer.prepareInstall(signal)
+      );
+      clearInterval(renewal);
+      await transitionQueue;
       await this.#transitions.fence(identity(current, this.#executorGeneration));
-      await this.#installer.quitAndInstall();
+      await withInstallerDeadline(
+        QUIT_WATCHDOG_MS,
+        "The app could not restart to finish its update. Retry the update.",
+        async signal => await this.#installer.quitAndInstall(signal)
+      );
       this.#scheduleDeadline(current);
     } catch (error) {
+      clearInterval(renewal);
+      await transitionQueue;
       await this.#recordInstallFailure(current, error);
-      throw error;
+      this.#onError(error instanceof Error ? error : new Error(String(error)));
     } finally {
       clearInterval(renewal);
     }
@@ -158,7 +194,10 @@ export class AppUpdateConsumer {
         ...identity(operation, this.#executorGeneration),
         phase: "failed",
         percent: -1,
-        lastError: "The app update could not be installed.",
+        lastError:
+          cause instanceof InstallerDeadlineError
+            ? cause.message
+            : "The app update could not be installed.",
         outcome: "failed",
         watchdogDeadline: "clear",
         incrementFailures: true,
@@ -214,5 +253,37 @@ export class AppUpdateConsumer {
   #clearDeadline(): void {
     if (this.#deadlineTimer) clearTimeout(this.#deadlineTimer);
     this.#deadlineTimer = null;
+  }
+}
+
+class InstallerDeadlineError extends Error {}
+
+async function withInstallerDeadline<T>(
+  duration: number,
+  message: string,
+  run: (signal: AbortSignal, heartbeat: () => void) => Promise<T>,
+  inactivityDuration?: number
+): Promise<T> {
+  const controller = new AbortController();
+  const expired = new Promise<never>((_resolve, reject) => {
+    controller.signal.addEventListener("abort", () => reject(controller.signal.reason), {
+      once: true,
+    });
+  });
+  const expire = () => controller.abort(new InstallerDeadlineError(message));
+  const timer = setTimeout(expire, duration);
+  const inactivityTimer = inactivityDuration ? setTimeout(expire, inactivityDuration) : null;
+  timer.unref();
+  inactivityTimer?.unref();
+  try {
+    return await Promise.race([
+      run(controller.signal, () => {
+        if (!controller.signal.aborted) inactivityTimer?.refresh();
+      }),
+      expired,
+    ]);
+  } finally {
+    clearTimeout(timer);
+    if (inactivityTimer) clearTimeout(inactivityTimer);
   }
 }

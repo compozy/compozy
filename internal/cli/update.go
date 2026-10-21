@@ -132,7 +132,7 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 			cmd.Context(), deps, manager.OperationStore(), operation.ID, request.Deadline,
 		)
 	}
-	record, runErr = finalizeUpdateRecord(record, request, runErr, archived, appRunErr)
+	record, runErr = runtime.finalizeUpdateRecord(cmd.Context(), record, request, runErr, archived, appRunErr)
 	if runErr != nil {
 		return writeUpdateFailure(cmd, record, runErr)
 	}

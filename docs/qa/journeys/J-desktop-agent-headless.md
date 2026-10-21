@@ -15,13 +15,13 @@ flowchart TD
     F --> G[compozy app open /settings focuses the window and navigates]
     G --> G1[compozy app retry is accepted only from a recoverable state]
     G1 --> H[compozy update --check and settings GET report both targets from one release]
-    H --> I[compozy update applies runtime first, then updates or stages the app]
+    H --> I[compozy update uses one app bundle for a desktop-owned joint update; independent runtime updates run first]
     I --> J{App running?}
-    J -->|yes| K[Consent semantics walk deterministically, restart, new version in status]
+    J -->|yes| K[Installer restart, verified app version, observed compatible daemon readiness]
     J -->|no| P[App update stays staged for the next launch]
     H -->|dormant operation exists| Q[compozy update --cancel frees the update channel]
-    K -->|post-swap health failure| L[update operation restores the previous runtime and records rolled-back with the typed failure]
-    L --> M[Status confirms the restored runtime is healthy; retry uses a newly verified candidate]
+    K -->|runtime readiness failure| L[Report runtime failure while retaining any verified app outcome]
+    L --> M[Status reports actual recovery state; retry uses a newly verified candidate]
     K --> N[Kill the app process]
     P --> N
     Q --> N
@@ -51,10 +51,10 @@ journey:
       expected_observable: "Existing window focuses and shows the target; invalid targets return `invalid_target_path`"
     - step: 4
       verb: "Drive app and runtime updates headlessly across CLI, HTTP, and UDS"
-      expected_observable: "Every read agrees; apply is runtime-first; a closed app stages; `--cancel` releases only a dormant operation"
+      expected_observable: "Every read agrees; a desktop-owned joint update uses one app bundle and waits for its daemon; independent runtime requests keep their existing path; a closed app stages; `--cancel` releases only a dormant operation"
     - step: 5
       verb: "Probe failure vocabulary"
-      expected_observable: "`app_not_installed`, `app_not_running`, and `app_control_unavailable` are named, typed, and stable; a failed runtime health check is reported separately as update outcome `rolled-back`"
+      expected_observable: "`app_not_installed`, `app_not_running`, and `app_control_unavailable` are named, typed, and stable; runtime readiness failure never becomes success merely because the app version changed"
   goal:
     observable: "Full desktop lifecycle driven and observed from a terminal alone"
     side_effects: [app-launched, update-applied, diagnostic-report-returned]

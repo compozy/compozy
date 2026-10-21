@@ -69,9 +69,12 @@ Treat attachment and ownership separately. Attaching to an existing daemon never
 ownership. Quitting the app never stops any runtime, including one the app started or provisioned.
 Use the runtime's own control surface for an intentional stop.
 
-App updates require consent and restart the desktop process. The runtime updates first. A running
-shell applies its verified app artifact; when the shell is absent, the daemon records a staged app
-operation for the shell to complete after its next launch. The app can replace an app-owned runtime
+App updates require consent and restart the desktop process. When both tracks are selected and
+the runtime is desktop-owned, the planner uses one app artifact; the relaunched app updates its
+owned runtime from its verified bundle. Explicit runtime-only requests and standalone runtimes
+keep the runtime update path. A running shell downloads and verifies the app artifact, waits for
+native installer readiness, then restarts. When the shell is absent, the daemon records a staged
+operation for the next launch. The app can replace an app-owned runtime
 after verification when durable provenance still proves ownership. For an operator-managed or
 inconclusively owned runtime, report the install method and its update command; never replace the
 binary through `compozy app`.
@@ -98,9 +101,12 @@ work.
 
 ## Recovery
 
-When an update reports `failed`, do not start another mutation. Run `compozy app diagnose -o json`,
-preserve the reported error code and report, follow its recovery action, then run
-`compozy app retry`. Confirm the result with `compozy app status -o json`.
+When an app update reports `failed` and no operation remains active, the product offers **Retry
+update**. `compozy update` also refreshes and revalidates the release before retrying. Cancellation
+of a staged operation is not a prerequisite for this retry. For a desktop startup failure, run
+`compozy app diagnose -o json`, preserve the reported error, follow its recovery action, then run
+`compozy app retry`. That command retries startup, not the update download. Confirm the result
+with `compozy app status -o json` and the observed daemon version.
 
 A post-swap runtime failure keeps the replacement binary because databases may already have
 migrated. Preserve both binary copies and all databases; inspect the runtime log, resolve the

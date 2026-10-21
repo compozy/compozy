@@ -5,13 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	compozyupdate "github.com/compozy/compozy/internal/update"
@@ -205,6 +210,180 @@ func TestUpdateCommandContract(t *testing.T) {
 // Owning layer: CLI update projection.
 // Canonical suite: TestUpdateTerminalProjection.
 func TestUpdateTerminalProjection(t *testing.T) {
+	t.Run("Should refresh the app-owned runtime from the local daemon after verified app install", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name           string
+			runtimeVersion string
+			staged         bool
+			starting       bool
+			unavailable    bool
+			stalled        bool
+			incompatible   bool
+		}{
+			{name: "Should observe the bundled runtime after bootstrap", runtimeVersion: "v1.1.0"},
+			{name: "Should preserve a newer compatible runtime", runtimeVersion: "v1.2.0"},
+			{name: "Should wait for an incompatible stable runtime to be replaced for a beta app", runtimeVersion: "v0.3.0", incompatible: true},
+			{name: "Should wait for the new daemon to report running", runtimeVersion: "v1.1.0", starting: true},
+			{name: "Should keep a closed app staged without claiming runtime completion", staged: true},
+			{name: "Should report a runtime observation failure after app success", unavailable: true},
+			{name: "Should not report completion while the old runtime remains active", stalled: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				targetVersion, fromVersion := "v1.1.0", "v1.0.0"
+				if tc.incompatible {
+					targetVersion, fromVersion = "v0.3.0-beta.38", "v0.3.0-beta.37"
+				}
+				deps := newTestDeps(t, &stubClient{}).withDefaults()
+				paths, err := deps.resolveHome()
+				if err != nil {
+					t.Fatal(err)
+				}
+				info := compozydaemon.Info{
+					PID: os.Getpid(), Port: 2123, StartedAt: mustProcessStartedAt(t),
+				}
+				if err := compozydaemon.WriteInfo(paths.DaemonInfo, info); err != nil {
+					t.Fatal(err)
+				}
+				var requests, statusRequests atomic.Int32
+				server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+					if request.URL.Path == "/api/status" {
+						status := daemonRunningStatus
+						version := tc.runtimeVersion
+						if version == "" {
+							version = targetVersion
+						}
+						minAppVersion := targetVersion
+						if tc.incompatible {
+							minAppVersion = "v0.3.0"
+						}
+						if statusRequests.Add(1) < 3 && tc.starting {
+							status = "starting"
+						}
+						if err := jsonv2.MarshalWrite(writer, StatusRecord{Daemon: DaemonStatus{
+							Status: status, Version: version, PID: info.PID, StartedAt: info.StartedAt,
+							Socket: paths.DaemonSocket, HTTPPort: info.Port, MinAppVersion: minAppVersion,
+						}}); err != nil {
+							t.Errorf("write daemon status: %v", err)
+						}
+						return
+					}
+					if request.Method != http.MethodGet || request.URL.Path != "/api/settings/update" {
+						t.Errorf("unexpected daemon request: %s %s", request.Method, request.URL.Path)
+						http.NotFound(writer, request)
+						return
+					}
+					attempt := requests.Add(1)
+					if tc.unavailable {
+						http.Error(writer, "daemon snapshot failed", http.StatusInternalServerError)
+						return
+					}
+					currentVersion := tc.runtimeVersion
+					status := contract.SettingsUpdateStatusKind(compozyupdate.StatusUpToDate)
+					if attempt == 1 || tc.stalled {
+						currentVersion = fromVersion
+						status = contract.SettingsUpdateStatusKind(compozyupdate.StatusAvailable)
+					}
+					if err := jsonv2.MarshalWrite(
+						writer,
+						SettingsUpdateRecord{Runtime: contract.SettingsUpdateRuntimePayload{
+							Status: status, InstallMethod: contract.SettingsUpdateInstallDesktopApp,
+							CurrentVersion: currentVersion, LatestVersion: targetVersion,
+							Message: "Current daemon runtime.",
+						}},
+					); err != nil {
+						t.Errorf("write daemon snapshot: %v", err)
+					}
+				}))
+				t.Cleanup(server.Close)
+				client := &daemonClient{
+					target: ClientTarget{
+						kind:    clientTargetSSHForward,
+						baseURL: server.URL,
+					},
+					httpClient: server.Client(),
+				}
+				deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+					if target.kind != clientTargetLocal || target.socketPath != paths.DaemonSocket {
+						t.Fatalf("runtime observation target = %#v, want this home's local daemon", target)
+					}
+					return client, nil
+				}
+				deps.now = func() time.Time { return time.Now().UTC() }
+				deps.pollInterval = time.Millisecond
+				base := updateRecord{
+					Runtime: compozyupdate.RuntimeTrackState{
+						Status:         compozyupdate.StatusAvailable,
+						InstallMethod:  string(compozyupdate.InstallMethodDesktopApp),
+						CurrentVersion: fromVersion,
+						LatestVersion:  targetVersion,
+						Message:        "Old runtime snapshot.",
+					},
+					App: &compozyupdate.AppTrackState{
+						Status: compozyupdate.StatusAvailable, Running: !tc.staged,
+						CurrentVersion: fromVersion, LatestVersion: targetVersion,
+					},
+				}
+				request := compozyupdate.OperationRequest{
+					Targets: []compozyupdate.Target{compozyupdate.TargetApp}, Deadline: time.Now().Add(time.Second),
+					App: &compozyupdate.AppOperationState{ToVersion: targetVersion, AttemptID: "attempt-1"},
+				}
+				archived := &compozyupdate.Operation{App: &compozyupdate.AppOperationState{
+					ToVersion: targetVersion, AttemptID: "attempt-1", Phase: compozyupdate.PhaseVerified,
+				}}
+				if tc.staged {
+					archived = nil
+				}
+				timeout := time.Second
+				if tc.stalled || tc.incompatible {
+					timeout = 200 * time.Millisecond
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), timeout)
+				defer cancel()
+				record, err := newCLIUpdateRuntime(
+					deps,
+					paths,
+				).finalizeUpdateRecord(ctx, base, request, nil, archived, nil)
+				if tc.staged {
+					if err != nil || record.Status != compozyupdate.StatusStaged || record.Runtime != base.Runtime ||
+						requests.Load() != 0 {
+						t.Fatalf("staged record = %#v, %v, requests = %d", record, err, requests.Load())
+					}
+					return
+				}
+				if tc.unavailable || tc.stalled || tc.incompatible {
+					if err == nil || record.Status != compozyupdate.StatusFailed ||
+						record.Runtime.Status != compozyupdate.StatusFailed || record.Runtime.CurrentVersion != fromVersion ||
+						record.App.Status != compozyupdate.StatusUpdated {
+						t.Fatalf(
+							"unconfirmed runtime record = %#v, %v, want explicit runtime failure and verified app",
+							record,
+							err,
+						)
+					}
+					return
+				}
+				if err != nil || record.Status != compozyupdate.StatusUpdated ||
+					record.Runtime.Status != compozyupdate.StatusUpToDate || record.Runtime.CurrentVersion != tc.runtimeVersion ||
+					record.Runtime.LatestVersion != targetVersion || record.Runtime.DaemonRestarted ||
+					record.Runtime.Message != "Current daemon runtime." || record.App.Status != compozyupdate.StatusUpdated ||
+					requests.Load() < 2 {
+					t.Fatalf(
+						"completed record = %#v, %v, requests = %d, want observed runtime %s",
+						record,
+						err,
+						requests.Load(),
+						tc.runtimeVersion,
+					)
+				}
+				if tc.starting && statusRequests.Load() < 3 {
+					t.Fatalf("daemon status requests = %d, want readiness after starting", statusRequests.Load())
+				}
+			})
+		}
+	})
+
 	t.Run("Should report runtime-first success and a staged closed app", func(t *testing.T) {
 		t.Parallel()
 
@@ -293,7 +472,8 @@ func TestUpdateTerminalProjection(t *testing.T) {
 				CurrentVersion: "v1.0.0", LatestVersion: "v1.1.0",
 			},
 		}
-		record, err := finalizeUpdateRecord(
+		record, err := (&cliUpdateRuntime{}).finalizeUpdateRecord(
+			t.Context(),
 			base,
 			compozyupdate.OperationRequest{App: &compozyupdate.AppOperationState{
 				ToVersion: "v1.1.0", AttemptID: "attempt-1",

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { access, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -16,6 +17,8 @@ if (!match?.[1] || !match[2] || !match[3]) {
 const nextVersion = `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
 const updateOutput = join(desktopRoot, ".artifacts", "e2e-update");
 const baselineOutput = join(desktopRoot, ".artifacts", "e2e-baseline");
+// Squirrel keys its native cache and helper by bundle ID, independently of updaterCacheDirName.
+const appId = `com.compozy.os.e2e.${createHash("sha256").update(desktopRoot).digest("hex").slice(0, 16)}`;
 
 async function buildInstrumentedMain(): Promise<void> {
   const build = Bun.spawn(["bun", "run", "build:main"], {
@@ -28,6 +31,17 @@ async function buildInstrumentedMain(): Promise<void> {
   if (exitCode !== 0) throw new Error(`E2E main-process build exited with ${exitCode}.`);
 }
 
+async function buildRuntime(version: string): Promise<void> {
+  const build = Bun.spawn(["bun", "run", "build:runtime"], {
+    cwd: desktopRoot,
+    env: { ...process.env, COMPOZY_RELEASE_VERSION: version, COMPOZY_MIN_APP_VERSION: version },
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const exitCode = await build.exited;
+  if (exitCode !== 0) throw new Error(`E2E runtime ${version} build exited with ${exitCode}.`);
+}
+
 async function packageTarget(output: string, version: string): Promise<void> {
   await rm(output, { recursive: true, force: true });
   await mkdir(output, { recursive: true });
@@ -38,6 +52,7 @@ async function packageTarget(output: string, version: string): Promise<void> {
     `${JSON.stringify(
       {
         extends: join(desktopRoot, "electron-builder.yml"),
+        appId,
         directories: { output },
         electronFuses: { enableNodeCliInspectArguments: true },
         extraMetadata: { version },
@@ -74,8 +89,15 @@ if (process.platform !== "darwin" && process.platform !== "linux") {
   throw new Error("Desktop E2E updates are supported on macOS and Linux.");
 }
 await buildInstrumentedMain();
+await buildRuntime(packageMetadata.version);
 await packageTarget(baselineOutput, packageMetadata.version);
-await packageTarget(updateOutput, nextVersion);
+try {
+  await buildRuntime(nextVersion);
+  await packageTarget(updateOutput, nextVersion);
+} finally {
+  // Other desktop scenarios use the baseline runtime from this shared build directory.
+  await buildRuntime(packageMetadata.version);
+}
 
 const updateFiles = await readdir(updateOutput);
 const assetSuffix = process.platform === "darwin" ? ".zip" : ".AppImage";

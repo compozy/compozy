@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
@@ -160,6 +162,76 @@ func (r *cliUpdateRuntime) InstalledApp(ctx context.Context) (compozyupdate.Inst
 		Present: installation.Installed,
 		Version: strings.TrimSpace(installation.Version),
 	}, nil
+}
+
+// waitForBundledRuntime observes bootstrap completion without assuming the app replaced a newer runtime.
+func (r *cliUpdateRuntime) waitForBundledRuntime(
+	ctx context.Context,
+	releaseVersion string,
+	deadline time.Time,
+) (compozyupdate.RuntimeTrackState, error) {
+	wanted, err := semver.NewVersion(strings.TrimSpace(releaseVersion))
+	if err != nil {
+		return compozyupdate.RuntimeTrackState{}, fmt.Errorf("cli: parse bundled runtime version: %w", err)
+	}
+	client, err := r.deps.newClient(LocalClientTarget(r.homePaths.DaemonSocket))
+	if err != nil {
+		return compozyupdate.RuntimeTrackState{}, err
+	}
+	probeDeps := r.deps
+	probeDeps.newClient = func(ClientTarget) (DaemonClient, error) { return client, nil }
+	timeout := time.Until(deadline)
+	if r.deps.now != nil {
+		timeout = deadline.Sub(r.deps.now())
+	}
+	pollCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	return pollUntil(
+		pollCtx, timeout, r.deps.pollInterval, nil,
+		"cli: bundled runtime did not become ready before the update deadline",
+		func(pollCtx context.Context, _ pollEvent) (compozyupdate.RuntimeTrackState, bool, error) {
+			status, running, err := probeBootstrapDaemon(pollCtx, probeDeps, r.homePaths)
+			if err != nil || !running || !bootstrapRuntimeAcceptsApp(status.MinAppVersion, releaseVersion) {
+				return compozyupdate.RuntimeTrackState{}, false, nil
+			}
+			runningVersion, err := semver.NewVersion(strings.TrimSpace(status.Version))
+			if err != nil {
+				return compozyupdate.RuntimeTrackState{}, true, fmt.Errorf(
+					"cli: parse running runtime version: %w",
+					err,
+				)
+			}
+			if runningVersion.LessThan(wanted) {
+				return compozyupdate.RuntimeTrackState{}, false, nil
+			}
+			snapshot, err := client.GetSettingsUpdate(pollCtx)
+			if isDaemonUnavailableTransportError(err) {
+				return compozyupdate.RuntimeTrackState{}, false, nil
+			}
+			if err != nil {
+				return compozyupdate.RuntimeTrackState{}, true, err
+			}
+			current, err := semver.NewVersion(strings.TrimSpace(snapshot.Runtime.CurrentVersion))
+			if err != nil {
+				return compozyupdate.RuntimeTrackState{}, true, fmt.Errorf(
+					"cli: parse observed runtime version: %w",
+					err,
+				)
+			}
+			if !current.Equal(runningVersion) {
+				return compozyupdate.RuntimeTrackState{}, false, nil
+			}
+			state := snapshot.Runtime
+			return compozyupdate.RuntimeTrackState{
+				CheckedAt: state.CheckedAt, Status: compozyupdate.Status(state.Status),
+				InstallMethod: string(state.InstallMethod), Managed: state.Managed,
+				CurrentVersion: state.CurrentVersion, LatestVersion: state.LatestVersion,
+				ReleaseURL: state.ReleaseURL, Recommendation: state.Recommendation,
+				RestoredVersion: state.RestoredVersion, DaemonRestarted: state.DaemonRestarted,
+				Message: state.Message, LastError: state.LastError,
+			}, true, nil
+		},
+	)
 }
 
 func waitForAppUpdateCompletion(

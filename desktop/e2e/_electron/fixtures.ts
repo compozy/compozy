@@ -271,7 +271,20 @@ async function terminateRestartedDesktop(home: string): Promise<void> {
     await waitForPathRemoval(join(home, "app.sock"));
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ESRCH") return;
-    throw error;
+    const desktopLog = await readDiagnosticFile(join(home, "logs", "desktop.log")).catch(
+      (readError: unknown) =>
+        `(unreadable: ${readError instanceof Error ? readError.message : String(readError)})`
+    );
+    const processState = await command(
+      "ps",
+      ["-p", String(pid), "-o", "pid=,ppid=,state=,etime=,command="],
+      process.env,
+      1_000
+    ).catch(() => ({ stdout: "(process state unavailable)", stderr: "" }));
+    throw new Error(
+      `Restarted desktop E2E shell ${pid} did not close.\nProcess state:\n${processState.stdout.trim()}\nDesktop log:\n${desktopLog}`,
+      { cause: error }
+    );
   }
 }
 

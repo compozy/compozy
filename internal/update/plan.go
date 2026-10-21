@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"time"
 )
 
 // PlanOperation verifies release identities and builds a durable acquisition request.
@@ -28,6 +29,11 @@ func (m *Manager) PlanOperation(
 	}
 	if err := validatePlanTargets(state, targets); err != nil {
 		return OperationRequest{}, err
+	}
+	if state.Runtime.InstallMethod == string(InstallMethodDesktopApp) && !state.Runtime.Managed &&
+		slices.Contains(targets, TargetRuntime) && slices.Contains(targets, TargetApp) {
+		// The replacement app provisions its owned runtime during bootstrap.
+		targets = []Target{TargetApp}
 	}
 	assets, err := m.resolvePlanReleaseAssets(release, slices.Contains(targets, TargetRuntime))
 	if err != nil {
@@ -73,7 +79,7 @@ func (m *Manager) PlanOperation(
 		archivedApp: archivedApp,
 	}
 	for _, target := range targets {
-		if err := m.addPlannedTarget(&request, target, plan); err != nil {
+		if err := m.addPlannedTarget(ctx, &request, target, plan); err != nil {
 			return OperationRequest{}, &TargetError{Target: target, Err: err}
 		}
 	}
@@ -106,14 +112,19 @@ type operationPlan struct {
 	archivedApp *Operation
 }
 
-func (m *Manager) addPlannedTarget(request *OperationRequest, target Target, plan operationPlan) error {
+func (m *Manager) addPlannedTarget(
+	ctx context.Context,
+	request *OperationRequest,
+	target Target,
+	plan operationPlan,
+) error {
 	switch target {
 	case TargetRuntime:
 		runtimeState, err := plannedRuntimeState(plan)
 		request.Runtime = runtimeState
 		return err
 	case TargetApp:
-		appState, err := m.plannedAppState(plan)
+		appState, err := m.plannedAppState(ctx, plan)
 		request.App = appState
 		return err
 	default:
@@ -138,11 +149,11 @@ func plannedRuntimeState(plan operationPlan) (*RuntimeOperationState, error) {
 	}, nil
 }
 
-func (m *Manager) plannedAppState(plan operationPlan) (*AppOperationState, error) {
+func (m *Manager) plannedAppState(ctx context.Context, plan operationPlan) (*AppOperationState, error) {
 	if plan.state.App == nil {
 		return nil, errors.New("update: desktop app is not installed")
 	}
-	appAsset, err := m.resolveAppReleaseAsset(plan.release)
+	appAsset, err := m.resolveAppReleaseAsset(ctx, plan.release)
 	if err != nil {
 		return nil, err
 	}
@@ -186,14 +197,24 @@ func (m *Manager) AcquireOperation(ctx context.Context, request OperationRequest
 	return m.operationStore.Acquire(ctx, request)
 }
 
-func (m *Manager) resolveAppReleaseAsset(release *Release) (ReleaseAsset, error) {
+func (m *Manager) resolveAppReleaseAsset(ctx context.Context, release *Release) (ReleaseAsset, error) {
 	version := strings.TrimPrefix(strings.TrimSpace(release.Version), "v")
 	var name string
 	switch m.runtimeOS {
 	case runtimeOSDarwin:
-		arch := "arm64"
+		arch := runtimeArchARM64
 		if m.runtimeArch == runtimeArchAMD64 {
 			arch = "x64"
+			probeCtx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			output, err := m.runCommand(probeCtx, "/usr/sbin/sysctl", "-n", "hw.optional.arm64")
+			if ctx.Err() != nil {
+				return ReleaseAsset{}, ctx.Err()
+			}
+			if err == nil && strings.TrimSpace(output) == "1" {
+				// electron-updater selects the native app architecture even when the runtime runs under Rosetta.
+				arch = runtimeArchARM64
+			}
 		} else if m.runtimeArch != runtimeArchARM64 {
 			return ReleaseAsset{}, fmt.Errorf("update: unsupported architecture %q", m.runtimeArch)
 		}

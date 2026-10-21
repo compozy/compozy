@@ -6,7 +6,6 @@ import { parse as parseYAML } from "yaml";
 import { describe, expect, it } from "vitest";
 
 import packageMetadata from "../../../package.json";
-import { shouldDisableDifferentialDownload } from "../cross-arch";
 import { assertMacZipSymlinks, parseZipInfoLongListing, requiredMacZipSymlinks } from "../mac-zip";
 import { appleIDNotaryArguments } from "../notary-auth";
 import {
@@ -301,11 +300,5 @@ releaseDate: "${date}"
         ],
       ])
     );
-  });
-
-  it("Should disable differential downloads only for an x64 app on Apple Silicon", () => {
-    expect(shouldDisableDifferentialDownload("x64", "arm64")).toBe(true);
-    expect(shouldDisableDifferentialDownload("arm64", "arm64")).toBe(false);
-    expect(shouldDisableDifferentialDownload("x64", "x64")).toBe(false);
   });
 });

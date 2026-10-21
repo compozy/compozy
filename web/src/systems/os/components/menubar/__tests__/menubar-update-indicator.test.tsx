@@ -1,7 +1,7 @@
 // Suite: menubar update indicator (UT-049..UT-052)
 // Invariant: the control exists only while there is something to say, and its
 // one click updates CompozyOS in place — or, when this install cannot update
-// itself or the last update failed, opens Settings for the detail.
+// itself, opens Settings for the detail. A retryable failure keeps the action here.
 // Boundary IN: DOM presence, accessible name, and which callback activation runs.
 // Boundary OUT: which snapshots map to which state — settingsUpdateIndicatorState,
 // owned by systems/settings/lib/__tests__/update-presentation.test.ts. Pill visuals
@@ -77,9 +77,19 @@ describe("MenubarUpdateIndicator", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Updating…");
   });
 
-  it("Should open Settings from a failed update rather than retrying blind", async () => {
+  it("Should retry a failed update in place when an update action is available", async () => {
     const user = userEvent.setup();
     const { onUpdate, onOpenUpdates } = renderIndicator("failed");
+
+    await user.click(screen.getByRole("button", { name: "Retry update" }));
+
+    expect(onUpdate).toHaveBeenCalledTimes(1);
+    expect(onOpenUpdates).not.toHaveBeenCalled();
+  });
+
+  it("Should open Settings from a failed update when no retry action is available", async () => {
+    const user = userEvent.setup();
+    const { onUpdate, onOpenUpdates } = renderIndicator("failed", false);
 
     await user.click(screen.getByRole("button", { name: "Update failed" }));
 

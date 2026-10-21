@@ -1,0 +1,308 @@
+{
+  "artifact": {
+    "name": "app.asar",
+    "digest": {
+      "sha256": "1035db7b1f77974c78e6c18a4426a5fe16c639946335f7d57badfd0761971a5e"
+    },
+    "format": "asar",
+    "architecture": null,
+    "local_path": "/Applications/Grok Bot.app/Contents/Resources/app.asar"
+  },
+  "parent_evidence_id": "ev_4d6a7b53009271d03f99c81113f74bb41d72f09e491157c45fed2203ee9e8507",
+  "view_evidence_id": "ev_81dc38fce8f60aaec410dc7dffd88d3f2e1431eb77bb42f6e69b5f84fe145a77",
+  "statistics": {
+    "relevant_files": 782,
+    "nested_asar_containers": 0,
+    "text_bytes_read": 48153383,
+    "invalid_utf8_files": 0,
+    "parsed_javascript_files": 759,
+    "visited_ast_nodes": 8394839,
+    "findings": 7319,
+    "modules": 0,
+    "parse_failures": 0
+  },
+  "coverage": {
+    "application": {
+      "status": "partial",
+      "truncated": false,
+      "omitted_count": null,
+      "limits": [
+        {
+          "name": "javascript_analysis_parent_result_budget_bytes",
+          "value": 2024991720,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_semantic_result_budget_bytes",
+          "value": 0,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_semantic_result_budget_bytes",
+          "value": 53776,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_semantic_result_budget_bytes",
+          "value": 840,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_worker_heap_limit_bytes",
+          "value": 1098907648,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_worker_timeout_ms",
+          "value": 300000,
+          "unit": "milliseconds"
+        }
+      ]
+    },
+    "semantic": {
+      "status": "partial",
+      "truncated": true,
+      "omitted_nodes": null,
+      "omitted_relations": null,
+      "limits": [
+        {
+          "name": "javascript_analysis_parent_result_budget_bytes",
+          "value": 2024991720,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_semantic_result_budget_bytes",
+          "value": 0,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_semantic_result_budget_bytes",
+          "value": 53776,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_semantic_result_budget_bytes",
+          "value": 840,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_worker_heap_limit_bytes",
+          "value": 1098907648,
+          "unit": "bytes"
+        },
+        {
+          "name": "javascript_analysis_worker_timeout_ms",
+          "value": 300000,
+          "unit": "milliseconds"
+        }
+      ],
+      "families": [
+        {
+          "family": "boundary",
+          "status": "partial",
+          "retained_relations": 45,
+          "omitted_relations": null,
+          "unknown_count": 708
+        },
+        {
+          "family": "call-flow",
+          "status": "partial",
+          "retained_relations": 2511,
+          "omitted_relations": null,
+          "unknown_count": 2127
+        },
+        {
+          "family": "child-process",
+          "status": "partial",
+          "retained_relations": 0,
+          "omitted_relations": null,
+          "unknown_count": 708
+        },
+        {
+          "family": "closure",
+          "status": "partial",
+          "retained_relations": 2479,
+          "omitted_relations": null,
+          "unknown_count": 708
+        },
+        {
+          "family": "configuration",
+          "status": "partial",
+          "retained_relations": 31,
+          "omitted_relations": null,
+          "unknown_count": 715
+        },
+        {
+          "family": "data-flow",
+          "status": "partial",
+          "retained_relations": 23243,
+          "omitted_relations": null,
+          "unknown_count": 3019
+        },
+        {
+          "family": "event",
+          "status": "partial",
+          "retained_relations": 8,
+          "omitted_relations": null,
+          "unknown_count": 711
+        },
+        {
+          "family": "object-flow",
+          "status": "partial",
+          "retained_relations": 1808,
+          "omitted_relations": null,
+          "unknown_count": 4208
+        },
+        {
+          "family": "promise-ownership",
+          "status": "partial",
+          "retained_relations": 79,
+          "omitted_relations": null,
+          "unknown_count": 741
+        },
+        {
+          "family": "request",
+          "status": "partial",
+          "retained_relations": 5,
+          "omitted_relations": null,
+          "unknown_count": 711
+        },
+        {
+          "family": "resource-lifecycle",
+          "status": "partial",
+          "retained_relations": 0,
+          "omitted_relations": null,
+          "unknown_count": 708
+        },
+        {
+          "family": "timer",
+          "status": "partial",
+          "retained_relations": 5,
+          "omitted_relations": null,
+          "unknown_count": 709
+        }
+      ]
+    },
+    "application_unknowns": 1406,
+    "semantic_unknowns": 15773
+  },
+  "limitation_count": 1426,
+  "artifact_limitations": [
+    "Artifact integrity metadata contradicts observed bytes at dist/deps/cursor-proclist/build/Release/cursor_proclist.node; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/deps/sand-card-text-recognition/build/Release/sand_card_text_recognition.node; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/deps/sand-devicecheck/build/Release/sand_devicecheck.node; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/deps/sand-notification-settings/build/Release/sand_notification_settings.node; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/deps/sand-window-capture/build/Release/sand_window_capture.node; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/deps/tree-sitter-bash/prebuilds/darwin-arm64/tree-sitter-bash.node; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/deps/tree-sitter/build/Release/tree_sitter_runtime_binding.node; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/native/sand-op-launcher; the observed bytes are untrusted.",
+    "Artifact integrity metadata contradicts observed bytes at dist/native/sand-webauthn-signer; the observed bytes are untrusted.",
+    "Electron API identity follows proven lexical module aliases. Reassigned bindings, dynamic selections, and visibly overwritten namespace members are unresolved; missing findings do not establish absence. Arbitrary call side effects and runtime registration are not evaluated.",
+    "Electron relationships are derived from inert syntax; runtime registration, reachability, defaults, and enforcement remain unproven.",
+    "JavaScript and HTML were parsed as inert text; bundle bootstrap code was never executed.",
+    "Resource constraint during analyze_javascript_application: Expanded application relationships for dist/electron-main/main-app.cjs exceed the parent's result budget; complete static facts were retained on the file node",
+    "dist/electron-main/main-app.cjs: Resource constraint during analyze_javascript_application: dist/electron-main/main-app.cjs: Resource constraint during analyze_javascript_application: The parent reserved its remaining result capacity for static observations; semantic analysis of dist/electron-main/main-app.cjs was not started"
+  ],
+  "main_module": {
+    "evidence_id": "ev_0bd17bc093277a28e03396f9fc144d616104542e2c63377e9d277e9d0b9fe33f",
+    "node_id": "jag_node_840677d23cff62e41f3e91540c74290d1b1b261bf0a9c550250eaaafb62961a6",
+    "hashes": [
+      "649a10ee9a090457647c150a0260f780308504224ce5d7a89e3f9c4a2b326884"
+    ],
+    "source_ranges": [
+      {
+        "kind": "source-range",
+        "source": "dist/electron-main/main-app.cjs",
+        "start": {
+          "line": 1,
+          "column": 0
+        },
+        "end": {
+          "line": 662,
+          "column": 0
+        }
+      }
+    ],
+    "observations": [
+      {
+        "id": "jag_observation_36c912e40ee1b2b4b2f8eb9ea1e8b73a8f0458937831d93642a49a44d6fe5258",
+        "evidence": {
+          "authority": "artifact-bytes",
+          "state": "observed",
+          "confidence": "exact",
+          "artifact": {
+            "available": true,
+            "artifact_id": "art_649a10ee9a090457647c150a0260f780308504224ce5d7a89e3f9c4a2b326884",
+            "sha256": "649a10ee9a090457647c150a0260f780308504224ce5d7a89e3f9c4a2b326884"
+          },
+          "location": {
+            "available": true,
+            "value": {
+              "kind": "artifact-path",
+              "path": "dist/electron-main/main-app.cjs"
+            }
+          },
+          "extractor": {
+            "name": "rea-javascript-artifact-reconstruction",
+            "version": "1",
+            "operation": "inventory-relevant-file",
+            "executable_sha256": null
+          },
+          "coverage": {
+            "status": "complete",
+            "truncated": false,
+            "omitted_count": 0,
+            "limits": []
+          },
+          "limitations": [],
+          "evidence_ids": []
+        }
+      },
+      {
+        "id": "jag_observation_60d2363db9ecbe2cb7c613c5d5a074077433aad64ed17e96260d55d161547a90",
+        "evidence": {
+          "authority": "ast-static-analysis",
+          "state": "observed",
+          "confidence": "exact",
+          "artifact": {
+            "available": true,
+            "artifact_id": "art_649a10ee9a090457647c150a0260f780308504224ce5d7a89e3f9c4a2b326884",
+            "sha256": "649a10ee9a090457647c150a0260f780308504224ce5d7a89e3f9c4a2b326884"
+          },
+          "location": {
+            "available": true,
+            "value": {
+              "kind": "source-range",
+              "source": "dist/electron-main/main-app.cjs",
+              "start": {
+                "line": 1,
+                "column": 0
+              },
+              "end": {
+                "line": 662,
+                "column": 0
+              }
+            }
+          },
+          "extractor": {
+            "name": "rea-javascript-artifact-reconstruction",
+            "version": "1",
+            "operation": "retain-unexpanded-static-findings",
+            "executable_sha256": null
+          },
+          "coverage": {
+            "status": "partial",
+            "truncated": false,
+            "omitted_count": null,
+            "limits": []
+          },
+          "limitations": [
+            "AST coverage is incomplete; omitted or dynamic facts must not be interpreted as absence.",
+            "Resource constraint during analyze_javascript_application: Expanded application relationships for dist/electron-main/main-app.cjs exceed the parent's result budget; complete static facts were retained on the file node"
+          ],
+          "evidence_ids": []
+        }
+      }
+    ]
+  }
+}

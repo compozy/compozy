@@ -187,6 +187,33 @@ describe("settingsUpdateTracks", () => {
     expect(runtime.canApply).toBe(false);
   });
 
+  it("Should allow a failed app install to retry after its operation has settled", () => {
+    const failed = {
+      ...settingsUpdateAppAvailableFixture,
+      aggregate: "failed" as const,
+      app: {
+        ...settingsUpdateAppAvailableFixture.app!,
+        status: "failed" as const,
+        last_error: "The installer did not finish.",
+      },
+    };
+
+    expect(settingsProductUpdate(failed)).toMatchObject({
+      status: "failed",
+      targets: ["app"],
+      updating: false,
+      lastError: "The installer did not finish.",
+    });
+    expect(settingsUpdateIndicatorState(failed, false)).toBe("failed");
+    expect(
+      settingsProductUpdate({ ...failed, operation: settingsUpdateApplyingFixture.operation })
+        .targets
+    ).toBeNull();
+    expect(
+      settingsProductUpdate({ ...failed, app: { ...failed.app, latest_version: "" } }).targets
+    ).toBeNull();
+  });
+
   it("Should render unsupported as a neutral state with no mutation", () => {
     const unsupportedSnapshot = {
       ...settingsUpdateStatusFixture,

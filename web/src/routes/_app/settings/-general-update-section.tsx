@@ -239,7 +239,7 @@ function ProductUpdateRow({
               type="button"
               variant="primary"
             >
-              Update
+              {product.status === "failed" ? "Retry update" : "Update"}
             </Button>
           ) : null}
           {product.canCancel ? (
