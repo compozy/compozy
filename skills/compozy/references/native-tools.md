@@ -128,6 +128,9 @@ current turn; a full input queue retries the wake for up to 15 minutes (`status:
 Stopping the session cancels its monitors and drops their history, and a stopped session is never
 revived. `monitor_cancel` only stops the wake, not the watched process. Finished monitors stay
 listable for one hour. Monitors live in the daemon process and do not survive a daemon restart.
+Operators see active monitors as `monitor_summary.active` on session payloads and read or cancel
+them through `GET /api/workspaces/{workspace_id}/sessions/{session_id}/monitors` and
+`POST .../monitors/{monitor_id}/cancel`; an operator cancel never wakes the session.
 
 `compozy__session_create` accepts workspace, agent, optional name, and exactly one of `worktree` or
 `new_worktree`. It creates an active logical session with `runtime.status="unbound"`; it does not

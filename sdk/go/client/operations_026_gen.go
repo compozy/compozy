@@ -11,6 +11,126 @@ import (
 	"strings"
 )
 
+// StartTask Start one task by enqueueing executable work
+func (c *Client) StartTask(ctx context.Context, params StartTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
+	path := "/api/tasks/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StartTaskRunParams carries the path, query, and header parameters.
+type StartTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// StartTaskRun Start one claimed task run
+func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SteerSessionPromptParams carries the path, query, and header parameters.
+type SteerSessionPromptParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// SteerSessionPrompt Stage steering input for the active session turn
+func (c *Client) SteerSessionPrompt(ctx context.Context, params SteerSessionPromptParams, body SteerPromptRequest) (*SendPromptResultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/steer"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SendPromptResultResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StopSessionParams carries the path, query, and header parameters.
+type StopSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// StopSession Stop a session without deleting persisted history
+func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body StopSessionRequest) (*SessionStopPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stop"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionStopPayload
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamCmdPaletteParams carries the path, query, and header parameters.
+type StreamCmdPaletteParams struct {
+	Workspace   string  `url:"workspace"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// StreamCmdPalette Stream command palette catalog invalidations
+func (c *Client) StreamCmdPalette(ctx context.Context, params StreamCmdPaletteParams) (*Stream[CmdPaletteCatalogChangedEvent], error) {
+	path := "/api/cmd-palette/stream"
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[CmdPaletteCatalogChangedEvent](ctx, c, "GET", path, nil, nil, "streamCmdPalette")
+}
+
+// StreamCmdPaletteViewParams carries the path, query, and header parameters.
+type StreamCmdPaletteViewParams struct {
+	ID          string  `url:"id"`
+	Workspace   string  `url:"workspace"`
+	After       *string `url:"after"`
+	StreamEpoch *string `url:"stream_epoch"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // StreamCmdPaletteView Stream declarative command palette view patches
 func (c *Client) StreamCmdPaletteView(ctx context.Context, params StreamCmdPaletteViewParams) (*Stream[CmdPaletteViewPatch], error) {
 	path := "/api/cmd-palette/views/{id}/stream"
@@ -324,123 +444,3 @@ type StreamLoopRunEventsFrame struct {
 var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
 
 var _ json.Marshaler = StreamLoopRunEventsFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsLoopGenerationStartedRunEventPayload decodes this payload as LoopGenerationStartedRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopGenerationStartedRunEventPayload() (*LoopGenerationStartedRunEventPayload, error) {
-	var out LoopGenerationStartedRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsLoopGateVerdictRunEventPayload decodes this payload as LoopGateVerdictRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopGateVerdictRunEventPayload() (*LoopGateVerdictRunEventPayload, error) {
-	var out LoopGateVerdictRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsLoopRunEventPayload decodes this payload as LoopRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopRunEventPayload() (*LoopRunEventPayload, error) {
-	var out LoopRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamLoopRunEvents Stream Loop run events
-func (c *Client) StreamLoopRunEvents(ctx context.Context, params StreamLoopRunEventsParams) (*Stream[StreamLoopRunEventsFrame], error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", *params.AfterSequence)
-	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamLoopRunEventsFrame](ctx, c, "GET", path, headers, nil, "streamLoopRunEvents")
-}
-
-// StreamSessionParams carries the path, query, and header parameters.
-type StreamSessionParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	LastEventID   *string `url:"Last-Event-ID"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Frames        *string `url:"frames"`
-	Epoch         *int64  `url:"epoch"`
-	Generation    *int64  `url:"generation"`
-	Limit         *int    `url:"limit"`
-}
-
-// StreamSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamSessionFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamSessionFrame)(nil)
-
-var _ json.Marshaler = StreamSessionFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamSessionFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamSessionFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
-func (f StreamSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
-	var out SubagentsSnapshotEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
-func (f StreamSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
-	var out SubagentUpdatedEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
-func (f StreamSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
-	var out SessionUsageChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}

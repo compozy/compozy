@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// SubagentPullRequestPayload is a daemon API value.
+type SubagentPullRequestPayload struct {
+	URL    string `json:"url"`
+	Number int    `json:"number"`
+	State  string `json:"state"`
+}
+
+// SubagentRuntimePayload is a daemon API value.
+type SubagentRuntimePayload struct {
+	Agent           string `json:"agent"`
+	Provider        string `json:"provider"`
+	Model           string `json:"model"`
+	ReasoningEffort string `json:"reasoning_effort"`
+	Speed           string `json:"speed"`
+}
+
 // SubagentSummaryPayload is a daemon API value.
 type SubagentSummaryPayload struct {
 	Live       int    `json:"live"`
@@ -428,21 +444,4 @@ type TaskDetailPayload struct {
 	Runs                 []TaskRunPayload                 `json:"runs,omitempty"`
 	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
 	Events               []TaskEventPayload               `json:"events,omitempty"`
-}
-
-// TaskDetailResponse is a daemon API value.
-type TaskDetailResponse struct {
-	Task TaskDetailPayload `json:"task"`
-}
-
-// TaskEventPayload is a daemon API value.
-type TaskEventPayload struct {
-	ID        string          `json:"id"`
-	TaskID    string          `json:"task_id"`
-	RunID     string          `json:"run_id,omitempty"`
-	EventType string          `json:"event_type"`
-	Actor     ActorIdentity   `json:"actor"`
-	Origin    Origin          `json:"origin"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
 }

@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// TaskRunSessionPayload is a daemon API value.
+type TaskRunSessionPayload struct {
+	SessionID   string    `json:"session_id"`
+	WorkspaceID string    `json:"workspace_id,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	Name        string    `json:"name,omitempty"`
+	State       string    `json:"state,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// TaskRunStatus is a daemon API value.
+type TaskRunStatus string
+
 // TaskRunSummaryPayload is a daemon API value.
 type TaskRunSummaryPayload struct {
 	ID                   string                 `json:"id"`
@@ -430,21 +444,4 @@ type TerminalRecordingState string
 // TerminalRejectInputRequest is a daemon API value.
 type TerminalRejectInputRequest struct {
 	Reason string `json:"reason"`
-}
-
-// TerminalResolvedInputRequest is a daemon API value.
-type TerminalResolvedInputRequest struct {
-	ID          string                         `json:"id"`
-	TerminalID  TerminalID                     `json:"terminal_id"`
-	WorkspaceID string                         `json:"workspace_id,omitempty"`
-	ProfileID   string                         `json:"profile_id"`
-	ProfileName string                         `json:"profile_name"`
-	Requester   TerminalInputActorPayload      `json:"requester"`
-	Outcome     TerminalInputResolutionOutcome `json:"outcome"`
-	ResolvedBy  TerminalInputActorPayload      `json:"resolved_by"`
-	Reason      string                         `json:"reason,omitempty"`
-	Redacted    bool                           `json:"redacted"`
-	Length      int                            `json:"length"`
-	RequestedAt time.Time                      `json:"requested_at"`
-	ResolvedAt  time.Time                      `json:"resolved_at"`
 }

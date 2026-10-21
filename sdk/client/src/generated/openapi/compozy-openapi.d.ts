@@ -5436,6 +5436,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List a session's monitors */
+    get: operations["listSessionMonitors"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Cancel a session monitor without waking the session */
+    post: operations["cancelSessionMonitor"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/move": {
     parameters: {
       query?: never;
@@ -13228,6 +13262,33 @@ export interface components {
       /** Format: date-time */
       ttl_expires_at?: string | null;
     };
+    SessionMonitorPayload: {
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      deadline_at: string;
+      description: string;
+      exit_code?: number | null;
+      /** Format: date-time */
+      fired_at?: string | null;
+      kind: string;
+      monitor_id: string;
+      pattern?: string;
+      reason?: string;
+      session_id: string;
+      status: string;
+      terminal_id?: string;
+      until?: string;
+    };
+    SessionMonitorResponse: {
+      monitor: components["schemas"]["SessionMonitorPayload"];
+    };
+    SessionMonitorSummaryPayload: {
+      active: number;
+    };
+    SessionMonitorsResponse: {
+      monitors: components["schemas"]["SessionMonitorPayload"][];
+    };
     SessionOwner: {
       session_id: string;
       workspace_id: string;
@@ -13257,6 +13318,7 @@ export interface components {
       health?: components["schemas"]["SessionHealthPayload"] | null;
       id: string;
       lineage?: components["schemas"]["SessionLineagePayload"] | null;
+      monitor_summary?: components["schemas"]["SessionMonitorSummaryPayload"] | null;
       name?: string;
       pending_interactions: components["schemas"]["PendingInteractionPayload"][];
       profile_archived?: boolean;
@@ -45654,6 +45716,112 @@ export interface operations {
         };
       };
       /** @description Session attention is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listSessionMonitors: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMonitorsResponse"];
+        };
+      };
+      /** @description Session or monitor not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session monitors unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  cancelSessionMonitor: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Monitor id */
+        monitor_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Success */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionMonitorResponse"];
+        };
+      };
+      /** @description Session or monitor not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session monitors unavailable */
       503: {
         headers: {
           [name: string]: unknown;

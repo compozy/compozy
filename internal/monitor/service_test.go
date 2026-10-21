@@ -2,7 +2,8 @@ package monitor
 
 // Suite: daemon-owned session monitors.
 // Invariant: a fired monitor admits exactly one wake to its owning session, never
-// wakes after cancel or session stop, and holds bounded state and cap slots.
+// wakes after cancel or session stop, and holds bounded state and cap slots;
+// every change to a session's occupied slots reaches the observer.
 // Boundary IN: terminal watch outcomes, timers, waker refusals. Boundary OUT: Notifications and Monitor state.
 
 import (
@@ -262,6 +263,48 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				if _, err := service.Create(t.Context(), timerSpec("sess-a")); err != nil {
 					t.Fatalf("Create() after stop released slots error = %v", err)
 				}
+			}
+		})
+	})
+
+	t.Run("Should count occupied slots and notify the observer on every slot change", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			var mu sync.Mutex
+			var observed []string
+			terminals := &channelTerminals{results: make(chan Outcome, 1)}
+			service, err := NewService(t.Context(), terminals, &recordingWaker{}, WithObserver(func(id string) {
+				mu.Lock()
+				defer mu.Unlock()
+				observed = append(observed, id)
+			}))
+			if err != nil {
+				t.Fatalf("NewService() error = %v", err)
+			}
+			t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+			watched, err := service.Create(t.Context(), terminalSpec("sess-a"))
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			timer, err := service.Create(t.Context(), timerSpec("sess-a"))
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			if got := service.ActiveCounts([]string{"sess-a", "sess-b"}); got["sess-a"] != 2 || len(got) != 1 {
+				t.Fatalf("ActiveCounts() = %v, want sess-a=2 only", got)
+			}
+			if _, err := service.Cancel("sess-a", timer.ID); err != nil {
+				t.Fatalf("Cancel() error = %v", err)
+			}
+			terminals.results <- Outcome{Reason: ReasonExit}
+			synctest.Wait()
+			if got := service.ActiveCounts([]string{"sess-a"}); len(got) != 0 {
+				t.Fatalf("ActiveCounts() after cancel and fire = %v, want none", got)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			// create, create, cancel, delivered
+			if len(observed) != 4 {
+				t.Fatalf("observer calls = %v, want 4 for sess-a (watched %s)", observed, watched.ID)
 			}
 		})
 	})

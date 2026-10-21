@@ -18,6 +18,10 @@ type monitorSessionManager interface {
 	EnqueueSyntheticWake(context.Context, string, session.SyntheticPromptOpts) (store.SessionInputQueueEntry, error)
 }
 
+type sessionCatalogChangePublisher interface {
+	PublishSessionCatalogChanged(context.Context, string)
+}
+
 // monitorSessionWaker admits a fired monitor to its owning session's durable
 // input queue and returns once it is queued: an idle session starts a turn, a
 // busy one runs it after the turn. It never reads the woken turn.
@@ -127,7 +131,16 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 		}
 		return state.terminals
 	}}
-	service, err := monitorpkg.NewService(ctx, watcher, waker, monitorpkg.WithLogger(logger))
+	// Every change to a session's active monitors re-reads its catalog row, so
+	// lists and the open session see the monitor summary move.
+	publish := func(sessionID string) {
+		if manager, ok := state.sessions.(sessionCatalogChangePublisher); ok {
+			manager.PublishSessionCatalogChanged(context.WithoutCancel(ctx), sessionID)
+		}
+	}
+	service, err := monitorpkg.NewService(
+		ctx, watcher, waker, monitorpkg.WithLogger(logger), monitorpkg.WithObserver(publish),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create session monitor service: %w", err)
 	}

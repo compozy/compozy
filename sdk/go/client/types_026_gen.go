@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// WindowID is a daemon API value.
+type WindowID string
+
+// WindowManagerActor is a daemon API value.
+type WindowManagerActor struct {
+	Kind string `json:"kind,omitempty"`
+	ID   string `json:"id,omitempty"`
+}
+
 // WindowManagerClientContextInput is a daemon API value.
 type WindowManagerClientContextInput struct {
 	ScopeGlobal         bool                         `json:"scope_global"`
@@ -437,14 +446,4 @@ type WorktreeExitPlanResponse struct {
 	PRPrefill        *WorktreeExitPRPrefill         `json:"pr_prefill,omitzero"`
 	Cleanup          WorktreeExitCleanupEvidence    `json:"cleanup"`
 	Base             string                         `json:"base,omitempty"`
-}
-
-// WorktreeForgeStatusPayload is a daemon API value.
-type WorktreeForgeStatusPayload struct {
-	Provider  string     `json:"provider"`
-	PRNumber  *int       `json:"pr_number"`
-	PRState   *string    `json:"pr_state"`
-	PRURL     string     `json:"pr_url,omitempty"`
-	Merged    *bool      `json:"merged"`
-	FetchedAt *time.Time `json:"fetched_at"`
 }

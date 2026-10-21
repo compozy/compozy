@@ -11,7 +11,7 @@ const meta: Meta<typeof StateGlyph> = {
     docs: {
       description: {
         component:
-          "Work-state vocabulary: mint spinner ring (running), dashed ring (queued), info ring around a dot (delegated), filled mint check (done), accent orange dot (attention), danger ring with × (failed), subtle filled square (stopped), subtle dot (idle). Every state shares one box so labels align row to row. Decorative by default; pass `label` when it stands alone.\n\n**Canonical domain mapping** — every migration uses this table:\n\n| Domain states | StateGlyph |\n|---|---|\n| running · active · in-progress | `running` |\n| queued · pending · todo · retrying | `queued` |\n| awaiting-child · delegated · waiting-on-sub-run | `delegated` |\n| done · completed · resolved · succeeded | `done` |\n| needs-you · needs-input · blocked · waiting-approval | `attention` |\n| failed · hung · error · rejected · quarantined | `failed` |\n| stopped · canceled · cancelled · expired · skipped · paused | `stopped` |\n| idle · unknown · quiet | `idle` |",
+          "Work-state vocabulary: mint spinner ring (running), dashed ring (queued), info ring around a dot (delegated), amber radar ring (monitoring), filled mint check (done), accent orange dot (attention), danger ring with × (failed), subtle filled square (stopped), subtle dot (idle). Every state shares one box so labels align row to row. Decorative by default; pass `label` when it stands alone.\n\n**Canonical domain mapping** — every migration uses this table:\n\n| Domain states | StateGlyph |\n|---|---|\n| running · active · in-progress | `running` |\n| queued · pending · todo · retrying | `queued` |\n| awaiting-child · delegated · waiting-on-sub-run | `delegated` |\n| watching · monitoring · awaiting-wake | `monitoring` |\n| done · completed · resolved · succeeded | `done` |\n| needs-you · needs-input · blocked · waiting-approval | `attention` |\n| failed · hung · error · rejected · quarantined | `failed` |\n| stopped · canceled · cancelled · expired · skipped · paused | `stopped` |\n| idle · unknown · quiet | `idle` |",
       },
     },
   },
@@ -26,6 +26,7 @@ const ROWS: ReadonlyArray<{ state: StateGlyphState; label: string }> = [
   { state: "attention", label: "Needs you" },
   { state: "queued", label: "Queued" },
   { state: "delegated", label: "Awaiting child" },
+  { state: "monitoring", label: "Monitoring" },
   { state: "done", label: "Done" },
   { state: "failed", label: "Failed" },
   { state: "stopped", label: "Stopped" },

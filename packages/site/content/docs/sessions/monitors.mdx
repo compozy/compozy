@@ -61,7 +61,30 @@ If you send a message while the agent is busy, the wake waits behind the current
 session's input queue is full, CompozyOS keeps retrying the wake for up to 15 minutes. Stopping the
 session cancels its monitors, so nothing it registered restarts it later.
 
-## Managing monitors
+## See and cancel monitors in the app
+
+A session whose turn ended but still has an active monitor is not done yet, and the app says so:
+
+- In the session list, the row shows an amber radar mark instead of the green done check.
+- In the message box, a radar button with the number of active monitors sits next to the attach
+  button. Click it to see what each monitor watches (a timer, a terminal exit, or a terminal output
+  pattern) and when it fires or gives up.
+- Click **×** on a monitor to cancel it. The session is not woken, and the watched command keeps
+  running. A monitor that already fired reads "Waking the session…" and can no longer be canceled.
+
+When the last monitor fires or is canceled, the radar button goes away and the row shows its normal
+state again.
+
+The same reads are available over HTTP and the local socket:
+
+```bash
+curl http://127.0.0.1:2123/api/workspaces/<workspace>/sessions/<session>/monitors
+curl -X POST http://127.0.0.1:2123/api/workspaces/<workspace>/sessions/<session>/monitors/<monitor_id>/cancel
+```
+
+Every session payload also carries `monitor_summary.active` while the session has active monitors.
+
+## Managing monitors from the agent
 
 - `compozy__monitor_list` shows the session's active monitors first, then the ones from the last
   hour that fired, are still retrying their wake, were canceled, or could not be delivered.

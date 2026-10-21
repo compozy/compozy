@@ -96,11 +96,13 @@ func (s *Service) markFired(id, sessionID string, outcome Outcome) (Monitor, boo
 
 func (s *Service) settle(sessionID, id string, status Status) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	item, ok := s.sessions[sessionID][id]
 	if !ok || item.state.Status != StatusDelivering {
+		s.mu.Unlock()
 		return
 	}
 	s.finishLocked(item, status, s.now())
 	s.pruneSessionLocked(sessionID, s.now())
+	s.mu.Unlock()
+	s.notify(sessionID)
 }

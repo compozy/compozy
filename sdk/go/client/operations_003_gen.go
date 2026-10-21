@@ -10,6 +10,24 @@ import (
 	"strings"
 )
 
+// ClearSessionConversationParams carries the path, query, and header parameters.
+type ClearSessionConversationParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// ClearSessionConversation Clear conversation history and restart the session context
+func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessionConversationParams) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clear"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ClearSessionInputsParams carries the path, query, and header parameters.
 type ClearSessionInputsParams struct {
 	WorkspaceID string `url:"workspace_id"`
@@ -420,19 +438,4 @@ func (c *Client) CreateSessionFolder(ctx context.Context, params CreateSessionFo
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CreateSupportBundle Create a support bundle
-func (c *Client) CreateSupportBundle(ctx context.Context, body CreateSupportBundleRequest) (*SupportBundleOperationResponse, error) {
-	path := "/api/support/bundles"
-	var out SupportBundleOperationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateTaskParams carries the path, query, and header parameters.
-type CreateTaskParams struct {
-	Profile *string `url:"profile"`
 }

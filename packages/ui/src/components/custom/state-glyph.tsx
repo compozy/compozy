@@ -9,6 +9,7 @@ export type StateGlyphState =
   | "running"
   | "queued"
   | "delegated"
+  | "monitoring"
   | "done"
   | "attention"
   | "failed"
@@ -41,6 +42,7 @@ const STATE_CLASS: Record<StateGlyphState, string> = {
   running: "text-success",
   queued: "text-indicator",
   delegated: "text-info",
+  monitoring: "text-warning",
   done: "text-success",
   attention: "text-accent",
   failed: "text-danger",
@@ -77,6 +79,15 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
           <circle cx="8" cy="8" r="2.25" fill="currentColor" stroke="none" />
         </>
       );
+    case "monitoring":
+      // A radar ring with its sweep hand: nothing runs now, but something is watched.
+      return (
+        <>
+          <circle cx="8" cy="8" r={RING_RADIUS} />
+          <path d="M8 8l3.25-3.25" strokeLinecap="round" />
+          <circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" />
+        </>
+      );
     case "done":
       return (
         <>
@@ -110,16 +121,19 @@ function StateGlyphMark({ state }: { state: StateGlyphState }) {
 /**
  * Work-state mark from the shell-rail status vocabulary: a mint spinner ring
  * (running), a dashed ring (queued), an info ring around a dot (delegated —
- * parked until work it handed off finishes), a filled mint check (done), an accent
- * orange dot (attention / needs you), a danger ring with × (failed), a subtle
- * filled square (stopped) and a subtle dot (idle). Warning amber is never a
- * state glyph — it stays reserved for real warnings. Under reduced motion the
+ * parked until work it handed off finishes), an amber radar ring (monitoring —
+ * the turn ended but a monitor still waits to wake it), a filled mint check
+ * (done), an accent orange dot (attention / needs you), a danger ring with ×
+ * (failed), a subtle filled square (stopped) and a subtle dot (idle). Amber is
+ * the monitoring mark only — never attention — so a watched session reads as
+ * not done at a glance. Under reduced motion the
  * running ring holds still as a quarter arc, which still reads as in progress.
  *
  * Canonical domain mapping (every migration uses this table):
  * - running/active/in-progress → `running`
  * - queued/pending/todo/retrying → `queued`
  * - awaiting-child/delegated/waiting-on-sub-run → `delegated`
+ * - watching/monitoring/awaiting-wake → `monitoring`
  * - done/completed/resolved/succeeded → `done`
  * - needs-you/needs-input/blocked/waiting-approval → `attention`
  * - failed/hung/error/rejected/quarantined → `failed`

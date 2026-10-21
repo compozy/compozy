@@ -99,6 +99,8 @@ export interface SessionComposerProps {
   contextControl?: ReactNode;
   /** After the context ring, before the attach button: this session's subagents. */
   subagentControl?: ReactNode;
+  /** Beside the attach button: the monitors still waiting to wake this session. */
+  monitorControl?: ReactNode;
   promptImageCapability?: SessionPromptCapability;
   promptEmbeddedContextCapability?: SessionPromptCapability;
   sessionId: string;
@@ -283,6 +285,7 @@ function SessionComposerControls() {
       environmentControl={meta.environmentControl}
       contextControl={meta.contextControl}
       subagentControl={meta.subagentControl}
+      monitorControl={meta.monitorControl}
       handleDisconnectedSend={
         state.transportDisconnected ? actions.handleDisconnectedSend : undefined
       }

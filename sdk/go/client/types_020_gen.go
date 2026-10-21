@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerDefaultPayload is a daemon API value.
+type SettingsWindowManagerDefaultPayload struct {
+	CommandID    string   `json:"command"`
+	Binding      []string `json:"binding"`
+	Dormant      bool     `json:"dormant"`
+	ConflictWith string   `json:"conflict_with,omitempty"`
+}
+
+// SettingsWindowManagerDiagnosticPayload is a daemon API value.
+type SettingsWindowManagerDiagnosticPayload struct {
+	CommandID string `json:"command_id"`
+	Message   string `json:"message"`
+}
+
 // SettingsWindowManagerGapsPayload is a daemon API value.
 type SettingsWindowManagerGapsPayload struct {
 	Inner  int `json:"inner"`
@@ -429,20 +443,4 @@ type SubagentPayload struct {
 	SettledAt          *time.Time               `json:"settled_at"`
 	CreatedAt          time.Time                `json:"created_at"`
 	UpdatedAt          time.Time                `json:"updated_at"`
-}
-
-// SubagentPullRequestPayload is a daemon API value.
-type SubagentPullRequestPayload struct {
-	URL    string `json:"url"`
-	Number int    `json:"number"`
-	State  string `json:"state"`
-}
-
-// SubagentRuntimePayload is a daemon API value.
-type SubagentRuntimePayload struct {
-	Agent           string `json:"agent"`
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	ReasoningEffort string `json:"reasoning_effort"`
-	Speed           string `json:"speed"`
 }

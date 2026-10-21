@@ -26,6 +26,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/mention"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -212,6 +213,8 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"GET /api/sessions/:session_id/owner",
 		"GET /api/workspaces/:workspace_id/sessions",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/subagents",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/monitors",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/monitors/:monitor_id/cancel",
 		"GET /api/workspaces/:workspace_id/subagents/:subagent_id",
 		"POST /api/workspaces/:workspace_id/subagents/:subagent_id/cancel",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id",
@@ -3960,6 +3963,78 @@ func TestCompactSessionHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+type discardMonitorWaker struct{}
+
+func (discardMonitorWaker) WakeSession(context.Context, monitorpkg.Notification) error { return nil }
+
+// Session monitors are operator-visible: the session payload reports active
+// monitors, and the operator lists and cancels them without waking the session.
+func TestSessionMonitorHandlers(t *testing.T) {
+	t.Parallel()
+	monitors, err := monitorpkg.NewService(t.Context(), nil, discardMonitorWaker{})
+	if err != nil {
+		t.Fatalf("NewService() error = %v", err)
+	}
+	t.Cleanup(func() { _ = monitors.Shutdown(context.Background()) })
+	created, err := monitors.Create(t.Context(), monitorpkg.Spec{
+		WorkspaceID: "ws-workspace", SessionID: "sess-123", Kind: monitorpkg.KindTimer,
+		Description: "check CI for PR #875", Delay: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+	handlers.SessionMonitors = monitors
+	engine := newTestRouter(t, handlers)
+	base := "/api/workspaces/ws-workspace/sessions/sess-123"
+
+	t.Run("Should report active monitors on the session payload", func(t *testing.T) {
+		response := performRequest(t, engine, http.MethodGet, base, nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.SessionResponse
+		decodeJSONResponse(t, response, &payload)
+		if summary := payload.Session.MonitorSummary; summary == nil || summary.Active != 1 {
+			t.Fatalf("monitor_summary=%#v, want one active", summary)
+		}
+	})
+
+	t.Run("Should list and cancel the session's monitor", func(t *testing.T) {
+		response := performRequest(t, engine, http.MethodGet, base+"/monitors", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("list status=%d body=%s", response.Code, response.Body.String())
+		}
+		var listed contract.SessionMonitorsResponse
+		decodeJSONResponse(t, response, &listed)
+		if len(listed.Monitors) != 1 || listed.Monitors[0].MonitorID != created.ID ||
+			listed.Monitors[0].Status != string(monitorpkg.StatusActive) ||
+			listed.Monitors[0].Description != "check CI for PR #875" {
+			t.Fatalf("monitors=%#v", listed.Monitors)
+		}
+
+		response = performRequest(t, engine, http.MethodPost, base+"/monitors/"+created.ID+"/cancel", []byte("{}"))
+		if response.Code != http.StatusOK {
+			t.Fatalf("cancel status=%d body=%s", response.Code, response.Body.String())
+		}
+		var canceled contract.SessionMonitorResponse
+		decodeJSONResponse(t, response, &canceled)
+		if canceled.Monitor.Status != string(monitorpkg.StatusCanceled) || canceled.Monitor.FiredAt == nil {
+			t.Fatalf("canceled=%#v", canceled.Monitor)
+		}
+		if counts := monitors.ActiveCounts([]string{"sess-123"}); len(counts) != 0 {
+			t.Fatalf("active after cancel=%v", counts)
+		}
+	})
+
+	t.Run("Should return not found for an unknown monitor", func(t *testing.T) {
+		response := performRequest(t, engine, http.MethodPost, base+"/monitors/mon-missing/cancel", []byte("{}"))
+		if response.Code != http.StatusNotFound {
+			t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+		}
+	})
 }
 
 // UT-012 UT-017: queue origin reaches HTTP and protects agent-authored edits/promotions.

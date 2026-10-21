@@ -82,3 +82,8 @@ func WithDaemonDrainController(controller core.DaemonDrainController) Option {
 func WithSubagentService(service session.SubagentService) Option {
 	return func(server *Server) { server.subagents = service }
 }
+
+// WithSessionMonitorService exposes the daemon-owned session monitors.
+func WithSessionMonitorService(service core.SessionMonitorService) Option {
+	return func(server *Server) { server.sessionMonitors = service }
+}

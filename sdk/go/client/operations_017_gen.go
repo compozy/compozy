@@ -410,6 +410,24 @@ func (c *Client) ListSessionInteractions(ctx context.Context, params ListSession
 	return &out, nil
 }
 
+// ListSessionMonitorsParams carries the path, query, and header parameters.
+type ListSessionMonitorsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// ListSessionMonitors List a session's monitors
+func (c *Client) ListSessionMonitors(ctx context.Context, params ListSessionMonitorsParams) (*SessionMonitorsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionMonitorsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionSubagentsParams carries the path, query, and header parameters.
 type ListSessionSubagentsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -418,32 +436,4 @@ type ListSessionSubagentsParams struct {
 	Status      *string `url:"status"`
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
-}
-
-// ListSessionSubagents List a session's subagents
-func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSubagentsParams) (*SubagentListPayload, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Origin != nil {
-		query.Set("origin", *params.Origin)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SubagentListPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

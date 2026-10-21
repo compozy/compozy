@@ -32,6 +32,7 @@ type BaseHandlerConfig struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Subagents                    session.SubagentService
+	SessionMonitors              SessionMonitorService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -119,6 +120,7 @@ type BaseHandlers struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Subagents                    session.SubagentService
+	SessionMonitors              SessionMonitorService
 	Sessions                     SessionManager
 	SessionAcceptance            SessionAcceptanceManager
 	DrainController              DaemonDrainController
@@ -232,6 +234,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Subagents:                    cfg.Subagents,
+		SessionMonitors:              cfg.SessionMonitors,
 		Sessions:                     cfg.Sessions,
 		SessionAcceptance:            cfg.SessionAcceptance,
 		DrainController:              cfg.DrainController,

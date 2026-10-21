@@ -94,6 +94,9 @@ import type {
   CancelQueuedSessionPromptData,
   CancelQueuedSessionPromptErrors,
   CancelQueuedSessionPromptResponses,
+  CancelSessionMonitorData,
+  CancelSessionMonitorErrors,
+  CancelSessionMonitorResponses,
   CancelSessionPromptData,
   CancelSessionPromptErrors,
   CancelSessionPromptResponses,
@@ -834,6 +837,9 @@ import type {
   ListSessionInteractionsData,
   ListSessionInteractionsErrors,
   ListSessionInteractionsResponses,
+  ListSessionMonitorsData,
+  ListSessionMonitorsErrors,
+  ListSessionMonitorsResponses,
   ListSessionsData,
   ListSessionsErrors,
   ListSessionsResponses,
@@ -8182,6 +8188,47 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions",
+      ...options,
+    });
+  }
+
+  /**
+   * List a session's monitors
+   */
+  public listSessionMonitors<ThrowOnError extends boolean = true>(
+    options: Options<ListSessionMonitorsData, ThrowOnError>
+  ): RequestResult<ListSessionMonitorsResponses, ListSessionMonitorsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ListSessionMonitorsResponses,
+      ListSessionMonitorsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel a session monitor without waking the session
+   */
+  public cancelSessionMonitor<ThrowOnError extends boolean = true>(
+    options: Options<CancelSessionMonitorData, ThrowOnError>
+  ): RequestResult<
+    CancelSessionMonitorResponses,
+    CancelSessionMonitorErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CancelSessionMonitorResponses,
+      CancelSessionMonitorErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel",
       ...options,
     });
   }

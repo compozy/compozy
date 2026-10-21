@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// TerminalResolvedInputRequest is a daemon API value.
+type TerminalResolvedInputRequest struct {
+	ID          string                         `json:"id"`
+	TerminalID  TerminalID                     `json:"terminal_id"`
+	WorkspaceID string                         `json:"workspace_id,omitempty"`
+	ProfileID   string                         `json:"profile_id"`
+	ProfileName string                         `json:"profile_name"`
+	Requester   TerminalInputActorPayload      `json:"requester"`
+	Outcome     TerminalInputResolutionOutcome `json:"outcome"`
+	ResolvedBy  TerminalInputActorPayload      `json:"resolved_by"`
+	Reason      string                         `json:"reason,omitempty"`
+	Redacted    bool                           `json:"redacted"`
+	Length      int                            `json:"length"`
+	RequestedAt time.Time                      `json:"requested_at"`
+	ResolvedAt  time.Time                      `json:"resolved_at"`
+}
+
 // TerminalResponse is a daemon API value.
 type TerminalResponse struct {
 	Terminal TerminalInfoPayload `json:"terminal"`
@@ -426,13 +443,4 @@ type TranscriptDeltaPayload struct {
 	Cursor        int64   `json:"cursor"`
 	MaxSequence   int64   `json:"max_sequence"`
 	HasMore       bool    `json:"has_more"`
-}
-
-// TranscriptMarkerPayload is a daemon API value.
-type TranscriptMarkerPayload struct {
-	Kind       string          `json:"kind"`
-	OccurredAt time.Time       `json:"occurred_at"`
-	Summary    string          `json:"summary"`
-	Evidence   map[string]any  `json:"evidence,omitempty"`
-	Diagnostic json.RawMessage `json:"diagnostic,omitempty"`
 }

@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// SettingsProviderSettingsPayload is a daemon API value.
+type SettingsProviderSettingsPayload struct {
+	SessionEnv       map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
+	SteerCapability  SteerCapability                         `json:"steer_capability,omitempty"`
+	Command          string                                  `json:"command,omitempty"`
+	CommandInherited bool                                    `json:"command_inherited,omitempty"`
+	DisplayName      string                                  `json:"display_name,omitempty"`
+	Models           *SettingsProviderModelsPayload          `json:"models,omitzero"`
+	Harness          string                                  `json:"harness,omitempty"`
+	RuntimeProvider  string                                  `json:"runtime_provider,omitempty"`
+	Transport        string                                  `json:"transport,omitempty"`
+	BaseURL          string                                  `json:"base_url,omitempty"`
+	AuthMode         string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy        string                                  `json:"env_policy,omitempty"`
+	HomePolicy       string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd    string                                  `json:"auth_status_command,omitempty"`
+	AuthACPMethod    string                                  `json:"auth_acp_method,omitempty"`
+	CredentialSlots  []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
 // SettingsProviderWritePayload is a daemon API value.
 type SettingsProviderWritePayload struct {
 	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
@@ -425,18 +445,4 @@ type SettingsWindowManagerConfigPayload struct {
 	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
 	Shortcuts           map[string][]string                 `json:"shortcuts"`
 	GlobalShortcuts     map[string]string                   `json:"global_shortcuts"`
-}
-
-// SettingsWindowManagerDefaultPayload is a daemon API value.
-type SettingsWindowManagerDefaultPayload struct {
-	CommandID    string   `json:"command"`
-	Binding      []string `json:"binding"`
-	Dormant      bool     `json:"dormant"`
-	ConflictWith string   `json:"conflict_with,omitempty"`
-}
-
-// SettingsWindowManagerDiagnosticPayload is a daemon API value.
-type SettingsWindowManagerDiagnosticPayload struct {
-	CommandID string `json:"command_id"`
-	Message   string `json:"message"`
 }
