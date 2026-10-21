@@ -117,6 +117,6 @@ func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) 
 		if err := prepareOperatorHomeMigrationContext(ctx, db, operatorHomeDir); err != nil {
 			return err
 		}
-		return store.Apply(ctx, db, MigrationStream())
+		return applyGlobalMigrations(ctx, db)
 	})
 }

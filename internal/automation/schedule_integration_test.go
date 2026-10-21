@@ -64,6 +64,9 @@ func TestSchedulerIntegrationFastScheduleDispatchesThroughDispatcher(t *testing.
 	if len(runs) == 0 {
 		t.Fatal("ListRuns() = 0 runs, want at least one")
 	}
+	if runs[0].WorkspaceID == nil || *runs[0].WorkspaceID != job.WorkspaceID || runs[0].Attribution != "recorded" {
+		t.Fatalf("scheduled source attribution = %#v", runs[0])
+	}
 	if got, want := runs[0].Status, RunCompleted; got != want {
 		t.Fatalf("runs[0].Status = %q, want %q", got, want)
 	}

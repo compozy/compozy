@@ -44,7 +44,16 @@ func automationRunParams(
 	run automation.Run,
 	metadataJSON string,
 ) sqlcgen.InsertAutomationRunParams {
+	workspace := sql.NullString{}
+	if run.WorkspaceID != nil {
+		workspace = sql.NullString{String: *run.WorkspaceID, Valid: true}
+	}
+	attribution := run.Attribution
+	if attribution == "" {
+		attribution = "unknown"
+	}
 	return sqlcgen.InsertAutomationRunParams{
+		WorkspaceID: workspace, Attribution: attribution,
 		ID:            run.ID,
 		ProfileID:     nullableAutomationString(run.ProfileID),
 		JobID:         nullableAutomationString(run.JobID),

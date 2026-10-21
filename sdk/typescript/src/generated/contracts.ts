@@ -3278,6 +3278,8 @@ export interface ResourcesSnapshotParams {
 }
 
 export interface Run {
+  workspace_id?: string;
+  attribution: string;
   id: string;
   profile_id?: string;
   job_id?: string;

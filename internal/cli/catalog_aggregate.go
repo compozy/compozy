@@ -1,0 +1,135 @@
+package cli
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"net/url"
+
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/spf13/cobra"
+)
+
+type aggregateCatalogClient interface {
+	ReadAggregateCatalog(context.Context, string, url.Values, any) error
+}
+
+func (c *daemonClient) ReadAggregateCatalog(ctx context.Context, path string, values url.Values, result any) error {
+	values.Set("all_workspaces", "true")
+	return c.doJSON(ctx, http.MethodGet, path, values, nil, result)
+}
+
+func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) error {
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	reader, ok := client.(aggregateCatalogClient)
+	if !ok {
+		return fmt.Errorf("cli: aggregate catalog client unavailable")
+	}
+	workspaces, err := client.ListWorkspaces(cmd.Context())
+	if err != nil {
+		return err
+	}
+	labels := map[string]string{"": "User"}
+	for _, ws := range workspaces {
+		labels[ws.ID] = ws.Name
+	}
+	label := func(id string) string {
+		if name, ok := labels[id]; ok {
+			return name
+		}
+		return id
+	}
+	values := url.Values{}
+	var bundle outputBundle
+	rows := [][]string{}
+	headers := []string{"PROJECT", "NAME", "STATE"}
+	switch kind {
+	case "terminals":
+		var response contract.TerminalListResponse
+		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/terminals", values, &response); err != nil {
+			return err
+		}
+		bundle = terminalListBundle(cmd, response.Terminals, deps.now)
+		for _, item := range response.Terminals {
+			rows = append(rows, []string{label(item.WorkspaceID), item.Title, string(item.State)})
+		}
+	case "worktrees":
+		var response contract.WorktreesResponse
+		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/worktrees", values, &response); err != nil {
+			return err
+		}
+		bundle = worktreeListBundle(response.Worktrees)
+		for _, item := range response.Worktrees {
+			rows = append(rows, []string{label(item.WorkspaceID), item.Name, string(item.State)})
+		}
+	case "agents":
+		var items []AgentRecord
+		for {
+			var response contract.AgentCatalogResponse
+			if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/agents/aggregate", values, &response); err != nil {
+				return err
+			}
+			for _, item := range response.Agents {
+				items = append(items, item.Agent)
+				rows = append(rows, []string{label(item.Agent.WorkspaceID), item.Agent.Name, item.Agent.Provider})
+			}
+			if !response.Page.HasMore {
+				break
+			}
+			values.Set("cursor", response.Page.NextCursor)
+		}
+		headers[2] = "PROVIDER"
+		bundle = agentListBundle(items)
+	case "suggestions":
+		status, err := cmd.Flags().GetString("status")
+		if err != nil {
+			return err
+		}
+		values.Set("status", status)
+		var response contract.AutomationSuggestionsResponse
+		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/automation/suggestions", values, &response); err != nil {
+			return err
+		}
+		bundle = automationSuggestionListBundle(response)
+		for _, item := range response.Suggestions {
+			rows = append(rows, []string{label(item.WorkspaceID), item.Payload.Name, string(item.Status)})
+		}
+	default:
+		return fmt.Errorf("cli: unsupported aggregate %q", kind)
+	}
+	bundle.human = func() (string, error) { return renderHumanTable(kind, headers, rows), nil }
+	return writeCommandOutput(cmd, bundle)
+}
+
+func addAllWorkspacesFlag(cmd *cobra.Command) {
+	cmd.Flags().Bool("all-workspaces", false, "List every project and User scope")
+	cmd.MarkFlagsMutuallyExclusive("workspace", "all-workspaces")
+}
+
+func wantsAllWorkspaces(cmd *cobra.Command) bool {
+	flag := cmd.Flags().Lookup("all-workspaces")
+	return flag != nil && flag.Value.String() == "true"
+}
+
+func aggregateProjectLabels(cmd *cobra.Command, client interface {
+	ListWorkspaces(context.Context) ([]WorkspaceRecord, error)
+}) (map[string]string, error) {
+	labels := map[string]string{"": "User"}
+	items, err := client.ListWorkspaces(cmd.Context())
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		labels[item.ID] = item.Name
+	}
+	return labels, nil
+}
+func aggregateProjectName(labels map[string]string, id string) string {
+	if name, ok := labels[id]; ok {
+		return name
+	}
+	return id
+}

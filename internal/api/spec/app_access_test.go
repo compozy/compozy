@@ -200,6 +200,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"listTerminalsAggregate", "streamTerminalsAggregate", "listWorktreesAggregate", "listAgentsAggregate", "listAutomationSuggestionsAggregate",
 			"listLoopsAggregate", "listLoopRunsAggregate", "listLoopRequestsAggregate",
 			"refreshProviderUsage", "getSettingsProviderUsage", "updateSettingsProviderUsage",
 			"getStatus",

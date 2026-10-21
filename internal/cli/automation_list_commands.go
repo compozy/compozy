@@ -46,9 +46,17 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
+			query.AllWorkspaces = wantsAllWorkspaces(cmd)
 			page, err := client.ListAutomationJobs(cmd.Context(), query)
 			if err != nil {
 				return err
+			}
+			if query.AllWorkspaces {
+				labels, err := aggregateProjectLabels(cmd, client)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, automationJobListBundle(page, deps.now, labels))
 			}
 			return writeCommandOutput(cmd, automationJobListBundle(page, deps.now))
 		},
@@ -76,6 +84,7 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newAutomationJobsDeleteCommand(deps))
 	cmd.AddCommand(newAutomationJobsTriggerCommand(deps))
 	cmd.AddCommand(newAutomationJobsHistoryCommand(deps))
+	addAllWorkspacesFlag(cmd)
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
@@ -123,9 +132,17 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
+			query.AllWorkspaces = wantsAllWorkspaces(cmd)
 			page, err := client.ListAutomationTriggers(cmd.Context(), query)
 			if err != nil {
 				return err
+			}
+			if query.AllWorkspaces {
+				labels, err := aggregateProjectLabels(cmd, client)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, automationTriggerListBundle(page, deps.now, labels))
 			}
 			return writeCommandOutput(cmd, automationTriggerListBundle(page, deps.now))
 		},
@@ -153,6 +170,7 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newAutomationTriggersUpdateCommand(deps))
 	cmd.AddCommand(newAutomationTriggersDeleteCommand(deps))
 	cmd.AddCommand(newAutomationTriggersHistoryCommand(deps))
+	addAllWorkspacesFlag(cmd)
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }

@@ -11,6 +11,366 @@ import (
 	"strings"
 )
 
+// StreamLogs Stream runtime logs
+func (c *Client) StreamLogs(ctx context.Context, params StreamLogsParams) (*Stream[LogEventPayload], error) {
+	path := "/api/logs/stream"
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.Run != nil {
+		query.Set("run", *params.Run)
+	}
+	if params.Actor != nil {
+		query.Set("actor", *params.Actor)
+	}
+	if params.ActorKind != nil {
+		query.Set("actor_kind", *params.ActorKind)
+	}
+	if params.ActorID != nil {
+		query.Set("actor_id", *params.ActorID)
+	}
+	if params.Provider != nil {
+		query.Set("provider", *params.Provider)
+	}
+	if params.Outcome != nil {
+		query.Set("outcome", *params.Outcome)
+	}
+	if params.Component != nil {
+		query.Set("component", *params.Component)
+	}
+	if params.ErrorOnly != nil {
+		query.Set("error_only", strconv.FormatBool(*params.ErrorOnly))
+	}
+	if params.AfterSeq != nil {
+		query.Set("after_seq", strconv.Itoa(*params.AfterSeq))
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Replay != nil {
+		query.Set("replay", strconv.FormatBool(*params.Replay))
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[LogEventPayload](ctx, c, "GET", path, headers, nil, "streamLogs")
+}
+
+// StreamLoopRunEventsParams carries the path, query, and header parameters.
+type StreamLoopRunEventsParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	RunID         string  `url:"run_id"`
+	AfterSequence *string `url:"after_sequence"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// StreamLoopRunEventsFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamLoopRunEventsFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
+
+var _ json.Marshaler = StreamLoopRunEventsFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsLoopGenerationStartedRunEventPayload decodes this payload as LoopGenerationStartedRunEventPayload.
+func (f StreamLoopRunEventsFrame) AsLoopGenerationStartedRunEventPayload() (*LoopGenerationStartedRunEventPayload, error) {
+	var out LoopGenerationStartedRunEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsLoopGateVerdictRunEventPayload decodes this payload as LoopGateVerdictRunEventPayload.
+func (f StreamLoopRunEventsFrame) AsLoopGateVerdictRunEventPayload() (*LoopGateVerdictRunEventPayload, error) {
+	var out LoopGateVerdictRunEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsLoopRunEventPayload decodes this payload as LoopRunEventPayload.
+func (f StreamLoopRunEventsFrame) AsLoopRunEventPayload() (*LoopRunEventPayload, error) {
+	var out LoopRunEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamLoopRunEvents Stream Loop run events
+func (c *Client) StreamLoopRunEvents(ctx context.Context, params StreamLoopRunEventsParams) (*Stream[StreamLoopRunEventsFrame], error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/events"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", *params.AfterSequence)
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamLoopRunEventsFrame](ctx, c, "GET", path, headers, nil, "streamLoopRunEvents")
+}
+
+// StreamProviderUsageParams carries the path, query, and header parameters.
+type StreamProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
+// StreamProviderUsage Stream provider usage invalidations (experimental) Experimental: pin the exact SDK version.
+func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderUsageParams) (*Stream[ProviderUsageStreamEvent], error) {
+	path := "/api/provider-usage/stream"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[ProviderUsageStreamEvent](ctx, c, "GET", path, nil, nil, "streamProviderUsage")
+}
+
+// StreamSessionParams carries the path, query, and header parameters.
+type StreamSessionParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	SessionID     string  `url:"session_id"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Frames        *string `url:"frames"`
+	Epoch         *int64  `url:"epoch"`
+	Generation    *int64  `url:"generation"`
+	Limit         *int    `url:"limit"`
+}
+
+// StreamSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamSessionFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamSessionFrame)(nil)
+
+var _ json.Marshaler = StreamSessionFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamSessionFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamSessionFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
+func (f StreamSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
+	var out SubagentsSnapshotEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
+func (f StreamSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
+	var out SubagentUpdatedEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
+func (f StreamSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
+	var out SessionUsageChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
+func (f StreamSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
+	var out SessionConsumerDegradedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionEventPayload decodes this payload as SessionEventPayload.
+func (f StreamSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error) {
+	var out SessionEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
+func (f StreamSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
+	var out TranscriptSnapshotPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
+func (f StreamSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
+	var out TranscriptDeltaPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
+func (f StreamSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
+	var out GoalSnapshotChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
+func (f StreamSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
+	var out SessionCommandsChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsErrorPayload decodes this payload as ErrorPayload.
+func (f StreamSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
+	var out ErrorPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StreamSession Stream raw session events or fenced transcript changes
+func (c *Client) StreamSession(ctx context.Context, params StreamSessionParams) (*Stream[StreamSessionFrame], error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stream"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	query := url.Values{}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Frames != nil {
+		query.Set("frames", *params.Frames)
+	}
+	if params.Epoch != nil {
+		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
+	}
+	if params.Generation != nil {
+		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[StreamSessionFrame](ctx, c, "GET", path, headers, nil, "streamSession")
+}
+
+// StreamSessionCatalogParams carries the path, query, and header parameters.
+type StreamSessionCatalogParams struct {
+	WorkspaceID      *string `url:"workspace_id"`
+	AllWorkspaces    *bool   `url:"all_workspaces"`
+	LastEventID      *string `url:"Last-Event-ID"`
+	LastEventIDQuery *string `url:"last_event_id"`
+	Profile          *string `url:"profile"`
+	AllProfiles      *bool   `url:"all_profiles"`
+}
+
+// StreamSessionCatalogFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamSessionCatalogFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamSessionCatalogFrame)(nil)
+
+var _ json.Marshaler = StreamSessionCatalogFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamSessionCatalogFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamSessionCatalogFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsSessionCatalogEventPayload decodes this payload as SessionCatalogEventPayload.
+func (f StreamSessionCatalogFrame) AsSessionCatalogEventPayload() (*SessionCatalogEventPayload, error) {
+	var out SessionCatalogEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsSessionAttentionEventPayload decodes this payload as SessionAttentionEventPayload.
 func (f StreamSessionCatalogFrame) AsSessionAttentionEventPayload() (*SessionAttentionEventPayload, error) {
 	var out SessionAttentionEventPayload
@@ -70,380 +430,4 @@ type StreamTaskParams struct {
 	AfterSequence *int64  `url:"after_sequence"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// StreamTask Stream task-native live events for one task
-func (c *Client) StreamTask(ctx context.Context, params StreamTaskParams) (*Stream[TaskStreamEventPayload], error) {
-	path := "/api/tasks/{id}/stream"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[TaskStreamEventPayload](ctx, c, "GET", path, nil, nil, "streamTask")
-}
-
-// StreamTerminalCatalogParams carries the path, query, and header parameters.
-type StreamTerminalCatalogParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	LastEventID *string `url:"Last-Event-ID"`
-	Profile     *string `url:"profile"`
-}
-
-// StreamTerminalCatalog Stream one profile-scoped terminal catalog
-func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTerminalCatalogParams) (*Stream[TerminalCatalogSnapshot], error) {
-	path := "/api/workspaces/{workspace_id}/terminals/stream"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[TerminalCatalogSnapshot](ctx, c, "GET", path, headers, nil, "streamTerminalCatalog")
-}
-
-// StreamWorktreeParams carries the path, query, and header parameters.
-type StreamWorktreeParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	WorktreeID    string  `url:"worktree_id"`
-	AfterSequence *int64  `url:"after_sequence"`
-	LastEventID   *string `url:"Last-Event-ID"`
-}
-
-// StreamWorktree Stream durable worktree lifecycle events
-func (c *Client) StreamWorktree(ctx context.Context, params StreamWorktreeParams) (*Stream[map[string]any], error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/stream"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[map[string]any](ctx, c, "GET", path, headers, nil, "streamWorktree")
-}
-
-// StreamWorktreeCatalog Stream worktree catalog changes across workspaces
-func (c *Client) StreamWorktreeCatalog(ctx context.Context) (*Stream[WorktreeCatalogEventPayload], error) {
-	path := "/api/worktrees/catalog-stream"
-	return newStream[WorktreeCatalogEventPayload](ctx, c, "GET", path, nil, nil, "streamWorktreeCatalog")
-}
-
-// SubmitTaskRunReviewVerdictParams carries the path, query, and header parameters.
-type SubmitTaskRunReviewVerdictParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// SubmitTaskRunReviewVerdict Submit one task-run review verdict
-func (c *Client) SubmitTaskRunReviewVerdict(ctx context.Context, params SubmitTaskRunReviewVerdictParams, body SubmitTaskRunReviewVerdictRequest) (*TaskRunReviewVerdictResponse, error) {
-	path := "/api/task-reviews/{id}/verdict"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewVerdictResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// TriggerAutomationJobParams carries the path, query, and header parameters.
-type TriggerAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// TriggerAutomationJob Trigger one automation job immediately
-func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
-	path := "/api/automation/jobs/{id}/trigger"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// TriggerSettingsRestart Trigger a daemon restart using the persisted relaunch helper flow
-func (c *Client) TriggerSettingsRestart(ctx context.Context) (*RestartActionResponse, error) {
-	path := "/api/settings/actions/restart"
-	var out RestartActionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnarchiveProfileParams carries the path, query, and header parameters.
-type UnarchiveProfileParams struct {
-	Name string `url:"name"`
-}
-
-// UnarchiveProfile Unarchive a profile
-func (c *Client) UnarchiveProfile(ctx context.Context, params UnarchiveProfileParams, body UnarchiveProfileRequest) (*UnarchiveProfileResponse, error) {
-	path := "/api/profiles/{name}/unarchive"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out UnarchiveProfileResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnarchiveSessionParams carries the path, query, and header parameters.
-type UnarchiveSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UnarchiveSession Restore an archived session
-func (c *Client) UnarchiveSession(ctx context.Context, params UnarchiveSessionParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnbindGatewayIngressParams carries the path, query, and header parameters.
-type UnbindGatewayIngressParams struct {
-	SubjectKind string `url:"subject_kind"`
-	SubjectID   string `url:"subject_id"`
-}
-
-// UnbindGatewayIngress Remove one public ingress confirmation
-func (c *Client) UnbindGatewayIngress(ctx context.Context, params UnbindGatewayIngressParams) (*GatewayIngressUnbindResponse, error) {
-	path := "/api/gateway/ingress-bindings/{subject_kind}/{subject_id}"
-	path = strings.ReplaceAll(path, "{subject_kind}", url.PathEscape(params.SubjectKind))
-	path = strings.ReplaceAll(path, "{subject_id}", url.PathEscape(params.SubjectID))
-	var out GatewayIngressUnbindResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UndrainDaemon Resume admission of new work
-func (c *Client) UndrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
-	path := "/api/undrain"
-	var out DrainStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnexposeSkillParams carries the path, query, and header parameters.
-type UnexposeSkillParams struct {
-	Name     string  `url:"name"`
-	Profile  *string `url:"profile"`
-	ForAgent *string `url:"for_agent"`
-}
-
-// UnexposeSkill Remove owned provider-root links for one skill
-func (c *Client) UnexposeSkill(ctx context.Context, params UnexposeSkillParams, body SkillExposureRequest) (*SkillUnexposeResponse, error) {
-	path := "/api/skills/{name}/unexpose"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillUnexposeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnpinCmdPaletteCommandParams carries the path, query, and header parameters.
-type UnpinCmdPaletteCommandParams struct {
-	ID        string  `url:"id"`
-	Workspace string  `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// UnpinCmdPaletteCommand Unpin one command palette command
-func (c *Client) UnpinCmdPaletteCommand(ctx context.Context, params UnpinCmdPaletteCommandParams) (*CmdPalettePinResponse, error) {
-	path := "/api/cmd-palette/pins/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPalettePinResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UnregisterWindowManagerClientParams carries the path, query, and header parameters.
-type UnregisterWindowManagerClientParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ClientID    string  `url:"client_id"`
-	Profile     *string `url:"profile"`
-}
-
-// UnregisterWindowManagerClient Unregister a window-manager client view
-func (c *Client) UnregisterWindowManagerClient(ctx context.Context, params UnregisterWindowManagerClientParams) error {
-	path := "/api/workspaces/{workspace_id}/window-manager/clients/{client_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{client_id}", url.PathEscape(params.ClientID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// UpdateAgentParams carries the path, query, and header parameters.
-type UpdateAgentParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAgent Replace one effective AGENT.md definition with digest CAS
-func (c *Client) UpdateAgent(ctx context.Context, params UpdateAgentParams, body UpdateAgentRequest) (*AgentResponse, error) {
-	path := "/api/agents/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAppTokenParams carries the path, query, and header parameters.
-type UpdateAppTokenParams struct {
-	AppTokenID string `url:"app_token_id"`
-}
-
-// UpdateAppToken Change an app token name or replace its origin allowlist Experimental: pin the exact SDK version.
-func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams, body UpdateAppTokenRequest) (*AppTokenResponse, error) {
-	path := "/api/app-tokens/{app_token_id}"
-	path = strings.ReplaceAll(path, "{app_token_id}", url.PathEscape(params.AppTokenID))
-	var out AppTokenResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAutomationJobParams carries the path, query, and header parameters.
-type UpdateAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAutomationJob Update one automation job
-func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomationJobParams, body UpdateJobRequest) (*JobResponse, error) {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAutomationTriggerParams carries the path, query, and header parameters.
-type UpdateAutomationTriggerParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAutomationTrigger Update one automation trigger
-func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutomationTriggerParams, body UpdateTriggerRequest) (*TriggerResponse, error) {
-	path := "/api/automation/triggers/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TriggerResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateExtensionParams carries the path, query, and header parameters.
-type UpdateExtensionParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }

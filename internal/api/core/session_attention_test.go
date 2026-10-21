@@ -546,6 +546,10 @@ func (notificationRouteObserver) TaskAttentionItems(
 
 type notificationRouteTerminal struct{ terminalpkg.Manager }
 
+func (notificationRouteTerminal) InputRequestsAggregate(context.Context, store.ReadScope) ([]terminalpkg.PendingInputRequest, error) {
+	return nil, nil
+}
+
 func (notificationRouteTerminal) InputRequests(
 	context.Context,
 	string,

@@ -2,10 +2,8 @@ package cli
 
 import (
 	"net/url"
-
 	"strconv"
 	"strings"
-
 	"time"
 )
 
@@ -135,6 +133,15 @@ func hookEventsValues(query HookEventsQuery) url.Values {
 
 func automationRunValues(query AutomationRunQuery) url.Values {
 	values := url.Values{}
+	if query.AllWorkspaces {
+		values.Set("all_workspaces", "true")
+	}
+	if query.WorkspaceID != "" {
+		values.Set("workspace_id", query.WorkspaceID)
+	}
+	if query.Cursor != "" {
+		values.Set("cursor", query.Cursor)
+	}
 	if trimmed := strings.TrimSpace(query.JobID); trimmed != "" {
 		values.Set("job_id", trimmed)
 	}

@@ -4,6 +4,22 @@ package client
 
 import "time"
 
+// SettingsDaemonRuntimePayload is a daemon API value.
+type SettingsDaemonRuntimePayload struct {
+	Available      bool       `json:"available"`
+	Status         string     `json:"status,omitempty"`
+	PID            int        `json:"pid,omitzero"`
+	StartedAt      *time.Time `json:"started_at,omitempty"`
+	UptimeSeconds  int64      `json:"uptime_seconds"`
+	Socket         string     `json:"socket,omitempty"`
+	HTTPHost       string     `json:"http_host,omitempty"`
+	HTTPPort       int        `json:"http_port,omitzero"`
+	ActiveSessions int        `json:"active_sessions"`
+	ActiveAgents   int        `json:"active_agents"`
+	TotalSessions  int        `json:"total_sessions"`
+	Version        string     `json:"version,omitempty"`
+}
+
 // SettingsDefaultsPayload is a daemon API value.
 type SettingsDefaultsPayload struct {
 	Agent           string `json:"agent"`
@@ -426,14 +442,4 @@ type SettingsPermissionMode string
 // SettingsPermissionsPayload is a daemon API value.
 type SettingsPermissionsPayload struct {
 	Mode SettingsPermissionMode `json:"mode"`
-}
-
-// SettingsPersonaResponse is a daemon API value.
-type SettingsPersonaResponse struct {
-	Section         SettingsSectionName        `json:"section"`
-	Scope           SettingsLayeredScopeKind   `json:"scope"`
-	WorkspaceID     string                     `json:"workspace_id,omitempty"`
-	Profile         string                     `json:"profile,omitempty"`
-	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
-	Config          SettingsDefaultsPayload    `json:"config"`
 }

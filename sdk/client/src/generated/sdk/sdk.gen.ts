@@ -720,6 +720,9 @@ import type {
   ListAgentHeartbeatHistoryData,
   ListAgentHeartbeatHistoryErrors,
   ListAgentHeartbeatHistoryResponses,
+  ListAgentsAggregateData,
+  ListAgentsAggregateErrors,
+  ListAgentsAggregateResponses,
   ListAgentsData,
   ListAgentsErrors,
   ListAgentSoulHistoryData,
@@ -741,6 +744,9 @@ import type {
   ListAutomationRunsData,
   ListAutomationRunsErrors,
   ListAutomationRunsResponses,
+  ListAutomationSuggestionsAggregateData,
+  ListAutomationSuggestionsAggregateErrors,
+  ListAutomationSuggestionsAggregateResponses,
   ListAutomationSuggestionsData,
   ListAutomationSuggestionsErrors,
   ListAutomationSuggestionsResponses,
@@ -900,6 +906,9 @@ import type {
   ListTerminalInputRequestsData,
   ListTerminalInputRequestsErrors,
   ListTerminalInputRequestsResponses,
+  ListTerminalsAggregateData,
+  ListTerminalsAggregateErrors,
+  ListTerminalsAggregateResponses,
   ListTerminalsData,
   ListTerminalsErrors,
   ListTerminalsResponses,
@@ -927,6 +936,9 @@ import type {
   ListWorkspaceSessionsErrors,
   ListWorkspaceSessionsResponses,
   ListWorkspacesResponses,
+  ListWorktreesAggregateData,
+  ListWorktreesAggregateErrors,
+  ListWorktreesAggregateResponses,
   ListWorktreesData,
   ListWorktreesErrors,
   ListWorktreesResponses,
@@ -1778,6 +1790,24 @@ export class agents extends HeyApiClient {
   /**
    * List a filtered agent fleet with exact session metrics
    */
+  public listAgentsAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentsAggregateData, ThrowOnError>
+  ): RequestResult<ListAgentsAggregateResponses, ListAgentsAggregateErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListAgentsAggregateResponses,
+      ListAgentsAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/aggregate",
+      ...options,
+    });
+  }
+
+  /**
+   * List a filtered agent fleet with exact session metrics
+   */
   public listAgentCatalog<ThrowOnError extends boolean = true>(
     options?: Options<ListAgentCatalogData, ThrowOnError>
   ): RequestResult<ListAgentCatalogResponses, ListAgentCatalogErrors, ThrowOnError, "data"> {
@@ -2469,6 +2499,29 @@ export class automation extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/automation/runs/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * List consent-first automation suggestions for one workspace
+   */
+  public listAutomationSuggestionsAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListAutomationSuggestionsAggregateData, ThrowOnError>
+  ): RequestResult<
+    ListAutomationSuggestionsAggregateResponses,
+    ListAutomationSuggestionsAggregateErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListAutomationSuggestionsAggregateResponses,
+      ListAutomationSuggestionsAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/automation/suggestions",
       ...options,
     });
   }
@@ -10118,396 +10171,30 @@ export class support extends HeyApiClient {
   }
 }
 
-export class tools extends HeyApiClient {
-  /**
-   * List remembered native-tool approval decisions for one workspace
-   */
-  public listToolApprovalGrants<ThrowOnError extends boolean = true>(
-    options: Options<ListToolApprovalGrantsData, ThrowOnError>
-  ): RequestResult<
-    ListToolApprovalGrantsResponses,
-    ListToolApprovalGrantsErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      ListToolApprovalGrantsResponses,
-      ListToolApprovalGrantsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tool-approval-grants",
-      ...options,
-    });
-  }
-
-  /**
-   * Set an explicit agent-wide or tool-wide native-tool approval decision
-   */
-  public setToolApprovalGrant<ThrowOnError extends boolean = true>(
-    options: Options<SetToolApprovalGrantData, ThrowOnError>
-  ): RequestResult<
-    SetToolApprovalGrantResponses,
-    SetToolApprovalGrantErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).put<
-      SetToolApprovalGrantResponses,
-      SetToolApprovalGrantErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tool-approval-grants",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Revoke one remembered native-tool approval decision in one workspace
-   */
-  public revokeToolApprovalGrant<ThrowOnError extends boolean = true>(
-    options: Options<RevokeToolApprovalGrantData, ThrowOnError>
-  ): RequestResult<
-    RevokeToolApprovalGrantResponses,
-    RevokeToolApprovalGrantErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).delete<
-      RevokeToolApprovalGrantResponses,
-      RevokeToolApprovalGrantErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tool-approval-grants/{id}",
-      ...options,
-    });
-  }
-
-  /**
-   * List operator-visible registry tools
-   */
-  public listTools<ThrowOnError extends boolean = true>(
-    options?: Options<ListToolsData, ThrowOnError>
-  ): RequestResult<ListToolsResponses, ListToolsErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListToolsResponses,
-      ListToolsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools",
-      ...options,
-    });
-  }
-
-  /**
-   * Get one pending tool approval lifecycle
-   */
-  public getPendingToolApproval<ThrowOnError extends boolean = true>(
-    options: Options<GetPendingToolApprovalData, ThrowOnError>
-  ): RequestResult<
-    GetPendingToolApprovalResponses,
-    GetPendingToolApprovalErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetPendingToolApprovalResponses,
-      GetPendingToolApprovalErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools/approvals/{id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Cancel one pending tool approval
-   */
-  public cancelPendingToolApproval<ThrowOnError extends boolean = true>(
-    options: Options<CancelPendingToolApprovalData, ThrowOnError>
-  ): RequestResult<
-    CancelPendingToolApprovalResponses,
-    CancelPendingToolApprovalErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      CancelPendingToolApprovalResponses,
-      CancelPendingToolApprovalErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools/approvals/{id}/cancel",
-      ...options,
-    });
-  }
-
-  /**
-   * Approve or deny one pending tool approval
-   */
-  public resolvePendingToolApproval<ThrowOnError extends boolean = true>(
-    options: Options<ResolvePendingToolApprovalData, ThrowOnError>
-  ): RequestResult<
-    ResolvePendingToolApprovalResponses,
-    ResolvePendingToolApprovalErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).post<
-      ResolvePendingToolApprovalResponses,
-      ResolvePendingToolApprovalErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools/approvals/{id}/resolve",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Search operator-visible registry tools
-   */
-  public searchTools<ThrowOnError extends boolean = true>(
-    options: Options<SearchToolsData, ThrowOnError>
-  ): RequestResult<SearchToolsResponses, SearchToolsErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      SearchToolsResponses,
-      SearchToolsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools/search",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Get one operator-visible registry tool
-   */
-  public getTool<ThrowOnError extends boolean = true>(
-    options: Options<GetToolData, ThrowOnError>
-  ): RequestResult<GetToolResponses, GetToolErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetToolResponses,
-      GetToolErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools/{id}",
-      ...options,
-    });
-  }
-
-  /**
-   * Mint a local single-use approval token for one tool invocation
-   */
-  public createToolApproval<ThrowOnError extends boolean = true>(
-    options: Options<CreateToolApprovalData, ThrowOnError>
-  ): RequestResult<CreateToolApprovalResponses, CreateToolApprovalErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      CreateToolApprovalResponses,
-      CreateToolApprovalErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools/{id}/approvals",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Invoke a registry tool through executable dispatch
-   */
-  public invokeTool<ThrowOnError extends boolean = true>(
-    options: Options<InvokeToolData, ThrowOnError>
-  ): RequestResult<InvokeToolResponses, InvokeToolErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).post<
-      InvokeToolResponses,
-      InvokeToolErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/tools/{id}/invoke",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Read one retained oversized tool-result page
-   */
-  public readToolArtifact<ThrowOnError extends boolean = true>(
-    options: Options<ReadToolArtifactData, ThrowOnError>
-  ): RequestResult<ReadToolArtifactResponses, ReadToolArtifactErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      ReadToolArtifactResponses,
-      ReadToolArtifactErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
-      ...options,
-    });
-  }
-}
-
-export class toolsets extends HeyApiClient {
-  /**
-   * List named toolsets and expansion status
-   */
-  public listToolsets<ThrowOnError extends boolean = true>(
-    options?: Options<ListToolsetsData, ThrowOnError>
-  ): RequestResult<ListToolsetsResponses, ListToolsetsErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListToolsetsResponses,
-      ListToolsetsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/toolsets",
-      ...options,
-    });
-  }
-
-  /**
-   * Inspect one named toolset expansion
-   */
-  public getToolset<ThrowOnError extends boolean = true>(
-    options: Options<GetToolsetData, ThrowOnError>
-  ): RequestResult<GetToolsetResponses, GetToolsetErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).get<
-      GetToolsetResponses,
-      GetToolsetErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/toolsets/{id}",
-      ...options,
-    });
-  }
-}
-
-export class vault extends HeyApiClient {
-  /**
-   * Delete one vault secret
-   */
-  public deleteVaultSecret<ThrowOnError extends boolean = true>(
-    options: Options<DeleteVaultSecretData, ThrowOnError>
-  ): RequestResult<DeleteVaultSecretResponses, DeleteVaultSecretErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).delete<
-      DeleteVaultSecretResponses,
-      DeleteVaultSecretErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/vault/secrets",
-      ...options,
-    });
-  }
-
-  /**
-   * List redacted vault secret metadata
-   */
-  public listVaultSecrets<ThrowOnError extends boolean = true>(
-    options?: Options<ListVaultSecretsData, ThrowOnError>
-  ): RequestResult<ListVaultSecretsResponses, ListVaultSecretsErrors, ThrowOnError, "data"> {
-    return (options?.client ?? this.client).get<
-      ListVaultSecretsResponses,
-      ListVaultSecretsErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/vault/secrets",
-      ...options,
-    });
-  }
-
-  /**
-   * Create or update one write-only vault secret
-   */
-  public putVaultSecret<ThrowOnError extends boolean = true>(
-    options: Options<PutVaultSecretData, ThrowOnError>
-  ): RequestResult<PutVaultSecretResponses, PutVaultSecretErrors, ThrowOnError, "data"> {
-    return (options.client ?? this.client).put<
-      PutVaultSecretResponses,
-      PutVaultSecretErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/vault/secrets",
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-    });
-  }
-
-  /**
-   * Read redacted vault secret metadata
-   */
-  public getVaultSecretMetadata<ThrowOnError extends boolean = true>(
-    options: Options<GetVaultSecretMetadataData, ThrowOnError>
-  ): RequestResult<
-    GetVaultSecretMetadataResponses,
-    GetVaultSecretMetadataErrors,
-    ThrowOnError,
-    "data"
-  > {
-    return (options.client ?? this.client).get<
-      GetVaultSecretMetadataResponses,
-      GetVaultSecretMetadataErrors,
-      ThrowOnError,
-      "data"
-    >({
-      responseStyle: "data",
-      url: "/api/vault/secrets/metadata",
-      ...options,
-    });
-  }
-}
-
 export class workspaces extends HeyApiClient {
+  /**
+   * List workspace terminals
+   */
+  public listTerminalsAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListTerminalsAggregateData, ThrowOnError>
+  ): RequestResult<
+    ListTerminalsAggregateResponses,
+    ListTerminalsAggregateErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListTerminalsAggregateResponses,
+      ListTerminalsAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/terminals",
+      ...options,
+    });
+  }
+
   /**
    * List registered workspaces
    */
@@ -11297,6 +10984,395 @@ export class workspaces extends HeyApiClient {
   }
 }
 
+export class tools extends HeyApiClient {
+  /**
+   * List remembered native-tool approval decisions for one workspace
+   */
+  public listToolApprovalGrants<ThrowOnError extends boolean = true>(
+    options: Options<ListToolApprovalGrantsData, ThrowOnError>
+  ): RequestResult<
+    ListToolApprovalGrantsResponses,
+    ListToolApprovalGrantsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      ListToolApprovalGrantsResponses,
+      ListToolApprovalGrantsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tool-approval-grants",
+      ...options,
+    });
+  }
+
+  /**
+   * Set an explicit agent-wide or tool-wide native-tool approval decision
+   */
+  public setToolApprovalGrant<ThrowOnError extends boolean = true>(
+    options: Options<SetToolApprovalGrantData, ThrowOnError>
+  ): RequestResult<
+    SetToolApprovalGrantResponses,
+    SetToolApprovalGrantErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).put<
+      SetToolApprovalGrantResponses,
+      SetToolApprovalGrantErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tool-approval-grants",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Revoke one remembered native-tool approval decision in one workspace
+   */
+  public revokeToolApprovalGrant<ThrowOnError extends boolean = true>(
+    options: Options<RevokeToolApprovalGrantData, ThrowOnError>
+  ): RequestResult<
+    RevokeToolApprovalGrantResponses,
+    RevokeToolApprovalGrantErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      RevokeToolApprovalGrantResponses,
+      RevokeToolApprovalGrantErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tool-approval-grants/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * List operator-visible registry tools
+   */
+  public listTools<ThrowOnError extends boolean = true>(
+    options?: Options<ListToolsData, ThrowOnError>
+  ): RequestResult<ListToolsResponses, ListToolsErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListToolsResponses,
+      ListToolsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools",
+      ...options,
+    });
+  }
+
+  /**
+   * Get one pending tool approval lifecycle
+   */
+  public getPendingToolApproval<ThrowOnError extends boolean = true>(
+    options: Options<GetPendingToolApprovalData, ThrowOnError>
+  ): RequestResult<
+    GetPendingToolApprovalResponses,
+    GetPendingToolApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetPendingToolApprovalResponses,
+      GetPendingToolApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools/approvals/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Cancel one pending tool approval
+   */
+  public cancelPendingToolApproval<ThrowOnError extends boolean = true>(
+    options: Options<CancelPendingToolApprovalData, ThrowOnError>
+  ): RequestResult<
+    CancelPendingToolApprovalResponses,
+    CancelPendingToolApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      CancelPendingToolApprovalResponses,
+      CancelPendingToolApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools/approvals/{id}/cancel",
+      ...options,
+    });
+  }
+
+  /**
+   * Approve or deny one pending tool approval
+   */
+  public resolvePendingToolApproval<ThrowOnError extends boolean = true>(
+    options: Options<ResolvePendingToolApprovalData, ThrowOnError>
+  ): RequestResult<
+    ResolvePendingToolApprovalResponses,
+    ResolvePendingToolApprovalErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ResolvePendingToolApprovalResponses,
+      ResolvePendingToolApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools/approvals/{id}/resolve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Search operator-visible registry tools
+   */
+  public searchTools<ThrowOnError extends boolean = true>(
+    options: Options<SearchToolsData, ThrowOnError>
+  ): RequestResult<SearchToolsResponses, SearchToolsErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      SearchToolsResponses,
+      SearchToolsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools/search",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Get one operator-visible registry tool
+   */
+  public getTool<ThrowOnError extends boolean = true>(
+    options: Options<GetToolData, ThrowOnError>
+  ): RequestResult<GetToolResponses, GetToolErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetToolResponses,
+      GetToolErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Mint a local single-use approval token for one tool invocation
+   */
+  public createToolApproval<ThrowOnError extends boolean = true>(
+    options: Options<CreateToolApprovalData, ThrowOnError>
+  ): RequestResult<CreateToolApprovalResponses, CreateToolApprovalErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      CreateToolApprovalResponses,
+      CreateToolApprovalErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools/{id}/approvals",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Invoke a registry tool through executable dispatch
+   */
+  public invokeTool<ThrowOnError extends boolean = true>(
+    options: Options<InvokeToolData, ThrowOnError>
+  ): RequestResult<InvokeToolResponses, InvokeToolErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      InvokeToolResponses,
+      InvokeToolErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/tools/{id}/invoke",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read one retained oversized tool-result page
+   */
+  public readToolArtifact<ThrowOnError extends boolean = true>(
+    options: Options<ReadToolArtifactData, ThrowOnError>
+  ): RequestResult<ReadToolArtifactResponses, ReadToolArtifactErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      ReadToolArtifactResponses,
+      ReadToolArtifactErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
+      ...options,
+    });
+  }
+}
+
+export class toolsets extends HeyApiClient {
+  /**
+   * List named toolsets and expansion status
+   */
+  public listToolsets<ThrowOnError extends boolean = true>(
+    options?: Options<ListToolsetsData, ThrowOnError>
+  ): RequestResult<ListToolsetsResponses, ListToolsetsErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListToolsetsResponses,
+      ListToolsetsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/toolsets",
+      ...options,
+    });
+  }
+
+  /**
+   * Inspect one named toolset expansion
+   */
+  public getToolset<ThrowOnError extends boolean = true>(
+    options: Options<GetToolsetData, ThrowOnError>
+  ): RequestResult<GetToolsetResponses, GetToolsetErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetToolsetResponses,
+      GetToolsetErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/toolsets/{id}",
+      ...options,
+    });
+  }
+}
+
+export class vault extends HeyApiClient {
+  /**
+   * Delete one vault secret
+   */
+  public deleteVaultSecret<ThrowOnError extends boolean = true>(
+    options: Options<DeleteVaultSecretData, ThrowOnError>
+  ): RequestResult<DeleteVaultSecretResponses, DeleteVaultSecretErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      DeleteVaultSecretResponses,
+      DeleteVaultSecretErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/vault/secrets",
+      ...options,
+    });
+  }
+
+  /**
+   * List redacted vault secret metadata
+   */
+  public listVaultSecrets<ThrowOnError extends boolean = true>(
+    options?: Options<ListVaultSecretsData, ThrowOnError>
+  ): RequestResult<ListVaultSecretsResponses, ListVaultSecretsErrors, ThrowOnError, "data"> {
+    return (options?.client ?? this.client).get<
+      ListVaultSecretsResponses,
+      ListVaultSecretsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/vault/secrets",
+      ...options,
+    });
+  }
+
+  /**
+   * Create or update one write-only vault secret
+   */
+  public putVaultSecret<ThrowOnError extends boolean = true>(
+    options: Options<PutVaultSecretData, ThrowOnError>
+  ): RequestResult<PutVaultSecretResponses, PutVaultSecretErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      PutVaultSecretResponses,
+      PutVaultSecretErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/vault/secrets",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read redacted vault secret metadata
+   */
+  public getVaultSecretMetadata<ThrowOnError extends boolean = true>(
+    options: Options<GetVaultSecretMetadataData, ThrowOnError>
+  ): RequestResult<
+    GetVaultSecretMetadataResponses,
+    GetVaultSecretMetadataErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetVaultSecretMetadataResponses,
+      GetVaultSecretMetadataErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/vault/secrets/metadata",
+      ...options,
+    });
+  }
+}
+
 export class worktrees extends HeyApiClient {
   /**
    * List registered and discovered worktrees
@@ -11553,6 +11629,29 @@ export class worktrees extends HeyApiClient {
       ...options,
     });
   }
+
+  /**
+   * List registered and discovered worktrees
+   */
+  public listWorktreesAggregate<ThrowOnError extends boolean = true>(
+    options?: Options<ListWorktreesAggregateData, ThrowOnError>
+  ): RequestResult<
+    ListWorktreesAggregateResponses,
+    ListWorktreesAggregateErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListWorktreesAggregateResponses,
+      ListWorktreesAggregateErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/worktrees",
+      ...options,
+    });
+  }
 }
 
 export class Compozy extends HeyApiClient {
@@ -11693,6 +11792,11 @@ export class Compozy extends HeyApiClient {
     return (this._support ??= new support({ client: this.client }));
   }
 
+  private _workspaces?: workspaces;
+  get workspaces(): workspaces {
+    return (this._workspaces ??= new workspaces({ client: this.client }));
+  }
+
   private _tools?: tools;
   get tools(): tools {
     return (this._tools ??= new tools({ client: this.client }));
@@ -11706,11 +11810,6 @@ export class Compozy extends HeyApiClient {
   private _vault?: vault;
   get vault(): vault {
     return (this._vault ??= new vault({ client: this.client }));
-  }
-
-  private _workspaces?: workspaces;
-  get workspaces(): workspaces {
-    return (this._workspaces ??= new workspaces({ client: this.client }));
   }
 
   private _worktrees?: worktrees;

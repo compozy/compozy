@@ -42,6 +42,8 @@ func listAutomationJobsOperationSpec() OperationSpec {
 		Parameters: withProfileScope(
 			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
+			boolQueryParam("all_workspaces", "Read every definition"),
+			ParameterSpec{Name: "workspace_ids", In: "query", Kind: "array", Description: "Project IDs or @user; requires all_workspaces=true"},
 			enumQueryParam("source", "Filter by job source", automationSourceValues()),
 			automationJobTargetParam(),
 			boolQueryParam("enabled", "Filter by enabled state"),
@@ -295,6 +297,8 @@ func listAutomationTriggersOperationSpec() OperationSpec {
 		Parameters: withProfileScope(
 			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
 			queryParam("workspace_id", "Filter by workspace id", false),
+			boolQueryParam("all_workspaces", "Read every definition"),
+			ParameterSpec{Name: "workspace_ids", In: "query", Kind: "array", Description: "Project IDs or @user; requires all_workspaces=true"},
 			enumQueryParam("source", "Filter by trigger source", automationSourceValues()),
 			automationTriggerTargetParam(),
 			boolQueryParam("enabled", "Filter by enabled state"),

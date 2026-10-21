@@ -7,10 +7,12 @@ FROM automation_triggers WHERE webhook_id = sqlc.arg(webhook_id);
 
 -- name: InsertAutomationRun :exec
 INSERT INTO automation_runs (
+  workspace_id, attribution,
   id, profile_id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
   status, attempt, scheduled_at, started_at, ended_at, error,
 	delivery_error, delivery_error_at, loop_run_id, metadata_json
 ) VALUES (
+  sqlc.narg(workspace_id), sqlc.arg(attribution),
   sqlc.arg(id), sqlc.narg(profile_id), sqlc.narg(job_id), sqlc.narg(trigger_id), sqlc.narg(session_id),
   sqlc.narg(task_id), sqlc.narg(task_run_id), sqlc.narg(fire_id), sqlc.arg(status),
   sqlc.arg(attempt), sqlc.narg(scheduled_at), sqlc.narg(started_at), sqlc.narg(ended_at),

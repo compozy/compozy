@@ -2,10 +2,8 @@ package cli
 
 import (
 	"context"
-
 	"net/http"
 	"net/url"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -159,18 +157,31 @@ func (c *daemonClient) AutomationTriggerRuns(
 }
 
 func (c *daemonClient) ListAutomationRuns(ctx context.Context, query AutomationRunQuery) ([]RunRecord, error) {
-	var response contract.RunsResponse
-	if err := c.doJSON(
-		ctx,
-		http.MethodGet,
-		"/api/automation/runs",
-		automationRunValues(query),
-		nil,
-		&response,
-	); err != nil {
-		return nil, err
+	var runs []RunRecord
+	remaining := query.Limit
+	for {
+		request := query
+		if query.AllWorkspaces && (request.Limit == 0 || request.Limit > 200) {
+			request.Limit = 200
+		}
+		var response contract.RunsResponse
+		if err := c.doJSON(ctx, http.MethodGet, "/api/automation/runs", automationRunValues(request), nil, &response); err != nil {
+			return nil, err
+		}
+		runs = append(runs, response.Runs...)
+		if !query.AllWorkspaces || response.Page == nil || !response.Page.HasMore {
+			return runs, nil
+		}
+		if remaining > 0 {
+			remaining -= len(response.Runs)
+			if remaining <= 0 {
+				return runs, nil
+			}
+			query.Limit = remaining
+		}
+		query.Cursor = response.Page.NextCursor
 	}
-	return response.Runs, nil
+
 }
 
 func (c *daemonClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {

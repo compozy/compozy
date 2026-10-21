@@ -38,7 +38,7 @@ func (h *Handlers) deviceAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if isGatewayStreamRequest(c.Request) {
+		if c.FullPath() != "" && isGatewayStreamRequest(c.Request) {
 			h.authenticateGatewayStream(c, limiter, source)
 			return
 		}

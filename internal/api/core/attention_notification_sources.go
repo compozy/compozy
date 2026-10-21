@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
 )
 
@@ -63,13 +64,16 @@ func (h *BaseHandlers) bellNotificationItems(
 		return nil, err
 	}
 	items = append(items, loops...)
-	for _, workspace := range workspaces {
-		terminal, err := h.terminalNotificationItems(ctx, workspace.ID)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, terminal...)
+	terminals, err := h.terminalNotificationItems(ctx)
+	if err != nil {
+		return nil, err
 	}
+	for _, item := range terminals {
+		if _, registered := labels[item.WorkspaceID]; item.WorkspaceID == "" || registered {
+			items = append(items, item)
+		}
+	}
+
 	for index := range items {
 		items[index].WorkspaceLabel = labels[items[index].WorkspaceID]
 		if items[index].WorkspaceLabel == "" {
@@ -224,11 +228,17 @@ func (h *BaseHandlers) loopNotificationItems(
 }
 
 func (h *BaseHandlers) terminalNotificationItems(
-	ctx context.Context, workspace string,
+	ctx context.Context,
 ) ([]contract.AttentionNotificationPayload, error) {
 	items := make([]contract.AttentionNotificationPayload, 0)
 
-	requests, err := h.Terminal.InputRequests(ctx, workspace, store.ReadScope{AllProfiles: true}, "")
+	reader, ok := h.Terminal.(interface {
+		InputRequestsAggregate(context.Context, store.ReadScope) ([]terminalpkg.PendingInputRequest, error)
+	})
+	if !ok {
+		return nil, errors.New("terminal input aggregate unavailable")
+	}
+	requests, err := reader.InputRequestsAggregate(ctx, store.ReadScope{AllProfiles: true})
 	if err != nil {
 		return nil, err
 	}
@@ -241,12 +251,12 @@ func (h *BaseHandlers) terminalNotificationItems(
 			ID: attention.Identity(
 				"terminal-input",
 				request.ProfileID,
-				workspace,
+				request.WorkspaceID,
 				string(request.ID),
 			),
 			Kind:        "terminal-input",
 			SourceID:    string(request.ID),
-			WorkspaceID: workspace,
+			WorkspaceID: request.WorkspaceID,
 			TerminalID:  string(request.TerminalID),
 			Title:       title,
 			Detail:      request.Reason,

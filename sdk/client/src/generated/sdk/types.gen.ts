@@ -1461,6 +1461,12 @@ export type CreateWorktreeRequest = {
   path?: string;
 };
 
+export type CursorPagePayload = {
+  has_more: boolean;
+  limit: number;
+  next_cursor?: string;
+};
+
 export type DaemonIdentityPayload = {
   http_host: string;
   http_port: number;
@@ -5757,6 +5763,7 @@ export type RunOutcome = {
 
 export type RunPayload = {
   attempt: number;
+  attribution: string;
   delivery_error?: string;
   delivery_error_at?: string | null;
   ended_at?: string | null;
@@ -5779,6 +5786,7 @@ export type RunPayload = {
   task_id?: string;
   task_run_id?: string;
   trigger_id?: string;
+  workspace_id?: string | null;
 };
 
 export type RunResponse = {
@@ -5876,6 +5884,7 @@ export type RunWorktreeExitActionRequest = {
 };
 
 export type RunsResponse = {
+  page?: CursorPagePayload | null;
   runs: Array<RunPayload>;
 };
 
@@ -12795,6 +12804,85 @@ export type CreateAgentResponses = {
 
 export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses];
 
+export type ListAgentsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Exact agent name
+     */
+    name?: string;
+    /**
+     * Case-insensitive agent name or category search
+     */
+    q?: string;
+    /**
+     * Exact category path joined by slash separators
+     */
+    category?: string;
+    /**
+     * Agent session status
+     */
+    status?: "active" | "idle";
+    /**
+     * Opaque cursor bound to workspace and filters
+     */
+    cursor?: string;
+    /**
+     * Agents per page (1-100; default 50)
+     */
+    limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/aggregate";
+};
+
+export type ListAgentsAggregateErrors = {
+  /**
+   * Invalid filter
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Workspace root missing
+   */
+  410: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Workspace resolver unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentsAggregateError = ListAgentsAggregateErrors[keyof ListAgentsAggregateErrors];
+
+export type ListAgentsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: AgentCatalogResponse;
+};
+
+export type ListAgentsAggregateResponse =
+  ListAgentsAggregateResponses[keyof ListAgentsAggregateResponses];
+
 export type ListAgentCatalogData = {
   body?: never;
   path?: never;
@@ -14106,6 +14194,14 @@ export type ListAutomationJobsData = {
      */
     workspace_id?: string;
     /**
+     * Read every definition
+     */
+    all_workspaces?: boolean;
+    /**
+     * Project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Filter by job source
      */
     source?: "config" | "package" | "dynamic";
@@ -14499,6 +14595,22 @@ export type ListAutomationRunsData = {
   path?: never;
   query?: {
     /**
+     * Filter by source project; @user selects User
+     */
+    workspace_id?: string;
+    /**
+     * Read every run, including unknown attribution
+     */
+    all_workspaces?: boolean;
+    /**
+     * Source project IDs or @user; excludes unknown attribution
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Opaque source-filter-bound cursor
+     */
+    cursor?: string;
+    /**
      * Filter by automation job id
      */
     job_id?: string;
@@ -14608,6 +14720,58 @@ export type GetAutomationRunResponses = {
 
 export type GetAutomationRunResponse = GetAutomationRunResponses[keyof GetAutomationRunResponses];
 
+export type ListAutomationSuggestionsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Filter by suggestion status
+     */
+    status?: "pending" | "accepted" | "dismissed";
+  };
+  url: "/api/automation/suggestions";
+};
+
+export type ListAutomationSuggestionsAggregateErrors = {
+  /**
+   * Invalid suggestion status
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Automation manager is not configured
+   */
+  503: ErrorPayload;
+};
+
+export type ListAutomationSuggestionsAggregateError =
+  ListAutomationSuggestionsAggregateErrors[keyof ListAutomationSuggestionsAggregateErrors];
+
+export type ListAutomationSuggestionsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: AutomationSuggestionsResponse;
+};
+
+export type ListAutomationSuggestionsAggregateResponse =
+  ListAutomationSuggestionsAggregateResponses[keyof ListAutomationSuggestionsAggregateResponses];
+
 export type ListAutomationTriggersData = {
   body?: never;
   path?: never;
@@ -14620,6 +14784,14 @@ export type ListAutomationTriggersData = {
      * Filter by workspace id
      */
     workspace_id?: string;
+    /**
+     * Read every definition
+     */
+    all_workspaces?: boolean;
+    /**
+     * Project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
     /**
      * Filter by trigger source
      */
@@ -27150,6 +27322,74 @@ export type MarkTaskReadResponses = {
 
 export type MarkTaskReadResponse = MarkTaskReadResponses[keyof MarkTaskReadResponses];
 
+export type ListTerminalsAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/terminals";
+};
+
+export type ListTerminalsAggregateErrors = {
+  /**
+   * Malformed terminal request
+   */
+  400: TerminalErrorResponse;
+  /**
+   * Terminal authentication required
+   */
+  401: TerminalErrorResponse;
+  /**
+   * Terminal operation forbidden
+   */
+  403: TerminalErrorResponse;
+  /**
+   * Terminal state or profile conflict
+   */
+  409: TerminalErrorResponse;
+  /**
+   * Invalid profile selection
+   */
+  422: TerminalErrorResponse;
+  /**
+   * Terminal transport failed
+   */
+  500: TerminalErrorResponse;
+  /**
+   * Terminal service unavailable
+   */
+  503: TerminalErrorResponse;
+};
+
+export type ListTerminalsAggregateError =
+  ListTerminalsAggregateErrors[keyof ListTerminalsAggregateErrors];
+
+export type ListTerminalsAggregateResponses = {
+  /**
+   * OK
+   */
+  200: TerminalListResponse;
+};
+
+export type ListTerminalsAggregateResponse =
+  ListTerminalsAggregateResponses[keyof ListTerminalsAggregateResponses];
+
 export type ListToolApprovalGrantsData = {
   body?: never;
   path?: never;
@@ -37232,3 +37472,51 @@ export type GetWorktreeStatusResponses = {
 
 export type GetWorktreeStatusResponse =
   GetWorktreeStatusResponses[keyof GetWorktreeStatusResponses];
+
+export type ListWorktreesAggregateData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+  };
+  url: "/api/worktrees";
+};
+
+export type ListWorktreesAggregateErrors = {
+  /**
+   * Invalid worktree list query
+   */
+  400: ErrorPayload;
+  /**
+   * Workspace not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Worktree service is unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ListWorktreesAggregateError =
+  ListWorktreesAggregateErrors[keyof ListWorktreesAggregateErrors];
+
+export type ListWorktreesAggregateResponses = {
+  /**
+   * OK
+   */
+  200: WorktreesResponse;
+};
+
+export type ListWorktreesAggregateResponse =
+  ListWorktreesAggregateResponses[keyof ListWorktreesAggregateResponses];

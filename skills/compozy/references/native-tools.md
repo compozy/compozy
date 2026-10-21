@@ -695,3 +695,26 @@ Definitions require one concrete profile (`profile`, defaulting to the acting se
 project row only when that project has a run in the last 30 days. Existing workspace routes
 retain their envelopes and source representation. The bell remains operator-wide across profiles
 and calls empty workspace ownership `User`.
+
+### All-projects automation and resource catalogs
+
+Operator CLI lists accept `--all-workspaces`, mutually exclusive with `--workspace`:
+`compozy automation jobs|triggers|runs|suggestions`, `compozy terminal list`,
+`compozy worktree list`, and `compozy agent list`. Human output labels the owning project or User.
+Worktree aggregate reads use cached store state; `--refresh` cannot accompany `--all-workspaces`.
+Native tools remain workspace-bound and gain no aggregate parameters.
+
+HTTP/UDS job and trigger lists accept `all_workspaces=true` with the same population as omission.
+Narrow with repeated `workspace_ids` values (registered IDs or `@user`). Run history also accepts
+`workspace_id` and opaque `cursor`; aggregate pages return `page.next_cursor`. Keep profile and
+workspace filters unchanged between pages. A run's nullable `workspace_id` identifies the source
+job/trigger when reserved, independently of its execution target. `attribution` is `recorded` for
+new runs, `derived` for source-backed historical runs, or `unknown` when evidence is absent.
+Unknown rows are excluded from explicit workspace filters; an empty known workspace means User.
+
+New aggregate reads require `all_workspaces=true`: `/api/automation/suggestions`, `/api/worktrees`,
+`/api/terminals`, `/api/terminals/catalog-stream`, and `/api/agents/aggregate`. App tokens cannot
+access them. Terminal aggregates exist only on local listeners. Their SSE `Last-Event-ID` is
+`<sequence>.<selection-fingerprint>`; profile/filter changes or expired replay produce a fresh
+`terminal.snapshot` with `reset: true`. Workspace-path streams retain numeric cursors.
+Agent rows and cursors use `(name, workspace_id)` identity; each row's metrics cover only its owner.

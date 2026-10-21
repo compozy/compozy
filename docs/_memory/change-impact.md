@@ -1,5 +1,27 @@
 # Compozy Change Impact
 
+## All-projects automation and resource aggregates — A4, 2026-10-21
+
+Owner: `all-projects` A4, BR-13/14/15, T-14/15/17/33–35/38. Source attribution is persisted
+at run reservation and survives source deletion/retargeting. Migrations `00148_schema.sql`
+and `00149_automation_run_attribution.sql` preserve historical rows, derive only from surviving
+source definitions, and retain unknown ownership. Migration numbers and the backfill log version
+must move together when integrating the parallel U4 migration.
+
+HTTP/UDS add automation breadth/cursors and app-denied suggestions, worktree, terminal and agent
+aggregates. Terminal aggregates are local-only; selection-bound replay resets on scope changes.
+The bell uses one aggregate terminal-input read. Worktrees read cached state without Git discovery.
+CLI lists expose `--all-workspaces`; API/SDK and CLI references co-ship. Native tools stay bound to
+their existing workspace/profile scope. No config keys, extension permissions, workspace files,
+or public hook contracts change. The official native-tools reference documents the new management
+surfaces. Web consumption and the integrated browser QA walk belong to UW/orchestration.
+
+All new aggregate authorization flows through `requireAggregateSurface`; U5 replaces its single
+`requireOperatorSurface` call with `requireOperatorOrGrantedAgent`. Existing automation omission
+populations and app-access policy remain unchanged. Evidence and limitations:
+`docs/qa/reports/2026-10-21-all-projects-a4.md`.
+
+
 ## All-projects loop aggregates — A3, 2026-10-21
 
 Owner: `all-projects` slice A3, BR-2/3/14/15; T-01/04/06–10/16/17/29–32.

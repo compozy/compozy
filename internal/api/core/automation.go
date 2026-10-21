@@ -3,7 +3,6 @@ package core
 import (
 	"errors"
 	"fmt"
-
 	"net/http"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -27,6 +26,9 @@ const (
 
 // ListAutomationJobs returns the filtered automation job list.
 func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
+	if all, _ := ParseOptionalBool(c.Query("all_workspaces")); all && !h.requireAggregateSurface(c) {
+		return
+	}
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
 		return
@@ -39,7 +41,11 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 	}
 	query, err := ParseAutomationJobListQuery(c, readScope)
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		if _, ok := err.(*workspaceBreadthError); ok {
+			h.respondAggregateBreadthError(c, err)
+		} else {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		}
 		return
 	}
 
@@ -346,7 +352,11 @@ func (h *BaseHandlers) AutomationJobRuns(c *gin.Context) {
 
 	query, err := ParseAutomationRunQuery(c)
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		if _, ok := err.(*workspaceBreadthError); ok {
+			h.respondAggregateBreadthError(c, err)
+		} else {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		}
 		return
 	}
 	query.JobID = job.ID

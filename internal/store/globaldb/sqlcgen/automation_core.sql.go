@@ -322,19 +322,23 @@ func (q *Queries) InsertAutomationJob(ctx context.Context, arg InsertAutomationJ
 
 const insertAutomationRun = `-- name: InsertAutomationRun :exec
 INSERT INTO automation_runs (
+  workspace_id, attribution,
   id, profile_id, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
   status, attempt, scheduled_at, started_at, ended_at, error,
 	delivery_error, delivery_error_at, loop_run_id, metadata_json
 ) VALUES (
-  ?1, ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8, ?9,
-  ?10, ?11, ?12, ?13,
-  ?14, ?15, ?16,
-	?17, ?18
+  ?1, ?2,
+  ?3, ?4, ?5, ?6, ?7,
+  ?8, ?9, ?10, ?11,
+  ?12, ?13, ?14, ?15,
+  ?16, ?17, ?18,
+	?19, ?20
 )
 `
 
 type InsertAutomationRunParams struct {
+	WorkspaceID     sql.NullString `json:"workspace_id"`
+	Attribution     string         `json:"attribution"`
 	ID              string         `json:"id"`
 	ProfileID       sql.NullString `json:"profile_id"`
 	JobID           sql.NullString `json:"job_id"`
@@ -357,6 +361,8 @@ type InsertAutomationRunParams struct {
 
 func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationRunParams) error {
 	_, err := q.db.ExecContext(ctx, insertAutomationRun,
+		arg.WorkspaceID,
+		arg.Attribution,
 		arg.ID,
 		arg.ProfileID,
 		arg.JobID,

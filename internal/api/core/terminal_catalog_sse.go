@@ -238,6 +238,8 @@ func terminalCatalogPayload(event terminalpkg.Event) (string, any, error) {
 		return "terminal.created", gin.H{
 			terminalPayloadKey: terminalInfoFromDomain(*event.Info, event.ProfileName),
 		}, nil
+	case terminalpkg.EventKindDeleted:
+		return "terminal.deleted", gin.H{terminalIDPayloadKey: event.TerminalID, "workspace_id": event.WorkspaceID, "profile_id": event.ProfileID}, nil
 	case terminalpkg.EventKindClosed:
 		exit := event.Exit
 		if exit == nil && event.Info != nil {
@@ -246,6 +248,7 @@ func terminalCatalogPayload(event terminalpkg.Event) (string, any, error) {
 		return "terminal.closed", gin.H{
 			terminalIDPayloadKey: event.TerminalID,
 			"exit":               terminalExitFromDomain(exit),
+			"workspace_id":       event.WorkspaceID, "profile_id": event.ProfileID,
 		}, nil
 	case terminalpkg.EventKindTitleChanged:
 		return "terminal.title_changed", gin.H{terminalIDPayloadKey: event.TerminalID, "title": event.Detail.Title}, nil

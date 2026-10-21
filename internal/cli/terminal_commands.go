@@ -68,6 +68,9 @@ func newTerminalListCommand(deps commandDeps) *cobra.Command {
 	command := &cobra.Command{
 		Use: terminalListCommandKey, Short: "List workspace terminals", Args: terminalArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if wantsAllWorkspaces(cmd) {
+				return writeAggregateCatalog(cmd, deps, "terminals")
+			}
 			client, workspaceID, err := terminalClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
@@ -81,6 +84,7 @@ func newTerminalListCommand(deps commandDeps) *cobra.Command {
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
 	configureProfileReadCommand(command, deps)
+	addAllWorkspacesFlag(command)
 	return command
 }
 

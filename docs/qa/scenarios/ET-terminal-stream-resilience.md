@@ -92,3 +92,7 @@ read-only Go module cache during teardown. Three focused real-browser runs passe
 resize, watcher agreement, primary-screen restoration and cleanup. This is a focused
 slice, not a new full-scenario verdict; official-shard and CI evidence are tracked in
 `docs/qa/reports/2026-10-05-dependency-upgrades.md`.
+
+
+All-projects A4 backend coverage (2026-10-21): Read the local `/api/terminals/catalog-stream?all_workspaces=true` across projects and profiles. Reconnect with its selection-bound cursor, then widen the selection: expect a fresh snapshot with `reset: true`, including terminals created before the previous fence. Close/delete events identify workspace and profile. The private Gateway returns 404 for both terminal aggregate routes.
+Targeted evidence: `docs/qa/reports/2026-10-21-all-projects-a4.md`. The integrated Web walk remains owned by the orchestration QA slice.

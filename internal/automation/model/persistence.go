@@ -46,43 +46,51 @@ const (
 
 // JobListQuery filters persisted automation job listings.
 type JobListQuery struct {
-	ReadScope   store.ReadScope `json:"read_scope"`
-	Scope       Scope           `json:"scope,omitempty"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Source      JobSource       `json:"source,omitempty"`
-	LoopName    string          `json:"loop_name,omitempty"`
-	Target      string          `json:"target,omitempty"`
-	Enabled     *bool           `json:"enabled,omitzero"`
-	Search      string          `json:"q,omitempty"`
-	Cursor      string          `json:"cursor,omitempty"`
-	Limit       int             `json:"limit,omitzero"`
+	AllWorkspaces bool            `json:"all_workspaces,omitempty"`
+	WorkspaceIDs  []string        `json:"workspace_ids,omitempty"`
+	ReadScope     store.ReadScope `json:"read_scope"`
+	Scope         Scope           `json:"scope,omitempty"`
+	WorkspaceID   string          `json:"workspace_id,omitempty"`
+	Source        JobSource       `json:"source,omitempty"`
+	LoopName      string          `json:"loop_name,omitempty"`
+	Target        string          `json:"target,omitempty"`
+	Enabled       *bool           `json:"enabled,omitzero"`
+	Search        string          `json:"q,omitempty"`
+	Cursor        string          `json:"cursor,omitempty"`
+	Limit         int             `json:"limit,omitzero"`
 }
 
 // TriggerListQuery filters persisted automation trigger listings.
 type TriggerListQuery struct {
-	ReadScope   store.ReadScope `json:"read_scope"`
-	Scope       Scope           `json:"scope,omitempty"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Event       string          `json:"event,omitempty"`
-	Source      JobSource       `json:"source,omitempty"`
-	LoopName    string          `json:"loop_name,omitempty"`
-	Target      string          `json:"target,omitempty"`
-	Enabled     *bool           `json:"enabled,omitzero"`
-	Search      string          `json:"q,omitempty"`
-	Cursor      string          `json:"cursor,omitempty"`
-	Limit       int             `json:"limit,omitzero"`
+	AllWorkspaces bool            `json:"all_workspaces,omitempty"`
+	WorkspaceIDs  []string        `json:"workspace_ids,omitempty"`
+	ReadScope     store.ReadScope `json:"read_scope"`
+	Scope         Scope           `json:"scope,omitempty"`
+	WorkspaceID   string          `json:"workspace_id,omitempty"`
+	Event         string          `json:"event,omitempty"`
+	Source        JobSource       `json:"source,omitempty"`
+	LoopName      string          `json:"loop_name,omitempty"`
+	Target        string          `json:"target,omitempty"`
+	Enabled       *bool           `json:"enabled,omitzero"`
+	Search        string          `json:"q,omitempty"`
+	Cursor        string          `json:"cursor,omitempty"`
+	Limit         int             `json:"limit,omitzero"`
 }
 
 // RunQuery filters automation run history and fire-limit window lookups.
 type RunQuery struct {
-	ReadScope store.ReadScope `json:"read_scope"`
-	JobID     string          `json:"job_id,omitempty"`
-	TriggerID string          `json:"trigger_id,omitempty"`
-	Status    RunStatus       `json:"status,omitempty"`
-	ExcludeID string          `json:"exclude_id,omitempty"`
-	Since     time.Time       `json:"since"`
-	Until     time.Time       `json:"until"`
-	Limit     int             `json:"limit,omitzero"`
+	AllWorkspaces bool            `json:"all_workspaces,omitempty"`
+	WorkspaceID   string          `json:"workspace_id,omitempty"`
+	WorkspaceIDs  []string        `json:"workspace_ids,omitempty"`
+	Cursor        string          `json:"cursor,omitempty"`
+	ReadScope     store.ReadScope `json:"read_scope"`
+	JobID         string          `json:"job_id,omitempty"`
+	TriggerID     string          `json:"trigger_id,omitempty"`
+	Status        RunStatus       `json:"status,omitempty"`
+	ExcludeID     string          `json:"exclude_id,omitempty"`
+	Since         time.Time       `json:"since"`
+	Until         time.Time       `json:"until"`
+	Limit         int             `json:"limit,omitzero"`
 }
 
 // RunReservation atomically evaluates one rolling fire-limit window and, when

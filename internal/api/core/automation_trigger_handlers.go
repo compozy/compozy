@@ -14,6 +14,9 @@ import (
 
 // ListAutomationTriggers returns the filtered automation trigger list.
 func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
+	if all, _ := ParseOptionalBool(c.Query("all_workspaces")); all && !h.requireAggregateSurface(c) {
+		return
+	}
 	manager, ok := h.requireAutomationManager(c)
 	if !ok {
 		return
@@ -30,7 +33,11 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 	}
 	query, err := ParseAutomationTriggerListQuery(c, readScope)
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		if _, ok := err.(*workspaceBreadthError); ok {
+			h.respondAggregateBreadthError(c, err)
+		} else {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		}
 		return
 	}
 
@@ -332,43 +339,15 @@ func (h *BaseHandlers) AutomationTriggerRuns(c *gin.Context) {
 
 	query, err := ParseAutomationRunQuery(c)
 	if err != nil {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		if _, ok := err.(*workspaceBreadthError); ok {
+			h.respondAggregateBreadthError(c, err)
+		} else {
+			h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
+		}
 		return
 	}
 	query.JobID = ""
 	query.TriggerID = trigger.ID
-	query.ReadScope = readScope
-
-	runs, err := manager.ListRuns(c.Request.Context(), query)
-	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
-	runPayloads := RunPayloadsFromRuns(runs)
-	if err := h.decorateAutomationRunOwners(c.Request.Context(), runPayloads); err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, contract.RunsResponse{Runs: runPayloads})
-}
-
-// ListAutomationRuns returns filtered automation run history.
-func (h *BaseHandlers) ListAutomationRuns(c *gin.Context) {
-	manager, ok := h.requireAutomationManager(c)
-	if !ok {
-		return
-	}
-
-	readScope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	query, err := ParseAutomationRunQuery(c)
-	if err != nil {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(err))
-		return
-	}
 	query.ReadScope = readScope
 
 	runs, err := manager.ListRuns(c.Request.Context(), query)

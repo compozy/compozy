@@ -85,8 +85,8 @@ func (m *Service) reap(ctx context.Context) {
 
 func (m *Service) removeWithTombstone(key terminalKey, expected *session, expiresAt time.Time) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.terminals[key] != expected {
+		m.mu.Unlock()
 		return
 	}
 	delete(m.terminals, key)
@@ -98,6 +98,9 @@ func (m *Service) removeWithTombstone(key terminalKey, expected *session, expire
 		m.tombstoneOrder = m.tombstoneOrder[1:]
 		delete(m.tombstones, oldest)
 	}
+	m.mu.Unlock()
+	m.events.Notify(context.Background(), Event{Kind: EventKindDeleted, WorkspaceID: key.workspaceID, ProfileID: key.profileID, TerminalID: key.id, At: m.now()})
+
 }
 
 func (m *Service) sweepTombstones(now time.Time) {

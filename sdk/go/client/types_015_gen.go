@@ -4,6 +4,16 @@ package client
 
 import "time"
 
+// ScheduleSpec is a daemon API value.
+type ScheduleSpec struct {
+	Mode                ScheduleMode           `json:"mode"`
+	Expr                string                 `json:"expr,omitempty"`
+	Interval            string                 `json:"interval,omitempty"`
+	Time                string                 `json:"time,omitempty"`
+	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
+	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
+}
+
 // SchedulerBacklogPayload is a daemon API value.
 type SchedulerBacklogPayload struct {
 	Runs  []SchedulerBacklogRunPayload `json:"runs"`
@@ -428,19 +438,3 @@ type SessionContextRowPayload struct {
 	HookModified     bool      `json:"hook_modified,omitzero"`
 	Name             string    `json:"name,omitempty"`
 }
-
-// SessionContextSpanPayload is a daemon API value.
-type SessionContextSpanPayload struct {
-	Key          string `json:"key"`
-	Kind         string `json:"kind"`
-	Bytes        int64  `json:"bytes"`
-	Tokens       *int64 `json:"tokens,omitzero"`
-	Unchanged    bool   `json:"unchanged"`
-	StartupDedup bool   `json:"startup_dedup,omitzero"`
-	Delivery     string `json:"delivery,omitempty"`
-	HookModified bool   `json:"hook_modified,omitzero"`
-	Name         string `json:"name,omitempty"`
-}
-
-// SessionContextState is a daemon API value.
-type SessionContextState string

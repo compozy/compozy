@@ -70,3 +70,10 @@ INSERT INTO event_summaries (
   sqlc.arg(timestamp)
 )
 ON CONFLICT(id) DO NOTHING;
+
+-- name: ListAutomationSuggestionsAggregate :many
+SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
+FROM automation_suggestions
+WHERE (sqlc.arg(all_profiles) OR profile_id = sqlc.arg(profile_id))
+AND (CAST(sqlc.arg(status) AS TEXT) = '' OR status = CAST(sqlc.arg(status) AS TEXT))
+ORDER BY created_at ASC, id ASC;

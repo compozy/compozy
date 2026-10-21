@@ -1192,6 +1192,11 @@ func TestAppTokenRouteAuthorization(t *testing.T) {
 		{http.MethodGet, "/api/gateway/devices"},
 		{http.MethodGet, "/api/agent/me"},
 		{http.MethodGet, "/api/unregistered"},
+		{http.MethodGet, "/api/terminals"},
+		{http.MethodGet, "/api/terminals/catalog-stream"},
+		{http.MethodGet, "/api/worktrees"},
+		{http.MethodGet, "/api/agents/aggregate"},
+		{http.MethodGet, "/api/automation/suggestions"},
 	} {
 		t.Run("Should forbid browser access to "+route.method+" "+route.path, func(t *testing.T) {
 			t.Parallel()

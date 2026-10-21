@@ -60,6 +60,9 @@ func normalizeTriggerListQuery(query TriggerListQuery) TriggerListQuery {
 }
 
 func jobMatchesListQuery(job Job, query JobListQuery) bool {
+	if !WorkspaceMatches(query.WorkspaceIDs, job.WorkspaceID) {
+		return false
+	}
 	if !query.ReadScope.Matches(job.ProfileID) {
 		return false
 	}
@@ -109,6 +112,9 @@ func JobMatchesListQuery(job Job, query JobListQuery) bool {
 }
 
 func triggerMatchesListQuery(trigger Trigger, query TriggerListQuery) bool {
+	if !WorkspaceMatches(query.WorkspaceIDs, trigger.WorkspaceID) {
+		return false
+	}
 	if !query.ReadScope.Matches(trigger.ProfileID) {
 		return false
 	}
@@ -219,4 +225,14 @@ func JobListTarget(job Job) string {
 		return "task"
 	}
 	return string(normalizedTargetKind(job.TargetKind, job.LoopTarget))
+}
+
+func WorkspaceMatches(ids []string, workspaceID string) bool {
+	if len(ids) == 0 {
+		return true
+	}
+	if workspaceID == "" {
+		workspaceID = "@user"
+	}
+	return slices.Contains(ids, workspaceID)
 }

@@ -298,9 +298,6 @@ func TestGatewayPrivateTierExcludesLocalAuthorityRoutesIT063IT064(t *testing.T) 
 
 func exerciseGatewayPrivateTierExcludesLocalAuthorityRoutes(t *testing.T) {
 	t.Helper()
-	service := newGatewayIntegrationService(t)
-	issued := issueGatewayIntegrationCredential(t, service, gateway.ActorKindCLIProfile)
-	server := newGatewayIntegrationServer(t, service)
 
 	for _, test := range []struct {
 		method string
@@ -319,6 +316,8 @@ func exerciseGatewayPrivateTierExcludesLocalAuthorityRoutes(t *testing.T) {
 		{method: http.MethodPost, path: "/api/runs/run-1/fail"},
 		{method: http.MethodPost, path: "/api/runs/run-1/retry"},
 		{method: http.MethodPost, path: "/api/runs/bulk/release"},
+		{method: http.MethodGet, path: "/api/terminals?all_workspaces=true"},
+		{method: http.MethodGet, path: "/api/terminals/catalog-stream?all_workspaces=true"},
 		{method: http.MethodGet, path: "/api/scheduler"},
 		{method: http.MethodGet, path: "/api/scheduler/backlog"},
 		{method: http.MethodPut, path: "/api/resources/skill/item-1"},
@@ -326,6 +325,10 @@ func exerciseGatewayPrivateTierExcludesLocalAuthorityRoutes(t *testing.T) {
 	} {
 		t.Run(test.method+" "+test.path, func(t *testing.T) {
 			t.Parallel()
+			service := newGatewayIntegrationService(t)
+			issued := issueGatewayIntegrationCredential(t, service, gateway.ActorKindCLIProfile)
+			server := newGatewayIntegrationServer(t, service)
+
 			request, err := http.NewRequestWithContext(
 				t.Context(), test.method, server.URL+test.path, strings.NewReader(`{}`),
 			)

@@ -232,6 +232,13 @@ type CreateWorktreeRequest struct {
 // CriterionType is a daemon API value.
 type CriterionType string
 
+// CursorPagePayload is a daemon API value.
+type CursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Limit      int    `json:"limit"`
+}
+
 // DaemonIdentityPayload is a daemon API value.
 type DaemonIdentityPayload struct {
 	PID         int       `json:"pid"`
@@ -438,10 +445,4 @@ type Effect struct {
 	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
 	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
 	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
-}
-
-// EffectResult is a daemon API value.
-type EffectResult struct {
-	EffectID string          `json:"effect_id"`
-	Payload  json.RawMessage `json:"payload,omitempty"`
 }

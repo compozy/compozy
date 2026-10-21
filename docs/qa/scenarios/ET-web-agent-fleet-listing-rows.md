@@ -30,3 +30,7 @@ Filter and Rows/Cards. Reset the listing chrome walk.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+
+All-projects A4 backend coverage (2026-10-21): For the backend aggregate, create a same-named agent in User and two projects. Page `/api/agents/aggregate?all_workspaces=true&name=<name>&limit=1`: expect three distinct `(name, workspace_id)` rows, stable continuation, and owner-specific session metrics.
+Targeted evidence: `docs/qa/reports/2026-10-21-all-projects-a4.md`. The integrated Web walk remains owned by the orchestration QA slice.

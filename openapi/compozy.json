@@ -5559,6 +5559,24 @@
         },
         "type": "object"
       },
+      "CursorPagePayload": {
+        "properties": {
+          "has_more": {
+            "type": "boolean"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "next_cursor": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "has_more",
+          "limit"
+        ],
+        "type": "object"
+      },
       "DaemonIdentityPayload": {
         "properties": {
           "http_host": {
@@ -20881,6 +20899,9 @@
           "attempt": {
             "type": "integer"
           },
+          "attribution": {
+            "type": "string"
+          },
           "delivery_error": {
             "type": "string"
           },
@@ -20957,10 +20978,15 @@
           },
           "trigger_id": {
             "type": "string"
+          },
+          "workspace_id": {
+            "nullable": true,
+            "type": "string"
           }
         },
         "required": [
           "attempt",
+          "attribution",
           "id",
           "profile_id",
           "profile_name",
@@ -21307,6 +21333,19 @@
       },
       "RunsResponse": {
         "properties": {
+          "page": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CursorPagePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "runs": {
             "items": {
               "$ref": "#/components/schemas/RunPayload"
@@ -45917,6 +45956,164 @@
         ]
       }
     },
+    "/api/agents/aggregate": {
+      "get": {
+        "operationId": "listAgentsAggregate",
+        "parameters": [
+          {
+            "description": "Read all projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Exact agent name",
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Case-insensitive agent name or category search",
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact category path joined by slash separators",
+            "in": "query",
+            "name": "category",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Agent session status",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "enum": [
+                "active",
+                "idle"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque cursor bound to workspace and filters",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Agents per page (1-100; default 50)",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentCatalogResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid filter"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace root missing"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace resolver unavailable"
+          }
+        },
+        "summary": "List a filtered agent fleet with exact session metrics",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/agents/catalog": {
       "get": {
         "operationId": "listAgentCatalog",
@@ -48415,6 +48612,25 @@
             }
           },
           {
+            "description": "Read every definition",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Filter by job source",
             "in": "query",
             "name": "source",
@@ -49145,6 +49361,41 @@
         "operationId": "listAutomationRuns",
         "parameters": [
           {
+            "description": "Filter by source project; @user selects User",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read every run, including unknown attribution",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Source project IDs or @user; excludes unknown attribution",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Opaque source-filter-bound cursor",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Filter by automation job id",
             "in": "query",
             "name": "job_id",
@@ -49356,6 +49607,106 @@
         ]
       }
     },
+    "/api/automation/suggestions": {
+      "get": {
+        "operationId": "listAutomationSuggestionsAggregate",
+        "parameters": [
+          {
+            "description": "Read all projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Filter by suggestion status",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "enum": [
+                "pending",
+                "accepted",
+                "dismissed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomationSuggestionsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid suggestion status"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Automation manager is not configured"
+          }
+        },
+        "summary": "List consent-first automation suggestions for one workspace",
+        "tags": [
+          "automation"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/automation/triggers": {
       "get": {
         "operationId": "listAutomationTriggers",
@@ -49378,6 +49729,25 @@
             "name": "workspace_id",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Read every definition",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
             }
           },
           {
@@ -73701,6 +74071,272 @@
         ]
       }
     },
+    "/api/terminals": {
+      "get": {
+        "operationId": "listTerminalsAggregate",
+        "parameters": [
+          {
+            "description": "Read all projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalListResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed terminal request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal operation forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal state or profile conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid profile selection"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal transport failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal service unavailable"
+          }
+        },
+        "summary": "List workspace terminals",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/terminals/catalog-stream": {
+      "get": {
+        "operationId": "streamTerminalsAggregate",
+        "parameters": [
+          {
+            "description": "Read all projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Resume after the last terminal catalog event",
+            "in": "header",
+            "name": "Last-Event-ID",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalCatalogSnapshot"
+                }
+              }
+            },
+            "description": "Terminal catalog event stream"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Malformed terminal request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal operation forbidden"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal state or profile conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid terminal catalog cursor"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal transport failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TerminalErrorResponse"
+                }
+              }
+            },
+            "description": "Terminal catalog unavailable"
+          }
+        },
+        "summary": "Stream one profile-scoped terminal catalog",
+        "tags": [
+          "workspaces"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/tool-approval-grants": {
       "get": {
         "operationId": "listToolApprovalGrants",
@@ -93890,6 +94526,93 @@
           }
         },
         "summary": "Stream durable worktree lifecycle events",
+        "tags": [
+          "worktrees"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/worktrees": {
+      "get": {
+        "operationId": "listWorktreesAggregate",
+        "parameters": [
+          {
+            "description": "Read all projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorktreesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid worktree list query"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Workspace not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Worktree service is unavailable"
+          }
+        },
+        "summary": "List registered and discovered worktrees",
         "tags": [
           "worktrees"
         ],

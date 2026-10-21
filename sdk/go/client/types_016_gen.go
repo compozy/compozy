@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// SessionContextSpanPayload is a daemon API value.
+type SessionContextSpanPayload struct {
+	Key          string `json:"key"`
+	Kind         string `json:"kind"`
+	Bytes        int64  `json:"bytes"`
+	Tokens       *int64 `json:"tokens,omitzero"`
+	Unchanged    bool   `json:"unchanged"`
+	StartupDedup bool   `json:"startup_dedup,omitzero"`
+	Delivery     string `json:"delivery,omitempty"`
+	HookModified bool   `json:"hook_modified,omitzero"`
+	Name         string `json:"name,omitempty"`
+}
+
+// SessionContextState is a daemon API value.
+type SessionContextState string
+
 // SessionConversationRewindPayload is a daemon API value.
 type SessionConversationRewindPayload struct {
 	TranscriptEpoch int64  `json:"transcript_epoch"`
@@ -431,15 +447,4 @@ type SessionPayload struct {
 	Health              *SessionHealthPayload         `json:"health,omitzero"`
 	CreatedAt           time.Time                     `json:"created_at"`
 	UpdatedAt           time.Time                     `json:"updated_at"`
-}
-
-// SessionPresenceRequest is a daemon API value.
-type SessionPresenceRequest struct {
-	Visible bool   `json:"visible"`
-	LeaseID string `json:"lease_id,omitempty"`
-}
-
-// SessionPresenceResponse is a daemon API value.
-type SessionPresenceResponse struct {
-	LeaseID string `json:"lease_id"`
 }

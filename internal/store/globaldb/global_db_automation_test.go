@@ -3502,3 +3502,74 @@ func TestGlobalDBAutomationTargetFilter(t *testing.T) {
 		}
 	})
 }
+
+func TestGlobalDBAutomationRunAttributionAndCursor(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve recorded ownership and page null starts without unknown rows", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		workspace := registerWorkspaceForGlobalTests(t, db, "attribution", t.TempDir())
+		job, err := db.CreateJob(ctx, automationJobForTest(automation.AutomationScopeWorkspace, "source", workspace, automation.JobSourceDynamic))
+		if err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		for _, run := range []Run{
+			{ID: "a", JobID: job.ID, WorkspaceID: new(workspace), Attribution: "recorded", Status: automation.RunScheduled, Attempt: 1, StartedAt: new(at)},
+			{ID: "b", JobID: job.ID, WorkspaceID: new(workspace), Attribution: "recorded", Status: automation.RunScheduled, Attempt: 1},
+			{ID: "c", JobID: job.ID, WorkspaceID: new(workspace), Attribution: "recorded", Status: automation.RunScheduled, Attempt: 1},
+			{ID: "unknown", JobID: job.ID, Status: automation.RunScheduled, Attempt: 1},
+		} {
+			if _, err := db.CreateRun(ctx, run); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := RunQuery{ReadScope: automationAllProfiles, WorkspaceIDs: []string{workspace}, Limit: 1}
+		var ids []string
+		for range 4 {
+			rows, err := db.ListRuns(ctx, query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) == 0 {
+				break
+			}
+			ids = append(ids, rows[0].ID)
+			query.Cursor, err = automationmodel.EncodeRunCursor(query, rows[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !reflect.DeepEqual(ids, []string{"a", "c", "b"}) {
+			t.Fatalf("page ids = %v", ids)
+		}
+		query.WorkspaceIDs = []string{"@user"}
+		if _, err := db.ListRuns(ctx, query); !errors.Is(err, automationmodel.ErrListCursorInvalid) {
+			t.Fatalf("foreign cursor error = %v", err)
+		}
+		run, err := db.GetRun(ctx, "a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		run.WorkspaceID = new("")
+		run.Attribution = "derived"
+		updated, err := db.UpdateRun(ctx, run)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.WorkspaceID == nil || *updated.WorkspaceID != workspace || updated.Attribution != "recorded" {
+			t.Fatalf("updated attribution = %#v", updated)
+		}
+		if err := db.DeleteJob(ctx, job.ID); err != nil {
+			t.Fatal(err)
+		}
+		retained, err := db.GetRun(ctx, "a")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if retained.WorkspaceID == nil || *retained.WorkspaceID != workspace || retained.Attribution != "recorded" {
+			t.Fatalf("retained attribution = %#v", retained)
+		}
+	})
+}

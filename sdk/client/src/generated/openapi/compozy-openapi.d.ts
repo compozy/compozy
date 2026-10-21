@@ -243,6 +243,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/aggregate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List a filtered agent fleet with exact session metrics */
+    get: operations["listAgentsAggregate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/catalog": {
     parameters: {
       query?: never;
@@ -603,6 +620,23 @@ export interface paths {
     };
     /** Get one automation run */
     get: operations["getAutomationRun"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/automation/suggestions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List consent-first automation suggestions for one workspace */
+    get: operations["listAutomationSuggestionsAggregate"];
     put?: never;
     post?: never;
     delete?: never;
@@ -4160,6 +4194,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/terminals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List workspace terminals */
+    get: operations["listTerminalsAggregate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/terminals/catalog-stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream one profile-scoped terminal catalog */
+    get: operations["streamTerminalsAggregate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tool-approval-grants": {
     parameters: {
       query?: never;
@@ -6756,6 +6824,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/worktrees": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List registered and discovered worktrees */
+    get: operations["listWorktreesAggregate"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/worktrees/catalog-stream": {
     parameters: {
       query?: never;
@@ -8220,6 +8305,11 @@ export interface components {
       existing_branch?: string;
       name?: string;
       path?: string;
+    };
+    CursorPagePayload: {
+      has_more: boolean;
+      limit: number;
+      next_cursor?: string;
     };
     DaemonIdentityPayload: {
       http_host: string;
@@ -12620,6 +12710,7 @@ export interface components {
     };
     RunPayload: {
       attempt: number;
+      attribution: string;
       delivery_error?: string;
       /** Format: date-time */
       delivery_error_at?: string | null;
@@ -12647,6 +12738,7 @@ export interface components {
       task_id?: string;
       task_run_id?: string;
       trigger_id?: string;
+      workspace_id?: string | null;
     };
     RunResponse: {
       run: components["schemas"]["RunPayload"];
@@ -12752,6 +12844,7 @@ export interface components {
       title?: string;
     };
     RunsResponse: {
+      page?: components["schemas"]["CursorPagePayload"] | null;
       runs: components["schemas"]["RunPayload"][];
     };
     RuntimeActivityPayload: {
@@ -20680,6 +20773,90 @@ export interface operations {
       };
     };
   };
+  listAgentsAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+        /** @description Exact agent name */
+        name?: string;
+        /** @description Case-insensitive agent name or category search */
+        q?: string;
+        /** @description Exact category path joined by slash separators */
+        category?: string;
+        /** @description Agent session status */
+        status?: "active" | "idle";
+        /** @description Opaque cursor bound to workspace and filters */
+        cursor?: string;
+        /** @description Agents per page (1-100; default 50) */
+        limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentCatalogResponse"];
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace resolver unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listAgentCatalog: {
     parameters: {
       query?: {
@@ -22436,6 +22613,10 @@ export interface operations {
         scope?: "global" | "workspace";
         /** @description Filter by workspace id */
         workspace_id?: string;
+        /** @description Read every definition */
+        all_workspaces?: boolean;
+        /** @description Project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
         /** @description Filter by job source */
         source?: "config" | "package" | "dynamic";
         /** @description Filter by target kind; task matches jobs with a task target */
@@ -22909,6 +23090,14 @@ export interface operations {
   listAutomationRuns: {
     parameters: {
       query?: {
+        /** @description Filter by source project; @user selects User */
+        workspace_id?: string;
+        /** @description Read every run, including unknown attribution */
+        all_workspaces?: boolean;
+        /** @description Source project IDs or @user; excludes unknown attribution */
+        workspace_ids?: string[];
+        /** @description Opaque source-filter-bound cursor */
+        cursor?: string;
         /** @description Filter by automation job id */
         job_id?: string;
         /** @description Filter by automation trigger id */
@@ -23025,6 +23214,69 @@ export interface operations {
       };
     };
   };
+  listAutomationSuggestionsAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+        /** @description Filter by suggestion status */
+        status?: "pending" | "accepted" | "dismissed";
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AutomationSuggestionsResponse"];
+        };
+      };
+      /** @description Invalid suggestion status */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Automation manager is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listAutomationTriggers: {
     parameters: {
       query?: {
@@ -23032,6 +23284,10 @@ export interface operations {
         scope?: "global" | "workspace";
         /** @description Filter by workspace id */
         workspace_id?: string;
+        /** @description Read every definition */
+        all_workspaces?: boolean;
+        /** @description Project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
         /** @description Filter by trigger source */
         source?: "config" | "package" | "dynamic";
         /** @description Filter by target kind; task matches no trigger */
@@ -39382,6 +39638,191 @@ export interface operations {
       };
     };
   };
+  listTerminalsAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalListResponse"];
+        };
+      };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+    };
+  };
+  streamTerminalsAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: {
+        /** @description Resume after the last terminal catalog event */
+        "Last-Event-ID"?: string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Terminal catalog event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": components["schemas"]["TerminalCatalogSnapshot"];
+        };
+      };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Invalid terminal catalog cursor */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+      /** @description Terminal catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TerminalErrorResponse"];
+        };
+      };
+    };
+  };
   listToolApprovalGrants: {
     parameters: {
       query: {
@@ -52970,6 +53411,67 @@ export interface operations {
         };
       };
       /** @description Worktree stream is unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listWorktreesAggregate: {
+    parameters: {
+      query?: {
+        /** @description Read all projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["WorktreesResponse"];
+        };
+      };
+      /** @description Invalid worktree list query */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Worktree service is unavailable */
       503: {
         headers: {
           [name: string]: unknown;

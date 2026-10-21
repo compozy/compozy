@@ -19,15 +19,25 @@ func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (aut
 		return automationpkg.JobListQuery{}, err
 	}
 
+	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace_id", OmissionIsAll: true})
+	if err != nil {
+		return automationpkg.JobListQuery{}, err
+	}
 	query := automationpkg.JobListQuery{
-		ReadScope:   readScope,
-		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
-		LoopName:    strings.TrimSpace(c.Query("loop")),
-		Target:      strings.TrimSpace(c.Query("target")),
-		Enabled:     enabled,
-		Search:      strings.TrimSpace(c.Query("q")),
-		Cursor:      strings.TrimSpace(c.Query("cursor")),
-		Limit:       limit,
+		WorkspaceIDs: breadth.WorkspaceIDs,
+		ReadScope:    readScope,
+		WorkspaceID:  strings.TrimSpace(c.Query("workspace_id")),
+		LoopName:     strings.TrimSpace(c.Query("loop")),
+		Target:       strings.TrimSpace(c.Query("target")),
+		Enabled:      enabled,
+		Search:       strings.TrimSpace(c.Query("q")),
+		Cursor:       strings.TrimSpace(c.Query("cursor")),
+		Limit:        limit,
+	}
+	if query.WorkspaceID == "@user" {
+		query.WorkspaceID = ""
+		query.WorkspaceIDs = []string{"@user"}
+		query.Scope = automationpkg.AutomationScopeGlobal
 	}
 	if query.Limit == 0 {
 		query.Limit = automationpkg.DefaultListLimit
@@ -64,16 +74,26 @@ func ParseAutomationTriggerListQuery(
 		return automationpkg.TriggerListQuery{}, err
 	}
 
+	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace_id", OmissionIsAll: true})
+	if err != nil {
+		return automationpkg.TriggerListQuery{}, err
+	}
 	query := automationpkg.TriggerListQuery{
-		ReadScope:   readScope,
-		WorkspaceID: strings.TrimSpace(c.Query("workspace_id")),
-		Event:       strings.TrimSpace(c.Query("event")),
-		LoopName:    strings.TrimSpace(c.Query("loop")),
-		Target:      strings.TrimSpace(c.Query("target")),
-		Enabled:     enabled,
-		Search:      strings.TrimSpace(c.Query("q")),
-		Cursor:      strings.TrimSpace(c.Query("cursor")),
-		Limit:       limit,
+		WorkspaceIDs: breadth.WorkspaceIDs,
+		ReadScope:    readScope,
+		WorkspaceID:  strings.TrimSpace(c.Query("workspace_id")),
+		Event:        strings.TrimSpace(c.Query("event")),
+		LoopName:     strings.TrimSpace(c.Query("loop")),
+		Target:       strings.TrimSpace(c.Query("target")),
+		Enabled:      enabled,
+		Search:       strings.TrimSpace(c.Query("q")),
+		Cursor:       strings.TrimSpace(c.Query("cursor")),
+		Limit:        limit,
+	}
+	if query.WorkspaceID == "@user" {
+		query.WorkspaceID = ""
+		query.WorkspaceIDs = []string{"@user"}
+		query.Scope = automationpkg.AutomationScopeGlobal
 	}
 	if query.Limit == 0 {
 		query.Limit = automationpkg.DefaultListLimit

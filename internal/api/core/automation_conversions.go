@@ -124,7 +124,11 @@ func TriggerPayloadsFromTriggers(triggers []automationpkg.Trigger) []contract.Tr
 
 // RunPayloadFromRun converts an automation run into the shared response payload.
 func RunPayloadFromRun(run automationpkg.Run) contract.RunPayload {
+	if run.Attribution == "" {
+		run.Attribution = "unknown"
+	}
 	return contract.RunPayload{
+		WorkspaceID: run.WorkspaceID, Attribution: run.Attribution,
 		ID:              run.ID,
 		ProfileID:       run.ProfileID,
 		JobID:           run.JobID,

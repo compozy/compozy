@@ -34,16 +34,18 @@ func parseAutomationJobListQuery(
 	}
 	query.Scope = scope
 
-	if resolution, ok, err := resolveWorkspaceOverrideOnly(
-		cmd.Context(),
-		cmd,
-		deps,
-		client,
-		workspaceRef,
-	); err != nil {
-		return AutomationJobQuery{}, err
-	} else if ok {
-		query.WorkspaceID = resolution.ID
+	if !wantsAllWorkspaces(cmd) {
+		if resolution, ok, err := resolveWorkspaceOverrideOnly(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceRef,
+		); err != nil {
+			return AutomationJobQuery{}, err
+		} else if ok {
+			query.WorkspaceID = resolution.ID
+		}
 	}
 
 	source, err := parseOptionalAutomationSource(sourceRaw)
@@ -89,16 +91,18 @@ func parseAutomationTriggerListQuery(
 	}
 	query.Scope = scope
 
-	if resolution, ok, err := resolveWorkspaceOverrideOnly(
-		cmd.Context(),
-		cmd,
-		deps,
-		client,
-		workspaceRef,
-	); err != nil {
-		return AutomationTriggerQuery{}, err
-	} else if ok {
-		query.WorkspaceID = resolution.ID
+	if !wantsAllWorkspaces(cmd) {
+		if resolution, ok, err := resolveWorkspaceOverrideOnly(
+			cmd.Context(),
+			cmd,
+			deps,
+			client,
+			workspaceRef,
+		); err != nil {
+			return AutomationTriggerQuery{}, err
+		} else if ok {
+			query.WorkspaceID = resolution.ID
+		}
 	}
 
 	source, err := parseOptionalAutomationSource(sourceRaw)

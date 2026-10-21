@@ -69,6 +69,8 @@ CREATE TABLE automation_suggestions (
 	);
 
 CREATE TABLE automation_runs (
+        workspace_id TEXT,
+        attribution TEXT NOT NULL DEFAULT 'unknown' CHECK (attribution IN ('recorded', 'derived', 'unknown')),
 		id         TEXT PRIMARY KEY,
 		profile_id TEXT REFERENCES profiles(id),
 		job_id     TEXT,

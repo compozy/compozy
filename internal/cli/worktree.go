@@ -35,6 +35,9 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use: worktreeListVerb, Short: "List registered worktrees",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if wantsAllWorkspaces(cmd) {
+				return writeAggregateCatalog(cmd, deps, "worktrees")
+			}
 			client, workspaceID, err := worktreeCommandContext(cmd, deps, workspaceRef)
 			if err != nil {
 				return err
@@ -48,6 +51,8 @@ func newWorktreeListCommand(deps commandDeps) *cobra.Command {
 	}
 	addWorktreeWorkspaceFlag(cmd, &workspaceRef)
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "Refresh Git discovery and status")
+	addAllWorkspacesFlag(cmd)
+	cmd.MarkFlagsMutuallyExclusive("refresh", "all-workspaces")
 	return cmd
 }
 

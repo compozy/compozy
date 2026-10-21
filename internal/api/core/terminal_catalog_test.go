@@ -46,7 +46,7 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 					Kind: terminalpkg.EventKindClosed, TerminalID: "term-a", Exit: exit,
 				},
 				wantName: "terminal.closed",
-				wantPayload: gin.H{"terminal_id": terminalpkg.ID("term-a"), "exit": &terminalExitPayload{
+				wantPayload: gin.H{"workspace_id": "", "profile_id": "", "terminal_id": terminalpkg.ID("term-a"), "exit": &terminalExitPayload{
 					Cause: "exit", Code: &exitCode,
 				}},
 			},
@@ -251,6 +251,56 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 		replay, reset, fence, changed = catalog.read("workspace-a", "profile-a", 1)
 		if len(replay) != 0 || !reset || fence <= terminalCatalogRetention || changed == nil {
 			t.Fatalf("stale cursor replay/reset/fence/changed = %#v/%v/%d/%v", replay, reset, fence, changed)
+		}
+	})
+}
+
+func TestTerminalCatalogAggregateSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should replay only matching owners and reset an expired fence", func(t *testing.T) {
+		t.Parallel()
+		catalog := &terminalCatalog{inbox: make(chan terminalCatalogEvent, terminalCatalogMailbox)}
+		catalog.signal.Store(newTerminalCatalogSignal())
+		for _, event := range []terminalpkg.Event{
+			{Kind: terminalpkg.EventKindClosed, WorkspaceID: "a", ProfileID: "p1", TerminalID: "one"},
+			{Kind: terminalpkg.EventKindClosed, WorkspaceID: "b", ProfileID: "p2", TerminalID: "two"},
+			{Kind: terminalpkg.EventKindClosed, WorkspaceID: "a", ProfileID: "p1", TerminalID: "three"},
+		} {
+			catalog.observe(t.Context(), event)
+		}
+		replay, reset, fence, _ := catalog.readSelection(1, func(event terminalpkg.Event) bool { return event.WorkspaceID == "a" && event.ProfileID == "p1" })
+		if reset || fence != 3 || len(replay) != 1 || replay[0].Event.TerminalID != "three" {
+			t.Fatalf("replay=%v reset=%v fence=%d", replay, reset, fence)
+		}
+		for range terminalCatalogRetention + 1 {
+			catalog.observe(t.Context(), terminalpkg.Event{Kind: terminalpkg.EventKindClosed})
+		}
+		expiredReplay, expiredReset, expiredFence, changed := catalog.readSelection(1, func(terminalpkg.Event) bool { return true })
+		if len(expiredReplay) != 0 || expiredFence <= fence || changed == nil {
+			t.Fatalf("invalid reset fence %d replay %v", expiredFence, expiredReplay)
+		}
+		reset = expiredReset
+		if !reset {
+			t.Fatal("expired cursor did not reset")
+		}
+	})
+}
+
+func TestTerminalAggregateCursorSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reset when the selection changes and preserve matching replay positions", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			raw  string
+			want uint64
+		}{{"12.p1", 12}, {"12.p2", 0}, {"12", 0}, {"", 0}} {
+			got, err := terminalAggregateCursor(tc.raw, "p1")
+			if err != nil || got != tc.want {
+				t.Fatalf("cursor %q = %d,%v", tc.raw, got, err)
+			}
+		}
+		if _, err := terminalAggregateCursor("bad.p1", "p1"); err == nil {
+			t.Fatal("accepted invalid matching cursor")
 		}
 	})
 }

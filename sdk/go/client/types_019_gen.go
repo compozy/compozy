@@ -4,6 +4,16 @@ package client
 
 import "encoding/json"
 
+// SettingsPersonaResponse is a daemon API value.
+type SettingsPersonaResponse struct {
+	Section         SettingsSectionName        `json:"section"`
+	Scope           SettingsLayeredScopeKind   `json:"scope"`
+	WorkspaceID     string                     `json:"workspace_id,omitempty"`
+	Profile         string                     `json:"profile,omitempty"`
+	AvailableScopes []SettingsLayeredScopeKind `json:"available_scopes"`
+	Config          SettingsDefaultsPayload    `json:"config"`
+}
+
 // SettingsProviderAuthStatusPayload is a daemon API value.
 type SettingsProviderAuthStatusPayload struct {
 	Mode       string                         `json:"mode"`

@@ -175,6 +175,8 @@ type AutomationJobOverlay struct {
 }
 
 type AutomationRun struct {
+	WorkspaceID     sql.NullString `json:"workspace_id"`
+	Attribution     string         `json:"attribution"`
 	ID              string         `json:"id"`
 	ProfileID       sql.NullString `json:"profile_id"`
 	JobID           sql.NullString `json:"job_id"`

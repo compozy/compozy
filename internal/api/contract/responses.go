@@ -135,7 +135,8 @@ type TriggerResponse struct {
 
 // RunsResponse wraps the shared automation run list payload.
 type RunsResponse struct {
-	Runs []RunPayload `json:"runs"`
+	Page *CursorPagePayload `json:"page,omitempty"`
+	Runs []RunPayload       `json:"runs"`
 }
 
 // RunResponse wraps one shared automation run payload.

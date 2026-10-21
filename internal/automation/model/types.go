@@ -214,6 +214,8 @@ type FireLimitConfig struct {
 
 // Run records the execution state of a single automation fire.
 type Run struct {
+	WorkspaceID     *string        `json:"workspace_id,omitempty"`
+	Attribution     string         `json:"attribution"`
 	ID              string         `json:"id"`
 	ProfileID       string         `json:"profile_id,omitempty"`
 	JobID           string         `json:"job_id,omitempty"`
@@ -263,6 +265,7 @@ type SchedulerState struct {
 // SchedulerClaim reserves one scheduled fire after the durable cursor has
 // been advanced.
 type SchedulerClaim struct {
+	WorkspaceID         string
 	ProfileID           string
 	JobID               string
 	RunID               string
