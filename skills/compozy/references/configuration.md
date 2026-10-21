@@ -540,5 +540,8 @@ sets it fails to load (`provider_usage settings are global-only`) and profile ov
 | `provider_usage.providers.claude.keychain_access` | `false` | macOS consent for explicit local Keychain reads; turning it off clears the token. |
 
 Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/settings/provider-usage`
-(the PATCH body carries the complete `config` section). Consent alone never reads the Keychain: a read
-still needs an explicit local refresh, which agents cannot make.
+(the PATCH body carries the complete `config` section; the response adds read-only
+`keychain_supported`, `true` only on a macOS daemon). Agents may change `enabled`,
+`refresh_interval`, and `providers.<id>.enabled` through `compozy__config_set`, but not
+`keychain_access`: consent is operator-only. Consent alone never reads the Keychain; a read still
+needs an explicit local refresh, which agents cannot make.

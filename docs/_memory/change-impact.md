@@ -3967,25 +3967,30 @@ promotes it.
   `GET/PATCH /api/settings/provider-usage`. `explicit` is honored only for local operators. Foreign-origin
   app tokens may use the GETs and are denied refresh; no new token scopes. Usage codes use the flat
   `ErrorPayload`, profile codes the profile envelope. Generated OpenAPI, Go/TypeScript SDKs, tool catalog, and
-  CLI reference co-ship.
+  CLI reference co-ship. A provider-filtered read or `refresh <provider>` returns only those rows with
+  `tray: null`; the envelope and settings response carry read-only `keychain_supported` (macOS daemon only).
 - **Extensibility and hooks:** no hook event, manifest, Host API, extension SDK, or MCP sidecar change; alert
   hooks are deferred with history.
 - **Config:** `provider_usage.enabled` (true), `provider_usage.refresh_interval` ("5m", 1m–1h),
   `provider_usage.providers.<id>.enabled` (true), `provider_usage.providers.claude.keychain_access` (false,
   darwin only). User/machine scope; workspace config fails to load and profile overlays reject the root;
-  live apply; additive (ladder (a)). `config set` accepts `keychain_access` only under `claude`.
+  live apply; additive (ladder (a)). `config set` accepts `keychain_access` only under `claude`; agents'
+  native config tools may write the other three keys but are refused `keychain_access` (operator-only
+  consent).
 - **Workspace data isolation:** no SQLite migration, tables, or workspace files; snapshots are in-memory and
   keyed by `(profile, provider, route fingerprint)`, fenced by an in-memory credential identity; aggregate
   profile reads are rejected; no credential, digest, account ID, or raw payload in any output. CompozyOS reads
   provider credential files read-only; the Codex CLI may renew its own login (ADR-002), file store only
   (`keyring`/`auto` → `unsupported`). The macOS Keychain is read only on explicit local-operator intent; the
   token stays in memory, bound to Claude's account evidence, and is dropped on re-login, logout, consent
-  revocation, or indeterminate evidence.
+  revocation, or indeterminate evidence. A missing Keychain item reports `signed_out` (`auth_missing`);
+  only a real OS denial reports `keychain_denied`.
 - **Official CompozyOS skill:** `skills/compozy/SKILL.md` router row; `references/native-tools.md` (two
   tools), `references/runtime-operations.md` §Provider Usage (verbs, routes, intent, statuses and recovery),
   `references/configuration.md` §Provider Usage (keys, scope, settings route).
 - **Web/Docs:** `web/src/systems/provider-usage/` (domain), OS tray slot, popover, overlay `usage`, Usage app
-  (`/usage`), Settings → Provider usage section. Site: `agents/provider-usage.mdx` tutorial (tray, popover,
+  (`/usage`), Settings → Provider usage section; `unsupported`/`disabled` rows fold into one closed trailing
+  group in the popover and Usage app; Allow and the Keychain setting render only when `keychain_supported`. Site: `agents/provider-usage.mdx` tutorial (tray, popover,
   Usage app, Keychain consent, Codex store, support table, statuses, CLI, config, tools, routes),
   `configuration/config-toml.mdx` `[provider_usage]`, `tools/toolsets.mdx` row, generated CLI pages.
 - **QA:** `APP-provider-usage-tray` (operator walk, journey `J-provider-usage`) and

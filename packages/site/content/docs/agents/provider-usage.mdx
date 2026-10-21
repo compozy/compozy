@@ -64,15 +64,17 @@ Provider usage                         Updated 1 min ago   ⟳
 Claude Code    Max 20x   Weekly · Opus   ████████▉  88% used   3d 2h
 Codex          Pro       Weekly          ███████▏   72% used   2d 4h
 Cursor Agent             Signed out · Sign in with Cursor to read usage
-Pi                       Usage not available for this provider
+› 6 providers without usage data
 ─────────────────────────────────────────────────────────────
 Open Usage                                           Settings
 ```
 
 Each row shows the provider, its plan, its most used limit, and the time until that limit resets.
-There is one row for every provider CompozyOS knows, including providers you have not set up; those
-read `Signed out` or `Usage not available for this provider`. [Step 7](#step-7-choose-what-compozyos-collects)
-shows how to hide the ones you do not use.
+Providers you have not set up read `Signed out`; [Step 7](#step-7-choose-what-compozyos-collects)
+shows how to hide the ones you do not use. Providers CompozyOS cannot read usage for are folded into
+one closed group at the end, such as `6 providers without usage data`. Open it to see each name and
+its reason.
+
 Click a row to expand it. The detail lists every limit with its own bar and reset time, then
 balances and spending caps in their own units (`120 credits`, `$12.40`), the account, where the
 numbers came from (for example `Claude Code OAuth`), and when they were measured.
@@ -98,14 +100,15 @@ refresh says why, and offers a button when you can fix it from here. See
 ## Step 4: Open the Usage app
 
 Click **Open Usage** in the popover footer. The **Usage** window opens with every provider expanded
-and its own **⟳** button. It reads the same numbers as the popover and updates live. Use it when you
+and its own **⟳** button. Providers without usage data stay in the same closed group at the end. It reads the same numbers as the popover and updates live. Use it when you
 want all limits side by side, for example before starting a long run.
 
 ## Step 5: Allow Claude on macOS
 
 On macOS, Claude Code usually keeps its login in the macOS Keychain instead of a file. CompozyOS
-reads the Keychain only with your consent and only when you ask for it. Until then the Claude row
-reads:
+reads the Keychain only with your consent and only when you ask for it. The **Allow** button and the
+**Claude Keychain access** setting appear only when the daemon runs on macOS. Until you allow it, the
+Claude row reads:
 
 ```text
 Claude Code   Needs Keychain access                       [Allow]
@@ -132,8 +135,9 @@ What happens next:
 - After a daemon restart the login is gone from memory, so the row reads `Needs Keychain access`
   again. Click **Allow** once more; your consent is already saved.
 - If you click **Deny**, the row reads `Keychain access denied` with **Try again**. Nothing is
-  retried until you click it. The same message appears when Claude Code has no login in the
-  Keychain: run `claude` and sign in first.
+  retried until you click it.
+- If Claude Code has no login in the Keychain, the row reads
+  `Signed out · Sign in with claude to read usage`. Run `claude`, sign in, then refresh.
 - If you sign in to Claude Code with another account, or sign out, CompozyOS drops the old login and
   its numbers.
 - To withdraw consent, turn off **Claude Keychain access** in Settings → Provider usage. CompozyOS
@@ -165,14 +169,13 @@ Experimental: provider usage output may change.
 numbers were measured.
 
 `compozy provider usage refresh` asks the providers again, waits up to 15 seconds, and prints the
-same table. Pass a provider ID, as in `compozy provider usage refresh codex`, to refresh only that
-provider. When a Claude row needs Keychain consent, the table ends with the command that grants it:
+same table. Pass a provider ID to refresh and print only that provider. When a Claude row needs
+Keychain consent, the table ends with the command that grants it:
 
 ```console
-$ compozy provider usage refresh
+$ compozy provider usage refresh claude
 PROVIDER      STATUS         TIGHTEST WINDOW  USED  RESETS IN  UPDATED
 Claude Code   needs_consent  —                —     —          —
-Codex         ok             Weekly           72%   2d 4h      <1m ago
 
 Claude: Needs Keychain access. Allow it with: compozy config set provider_usage.providers.claude.keychain_access true
 Experimental: provider usage output may change.
@@ -321,7 +324,10 @@ Agents read the same numbers with two native tools, in toolset `compozy__provide
 | `compozy__provider_usage_refresh` | `provider_ids`, `max_age_seconds` | Refreshes, waits up to 15 seconds, and returns the envelope.                                |
 
 An agent always works on its own session's profile. Its refreshes run in the background: they
-never read the Keychain, never show a prompt, and respect provider rate limits.
+never read the Keychain, never show a prompt, and respect provider rate limits. An agent also cannot
+grant Keychain consent: the native config tools refuse
+`provider_usage.providers.claude.keychain_access`, so only you can turn it on, in Settings or with
+`compozy config set`.
 
 Scripts can use the same HTTP and UDS routes as the CLI:
 
@@ -333,6 +339,10 @@ Scripts can use the same HTTP and UDS routes as the CLI:
 | `GET /api/provider-usage/stream`             | Server-Sent Events: `ready` and `provider_usage_changed`, each with `revision` and `boot_id`. Re-read the envelope on each event. |
 | `GET` / `PATCH /api/settings/provider-usage` | Read or change the `[provider_usage]` settings.                                                                                   |
 
+The envelope and the settings response carry a read-only `keychain_supported` flag, `true` only when
+the daemon runs on macOS; clients use it to decide whether to offer **Allow**. A read filtered to one
+provider returns `tray: null`.
+
 Only the desktop app and the CLI on the daemon's own machine can make a refresh that reads the
 Keychain. Agents, paired remote devices, and app tokens always refresh in the background, and
 app tokens from another origin cannot refresh at all. No route ever returns a credential. Request
@@ -343,7 +353,7 @@ and response schemas: [Providers API](/docs/api/providers).
 | Symptom                                                         | Fix                                                                                                             |
 | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | No meter in the topbar                                          | Check `compozy config get provider_usage.enabled` and that a supported provider is configured for this profile. |
-| Claude row says `Keychain access denied` right after **Allow**  | Claude Code may have no login in the Keychain. Run `claude`, sign in, then click **Try again**.                 |
+| Claude row says `Signed out` right after **Allow**              | Claude Code has no login in the Keychain. Run `claude`, sign in, then refresh.                                  |
 | Claude row says `Signed out` on Linux or Windows                | Claude Code keeps a file login there. Run `claude`, sign in, then refresh.                                      |
 | macOS prompt appears every few hours                            | Expected after **Allow**. Choose **Always Allow** to make later reads silent.                                   |
 | Codex row says the login is in the system keyring               | Switch Codex to the file store: see [Codex](#codex-file-credential-store).                                      |

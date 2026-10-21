@@ -404,8 +404,9 @@ Provider usage tools (experimental, toolset `compozy__provider_usage`): `compozy
 without contacting providers. `compozy__provider_usage_refresh` (optional `provider_ids`,
 `max_age_seconds`) is mutating, always runs with background intent, waits up to 15 seconds, and
 returns the same envelope. Agent refreshes never read the macOS Keychain, never prompt, and honor
-provider rate-limit cooldowns, so a Claude row in `needs_consent` cannot be fixed from a tool: report
-it to the operator. CLI fallbacks are `compozy provider usage list|refresh`; statuses and recovery are
+provider rate-limit cooldowns, so a Claude row in `needs_consent` cannot be fixed from a tool, and
+`compozy__config_set` refuses `provider_usage.providers.claude.keychain_access`: report it to the
+operator. CLI fallbacks are `compozy provider usage list|refresh`; statuses and recovery are
 in `references/runtime-operations.md#provider-usage-experimental`.
 
 Vault catalog tool: `compozy__vault_list`. It returns global reference names and redacted metadata,

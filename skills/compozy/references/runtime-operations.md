@@ -979,7 +979,9 @@ operator profile and keeps them in memory only. Every surface reads one envelope
 `GET /api/provider-usage`, `GET /api/provider-usage/providers/{provider_id}`,
 `POST /api/provider-usage/refresh`, and SSE `GET /api/provider-usage/stream` (`ready`,
 `provider_usage_changed`, each with `revision` and `boot_id`; re-read the envelope on every event; a
-new `boot_id` means revisions restarted). The CLI table has one row per known provider; both verbs
+new `boot_id` means revisions restarted). The envelope's read-only `keychain_supported` is `true` only
+when the daemon runs on macOS; a provider-filtered read or `refresh <provider>` returns only that row
+with `tray: null`. The unfiltered CLI table has one row per known provider; both verbs
 exit `0` even when rows fail and `1` for request errors (`invalid_request`, `provider_not_found`,
 `provider_usage_disabled`, profile errors). A successful collection in the last 30 seconds is never
 repeated; `--max-age` only raises that floor.
@@ -997,10 +999,13 @@ Claude token is reused in memory by background refreshes until it expires or the
 Foreign-origin app tokens may read but not refresh (`app_token_route_forbidden`). An agent without
 a `profile` reads its own session profile; naming another fails with `profile_session_conflict`.
 
-Per-row recovery: `signed_out` → the operator signs in with the provider's own CLI; `needs_consent`
-`keychain_consent_required`/`keychain_denied` → the operator clicks **Allow**/**Try again** or runs
+Per-row recovery: `signed_out` → the operator signs in with the provider's own CLI (on macOS this
+includes a Claude login missing from the Keychain, `auth_missing`); `needs_consent`
+`keychain_consent_required`/`keychain_denied` (a real OS denial) → the operator clicks
+**Allow**/**Try again** or runs
 `compozy config set provider_usage.providers.claude.keychain_access true` then
-`compozy provider usage refresh claude` on the daemon host; `keychain_token_expired` → an explicit
+`compozy provider usage refresh claude` on the daemon host. Agents cannot grant consent: native config
+tools refuse `provider_usage.providers.claude.keychain_access`. `keychain_token_expired` → an explicit
 local refresh; `rate_limited`/`error`/`stale` → retry later; `disabled` → re-enable under
 `provider_usage.providers.<id>.enabled`. After a daemon restart rows are `refreshing` until their first
 collection, and a Keychain-backed Claude row asks for an explicit refresh again.

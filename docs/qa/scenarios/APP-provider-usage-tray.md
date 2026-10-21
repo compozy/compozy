@@ -29,7 +29,9 @@ Codex end to end (file credential store, `codex login` done):
 - the meter sits between **All desktops** and the bell; its tooltip and accessible name read like
   `Codex · Weekly 72% used · resets in 2d 4h`; tones are neutral below 80, warning 80–99, danger at
   ≥ 100 with "limit reached";
-- the popover lists every known provider in catalog order; Codex shows plan, tightest window,
+- the popover lists providers in catalog order, with `unsupported`/`disabled` rows folded into one
+  closed trailing group (`N providers without usage data`) that opens to each name and reason, in
+  the popover and the Usage app alike; Codex shows plan, tightest window,
   percent, and countdown; expanding shows Session, Weekly, credits, account, source
   `Codex app-server`, and measured time; Esc closes and focus returns to the meter;
 - opening the popover refreshes only rows older than 60 s (background); ⟳ refreshes explicitly,
@@ -47,11 +49,13 @@ Claude on macOS (no `.credentials.json`, login in the Keychain):
 - **Allow** saves the Settings switch and runs one explicit refresh; macOS asks for
   `Claude Code-credentials`; **Allow** fills Session, Weekly, per-model weekly, and Extra usage;
 - **Deny** shows `Keychain access denied` with **Try again**; nothing retries until clicked;
+- with Claude Code signed out of the Keychain (no `Claude Code-credentials` item), **Allow** ends in
+  `Signed out · Sign in with claude to read usage`, not a denial;
 - while the loaded token is valid, background refreshes keep the row fresh without a prompt; once
   it expires the row reads `Refresh to reload your Claude login` and ⟳ reloads it (silent after
   **Always Allow**);
 - `compozy provider usage refresh claude` from the host terminal behaves like **Allow** once
-  consent is on; a gateway device sees `Approve on the host Mac: open CompozyOS there and refresh`
+  consent is on and prints only the Claude row; a gateway device sees `Approve on the host Mac: open CompozyOS there and refresh`
   and never triggers a prompt;
 - restart the daemon: rows read `Loading…` until their first collection; Claude asks for **Allow**
   again with consent still on;
@@ -68,12 +72,15 @@ Key-based providers and settings:
   off removes its row from the tray, popover, Usage app, and unfiltered CLI list (`list <id>` shows
   `disabled`); **Show provider usage** off removes the meter, and `compozy provider usage list`
   prints the turned-off message while `refresh` exits 1 with `provider_usage_disabled`;
-- on a Linux or Windows host the Keychain row is absent from Settings.
+- on a Linux or Windows host (`keychain_supported: false` in the envelope and settings response)
+  the Settings Keychain row and every **Allow** button are absent.
 
 Parity and profile isolation:
 
 - the CLI JSON, `GET /api/provider-usage` over HTTP and UDS, and `compozy__provider_usage_list`
   from an agent session return the same revision and rows for the same profile;
-- `compozy__provider_usage_refresh` from an agent never prompts, even with consent on;
+- `compozy__provider_usage_refresh` from an agent never prompts, even with consent on, and
+  `compozy__config_set provider_usage.providers.claude.keychain_access true` is refused while
+  `provider_usage.providers.<id>.enabled` is accepted;
 - switch the shell to a second profile with different logins: the meter, popover, and
   `--profile <name>` CLI read only that profile's numbers; no surface combines profiles.

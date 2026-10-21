@@ -1823,8 +1823,10 @@ error: validate config write for "global-config": provider_usage.refresh_interva
 
 A provider ID that is neither built in nor configured under `[providers.<id>]` is rejected with
 `unknown canonical provider ID`. In `config.toml` and Settings, `keychain_access` under any provider
-other than `claude` is rejected with `is only valid for claude`; `compozy config set` does not accept
-that path. Turning `keychain_access` off clears the Claude login the
+other than `claude` is rejected with `is only valid for claude`, and `compozy config set` accepts it
+only under `claude`. Agents' native config tools cannot write `keychain_access` at all; consent is an
+operator action. The settings response reports `keychain_supported`, which is `true` only when the
+daemon runs on macOS. Turning `keychain_access` off clears the Claude login the
 daemon loaded from the Keychain and its usage snapshot.
 
 ## `[marketplace.catalog]`
