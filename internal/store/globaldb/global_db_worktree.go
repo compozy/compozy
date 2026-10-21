@@ -84,7 +84,8 @@ func (g *WorktreeRepo) PathOwnedByAnyWorkspace(ctx context.Context, path string)
 	if err := g.checkReady(ctx, "find worktree path owner"); err != nil {
 		return false, err
 	}
-	count, err := g.queries.CountLiveWorktreesByPath(ctx, strings.TrimSpace(path))
+	// Exact match: Git paths that differ only by edge whitespace are distinct checkouts.
+	count, err := g.queries.CountLiveWorktreesByPath(ctx, path)
 	if err != nil {
 		return false, fmt.Errorf("store: find worktree path owner: %w", err)
 	}

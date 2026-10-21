@@ -197,6 +197,8 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 		for path, want := range map[string]bool{
 			livePath: true, removedPath: false, filepath.Join(t.TempDir(), "unknown"): false,
+			// A sibling that differs only by a trailing space is a distinct checkout.
+			livePath + " ": false,
 		} {
 			got, err := globalDB.Worktrees.PathOwnedByAnyWorkspace(ctx, path)
 			if err != nil || got != want {
