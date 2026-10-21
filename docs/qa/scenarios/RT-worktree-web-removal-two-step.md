@@ -78,3 +78,11 @@ Walked on the menubar workspace submenu against an isolated daemon with Vite: a 
 ("Stale Git entry cleared. Branch kept."); select-all counted registered + discovered rows; the
 batch removed two and refused a detached unique commit with its risk row; **Force remove… (1)**
 completed it (3 succeeded). Evidence screenshots are linked from the PR.
+
+2026-10-21 redesign impact: nest rows lost the colored `discovered` chip and profile pill (neutral
+state word + owner glyph + path; Git's reason replaces the path on stale rows); selection mode marks
+rows with a leading circle-check and a footer of **N of M selected · Select all · Cancel** plus
+**Remove N worktrees…**; the batch and force dialogs share one ruled target list (status glyph,
+name, path or receipt), the description becomes the live tally ("2 of 3 done · 1 failed"), and the
+footer carries one destructive action (**Remove N worktrees**, then **Force remove…** beside
+**Retry failed**). Re-walked the same six menubar states on the isolated daemon with Vite.

@@ -1,8 +1,33 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
+import { ListChecks, Trash2 } from "lucide-react";
 import { Button, MenubarItem, cn } from "@compozy/ui";
 import type { WorktreeRemovalSelection } from "@/systems/workspace/hooks/use-worktree-removal-selection";
 
-/** Composes persistent menu/button actions while keeping selection activation inside the list. */
+/** One-line action rows keep the nest rhythm beside two-line worktree rows. */
+const FOOTER_ROW_CLASS = "min-h-control-compact";
+/** Select all / Cancel sit beside the count as quiet text-weight actions. */
+const COMPACT_ACTION_CLASS = "min-h-6 w-auto shrink-0 px-2 py-0.5 text-micro text-muted";
+
+interface ToolbarAction {
+  id: string;
+  label: string;
+  run: () => void;
+  disabled: boolean;
+  icon?: ReactNode;
+  destructive?: boolean;
+}
+
+function worktreeRemoveSelectedLabel(count: number) {
+  return `Remove ${count} ${count === 1 ? "worktree" : "worktrees"}…`;
+}
+
+/**
+ * The nest's selection footer, opening with its own hairline so hosts drop
+ * theirs above the create row. At rest it is one quiet "Select worktrees…" row;
+ * in selection mode it becomes a count with Select all / Cancel, then one
+ * destructive row that names exactly how many worktrees it removes. Activation
+ * stays inside the list, so Enter and Space never reach the host navigation.
+ */
 export function WorktreeSelectionToolbar({
   selection,
   menu = false,
@@ -14,34 +39,42 @@ export function WorktreeSelectionToolbar({
   menu?: boolean;
 }) {
   if (!selection.enabled) return null;
-  const actions = selection.mode
-    ? [
-        {
-          id: "confirm",
-          label: `Remove selected (${selection.count})…`,
-          run: selection.confirm,
-          disabled: selection.count === 0,
-        },
-        {
-          id: "all",
-          label: `Select all eligible (${selection.eligibleCount})`,
-          run: selection.selectAll,
-          disabled: selection.eligibleCount === 0,
-        },
-        { id: "mode", label: "Clear selection", run: selection.clear, disabled: false },
-      ]
-    : [
-        {
-          id: "mode",
-          label: "Select worktrees…",
-          run: selection.start,
-          disabled: selection.eligibleCount === 0,
-        },
-      ];
+  const allSelected = selection.eligibleCount > 0 && selection.count === selection.eligibleCount;
+  const render = (action: ToolbarAction, rowClassName?: string) =>
+    menu ? (
+      <MenubarItem
+        key={action.id}
+        closeOnClick={false}
+        variant={action.destructive ? "destructive" : "default"}
+        disabled={action.disabled}
+        className={rowClassName}
+        onClick={action.run}
+      >
+        {action.icon}
+        {action.label}
+      </MenubarItem>
+    ) : (
+      <Button
+        key={action.id}
+        size="sm"
+        variant="ghost"
+        disabled={action.disabled}
+        className={cn(
+          rowClassName,
+          action.destructive && "text-danger hover:bg-danger-tint hover:text-danger"
+        )}
+        onClick={action.run}
+      >
+        {action.icon}
+        {action.label}
+      </Button>
+    );
   return (
     <div
       {...props}
-      className={cn("flex flex-wrap gap-1 p-1", className)}
+      data-slot="worktree-selection-toolbar"
+      data-mode={selection.mode ? "select" : "idle"}
+      className={cn("flex flex-wrap items-center gap-y-0.5", className)}
       onKeyDown={event => {
         onKeyDown?.(event);
         if (event.defaultPrevented) return;
@@ -49,34 +82,53 @@ export function WorktreeSelectionToolbar({
         if (event.key === "Enter" || event.key === " ") event.stopPropagation();
       }}
     >
-      {actions.map(action =>
-        menu ? (
-          <MenubarItem
-            key={action.id}
-            closeOnClick={false}
-            disabled={action.disabled}
-            onClick={action.run}
-          >
-            {action.label}
-          </MenubarItem>
-        ) : (
-          <Button
-            key={action.id}
-            size="sm"
-            variant="ghost"
-            disabled={action.disabled}
-            onClick={action.run}
-          >
-            {action.label}
-          </Button>
-        )
-      )}
+      <hr className="mx-1.5 my-1 h-px basis-full border-0 bg-line-soft" />
+      {/* One flat keyed sibling list: the "mode" control stays the same DOM
+          node across both modes, so keyboard focus survives entering and
+          leaving selection. */}
       {selection.mode ? (
-        <p className="px-2 text-form-hint text-subtle">
-          Select all includes only eligible rows in this list. New entries are not added
-          automatically.
-        </p>
+        <span
+          key="count"
+          aria-live="polite"
+          data-testid="worktree-selection-count"
+          className="min-w-0 flex-1 truncate pl-2 text-micro text-subtle tabular-nums"
+        >
+          {selection.count} of {selection.eligibleCount} selected
+        </span>
       ) : null}
+      {selection.mode
+        ? render(
+            { id: "all", label: "Select all", run: selection.selectAll, disabled: allSelected },
+            COMPACT_ACTION_CLASS
+          )
+        : null}
+      {render(
+        selection.mode
+          ? { id: "mode", label: "Cancel", run: selection.clear, disabled: false }
+          : {
+              id: "mode",
+              label: "Select worktrees…",
+              run: selection.start,
+              disabled: selection.eligibleCount === 0,
+              icon: <ListChecks aria-hidden="true" className="size-3.5 text-faint" />,
+            },
+        selection.mode
+          ? COMPACT_ACTION_CLASS
+          : cn(FOOTER_ROW_CLASS, "w-full basis-full justify-start px-2 text-muted")
+      )}
+      {selection.mode
+        ? render(
+            {
+              id: "confirm",
+              label: worktreeRemoveSelectedLabel(selection.count),
+              run: selection.confirm,
+              disabled: selection.count === 0,
+              destructive: true,
+              icon: <Trash2 aria-hidden="true" className="size-3.5" />,
+            },
+            cn(FOOTER_ROW_CLASS, "w-full basis-full justify-start px-2")
+          )
+        : null}
     </div>
   );
 }

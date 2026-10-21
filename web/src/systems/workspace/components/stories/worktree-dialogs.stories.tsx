@@ -374,8 +374,8 @@ export const BulkForceConfirmation: Story = {
     await userEvent.click(
       await body.findByRole("checkbox", { name: "Also delete local branches" })
     );
-    await userEvent.click(await body.findByRole("button", { name: "Remove selected" }));
-    await userEvent.click(await body.findByRole("button", { name: "Force remove… (2)" }));
+    await userEvent.click(await body.findByRole("button", { name: /^Remove \d+ worktrees$/ }));
+    await userEvent.click(await body.findByRole("button", { name: "Force remove…" }));
     await body.findByTestId("worktree-bulk-force-dialog");
   },
 };
@@ -424,9 +424,9 @@ export const BulkRemoveDiscovered: Story = {
   ),
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
-    await userEvent.click(await body.findByRole("button", { name: "Remove selected" }));
+    await userEvent.click(await body.findByRole("button", { name: "Remove 2 worktrees" }));
     await body.findByText("Stale Git entry cleared. Branch kept.");
-    await userEvent.click(await body.findByRole("button", { name: "Force remove… (1)" }));
+    await userEvent.click(await body.findByRole("button", { name: "Force remove…" }));
     await body.findByTestId("worktree-bulk-force-dialog");
   },
 };

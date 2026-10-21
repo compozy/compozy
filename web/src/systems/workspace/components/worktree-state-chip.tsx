@@ -10,9 +10,10 @@ export type WorktreeChipState = Exclude<WorktreeDisplayState, "ready">;
 
 const CHIP_TONE: Record<WorktreeChipState, string> = {
   pending: "bg-warning-tint text-warning",
-  discovered: "bg-info-tint text-info",
+  // Discovered is taxonomy, not live state, so it stays neutral.
+  discovered: "bg-surface-2 text-muted",
   // Missing is an outline, not a fill — the record survives but the tree is gone.
-  missing: "bg-transparent text-info shadow-[inset_0_0_0_1px_var(--color-line-strong)]",
+  missing: "bg-transparent text-muted shadow-[inset_0_0_0_1px_var(--color-line-strong)]",
   error: "bg-danger-tint text-danger",
   failed: "bg-danger-tint text-danger",
 };

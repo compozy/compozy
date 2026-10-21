@@ -137,7 +137,7 @@ describe("OsWorkspacesOverview", () => {
     await user.click(screen.getByText("Select worktrees…"));
     await user.click(screen.getByRole("menuitemcheckbox", { name: `Select ${missing.name}` }));
     await user.keyboard("{Control>}a{/Control}");
-    await user.click(screen.getByText("Remove selected (3)…"));
+    await user.click(screen.getByText("Remove 3 worktrees…"));
     expect(onRemoveWorktrees.mock.calls[0]?.[0].worktrees).toHaveLength(2);
     expect(onRemoveWorktrees.mock.calls[0]?.[0].discovered).toEqual([discoveredWorktreeFixture]);
     expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();

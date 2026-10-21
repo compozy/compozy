@@ -148,7 +148,7 @@ describe("WorkspaceMenu", () => {
     expect(checkbox).toHaveAttribute("aria-checked", "true");
     expect(callbacks.onSelectWorktree).not.toHaveBeenCalled();
     expect(openChangeFlags(callbacks.onOpenChange)).not.toContain(false);
-    await user.click(screen.getByText("Remove selected (1)…"));
+    await user.click(screen.getByText("Remove 1 worktree…"));
     expect(
       onRemoveWorktrees.mock.calls[0]?.[0].worktrees.map((row: { id: string }) => row.id)
     ).toEqual([missing.id]);

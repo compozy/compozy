@@ -1,6 +1,6 @@
 import { ArrowUpFromLine, FileDiff } from "lucide-react";
 
-import { Icon } from "@compozy/ui";
+import { Icon, cn } from "@compozy/ui";
 
 import type { WorktreeRemovalRisk } from "../lib/worktree-refusal";
 
@@ -9,22 +9,26 @@ export interface WorktreeRiskRowProps {
   what: string;
   quantity: string;
   why: string;
+  compact: boolean;
 }
 
 /** One blocker, quantified. The "why" is the sentence that prevents the mistake. */
-function WorktreeRiskRow({ icon, what, quantity, why }: WorktreeRiskRowProps) {
+function WorktreeRiskRow({ icon, what, quantity, why, compact }: WorktreeRiskRowProps) {
   return (
     <li
       data-slot="worktree-risk-row"
-      className="flex gap-3 border-b border-line-soft py-3 last:border-b-0"
+      className={cn(
+        "grid grid-cols-[16px_minmax(0,1fr)] gap-x-2",
+        compact ? "py-0.5" : "border-b border-line-soft py-2.5 last:border-b-0"
+      )}
     >
-      <Icon as={icon} size="sm" className="mt-0.5 shrink-0 text-warning" />
-      <span className="flex min-w-0 flex-col gap-1">
-        <span className="flex items-center gap-2">
+      <Icon as={icon} size="sm" className="mt-0.5 justify-self-center text-warning" />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="flex min-w-0 items-baseline gap-2">
           <span className="text-small-body font-medium text-fg">{what}</span>
-          <span className="font-mono text-mono-id tabular-nums text-subtle">{quantity}</span>
+          <span className="font-mono text-mono-id text-subtle tabular-nums">{quantity}</span>
         </span>
-        <span className="text-form-hint text-subtle">{why}</span>
+        {compact ? null : <span className="text-form-hint text-subtle">{why}</span>}
       </span>
     </li>
   );
@@ -34,6 +38,9 @@ export interface WorktreeRemovalRiskRowsProps {
   risk: WorktreeRemovalRisk;
   worktreeName: string;
   branch: string;
+  /** One line per blocker, without the explanation — for dense per-target lists. */
+  compact?: boolean;
+  className?: string;
 }
 
 /**
@@ -44,23 +51,27 @@ export function WorktreeRemovalRiskRows({
   risk,
   worktreeName,
   branch,
+  compact = false,
+  className,
 }: WorktreeRemovalRiskRowsProps) {
   return (
-    <ul data-testid="worktree-remove-risks" className="flex flex-col">
+    <ul data-testid="worktree-remove-risks" className={cn("flex flex-col", className)}>
       {risk.changedFiles > 0 ? (
         <WorktreeRiskRow
+          compact={compact}
           icon={FileDiff}
           what={`${risk.changedFiles} changed ${risk.changedFiles === 1 ? "file" : "files"}`}
           quantity={`+${risk.insertions} −${risk.deletions}`}
-          why={`${worktreeName} has uncommitted changes. Commit or stash first, or force remove.`}
+          why={`Uncommitted changes in ${worktreeName}. Removing the checkout discards them.`}
         />
       ) : null}
       {risk.unpushedCommits > 0 ? (
         <WorktreeRiskRow
+          compact={compact}
           icon={ArrowUpFromLine}
           what={`${risk.unpushedCommits} unpushed ${risk.unpushedCommits === 1 ? "commit" : "commits"}`}
           quantity={`↑${risk.unpushedCommits}`}
-          why={`${branch} has commits not found on any other branch or remote. Deleting it will lose work. Push it first, or force remove.`}
+          why={`${branch} has commits on no other branch or remote. Push them first to keep them.`}
         />
       ) : null}
     </ul>

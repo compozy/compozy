@@ -333,18 +333,18 @@ describe("worktree batch lifecycle", () => {
       { wrapper: createWrapper(new QueryClient()) }
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Also delete local branches" }));
-    fireEvent.click(screen.getByRole("button", { name: "Remove selected" }));
-    await screen.findByText("1 succeeded · 3 failed · 0 pending");
+    fireEvent.click(screen.getByRole("button", { name: "Remove 4 worktrees" }));
+    await screen.findByText(/^1 of 4 done · 3 failed\./);
     expect(screen.getByText("2 changed files")).toBeInTheDocument();
     expect(screen.getByText("1 unpushed commit")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Force remove… (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Force remove…" }));
     expect(screen.getByTestId("worktree-bulk-force-dialog")).toBeInTheDocument();
     expect(mocks.removeWorktree).toHaveBeenCalledTimes(4);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(mocks.removeWorktree).toHaveBeenCalledTimes(4);
-    fireEvent.click(screen.getByRole("button", { name: "Force remove… (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Force remove…" }));
     fireEvent.click(screen.getByRole("button", { name: "Force remove" }));
-    await screen.findByText("3 succeeded · 1 failed · 0 pending");
+    await screen.findByText(/^3 of 4 done · 1 failed\./);
     expect(
       mocks.removeWorktree.mock.calls.filter(call => call[2].force).map(call => call[1])
     ).toEqual(["dirty", "unpushed"]);

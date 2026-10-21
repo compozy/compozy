@@ -1,5 +1,5 @@
 import { useId } from "react";
-import { Copy, EllipsisVertical, Trash2 } from "lucide-react";
+import { Copy, EllipsisVertical, Eraser, Trash2 } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -129,6 +129,7 @@ export function OsWorkspacesWorktreeRow({
               disabled={Boolean(cleanupReason)}
               onClick={onResolveMissing}
             >
+              <Eraser className="size-deck-glyph text-subtle" />
               <RefusalLabel reason={cleanupReason}>Clean up missing record…</RefusalLabel>
             </DropdownMenuItem>
           ) : null}

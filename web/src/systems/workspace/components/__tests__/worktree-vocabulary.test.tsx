@@ -214,8 +214,9 @@ describe("worktree profile owners", () => {
       </UIProvider>
     );
 
-    const ownerTags = screen.getAllByTestId("profile-owner-tag");
-    expect(ownerTags).toHaveLength(2);
-    expect(ownerTags.every(tag => tag.textContent?.includes("marketing"))).toBe(true);
+    const [fullTag, nestTag] = screen.getAllByTestId("profile-owner-tag");
+    expect(fullTag).toHaveTextContent("marketing");
+    // Nest density is glyph-only; the owner moves to the accessible name.
+    expect(nestTag).toHaveAccessibleName("marketing");
   });
 });
