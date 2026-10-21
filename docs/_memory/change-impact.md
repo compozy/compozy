@@ -4017,4 +4017,3 @@ promotes it.
 - **QA:** `APP-provider-usage-tray` (operator walk, journey `J-provider-usage`) and
   `ET-provider-usage-surfaces` (transport, profiles, app tokens, SSE) — both `untested` until the trailing QA
   pair walks them with real Claude and Codex logins.
-- Dependency contract pending at B2 handoff: Manager must expose `SetRefreshInterval(time.Duration)` and preserve explicit zero wait. Run `ET-provider-usage-surfaces` in the trailing scenario QA; B2 focused checks are not a full daemon release validation.
