@@ -560,3 +560,88 @@ func TestUsageCollectionDeadline(t *testing.T) {
 		}
 	})
 }
+
+func TestUsagePartialSnapshots(t *testing.T) {
+	t.Run("Should publish fenced partial account data and preserve same owner last good data", func(t *testing.T) {
+		t.Parallel()
+		clock := fixtureClock(t)
+		target := collectorTestTarget(t, "gemini", false)
+		target.ProfileID = "personal"
+		target.RouteFingerprint = "gemini-route"
+		var quotaFails atomic.Bool
+		quotaFails.Store(true)
+		var plan atomic.Value
+		plan.Store("First plan")
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/v1internal:loadCodeAssist" {
+				data, err := json.Marshal(
+					map[string]any{"currentTier": map[string]string{"name": plan.Load().(string)}},
+				)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				writeFixture(w, t, string(data))
+				return
+			}
+			if quotaFails.Load() {
+				w.WriteHeader(http.StatusForbidden)
+				return
+			}
+			writeFixture(w, t, `{"buckets":[{"modelId":"pro","remainingFraction":0.25}]}`)
+		})
+		catalog := &TargetCatalog{}
+		catalog.Replace(target.ProfileID, []Target{target})
+		service := NewService(
+			Options{
+				Resolver: catalog,
+				Clock:    clock,
+				Collectors: DefaultRegistry(
+					RegistryOptions{BaseURLs: map[string]string{"gemini": server.URL}, Now: clock.Now},
+				),
+			},
+		)
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		refresh := func() Snapshot {
+			t.Helper()
+			env, err := service.Refresh(t.Context(), RefreshRequest{ProfileID: target.ProfileID})
+			requireNoError(t, err)
+			return env.Targets[0]
+		}
+		partial := refresh()
+		requireEqual(t, StatusError, partial.Status)
+		requireEqual(t, ErrorCodeProviderUnavailable, partial.Error.Code)
+		requireEqual(t, "First plan", partial.Account.Plan)
+		requireEqual(t, (*time.Time)(nil), partial.MeasuredAt)
+		partial.Account.Plan = "mutated by caller"
+		cached, err := service.Envelope(t.Context(), target.ProfileID)
+		requireNoError(t, err)
+		requireEqual(t, "First plan", cached.Targets[0].Account.Plan)
+		quotaFails.Store(false)
+		good := refresh()
+		requireEqual(t, StatusOK, good.Status)
+		clock.Advance(time.Minute)
+		quotaFails.Store(true)
+		plan.Store("New plan")
+		stale := refresh()
+		requireEqual(t, StatusStale, stale.Status)
+		requireEqual(t, "First plan", stale.Account.Plan)
+		requireEqual(t, *good.MeasuredAt, *stale.MeasuredAt)
+		requireEqual(t, 75.0, *stale.Windows[0].UsedPercent)
+		path := filepath.Join(routeEnv(target, "HOME"), ".gemini", "oauth_creds.json")
+		data, err := json.Marshal(
+			map[string]any{"access_token": "replacement-token", "expiry_date": clock.Now().Add(time.Hour).UnixMilli()},
+		)
+		requireNoError(t, err)
+		requireNoError(t, os.WriteFile(path, data, 0o600))
+		replaced := refresh()
+		requireEqual(t, StatusError, replaced.Status)
+		requireEqual(t, "New plan", replaced.Account.Plan)
+		requireEqual(t, 0, len(replaced.Windows))
+		requireEqual(t, (*time.Time)(nil), replaced.MeasuredAt)
+	})
+}

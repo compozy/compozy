@@ -182,6 +182,40 @@ func TestClaudeCollector(t *testing.T) {
 }
 
 func TestClaudeKeychain(t *testing.T) {
+	t.Run("Should clear one profile or all cached logins without background Keychain reads", func(t *testing.T) {
+		t.Parallel()
+		first, _, credential := claudeFixture(t, false)
+		second, _, _ := claudeFixture(t, false)
+		second.ProfileID = "second-profile"
+		reader := &fakeClaudeKeychain{data: credential}
+		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
+		c.platform = "darwin"
+		t.Cleanup(func() {
+			if err := c.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, target := range []Target{first, second} {
+			_, err := c.Identity(t.Context(), target, IntentExplicit)
+			requireNoError(t, err)
+		}
+		c.ClearCredentials(first.ProfileID)
+		if _, err := c.Identity(t.Context(), first, IntentBackground); err == nil {
+			t.Fatal("cleared login reused")
+		}
+		_, err := c.Identity(t.Context(), second, IntentBackground)
+		requireNoError(t, err)
+		_, err = c.Identity(t.Context(), first, IntentExplicit)
+		requireNoError(t, err)
+		c.ClearCredentials("")
+		for _, target := range []Target{first, second} {
+			if _, err := c.Identity(t.Context(), target, IntentBackground); err == nil {
+				t.Fatal("globally cleared login reused")
+			}
+		}
+		requireEqual(t, int32(3), reader.calls.Load())
+	})
+
 	t.Run("Should require consent and explicit intent UT-013 UT-015 UT-016 UT-017", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {

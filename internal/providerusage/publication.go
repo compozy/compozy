@@ -70,8 +70,15 @@ func (s *Manager) publishLocked(
 		if state.hasIdentity && state.identity.Same(identity) && state.snapshot.MeasuredAt != nil {
 			state.snapshot.Status = StatusStale
 		} else {
-			state.snapshot = initialSnapshot(target, s.options.Collectors[id])
+			state.snapshot = cloneSnapshot(snapshot)
+			state.snapshot.ProviderID = id
+			state.snapshot.ProviderName = target.ProviderName
 			state.snapshot.Status = outcome.Status()
+			state.snapshot.MeasuredAt = nil
+			state.snapshot.NextRefreshAt = nil
+			state.snapshot.Refreshing = false
+			state.identity = identity
+			state.hasIdentity = identity != (CredentialIdentity{})
 		}
 		state.snapshot.Error = clonePointer(outcome)
 		state.snapshot.CheckedAt = &now

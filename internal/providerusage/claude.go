@@ -60,6 +60,12 @@ func (*ClaudeCollector) ProviderID() string { return "claude" }
 func (c *ClaudeCollector) ClearCredentials(profileID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if profileID == "" {
+		for profile := range c.records {
+			c.clearLocked(profile)
+		}
+		return
+	}
 	c.clearLocked(profileID)
 }
 func (c *ClaudeCollector) clearLocked(profileID string) {

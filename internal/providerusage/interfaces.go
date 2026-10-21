@@ -47,6 +47,7 @@ type CredentialProbe interface {
 type Collector interface {
 	ProviderID() string
 	CredentialProbe
+	// Errors may carry fenced partial data without MeasuredAt; same-owner last-good data takes precedence.
 	Collect(ctx context.Context, t Target, intent Intent, cred CredentialIdentity) (Snapshot, error) // *UsageError
 }
 
@@ -83,5 +84,6 @@ type PublicationValidator interface {
 }
 
 type CredentialCache interface {
+	// An empty profile ID clears every cached profile.
 	ClearCredentials(profileID string)
 }
