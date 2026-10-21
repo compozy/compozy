@@ -66,12 +66,17 @@ export interface UseProviderUsageActionsOptions {
    * and reports a failed save itself; a rejected save sends no refresh.
    */
   allowKeychain?: (providerId: string) => Promise<void>;
+  /**
+   * Opens the provider usage settings for a row whose fix is configuration.
+   * The OS layer owns windows; a `configure` action never sends a refresh.
+   */
+  configure?: (providerId: string) => void;
 }
 
 export interface ProviderUsageActions {
   /** Header Refresh: every target, explicit intent. */
   refreshAll: () => void;
-  /** Status-line actions: one target, explicit intent. */
+  /** Status-line actions: one target, explicit intent; `configure` opens settings instead. */
   runAction: (providerId: string, action: ProviderUsageRowAction) => void;
   /** An explicit header refresh is in flight. */
   refreshing: boolean;
@@ -82,7 +87,7 @@ export interface ProviderUsageActions {
 /** Operator actions: the only callers that send `intent: "explicit"`. */
 export function useProviderUsageActions(
   profile: string,
-  { allowKeychain }: UseProviderUsageActionsOptions = {}
+  { allowKeychain, configure }: UseProviderUsageActionsOptions = {}
 ): ProviderUsageActions {
   const all = useRefreshProviderUsage(profile);
   const row = useRefreshProviderUsage(profile);
@@ -90,6 +95,10 @@ export function useProviderUsageActions(
   return {
     refreshAll: () => all.mutate({ intent: "explicit" }),
     runAction: (providerId, action) => {
+      if (action === "configure") {
+        configure?.(providerId);
+        return;
+      }
       const explicit = () => row.mutate({ intent: "explicit", providerIds: [providerId] });
       if (action === "allow_keychain" && allowKeychain) {
         void allowKeychain(providerId).then(explicit, () => undefined);

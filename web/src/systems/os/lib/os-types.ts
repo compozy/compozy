@@ -32,6 +32,7 @@ export type OsAppId =
   | "automations"
   | "marketplace"
   | "vault"
+  | "usage"
   | "settings";
 
 export interface OsRect {

@@ -43,6 +43,10 @@ const SECTION_LOADERS = {
     import("@/routes/_app/settings/-providers-settings-page").then(m => ({
       default: m.ProvidersSettingsPage,
     })),
+  "provider-usage": () =>
+    import("@/routes/_app/settings/-provider-usage-settings-page").then(m => ({
+      default: m.ProviderUsageSettingsPage,
+    })),
   roles: () =>
     import("@/routes/_app/settings/-roles-settings-page").then(m => ({
       default: m.RolesSettingsPage,

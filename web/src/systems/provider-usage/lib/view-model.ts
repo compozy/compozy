@@ -81,6 +81,22 @@ export function hasProviderUsageTargets(viewModel: ProviderUsageViewModel | null
 
 export const PROVIDER_USAGE_TITLE = "Provider usage";
 
+const KEYCHAIN_CONSENT_CODES: ReadonlySet<string> = new Set([
+  "keychain_consent_required",
+  "keychain_denied",
+  "keychain_token_expired",
+]);
+
+/**
+ * The daemon reports a Keychain consent state, which it does only when it runs
+ * on macOS: host evidence that does not depend on this client's own platform.
+ */
+export function reportsKeychainConsent(viewModel: ProviderUsageViewModel | null): boolean {
+  return (
+    viewModel?.rows.some(row => KEYCHAIN_CONSENT_CODES.has(row.target.error?.code ?? "")) ?? false
+  );
+}
+
 /**
  * The tray's accessible name and tooltip: "Codex · Weekly 72% used · resets
  * in 2d 4h". At or above 100 the label says "limit reached" (the exact number

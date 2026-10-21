@@ -24,6 +24,10 @@ export {
   updateSettingsSkills,
 } from "./settings-sections-api";
 export {
+  getSettingsProviderUsage,
+  updateSettingsProviderUsage,
+} from "./settings-provider-usage-api";
+export {
   deleteSettingsHook,
   deleteSettingsMCPServer,
   deleteSettingsProvider,

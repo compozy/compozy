@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from "react";
 
 import { OS_COMPACT_BREAKPOINT, type OsAppId } from "../lib/os-types";
+import { useOsAppLauncher } from "./use-os-app-launcher";
 import { useOsShell } from "./use-os-shell";
 import { useOsWindowCommands, type OsWindowCommandsModel } from "./use-os-window-commands";
 import { useAgentCreateHost } from "@/systems/agent";
-import { settingsSectionPath } from "@/systems/settings";
 
 /** Below the compact breakpoint the app menus collapse (US-019.EC-3). */
 const COMPACT_QUERY = `(max-width: ${OS_COMPACT_BREAKPOINT - 0.02}px)`;
@@ -52,6 +52,7 @@ export interface MenubarActionsModel {
 export function useMenubarActions(): MenubarActionsModel {
   const { coordinator } = useOsShell();
   const agentCreate = useAgentCreateHost();
+  const launcher = useOsAppLauncher();
   const windowCommands = useOsWindowCommands();
   const compact = useSyncExternalStore(subscribeCompact, getCompact, () => false);
   const canOpenApps = windowCommands.commandsAvailable;
@@ -65,14 +66,7 @@ export function useMenubarActions(): MenubarActionsModel {
     canOpenApps,
     windowCommands,
     openApp,
-    openUpdates: () => {
-      const route = { pathname: settingsSectionPath("general"), search: {} };
-      if (canOpenApps) {
-        void coordinator.userOpen({ app: "settings", route });
-        return;
-      }
-      coordinator.userNavigate(route);
-    },
+    openUpdates: () => launcher.openSettingsSection("general"),
     newAgent: () => agentCreate.openDialog(),
   };
 }

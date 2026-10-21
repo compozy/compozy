@@ -1,4 +1,7 @@
+import { useEffect } from "react";
+
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
+import { hasProviderUsageTargets } from "@/systems/provider-usage";
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import { usePaletteCommand } from "../hooks/use-palette-registry";
@@ -6,6 +9,7 @@ import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import { useMenubarActions } from "../hooks/use-menubar-actions";
 import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-selection";
+import { useProviderUsageSurface } from "../hooks/use-provider-usage-surface";
 import { useDesktop } from "../hooks/use-desktop";
 import { useWindowManagerDiagnostic } from "../hooks/use-window-manager-store";
 import { desktopMenubarScopeModel } from "../lib/desktop-menubar-model";
@@ -21,6 +25,7 @@ import {
 import { CompozyMenu } from "./menubar/compozy-menu";
 import { GoMenu } from "./menubar/go-menu";
 import { HelpMenu } from "./menubar/help-menu";
+import { MenubarUsagePopover } from "./menubar/menubar-usage-popover";
 import { SessionMenu } from "./menubar/session-menu";
 import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
@@ -104,7 +109,8 @@ function MenubarLayoutStatus({ unbound }: { unbound: boolean }) {
 /**
  * The wired topbar: the CompozyOS system menu (which holds Settings), the workspace
  * switcher, the static Session / Go / Window / Help set, then the tray — desktop
- * pager, All desktops, the bell aggregator, and the palette button. All actions are runtime-backed — no menu item renders without a
+ * pager, All desktops, Provider usage, the bell aggregator, and the palette
+ * button. All actions are runtime-backed — no menu item renders without a
  * working mechanism, and none is hidden when its predicate fails (SD-007).
  */
 export function DesktopMenubar({
@@ -156,6 +162,15 @@ export function DesktopMenubar({
   });
 
   const focusAttentionRow = useMenubarAttentionSelection(onOverlayOpenChange);
+  const usage = useProviderUsageSurface();
+  const usageVisible = hasProviderUsageTargets(usage.usage.viewModel);
+  const usageOpen = activeOverlay === "usage";
+
+  // The control leaves when its last target does (feature off, provider
+  // turned off); its overlay slot must not outlive it.
+  useEffect(() => {
+    if (usageOpen && !usageVisible) onOverlayOpenChange("usage", false);
+  }, [onOverlayOpenChange, usageOpen, usageVisible]);
 
   return (
     <OsMenuBar
@@ -244,6 +259,9 @@ export function DesktopMenubar({
         ) : null
       }
       pager={pager}
+      usageControl={
+        usageVisible ? <MenubarUsagePopover surface={usage} {...overlay("usage")} /> : null
+      }
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}

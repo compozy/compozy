@@ -4,14 +4,27 @@
 // The command-palette control carries the live palette chord as
 // aria-keyshortcuts once the keymap is known, and nothing before. The tray's
 // All desktops control toggles the desktops overlay; Settings is not a tray
-// control (it lives in the system menu).
+// control (it lives in the system menu). The Provider usage control sits
+// right after All desktops only while the profile has usage targets; opening
+// it asks for a background refresh of stale rows, and its footer opens the
+// Usage app and the Provider usage settings (or their routes in a degraded
+// shell).
 // Owning layer: desktop-menubar.tsx. Canonical suite: this file.
+// Boundary: daemon reads and refreshes run over a stubbed `fetch`.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
+import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
+import {
+  codexOkTarget,
+  statusTargets,
+  usageEnvelope,
+  usageTarget,
+  usageTray,
+} from "@/systems/provider-usage/mocks";
 
 import type { OsAttentionModel } from "../../hooks/use-os-attention";
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
@@ -20,13 +33,23 @@ import type { ResolvedPaletteCommand } from "../../lib/cmd-palette-types";
 import type { DesktopOverlay } from "../../hooks/use-desktop-overlays";
 import { DesktopMenubar } from "../desktop-menubar";
 
+const shell = vi.hoisted(() => ({
+  hydration: "live" as "live" | "loading",
+  coordinator: { userOpen: vi.fn(), userNavigate: vi.fn() },
+}));
+
 vi.mock("../../hooks/use-desktop", () => ({
-  useDesktop: (selector: (state: { hydration: "live" }) => unknown) =>
-    selector({ hydration: "live" }),
+  useDesktop: (selector: (state: object) => unknown) =>
+    selector({
+      hydration: shell.hydration,
+      snapshot: {},
+      client: {},
+      windowManagerConfig: {},
+    }),
 }));
 
 vi.mock("../../hooks/use-os-shell", () => ({
-  useOsShell: () => ({ coordinator: { userOpen: vi.fn() } }),
+  useOsShell: () => ({ coordinator: shell.coordinator }),
 }));
 
 vi.mock("../../hooks/use-menubar-actions", () => ({
@@ -56,20 +79,68 @@ const ATTENTION: OsAttentionModel = {
   loading: false,
 };
 
+const NOW = Date.now();
+const SECOND = 1_000;
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+/** The daemon over `fetch`: usage reads and refreshes answer `envelope`. */
+function serveUsage(envelope: ProviderUsageEnvelope) {
+  vi.mocked(globalThis.fetch).mockImplementation(input => {
+    const url = input instanceof Request ? input.url : String(input);
+    if (url.includes("/api/provider-usage")) return Promise.resolve(jsonResponse(envelope));
+    return Promise.resolve(jsonResponse({ error: "not found", code: "not_found" }, 404));
+  });
+}
+
+function usageRequests(): Request[] {
+  return vi
+    .mocked(globalThis.fetch)
+    .mock.calls.map(([input]) => input)
+    .filter((input): input is Request => input instanceof Request)
+    .filter(request => request.url.includes("/api/provider-usage"));
+}
+
+const codexWeekly = usageEnvelope([codexOkTarget(NOW)], { tray: usageTray({}, NOW) }, NOW);
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn());
+  serveUsage(usageEnvelope([], { enabled: false }, NOW));
+  shell.hydration = "live";
+  shell.coordinator.userOpen.mockReset();
+  shell.coordinator.userNavigate.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 function renderMenubar({
   commands = [],
   scopePending = false,
   activeOverlay = null,
   onOverlayOpenChange = vi.fn(),
+  usage,
 }: {
   commands?: readonly ResolvedPaletteCommand[];
   scopePending?: boolean;
   activeOverlay?: DesktopOverlay | null;
   onOverlayOpenChange?: (overlay: DesktopOverlay, open: boolean) => void;
+  /** Cached and served usage envelope for the default profile. */
+  usage?: ProviderUsageEnvelope;
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { enabled: false, retry: false } },
   });
+  if (usage) {
+    serveUsage(usage);
+    queryClient.setQueryData(["provider-usage", "envelope", "default"], usage);
+  }
   return render(
     <QueryClientProvider client={queryClient}>
       <UIProvider reducedMotion="never" skipAnimations>
@@ -155,5 +226,131 @@ describe("DesktopMenubar tray", () => {
     for (const name of ["All desktops", "Attention", "Command palette"]) {
       expect(screen.getByRole("button", { name }).closest('[role="menubar"]')).toBeNull();
     }
+  });
+});
+
+describe("DesktopMenubar provider usage control", () => {
+  function trayOrder(container: HTMLElement): string[] {
+    return Array.from(
+      container.querySelectorAll('[data-slot="os-menubar-tray"] [data-slot^="os-menubar-"]')
+    ).map(element => element.getAttribute("data-slot") ?? "");
+  }
+
+  it("Should sit right after All desktops while the profile has targets", () => {
+    const { container } = renderMenubar({ usage: codexWeekly });
+
+    expect(
+      screen.getByRole("button", { name: /^Codex · Weekly 72% used · resets in/ })
+    ).toHaveAttribute("aria-haspopup", "dialog");
+    expect(trayOrder(container)).toEqual([
+      "os-menubar-desktops",
+      "os-menubar-usage",
+      "os-menubar-bell",
+      "os-menubar-command",
+    ]);
+  });
+
+  it.each([
+    ["the feature is off", usageEnvelope([], { enabled: false }, NOW)],
+    ["the profile has no target", usageEnvelope([], {}, NOW)],
+  ])("Should leave the control out when %s (UT-052)", (_case, usage) => {
+    const { container } = renderMenubar({ usage });
+
+    expect(container.querySelector('[data-slot="os-menubar-usage"]')).toBeNull();
+    expect(trayOrder(container)).toEqual([
+      "os-menubar-desktops",
+      "os-menubar-bell",
+      "os-menubar-command",
+    ]);
+  });
+
+  it("Should show the glyph without a meter when no window is known (UT-051)", () => {
+    const { container } = renderMenubar({
+      usage: usageEnvelope([statusTargets(NOW).unsupported], {}, NOW),
+    });
+
+    const control = screen.getByRole("button", { name: "Provider usage" });
+    expect(control.closest('[data-slot="os-menubar-usage"]')).not.toBeNull();
+    expect(within(control).queryByRole("progressbar")).toBeNull();
+    expect(container.querySelector('[data-slot="os-menubar-usage"] [role="menubar"]')).toBeNull();
+  });
+
+  it("Should ask for a background refresh of rows older than 60 s on open (UT-054)", async () => {
+    const user = userEvent.setup();
+    const onOverlayOpenChange = vi.fn();
+    const fresh = usageTarget({
+      provider_id: "claude",
+      provider_name: "Claude",
+      measured_at: new Date(NOW - 30 * SECOND).toISOString(),
+    });
+    const old = { ...codexOkTarget(NOW), measured_at: new Date(NOW - 90 * SECOND).toISOString() };
+    renderMenubar({
+      onOverlayOpenChange,
+      usage: usageEnvelope([fresh, old], { tray: usageTray({}, NOW) }, NOW),
+    });
+
+    await user.click(screen.getByRole("button", { name: /^Codex · Weekly/ }));
+
+    expect(onOverlayOpenChange).toHaveBeenLastCalledWith("usage", true);
+    await waitFor(() =>
+      expect(usageRequests().filter(request => request.method === "POST")).toHaveLength(1)
+    );
+    const refresh = usageRequests().find(request => request.method === "POST");
+    expect(await refresh?.clone().json()).toEqual({
+      profile: "default",
+      intent: "background",
+      provider_ids: ["codex"],
+      max_age_seconds: 60,
+    });
+  });
+
+  it("Should open the Usage app from the popover footer and close the popover (UT-064)", async () => {
+    const user = userEvent.setup();
+    const onOverlayOpenChange = vi.fn();
+    renderMenubar({ activeOverlay: "usage", onOverlayOpenChange, usage: codexWeekly });
+
+    const popover = await screen.findByTestId("os-usage-popover");
+    await user.click(within(popover).getByRole("button", { name: "Open Usage" }));
+
+    expect(onOverlayOpenChange).toHaveBeenCalledWith("usage", false);
+    expect(shell.coordinator.userOpen).toHaveBeenCalledWith({ app: "usage" });
+  });
+
+  it("Should navigate to the Usage route while window commands are unavailable (UT-064)", async () => {
+    const user = userEvent.setup();
+    shell.hydration = "loading";
+    renderMenubar({ activeOverlay: "usage", usage: codexWeekly });
+
+    const popover = await screen.findByTestId("os-usage-popover");
+    await user.click(within(popover).getByRole("button", { name: "Open Usage" }));
+
+    expect(shell.coordinator.userOpen).not.toHaveBeenCalled();
+    expect(shell.coordinator.userNavigate).toHaveBeenCalledWith({ pathname: "/usage", search: {} });
+  });
+
+  it("Should open Settings at Provider usage from the footer and from a configure row", async () => {
+    const user = userEvent.setup();
+    const onOverlayOpenChange = vi.fn();
+    renderMenubar({
+      activeOverlay: "usage",
+      onOverlayOpenChange,
+      usage: usageEnvelope([codexOkTarget(NOW), statusTargets(NOW).noPlan], {}, NOW),
+    });
+    const settings = {
+      app: "settings",
+      route: { pathname: "/settings/provider-usage", search: {} },
+    };
+
+    const popover = await screen.findByTestId("os-usage-popover");
+    await user.click(within(popover).getByRole("button", { name: "Settings" }));
+    expect(shell.coordinator.userOpen).toHaveBeenLastCalledWith(settings);
+    expect(onOverlayOpenChange).toHaveBeenLastCalledWith("usage", false);
+
+    shell.coordinator.userOpen.mockClear();
+    onOverlayOpenChange.mockClear();
+    await user.click(within(popover).getByRole("button", { name: "Open settings" }));
+    expect(shell.coordinator.userOpen).toHaveBeenLastCalledWith(settings);
+    expect(onOverlayOpenChange).toHaveBeenLastCalledWith("usage", false);
+    expect(usageRequests().filter(request => request.method === "POST")).toHaveLength(0);
   });
 });

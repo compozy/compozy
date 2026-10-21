@@ -2,8 +2,11 @@ import type { ProviderUsageTarget } from "../types";
 
 import { formatAgo, formatWaitUntil } from "./format";
 
-/** Row actions the status line can offer; every one runs with explicit intent. */
-export type ProviderUsageRowAction = "allow_keychain" | "retry" | "refresh";
+/**
+ * Row actions the status line can offer. `configure` opens the provider usage
+ * settings; every other one runs a refresh with explicit intent.
+ */
+export type ProviderUsageRowAction = "allow_keychain" | "retry" | "refresh" | "configure";
 
 export type ProviderUsageStatusTone = "warning" | "danger" | "faint";
 
@@ -36,6 +39,7 @@ export const REMOTE_CONSENT_NOTE = "Approve on the host Mac: open CompozyOS ther
 
 const RETRY: ProviderUsageStatusAction = { kind: "retry", label: "Retry" };
 const REFRESH: ProviderUsageStatusAction = { kind: "refresh", label: "Refresh" };
+const CONFIGURE: ProviderUsageStatusAction = { kind: "configure", label: "Open settings" };
 
 function presentation(
   tone: ProviderUsageStatusTone | null,
@@ -85,6 +89,11 @@ function describeRateLimited(
   return presentation("warning", text, RETRY);
 }
 
+/** The daemon names configuration as the fix (no plan, keyring store, turned off). */
+function configureAction(target: ProviderUsageTarget): ProviderUsageStatusAction | null {
+  return target.error?.action === "configure" ? CONFIGURE : null;
+}
+
 function describeStale(target: ProviderUsageTarget, now: number): ProviderUsageStatusPresentation {
   const ago = formatAgo(target.measured_at, now);
   const text = ago ? `Stale · updated ${ago}` : "Stale";
@@ -94,8 +103,8 @@ function describeStale(target: ProviderUsageTarget, now: number): ProviderUsageS
 
 /**
  * Status → reason and next step, per the `_dx.md` per-target table. `ok` rows
- * need no status line and return `null`. Sign-in and configuration happen
- * outside this surface, so those rows carry text and no button.
+ * need no status line and return `null`. Sign-in happens outside CompozyOS,
+ * so those rows carry text and no button; a `configure` row links to settings.
  */
 export function describeProviderUsageStatus(
   target: ProviderUsageTarget,
@@ -119,9 +128,13 @@ export function describeProviderUsageStatus(
     case "error":
       return presentation("danger", "Couldn't load usage", RETRY);
     case "unsupported":
-      return presentation(null, messageOr(target, UNSUPPORTED_TEXT));
+      return presentation(null, messageOr(target, UNSUPPORTED_TEXT), configureAction(target));
     case "disabled":
-      return presentation(null, messageOr(target, "Turned off in settings"));
+      return presentation(
+        null,
+        messageOr(target, "Turned off in settings"),
+        configureAction(target)
+      );
   }
 }
 

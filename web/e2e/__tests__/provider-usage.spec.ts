@@ -1,0 +1,170 @@
+// Provider usage in the OS shell (E2E-001..E2E-004, E2E-006): the tray meter,
+// its popover, the Usage app, and the Provider usage settings section against
+// a real daemon whose Codex usage comes from the fake `codex` app-server on
+// PATH (internal/providerusage/testdata/codex: Session 23%, Weekly 72%, 120
+// credits). Nothing in the browser is mocked.
+import { execFile } from "node:child_process";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+
+import type { Page } from "@playwright/test";
+
+import { appWindow } from "../fixtures/os-navigation";
+import type { BrowserRuntime } from "../fixtures/runtime";
+import { expect, test } from "../fixtures/test";
+import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+
+const execFileAsync = promisify(execFile);
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const FAKE_CODEX = path.join(REPO_ROOT, "internal/providerusage/testdata/codex");
+
+/** A PATH entry holding the fake `codex`, and a file-store Codex home it reads. */
+function codexFixture(): { binDir: string; codexHome: string } {
+  const root = mkdtempSync(path.join(os.tmpdir(), "compozy-e2e-provider-usage-"));
+  const binDir = path.join(root, "bin");
+  const codexHome = path.join(root, "codex-home");
+  mkdirSync(binDir, { recursive: true });
+  mkdirSync(codexHome, { recursive: true });
+  copyFileSync(FAKE_CODEX, path.join(binDir, "codex"));
+  chmodSync(path.join(binDir, "codex"), 0o755);
+  writeFileSync(
+    path.join(codexHome, "auth.json"),
+    JSON.stringify({ tokens: { access_token: "e2e-codex-fixture", account_id: "acct_e2e" } })
+  );
+  return { binDir, codexHome };
+}
+
+const codex = codexFixture();
+
+test.use({
+  runtimeOptions: {
+    env: {
+      ...process.env,
+      PATH: [codex.binDir, process.env.PATH ?? ""].join(path.delimiter),
+      CODEX_HOME: codex.codexHome,
+    },
+  },
+});
+
+function usageControl(page: Page) {
+  return page.locator('[data-slot="os-menubar-usage"] button');
+}
+
+function usagePopover(page: Page) {
+  return page.getByTestId("os-usage-popover");
+}
+
+async function openShell(page: Page) {
+  await completeOnboardingIfPrompted(page);
+  await expect(usageControl(page)).toBeVisible({ timeout: 30_000 });
+}
+
+async function runCLI(runtime: BrowserRuntime, args: string[]): Promise<void> {
+  if (!runtime.paths) throw new Error(`CLI ${args.join(" ")} needs launch-mode runtime paths`);
+  await execFileAsync(runtime.paths.cliShim, args, {
+    env: {
+      ...process.env,
+      COMPOZY_E2E_CLI_BIN: runtime.paths.cliShim,
+      COMPOZY_HOME: runtime.paths.homeDir,
+      HOME: runtime.paths.operatorHomeDir,
+    },
+  });
+}
+
+test("glances at Codex Weekly in the tray right after All desktops (E2E-001)", async ({
+  appPage,
+}) => {
+  await openShell(appPage);
+
+  const tray = appPage.locator('[data-slot="os-menubar-tray"] [data-slot^="os-menubar-"]');
+  const slots = await tray.evaluateAll(nodes => nodes.map(node => node.getAttribute("data-slot")));
+  expect(slots.indexOf("os-menubar-usage")).toBe(slots.indexOf("os-menubar-desktops") + 1);
+  expect(slots.indexOf("os-menubar-usage")).toBeLessThan(slots.indexOf("os-menubar-bell"));
+
+  const control = usageControl(appPage);
+  await expect(control).toHaveAccessibleName(/^Codex · Weekly 72% used · resets in /);
+  await control.hover();
+  await expect(appPage.getByRole("tooltip")).toContainText("Codex · Weekly 72% used");
+});
+
+test("opens the popover, expands Codex, refreshes, and returns focus on Esc (E2E-002)", async ({
+  appPage,
+}) => {
+  await openShell(appPage);
+  const control = usageControl(appPage);
+  await control.click();
+
+  const popover = usagePopover(appPage);
+  await expect(popover).toBeVisible();
+  await expect(control).toHaveAttribute("aria-expanded", "true");
+  const codexRow = popover.getByRole("button", { name: /^Codex/ });
+  await codexRow.click();
+  await expect(popover.getByRole("progressbar", { name: /Session/ })).toBeVisible();
+  await expect(popover.getByRole("progressbar", { name: /Weekly/ })).toBeVisible();
+  await expect(popover).toContainText("120 credits");
+
+  const refresh = popover.getByRole("button", { name: /provider usage$/ });
+  await refresh.click();
+  await expect(popover.getByRole("button", { name: "Refresh provider usage" })).toBeEnabled();
+  await expect(popover.getByRole("progressbar", { name: /Weekly/ })).toBeVisible();
+
+  await appPage.keyboard.press("Escape");
+  await expect(popover).toBeHidden();
+  await expect(control).toBeFocused();
+});
+
+test("drops the control when provider usage is turned off (E2E-003)", async ({
+  appPage,
+  runtime,
+}) => {
+  await openShell(appPage);
+
+  await runCLI(runtime, ["config", "set", "provider_usage.enabled", "false"]);
+
+  await expect(appPage.locator('[data-slot="os-menubar-usage"]')).toHaveCount(0, {
+    timeout: 30_000,
+  });
+});
+
+test("opens the Usage app from the popover with Codex expanded (E2E-004)", async ({ appPage }) => {
+  await openShell(appPage);
+  await usageControl(appPage).click();
+  await usagePopover(appPage).getByRole("button", { name: "Open Usage" }).click();
+
+  await expect(usagePopover(appPage)).toBeHidden();
+  const usageWindow = appWindow(appPage, "usage");
+  await expect(usageWindow).toBeVisible();
+  await expect(usageWindow.getByRole("heading", { name: "Usage" })).toBeVisible();
+  await expect(usageWindow.getByRole("button", { name: /^Codex/ })).toHaveAttribute(
+    "aria-expanded",
+    "true"
+  );
+  await expect(usageWindow).toContainText("120 credits");
+});
+
+test("turns Codex off from Settings and the control leaves the tray (E2E-006)", async ({
+  appPage,
+}) => {
+  await openShell(appPage);
+  await usageControl(appPage).click();
+  await usagePopover(appPage).getByRole("button", { name: "Settings" }).click();
+
+  const settings = appWindow(appPage, "settings");
+  await expect(settings).toBeVisible();
+  const codexSwitch = settings.getByTestId("settings-provider-usage-provider-codex");
+  await expect(codexSwitch).toBeChecked();
+  await codexSwitch.click();
+  await settings.getByTestId("settings-page-provider-usage-save").click();
+  await expect(settings.getByTestId("settings-page-provider-usage-save-message")).toContainText(
+    /applied/i
+  );
+
+  await expect(appPage.locator('[data-slot="os-menubar-usage"]')).toHaveCount(0, {
+    timeout: 30_000,
+  });
+});

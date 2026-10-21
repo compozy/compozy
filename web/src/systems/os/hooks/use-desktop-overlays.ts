@@ -19,6 +19,7 @@ export type DesktopOverlay =
   | "window-menu"
   | "help-menu"
   | "bell"
+  | "usage"
   | "palette"
   | "workspaces"
   | "desktops"

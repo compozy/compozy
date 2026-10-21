@@ -30,6 +30,7 @@ import {
   buildProviderUsageViewModel,
   formatTrayLabel,
   hasProviderUsageTargets,
+  reportsKeychainConsent,
   targetsNeedingOpenRefresh,
 } from "../view-model";
 
@@ -164,6 +165,17 @@ describe("buildProviderUsageViewModel", () => {
     );
   });
 
+  it("Should read a Keychain consent state as macOS host evidence", () => {
+    const status = statusTargets(NOW);
+    const of = (...targets: Parameters<typeof usageEnvelope>[0]) =>
+      buildProviderUsageViewModel(usageEnvelope(targets, {}, NOW));
+    expect(reportsKeychainConsent(null)).toBe(false);
+    expect(reportsKeychainConsent(of(codexOkTarget(NOW), status.error))).toBe(false);
+    expect(reportsKeychainConsent(of(status.needsConsent))).toBe(true);
+    expect(reportsKeychainConsent(of(status.keychainDenied))).toBe(true);
+    expect(reportsKeychainConsent(of(status.keychainTokenExpired))).toBe(true);
+  });
+
   it("Should refresh on open only targets older than 60 s (UT-054)", () => {
     const fresh = { ...codexOkTarget(NOW), measured_at: iso(-30_000) };
     const old = usageTarget({
@@ -202,8 +214,8 @@ describe("describeProviderUsageStatus (UT-063)", () => {
     ["rate_limited", status.rateLimited, mac, "Rate limited · retry in 4m", "Retry"],
     ["error", status.error, mac, "Couldn't load usage", "Retry"],
     ["unsupported", status.unsupported, mac, "Usage not available for this provider", null],
-    ["no_plan", status.noPlan, mac, "No coding plan on this key", null],
-    ["disabled", status.disabled, mac, "Turned off in settings", null],
+    ["no_plan", status.noPlan, mac, "No coding plan on this key", "Open settings"],
+    ["disabled", status.disabled, mac, "Turned off in settings", "Open settings"],
     ["stale", status.stale, mac, "Stale · updated 18 min ago", "Retry"],
     ["needs_consent off macOS", status.needsConsent, linux, "Needs Keychain access", null],
     ["denied off macOS", status.keychainDenied, linux, "Keychain access denied", null],

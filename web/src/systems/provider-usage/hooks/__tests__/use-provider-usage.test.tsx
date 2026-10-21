@@ -199,6 +199,18 @@ describe("provider usage hooks", () => {
     expect(refreshCalls()).toHaveLength(0);
   });
 
+  it("Should open settings for a configure action without refreshing", async () => {
+    const { wrapper } = setup();
+    const configure = vi.fn();
+    const { result } = renderHook(() => useProviderUsageActions("default", { configure }), {
+      wrapper,
+    });
+    act(() => result.current.runAction("zai", "configure"));
+    expect(configure).toHaveBeenCalledWith("zai");
+    await Promise.resolve();
+    expect(refreshCalls()).toHaveLength(0);
+  });
+
   describe("useProviderUsageStream", () => {
     function fakeSource() {
       const listeners = new Map<string, Set<EventListener>>();

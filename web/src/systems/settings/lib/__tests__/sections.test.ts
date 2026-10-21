@@ -18,6 +18,7 @@ describe("settings sections metadata", () => {
       "layouts",
       "profiles",
       "providers",
+      "provider-usage",
       "roles",
       "skills",
       "mcp",

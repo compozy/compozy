@@ -8,6 +8,7 @@ import type {
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
   SettingsMarketplaceSection,
+  SettingsProviderUsageSection,
   SettingsMCPServerCollection,
   SettingsMCPServerEntry,
   SettingsMutationResult,
@@ -85,6 +86,17 @@ export const settingsMarketplaceSectionFixture: SettingsMarketplaceSection = {
     base_url: "https://raw.githubusercontent.com/compozy/compozy/main/catalog",
     ttl: "1h",
     timeout: "30s",
+  },
+};
+
+export const settingsProviderUsageSectionFixture: SettingsProviderUsageSection = {
+  section: "provider-usage",
+  scope: "user",
+  available_scopes: ["user"],
+  config: {
+    enabled: true,
+    refresh_interval: "5m0s",
+    providers: { cursor: { enabled: false }, claude: { enabled: true, keychain_access: false } },
   },
 };
 

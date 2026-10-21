@@ -19,8 +19,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * The desktop topbar: CompozyOS mark, Global globe toggle, workspace chip, app
- * menus, then the tray — desktop pager dots, All desktops, the approvals bell,
- * and the ⌘K palette button. Flat chrome on the rail surface across the full
+ * menus, then the tray — desktop pager dots, All desktops, Provider usage, the
+ * approvals bell, and the ⌘K palette button. Flat chrome on the rail surface across the full
  * window width with no bottom hairline: topbar and rail read as one surface
  * around the inset desk panel, which draws the only edge.
  *
@@ -85,6 +85,11 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   scopeControl?: React.ReactNode;
   /** Desktop pager, the first control of the trailing tray (shell wiring). */
   pager?: React.ReactNode;
+  /**
+   * Provider usage control, right after All desktops (shell wiring). Absent —
+   * not disabled — while the feature is off or the profile has no target.
+   */
+  usageControl?: React.ReactNode;
   /** Wraps the bell in its popover owner (shell wiring). */
   wrapBellTrigger?: (trigger: React.ReactElement) => React.ReactNode;
 }
@@ -222,6 +227,7 @@ export function OsMenuBar({
   scopeControl,
   wrapBellTrigger,
   pager,
+  usageControl,
   className,
   ...props
 }: OsMenuBarProps) {
@@ -322,6 +328,11 @@ export function OsMenuBar({
               <Icon as={LayoutGrid} className="size-4" />
             </Control>
           </ControlTooltip>
+          {usageControl ? (
+            <div data-slot="os-menubar-usage" className="contents">
+              {usageControl}
+            </div>
+          ) : null}
           {/* Outside the menubar's `role="menu"` subtree on purpose: a notice is
               not a menu item, and nesting it there breaks the menu's semantics. */}
           {scopeNotice}
