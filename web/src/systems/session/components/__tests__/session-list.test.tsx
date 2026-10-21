@@ -1558,6 +1558,21 @@ describe("SessionList folders and manual order", () => {
     expect(layout.reorderSessions).not.toHaveBeenCalled();
   });
 
+  it("Should refuse a selection drop once another bulk operation starts mid-drag", async () => {
+    const layout = fakeLayout();
+    const layoutView = { ...view, sort: "created" as const, layout };
+    const { actions, update } = renderList({ sessions: layoutRows, view: layoutView });
+    await selectRows("r1");
+    fireEvent.dragStart(rowContainer("r1"));
+    (actions as { pendingAction: string | null }).pendingAction = "stop";
+    update(layoutRows, layoutView);
+
+    fireEvent.dragOver(screen.getByTestId("session-sidebar-folder-fb"));
+    expect(screen.getByTestId("session-sidebar-folder-fb-header")).not.toHaveAttribute("data-drop");
+    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb"));
+    expect(layout.moveSessions).not.toHaveBeenCalled();
+  });
+
   it("Should take a dragged selection back to the root, writing only its filed sessions", async () => {
     const { layout } = renderLayout("created");
     await selectRows("r2", "f1");

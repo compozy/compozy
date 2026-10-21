@@ -131,7 +131,7 @@ export function SessionListSections({
   };
   const moveFolder = (folder: SessionFolderPayload, delta: -1 | 1) =>
     shiftId(allFolderIds, folder.id, delta) ? () => layout.moveFolder(folder.id, delta) : undefined;
-  const rootZone = dnd?.rootZone();
+  const rootZone = dnd?.rootZone(selectionDrag);
   const rootTarget = dnd?.indicator?.kind === "root";
   const empty = sections.folders.length === 0 && sections.root.length === 0;
 
@@ -152,7 +152,7 @@ export function SessionListSections({
             onMoveUp={folderIds.length > 1 ? moveFolder(folder, -1) : undefined}
             onMoveDown={folderIds.length > 1 ? moveFolder(folder, 1) : undefined}
             drag={dnd?.folderHeader(folder.id)}
-            dropZone={dnd?.folderZone(folder.id)}
+            dropZone={dnd?.folderZone(folder.id, selectionDrag)}
             dropEdge={folderDropEdge(dnd?.indicator ?? null, folder.id)}
             dragging={dnd?.dragging?.kind === "folder" && dnd.dragging.id === folder.id}
             testIdPrefix={testIdPrefix}

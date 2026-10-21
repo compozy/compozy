@@ -13,7 +13,6 @@ export type SessionDragItem =
       kind: "selection";
       ids: readonly string[];
       folderIds: readonly (string | null)[];
-      move: (folderId: string | null) => void;
     }
   | { kind: "folder"; id: string };
 
@@ -63,10 +62,14 @@ export interface SessionListDnd {
   ) => SessionDragHandlers;
   /** Drag source for folder reorder and drop target for "move into folder". */
   folderHeader: (folderId: string) => SessionDragHandlers;
-  /** The whole folder (header and members): where a dragged selection drops in. */
-  folderZone: (folderId: string) => SessionDragHandlers;
+  /**
+   * The whole folder (header and members): where a dragged selection drops in.
+   * The drop runs the current render's `selection`, so an operation that
+   * started during the drag still blocks it.
+   */
+  folderZone: (folderId: string, selection?: SessionSelectionDrag) => SessionDragHandlers;
   /** The root section: dropping a foldered session there removes it from its folder. */
-  rootZone: () => SessionDragHandlers;
+  rootZone: (selection?: SessionSelectionDrag) => SessionDragHandlers;
 }
 
 const DRAG_MIME = "application/x-compozy-session-layout";
@@ -127,7 +130,6 @@ export function useSessionListDnd(
       kind: "selection",
       ids: selection.sessions.map(session => session.id),
       folderIds: selection.sessions.map(session => session.folderId),
-      move: selection.move,
     })(event);
   };
 
@@ -190,9 +192,9 @@ export function useSessionListDnd(
         }
       },
     }),
-    folderZone: folderId => ({
+    folderZone: (folderId, selection) => ({
       onDragOver: event => {
-        if (movesSelection(dragging, folderId)) {
+        if (selectionDrops(dragging, selection, folderId)) {
           accept(event, { kind: "folder", folderId, position: "into" });
         }
       },
@@ -204,17 +206,16 @@ export function useSessionListDnd(
         }
       },
       onDrop: event => {
-        if (dragging?.kind === "selection" && movesSelection(dragging, folderId)) {
-          const { move } = dragging;
-          finish(event, () => move(folderId));
+        if (selection && selectionDrops(dragging, selection, folderId)) {
+          finish(event, () => selection.move(folderId));
         }
       },
     }),
-    rootZone: () => ({
+    rootZone: selection => ({
       onDragOver: event => {
         if (
           (dragging?.kind === "session" && dragging.folderId !== null) ||
-          movesSelection(dragging, null)
+          selectionDrops(dragging, selection, null)
         ) {
           accept(event, { kind: "root" });
         }
@@ -230,18 +231,30 @@ export function useSessionListDnd(
           finish(event, () => layout.moveSession(moved, null));
           return;
         }
-        if (dragging?.kind === "selection" && movesSelection(dragging, null)) {
-          const { move } = dragging;
-          finish(event, () => move(null));
+        if (selection && selectionDrops(dragging, selection, null)) {
+          finish(event, () => selection.move(null));
         }
       },
     }),
   };
 }
 
-/** A dragged selection drops only where at least one of its sessions would change place. */
-function movesSelection(dragging: SessionDragItem | null, folderId: string | null): boolean {
-  return dragging?.kind === "selection" && dragging.folderIds.some(current => current !== folderId);
+/**
+ * A dragged selection drops only while it can still move and only where at
+ * least one of its sessions would change place.
+ */
+function selectionDrops(
+  dragging: SessionDragItem | null,
+  selection: SessionSelectionDrag | undefined,
+  folderId: string | null
+): boolean {
+  return (
+    dragging?.kind === "selection" &&
+    selection !== undefined &&
+    !selection.disabled &&
+    selection.blockedReason === null &&
+    dragging.folderIds.some(current => current !== folderId)
+  );
 }
 
 /** This row is being dragged, alone or as part of the selection. */
