@@ -144,8 +144,8 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 				WorkspaceID: h.workspaceID,
 				AgentName:   "coder",
 			},
-			TargetWorkspaceID: foreign.ID,
-			Seam:              workspaceaccess.SeamSpawn,
+			Target: workspaceaccess.ScopeTarget(foreign.ID, parent.ProfileID),
+			Seam:   workspaceaccess.SeamSpawn,
 		}
 		for index, req := range policy.requests {
 			if req != wantRequest {

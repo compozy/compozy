@@ -57,6 +57,7 @@ var (
 		"app.update_check":                                         ConfigValueBool,
 		appUpdateCheckIntervalPath:                                 ConfigValueDuration,
 		toolSurfaceDefaultsAgentPath:                               ConfigValueString,
+		"user_scope.work_dir":                                      ConfigValueString,
 		"defaults.provider":                                        ConfigValueString,
 		configDefaultsModelPath:                                    ConfigValueString,
 		configDefaultsReasoningEffortPath:                          ConfigValueString,

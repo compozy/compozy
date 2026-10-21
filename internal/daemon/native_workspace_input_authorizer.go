@@ -67,16 +67,16 @@ func (b *nativeWorkspaceInputBinder) authorizeWorkspaceTarget(
 	actor workspaceaccess.ActorRef,
 	targetWorkspaceID string,
 ) error {
-	if targetWorkspaceID == strings.TrimSpace(actor.WorkspaceID) {
+	if targetWorkspaceID != "@user" && targetWorkspaceID == actor.WorkspaceID {
 		return nil
 	}
 	if b == nil || b.workspaceAccess == nil {
 		return nativeWorkspaceAccessDeniedError(descriptor.ID)
 	}
 	decision, err := b.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
-		Actor:             actor,
-		TargetWorkspaceID: targetWorkspaceID,
-		Seam:              workspaceaccess.SeamTool,
+		Actor:  actor,
+		Target: workspaceaccess.ScopeTarget(targetWorkspaceID, scope.ProfileID),
+		Seam:   workspaceaccess.SeamTool,
 	})
 	if err != nil {
 		return errors.Join(
@@ -150,10 +150,11 @@ func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 			info.State,
 		)
 	}
-	workspaceID := strings.TrimSpace(info.WorkspaceID)
-	if workspaceID == "" {
-		return workspaceaccess.ActorRef{}, errors.New("daemon: native workspace access session has no workspace id")
+	if strings.TrimSpace(scope.ProfileID) != "" && strings.TrimSpace(info.ProfileID) != strings.TrimSpace(scope.ProfileID) {
+		return workspaceaccess.ActorRef{}, errors.New("daemon: native workspace access profile differs from the session profile")
 	}
+	workspaceID := strings.TrimSpace(info.WorkspaceID)
+
 	return workspaceaccess.ActorRef{
 		Kind:        workspaceaccess.ActorAgentSession,
 		SessionID:   sessionID,

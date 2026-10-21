@@ -15,8 +15,14 @@ const (
 )
 
 // ModeSource resolves the effective permission mode of a live session.
-type ModeSource interface {
-	SessionPermissionMode(ctx context.Context, sessionID string) (Mode, error)
+type SessionFacts struct {
+	Mode            Mode
+	WorkspaceAccess string
+	ProfileID       string
+	WorkspaceID     string
+}
+type SessionFactsSource interface {
+	SessionFacts(ctx context.Context, sessionID string) (SessionFacts, error)
 }
 
 // Consent is a session-lifetime answer captured from an ACP prompt.
@@ -40,7 +46,7 @@ type AuditEmitter interface {
 
 // Deps contains every dependency required by DefaultPolicy.
 type Deps struct {
-	Modes   ModeSource
+	Facts   SessionFactsSource
 	Consent SessionConsentCache
 	Audit   AuditEmitter
 	Log     *slog.Logger

@@ -225,7 +225,7 @@ func TestResolveAuthorizesWorkspaceAccess(t *testing.T) {
 		}
 		if received.Actor.Kind != workspaceaccess.ActorAgentSession ||
 			received.Actor.SessionID != snapshot.ID ||
-			received.TargetWorkspaceID != "ws-target" ||
+			received.Target.WorkspaceID != "ws-target" ||
 			received.Seam != workspaceaccess.SeamIdentity {
 			t.Fatalf("Authorize() request = %#v, want validated identity seam", received)
 		}
@@ -653,4 +653,44 @@ func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTypedWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+	for _, target := range []workspaceaccess.TargetRef{
+		workspaceaccess.ScopeTarget("", "p1"),
+		workspaceaccess.ScopeTarget("ws-home", "p2"),
+	} {
+		t.Run("Should send the target to policy "+string(target.Kind)+" "+target.ProfileID, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			policy := workspaceAccessPolicyFunc(func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				calls++
+				if req.Target != target {
+					t.Fatalf("target = %#v, want %#v", req.Target, target)
+				}
+				return workspaceaccess.Decision{}, nil
+			})
+			err := ValidateWorkspaceAccess(t.Context(), policy, workspaceaccess.Request{Actor: workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "sess-a", WorkspaceID: "ws-home"}, Target: target, Seam: workspaceaccess.SeamIdentity})
+			if calls != 1 || !errors.Is(err, ErrIdentityUnauthorized) {
+				t.Fatalf("calls/error = %d/%v", calls, err)
+			}
+		})
+	}
+}
+
+func TestResolveUserActor(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve a validated User session without a workspace registration", func(t *testing.T) {
+		t.Parallel()
+		caller, err := Resolve(t.Context(), ResolveOptions{Credentials: Credentials{SessionID: "sess-user", AgentName: "general"}, Lookup: func(context.Context, string) (SessionSnapshot, error) {
+			return SessionSnapshot{ID: "sess-user", AgentName: "general", ProfileID: store.DefaultProfileID, State: session.StateActive}, nil
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if caller.Actor.Scope.WorkspaceID != "" || caller.Session.ProfileID != store.DefaultProfileID {
+			t.Fatalf("User actor = %#v", caller)
+		}
+	})
 }

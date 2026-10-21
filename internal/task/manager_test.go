@@ -7613,7 +7613,7 @@ func TestManagerGetAndListTasksRequireReadAuthorityAndBuildView(t *testing.T) {
 func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should expose global and own-workspace tasks without leaking foreign tasks", func(t *testing.T) {
+	t.Run("Should expose own-workspace tasks without leaking User or foreign tasks", func(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
@@ -7660,7 +7660,10 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 			gotIDs = append(gotIDs, summary.ID)
 		}
 		slices.Sort(gotIDs)
-		wantIDs := []string{globalTask.ID, workspaceTask.ID}
+		wantIDs := []string{workspaceTask.ID}
+		if _, err := manager.GetTask(t.Context(), globalTask.ID, agent); !errors.Is(err, ErrPermissionDenied) {
+			t.Fatalf("GetTask(User) = %v, want scope denial", err)
+		}
 		slices.Sort(wantIDs)
 		if !slices.Equal(gotIDs, wantIDs) {
 			t.Fatalf("ListTasks(agent) ids = %#v, want %#v", gotIDs, wantIDs)
@@ -7686,6 +7689,7 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		t.Parallel()
 
 		agent := agentSessionActorContextForWorkspace("sess-a", "ws-a")
+		agent.ReadScope = storepkg.ReadScope{ProfileID: "profile-default"}
 		allowedPolicy := &recordingTaskWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
 		allowed := scopedTaskResourceAuthorizer{workspaceAccess: allowedPolicy}
 		if err := allowed.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b"); err != nil {
@@ -7697,8 +7701,8 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 				SessionID:   "sess-a",
 				WorkspaceID: "ws-a",
 			},
-			TargetWorkspaceID: "ws-b",
-			Seam:              workspaceaccess.SeamTask,
+			Target: workspaceaccess.ScopeTarget("ws-b", "profile-default"),
+			Seam:   workspaceaccess.SeamTask,
 		}
 		if allowedPolicy.calls != 1 || allowedPolicy.last != wantRequest {
 			t.Fatalf(
@@ -7755,7 +7759,7 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 			t.Fatalf("UpdateTask(automation) error = %v, want ErrPermissionDenied", err)
 		}
 		if policy.calls != 2 || policy.last.Actor.Kind != workspaceaccess.ActorAutomation ||
-			policy.last.Actor.WorkspaceID != "" || policy.last.TargetWorkspaceID != "ws-b" {
+			policy.last.Actor.WorkspaceID != "" || policy.last.Target.WorkspaceID != "ws-b" {
 			t.Fatalf("policy calls/request = %d/%#v, want two unscoped automation denials", policy.calls, policy.last)
 		}
 	})

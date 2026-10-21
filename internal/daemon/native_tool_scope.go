@@ -135,6 +135,12 @@ func nativeResolvedRegistryWorkspaceID(resolved *workspacepkg.ResolvedWorkspace)
 	if resolved == nil {
 		return "", errors.New("daemon: resolved workspace is required")
 	}
+	if resolved.Scope == workspacepkg.ScopeUser {
+		if resolved.ID != "" || resolved.WorkspaceID != "" {
+			return "", errors.New("daemon: User resolution cannot carry a workspace id")
+		}
+		return "", nil
+	}
 	workspaceID := strings.TrimSpace(resolved.ID)
 	if workspaceID == "" {
 		return "", errors.New("daemon: resolved workspace registry id is empty")

@@ -317,19 +317,20 @@ func (m *ingressManager) authorize(
 	if caller == nil {
 		return nil
 	}
-	if subject.Scope == IngressScopeGlobal {
-		return ErrIngressForbidden
-	}
 	if m.access == nil {
 		return ErrIngressForbidden
+	}
+	target := workspaceaccess.ScopeTarget(subject.WorkspaceID, subject.ProfileID)
+	if subject.Scope == IngressScopeGlobal {
+		target = workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, ProfileID: subject.ProfileID, Surface: "gateway-ingress"}
 	}
 	decision, err := m.access.Authorize(ctx, workspaceaccess.Request{
 		Actor: workspaceaccess.ActorRef{
 			Kind: workspaceaccess.ActorAgentSession, SessionID: caller.SessionID,
 			WorkspaceID: caller.WorkspaceID, AgentName: caller.AgentName,
 		},
-		TargetWorkspaceID: subject.WorkspaceID,
-		Seam:              workspaceaccess.SeamIdentity,
+		Target: target,
+		Seam:   workspaceaccess.SeamIdentity,
 	})
 	if err != nil {
 		return errors.Join(ErrIngressForbidden, err)

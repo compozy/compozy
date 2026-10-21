@@ -2577,3 +2577,23 @@ steer_capability = "none"
 ```
 
 See [Session control plane](/docs/sessions/control-plane) for delivery outcomes and strict fences.
+
+## User work directory
+
+```toml
+[user_scope]
+work_dir = "~"
+```
+
+The User scope resolves its execution directory from this setting. A personal profile overlay can
+replace it. After `~` expansion the value must name an existing absolute directory; invalid values
+fail resolution with `user_scope_work_dir_invalid`. Validation happens when work starts, so a missing
+directory does not prevent existing work from being listed. Changes apply to later starts.
+
+The execution directory does not contribute workspace or workspace-profile configuration. User
+resolution has no workspace registration. Neither the operator home nor `COMPOZY_HOME` can be
+registered as a project (`workspace_home_forbidden`); new project names cannot be `user`, `global`,
+or start with `@` (`workspace_name_reserved`).
+
+`@user` is the explicit User reference; the CLI forwards it without a workspace lookup. A route that
+requires a project returns `user_scope_unsupported`, or `user_scope_worktree_unsupported` for worktrees.

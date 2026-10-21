@@ -350,6 +350,11 @@ func resolveWorkspaceCandidate(
 	if trimmed == "" {
 		return workspaceResolution{}, errWorkspaceReferenceRequired
 	}
+	if trimmed == "@user" {
+		resolution := workspaceResolution{ID: trimmed, Source: source}
+		recordWorkspaceResolution(cmd, resolution)
+		return resolution, nil
+	}
 	detail, err := client.GetWorkspace(ctx, trimmed)
 	if err != nil {
 		return workspaceResolution{}, fmt.Errorf("cli: resolve workspace %q from %s: %w", trimmed, source, err)

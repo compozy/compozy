@@ -30,6 +30,7 @@ type ResolveOptions struct {
 	Credentials         Credentials
 	Lookup              SessionLookup
 	ExpectedWorkspaceID string
+	ExpectedProfileID   string
 	WorkspaceAccess     workspaceaccess.Policy
 	OriginKind          taskpkg.OriginKind
 	OriginRef           string
@@ -52,19 +53,32 @@ func Resolve(ctx context.Context, opts ResolveOptions) (Caller, error) {
 	if err != nil {
 		return Caller{}, err
 	}
-	if err := ValidateWorkspaceAccess(ctx, opts.WorkspaceAccess, workspaceaccess.Request{
-		Actor: workspaceaccess.ActorRef{
-			Kind:        workspaceaccess.ActorAgentSession,
-			SessionID:   snapshot.ID,
-			WorkspaceID: snapshot.WorkspaceID,
-			AgentName:   snapshot.AgentName,
-		},
-		TargetWorkspaceID: opts.ExpectedWorkspaceID,
-		Seam:              workspaceaccess.SeamIdentity,
-	}); err != nil {
-		return Caller{}, err
+	targetProfileID := strings.TrimSpace(opts.ExpectedProfileID)
+	if targetProfileID == "" {
+		targetProfileID = snapshot.ProfileID
 	}
-	actor, err := deriveActorContext(snapshot.ID, snapshot.WorkspaceID, opts.OriginKind, opts.OriginRef)
+	if (strings.TrimSpace(opts.ExpectedWorkspaceID) != "" || opts.ExpectedProfileID != "") &&
+		(opts.ExpectedWorkspaceID != snapshot.WorkspaceID || targetProfileID != snapshot.ProfileID) {
+		if err := ValidateWorkspaceAccess(ctx, opts.WorkspaceAccess, workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   snapshot.ID,
+				WorkspaceID: snapshot.WorkspaceID,
+				AgentName:   snapshot.AgentName,
+			},
+			Target: workspaceaccess.ScopeTarget(opts.ExpectedWorkspaceID, targetProfileID),
+			Seam:   workspaceaccess.SeamIdentity,
+		}); err != nil {
+			return Caller{}, err
+		}
+	}
+	actor, err := deriveActorContext(
+		snapshot.ID,
+		snapshot.WorkspaceID,
+		snapshot.ProfileID,
+		opts.OriginKind,
+		opts.OriginRef,
+	)
 	if err != nil {
 		return Caller{}, fmt.Errorf("agent identity: derive actor context: %w", err)
 	}
@@ -164,11 +178,6 @@ func ValidateWorkspaceAccess(
 	policy workspaceaccess.Policy,
 	req workspaceaccess.Request,
 ) error {
-	actorWorkspaceID := strings.TrimSpace(req.Actor.WorkspaceID)
-	targetWorkspaceID := strings.TrimSpace(req.TargetWorkspaceID)
-	if targetWorkspaceID == "" || actorWorkspaceID == targetWorkspaceID {
-		return nil
-	}
 	denied := identityError(
 		ErrIdentityUnauthorized,
 		"identity_unauthorized",
@@ -190,6 +199,7 @@ func ValidateWorkspaceAccess(
 func deriveActorContext(
 	sessionID string,
 	workspaceID string,
+	profileID string,
 	originKind taskpkg.OriginKind,
 	originRef string,
 ) (taskpkg.ActorContext, error) {
@@ -200,6 +210,9 @@ func deriveActorContext(
 	originRef = strings.TrimSpace(originRef)
 	if originRef == "" {
 		originRef = originRefForKind(originKind)
+	}
+	if workspaceID == "" {
+		return taskpkg.DeriveUserSessionActorContextForOrigin(sessionID, profileID, originKind, originRef)
 	}
 	return taskpkg.DeriveAgentSessionActorContextForOrigin(sessionID, workspaceID, originKind, originRef)
 }

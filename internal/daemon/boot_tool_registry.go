@@ -7,6 +7,7 @@ import (
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (d *Daemon) bootToolRegistry(
@@ -93,6 +94,9 @@ func (d *Daemon) bootToolRegistry(
 
 func nativeWorkspaceIDResolver(state *bootState) func(context.Context, string) (string, error) {
 	return func(ctx context.Context, ref string) (string, error) {
+		if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+			return "@user", nil
+		}
 		resolved, err := state.workspaceResolver.Resolve(ctx, ref)
 		if err != nil {
 			return "", err

@@ -545,3 +545,16 @@ Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/setting
 `refresh_interval`, and `providers.<id>.enabled` through `compozy__config_set`, but not
 `keychain_access`: consent is operator-only. Consent alone never reads the Keychain; a read still
 needs an explicit local refresh, which agents cannot make.
+
+## User-scope execution directory
+
+`[user_scope] work_dir = "~"` selects the User execution directory. A personal profile overlay may
+replace it. Resolution expands `~` and requires an existing absolute directory, otherwise returning
+`user_scope_work_dir_invalid`. Validation is deferred until use; changes affect later starts.
+The execution directory contributes no workspace or workspace-profile configuration.
+
+`@user` is a public User reference, never a registered workspace id. CLI workspace resolution forwards
+it verbatim. Project-only routes refuse it with `user_scope_unsupported`; worktree routes take
+precedence with `user_scope_worktree_unsupported`. New registrations and renames reject `user`,
+`global`, and names starting with `@` (`workspace_name_reserved`). Registration also rejects both the
+operator home and `COMPOZY_HOME` (`workspace_home_forbidden`).

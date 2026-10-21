@@ -731,7 +731,7 @@ func TestTaskManagerCrossWorkspaceClaimPropagationIntegration(t *testing.T) {
 		if request.Actor.Kind != workspaceaccess.ActorAgentSession ||
 			request.Actor.SessionID != "sess-source" ||
 			request.Actor.WorkspaceID != sourceWorkspaceID ||
-			request.TargetWorkspaceID != targetWorkspaceID ||
+			request.Target.WorkspaceID != targetWorkspaceID ||
 			request.Seam != workspaceaccess.SeamTask {
 			t.Fatalf("agent policy request = %#v, want propagated cross-workspace claim", request)
 		}
@@ -2749,7 +2749,7 @@ func TestTaskManagerCatalogWorkspaceAccessIntegration(t *testing.T) {
 			}
 			if test.allow {
 				if len(policy.requests) != 1 || policy.requests[0].Actor.WorkspaceID != sourceID ||
-					policy.requests[0].TargetWorkspaceID != targetID || policy.requests[0].Seam != workspaceaccess.SeamTask {
+					policy.requests[0].Target.WorkspaceID != targetID || policy.requests[0].Seam != workspaceaccess.SeamTask {
 					t.Fatalf(
 						"workspace policy requests = %#v, want caller-to-target task authorization",
 						policy.requests,

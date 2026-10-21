@@ -577,7 +577,7 @@ func TestAutomationTriggerWritesAuthorizeBeforeMutation(t *testing.T) {
 				}
 				config.WorkspaceAccess = automationWorkspaceAccessPolicyFunc(
 					func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
-						if req.Actor.WorkspaceID != callerWorkspace || req.TargetWorkspaceID != targetWorkspace {
+						if req.Actor.WorkspaceID != callerWorkspace || req.Target.WorkspaceID != targetWorkspace {
 							t.Fatalf("Authorize() request = %#v", req)
 						}
 						return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil

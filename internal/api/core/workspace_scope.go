@@ -39,6 +39,9 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		return workspaceScope{}, false
 	}
 	workspaceRef := workspaceRefFromRoute(c)
+	if !h.RequireProjectReference(c, workspaceRef) {
+		return workspaceScope{}, false
+	}
 	if workspaceRef == "" {
 		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: workspace_id path is required", h.transportName()))
 		return workspaceScope{}, false

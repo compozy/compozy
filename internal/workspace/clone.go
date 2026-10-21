@@ -11,6 +11,7 @@ func cloneSnapshots(snapshots map[string]filesnap.Snapshot) map[string]filesnap.
 
 func cloneResolvedWorkspace(src *ResolvedWorkspace) ResolvedWorkspace {
 	return ResolvedWorkspace{
+		Scope:       src.Scope,
 		Workspace:   cloneWorkspace(src.Workspace),
 		WorkspaceID: src.WorkspaceID,
 		ProfileID:   src.ProfileID,

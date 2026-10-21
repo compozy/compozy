@@ -96,9 +96,10 @@ type Authority struct {
 
 // CallerScope carries daemon-derived caller ownership for scoped operations.
 type CallerScope struct {
-	SessionID   string `json:"session_id,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	Operator    bool   `json:"operator,omitzero"`
+	UserProfileID string `json:"user_profile_id,omitempty"`
+	SessionID     string `json:"session_id,omitempty"`
+	WorkspaceID   string `json:"workspace_id,omitempty"`
+	Operator      bool   `json:"operator,omitzero"`
 }
 
 // ActorContext carries the authenticated principal, ingress origin, resolved task authority, caller scope,

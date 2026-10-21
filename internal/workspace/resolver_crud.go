@@ -99,6 +99,9 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 		if name == "" {
 			return errors.New("workspace: workspace name is required")
 		}
+		if err := ValidateWorkspaceName(name); err != nil {
+			return err
+		}
 		ws.Name = name
 	}
 

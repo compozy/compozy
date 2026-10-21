@@ -44,19 +44,16 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
 	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon {
 		return nil
 	}
-	if scope.Normalize() == ScopeWorkspace {
-		actorWorkspaceID := strings.TrimSpace(actor.Scope.WorkspaceID)
-		targetWorkspaceID := strings.TrimSpace(workspaceID)
-		if actorWorkspaceID != targetWorkspaceID {
-			allowed, err := taskWorkspaceAccessAllowed(ctx, a.workspaceAccess, actor, targetWorkspaceID)
-			if err != nil {
-				return errors.Join(ErrPermissionDenied, err)
-			}
-			if !allowed {
-				return ErrPermissionDenied
-			}
+	if scope.Normalize() == ScopeGlobal || strings.TrimSpace(actor.Scope.WorkspaceID) != strings.TrimSpace(workspaceID) {
+		allowed, err := taskWorkspaceAccessAllowed(ctx, a.workspaceAccess, actor, strings.TrimSpace(workspaceID))
+		if err != nil {
+			return errors.Join(ErrPermissionDenied, err)
+		}
+		if !allowed {
+			return ErrPermissionDenied
 		}
 	}
+
 	return nil
 }
 
@@ -76,8 +73,8 @@ func taskWorkspaceAccessAllowed(
 			WorkspaceID: strings.TrimSpace(actor.Scope.WorkspaceID),
 			Operator:    actor.Scope.Operator,
 		},
-		TargetWorkspaceID: strings.TrimSpace(targetWorkspaceID),
-		Seam:              workspaceaccess.SeamTask,
+		Target: workspaceaccess.ScopeTarget(strings.TrimSpace(targetWorkspaceID), actor.ReadScope.ProfileID),
+		Seam:   workspaceaccess.SeamTask,
 	})
 	if err != nil {
 		slog.ErrorContext(

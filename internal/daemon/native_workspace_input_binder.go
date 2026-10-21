@@ -192,6 +192,12 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	payload map[string]json.RawMessage,
 	ref string,
 ) error {
+	if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+		if strings.Contains(string(id), "worktree") || nativeUserHasWorktree(payload) {
+			return nativeInputError(id, workspacepkg.ErrUserScopeWorktreeUnsupported)
+		}
+		return setNativeWorkspaceInput(payload, "@user")
+	}
 	if b == nil || b.workspaces == nil {
 		return nativeInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
@@ -323,4 +329,14 @@ func (n *daemonNativeTools) nativeWorkspaceRoot(
 		return "", nativeInputError(id, err)
 	}
 	return strings.TrimSpace(resolved.RootDir), nil
+}
+
+func nativeUserHasWorktree(payload map[string]json.RawMessage) bool {
+	for _, key := range []string{"worktree", "new_worktree"} {
+		raw := bytes.TrimSpace(payload[key])
+		if len(raw) != 0 && !bytes.Equal(raw, []byte("null")) && !bytes.Equal(raw, []byte(`""`)) {
+			return true
+		}
+	}
+	return false
 }

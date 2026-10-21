@@ -5,6 +5,7 @@ import "github.com/gin-gonic/gin"
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api := router.Group("/api")
+	api.Use(handlers.WorkspaceReferenceGuard)
 
 	registerAppSDKRoutes(api, handlers)
 	registerStatusRoutes(api, handlers)

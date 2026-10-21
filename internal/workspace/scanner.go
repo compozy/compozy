@@ -127,6 +127,16 @@ func (r *Resolver) scanWorkspaceDependencies(
 	if err := addSnapshotIfExists(globalMCP, snapshots); err != nil {
 		return nil, fmt.Errorf("workspace: snapshot global MCP JSON %q: %w", r.homePaths.HomeDir, err)
 	}
+	if ws.RootDir == "" {
+		if profileName != "" {
+			for _, name := range []string{compozyconfig.ConfigName, compozyconfig.MCPJSONName} {
+				if err := addSnapshotIfExists(filepath.Join(r.homePaths.ProfilesDir, profileName, name), snapshots); err != nil {
+					return nil, err
+				}
+			}
+		}
+		return nil, nil
+	}
 	workspaceConfig := filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.ConfigName)
 	if err := addSnapshotIfExists(workspaceConfig, snapshots); err != nil {
 		return nil, fmt.Errorf("workspace: snapshot workspace config %q: %w", ws.RootDir, err)
@@ -184,7 +194,7 @@ func canonicalWorkspaceSkillRoot(path string) string {
 
 func validatePersonalProfileRoot(workspaceRoot, homeRoot, profilesRoot, profileName string) error {
 	trimmedName := strings.TrimSpace(profileName)
-	if trimmedName == "" {
+	if trimmedName == "" || strings.TrimSpace(workspaceRoot) == "" {
 		return nil
 	}
 	personalRoot := filepath.Join(profilesRoot, trimmedName)

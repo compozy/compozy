@@ -334,8 +334,8 @@ func (m *Manager) validateSpawnWorkspace(
 				WorkspaceID: parentWorkspaceID,
 				AgentName:   strings.TrimSpace(parent.AgentName),
 			},
-			TargetWorkspaceID: targetWorkspaceID,
-			Seam:              workspaceaccess.SeamSpawn,
+			Target: workspaceaccess.ScopeTarget(targetWorkspaceID, parent.ProfileID),
+			Seam:   workspaceaccess.SeamSpawn,
 		})
 		if authorizeErr != nil {
 			return SpawnOpts{}, fmt.Errorf(

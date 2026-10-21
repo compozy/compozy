@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 )
 
@@ -29,12 +30,18 @@ func (r *Resolver) createWorkspaceRegistration(ctx context.Context, opts Registe
 
 	name := strings.TrimSpace(opts.Name)
 	if name == "" {
+		if err := ValidateWorkspaceName(filepath.Base(rootDir)); err != nil {
+			return Workspace{}, err
+		}
 		name, err = r.nextWorkspaceName(ctx, rootDir)
 		if err != nil {
 			return Workspace{}, err
 		}
 	}
 
+	if err := ValidateWorkspaceName(name); err != nil {
+		return Workspace{}, err
+	}
 	now := r.now()
 	id, err := r.nextRegistrationID()
 	if err != nil {

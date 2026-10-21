@@ -9,7 +9,7 @@ import (
 
 // DefaultPolicy applies the fixed workspace-access decision chain.
 type DefaultPolicy struct {
-	modes   ModeSource
+	facts   SessionFactsSource
 	consent SessionConsentCache
 	audit   AuditEmitter
 	log     *slog.Logger
@@ -19,8 +19,8 @@ var _ Policy = (*DefaultPolicy)(nil)
 
 // New constructs the fail-closed default policy.
 func New(deps Deps) (*DefaultPolicy, error) {
-	if deps.Modes == nil {
-		return nil, errors.New("workspace access: mode source is required")
+	if deps.Facts == nil {
+		return nil, errors.New("workspace access: session facts source is required")
 	}
 	if deps.Consent == nil {
 		return nil, errors.New("workspace access: session consent cache is required")
@@ -32,7 +32,7 @@ func New(deps Deps) (*DefaultPolicy, error) {
 		return nil, errors.New("workspace access: logger is required")
 	}
 	return &DefaultPolicy{
-		modes:   deps.Modes,
+		facts:   deps.Facts,
 		consent: deps.Consent,
 		audit:   deps.Audit,
 		log:     deps.Log,
@@ -45,7 +45,7 @@ func (p *DefaultPolicy) Authorize(ctx context.Context, req Request) (Decision, e
 	decision, mode, decisionErr := p.authorize(ctx, normalizedReq)
 	record := AccessRecord{
 		Actor:    normalizedReq.Actor,
-		TargetID: normalizedReq.TargetWorkspaceID,
+		TargetID: normalizedReq.Target.WorkspaceID,
 		Allowed:  decision.Allowed,
 		Source:   decision.Source,
 		Mode:     mode,
@@ -70,13 +70,19 @@ func (p *DefaultPolicy) authorize(ctx context.Context, req Request) (Decision, M
 	if req.Actor.Kind != ActorAgentSession {
 		return deniedDecision(false), "", nil
 	}
-	if req.Actor.WorkspaceID != "" && req.Actor.WorkspaceID == req.TargetWorkspaceID {
-		return Decision{Allowed: true, Source: SourceSameWorkspace}, "", nil
-	}
-
-	mode, err := p.modes.SessionPermissionMode(ctx, req.Actor.SessionID)
+	facts, err := p.facts.SessionFacts(ctx, req.Actor.SessionID)
+	mode := facts.Mode
 	if err != nil {
-		return deniedDecision(false), mode, fmt.Errorf("workspace access: resolve session permission mode: %w", err)
+		return deniedDecision(false), mode, fmt.Errorf("workspace access: resolve session facts: %w", err)
+	}
+	if facts.ProfileID == "" {
+		return deniedDecision(false), mode, errors.New("workspace access: session profile is required")
+	}
+	if req.Target.AllProfiles || req.Target.ProfileID != facts.ProfileID || req.Target.Kind == TargetAggregate {
+		return deniedDecision(false), mode, nil
+	}
+	if req.Target.WorkspaceID == facts.WorkspaceID && ((req.Target.Kind == TargetUser && facts.WorkspaceID == "") || req.Target.Kind == TargetWorkspace) {
+		return Decision{Allowed: true, Source: SourceSameWorkspace}, mode, nil
 	}
 	switch mode {
 	case ModeApproveAll:

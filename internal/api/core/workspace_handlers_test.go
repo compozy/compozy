@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 func TestWorkspaceUnknownConfigKeys(t *testing.T) {
@@ -454,6 +455,46 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 		}
 		if captured.DefaultAgent == nil || *captured.DefaultAgent != "coder" {
 			t.Fatalf("captured default agent = %#v", captured.DefaultAgent)
+		}
+	})
+}
+
+func TestUserWorkspaceReferenceGuard(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ path, code string }{
+		{"/workspaces/@user", "user_scope_unsupported"},
+		{"/workspaces/@user/worktrees", "user_scope_worktree_unsupported"},
+		{"/catalog?workspace=@user", "user_scope_unsupported"},
+		{"/catalog?workspace_id=@user&worktree=feature", "user_scope_worktree_unsupported"},
+	} {
+		t.Run("Should reject unsupported User reference "+tc.path, func(t *testing.T) {
+			t.Parallel()
+			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+			router := gin.New()
+			router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+			for _, path := range []string{"/workspaces/:workspace_id", "/workspaces/:workspace_id/worktrees", "/catalog"} {
+				router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			}
+			resp := performRequest(t, router, http.MethodGet, tc.path, nil)
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusBadRequest || payload.Code != tc.code {
+				t.Fatalf("response = %d %#v", resp.Code, payload)
+			}
+		})
+	}
+}
+
+func TestUserSessionWorktreeReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject a User worktree before resolving the workspace", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/sessions", []byte(`{"workspace":"@user","agent_name":"general","worktree":"feature"}`))
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusBadRequest || payload.Code != "user_scope_worktree_unsupported" {
+			t.Fatalf("response = %d %#v", resp.Code, payload)
 		}
 	})
 }

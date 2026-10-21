@@ -1,5 +1,30 @@
 # Compozy Change Impact
 
+## User scope foundation — all-projects U1
+
+Owner: `user-scope-work` BR-2/3/5/6/7/16-validation/17, branch `ap/u1c-user-ref`.
+The public reference `@user` is additive; ordinary `user` selectors remain names so the separately
+owned reserved-name migration can preserve aliases. New registrations/renames reject reserved names
+and registration rejects `COMPOZY_HOME`. No persisted state or SQLite schema changes occur here.
+
+`ResolveUser(profileID)` resolves personal configuration independently of the execution directory.
+The new live `user_scope.work_dir` config key is profile-overlay capable and validated at use.
+Workspace access requests carry a typed target and profile; session facts own same-scope decisions.
+The grant field is reserved but has no authorization effect until U5. Internal consumers change
+together. Gateway ingress queries now carry the subject profile into policy decisions.
+Authenticated User task actors require an explicit `UserProfileID`; ordinary agent actors still
+require a workspace. User actor derivation also binds the task read scope to that profile.
+
+Native workspace binding parses `@user` before registry lookup; CLI forwards it. Shared HTTP/UDS
+project-reference guards return typed unsupported errors. U2/U3 must enable their User route semantics
+and replace the broad guard for those routes; session `--user` and creation semantics belong to U2.
+Hooks, extension SDKs, and app-token authority retain existing contracts. Web destination changes,
+legacy data migration, grant authoring/ceiling/audit, and end-to-end journeys belong to later slices.
+Site configuration docs and the official configuration skill reference are co-shipped. QA impact:
+`RT-home-workspace-not-registrable` gains the Compozy-home and reserved-name legs; integration QA owns
+the remaining full User journeys.
+
+
 ## Session monitor visibility — 2026-10-21
 
 Owner: branch `feat/session-monitor-visibility`. Additive across every public surface (SD-013); no

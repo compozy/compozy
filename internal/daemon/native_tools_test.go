@@ -3823,7 +3823,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := binder.AuthorizeCallInput(t.Context(), scope, descriptor, call); err != nil {
 			t.Fatalf("AuthorizeCallInput(allow) error = %v", err)
 		}
-		if policy.calls != 1 || policy.last.TargetWorkspaceID != "ws-2" {
+		if policy.calls != 1 || policy.last.Target.WorkspaceID != "ws-2" {
 			t.Fatalf("policy calls/request = %d/%#v, want foreign target", policy.calls, policy.last)
 		}
 
@@ -3977,7 +3977,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if daemonPolicy.calls != 1 ||
 			daemonPolicy.last.Actor.Kind != workspaceaccess.ActorDaemon ||
 			daemonPolicy.last.Actor.WorkspaceID != "ws-1" ||
-			daemonPolicy.last.TargetWorkspaceID != "ws-2" {
+			daemonPolicy.last.Target.WorkspaceID != "ws-2" {
 			t.Fatalf(
 				"daemon foreign-workspace policy calls/request = %d/%#v, want daemon ws-1 to ws-2",
 				daemonPolicy.calls,
@@ -14487,4 +14487,31 @@ func requireNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descript
 	if err := compiled.Validate(instance); err != nil {
 		t.Fatalf("%s output schema rejected %s: %v", descriptor.ID, payload, err)
 	}
+}
+
+func TestNativeUserWorkspaceReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should parse User before registry lookup and authorize a typed User target", func(t *testing.T) {
+		t.Parallel()
+		descriptor := toolspkg.Descriptor{ID: toolspkg.ToolIDWorkspaceDescribe, Backend: toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo}, InputSchema: json.RawMessage(`{"type":"object","properties":{"workspace":{"type":"string"}}}`)}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		sessions := apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			return &session.Info{ID: "sess-user", ProfileID: "p1", State: session.StateActive}, nil
+		}}
+		binder := newNativeWorkspaceInputBinder(nil, sessions, policy, nil)
+		scope := toolspkg.Scope{SessionID: "sess-user", ProfileID: "p1"}
+		input, err := binder.BindCallInput(t.Context(), scope, descriptor, json.RawMessage(`{"workspace":"@user"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(input) != `{"workspace":"@user"}` {
+			t.Fatalf("bound input = %s", input)
+		}
+		if err := binder.AuthorizeCallInput(t.Context(), scope, descriptor, toolspkg.CallRequest{Input: input}); err != nil {
+			t.Fatal(err)
+		}
+		if policy.calls != 1 || policy.last.Target != workspaceaccess.ScopeTarget("@user", "p1") || policy.last.Actor.WorkspaceID != "" {
+			t.Fatalf("User policy request = %#v", policy.last)
+		}
+	})
 }

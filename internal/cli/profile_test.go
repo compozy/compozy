@@ -653,3 +653,19 @@ func profileTestDeps(t *testing.T, selections ...contract.ProfileSelection) comm
 	deps.getenv = func(string) string { return "" }
 	return deps
 }
+
+func TestUserWorkspaceReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should forward User without a workspace lookup", func(t *testing.T) {
+		t.Parallel()
+		client := &stubClient{getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+			t.Fatal("User must not query the workspace registry")
+			return WorkspaceDetailRecord{}, nil
+		}}
+		command := &cobra.Command{Use: "list"}
+		got, err := resolveWorkspaceCandidate(t.Context(), command, client, "@user", workspaceResolutionFlag)
+		if err != nil || got.ID != "@user" || got.Source != workspaceResolutionFlag {
+			t.Fatalf("User reference = %#v, %v", got, err)
+		}
+	})
+}
