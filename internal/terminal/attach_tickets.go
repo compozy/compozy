@@ -58,14 +58,21 @@ func (m *Service) MintAttachTicket(
 	if err != nil {
 		return AttachTicket{}, err
 	}
-	if handle.Info().State != terminalStateRunning {
+	info := handle.Info()
+	if info.Mode != ModePTY {
+		return AttachTicket{}, &Error{
+			Code: ErrorCodeNotInteractive, Message: errorMessageNotInteractive,
+			Mode: info.Mode, Err: ErrNotInteractive,
+		}
+	}
+	if info.State != terminalStateRunning {
 		return AttachTicket{}, newTerminalError(ErrorCodeExited, errorMessageExited, ErrExited)
 	}
 	settings, err := m.settings(ctx, binding.WorkspaceID, binding.ProfileID)
 	if err != nil {
 		return AttachTicket{}, fmt.Errorf("terminal: load attach settings: %w", err)
 	}
-	viewers := handle.Info().Viewers
+	viewers := info.Viewers
 	if settings.MaxSubscribers > 0 && viewers >= settings.MaxSubscribers {
 		return AttachTicket{}, &Error{
 			Code: ErrorCodeSubscriberLimitReached, Message: "terminal subscriber limit reached",

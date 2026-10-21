@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, type ImgHTMLAttributes } from "react";
 
 import { StreamMarkdown, type StreamMarkdownProps, type StreamMarkdownSlots } from "@compozy/ui";
 
@@ -7,6 +7,27 @@ import { useSmoothStreamedText } from "../hooks/use-smooth-streamed-text";
 import { useSmoothStreamingPreference } from "../hooks/use-smooth-streaming-preference";
 import { useThrottledStreamingValue } from "../hooks/use-throttled-streaming-value";
 import { composeStreamingDisplay } from "../lib/session-smooth-reveal";
+
+function MessageImageReference({
+  src,
+  alt,
+}: ImgHTMLAttributes<HTMLImageElement> | Record<string, unknown>) {
+  const path = typeof src === "string" ? src : "";
+  const label = typeof alt === "string" && alt ? alt : "image";
+  return (
+    <span title={path}>
+      [image: {label}]
+      {path ? (
+        <>
+          {" "}
+          <code>{path}</code>
+        </>
+      ) : null}
+    </span>
+  );
+}
+
+const MESSAGE_MARKDOWN_COMPONENTS = { img: MessageImageReference };
 
 export interface MessageMarkdownProps {
   content: string;
@@ -40,6 +61,7 @@ function RevealedMarkdown({
   return (
     <StreamMarkdown
       streaming={streaming}
+      components={MESSAGE_MARKDOWN_COMPONENTS}
       compact={compact}
       data-reveal={animate ? "smooth" : "direct"}
       data-testid="message-markdown"
@@ -61,7 +83,12 @@ export const MessageMarkdown = memo(
       return <RevealedMarkdown content={content} streaming={streaming} compact={compact} />;
     }
     return (
-      <StreamMarkdown streaming={streaming} compact={compact} slots={slots}>
+      <StreamMarkdown
+        streaming={streaming}
+        compact={compact}
+        slots={slots}
+        components={MESSAGE_MARKDOWN_COMPONENTS}
+      >
         {content}
       </StreamMarkdown>
     );

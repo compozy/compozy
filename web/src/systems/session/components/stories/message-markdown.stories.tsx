@@ -197,3 +197,11 @@ export const LongUnbrokenToken: Story = {
     </MarkdownFrame>
   ),
 };
+
+export const HostImageReference: Story = {
+  render: () => (
+    <MarkdownFrame>
+      <MessageMarkdown content="![Desktop preview](/tmp/render/desktop-idle.png)" />
+    </MarkdownFrame>
+  ),
+};

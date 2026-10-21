@@ -31,3 +31,7 @@ Issue #659 acceptance: alternate rapidly between a live Loop child session, its 
 the child through the visible parent, Goal strip, Open run, and Details without an intentional delay
 or transient error pane. Details and an independent status read showed complete; the child's actual
 outline contained its checklist response. [Reported issues QA evidence](../reports/2026-09-29-reported-issues.md).
+
+## Console lifecycle regression (#873)
+
+Delete a disposable session while its window is open. Presence acquisition stops on scoped 404, including on the next heartbeat. No presence is acquired before a session resolves in the selected profile. The focused presence regression passes; full browser re-walk remains pending.

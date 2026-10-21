@@ -14,6 +14,7 @@ import {
   fetchSessions,
   SessionApiError,
 } from "../adapters/session-api";
+import { isSessionUnavailable } from "../adapters/session-api-errors";
 import { fetchSessionAttentionSummary } from "../adapters/session-attention-api";
 import { fetchSessionCommands } from "../adapters/session-command-api";
 import {
@@ -70,6 +71,7 @@ export function sessionOwnerOptions(sessionId: string) {
     queryKey: sessionOwnerKeys.detail(sessionId),
     queryFn: ({ signal }) => fetchSessionOwner(sessionId, signal),
     staleTime: SESSION_OWNER_STALE_TIME_MS,
+    retry: (count, error) => !isSessionUnavailable(error) && count < 1,
     enabled: !!sessionId,
   });
 }
@@ -112,7 +114,11 @@ export function sessionDetailOptions(workspace: string, id: string) {
   return queryOptions({
     queryKey: sessionKeys.detail(workspace, id),
     queryFn: ({ signal }) => fetchSession(workspace, id, signal),
-    refetchInterval: query => sessionDetailRefetchInterval(id, query.state.data?.state),
+    refetchInterval: query =>
+      isSessionUnavailable(query.state.error)
+        ? false
+        : sessionDetailRefetchInterval(id, query.state.data?.state),
+    retry: (count, error) => !isSessionUnavailable(error) && count < 1,
     staleTime: SESSION_DETAIL_STALE_TIME_MS,
     ...SESSION_WARM_CACHE_POLICY,
     enabled: !!workspace && !!id,
@@ -310,6 +316,7 @@ export function sessionTranscriptOutlineOptions(workspace: string, id: string, e
     enabled: !!id && enabled,
     placeholderData: keepPreviousData,
     staleTime: SESSION_NAVIGATION_STALE_TIME_MS,
+    retry: (count, error) => !isSessionUnavailable(error) && count < 1,
   });
 }
 
@@ -389,7 +396,7 @@ export function sessionScopedDetailOptions(
     queryKey: sessionKeys.byId(id, profileKey),
     queryFn: ({ signal }) => fetchSessionById(id, normalizedScope, signal),
     refetchInterval: query => {
-      if (!liveTail) return false;
+      if (!liveTail || isSessionUnavailable(query.state.error)) return false;
       return sessionDetailRefetchInterval(id, query.state.data?.state);
     },
     staleTime: SESSION_DETAIL_STALE_TIME_MS,

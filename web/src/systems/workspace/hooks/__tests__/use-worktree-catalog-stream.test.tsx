@@ -67,6 +67,27 @@ function setup(workspaces: Array<{ id: string }>) {
 }
 
 describe("useWorktreeCatalogStream", () => {
+  it("Should keep the connection when the same workspace population is reordered", () => {
+    const source = new FakeCatalogEventSource();
+    const factory = vi.fn(() => source);
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const view = renderHook(
+      ({ workspaces }) => useWorktreeCatalogStream(workspaces, { eventSourceFactory: factory }),
+      {
+        wrapper,
+        initialProps: { workspaces: [{ id: "a" }, { id: "b" }] },
+      }
+    );
+    view.rerender({ workspaces: [{ id: "b" }, { id: "a" }] });
+    expect(factory).toHaveBeenCalledTimes(1);
+    expect(source.closed).toBe(false);
+    view.unmount();
+    expect(source.closed).toBe(true);
+  });
+
   it("Should register named listeners rather than relying on onmessage", () => {
     const { source } = setup([{ id: "ws_alpha" }]);
 

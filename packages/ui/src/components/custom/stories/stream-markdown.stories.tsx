@@ -157,3 +157,16 @@ export const SlotsAsLiteralText: Story = {
     await expect(canvas.getByRole("link", { name: "the store @internal/store/" })).toBeVisible();
   },
 };
+
+export const ImageReference: Story = {
+  args: {
+    children: "![Preview](/tmp/render/preview.png)",
+    components: { img: ({ src }) => <code>{typeof src === "string" ? src : "image"}</code> },
+  },
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText("/tmp/render/preview.png")).toBeVisible();
+    await expect(canvas.queryByRole("img")).toBeNull();
+  },
+};

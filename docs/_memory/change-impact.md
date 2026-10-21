@@ -1,5 +1,25 @@
 # Compozy Change Impact
 
+## Console lifecycle failures — issue #873
+
+Owner: `fix/issue-873-console-lifecycle`. Web session detail polling and presence acquisition stop
+after a scoped 404/410; profile boundaries remain enforced and the existing foreign-owner lookup
+remains authoritative. Worktree catalog subscriptions use a canonical workspace set so list reorder
+does not reconnect the socket. Transcript terminal previews attach only to a catalog-confirmed
+running PTY. Pipe terminals retain recorded output and their terminal-window action. Attach-ticket
+admission returns the existing `terminal_not_interactive` refusal for pipes before issuing a useless
+ticket; the Web client treats that refusal as terminal rather than retrying.
+
+Native tool IDs, CLI/UDS DTOs, hooks, extension contracts, config keys, persisted state and workspace
+isolation are unchanged. HTTP retains the existing terminal error shape; no generator or migration
+is needed. Session Markdown displays image references as text instead of interpreting host paths
+as app-origin URLs. Validated attachment tiles retain their existing byte routes. `StreamMarkdown`
+exposes the component override contract of its underlying primitive. Official `skills/compozy/`
+operations are unchanged: pipe output remains available through read/wait. QA owners are
+`ET-terminal-session-block-handoff`, `RT-session-done-presence`,
+`ET-web-session-deep-link-isolation`, and `RT-worktree-web-missing-resolution`.
+Historical HTTP 500s remain under investigation; these changes do not suppress them.
+
 ## Intel macOS release recovery — 2026-10-20
 
 Owner: `.github/workflows/release.yml`, release run `39431274097`. The production

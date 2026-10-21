@@ -8,6 +8,17 @@ vi.mock("@/lib/utils", () => ({
 import { MessageMarkdown } from "../message-markdown";
 
 describe("MessageMarkdown", () => {
+  it("Should preserve authored image references without requesting filesystem paths from the app", () => {
+    const { container, rerender } = render(
+      <MessageMarkdown content="![Preview](/tmp/demo/screen.png)" />
+    );
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("/tmp/demo/screen.png")).toBeInTheDocument();
+    rerender(<MessageMarkdown reveal content="![Preview](/tmp/demo/screen.png)" />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("/tmp/demo/screen.png")).toBeInTheDocument();
+  });
+
   it("renders fenced code through the shared CodeBlock primitive", async () => {
     const { container } = render(
       <MessageMarkdown content={"```typescript\nconst value = 1;\n```"} />
