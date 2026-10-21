@@ -8,6 +8,7 @@
 - Session event store ownership
 - Background roles and usage cost
 - Subagents
+- Provider usage (experimental)
 - MCP serve and onboarding
 - Gateway exposure and device authentication
 - Remote CLI profiles and SSH forwards
@@ -968,6 +969,41 @@ settled with `done` or `end_turn` is reaped as completed, while a prompt still i
 as a timeout. Both paths retain the `spawn_reaper:ttl_expired` stop origin.
 
 Loop Goal sessions also record the session that started the Loop as internal creation provenance when that origin is available. They remain `type=system`: the parent/root/depth fields are informational and do not grant safe-spawn policy, caps, TTL, or parent-stop cleanup. If the origin was deleted before Goal creation, the Goal is created as its own root; deleting an origin after creation preserves the Goal and its recorded lineage.
+
+## Provider Usage (experimental)
+
+The daemon collects subscription limits, reset times, credits, balances, and spending caps per
+operator profile and keeps them in memory only. Every surface reads one envelope:
+`compozy provider usage list [provider] [-o json]` (cache only, never contacts providers),
+`compozy provider usage refresh [provider] [--wait 0s–30s, default 15s] [--max-age <dur>]`,
+`GET /api/provider-usage`, `GET /api/provider-usage/providers/{provider_id}`,
+`POST /api/provider-usage/refresh`, and SSE `GET /api/provider-usage/stream` (`ready`,
+`provider_usage_changed`, each with `revision` and `boot_id`; re-read the envelope on every event; a
+new `boot_id` means revisions restarted). The CLI table has one row per known provider; both verbs
+exit `0` even when rows fail and `1` for request errors (`invalid_request`, `provider_not_found`,
+`provider_usage_disabled`, profile errors). A successful collection in the last 30 seconds is never
+repeated; `--max-age` only raises that floor.
+
+Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
+`kimi-cli`, `cursor`, and `gemini`; every other provider reports `unsupported` (`no_collector`). They
+use only the credentials the profile's route resolves and never write credential files (the Codex CLI
+may renew its own login). Codex runs only with its file credential store; `keyring`/`auto` report
+`unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.
+
+Refresh intent is `background` (scheduler, popover open, agents, gateway devices, app tokens) or
+`explicit` (local desktop Refresh/Allow and the local CLI). Only explicit refreshes may read the
+macOS Keychain, and only with `provider_usage.providers.claude.keychain_access = true`; the loaded
+Claude token is reused in memory by background refreshes until it expires or the account changes.
+Foreign-origin app tokens may read but not refresh (`app_token_route_forbidden`). An agent without
+a `profile` reads its own session profile; naming another fails with `profile_session_conflict`.
+
+Per-row recovery: `signed_out` → the operator signs in with the provider's own CLI; `needs_consent`
+`keychain_consent_required`/`keychain_denied` → the operator clicks **Allow**/**Try again** or runs
+`compozy config set provider_usage.providers.claude.keychain_access true` then
+`compozy provider usage refresh claude` on the daemon host; `keychain_token_expired` → an explicit
+local refresh; `rate_limited`/`error`/`stale` → retry later; `disabled` → re-enable under
+`provider_usage.providers.<id>.enabled`. After a daemon restart rows are `refreshing` until their first
+collection, and a Keychain-backed Claude row asks for an explicit refresh again.
 
 ## MCP Serve
 

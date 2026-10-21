@@ -23,6 +23,7 @@
 - Window manager
 - Terminal
 - Shell session preferences
+- Provider usage
 
 ## Desired State And Apply Lifecycle
 
@@ -524,3 +525,20 @@ authoritative.
 Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`. The PATCH
 request replaces the complete `shell` config section, so read the current section before changing
 one field.
+
+## Provider Usage
+
+`[provider_usage]` is experimental, user/machine scope only, and applies live. Workspace config that
+sets it fails to load (`provider_usage settings are global-only`) and profile overlays reject it
+(`profile_config_key_denied`).
+
+| Key                                               | Default | Notes                                                                             |
+| ------------------------------------------------- | ------- | --------------------------------------------------------------------------------- |
+| `provider_usage.enabled`                          | `true`  | `false` removes the tray meter, stops collection, and empties envelopes.          |
+| `provider_usage.refresh_interval`                 | `5m`    | Background cadence, `1m`–`1h`.                                                    |
+| `provider_usage.providers.<id>.enabled`           | `true`  | Canonical built-in or configured provider ID; `false` hides that provider.        |
+| `provider_usage.providers.claude.keychain_access` | `false` | macOS consent for explicit local Keychain reads; turning it off clears the token. |
+
+Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/settings/provider-usage`
+(the PATCH body carries the complete `config` section). Consent alone never reads the Keychain: a read
+still needs an explicit local refresh, which agents cannot make.
