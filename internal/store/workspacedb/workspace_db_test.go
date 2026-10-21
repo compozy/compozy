@@ -22,13 +22,15 @@ func TestOpen(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		workspaceRoot := t.TempDir()
-		db := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		options := Options{HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: workspaceRoot}
+		db := openWorkspaceTestDB(ctx, t, options)
 
-		realWorkspaceRoot, err := filepath.EvalSymlinks(workspaceRoot)
-		if err != nil {
-			t.Fatalf("EvalSymlinks(workspaceRoot) error = %v", err)
-		}
-		if got, want := db.Path(), filepath.Join(realWorkspaceRoot, ".compozy", store.GlobalDatabaseName); got != want {
+		if got, want := db.Path(), filepath.Join(
+			options.HomeDir,
+			"workspaces",
+			options.WorkspaceID,
+			store.GlobalDatabaseName,
+		); got != want {
 			t.Fatalf("Path() = %q, want %q", got, want)
 		}
 		if !compozyworkspace.IsWorkspaceID(db.WorkspaceID()) {
@@ -63,7 +65,7 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("Close(first) error = %v", err)
 		}
 
-		reopened := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		reopened := openWorkspaceTestDB(ctx, t, options)
 		secondStatus, err := store.Status(ctx, reopened.DB(), MigrationStream())
 		if err != nil {
 			t.Fatalf("Status(reopen) error = %v", err)
@@ -72,6 +74,12 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("Status(reopen) = %#v, want unchanged %#v", secondStatus, firstStatus)
 		}
 		assertTerminalRowCounts(ctx, t, reopened.DB(), 1)
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			path := filepath.Join(workspaceRoot, ".compozy", store.GlobalDatabaseName) + suffix
+			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("workspace SQLite file %q: %v, want not exist", path, err)
+			}
+		}
 		if _, err := reopened.DB().ExecContext(
 			ctx,
 			`UPDATE terminal_commands SET profile_id = 'profile-2' WHERE id = 'cmd-1'`,
@@ -80,12 +88,34 @@ func TestOpen(t *testing.T) {
 		}
 	})
 
+	t.Run("Should leave the retired workspace database untouched", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		options := Options{HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: t.TempDir()}
+		identity, err := compozyworkspace.EnsureIdentity(ctx, options.WorkspaceRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		oldPath := filepath.Join(filepath.Dir(identity.Path), store.GlobalDatabaseName)
+		const canary = "retired workspace database must not be opened or modified"
+		if err := os.WriteFile(oldPath, []byte(canary), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		db := openWorkspaceTestDB(ctx, t, options)
+		assertTerminalRowCounts(ctx, t, db.DB(), 0)
+		contents, err := os.ReadFile(oldPath)
+		if err != nil || string(contents) != canary {
+			t.Fatalf("retired database = %q, %v; want unchanged canary", contents, err)
+		}
+	})
+
 	t.Run("Should surface the shared engine ahead-schema error", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		workspaceRoot := t.TempDir()
-		db := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		options := Options{HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: workspaceRoot}
+		db := openWorkspaceTestDB(ctx, t, options)
 		if _, err := db.DB().ExecContext(
 			ctx,
 			`INSERT INTO goose_db_version_workspace (version_id, is_applied) VALUES (99, 1)`,
@@ -96,7 +126,7 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("Close() error = %v", err)
 		}
 
-		_, err := Open(ctx, Options{WorkspaceRoot: workspaceRoot})
+		_, err := Open(ctx, options)
 		if !errors.Is(err, store.ErrSchemaAhead) {
 			t.Fatalf("Open(ahead schema) error = %v, want ErrSchemaAhead", err)
 		}
@@ -105,13 +135,25 @@ func TestOpen(t *testing.T) {
 		}
 	})
 
-	t.Run("Should isolate rows across workspace database files", func(t *testing.T) {
+	t.Run("Should isolate rows across workspaces and daemon homes", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		first := openWorkspaceTestDB(ctx, t, t.TempDir())
-		second := openWorkspaceTestDB(ctx, t, t.TempDir())
-		for _, db := range []*DB{first, second} {
+		homeDir := t.TempDir()
+		first := openWorkspaceTestDB(
+			ctx,
+			t,
+			Options{HomeDir: homeDir, WorkspaceID: "workspace-a", WorkspaceRoot: t.TempDir()},
+		)
+		second := openWorkspaceTestDB(
+			ctx,
+			t,
+			Options{HomeDir: homeDir, WorkspaceID: "workspace-b", WorkspaceRoot: t.TempDir()},
+		)
+		otherHome := openWorkspaceTestDB(ctx, t, Options{
+			HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: first.WorkspaceRoot(),
+		})
+		for _, db := range []*DB{first, second, otherHome} {
 			if _, err := db.DB().ExecContext(ctx, `CREATE TABLE records (id TEXT PRIMARY KEY)`); err != nil {
 				t.Fatalf("Create records table error = %v", err)
 			}
@@ -127,18 +169,20 @@ func TestOpen(t *testing.T) {
 		assertWorkspaceRecordCount(ctx, t, first.DB(), "second", 0)
 		assertWorkspaceRecordCount(ctx, t, second.DB(), "second", 1)
 		assertWorkspaceRecordCount(ctx, t, second.DB(), "first", 0)
+		assertWorkspaceRecordCount(ctx, t, otherHome.DB(), "first", 0)
+		assertWorkspaceRecordCount(ctx, t, otherHome.DB(), "second", 0)
 	})
 
-	t.Run("Should support the package-owned helper and idempotent close", func(t *testing.T) {
+	t.Run("Should support idempotent close", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		db, err := OpenWorkspace(ctx, t.TempDir())
+		db, err := Open(ctx, Options{HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: t.TempDir()})
 		if err != nil {
-			t.Fatalf("OpenWorkspace() error = %v", err)
+			t.Fatalf("Open() error = %v", err)
 		}
 		if db.DB() == nil || db.WorkspaceRoot() == "" || db.Path() == "" || db.WorkspaceID() == "" {
-			t.Fatalf("OpenWorkspace() returned incomplete database: %#v", db)
+			t.Fatalf("Open() returned incomplete database: %#v", db)
 		}
 		if err := db.Close(ctx); err != nil {
 			t.Fatalf("Close(first) error = %v", err)
@@ -153,7 +197,8 @@ func TestOpen(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
 		workspaceRoot := t.TempDir()
-		db := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		options := Options{HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: workspaceRoot}
+		db := openWorkspaceTestDB(ctx, t, options)
 		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
 			id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
 		) VALUES ('rec-before', 'term-1', 'profile-1', 'digest-before', '/tmp/before', 10, 12, 100)`); err != nil {
@@ -204,7 +249,7 @@ func TestOpen(t *testing.T) {
 		if err := reader.Rollback(); err != nil {
 			t.Fatal(err)
 		}
-		reopened := openWorkspaceTestDB(ctx, t, workspaceRoot)
+		reopened := openWorkspaceTestDB(ctx, t, options)
 		var bytes int
 		if err := reopened.DB().QueryRowContext(ctx, `SELECT bytes FROM terminal_recordings WHERE id = 'rec-after'`).
 			Scan(&bytes); err != nil || bytes != 24 {
@@ -219,6 +264,11 @@ func TestOpen(t *testing.T) {
 		if _, err := Open(ctx, Options{WorkspaceRoot: "   "}); err == nil {
 			t.Fatal("Open(blank root) error = nil, want validation error")
 		}
+		if _, err := NewPool("", func(context.Context, string) (ResolvedRoot, error) {
+			return ResolvedRoot{}, nil
+		}); err == nil {
+			t.Fatal("NewPool(blank home) error = nil, want validation error")
+		}
 		var nilDB *DB
 		if nilDB.Path() != "" || nilDB.WorkspaceID() != "" || nilDB.WorkspaceRoot() != "" || nilDB.DB() != nil {
 			t.Fatal("nil DB accessors returned non-zero values")
@@ -227,6 +277,18 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("nil DB Close() error = %v", err)
 		}
 	})
+
+	for _, workspaceID := range []string{"", ".", "..", "../other", "other/nested", `other\nested`, "C:other"} {
+		t.Run("Should reject unsafe workspace storage id "+workspaceID, func(t *testing.T) {
+			t.Parallel()
+			_, err := Open(t.Context(), Options{
+				HomeDir: t.TempDir(), WorkspaceID: workspaceID, WorkspaceRoot: t.TempDir(),
+			})
+			if err == nil {
+				t.Fatal("Open(unsafe workspace id) error = nil, want validation error")
+			}
+		})
+	}
 
 	t.Run("Should reuse and close per-workspace pool handles", func(t *testing.T) {
 		t.Parallel()
@@ -238,7 +300,7 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 		const registrationID = "ws_0123456789abcdef"
-		pool, err := NewPool(func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
+		pool, err := NewPool(t.TempDir(), func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
 			if workspaceID != registrationID {
 				return ResolvedRoot{}, errors.New("unexpected workspace")
 			}
@@ -284,7 +346,7 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		pool, err := NewPool(func(context.Context, string) (ResolvedRoot, error) {
+		pool, err := NewPool(t.TempDir(), func(context.Context, string) (ResolvedRoot, error) {
 			return ResolvedRoot{RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID}, nil
 		})
 		if err != nil {
@@ -333,7 +395,7 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		pool, err := NewPool(func(context.Context, string) (ResolvedRoot, error) {
+		pool, err := NewPool(t.TempDir(), func(context.Context, string) (ResolvedRoot, error) {
 			return ResolvedRoot{RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID}, nil
 		})
 		if err != nil {
@@ -343,9 +405,9 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
-		preparation, err := pool.PrepareWorkspaceRemovalAt(ctx, "workspace-a", workspaceRoot)
+		preparation, err := pool.PrepareWorkspaceRemoval(ctx, "workspace-a")
 		if err != nil {
-			t.Fatalf("PrepareWorkspaceRemovalAt() error = %v", err)
+			t.Fatalf("PrepareWorkspaceRemoval() error = %v", err)
 		}
 		if err := preparation.BeforeDelete(ctx); err != nil {
 			t.Fatalf("BeforeDelete() error = %v", err)
@@ -363,7 +425,7 @@ func TestOpen(t *testing.T) {
 		}
 	})
 
-	t.Run("Should remove workspace database files after its handle was closed", func(t *testing.T) {
+	t.Run("Should remove workspace database files after restart without the project root", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -373,7 +435,8 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 		const registrationID = "ws_1123456789abcdef"
-		pool, err := NewPool(func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
+		homeDir := t.TempDir()
+		pool, err := NewPool(homeDir, func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
 			if workspaceID != registrationID {
 				return ResolvedRoot{}, errors.New("unexpected workspace")
 			}
@@ -387,14 +450,39 @@ func TestOpen(t *testing.T) {
 			t.Fatalf("Pool.Open() error = %v", err)
 		}
 		dbPath := db.Path()
-		if err := pool.CloseWorkspace(ctx, registrationID); err != nil {
-			t.Fatalf("Pool.CloseWorkspace() error = %v", err)
+		if err := pool.Close(ctx); err != nil {
+			t.Fatalf("Pool.Close() error = %v", err)
 		}
-		if err := pool.RemoveWorkspace(ctx, registrationID); err != nil {
+		sibling := openWorkspaceTestDB(ctx, t, Options{
+			HomeDir: homeDir, WorkspaceID: "workspace-b", WorkspaceRoot: t.TempDir(),
+		})
+		if err := os.RemoveAll(workspaceRoot); err != nil {
+			t.Fatal(err)
+		}
+		restarted, err := NewPool(homeDir, func(context.Context, string) (ResolvedRoot, error) {
+			return ResolvedRoot{}, errors.New("workspace registration no longer exists")
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := restarted.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := restarted.RemoveWorkspace(ctx, registrationID); err != nil {
 			t.Fatalf("Pool.RemoveWorkspace() error = %v", err)
 		}
-		if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
-			t.Fatalf("Stat(%q) error = %v, want %v", dbPath, err, os.ErrNotExist)
+		for _, suffix := range []string{"", "-wal", "-shm"} {
+			if _, err := os.Stat(dbPath + suffix); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Stat(%q) error = %v, want %v", dbPath+suffix, err, os.ErrNotExist)
+			}
+		}
+		if err := sibling.DB().PingContext(ctx); err != nil {
+			t.Fatalf("sibling database unavailable after removal: %v", err)
+		}
+		if _, err := os.Stat(sibling.Path()); err != nil {
+			t.Fatalf("sibling database missing after removal: %v", err)
 		}
 	})
 
@@ -418,7 +506,7 @@ func TestOpen(t *testing.T) {
 			firstRegistrationID  = "ws_2123456789abcdef"
 			secondRegistrationID = "ws_3123456789abcdef"
 		)
-		pool, err := NewPool(func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
+		pool, err := NewPool(t.TempDir(), func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
 			switch workspaceID {
 			case firstRegistrationID:
 				close(firstEntered)
@@ -467,15 +555,15 @@ func TestOpen(t *testing.T) {
 	})
 }
 
-func openWorkspaceTestDB(ctx context.Context, t *testing.T, workspaceRoot string) *DB {
+func openWorkspaceTestDB(ctx context.Context, t *testing.T, options Options) *DB {
 	t.Helper()
-	db, err := Open(ctx, Options{WorkspaceRoot: workspaceRoot})
+	db, err := Open(ctx, options)
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := db.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("DB.Close() error = %v", err)
+			t.Errorf("DB.Close() error = %v", err)
 		}
 	})
 	return db
@@ -546,7 +634,11 @@ func TestSweepExpiredTerminalFiles(t *testing.T) {
 	t.Run("Should remove expired recordings while retaining commands and shared artifacts", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
-		db := openWorkspaceTestDB(ctx, t, t.TempDir())
+		db := openWorkspaceTestDB(
+			ctx,
+			t,
+			Options{HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: t.TempDir()},
+		)
 		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
 			id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
 		) VALUES ('expired', 'terminal', 'profile', 'digest', '/expired', 1, 10, 100),
@@ -591,7 +683,11 @@ func TestSweepExpiredTerminalFiles(t *testing.T) {
 	t.Run("Should leave the writer available when no terminal files have expired", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
-		db := openWorkspaceTestDB(ctx, t, t.TempDir())
+		db := openWorkspaceTestDB(
+			ctx,
+			t,
+			Options{HomeDir: t.TempDir(), WorkspaceID: "workspace-a", WorkspaceRoot: t.TempDir()},
+		)
 		writer, err := db.DB().Conn(ctx)
 		if err != nil {
 			t.Fatal(err)

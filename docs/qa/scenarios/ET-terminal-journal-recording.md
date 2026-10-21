@@ -33,6 +33,7 @@ Walk:
 3. Verify an empty filtered result does not claim the project has no history.
 4. Replay a recording and return to its journal row; compare the CLI and browser record.
 5. Select a bounded terminal range and send it to the active session composer; verify the `<terminal_context>` source terminal, line range, and untrusted marker survive sending.
+6. With an isolated `COMPOZY_HOME`, execute terminal commands in two registered workspaces. Verify their databases and SQLite sidecars live under `<home>/workspaces/<registered-id>/`, with no SQLite files created in either project's `.compozy/`. Reopen the stores and verify history and profile isolation; a second daemon home must have independent history. Unregister a workspace after restarting with its project root missing and verify only its home-owned database is removed. A pre-existing project-local database must remain untouched and must not be read.
 
 2026-08-30 CI repair re-walk: passed. Current-tree E2E-001 and E2E-020 proved that Bash prompt
 integration persists the operator's real command rather than its own prompt hook, both through the CLI
@@ -45,3 +46,9 @@ SQLite audit 2026-10-09: Run retention while an unrelated writer is held and no 
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+Storage verification 2026-10-21: `TestOpen` and the terminal journal suite passed with real SQLite
+and `-race`, covering step 6's home/workspace partition, reopen, retired-file preservation and
+removal without a project root. The existing HTTP/WebSocket, UDS/WebSocket and ACP terminal
+integration journeys also passed with real terminal processes. This storage slice does not
+replace the historical browser recording/selection verdict.

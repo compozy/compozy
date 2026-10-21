@@ -25,10 +25,12 @@ type DB struct {
 
 // Options configures a per-workspace database open.
 type Options struct {
+	HomeDir       string
+	WorkspaceID   string
 	WorkspaceRoot string
 }
 
-// Open resolves the workspace identity and opens <workspace>/.compozy/compozy.db.
+// Open resolves the workspace identity and opens <home>/workspaces/<registration-id>/compozy.db.
 func Open(ctx context.Context, opts Options) (*DB, error) {
 	if ctx == nil {
 		return nil, errors.New("store: open workspace database context is required")
@@ -37,12 +39,15 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 	if workspaceRoot == "" {
 		return nil, errors.New("store: workspace root is required")
 	}
+	dbPath, err := workspaceDatabasePath(opts.HomeDir, opts.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
 
 	identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
 	if err != nil {
 		return nil, fmt.Errorf("store: resolve workspace identity for %q: %w", workspaceRoot, err)
 	}
-	dbPath := filepath.Join(filepath.Dir(identity.Path), store.GlobalDatabaseName)
 	db, err := store.OpenSQLiteDatabase(ctx, dbPath, func(ctx context.Context, db *sql.DB) error {
 		return store.Apply(ctx, db, MigrationStream())
 	})
@@ -58,9 +63,16 @@ func Open(ctx context.Context, opts Options) (*DB, error) {
 	}, nil
 }
 
-// OpenWorkspace opens a workspace database using its package-owned schema stream.
-func OpenWorkspace(ctx context.Context, workspaceRoot string) (*DB, error) {
-	return Open(ctx, Options{WorkspaceRoot: workspaceRoot})
+func workspaceDatabasePath(homeDir, workspaceID string) (string, error) {
+	homeDir = strings.TrimSpace(homeDir)
+	if homeDir == "" || !filepath.IsAbs(homeDir) {
+		return "", errors.New("store: absolute home directory is required")
+	}
+	workspaceID, err := normalizeWorkspaceID(workspaceID)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, "workspaces", workspaceID, store.GlobalDatabaseName), nil
 }
 
 // Path reports the database path.

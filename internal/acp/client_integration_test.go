@@ -237,7 +237,8 @@ func newIntegrationTerminalDriver(t *testing.T, root string) (*Driver, string) {
 	if err != nil {
 		t.Fatalf("EnsureIdentity() error = %v", err)
 	}
-	pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+	homeDir := t.TempDir()
+	pool, err := workspacedb.NewPool(homeDir, func(context.Context, string) (workspacedb.ResolvedRoot, error) {
 		return workspacedb.ResolvedRoot{RootDir: root, WorkspaceID: identity.WorkspaceID}, nil
 	})
 	if err != nil {
@@ -248,7 +249,7 @@ func newIntegrationTerminalDriver(t *testing.T, root string) (*Driver, string) {
 			t.Errorf("Close(workspace pool): %v", err)
 		}
 	})
-	journal, err := terminaljournal.New(t.Context(), terminaljournal.Options{Databases: pool, HomeDir: t.TempDir()})
+	journal, err := terminaljournal.New(t.Context(), terminaljournal.Options{Databases: pool, HomeDir: homeDir})
 	if err != nil {
 		t.Fatalf("NewJournal() error = %v", err)
 	}

@@ -62,7 +62,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+		pool, err := workspacedb.NewPool(home.HomeDir, func(context.Context, string) (workspacedb.ResolvedRoot, error) {
 			return workspacedb.ResolvedRoot{RootDir: root, WorkspaceID: resolved.WorkspaceID}, nil
 		})
 		if err != nil {
@@ -73,7 +73,10 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 				t.Errorf("Close(workspace pool): %v", err)
 			}
 		})
-		journal, err := terminaljournal.New(t.Context(), terminaljournal.Options{Databases: pool, HomeDir: t.TempDir()})
+		journal, err := terminaljournal.New(
+			t.Context(),
+			terminaljournal.Options{Databases: pool, HomeDir: home.HomeDir},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

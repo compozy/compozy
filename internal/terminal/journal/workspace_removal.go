@@ -45,16 +45,9 @@ func (s *Service) PrepareWorkspaceRemoval(
 func (s *Service) PrepareWorkspaceRemovalAt(
 	ctx context.Context,
 	workspaceID string,
-	rootDir string,
+	_ string,
 ) (workspacepkg.UnregisterPreparation, error) {
-	if s == nil {
-		return nil, errors.New("terminal journal: service is required")
-	}
-	if err := s.pinWorkspaceDatabaseForRemoval(ctx, workspaceID); err != nil {
-		return nil, err
-	}
-	databasePreparation, err := s.databases.PrepareWorkspaceRemovalAt(ctx, workspaceID, rootDir)
-	return s.newWorkspaceRemovalPreparation(workspaceID, databasePreparation, err)
+	return s.PrepareWorkspaceRemoval(ctx, workspaceID)
 }
 
 func (s *Service) pinWorkspaceDatabaseForRemoval(ctx context.Context, workspaceID string) error {
