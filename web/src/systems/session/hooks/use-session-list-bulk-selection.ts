@@ -9,6 +9,10 @@ import {
 } from "../lib/session-list-threads";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
+import {
+  useSessionListBulkFolders,
+  type SessionBulkFolderSource,
+} from "./use-session-list-bulk-folders";
 import { sessionSelectionCounts, useSessionSelection } from "./use-session-selection";
 
 interface SessionListBulkSelectionInput {
@@ -18,6 +22,8 @@ interface SessionListBulkSelectionInput {
   threads: readonly SessionThreadModel[];
   collapsedThreads: ReadonlySet<string>;
   sessionActions: SessionLifecycleActionHandlers;
+  /** The list's folder layouts; absent while the list has no folders to move into. */
+  folders: SessionBulkFolderSource;
 }
 
 type ManyHandler = ((sessions: readonly SessionPayload[]) => void) | undefined;
@@ -29,8 +35,9 @@ function bindToSelection(handler: ManyHandler, selected: readonly SessionPayload
 
 /**
  * The list's bulk selection: the visible row order, the per-row selection
- * contract, the selection bar's counts and verbs, and the list keyboard
- * shortcuts. `All workspaces` is read-only, so it selects nothing.
+ * contract, the selection bar's counts and verbs, folder moves by menu and
+ * drag, and the list keyboard shortcuts. `All workspaces` is read-only, so it
+ * selects nothing.
  */
 export function useSessionListBulkSelection({
   scope,
@@ -39,6 +46,7 @@ export function useSessionListBulkSelection({
   threads,
   collapsedThreads,
   sessionActions,
+  folders,
 }: SessionListBulkSelectionInput) {
   const allWorkspaces = scope === "all-workspaces";
   const selection = useSessionSelection(scope, archived, sessions);
@@ -50,7 +58,16 @@ export function useSessionListBulkSelection({
     return session ? [session] : [];
   });
   const selectedIdSet = new Set(selection.selectedIds);
-  const actionPending = sessionActions.pendingAction !== null;
+  const lifecyclePending = sessionActions.pendingAction !== null;
+  const folderMove = useSessionListBulkFolders({
+    source: allWorkspaces ? {} : folders,
+    sessions: catalog,
+    selectedIds: selectedIdSet,
+    visibleOrder,
+    busy: lifecyclePending,
+    onMoved: selection.clear,
+  });
+  const actionPending = lifecyclePending || (folderMove?.pending ?? false);
   const { onDeleteMany } = sessionActions;
   const deleteSelected = onDeleteMany
     ? () =>
@@ -94,7 +111,11 @@ export function useSessionListBulkSelection({
       onStop: bindToSelection(sessionActions.onStopMany, selectedSessions),
       onArchive: bindToSelection(sessionActions.onArchiveMany, selectedSessions),
       onUnarchive: bindToSelection(sessionActions.onUnarchiveMany, selectedSessions),
+      folders: folderMove?.menu,
     },
+    /** What dragging a selected row carries; absent without folders. */
+    drag: folderMove?.drag,
+    folderMove,
     onKeyDown,
   };
 }

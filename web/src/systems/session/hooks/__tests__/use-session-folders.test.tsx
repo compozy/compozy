@@ -1,7 +1,8 @@
 // Suite: session folder layout writes
 // Invariant: a manual reorder patches the served catalog page at once, sends the
 // container's full order to the daemon, and restores the whole envelope when
-// the daemon refuses; a delete clears membership optimistically; a failed folder
+// the daemon refuses; a bulk move is one atomic write that settles its promise
+// with the daemon's answer; a delete clears membership optimistically; a failed folder
 // read keeps the list flat and offers a retry that loads the layout.
 // Owning layer: useSessionFolders (query cache + adapter); fetch is the I/O boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -146,6 +147,45 @@ describe("useSessionFolders", () => {
       session_ids: ["a", "c"],
     });
     expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      200,
+      [
+        ["b", "sfold-a"],
+        ["a", "sfold-a"],
+        ["c", "sfold-a"],
+      ],
+    ],
+    [
+      409,
+      [
+        ["a", null],
+        ["b", null],
+        ["c", "sfold-a"],
+      ],
+    ],
+  ])("Should move several sessions in one write (daemon answers %i)", async (status, settled) => {
+    const { result, writes, order } = setup(status);
+    await waitFor(() => expect(result.current.layout?.folders).toHaveLength(1));
+
+    let outcome: Promise<void> | undefined;
+    act(() => {
+      outcome = result.current.layout?.moveSessions(["b", "a"], "sfold-a");
+    });
+    if (status === 200) await act(async () => outcome);
+    else await act(async () => expect(outcome).rejects.toThrow("layout changed concurrently"));
+
+    expect(writes).toHaveLength(1);
+    expect(new URL(writes[0]!.url).pathname).toBe("/api/workspaces/ws/session-order/sessions");
+    expect(await writes[0]!.clone().json()).toEqual({
+      folder_id: "sfold-a",
+      session_ids: ["b", "a"],
+    });
+    expect(order()).toEqual(settled);
+    if (status === 200) expect(toastError).not.toHaveBeenCalled();
+    else expect(toastError).toHaveBeenCalledWith("Couldn't move the sessions.", expect.anything());
   });
 
   it("Should send rapid layout writes one at a time in action order", async () => {

@@ -37,6 +37,12 @@ export interface SessionListLayout {
   reorderFolders: (folderIds: readonly string[]) => void;
   /** Moves a session to the end of a folder, or back to the root when `folderId` is null. */
   moveSession: (sessionId: string, folderId: string | null) => void;
+  /**
+   * Moves several sessions into a folder, or the root when `folderId` is null, in
+   * one atomic write. They land first in the container, in the listed order.
+   * Rejects after the daemon refuses; the failure is already reported.
+   */
+  moveSessions: (sessionIds: readonly string[], folderId: string | null) => Promise<void>;
   /** Pins a container's full visible order; `folderId` null is the workspace root. */
   reorderSessions: (folderId: string | null, sessionIds: readonly string[]) => void;
 }
@@ -174,6 +180,13 @@ export function useSessionFolders(options: {
         request: () => moveSessionToFolder(scope, sessionId, folderId),
         optimistic: () =>
           patchSessions(sessions => applySessionMove(sessions, sessionId, folderId)),
+      }),
+    moveSessions: (sessionIds, folderId) =>
+      write({
+        failure: "Couldn't move the sessions.",
+        request: () => reorderSessions(scope, folderId, sessionIds),
+        optimistic: () =>
+          patchSessions(sessions => applySessionOrder(sessions, folderId, sessionIds)),
       }),
     reorderSessions: (folderId, sessionIds) =>
       fireAndForget({

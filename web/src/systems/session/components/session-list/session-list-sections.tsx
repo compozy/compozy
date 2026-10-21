@@ -10,9 +10,11 @@ import type { SessionListLayout } from "../../hooks/use-session-folders";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import {
   folderDropEdge,
+  rowDragged,
   rowDropEdge,
   type SessionDropContainer,
   type SessionListDnd,
+  type SessionSelectionDrag,
 } from "../../hooks/use-session-list-dnd";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 import {
@@ -31,6 +33,8 @@ export interface SessionListSectionsProps {
   sections: Sections;
   layout: SessionListLayout;
   dnd?: SessionListDnd;
+  /** What dragging a selected row carries; selected rows drag alone without it. */
+  selectionDrag?: SessionSelectionDrag;
   /** Manual sort is on and no filter narrows the list, so order verbs apply. */
   orderable: boolean;
   /** A filter is active: every surviving folder opens. */
@@ -60,6 +64,7 @@ export function SessionListSections({
   ownerOf,
   layout,
   dnd,
+  selectionDrag,
   orderable,
   filtering,
   collapsedThreads,
@@ -94,9 +99,9 @@ export function SessionListSections({
         onMove: folderId => layout.moveSession(id, folderId),
         ...(orderable ? { onMoveUp: reorder(-1), onMoveDown: reorder(1) } : {}),
       },
-      drag: dnd?.sessionRow(id, container),
+      drag: dnd?.sessionRow(id, container, selectionDrag),
       dropEdge: rowDropEdge(dnd?.indicator ?? null, id),
-      dragging: dnd?.dragging?.kind === "session" && dnd.dragging.id === id,
+      dragging: rowDragged(dnd?.dragging ?? null, id),
     };
   };
   const renderThreads = (threads: readonly SessionThreadModel[], folderId: string | null) => {
@@ -147,6 +152,7 @@ export function SessionListSections({
             onMoveUp={folderIds.length > 1 ? moveFolder(folder, -1) : undefined}
             onMoveDown={folderIds.length > 1 ? moveFolder(folder, 1) : undefined}
             drag={dnd?.folderHeader(folder.id)}
+            dropZone={dnd?.folderZone(folder.id)}
             dropEdge={folderDropEdge(dnd?.indicator ?? null, folder.id)}
             dragging={dnd?.dragging?.kind === "folder" && dnd.dragging.id === folder.id}
             testIdPrefix={testIdPrefix}

@@ -1,14 +1,36 @@
 import { useState, type DragEvent } from "react";
+import { toast } from "sonner";
 
 import { placeId } from "../lib/session-folders";
 import type { SessionListLayout } from "./use-session-folders";
 
 export type SessionDropPosition = "before" | "after";
 
-/** What the operator is dragging: a root session row or a folder header. */
+/** What the operator is dragging: a root session row, the selection, or a folder header. */
 export type SessionDragItem =
   | { kind: "session"; id: string; folderId: string | null }
+  | {
+      kind: "selection";
+      ids: readonly string[];
+      folderIds: readonly (string | null)[];
+      move: (folderId: string | null) => void;
+    }
   | { kind: "folder"; id: string };
+
+/** The selection a drag from one of its rows carries into a folder or the root. */
+export interface SessionSelectionDrag {
+  /** Rows whose drag carries the selection instead of the row alone. */
+  selectedIds: ReadonlySet<string>;
+  /** Movable root sessions in on-screen order, with the folder each sits in. */
+  sessions: readonly { id: string; folderId: string | null }[];
+  /** Why the selection cannot move; a drag from a selected row is refused with it. */
+  blockedReason: string | null;
+  /** Another bulk operation is running; selected rows do not drag meanwhile. */
+  disabled: boolean;
+  /** The off-screen count preview the browser shows under the pointer. */
+  preview: HTMLElement | null;
+  move: (folderId: string | null) => void;
+}
 
 /** Where the dragged item would land; drives the visible drop indicator. */
 export type SessionDropIndicator =
@@ -30,10 +52,19 @@ export type SessionDragHandlers = Pick<
 export interface SessionListDnd {
   dragging: SessionDragItem | null;
   indicator: SessionDropIndicator | null;
-  /** Drag source and reorder target for one root session row. */
-  sessionRow: (sessionId: string, container: SessionDropContainer) => SessionDragHandlers;
+  /**
+   * Drag source and reorder target for one root session row. A selected row
+   * drags the whole `selection` instead.
+   */
+  sessionRow: (
+    sessionId: string,
+    container: SessionDropContainer,
+    selection?: SessionSelectionDrag
+  ) => SessionDragHandlers;
   /** Drag source for folder reorder and drop target for "move into folder". */
   folderHeader: (folderId: string) => SessionDragHandlers;
+  /** The whole folder (header and members): where a dragged selection drops in. */
+  folderZone: (folderId: string) => SessionDragHandlers;
   /** The root section: dropping a foldered session there removes it from its folder. */
   rootZone: () => SessionDragHandlers;
 }
@@ -47,7 +78,8 @@ const DRAG_MIME = "application/x-compozy-session-layout";
  * sort since folders always keep their manual order.
  *
  * Every drop resolves to one layout verb; the menu items expose the same verbs
- * for keyboard use.
+ * for keyboard use. A dragged selection only moves: it drops anywhere on a
+ * folder or on the root, never between rows.
  */
 export function useSessionListDnd(
   layout: SessionListLayout | undefined,
@@ -60,8 +92,9 @@ export function useSessionListDnd(
 
   const start = (item: SessionDragItem) => (event: DragEvent<HTMLElement>) => {
     event.stopPropagation();
-    event.dataTransfer?.setData(DRAG_MIME, item.id);
-    event.dataTransfer?.setData("text/plain", item.id);
+    const id = item.kind === "selection" ? item.ids.join(",") : item.id;
+    event.dataTransfer?.setData(DRAG_MIME, id);
+    event.dataTransfer?.setData("text/plain", id);
     if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
     setDragging(item);
   };
@@ -81,13 +114,30 @@ export function useSessionListDnd(
     run();
     end();
   };
+  const startSelection = (selection: SessionSelectionDrag) => (event: DragEvent<HTMLElement>) => {
+    if (selection.disabled || selection.blockedReason !== null) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!selection.disabled && selection.blockedReason) toast.warning(selection.blockedReason);
+      return;
+    }
+    if (selection.preview) event.dataTransfer?.setDragImage(selection.preview, 12, 12);
+    start({
+      kind: "selection",
+      ids: selection.sessions.map(session => session.id),
+      folderIds: selection.sessions.map(session => session.folderId),
+      move: selection.move,
+    })(event);
+  };
 
   return {
     dragging,
     indicator,
-    sessionRow: (sessionId, container) => ({
+    sessionRow: (sessionId, container, selection) => ({
       draggable: true,
-      onDragStart: start({ kind: "session", id: sessionId, folderId: container.folderId }),
+      onDragStart: selection?.selectedIds.has(sessionId)
+        ? startSelection(selection)
+        : start({ kind: "session", id: sessionId, folderId: container.folderId }),
       onDragEnd: end,
       onDragOver: event => {
         if (dragging?.kind !== "session" || dragging.id === sessionId || !rowReorder) return;
@@ -139,9 +189,32 @@ export function useSessionListDnd(
         }
       },
     }),
+    folderZone: folderId => ({
+      onDragOver: event => {
+        if (movesSelection(dragging, folderId)) {
+          accept(event, { kind: "folder", folderId, position: "into" });
+        }
+      },
+      onDragLeave: event => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setIndicator(current =>
+            current?.kind === "folder" && current.folderId === folderId ? null : current
+          );
+        }
+      },
+      onDrop: event => {
+        if (dragging?.kind === "selection" && movesSelection(dragging, folderId)) {
+          const { move } = dragging;
+          finish(event, () => move(folderId));
+        }
+      },
+    }),
     rootZone: () => ({
       onDragOver: event => {
-        if (dragging?.kind === "session" && dragging.folderId !== null) {
+        if (
+          (dragging?.kind === "session" && dragging.folderId !== null) ||
+          movesSelection(dragging, null)
+        ) {
           accept(event, { kind: "root" });
         }
       },
@@ -154,10 +227,26 @@ export function useSessionListDnd(
         if (dragging?.kind === "session" && dragging.folderId !== null) {
           const moved = dragging.id;
           finish(event, () => layout.moveSession(moved, null));
+          return;
+        }
+        if (dragging?.kind === "selection" && movesSelection(dragging, null)) {
+          const { move } = dragging;
+          finish(event, () => move(null));
         }
       },
     }),
   };
+}
+
+/** A dragged selection drops only where at least one of its sessions would change place. */
+function movesSelection(dragging: SessionDragItem | null, folderId: string | null): boolean {
+  return dragging?.kind === "selection" && dragging.folderIds.some(current => current !== folderId);
+}
+
+/** This row is being dragged, alone or as part of the selection. */
+export function rowDragged(dragging: SessionDragItem | null, sessionId: string): boolean {
+  if (dragging?.kind === "session") return dragging.id === sessionId;
+  return dragging?.kind === "selection" && dragging.ids.includes(sessionId);
 }
 
 function dropPosition(event: DragEvent<HTMLElement>): SessionDropPosition {

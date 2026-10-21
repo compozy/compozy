@@ -6,6 +6,7 @@ import {
   ConfirmDialog,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -74,6 +75,7 @@ export function SessionFolderDialogs({
   }
 
   const rename = state?.kind === "rename" ? state.folder : null;
+  const moveCount = state?.kind === "create" ? state.moveCount : undefined;
   return (
     <Dialog open={state !== null} onOpenChange={close}>
       <DialogContent
@@ -85,7 +87,14 @@ export function SessionFolderDialogs({
           <SessionFolderNameForm
             key={rename?.id ?? "create"}
             title={rename ? "Rename folder" : "New folder"}
-            confirmLabel={rename ? "Rename folder" : "Create folder"}
+            description={moveCount === undefined ? undefined : selectionMoveDescription(moveCount)}
+            confirmLabel={
+              rename
+                ? "Rename folder"
+                : moveCount === undefined
+                  ? "Create folder"
+                  : "Create and move"
+            }
             confirmIcon={rename ? Pencil : FolderPlus}
             initialName={rename?.name ?? ""}
             pending={pending}
@@ -99,8 +108,15 @@ export function SessionFolderDialogs({
   );
 }
 
+function selectionMoveDescription(count: number): string {
+  return count === 1
+    ? "The session you selected moves into it."
+    : `The ${count} sessions you selected move into it.`;
+}
+
 function SessionFolderNameForm({
   title,
+  description,
   confirmLabel,
   confirmIcon: ConfirmIcon,
   initialName,
@@ -110,6 +126,7 @@ function SessionFolderNameForm({
   onConfirm,
 }: {
   title: string;
+  description?: string;
   confirmLabel: string;
   confirmIcon: typeof Pencil;
   initialName: string;
@@ -137,6 +154,7 @@ function SessionFolderNameForm({
     <form onSubmit={submit} className="flex flex-col gap-4">
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
+        {description ? <DialogDescription>{description}</DialogDescription> : null}
       </DialogHeader>
       <Field data-invalid={Boolean(shownError)}>
         <FieldLabel htmlFor="session-folder-name">Name</FieldLabel>

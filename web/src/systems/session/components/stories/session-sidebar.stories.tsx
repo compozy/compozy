@@ -112,6 +112,7 @@ export const Folders: Story = {
         moveFolder: fn(),
         reorderFolders: fn(),
         moveSession: fn(),
+        moveSessions: fn(async () => undefined),
         reorderSessions: fn(),
       },
     },
@@ -170,6 +171,29 @@ export const SelectionMenuOpen: Story = {
   play: async ({ canvasElement }) => {
     await selectBoardSessions(canvasElement);
     await userEvent.click(within(canvasElement).getByTestId("session-sidebar-selection-more"));
+  },
+};
+
+/**
+ * Move to folder from the selection menu (#879): the folders, No folder because
+ * a selected session is filed, and New folder… to create one around the
+ * selection. A child row in the selection follows its parent.
+ */
+export const SelectionFolderMenu: Story = {
+  tags: ["play-fn"],
+  args: Folders.args,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}");
+    for (const id of ["sess-migration", "sess-pricing", "sess-scrape", "sess-deps"]) {
+      await user.click(canvas.getByTestId(`session-sidebar-session-${id}`));
+    }
+    await user.keyboard("{/Control}");
+    await user.click(canvas.getByTestId("session-sidebar-selection-more"));
+    const body = within(canvasElement.ownerDocument.body);
+    await user.click(await body.findByTestId("session-sidebar-selection-move"));
+    await expect(await body.findByRole("menuitem", { name: "No folder" })).toBeVisible();
   },
 };
 

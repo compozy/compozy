@@ -259,3 +259,54 @@ function withFolder(session: SessionPayload, folderId: string | null): SessionPa
   const { folder_id: _removed, ...rest } = session;
   return rest as SessionPayload;
 }
+
+/** What a selection can move into a folder. */
+export interface SessionBulkMove {
+  /**
+   * Selected thread roots in on-screen order; selected rows a filter or a fold
+   * hides follow in catalog order. Child rows follow their parent and never
+   * move on their own, and neither does a subagent whose parent is gone.
+   */
+  sessions: SessionPayload[];
+  /** Distinct owning profiles; a folder belongs to one profile's layout. */
+  profileIds: string[];
+}
+
+/** Collects the movable part of a selection in the order the operator sees it. */
+export function sessionBulkMove(
+  catalog: readonly SessionPayload[],
+  selectedIds: ReadonlySet<string>,
+  visibleOrder: readonly string[]
+): SessionBulkMove {
+  const rank = new Map(visibleOrder.map((id, index) => [id, index]));
+  const roots = new Set(buildSessionListThreads(catalog, "").map(thread => thread.session.id));
+  const sessions = catalog
+    .flatMap((session, index) =>
+      selectedIds.has(session.id) && roots.has(session.id) && sessionHasOwnPlacement(session)
+        ? [{ session, rank: rank.get(session.id) ?? visibleOrder.length + index }]
+        : []
+    )
+    .sort((left, right) => left.rank - right.rank)
+    .map(entry => entry.session);
+  const profileIds = [...new Set(sessions.map(session => session.profile_id ?? ""))];
+  return { sessions, profileIds };
+}
+
+/** The sessions a move into `folderId` (null: the root) would change; already-filed ones need no write. */
+export function sessionBulkMoveIds(
+  sessions: readonly SessionPayload[],
+  folderId: string | null
+): string[] {
+  return sessions.flatMap(session => (sessionFolderId(session) === folderId ? [] : [session.id]));
+}
+
+/** Why the selection cannot move into a folder, or null when it can. */
+export function sessionBulkMoveBlockedReason(move: SessionBulkMove): string | null {
+  if (move.sessions.length === 0) return "Child sessions move with their parent.";
+  if (move.profileIds.length > 1) return "Select sessions from one profile to move them.";
+  return null;
+}
+
+export function sessionCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "session" : "sessions"}`;
+}

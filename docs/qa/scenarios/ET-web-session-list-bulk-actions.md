@@ -7,7 +7,7 @@ journey: J-14
 expected: Both the session window sidebar and Sessions modal support a transient selection in workspace scope. Eligible actions run sequentially through existing session mutations. Selection follows current catalog membership; successful Stop keeps rows selected, Archive and Unarchive prune rows that leave the view, and failed rows remain selected. Delete confirms the set, reports progress, and retries only failed sessions.
 entry_points: SessionSidebar; Sessions modal in workspace scope; row checkboxes and modifier clicks; Selected sessions toolbar
 qa_status: skipped
-overlaps: ET-web-session-sidebar-threads
+overlaps: ET-web-session-sidebar-threads; ET-web-session-folders-manual-order
 ---
 
 Added 2026-09-11. The visual contract is
@@ -59,6 +59,12 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    with the total deleted across all attempts (singular for one, none for zero).
    The deterministic lifecycle suite owns this I/O failure case when a real
    failure cannot be induced safely.
+
+9. With folders in the workspace, the More menu starts with Move to folder; moving
+   the selection into a folder or out of folders, and dragging a selected row, are
+   specified and walked in ET-web-session-folders-manual-order. While a folder move
+   runs, the selection bar's actions are disabled, and a running lifecycle batch
+   disables folder moves.
 
 Verification ownership: `session-bulk-actions.spec.ts` exercises confirmed deletion
 against an isolated daemon using the existing ACP lifecycle fixture. The selection,
