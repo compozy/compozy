@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { ownerFromRow, useProfileReadScope, type ProfileOwner } from "@/systems/profiles";
 
+import { isSessionUnavailable } from "../adapters/session-api-errors";
 import { sessionAcrossProfilesOptions } from "../lib/query-options";
 import type { SessionPayload } from "../types";
 
@@ -46,15 +47,11 @@ export function useForeignProfileSession(
   }
   if (query.isPending || query.isFetching) return { status: "loading" };
   if (query.isError) {
-    // A 404 here is the answer, not a failure: the session is in no profile.
-    if (isNotFound(query.error)) return { status: "missing" };
+    // An unavailable response here confirms the session is in no profile.
+    if (isSessionUnavailable(query.error)) return { status: "missing" };
     return { status: "error", error: asError(query.error) };
   }
   return { status: "missing" };
-}
-
-function isNotFound(error: unknown): boolean {
-  return typeof error === "object" && error !== null && Reflect.get(error, "status") === 404;
 }
 
 function asError(error: unknown): Error {

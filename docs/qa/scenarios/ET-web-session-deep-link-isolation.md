@@ -58,4 +58,4 @@ directly on both route forms.
 
 ## Console lifecycle regression (#873)
 
-Delete a previously cached active session. Detail polling must stop on 404 despite cached active status. Foreign-profile reads keep the existing owner resolution without widening the selected profile. Transient server errors remain retryable. Focused query and window regressions pass; browser re-walk remains pending.
+Delete a previously cached active session. Detail polling must stop on 404/410 despite cached active status. Both statuses enter scoped-miss resolution; retire the window only after aggregate absence is confirmed. Foreign-profile reads keep the existing owner resolution without widening the selected profile. Transient server errors remain retryable. Focused query and window regressions pass; browser re-walk remains pending.
