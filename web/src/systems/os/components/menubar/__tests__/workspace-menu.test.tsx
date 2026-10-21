@@ -169,6 +169,26 @@ describe("WorkspaceMenu", () => {
     expect(screen.queryByTestId(`os-worktree-create-${gitAlpha.id}`)).not.toBeInTheDocument();
   });
 
+  it("Should dot the monogram of every workspace with working sessions", () => {
+    renderMenu({ workingSessionsByWorkspace: { [gitBeta.id]: 2, [plainNotes.id]: 1 } });
+
+    expect(
+      within(screen.getByTestId(`os-workspace-option-${gitBeta.id}`)).getByRole("img", {
+        name: "2 sessions working",
+      })
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId(`os-workspace-option-${plainNotes.id}`)).getByRole("img", {
+        name: "1 session working",
+      })
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId(`os-workspace-option-${gitAlpha.id}`)).queryByRole("img", {
+        name: /working/,
+      })
+    ).not.toBeInTheDocument();
+  });
+
   it("Should select the workspace and close the menu on a pointer click", async () => {
     const user = userEvent.setup();
     const { onOpenChange, onSelectWorkspace } = renderMenu();

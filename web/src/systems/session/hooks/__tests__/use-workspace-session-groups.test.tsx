@@ -1,5 +1,6 @@
-// Suite: bounded per-workspace session groups
-// Invariant: exact counts come from facets and collapsed groups never walk history.
+// Suite: bounded per-workspace session groups and working marks
+// Invariant: exact counts come from facets and collapsed groups never walk history; workspace
+// working marks read the same all-workspaces aggregate instead of one catalog read per workspace.
 // Owning layer: grouped session query hook. No prior suite owned this projection.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -16,6 +17,7 @@ import { fetchSessions } from "../../adapters/session-api";
 import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/session-catalog-api";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../../lib/session-catalog-options";
 import { useWorkspaceSessionGroups } from "../use-workspace-session-groups";
+import { useWorkspaceWorkingSessions } from "../use-workspace-working-sessions";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -134,5 +136,49 @@ describe("useWorkspaceSessionGroups", () => {
       expect.objectContaining({ subagents: "exclude" }),
       expect.any(AbortSignal)
     );
+  });
+});
+
+describe("useWorkspaceWorkingSessions", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const facets = (working: number) => ({
+    terminal_approvals: 0,
+    all: working + 1,
+    needs_you: 0,
+    working,
+    finished: 0,
+    idle: 1,
+  });
+
+  it("Should key working counts by workspace from one cross-workspace facets read", async () => {
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets: facets(3),
+      by_workspace: [
+        { workspace_id: "ws-alpha", facets: facets(2) },
+        { workspace_id: "ws-beta", facets: facets(0) },
+        { workspace_id: "ws-gamma", facets: facets(1) },
+      ],
+    });
+    const { result } = renderHook(() => useWorkspaceWorkingSessions(true), { wrapper });
+
+    await waitFor(() => expect(result.current).toEqual({ "ws-alpha": 2, "ws-gamma": 1 }));
+    expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
+    expect(fetchSessionFacets).toHaveBeenCalledWith(
+      expect.objectContaining({
+        all_workspaces: true,
+        subagents: "exclude",
+        profile: "default",
+      }),
+      expect.any(AbortSignal)
+    );
+    expect(fetchSessions).not.toHaveBeenCalled();
+  });
+
+  it("Should not read the catalog while no switcher is open", () => {
+    const { result } = renderHook(() => useWorkspaceWorkingSessions(false), { wrapper });
+
+    expect(result.current).toEqual({});
+    expect(fetchSessionFacets).not.toHaveBeenCalled();
   });
 });

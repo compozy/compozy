@@ -43,6 +43,8 @@ export interface OsWorkspacesOverviewProps {
   reducedMotion: boolean;
   /** Same projection as the switcher and the menubar menu. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
+  /** Working-session counts by workspace id; drives each tile's corner dot. */
+  workingSessionsByWorkspace?: Readonly<Record<string, number>>;
   userHomeDir?: string;
   selectedWorktreeId?: string | null;
   onSelectWorktree?: (workspaceId: string, entry: WorktreeNestEntry) => void;
@@ -166,6 +168,7 @@ function OsWorkspacesStage({
   onNewWorkspace,
   reducedMotion,
   worktreesByWorkspace,
+  workingSessionsByWorkspace,
   userHomeDir,
   selectedWorktreeId,
   onSelectWorktree,
@@ -306,6 +309,7 @@ function OsWorkspacesStage({
               scope={scope}
               activeWorkspaceId={activeWorkspaceId}
               readySelectedWorktreeKey={readySelectedWorktreeKey}
+              workingSessionsByWorkspace={workingSessionsByWorkspace}
             />
           </OsWorkspacesStrip>
         )}
@@ -365,12 +369,14 @@ function WorkspaceTiles({
   scope,
   activeWorkspaceId,
   readySelectedWorktreeKey,
+  workingSessionsByWorkspace,
 }: {
   entries: WorkspacesSwitcherEntry[];
   switcher: ReturnType<typeof useWorkspacesSwitcher>;
   scope: WorkspaceScopeMode;
   activeWorkspaceId: string | null;
   readySelectedWorktreeKey: string | null;
+  workingSessionsByWorkspace: OsWorkspacesOverviewProps["workingSessionsByWorkspace"];
 }) {
   return (
     <>
@@ -396,6 +402,7 @@ function WorkspaceTiles({
             data-testid={`os-workspace-tile-${entry.key}`}
             name={name}
             monogram={workspaceMonogram(name)}
+            workingSessions={workingSessionsByWorkspace?.[entry.key] ?? 0}
             // The plate stays on the focused tile while the menu owns
             // key focus — it anchors which workspace the menu belongs to.
             focused={anchorsMenu}
