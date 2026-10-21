@@ -33,19 +33,17 @@ func newCLIUpdateRuntime(deps commandDeps, homePaths compozyconfig.HomePaths) *c
 func (r *cliUpdateRuntime) captureDaemonBeforeAppUpdate(
 	request compozyupdate.OperationRequest,
 	runtime compozyupdate.RuntimeTrackState,
-) error {
+) {
 	if request.App == nil || request.Runtime != nil || runtime.Managed ||
 		runtime.InstallMethod != string(compozyupdate.InstallMethodDesktopApp) {
-		return nil
+		return
 	}
 	info, running, err := daemonInfo(r.homePaths, r.deps)
-	if err != nil {
-		return err
+	if err != nil || !running {
+		// A missing baseline cannot establish a restart; readiness is verified after installation.
+		return
 	}
-	if running {
-		r.daemonBeforeUpdate = info
-	}
-	return nil
+	r.daemonBeforeUpdate = info
 }
 
 func newUpdateHolder(surface compozyupdate.Actor, now time.Time) (compozyupdate.Holder, error) {

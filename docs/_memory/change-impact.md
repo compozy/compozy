@@ -4052,7 +4052,9 @@ Owner: `docs/research/desktop-update-flow/README.md`; branch `fix/desktop-update
   validating the original request, a joint update on a proven desktop-owned runtime becomes
   one app operation; bootstrap installs the bundled runtime. CLI completion reads the observed
   daemon version and compares PID/start time with the pre-update discovery identity for the
-  existing `daemon_restarted` field. Explicit runtime-only and standalone/managed behavior is preserved.
+  existing `daemon_restarted` field. Missing or unreadable pre-update identity leaves that
+  flag false without blocking installation; final readiness validation remains mandatory.
+  Explicit runtime-only and standalone/managed behavior is preserved.
 - **Native tools:** no new or changed `compozy__*` IDs; host update remains CLI/HTTP/UDS owned.
 - **Extensibility/hooks/config:** no configuration keys, hooks, SDK contracts, or dependency
   changes. The one-action product flow uses the existing update consent.

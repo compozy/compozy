@@ -223,6 +223,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 			restarted       bool
 			reusedPID       bool
 			absent          bool
+			corruptBaseline bool
 			snapshotTimeout bool
 			wantErr         string
 		}{
@@ -230,6 +231,7 @@ func TestUpdateTerminalProjection(t *testing.T) {
 			{name: "Should recognize a new daemon start even when the PID is reused", runtimeVersion: "v1.1.0", restarted: true, reusedPID: true},
 			{name: "Should preserve a newer compatible runtime", runtimeVersion: "v1.2.0"},
 			{name: "Should not claim a restart when no daemon was initially running", runtimeVersion: "v1.1.0", absent: true},
+			{name: "Should observe the new runtime when previous daemon discovery is corrupt", runtimeVersion: "v1.1.0", corruptBaseline: true},
 			{name: "Should wait for an incompatible stable runtime to be replaced for a beta app", runtimeVersion: "v0.3.0", incompatible: true, wantErr: "cli: bundled runtime did not become ready before the update deadline: context deadline exceeded"},
 			{name: "Should wait for the new daemon to report running", runtimeVersion: "v1.1.0", starting: true},
 			{name: "Should keep a closed app staged without claiming runtime completion", staged: true},
@@ -355,9 +357,12 @@ func TestUpdateTerminalProjection(t *testing.T) {
 						t.Fatal(err)
 					}
 				}
-				if err := updateRuntime.captureDaemonBeforeAppUpdate(request, base.Runtime); err != nil {
-					t.Fatal(err)
+				if tc.corruptBaseline {
+					if err := os.WriteFile(paths.DaemonInfo, []byte("{"), 0o600); err != nil {
+						t.Fatal(err)
+					}
 				}
+				updateRuntime.captureDaemonBeforeAppUpdate(request, base.Runtime)
 				if err := compozydaemon.WriteInfo(paths.DaemonInfo, info); err != nil {
 					t.Fatal(err)
 				}

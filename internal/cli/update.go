@@ -110,9 +110,7 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 		return writeUpdateFailure(cmd, failedUpdateRecord(record, err, targets...), err)
 	}
 	runtime := newCLIUpdateRuntime(deps, homePaths)
-	if err := runtime.captureDaemonBeforeAppUpdate(request, record.Runtime); err != nil {
-		return writeUpdateFailure(cmd, failedUpdateRecord(record, err, compozyupdate.TargetRuntime), err)
-	}
+	runtime.captureDaemonBeforeAppUpdate(request, record.Runtime)
 	operation, err := manager.AcquireOperation(cmd.Context(), request)
 	if err != nil {
 		if blocked, ok := errors.AsType[*compozyupdate.BlockedError](err); ok {

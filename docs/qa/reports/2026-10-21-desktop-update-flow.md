@@ -169,6 +169,13 @@ tracked in [PR #886](https://github.com/compozy/compozy/pull/886).
   restored. The user-requested complete implementation record remains in the same
   file inside an explicitly labeled, non-rendering historical comment for PR #886.
   The current PR description carries the complete visible report.
+- **Unavailable pre-update identity (CodeRabbit follow-up):** reading the previous
+  daemon identity is best effort because it only informs `daemon_restarted`.
+  A real malformed discovery file reproduced an early abort in the existing CLI
+  projection suite. Missing or unreadable identity now leaves the restart flag
+  false, while final daemon readiness, version and snapshot validation remain
+  mandatory. The original discovery file is not repaired or deleted by capture.
+  The red reproduction is retained in `review-baseline-red.log`.
 
 The local desktop check exposed an existing health-monitor test that stopped the
 monitor after 30 ms of wall-clock time during concurrent packaging. Its canonical

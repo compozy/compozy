@@ -98,6 +98,7 @@ These source inspections establish implementation patterns, not measured competi
 - Isolate native Squirrel identity/cache using a worktree-specific E2E bundle ID; derive the existing ad-hoc signature requirement from that ID.
 - Preserve process state and desktop logs on restarted-shell teardown failure. No timeout or behavior assertion was weakened.
 - After review, add a native filesystem-failure regression and finish existing cleanup before quitting on a failed installer handoff. Compare pre-update and post-update daemon PID/start time instead of copying an incomplete restart flag, and assert specific CLI observation errors.
+- Treat the previous daemon identity as optional restart-reporting evidence. A corrupt or unreadable discovery file cannot prevent acquiring the update; final runtime health and version checks still determine completion.
 
 ## How you verified it
 
