@@ -93,6 +93,7 @@ export const settingsProviderUsageSectionFixture: SettingsProviderUsageSection =
   section: "provider-usage",
   scope: "user",
   available_scopes: ["user"],
+  keychain_supported: false,
   config: {
     enabled: true,
     refresh_interval: "5m0s",

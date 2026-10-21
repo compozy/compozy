@@ -1,4 +1,3 @@
-import { useProviderUsageHost } from "@/systems/os";
 import {
   ProviderUsageCollectionSection,
   ProviderUsageKeychainSection,
@@ -13,13 +12,12 @@ import {
 
 /**
  * Settings › Provider usage: the master switch, background cadence, which
- * providers are asked for usage, and — on a macOS daemon host — Claude
+ * providers are asked for usage, and — when the daemon runs on macOS — Claude
  * Keychain consent. One draft, saved through the apply lifecycle; a rejected
  * apply keeps the draft and shows the daemon's message in the save bar.
  */
 export function ProviderUsageSettingsPage() {
   const page = useSettingsProviderUsagePage();
-  const { isMacHost } = useProviderUsageHost();
   useSettingsTopbar();
   const saveBarState = useSettingsSaveBarState({
     isDirty: page.isDirty,
@@ -73,7 +71,7 @@ export function ProviderUsageSettingsPage() {
       <ProviderUsageKeychainSection
         disabled={page.isSaving}
         draft={draft}
-        isMacHost={isMacHost}
+        keychainSupported={page.envelope.keychain_supported}
         onChange={page.setDraft}
       />
     </SettingsPageFrame>

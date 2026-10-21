@@ -112,16 +112,17 @@ export function ProviderUsageProvidersSection({
 
 /**
  * macOS only: consent to read Claude Code's login from the Keychain. Shown
- * when the daemon runs on macOS, or while consent is on so it can be withdrawn.
+ * when the daemon reports Keychain support, or while consent is on so it can
+ * be withdrawn.
  */
 export function ProviderUsageKeychainSection({
   draft,
   onChange,
   disabled,
-  isMacHost,
-}: DraftProps & { isMacHost: boolean }) {
+  keychainSupported,
+}: DraftProps & { keychainSupported: boolean }) {
   const allowed = providerUsageKeychainAccess(draft);
-  if (!draft.enabled || (!isMacHost && !allowed)) return null;
+  if (!draft.enabled || (!keychainSupported && !allowed)) return null;
   return (
     <SettingsGroup title="Privacy">
       <SettingRow

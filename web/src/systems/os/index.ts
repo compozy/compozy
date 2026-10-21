@@ -27,7 +27,6 @@ export {
   windowManagerSnapshotOptions,
 } from "./lib/window-manager-query";
 export { isDesktopShell } from "./lib/desktop-shell-bridge";
-export { useProviderUsageHost, type ProviderUsageHost } from "./hooks/use-provider-usage-host";
 export { stableWindowManagerClientId } from "./lib/window-manager-client-identity";
 
 // Bindings and aliases: one daemon-owned settings section, mutated through one

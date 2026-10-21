@@ -356,4 +356,25 @@ describe("DesktopMenubar provider usage control", () => {
     expect(onOverlayOpenChange).toHaveBeenLastCalledWith("usage", false);
     expect(usageRequests().filter(request => request.method === "POST")).toHaveLength(0);
   });
+
+  it.each([
+    [true, 1],
+    [false, 0],
+  ])(
+    "Should offer Allow only when the daemon supports Keychain consent (%s)",
+    async (keychain_supported, allowCount) => {
+      renderMenubar({
+        activeOverlay: "usage",
+        usage: usageEnvelope(
+          [codexOkTarget(NOW), statusTargets(NOW).needsConsent],
+          { keychain_supported },
+          NOW
+        ),
+      });
+
+      const popover = await screen.findByTestId("os-usage-popover");
+      expect(within(popover).getByText("Needs Keychain access")).toBeInTheDocument();
+      expect(within(popover).queryAllByRole("button", { name: "Allow" })).toHaveLength(allowCount);
+    }
+  );
 });

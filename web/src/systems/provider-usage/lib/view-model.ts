@@ -24,6 +24,8 @@ export interface ProviderUsageViewModel {
   profileId: string;
   revision: number;
   enabled: boolean;
+  /** The daemon runs on macOS, where Claude Keychain consent exists. */
+  keychainSupported: boolean;
   tray: ProviderUsageTraySignal | null;
   /** When the tray window's data was measured, for the stale tooltip. */
   trayMeasuredAt: string | null;
@@ -67,6 +69,7 @@ export function buildProviderUsageViewModel(
     profileId: envelope.profile_id,
     revision: envelope.revision,
     enabled: envelope.enabled,
+    keychainSupported: envelope.keychain_supported,
     tray: envelope.tray,
     trayMeasuredAt: trayTarget?.measured_at ?? null,
     rows: envelope.targets.map(toProviderUsageRow),
@@ -103,22 +106,6 @@ export function hasProviderUsageTargets(viewModel: ProviderUsageViewModel | null
 }
 
 export const PROVIDER_USAGE_TITLE = "Provider usage";
-
-const KEYCHAIN_CONSENT_CODES: ReadonlySet<string> = new Set([
-  "keychain_consent_required",
-  "keychain_denied",
-  "keychain_token_expired",
-]);
-
-/**
- * The daemon reports a Keychain consent state, which it does only when it runs
- * on macOS: host evidence that does not depend on this client's own platform.
- */
-export function reportsKeychainConsent(viewModel: ProviderUsageViewModel | null): boolean {
-  return (
-    viewModel?.rows.some(row => KEYCHAIN_CONSENT_CODES.has(row.target.error?.code ?? "")) ?? false
-  );
-}
 
 /**
  * The tray's accessible name and tooltip: "Codex · Weekly 72% used · resets

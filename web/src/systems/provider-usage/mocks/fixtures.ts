@@ -325,6 +325,7 @@ export function usageEnvelope(
     revision: 14,
     generated_at: at(now, 0),
     enabled: true,
+    keychain_supported: false,
     tray: null,
     targets,
     ...overrides,

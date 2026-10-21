@@ -32,7 +32,7 @@ export function useProviderUsageSurface(): ProviderUsageSurfaceModel {
   const profile = useProfileReadScope().destination;
   const usage = useProviderUsage(profile);
   useProviderUsageStream(profile);
-  const host = useProviderUsageHost();
+  const host = useProviderUsageHost(usage.viewModel);
   const launcher = useOsAppLauncher();
   const openSettings = () => launcher.openSettingsSection("provider-usage");
   const allowKeychain = useAllowProviderUsageKeychain();

@@ -1,8 +1,5 @@
 import { useGatewayAccessTier } from "@/systems/gateway";
-import { useProfileReadScope } from "@/systems/profiles";
-import { reportsKeychainConsent, useProviderUsage } from "@/systems/provider-usage";
-
-import { desktopShellBridge } from "../lib/desktop-shell-bridge";
+import type { ProviderUsageViewModel } from "@/systems/provider-usage";
 
 export interface ProviderUsageHost {
   /** The daemon runs on macOS, where Claude Keychain consent exists. */
@@ -12,16 +9,13 @@ export interface ProviderUsageHost {
 }
 
 /**
- * Where the daemon runs, from evidence about the daemon rather than the
- * browser: the daemon reports Keychain consent states only on macOS, and the
- * local listener is reachable only from its own machine, so a macOS desktop
- * app attached to it shares the daemon's host. Reads the active profile's
- * cached envelope (the same query the usage surfaces hold).
+ * Where the daemon runs, as the daemon reports it (`keychain_supported`), and
+ * whether this client reaches it remotely (the gateway listener tier).
  */
-export function useProviderUsageHost(): ProviderUsageHost {
-  const { viewModel } = useProviderUsage(useProfileReadScope().destination);
+export function useProviderUsageHost(viewModel: ProviderUsageViewModel | null): ProviderUsageHost {
   const tier = useGatewayAccessTier();
-  const remoteClient = tier === "private" || tier === "public";
-  const sameMacHost = tier === "local" && desktopShellBridge()?.platform === "darwin";
-  return { isMacHost: sameMacHost || reportsKeychainConsent(viewModel), remoteClient };
+  return {
+    isMacHost: viewModel?.keychainSupported ?? false,
+    remoteClient: tier === "private" || tier === "public",
+  };
 }

@@ -30,7 +30,6 @@ export {
   formatTrayLabel,
   hasProviderUsageTargets,
   PROVIDER_USAGE_TITLE,
-  reportsKeychainConsent,
   type ProviderUsageRowModel,
   type ProviderUsageViewModel,
 } from "./lib/view-model";

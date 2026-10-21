@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 import type { ProviderUsageEnvelope } from "@/systems/provider-usage";
-import { codexOkTarget, statusTargets, usageEnvelope } from "@/systems/provider-usage/mocks";
+import { codexOkTarget, usageEnvelope } from "@/systems/provider-usage/mocks";
 import type { SettingsProviderUsageSection } from "@/systems/settings";
 
 vi.mock("@tanstack/react-router", async importOriginal => ({
@@ -26,6 +26,7 @@ const SECTION: SettingsProviderUsageSection = {
   section: "provider-usage",
   scope: "user",
   available_scopes: ["user"],
+  keychain_supported: false,
   config: {
     enabled: true,
     refresh_interval: "5m0s",
@@ -44,6 +45,7 @@ const PROVIDERS = {
 const NOW = Date.now();
 
 interface Daemon {
+  section: SettingsProviderUsageSection;
   usage: ProviderUsageEnvelope;
   patch: (body: unknown) => Response;
 }
@@ -70,7 +72,7 @@ function serve(daemon: Daemon) {
     if (pathname === "/api/settings/provider-usage") {
       return request.method === "PATCH"
         ? daemon.patch(await request.clone().json())
-        : json(SECTION);
+        : json(daemon.section);
     }
     if (pathname === "/api/settings/providers") return json(PROVIDERS);
     if (pathname === "/api/provider-usage") return json(daemon.usage);
@@ -92,6 +94,7 @@ function patchBodies(): Promise<unknown[]> {
 
 function renderPage(daemon: Partial<Daemon> = {}) {
   serve({
+    section: daemon.section ?? SECTION,
     usage: daemon.usage ?? usageEnvelope([codexOkTarget(NOW)], {}, NOW),
     patch: daemon.patch ?? (() => json(APPLIED)),
   });
@@ -175,14 +178,24 @@ describe("ProviderUsageSettingsPage", () => {
     expect(codex).not.toBeChecked();
   });
 
-  it("Should show Claude Keychain access only for a macOS daemon host", async () => {
+  it("Should show Claude Keychain access only when the daemon supports it", async () => {
     const view = renderPage();
     await screen.findByTestId("settings-provider-usage-provider-codex");
     expect(screen.queryByTestId("settings-provider-usage-keychain")).toBeNull();
     view.unmount();
 
-    renderPage({ usage: usageEnvelope([statusTargets(NOW).needsConsent], {}, NOW) });
+    const mac = renderPage({ section: { ...SECTION, keychain_supported: true } });
     expect(await screen.findByTestId("settings-provider-usage-keychain")).not.toBeChecked();
+    mac.unmount();
+
+    // Consent stays withdrawable wherever it was saved.
+    renderPage({
+      section: {
+        ...SECTION,
+        config: { ...SECTION.config, providers: { claude: { keychain_access: true } } },
+      },
+    });
+    expect(await screen.findByTestId("settings-provider-usage-keychain")).toBeChecked();
   });
 
   it("Should hide everything but the master switch while the feature is off", async () => {

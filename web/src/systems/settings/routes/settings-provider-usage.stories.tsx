@@ -9,12 +9,6 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
-import {
-  codexOkTarget,
-  providerUsageHandlers,
-  statusTargets,
-  usageEnvelope,
-} from "@/systems/provider-usage/mocks";
 import { settingsProviderUsageSectionFixture } from "@/systems/settings/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
@@ -36,20 +30,22 @@ type Story = StoryObj<typeof meta>;
 
 const PATH = "/settings/provider-usage";
 
-/** On, every 5 minutes, Cursor turned off; no macOS evidence, so no Keychain row. */
+/** On, every 5 minutes, Cursor turned off; the daemon is not on macOS, so no Keychain row. */
 export const Default: Story = {
   parameters: appRouteParameters(PATH),
   render: () => <StorybookWorkspaceSetup />,
 };
 
-/** The daemon reports Claude needs Keychain consent (a macOS host): the Privacy row appears. */
+/** The daemon runs on macOS (`keychain_supported`): the Privacy row appears. */
 export const MacHostKeychain: Story = {
   parameters: {
     ...appRouteParameters(PATH),
     ...storybookMswParameters({
-      "provider-usage": providerUsageHandlers(() =>
-        usageEnvelope([codexOkTarget(Date.now()), statusTargets(Date.now()).needsConsent])
-      ),
+      settings: [
+        compozyApiMock.get("/api/settings/provider-usage", () =>
+          HttpResponse.json({ ...settingsProviderUsageSectionFixture, keychain_supported: true })
+        ),
+      ],
     }),
   },
   render: () => <StorybookWorkspaceSetup />,

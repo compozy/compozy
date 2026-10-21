@@ -30,7 +30,6 @@ import {
   buildProviderUsageViewModel,
   formatTrayLabel,
   hasProviderUsageTargets,
-  reportsKeychainConsent,
   targetsNeedingOpenRefresh,
 } from "../view-model";
 
@@ -165,15 +164,11 @@ describe("buildProviderUsageViewModel", () => {
     );
   });
 
-  it("Should read a Keychain consent state as macOS host evidence", () => {
-    const status = statusTargets(NOW);
-    const of = (...targets: Parameters<typeof usageEnvelope>[0]) =>
-      buildProviderUsageViewModel(usageEnvelope(targets, {}, NOW));
-    expect(reportsKeychainConsent(null)).toBe(false);
-    expect(reportsKeychainConsent(of(codexOkTarget(NOW), status.error))).toBe(false);
-    expect(reportsKeychainConsent(of(status.needsConsent))).toBe(true);
-    expect(reportsKeychainConsent(of(status.keychainDenied))).toBe(true);
-    expect(reportsKeychainConsent(of(status.keychainTokenExpired))).toBe(true);
+  it("Should carry the daemon's Keychain support into the view model", () => {
+    const of = (keychain_supported: boolean) =>
+      buildProviderUsageViewModel(usageEnvelope([], { keychain_supported }, NOW));
+    expect(of(true).keychainSupported).toBe(true);
+    expect(of(false).keychainSupported).toBe(false);
   });
 
   it("Should refresh on open only targets older than 60 s (UT-054)", () => {
