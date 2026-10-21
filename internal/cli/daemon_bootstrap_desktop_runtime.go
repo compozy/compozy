@@ -12,12 +12,13 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
-	compozyversion "github.com/compozy/compozy/internal/version"
 )
 
 // replaceOutdatedDesktopRuntime replaces an older desktop runtime while preserving compatible newer versions.
 func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) (bool, error) {
-	if bootstrapRuntimeIsNewer(status.Version, e.provenance().RuntimeVersion) {
+	newer := bootstrapRuntimeIsNewer(status.Version, e.provenance().RuntimeVersion)
+	acceptsApp := bootstrapRuntimeAcceptsApp(status.MinAppVersion, e.options.appVersion)
+	if newer && acceptsApp {
 		return false, nil
 	}
 	if !regularFileExists(e.installedPath) ||
@@ -42,7 +43,27 @@ func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) 
 	if err := stopBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths); err != nil {
 		return false, err
 	}
+	// A newer runtime that rejects this app would otherwise restart from the same binary and strand the
+	// shell on version skew, so the bundled runtime must replace it.
+	e.bundleRequired = newer
 	return true, nil
+}
+
+// restartRejectingDesktopRuntime re-resolves once when a started desktop-owned runtime rejects this app.
+func (e *bootstrapExecution) restartRejectingDesktopRuntime(status DaemonStatus, owned bool) bool {
+	return owned && !e.bundleRequired &&
+		bootstrapRuntimeIsNewer(status.Version, e.provenance().RuntimeVersion) &&
+		!bootstrapRuntimeAcceptsApp(status.MinAppVersion, e.options.appVersion)
+}
+
+// bootstrapRuntimeAcceptsApp mirrors the attach compatibility check for the runtime's minimum app version.
+func bootstrapRuntimeAcceptsApp(minAppVersion, appVersion string) bool {
+	if strings.TrimSpace(appVersion) == "" || strings.TrimSpace(minAppVersion) == "" {
+		return true
+	}
+	return compozyupdate.CheckRuntimeCompatibility(compozyupdate.Compatibility{
+		MinAppVersion: minAppVersion,
+	}, compozyupdate.InstalledApp{Present: true, Version: appVersion}) == nil
 }
 
 // bootstrapRuntimeIsNewer compares release versions without treating development builds as newer.
@@ -56,7 +77,7 @@ func (e *bootstrapExecution) provenance() compozyupdate.DesktopProvenanceMetadat
 	return compozyupdate.DesktopProvenanceMetadata{
 		AppVersion:     e.options.appVersion,
 		Channel:        e.options.channel,
-		RuntimeVersion: compozyversion.Current().Version,
+		RuntimeVersion: e.runtimeVersion,
 	}
 }
 

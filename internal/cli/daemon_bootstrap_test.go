@@ -166,66 +166,99 @@ func TestDaemonBootstrapCompatibility(t *testing.T) {
 func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should stop a stale desktop-owned runtime before attaching", func(t *testing.T) {
-		t.Parallel()
+	for _, test := range []struct {
+		name           string
+		status         DaemonStatus
+		replaced       bool
+		bundleRequired bool
+	}{
+		{
+			name:     "Should stop a stale desktop-owned runtime before attaching",
+			status:   DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"},
+			replaced: true,
+		},
+		{
+			name:     "Should preserve a newer desktop-owned runtime that accepts the app",
+			status:   DaemonStatus{PID: 4242, Version: "0.3.0", MinAppVersion: "0.3.0-beta.21"},
+			replaced: false,
+		},
+		{
+			name:           "Should replace a newer desktop-owned runtime that rejects the app with the bundle",
+			status:         DaemonStatus{PID: 4242, Version: "0.3.0", MinAppVersion: "0.3.0"},
+			replaced:       true,
+			bundleRequired: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-		deps := newTestDeps(t, &stubClient{})
-		deps = deps.withDefaults()
-		homePaths, err := deps.resolveHome()
-		if err != nil {
-			t.Fatalf("resolveHome() error = %v", err)
-		}
-		if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
-			t.Fatalf("EnsureHomeLayout() error = %v", err)
-		}
-		installedPath := bootstrapRuntimePath(homePaths)
-		bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
-		writeFile(t, installedPath, "current-runtime")
-		writeFile(t, bundlePath, "current-runtime")
-		cmd := &cobra.Command{}
-		cmd.SetContext(testutil.Context(t))
-		execution := bootstrapExecution{
-			cmd:           cmd,
-			deps:          deps,
-			options:       bootstrapOptions{appVersion: "0.3.0-beta.21", channel: "beta"},
-			homePaths:     homePaths,
-			bundlePath:    bundlePath,
-			installedPath: installedPath,
-		}
-		if err := compozyupdate.WriteDesktopProvenance(
-			homePaths,
-			installedPath,
-			execution.provenance(),
-		); err != nil {
-			t.Fatalf("WriteDesktopProvenance() error = %v", err)
-		}
-		writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"started_at":"2026-04-03T12:00:00Z"}`)
-		running := true
-		var signaled syscall.Signal
-		execution.deps.processAlive = func(int) bool { return running }
-		execution.deps.processMatchesStartTime = func(int, time.Time) bool { return true }
-		execution.deps.signalProcess = func(_ int, signal syscall.Signal) error {
-			signaled = signal
-			running = false
-			return nil
-		}
-		execution.deps.pollInterval = time.Millisecond
-		execution.deps.stopTimeout = time.Second
+			deps := newTestDeps(t, &stubClient{})
+			deps = deps.withDefaults()
+			homePaths, err := deps.resolveHome()
+			if err != nil {
+				t.Fatalf("resolveHome() error = %v", err)
+			}
+			if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+				t.Fatalf("EnsureHomeLayout() error = %v", err)
+			}
+			installedPath := bootstrapRuntimePath(homePaths)
+			bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
+			writeFile(t, installedPath, "current-runtime")
+			writeFile(t, bundlePath, "current-runtime")
+			cmd := &cobra.Command{}
+			cmd.SetContext(testutil.Context(t))
+			execution := bootstrapExecution{
+				cmd:            cmd,
+				deps:           deps,
+				options:        bootstrapOptions{appVersion: "0.3.0-beta.21", channel: "beta"},
+				homePaths:      homePaths,
+				bundlePath:     bundlePath,
+				installedPath:  installedPath,
+				runtimeVersion: "0.3.0-beta.21",
+			}
+			if err := compozyupdate.WriteDesktopProvenance(
+				homePaths,
+				installedPath,
+				execution.provenance(),
+			); err != nil {
+				t.Fatalf("WriteDesktopProvenance() error = %v", err)
+			}
+			writeFile(t, homePaths.DaemonInfo, `{"pid":4242,"started_at":"2026-04-03T12:00:00Z"}`)
+			running := true
+			var signaled syscall.Signal
+			execution.deps.processAlive = func(int) bool { return running }
+			execution.deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+			execution.deps.signalProcess = func(_ int, signal syscall.Signal) error {
+				signaled = signal
+				running = false
+				return nil
+			}
+			execution.deps.pollInterval = time.Millisecond
+			execution.deps.stopTimeout = time.Second
 
-		replaced, err := execution.replaceOutdatedDesktopRuntime(DaemonStatus{
-			PID:     4242,
-			Version: "0.3.0-beta.20",
+			replaced, err := execution.replaceOutdatedDesktopRuntime(test.status)
+			if err != nil {
+				t.Fatalf("replaceOutdatedDesktopRuntime() error = %v", err)
+			}
+			if replaced != test.replaced || execution.bundleRequired != test.bundleRequired {
+				t.Fatalf(
+					"replaced = %t, bundleRequired = %t; want %t, %t",
+					replaced, execution.bundleRequired, test.replaced, test.bundleRequired,
+				)
+			}
+			wantSignal := syscall.Signal(0)
+			if test.replaced {
+				wantSignal = syscall.SIGTERM
+			}
+			if signaled != wantSignal {
+				t.Fatalf("signal = %v, want %v", signaled, wantSignal)
+			}
+			restart := execution.restartRejectingDesktopRuntime(test.status, true)
+			if want := test.bundleRequired && !execution.bundleRequired; restart != want {
+				t.Fatalf("restartRejectingDesktopRuntime() = %t, want %t", restart, want)
+			}
 		})
-		if err != nil {
-			t.Fatalf("replaceOutdatedDesktopRuntime() error = %v", err)
-		}
-		if !replaced {
-			t.Fatal("replaceOutdatedDesktopRuntime() = false, want stale runtime restart")
-		}
-		if signaled != syscall.SIGTERM {
-			t.Fatalf("signal = %v, want SIGTERM", signaled)
-		}
-	})
+	}
 }
 
 func TestProvisionBundledRuntime(t *testing.T) {
