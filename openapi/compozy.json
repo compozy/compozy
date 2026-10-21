@@ -18919,6 +18919,9 @@
       },
       "RemoveDiscoveredWorktreeRequest": {
         "properties": {
+          "expect_stale": {
+            "type": "boolean"
+          },
           "force": {
             "type": "boolean"
           },

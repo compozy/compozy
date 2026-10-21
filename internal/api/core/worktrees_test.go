@@ -461,12 +461,12 @@ func (s worktreeServiceStub) RemoveDiscovered(
 	ctx context.Context,
 	workspaceID string,
 	path string,
-	force bool,
+	options worktree.RemoveDiscoveredOptions,
 ) (*worktree.RemovalRefusal, error) {
 	if s.removeFound == nil {
 		return nil, fmt.Errorf("unexpected RemoveDiscovered call")
 	}
-	return s.removeFound(ctx, workspaceID, path, force)
+	return s.removeFound(ctx, workspaceID, path, options.Force)
 }
 
 func (s worktreeServiceStub) Remove(
@@ -877,6 +877,7 @@ func TestWorktreeErrorCodes(t *testing.T) {
 			{worktree.ErrAdoptionForeignRepo, "adoption_foreign_repository"},
 			{worktree.ErrAdoptionUnreadable, "adoption_unreadable"},
 			{worktree.ErrDiscoveredRegistered, "worktree_registered"},
+			{worktree.ErrDiscoveredChanged, "worktree_discovered_changed"},
 			{worktree.ErrOperationInProgress, "worktree_operation_in_progress"},
 			{worktree.ErrSessionActive, "worktree_session_active"},
 			{worktree.ErrStatusUnreadable, "worktree_status_unreadable"},

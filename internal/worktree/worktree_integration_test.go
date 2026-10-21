@@ -1482,7 +1482,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("RemoveAll(stale) error = %v", err)
 		}
 		if refusalResult, err := f.service.RemoveDiscovered(
-			t.Context(), f.workspace.ID, staleListed, false,
+			t.Context(), f.workspace.ID, staleListed, RemoveDiscoveredOptions{},
 		); err != nil || refusalResult != nil {
 			t.Fatalf("RemoveDiscovered(stale) = (%#v, %v), want success", refusalResult, err)
 		}
@@ -1503,7 +1503,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("Insert(foreign owner) error = %v", err)
 		}
 		if _, err := f.service.RemoveDiscovered(
-			t.Context(), f.workspace.ID, foreignListed, true,
+			t.Context(), f.workspace.ID, foreignListed, RemoveDiscoveredOptions{Force: true},
 		); !errors.Is(err, ErrDiscoveredRegistered) {
 			t.Fatalf("RemoveDiscovered(other workspace owner) error = %v, want ErrDiscoveredRegistered", err)
 		}
@@ -1511,15 +1511,44 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("foreign-owned checkout changed: %v", err)
 		}
 
+		// A removed tombstone no longer claims its path: Git's later checkout
+		// there is discovered and removable by path.
+		f.git(f.workspace.Root, "branch", "after-tombstone", "main")
+		tombstonePath := filepath.Join(t.TempDir(), "after-tombstone")
+		f.git(f.workspace.Root, "worktree", "add", tombstonePath, "after-tombstone")
+		if err := f.store.Insert(t.Context(), Worktree{
+			ID: "wt_removed_tombstone", ProfileID: testWorktreeProfileID, WorkspaceID: f.workspace.ID,
+			Name: "after-tombstone", Branch: "after-tombstone", Path: canonicalComparablePath(tombstonePath),
+			State: StateRemoved, Origin: OriginAdopted, SetupState: SetupNone,
+			CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("Insert(removed tombstone) error = %v", err)
+		}
+		if refusalResult, err := f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, listedPath(tombstonePath), RemoveDiscoveredOptions{},
+		); err != nil || refusalResult != nil {
+			t.Fatalf("RemoveDiscovered(after tombstone) = (%#v, %v), want success", refusalResult, err)
+		}
+
 		f.git(f.workspace.Root, "branch", "live-discovered", "main")
 		livePath := filepath.Join(t.TempDir(), "live-discovered")
 		f.git(f.workspace.Root, "worktree", "add", livePath, "live-discovered")
 		liveListed := listedPath(livePath)
+		// A confirmation that only clears a stale entry never removes a present
+		// checkout, even with force.
+		if _, err := f.service.RemoveDiscovered(
+			t.Context(), f.workspace.ID, liveListed, RemoveDiscoveredOptions{Force: true, ExpectStale: true},
+		); !errors.Is(err, ErrDiscoveredChanged) {
+			t.Fatalf("RemoveDiscovered(expect stale, live) error = %v, want ErrDiscoveredChanged", err)
+		}
+		if _, err := os.Stat(livePath); err != nil {
+			t.Fatalf("expect-stale refusal touched the checkout: %v", err)
+		}
 		lostPath := filepath.Join(livePath, "lost.txt")
 		if err := os.WriteFile(lostPath, []byte("lost\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile(lost) error = %v", err)
 		}
-		refusalResult, err := f.service.RemoveDiscovered(t.Context(), f.workspace.ID, liveListed, false)
+		refusalResult, err := f.service.RemoveDiscovered(t.Context(), f.workspace.ID, liveListed, RemoveDiscoveredOptions{})
 		if !errors.Is(err, ErrDirtyRequiresForce) || refusalResult == nil || refusalResult.Risk.ChangedFiles != 1 {
 			t.Fatalf("RemoveDiscovered(dirty) = (%#v, %v), want one-file refusal", refusalResult, err)
 		}
@@ -1527,7 +1556,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("refused removal touched the checkout: %v", err)
 		}
 		if refusalResult, err = f.service.RemoveDiscovered(
-			t.Context(), f.workspace.ID, liveListed, true,
+			t.Context(), f.workspace.ID, liveListed, RemoveDiscoveredOptions{Force: true},
 		); err != nil || refusalResult != nil {
 			t.Fatalf("RemoveDiscovered(force) = (%#v, %v), want success", refusalResult, err)
 		}
@@ -1544,7 +1573,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		f.git(detachedPath, "add", "unique.txt")
 		f.git(detachedPath, "commit", "-m", "unique detached")
 		refusalResult, err = f.service.RemoveDiscovered(
-			t.Context(), f.workspace.ID, listedPath(detachedPath), false,
+			t.Context(), f.workspace.ID, listedPath(detachedPath), RemoveDiscoveredOptions{},
 		)
 		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
 			refusalResult.Risk.UnpushedCommits != 1 {
@@ -1558,7 +1587,7 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("Create(registered) error = %v", err)
 		}
 		if _, err := f.service.RemoveDiscovered(
-			t.Context(), f.workspace.ID, registered.Path, true,
+			t.Context(), f.workspace.ID, registered.Path, RemoveDiscoveredOptions{Force: true},
 		); !errors.Is(err, ErrDiscoveredRegistered) {
 			t.Fatalf("RemoveDiscovered(registered) error = %v, want ErrDiscoveredRegistered", err)
 		}
@@ -1566,12 +1595,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 			t.Fatalf("registered checkout changed: %v", err)
 		}
 		if _, err := f.service.RemoveDiscovered(
-			t.Context(), f.workspace.ID, f.workspace.Root, true,
+			t.Context(), f.workspace.ID, f.workspace.Root, RemoveDiscoveredOptions{Force: true},
 		); !errors.Is(err, ErrAdoptionMainCheckout) {
 			t.Fatalf("RemoveDiscovered(main) error = %v, want ErrAdoptionMainCheckout", err)
 		}
 		if _, err := f.service.RemoveDiscovered(
-			t.Context(), f.workspace.ID, filepath.Join(t.TempDir(), "unlisted"), true,
+			t.Context(), f.workspace.ID, filepath.Join(t.TempDir(), "unlisted"), RemoveDiscoveredOptions{Force: true},
 		); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("RemoveDiscovered(unlisted) error = %v, want ErrNotFound", err)
 		}

@@ -141,12 +141,12 @@ func (s *nativeWorktreeServiceStub) RemoveDiscovered(
 	ctx context.Context,
 	workspaceID string,
 	path string,
-	force bool,
+	options worktree.RemoveDiscoveredOptions,
 ) (*worktree.RemovalRefusal, error) {
 	if s.removeFound == nil {
 		return nil, fmt.Errorf("unexpected RemoveDiscovered call")
 	}
-	return s.removeFound(ctx, workspaceID, path, force)
+	return s.removeFound(ctx, workspaceID, path, options.Force)
 }
 
 func (s *nativeWorktreeServiceStub) Remove(

@@ -19,6 +19,7 @@ export const WORKTREE_ERROR_CODES = {
   adoptionForeignRepository: "adoption_foreign_repository",
   adoptionUnreadable: "adoption_unreadable",
   notFound: "worktree_not_found",
+  discoveredChanged: "worktree_discovered_changed",
 } as const;
 
 /** Quantified loss for a removal refusal. Rendered verbatim, never rounded. */

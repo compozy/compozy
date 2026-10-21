@@ -371,7 +371,12 @@ describe("worktree batch lifecycle", () => {
     const live = discovered("/Users/ada/dev/detached-live", false);
     const lost = discovered("/Users/ada/dev/detached-lost", false);
     const orphaned = discovered("/Users/ada/dev/workspace-gone", false);
+    const reappeared = discovered("/private/tmp/detached-back", true);
     mocks.removeDiscoveredWorktree.mockImplementation(async (_workspace, path, options) => {
+      // A stale confirmation must not remove a checkout that came back.
+      if (path === reappeared.path && options.expectStale) {
+        throw new WorktreeApiError("changed", 409, { code: "worktree_discovered_changed" });
+      }
       if (path === live.path && !options.force) {
         throw new WorktreeApiError("refused", 409, {
           code: "worktree_unpushed_requires_force",
@@ -396,7 +401,7 @@ describe("worktree batch lifecycle", () => {
         useWorktreeRemovalBatch({
           workspaceId: "ws_alpha",
           worktrees: [],
-          discovered: [stale, live, lost, orphaned],
+          discovered: [stale, live, lost, orphaned, reappeared],
         }),
       { wrapper: createWrapper(new QueryClient()) }
     );
@@ -408,6 +413,10 @@ describe("worktree batch lifecycle", () => {
       ["failed", expect.any(String)],
       ["success", "No longer listed by Git; confirmed by CompozyOS."],
       ["failed", expect.any(String)],
+      [
+        "failed",
+        "The checkout is back on disk, so nothing was removed. Refresh and select it again.",
+      ],
     ]);
     expect(mocks.inspectWorktree).not.toHaveBeenCalled();
     expect(result.current.forceEligible).toHaveLength(1);
@@ -419,15 +428,20 @@ describe("worktree batch lifecycle", () => {
       status: "success",
       message: "Worktree removed. Branch kept.",
     });
-    expect(mocks.removeDiscoveredWorktree.mock.calls.map(call => [call[1], call[2].force])).toEqual(
-      [
-        [stale.path, false],
-        [live.path, false],
-        [lost.path, false],
-        [orphaned.path, false],
-        [live.path, true],
-      ]
-    );
+    expect(
+      mocks.removeDiscoveredWorktree.mock.calls.map(call => [
+        call[1],
+        call[2].force,
+        call[2].expectStale,
+      ])
+    ).toEqual([
+      [stale.path, false, true],
+      [live.path, false, false],
+      [lost.path, false, false],
+      [orphaned.path, false, false],
+      [reappeared.path, false, true],
+      [live.path, true, false],
+    ]);
     expect(mocks.removeWorktree).not.toHaveBeenCalled();
   });
 
@@ -481,6 +495,24 @@ describe("worktree batch lifecycle", () => {
       foreignMissing.id,
     ]);
     expect(onRemove.mock.calls[0]?.[0].discovered).toEqual([discovered]);
+  });
+
+  it("Should judge select-all by row identity after a selected row leaves the list", () => {
+    const first = buildWorktreeFixture({ id: "wt_first", workspace_id: "ws_alpha" });
+    const second = buildWorktreeFixture({ id: "wt_second", workspace_id: "ws_alpha" });
+    const entries = (rows: (typeof first)[]) =>
+      toWorktreeNestEntries({ worktrees: rows, discovered: [] });
+    const { result, rerender } = renderHook(
+      ({ rows }) => useWorktreeRemovalSelection("ws_alpha", entries(rows), vi.fn()),
+      { initialProps: { rows: [first, second] } }
+    );
+    act(() => result.current.toggle(entries([first, second])[0]!));
+    rerender({ rows: [second] });
+    // One saved row and one eligible row, but the eligible one is unchecked.
+    expect(result.current.count).toBe(1);
+    expect(result.current.allEligibleSelected).toBe(false);
+    act(() => result.current.selectAll());
+    expect(result.current.allEligibleSelected).toBe(true);
   });
 });
 

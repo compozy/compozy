@@ -395,7 +395,7 @@ func (s *parityWorktreeService) RemoveDiscovered(
 	_ context.Context,
 	_ string,
 	path string,
-	_ bool,
+	_ worktree.RemoveDiscoveredOptions,
 ) (*worktree.RemovalRefusal, error) {
 	s.mutationIDs = append(s.mutationIDs, path)
 	return s.removal, nil

@@ -77,8 +77,9 @@ type ReloadExtensionRequest struct {
 
 // RemoveDiscoveredWorktreeRequest is a daemon API value.
 type RemoveDiscoveredWorktreeRequest struct {
-	Path  string `json:"path"`
-	Force bool   `json:"force,omitempty"`
+	Path        string `json:"path"`
+	Force       bool   `json:"force,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
 }
 
 // RenameProfilePlan is a daemon API value.

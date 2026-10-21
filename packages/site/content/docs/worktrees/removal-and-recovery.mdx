@@ -218,7 +218,9 @@ Review it, then repeat with `--force` to discard that work.
 Removing a discovered Worktree never deletes its branch, so `--path` cannot be combined with a
 Worktree name or `--delete-branch`. A path that already has a CompozyOS record, in this or another
 workspace on the same repository, is refused with `worktree_registered`; remove that record by its
-name instead. In the app, choose
+name instead. The app sends `expect_stale` when it confirms clearing a stale entry, so a checkout that
+reappears in the meantime is refused with `worktree_discovered_changed` instead of being removed. In
+the app, choose
 **Delete worktree…** on a discovered row, or **Remove stale entry…** on a prunable one. Both open
 the batch confirmation below.
 

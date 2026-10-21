@@ -336,7 +336,8 @@ func (h *BaseHandlers) RemoveDiscoveredWorktree(c *gin.Context) {
 		return
 	}
 	refusal, err := h.Worktrees.RemoveDiscovered(
-		c.Request.Context(), scope.RegistryID, strings.TrimSpace(request.Path), request.Force,
+		c.Request.Context(), scope.RegistryID, strings.TrimSpace(request.Path),
+		worktree.RemoveDiscoveredOptions{Force: request.Force, ExpectStale: request.ExpectStale},
 	)
 	if refusal != nil {
 		c.JSON(http.StatusConflict, WorktreeRemovalRefusalPayload(*refusal))

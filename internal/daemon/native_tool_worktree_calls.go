@@ -175,7 +175,9 @@ func (n *daemonNativeTools) worktreeRemoveDiscovered(
 		return toolspkg.ToolResult{}, err
 	}
 	path := strings.TrimSpace(input.Path)
-	refusal, err := n.deps.Worktrees.RemoveDiscovered(ctx, workspaceID, path, input.Force)
+	refusal, err := n.deps.Worktrees.RemoveDiscovered(
+		ctx, workspaceID, path, worktree.RemoveDiscoveredOptions{Force: input.Force},
+	)
 	if refusal != nil {
 		partial, marshalErr := structuredResult(core.WorktreeRemovalRefusalPayload(*refusal), refusal.Code)
 		if marshalErr != nil {

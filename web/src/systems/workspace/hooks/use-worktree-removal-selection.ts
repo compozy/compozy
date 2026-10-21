@@ -112,6 +112,9 @@ export function useWorktreeRemovalSelection(
     mode: context.mode,
     count: context.selected.length,
     eligibleCount: eligible.length,
+    // By identity, not count: a saved row that left the list must not make the
+    // remaining unchecked rows look selected.
+    allEligibleSelected: eligible.length > 0 && eligible.every(row => selectedIds.has(row.key)),
     selectedIds,
     reason: (entry: WorktreeNestEntry) => worktreeCleanupReason(entry, workspaceId),
     start: () => store.trigger.start(),

@@ -19,6 +19,15 @@ type discoveredRemovalTarget struct {
 	stale bool
 }
 
+// RemoveDiscoveredOptions carries the caller's acknowledgements for one target.
+type RemoveDiscoveredOptions struct {
+	// Force acknowledges dirty or unpushed loss on a live checkout.
+	Force bool
+	// ExpectStale freezes a confirmation that only clears a stale Git entry:
+	// a checkout that is live again is refused instead of removed.
+	ExpectStale bool
+}
+
 // RemoveDiscovered deletes a linked worktree that Git lists but no registry row
 // owns. Stale entries only lose their admin metadata. Live checkouts keep the
 // dirty and unpushed refusals of registered removal, and branches stay untouched.
@@ -26,8 +35,9 @@ func (s *Service) RemoveDiscovered(
 	ctx context.Context,
 	workspaceID string,
 	path string,
-	force bool,
+	options RemoveDiscoveredOptions,
 ) (*RemovalRefusal, error) {
+	force := options.Force
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return nil, refusal(ErrRefInvalid, "path is required")
@@ -52,6 +62,11 @@ func (s *Service) RemoveDiscovered(
 	target, err := s.readDiscoveredRemovalTarget(ctx, workspaceID, workspace, commonDir, path)
 	if err != nil {
 		return nil, err
+	}
+	if options.ExpectStale && !target.stale {
+		return nil, refusal(
+			ErrDiscoveredChanged, "the checkout is present again; refresh and confirm its removal",
+		)
 	}
 	if !target.stale {
 		item, risk, refusalResult, err := s.evaluateDiscoveredRemoval(ctx, workspaceID, commonDir, target, force)
@@ -118,7 +133,7 @@ func (s *Service) readDiscoveredRemovalTarget(
 	}
 	matchedKey := canonicalComparablePath(matched.Path)
 	for _, row := range rows {
-		if canonicalComparablePath(row.Path) == matchedKey {
+		if ownsCheckoutPath(row) && canonicalComparablePath(row.Path) == matchedKey {
 			return discoveredRemovalTarget{}, refusal(
 				ErrDiscoveredRegistered, "remove the registered worktree by its id",
 			)

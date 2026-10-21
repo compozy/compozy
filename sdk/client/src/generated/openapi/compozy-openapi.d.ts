@@ -11961,6 +11961,7 @@ export interface components {
       generation_hash: string;
     };
     RemoveDiscoveredWorktreeRequest: {
+      expect_stale?: boolean;
       force?: boolean;
       path: string;
     };

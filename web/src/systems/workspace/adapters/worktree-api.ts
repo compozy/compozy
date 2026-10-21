@@ -197,14 +197,18 @@ export async function removeWorktree(
 export async function removeDiscoveredWorktree(
   workspaceID: string,
   path: string,
-  options: { force?: boolean } = {},
+  options: { force?: boolean; expectStale?: boolean } = {},
   signal?: AbortSignal
 ): Promise<void> {
   const { error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/worktrees/discovered/remove",
     {
       params: { path: { workspace_id: workspaceID } },
-      body: { path, force: options.force || undefined },
+      body: {
+        path,
+        force: options.force || undefined,
+        expect_stale: options.expectStale || undefined,
+      },
       signal,
     }
   );

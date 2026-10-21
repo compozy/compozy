@@ -39,7 +39,6 @@ export function WorktreeSelectionToolbar({
   menu?: boolean;
 }) {
   if (!selection.enabled) return null;
-  const allSelected = selection.eligibleCount > 0 && selection.count === selection.eligibleCount;
   const render = (action: ToolbarAction, rowClassName?: string) =>
     menu ? (
       <MenubarItem
@@ -93,12 +92,17 @@ export function WorktreeSelectionToolbar({
           data-testid="worktree-selection-count"
           className="min-w-0 flex-1 truncate pl-2 text-micro text-subtle tabular-nums"
         >
-          {selection.count} of {selection.eligibleCount} selected
+          {selection.count} selected
         </span>
       ) : null}
       {selection.mode
         ? render(
-            { id: "all", label: "Select all", run: selection.selectAll, disabled: allSelected },
+            {
+              id: "all",
+              label: "Select all",
+              run: selection.selectAll,
+              disabled: selection.allEligibleSelected,
+            },
             COMPACT_ACTION_CLASS
           )
         : null}

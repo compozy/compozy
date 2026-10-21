@@ -60,6 +60,12 @@ func (s *Service) Get(ctx context.Context, workspaceID, ref string) (*Worktree, 
 	return item, nil
 }
 
+// ownsCheckoutPath reports whether a registry row still claims its path. A
+// removed tombstone does not, so a checkout Git later lists there is discovered.
+func ownsCheckoutPath(row Worktree) bool {
+	return row.State != StateRemoved && row.State != StateDismissed
+}
+
 // List combines registered and discovered checkouts, reconciling vanished ready
 // rows without overwriting concurrent lifecycle changes or guessing on stat errors.
 func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*Listing, error) {
@@ -99,7 +105,9 @@ func (s *Service) List(ctx context.Context, workspaceID string, refresh bool) (*
 	registeredPaths := make(map[string]struct{}, len(rows))
 	gitPaths := make(map[string]GitWorktree, len(entries))
 	for _, row := range rows {
-		registeredPaths[canonicalComparablePath(row.Path)] = struct{}{}
+		if ownsCheckoutPath(row) {
+			registeredPaths[canonicalComparablePath(row.Path)] = struct{}{}
+		}
 	}
 	for _, entry := range entries {
 		pathKey := canonicalComparablePath(entry.Path)

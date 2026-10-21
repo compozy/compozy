@@ -16,9 +16,12 @@ type AdoptWorktreeRequest struct {
 
 // RemoveDiscoveredWorktreeRequest names a Git-only linked worktree by the path
 // exactly as the listing reports it. Force acknowledges dirty or unpushed loss.
+// ExpectStale confirms only clearing a stale Git entry; a checkout that is
+// present again is refused with worktree_discovered_changed.
 type RemoveDiscoveredWorktreeRequest struct {
-	Path  string `json:"path"`
-	Force bool   `json:"force,omitempty"`
+	Path        string `json:"path"`
+	Force       bool   `json:"force,omitempty"`
+	ExpectStale bool   `json:"expect_stale,omitempty"`
 }
 
 type WorktreeStatusPayload struct {

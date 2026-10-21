@@ -46,7 +46,7 @@ function batchConsequences(batch: WorktreeRemovalBatch) {
   }
   if (stale > 0) {
     parts.push(
-      `${plural(stale, "stale Git entry", "stale Git entries")} will be cleared; nothing is left on disk.`
+      `${plural(stale, "stale Git entry", "stale Git entries")} will be cleared from Git’s worktree list.`
     );
   }
   return parts.join(" ");

@@ -5260,6 +5260,7 @@ export type ReloadExtensionRequest = {
 };
 
 export type RemoveDiscoveredWorktreeRequest = {
+  expect_stale?: boolean;
   force?: boolean;
   path: string;
 };

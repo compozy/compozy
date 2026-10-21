@@ -171,7 +171,12 @@ async function cleanupDiscovered(
   force: boolean
 ) {
   try {
-    await removeDiscoveredWorktree(workspaceId, discovered.path, { force });
+    // The confirmation for a stale entry only promised to clear Git's record;
+    // the daemon refuses if the checkout has reappeared since.
+    await removeDiscoveredWorktree(workspaceId, discovered.path, {
+      force,
+      expectStale: isStaleDiscovered(discovered),
+    });
   } catch (error) {
     // Only the target-specific code proves Git no longer lists the path; a
     // missing workspace also answers 404 without any Git check.
@@ -188,6 +193,10 @@ async function cleanupDiscovered(
     ? "Stale Git entry cleared. Branch kept."
     : "Worktree removed. Branch kept.";
 }
+
+/** A stale entry's checkout reappeared after confirmation; nothing was removed. */
+const DISCOVERED_CHANGED =
+  "The checkout is back on disk, so nothing was removed. Refresh and select it again.";
 
 /** Cleanup succeeded but the requested branch step is unconfirmed; retry repeats only it. */
 const BRANCH_UNCONFIRMED =
@@ -238,10 +247,12 @@ export function useWorktreeRemovalBatch(input: WorktreeRemovalBatch) {
                   status: "failed",
                   refusal,
                   message:
-                    refusal?.message ??
-                    (error instanceof Error
-                      ? error.message
-                      : "Result unconfirmed. Retry checks CompozyOS before acting."),
+                    refusal?.code === WORKTREE_ERROR_CODES.discoveredChanged
+                      ? DISCOVERED_CHANGED
+                      : (refusal?.message ??
+                        (error instanceof Error
+                          ? error.message
+                          : "Result unconfirmed. Retry checks CompozyOS before acting.")),
                 });
               }
               return;

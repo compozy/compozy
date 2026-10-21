@@ -124,8 +124,9 @@ entries by that spelling (on macOS, `/private/tmp/...` is not `/tmp/...`):
     compozy worktree remove --path /private/tmp/detached-a217e52e -o json
 
 HTTP/UDS use `POST /api/workspaces/{workspace_id}/worktrees/discovered/remove` with
-`{path, force?}`; native `compozy__worktree_remove` takes `path` instead of `ref`. A stale (prunable) entry
-only loses its Git metadata. A live checkout gets the same identity checks
+`{path, force?, expect_stale?}`; native `compozy__worktree_remove` takes `path` instead of `ref`. A stale (prunable) entry
+only loses its Git metadata. `expect_stale: true` freezes a stale-only confirmation: if the checkout is present
+again, the request is refused with `worktree_discovered_changed` and nothing is removed. A live checkout gets the same identity checks
 as adoption and the same `worktree_dirty_requires_force` / `worktree_unpushed_requires_force`
 refusal with a risk inventory. A detached HEAD counts commits that no branch, tag or remote keeps.
 Retry with `--force` after review. Discovered removal never deletes a branch, so `--path` cannot be
@@ -155,7 +156,7 @@ Branch on the deterministic API/CLI code before free-form text. The worktree voc
 `branch_checked_out_at_root`, `base_ref_not_found`, `repo_has_no_commits`, `worktree_not_found`,
 `worktree_not_ready`, `worktree_pending`, `worktree_missing`, `worktree_ref_invalid`,
 `adoption_main_checkout`, `adoption_foreign_repository`, `adoption_unreadable`,
-`worktree_registered`, `worktree_operation_in_progress`, `worktree_session_active`, `worktree_status_unreadable`,
+`worktree_registered`, `worktree_discovered_changed`, `worktree_operation_in_progress`, `worktree_session_active`, `worktree_status_unreadable`,
 `worktree_dirty_requires_force`, `worktree_unpushed_requires_force`,
 `worktree_safety_check_failed`, `worktree_removal_failed`, `per_run_materialization_failed`,
 `worktree_config_invalid`, `worktree_denied_by_hook`, `worktree_not_pending`, `forge_unavailable`,

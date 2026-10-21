@@ -36,8 +36,10 @@ affected adopted detached worktrees); it now compares against branches, tags and
   `delete_branch`); `ref` is no longer schema-required but stays required in code unless `path`
   is set. Catalog golden regenerated.
 - **CLI/HTTP/UDS:** `compozy worktree remove --path <path>`; `POST
-  /api/workspaces/{workspace_id}/worktrees/discovered/remove` `{path, force?}` → 204 or the record
-  removal 409 refusal payload. OpenAPI and TS/Go clients regenerated.
+  /api/workspaces/{workspace_id}/worktrees/discovered/remove` `{path, force?, expect_stale?}` → 204
+  or the record removal 409 refusal payload; `expect_stale` refuses a checkout that reappeared with
+  `worktree_discovered_changed` (Web sends it for stale targets). Removed/dismissed tombstones no
+  longer claim their path in discovery or removal. OpenAPI and TS/Go clients regenerated.
 - **Extensibility and hooks:** `worktree.pre_remove` payload gains additive `discovered: true` with
   an empty `worktree_id`/`origin`; stale entries skip the gate. No lifecycle event for discovered
   removals (no record ID). No config key.
