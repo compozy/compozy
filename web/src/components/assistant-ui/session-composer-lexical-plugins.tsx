@@ -28,16 +28,12 @@ export interface SessionComposerInputHandle {
 }
 
 /**
- * Exposes an imperative focus handle for prefill flows outside the editor and
- * labels the contenteditable itself — the library only spreads ARIA props on
- * its wrapper div, leaving the actual textbox unnamed.
+ * Exposes an imperative focus handle for prefill flows outside the editor.
  */
 export function SessionComposerHandleBridge({
   onHandle,
-  editableAriaLabel,
 }: {
   onHandle: (handle: SessionComposerInputHandle | null) => void;
-  editableAriaLabel: string;
 }) {
   const [editor] = useLexicalComposerContext();
   const publishHandle = useEffectEvent(onHandle);
@@ -62,12 +58,6 @@ export function SessionComposerHandleBridge({
     });
     return () => publishHandle(null);
   }, [editor]);
-
-  useEffect(() => {
-    return editor.registerRootListener(rootElement => {
-      rootElement?.setAttribute("aria-label", editableAriaLabel);
-    });
-  }, [editor, editableAriaLabel]);
 
   return null;
 }

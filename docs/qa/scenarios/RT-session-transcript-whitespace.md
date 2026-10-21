@@ -24,3 +24,7 @@ event bytes, message identity, generation, and unrelated entries.
 
 QA 2026-09-23: the isolated browser run passed after the reply and after reload. The backend
 regression passed for version-1 repair, including whitespace-only chunks and padded raw text.
+
+Issue #872: send a user message with a single line break, a blank line, and a two-item list. Verify that the second line is visually below the first and that both list items remain distinct before and after reload. Move the pointer outside the session and verify both user and assistant message actions remain visible. Owning browser coverage: `session-transcript-whitespace.spec.ts`.
+
+QA 2026-10-21 (#872): PASS in the isolated browser runtime with the real daemon and ACP mock provider. Authored line layout, both list items, and user/assistant actions were verified before and after reload; existing streamed Markdown assertions also passed.

@@ -367,6 +367,21 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const beforeClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(beforeClear.transcript)).toContain("block until canceled");
 
+  // Invariant: a settled canceled turn can be edited and sent again in the same session.
+  // Owner: session lifecycle browser integration; canonical suite: this file.
+  const edit = sessionWin.getByRole("button", { name: "Edit message", exact: true });
+  await expect(edit).toBeEnabled();
+  await edit.click();
+  await appPage.getByTestId("session-rewind-confirm").click();
+  await expect(ui.composerTextarea).toHaveText("block until canceled");
+  await ui.composerTextarea.fill("continue after disconnect");
+  await ui.composerTextarea.press("Enter");
+  await expect(ui.chatView).toContainText("recovered after disconnect");
+  const afterEdit = await captureSessionSnapshot(runtime, workspace.id, session.id);
+  expect(JSON.stringify(afterEdit.transcript)).not.toContain("block until canceled");
+  expect(JSON.stringify(afterEdit.transcript)).toContain("continue after disconnect");
+  await browserArtifacts.captureScreenshot("session-stop-edit-resend", appPage);
+
   await ui.topbarOverflow.click();
   await ui.composerClearButton.click();
   await expect(appPage.getByTestId("composer-clear-dialog")).toBeVisible();
@@ -384,12 +399,15 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
     throw new Error(`clear session returned ${clearResponse.status()}\n${daemonLog}`);
   }
   await expect(ui.chatView).not.toContainText("block until canceled");
+  await expect(ui.chatView).not.toContainText("continue after disconnect");
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(sessionWin).toBeVisible();
   await expect(ui.chatView).not.toContainText("block until canceled");
+  await expect(ui.chatView).not.toContainText("continue after disconnect");
 
   const afterClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(afterClear.transcript)).not.toContain("block until canceled");
+  expect(JSON.stringify(afterClear.transcript)).not.toContain("continue after disconnect");
 
   const deletableSession = session;
   const stopResponse = await appPage.request.post(
