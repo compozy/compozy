@@ -18,8 +18,13 @@ import {
 import { useUsageClock } from "../hooks/use-usage-clock";
 import { formatUpdated } from "../lib/format";
 import type { ProviderUsageRowAction } from "../lib/status";
-import { PROVIDER_USAGE_TITLE, type ProviderUsageViewModel } from "../lib/view-model";
+import {
+  partitionProviderUsageRows,
+  PROVIDER_USAGE_TITLE,
+  type ProviderUsageViewModel,
+} from "../lib/view-model";
 
+import { ProviderUsageQuietGroup } from "./provider-usage-quiet-group";
 import { ProviderUsageRow } from "./provider-usage-row";
 
 export interface ProviderUsagePanelProps {
@@ -30,7 +35,11 @@ export interface ProviderUsagePanelProps {
   daemonUnavailable?: boolean;
   /** A read failure other than reachability, shown when there is nothing cached. */
   errorMessage?: string | null;
-  /** `popover` titles through the popover's own title; `window` is the Usage app. */
+  /**
+   * `popover` titles through the popover's own title; `window` is the Usage
+   * app, whose window chrome already carries the title, so the panel keeps
+   * only the freshness line and Refresh.
+   */
   chrome?: "popover" | "window";
   /** Defaults to "Provider usage"; the Usage app passes "Usage". */
   title?: string;
@@ -52,11 +61,6 @@ export interface ProviderUsagePanelProps {
 }
 
 const NO_PENDING: ReadonlySet<string> = new Set();
-
-function PanelTitle({ chrome, title }: { chrome: "popover" | "window"; title: string }) {
-  if (chrome === "popover") return <PopoverTitle>{title}</PopoverTitle>;
-  return <h2 className="text-item-title font-medium text-fg">{title}</h2>;
-}
 
 function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number }) {
   const { viewModel, loading, errorMessage, expandAll, chrome = "popover" } = props;
@@ -95,13 +99,14 @@ function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number
   }
   const onAction = props.daemonUnavailable ? undefined : props.onAction;
   const pending = props.pendingProviderIds ?? NO_PENDING;
+  const { measured, quiet } = partitionProviderUsageRows(viewModel.rows);
   return (
     <ScrollArea
       className={cn("min-h-0", chrome === "popover" ? "max-h-[min(60vh,28rem)]" : "flex-1")}
       viewportClassName={chrome === "popover" ? "max-h-[min(60vh,28rem)]" : undefined}
     >
       <ul aria-label="Providers" className="flex flex-col gap-0.5">
-        {viewModel.rows.map(row => (
+        {measured.map(row => (
           <li key={row.providerId}>
             <ProviderUsageRow
               row={row}
@@ -115,6 +120,14 @@ function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number
           </li>
         ))}
       </ul>
+      <ProviderUsageQuietGroup
+        rows={quiet}
+        now={now}
+        isMacHost={props.isMacHost}
+        remoteClient={props.remoteClient}
+        onAction={onAction}
+        pendingProviderIds={pending}
+      />
     </ScrollArea>
   );
 }
@@ -189,8 +202,8 @@ export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
       className={cn("flex min-h-0 min-w-0 flex-col gap-2", className)}
     >
       <header className="flex items-start gap-2 px-2 pt-1">
-        <PopoverHeader className="min-w-0 flex-1">
-          <PanelTitle chrome={chrome} title={title} />
+        <PopoverHeader className="min-w-0 flex-1 justify-center self-stretch">
+          {chrome === "popover" ? <PopoverTitle>{title}</PopoverTitle> : null}
           {freshness ? (
             <p data-slot="provider-usage-freshness" className="text-meta text-muted">
               {freshness}

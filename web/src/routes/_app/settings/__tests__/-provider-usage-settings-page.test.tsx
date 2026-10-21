@@ -35,7 +35,7 @@ const SECTION: SettingsProviderUsageSection = {
 
 const PROVIDERS = {
   providers: [
-    { name: "codex", settings: { display_name: "Codex" } },
+    { name: "codex", settings: {} },
     { name: "cursor", settings: { display_name: "Cursor" } },
     { name: "opencode", settings: { display_name: "OpenCode" } },
   ],
@@ -122,6 +122,8 @@ describe("ProviderUsageSettingsPage", () => {
 
     const codex = await screen.findByTestId("settings-provider-usage-provider-codex");
     expect(codex).toBeChecked();
+    // Named as the usage rows name it, not by the bare provider ID.
+    expect(await screen.findByRole("switch", { name: "Codex" })).toBe(codex);
     expect(screen.getByTestId("settings-provider-usage-provider-cursor")).not.toBeChecked();
     expect(screen.queryByTestId("settings-provider-usage-provider-opencode")).toBeNull();
     expect(screen.getByTestId("settings-provider-usage-interval")).toHaveValue("5m");

@@ -7,7 +7,8 @@ import { useProviderUsageSurface } from "../../hooks/use-provider-usage-surface"
 
 /**
  * The Usage app: every target expanded, live from the same profile stream as
- * the tray, with a header Refresh and a link to the provider usage settings.
+ * the tray, under a slim freshness + Refresh row (the window chrome carries
+ * the title), with a link to the provider usage settings.
  * Feature-off renders the panel's turned-off state with that same link.
  */
 export function UsageWindow() {
@@ -16,7 +17,11 @@ export function UsageWindow() {
   useTopbarSlot({ glyph: <Gauge />, crumb: "Usage" });
 
   return (
-    <div data-testid="os-usage-app" className="flex min-h-0 flex-1 flex-col p-4">
+    // The Settings content column: bars stay a readable length on wide windows.
+    <div
+      data-testid="os-usage-app"
+      className="mx-auto flex min-h-0 w-full max-w-settings-page-form flex-1 flex-col px-6 pt-4 pb-4"
+    >
       <ProviderUsagePanel
         chrome="window"
         title="Usage"

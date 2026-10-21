@@ -132,12 +132,29 @@ describe("Provider usage components", () => {
       ).toBeInTheDocument();
     });
 
-    it("Should show unsupported rows as text with no bar (UT-056)", () => {
-      renderPanel({ viewModel: viewModelOf([statusTargets(NOW).unsupported]) });
-      const pi = row("Pi");
-      expect(within(pi).getByText("Usage not available for this provider")).toBeInTheDocument();
-      expect(pi.querySelector("[data-slot=progress]")).toBeNull();
-      expect(pi.querySelector("[data-slot=status-dot]")).toBeNull();
+    it("Should fold unsupported rows into one closed trailing group, text only (UT-056)", async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const status = statusTargets(NOW);
+      renderPanel({
+        viewModel: viewModelOf([status.unsupported, codexOkTarget(NOW), status.noPlan]),
+      });
+
+      const providers = screen.getByRole("list", { name: "Providers" });
+      expect(within(providers).getAllByRole("listitem")).toHaveLength(1);
+      const toggle = screen.getByRole("button", { name: "2 providers without usage data" });
+      expect(toggle).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByText("Usage not available for this provider")).toBeNull();
+
+      await user.click(toggle);
+      const quiet = screen.getByRole("list", { name: "2 providers without usage data" });
+      const names = within(quiet)
+        .getAllByRole("listitem")
+        .map(item => item.getAttribute("data-provider"));
+      expect(names).toEqual(["pi", "zai"]);
+      expect(within(quiet).getByText("Usage not available for this provider")).toBeInTheDocument();
+      expect(quiet.querySelector("[data-slot=progress]")).toBeNull();
+      expect(quiet.querySelector("[data-slot=status-dot]")).toBeNull();
+      expect(within(quiet).getByRole("button", { name: "Open settings" })).toBeInTheDocument();
     });
 
     it("Should keep a row expanded while new revisions arrive (UT-055)", async () => {

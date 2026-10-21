@@ -1,5 +1,8 @@
 import { useState } from "react";
 
+import { useProfileReadScope } from "@/systems/profiles";
+import { useProviderUsage } from "@/systems/provider-usage";
+
 import {
   PROVIDER_USAGE_COLLECTOR_IDS,
   sameProviderUsageConfig,
@@ -20,20 +23,30 @@ export interface ProviderUsageSettingsProvider {
 /**
  * Configured providers with a usage collector, in collector order, plus any
  * the config already names (a provider turned off stays listed so it can be
- * turned back on).
+ * turned back on). Names follow the usage rows — the daemon's catalog display
+ * name — then the provider's own display name, then its ID.
  */
 function usageProviders(
   configured: ReadonlyArray<{ name: string; settings?: { display_name?: string } }>,
-  config: ProviderUsageSettingsConfig | null
+  config: ProviderUsageSettingsConfig | null,
+  catalogNames: ReadonlyMap<string, string>
 ): ProviderUsageSettingsProvider[] {
   const names = new Map(configured.map(entry => [entry.name, entry.settings?.display_name]));
   const named = new Set(Object.keys(config?.providers ?? {}));
   const providers: ProviderUsageSettingsProvider[] = [];
   for (const id of PROVIDER_USAGE_COLLECTOR_IDS) {
     if (!names.has(id) && !named.has(id)) continue;
-    providers.push({ id, name: names.get(id)?.trim() || id });
+    providers.push({ id, name: catalogNames.get(id) || names.get(id)?.trim() || id });
   }
   return providers;
+}
+
+/** Display names the usage rows show, by provider ID. */
+function useUsageCatalogNames(): ReadonlyMap<string, string> {
+  const { viewModel } = useProviderUsage(useProfileReadScope().destination);
+  return new Map(
+    (viewModel?.rows ?? []).map(row => [row.providerId, row.target.provider_name.trim()])
+  );
 }
 
 /**
@@ -45,6 +58,7 @@ export function useSettingsProviderUsagePage() {
   const query = useSettingsProviderUsage();
   const providersQuery = useSettingsProviders();
   const mutation = useUpdateSettingsProviderUsage();
+  const catalogNames = useUsageCatalogNames();
   const page = useSettingsPage({ currentSlug: "provider-usage" });
   const [draftOverride, setDraftOverride] = useState<ProviderUsageSettingsConfig | null>(null);
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
@@ -59,7 +73,7 @@ export function useSettingsProviderUsagePage() {
     error: query.error,
     envelope,
     draft,
-    providers: usageProviders(providersQuery.data?.providers ?? [], draft),
+    providers: usageProviders(providersQuery.data?.providers ?? [], draft, catalogNames),
     setDraft: (next: ProviderUsageSettingsConfig) => setDraftOverride(next),
     isDirty,
     isSaving: mutation.isPending,

@@ -74,6 +74,29 @@ export function buildProviderUsageViewModel(
   };
 }
 
+/** Rows with nothing to measure: no collector for the provider, or turned off. */
+export function isQuietProviderUsageRow(row: ProviderUsageRowModel): boolean {
+  return row.target.status === "unsupported" || row.target.status === "disabled";
+}
+
+/**
+ * Splits rows, each half in catalog order: those with usage data or a status
+ * to act on, and the quiet ones the surfaces fold into one trailing group.
+ */
+export function partitionProviderUsageRows(rows: readonly ProviderUsageRowModel[]): {
+  measured: ProviderUsageRowModel[];
+  quiet: ProviderUsageRowModel[];
+} {
+  const measured: ProviderUsageRowModel[] = [];
+  const quiet: ProviderUsageRowModel[] = [];
+  for (const row of rows) (isQuietProviderUsageRow(row) ? quiet : measured).push(row);
+  return { measured, quiet };
+}
+
+export function quietGroupLabel(count: number): string {
+  return `${count} ${count === 1 ? "provider" : "providers"} without usage data`;
+}
+
 /** The tray control exists only while the feature is on and the profile has a target. */
 export function hasProviderUsageTargets(viewModel: ProviderUsageViewModel | null): boolean {
   return viewModel !== null && viewModel.enabled && viewModel.rows.length > 0;

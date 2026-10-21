@@ -70,10 +70,12 @@ afterEach(() => {
 });
 
 describe("UsageWindow", () => {
-  it("Should show every target expanded under a Usage header with Refresh (US-010.AC-2)", () => {
+  it("Should show every target expanded under a slim Refresh row (US-010.AC-2)", () => {
     renderUsageWindow(usageEnvelope([codexOkTarget(NOW)], {}, NOW));
 
-    expect(screen.getByRole("heading", { name: "Usage" })).toBeInTheDocument();
+    // The window chrome titles the app; the panel repeats no heading.
+    expect(screen.queryByRole("heading", { name: "Usage" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Usage" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh provider usage" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Codex/ })).toHaveAttribute("aria-expanded", "true");
     expect(screen.queryByRole("button", { name: "Open Usage" })).toBeNull();

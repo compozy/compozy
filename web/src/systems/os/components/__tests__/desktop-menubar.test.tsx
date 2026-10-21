@@ -348,6 +348,9 @@ describe("DesktopMenubar provider usage control", () => {
 
     shell.coordinator.userOpen.mockClear();
     onOverlayOpenChange.mockClear();
+    await user.click(
+      within(popover).getByRole("button", { name: "1 provider without usage data" })
+    );
     await user.click(within(popover).getByRole("button", { name: "Open settings" }));
     expect(shell.coordinator.userOpen).toHaveBeenLastCalledWith(settings);
     expect(onOverlayOpenChange).toHaveBeenLastCalledWith("usage", false);
