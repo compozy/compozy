@@ -2897,7 +2897,9 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 				WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: *result.TerminalID,
 				Mode: "read",
 			}, actor)
-			if !errors.Is(ticketErr, ErrNotInteractive) || ticket.Token != "" {
+			typedTicketErr, typedTicketErrOK := errors.AsType[*Error](ticketErr)
+			if !errors.Is(ticketErr, ErrNotInteractive) || !typedTicketErrOK ||
+				typedTicketErr.Code != ErrorCodeNotInteractive || ticket.Token != "" {
 				t.Fatalf("MintAttachTicket(pipe) = %#v error=%v", ticket, ticketErr)
 			}
 			if err := handle.Write(t.Context(), actor, []byte("input")); !errors.Is(err, ErrNotInteractive) {

@@ -12,10 +12,11 @@ function MessageImageReference({
   src,
   alt,
 }: ImgHTMLAttributes<HTMLImageElement> | Record<string, unknown>) {
-  const path = typeof src === "string" ? src : "";
+  const pending = src === "streamdown:incomplete-image";
+  const path = typeof src === "string" && !pending ? src : "";
   const label = typeof alt === "string" && alt ? alt : "image";
   return (
-    <span title={path}>
+    <span title={path} aria-busy={pending || undefined}>
       [image: {label}]
       {path ? (
         <>

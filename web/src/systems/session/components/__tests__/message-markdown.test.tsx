@@ -8,6 +8,14 @@ vi.mock("@/lib/utils", () => ({
 import { MessageMarkdown } from "../message-markdown";
 
 describe("MessageMarkdown", () => {
+  it("Should keep an unfinished streaming image pending until its authored path arrives", () => {
+    const { container, rerender } = render(<MessageMarkdown streaming content="![Preview](" />);
+    expect(container).not.toHaveTextContent("streamdown:incomplete-image");
+    expect(container.querySelector("img")).toBeNull();
+    rerender(<MessageMarkdown content="![Preview](/tmp/demo/complete.png)" />);
+    expect(screen.getByText("/tmp/demo/complete.png")).toBeInTheDocument();
+  });
+
   it("Should preserve authored image references without requesting filesystem paths from the app", () => {
     const { container, rerender } = render(
       <MessageMarkdown content="![Preview](/tmp/demo/screen.png)" />
