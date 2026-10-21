@@ -1,11 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { ComponentProps } from "react";
+import { useRef, type ComponentProps } from "react";
 import { fn } from "storybook/test";
 
-import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
+import { Popover, PopoverContent } from "@compozy/ui";
 
 import { PanelSurface } from "@/storybook/story-layout";
-import { OsMenuBar } from "@/systems/os";
 
 import { buildProviderUsageViewModel } from "../../lib/view-model";
 import {
@@ -20,7 +19,6 @@ import {
 } from "../../mocks";
 import type { ProviderUsageTarget } from "../../types";
 import { ProviderUsagePanel } from "../provider-usage-panel";
-import { ProviderUsageTrayMeter } from "../provider-usage-tray-meter";
 
 const NOW = Date.now();
 const STATUS = statusTargets(NOW);
@@ -32,36 +30,25 @@ function rowsOf(targets: ProviderUsageTarget[]) {
 }
 
 /**
- * The S2 composition: the panel in an open popover anchored to the tray
- * control, rendered in the real menubar slot so the trigger wears the
- * footprint the OS layer hands it.
+ * The S2 content: the panel in an open popover, anchored to a bare point at
+ * the top-right corner. The tray trigger and its footprint belong to the OS
+ * menubar stories (`OsMenuBar` › Usage popover open).
  */
 function PopoverStage(args: PanelArgs) {
+  const anchor = useRef<HTMLSpanElement>(null);
   return (
-    <div className="flex min-h-160 w-full flex-col bg-rail">
-      <OsMenuBar
-        workspace={{ name: "compozy", monogram: "CO" }}
-        usageControl={className => (
-          <Popover open>
-            <PopoverTrigger
-              render={
-                <ProviderUsageTrayMeter
-                  tray={args.viewModel?.tray ?? null}
-                  measuredAt={args.viewModel?.trayMeasuredAt}
-                  className={className}
-                />
-              }
-            />
-            <PopoverContent
-              align="end"
-              aria-label="Provider usage"
-              className="w-80 max-w-[calc(100vw-16px)] p-2"
-            >
-              <ProviderUsagePanel {...args} />
-            </PopoverContent>
-          </Popover>
-        )}
-      />
+    <div className="flex min-h-160 w-full items-start justify-end bg-rail p-2">
+      <span ref={anchor} aria-hidden="true" className="size-8.5" />
+      <Popover open>
+        <PopoverContent
+          anchor={anchor}
+          align="end"
+          aria-label="Provider usage"
+          className="w-80 max-w-[calc(100vw-16px)] p-2"
+        >
+          <ProviderUsagePanel {...args} />
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

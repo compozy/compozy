@@ -4,7 +4,6 @@ export {
   type ShortcutBindingKeysProps,
 } from "./components/shortcut-binding-keys";
 export { createOsRouteSync } from "./components/os-route-sync";
-export { OsMenuBar, type OsMenuBarProps } from "./components/os-menubar";
 export { OsWindowSurface, type OsWindowSurfaceProps } from "./components/os-window-frame";
 export { OsRouteNotFound } from "./components/os-route-not-found";
 export { OsShellContext, type OsShellHandle } from "./contexts/os-shell-context";
