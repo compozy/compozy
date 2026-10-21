@@ -66,6 +66,33 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	t.Run("Should not let an older overlapping resolution restore a disabled provider", func(t *testing.T) {
+		t.Parallel()
+		entered, release := make(chan struct{}), make(chan struct{})
+		var resolves atomic.Int32
+		service := NewService(Options{Resolver: usageResolverFunc(func(context.Context, string) ([]Target, error) {
+			if resolves.Add(1) == 1 {
+				close(entered)
+				<-release
+				return []Target{{ProviderID: "codex", ProviderName: "Codex"}}, nil
+			}
+			return nil, nil
+		})})
+		t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+		stale := make(chan error, 1)
+		go func() {
+			_, err := service.Envelope(context.Background(), "personal")
+			stale <- err
+		}()
+		<-entered
+		current, err := service.Envelope(t.Context(), "personal")
+		requireNoError(t, err)
+		requireEqual(t, 0, len(current.Targets))
+		close(release)
+		requireNoError(t, <-stale)
+		requireEqual(t, 0, len(service.cached("personal").Targets))
+	})
+
 	t.Run("Should collect a changed route after startup collection has finished", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

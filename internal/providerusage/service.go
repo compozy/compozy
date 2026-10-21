@@ -29,10 +29,14 @@ type Manager struct {
 	stopped   bool
 	started   bool
 	scheduler *scheduleRun
+	// resolveSeq orders target resolutions so an older read never overwrites a newer one.
+	resolveSeq uint64
 }
 
 type profileState struct {
-	revision    uint64
+	revision uint64
+	// appliedSeq is the resolveSeq of the newest resolution applied to this profile.
+	appliedSeq  uint64
 	targets     map[string]*targetState
 	order       []string
 	subscribers map[chan Revision]struct{}
@@ -110,6 +114,8 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 		return nil, nil
 	}
 	previous := s.profiles[profile]
+	s.resolveSeq++
+	seq := s.resolveSeq
 	s.mu.Unlock()
 	targets, err := s.options.Resolver.Targets(ctx, profile)
 	if err != nil {
@@ -120,9 +126,20 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 	if !s.enabled || s.stopped || (previous != nil && s.profiles[profile] != previous) {
 		return nil, nil
 	}
+	p := s.profileLocked(profile)
+	// A resolution that started before an already applied one read older config,
+	// so applying it would restore targets a later reconcile removed or disabled.
+	if seq < p.appliedSeq {
+		return nil, nil
+	}
+	p.appliedSeq = seq
+	return s.applyTargetsLocked(p, profile, targets), nil
+}
+
+// applyTargetsLocked replaces a profile's targets, canceling flights for removed or failed routes.
+func (s *Manager) applyTargetsLocked(p *profileState, profile string, targets []Target) []*flight {
 	var canceled []*flight
 	var replacements []string
-	p := s.profileLocked(profile)
 	seen := make(map[string]bool, len(targets))
 	order := make([]string, 0, len(targets))
 	changed := false
@@ -170,7 +187,7 @@ func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *tar
 		s.changedLocked(p)
 	}
 	s.admitFlightsLocked(p, replacements, RefreshRequest{ProfileID: profile, Intent: IntentBackground})
-	return canceled, nil
+	return canceled
 }
 
 // New targets share startup jitter, but join an active scheduler without waiting an interval.
