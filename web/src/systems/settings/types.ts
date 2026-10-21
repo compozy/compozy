@@ -5,6 +5,9 @@ import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/
 export type SettingsMarketplaceSection = OperationResponse<"getSettingsMarketplace", 200>;
 export type SettingsUpdateMarketplaceRequest = OperationRequestBody<"updateSettingsMarketplace">;
 export type SettingsGeneralSection = OperationResponse<"getSettingsGeneral", 200>;
+export type SettingsProviderUsageSection = OperationResponse<"getSettingsProviderUsage", 200>;
+export type SettingsUpdateProviderUsageRequest =
+  OperationRequestBody<"updateSettingsProviderUsage">;
 export type SettingsPersonaSection = OperationResponse<"getSettingsPersona", 200>;
 export type SettingsPersonaFilter = NonNullable<OperationQuery<"getSettingsPersona">>;
 export type SettingsLayeredScope = SettingsPersonaFilter["scope"];
@@ -195,6 +198,7 @@ export type SettingsMutationResult =
   | OperationResponse<"updateSettingsSkills", 200>
   | OperationResponse<"updateSettingsMarketplace", 200>
   | OperationResponse<"updateSettingsAutomation", 200>
+  | OperationResponse<"updateSettingsProviderUsage", 200>
   | OperationResponse<"updateSettingsAttention", 200>
   | OperationResponse<"updateSettingsShell", 200>
   | OperationResponse<"updateSettingsObservability", 200>
@@ -215,6 +219,7 @@ export type SettingsSectionName =
   | SettingsSkillsSection["section"]
   | SettingsMarketplaceSection["section"]
   | SettingsAutomationSection["section"]
+  | SettingsProviderUsageSection["section"]
   | SettingsAttentionSection["section"]
   | SettingsShellSection["section"]
   | SettingsObservabilitySection["section"]
@@ -247,6 +252,7 @@ export type SettingsSectionSlug =
   | "palette"
   | "profiles"
   | "providers"
+  | "provider-usage"
   | "roles"
   | "skills"
   | "mcp"

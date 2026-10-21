@@ -421,6 +421,16 @@ func (c *Client) RefreshProviderModelsByProvider(ctx context.Context, params Ref
 	return &out, nil
 }
 
+// RefreshProviderUsage Refresh provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) RefreshProviderUsage(ctx context.Context, body ProviderUsageRefreshRequest) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage/refresh"
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // RefreshSessionSoulParams carries the path, query, and header parameters.
 type RefreshSessionSoulParams struct {
 	WorkspaceID string `url:"workspace_id"`
@@ -437,10 +447,4 @@ func (c *Client) RefreshSessionSoul(ctx context.Context, params RefreshSessionSo
 		return nil, err
 	}
 	return &out, nil
-}
-
-// RegisterWindowManagerClientParams carries the path, query, and header parameters.
-type RegisterWindowManagerClientParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

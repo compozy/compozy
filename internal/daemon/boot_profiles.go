@@ -96,6 +96,9 @@ func (r *daemonProfileEventRecorder) RecordProfileEvent(event profile.Event) {
 		return
 	}
 	r.archiveTerminalProfile(event)
+	if r.state != nil && r.state.providerUsage != nil {
+		r.state.providerUsage.requestProfileSync(event)
+	}
 	if r.writer == nil {
 		return
 	}

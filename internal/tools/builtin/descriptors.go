@@ -47,6 +47,7 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		vaultDescriptors(),
 		worktreeDescriptors(),
 		providerModelsDescriptors(),
+		providerUsageDescriptors(),
 		observeDescriptors(),
 		gatewayDescriptors(),
 		taskDescriptors(),

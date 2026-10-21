@@ -32,6 +32,8 @@ func (s *service) updateConfigBackedSection(
 		return s.updateCmdPaletteSection(ctx, req)
 	case SectionAttention:
 		return s.updateAttentionSection(ctx, req)
+	case SectionProviderUsage:
+		return s.updateProviderUsageSection(ctx, req)
 	case SectionShell:
 		return s.updateShellSection(ctx, req)
 	case SectionObservability:
@@ -244,11 +246,6 @@ func (s *service) loadScopedSectionUpdateForProfile(
 	}
 	supported := slices.Contains(allowedScopes, normalizedScope)
 	if !supported {
-		if len(allowedScopes) == 1 && allowedScopes[0] == ScopeUser {
-			return scopedSectionUpdate{}, conflictError(
-				fmt.Errorf("settings: section %q does not support workspace scope", section),
-			)
-		}
 		return scopedSectionUpdate{}, conflictError(
 			fmt.Errorf("settings: section %q does not support %s scope", section, normalizedScope),
 		)

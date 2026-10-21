@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"time"
 
 	"regexp"
 )
@@ -257,4 +258,16 @@ var builtinProviderAliases = map[string]string{
 	providerGrokAlias:            providerXaiKey,
 	"x-ai":                       providerXaiKey,
 	providerXaiDotAlias:          providerXaiKey,
+}
+
+// ProviderUsageConfig controls machine-wide provider usage collection.
+type ProviderUsageConfig struct {
+	Enabled         bool                                   `toml:"enabled"`
+	RefreshInterval time.Duration                          `toml:"refresh_interval"`
+	Providers       map[string]ProviderUsageProviderConfig `toml:"providers,omitempty"`
+}
+
+type ProviderUsageProviderConfig struct {
+	Enabled        bool `toml:"enabled"`
+	KeychainAccess bool `toml:"keychain_access,omitempty"`
 }

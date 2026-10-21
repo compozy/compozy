@@ -12,6 +12,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 	if targets.clarify != nil {
 		appendWrappedError(errs, "daemon: close clarification broker", targets.clarify.Close(ctx))
 	}
+	if targets.providerUsage != nil {
+		appendWrappedError(errs, "daemon: shutdown provider usage", targets.providerUsage.Shutdown(ctx))
+	}
 	if targets.modelCatalog != nil {
 		appendWrappedError(errs, "daemon: shutdown model catalog", targets.modelCatalog.Shutdown(ctx))
 	}

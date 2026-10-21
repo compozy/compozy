@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -4421,6 +4422,115 @@ func TestUpdateSettingsRolesRejectsRetiredFieldsWithoutWriting(t *testing.T) {
 				if !bytes.Equal(persisted, original) {
 					t.Fatalf("config changed: %s", persisted)
 				}
+			}
+		})
+	}
+}
+
+func TestSettingsProviderUsageHandlers(t *testing.T) {
+	t.Parallel()
+	t.Run("Should carry only the active collection profile into user scoped consent", func(t *testing.T) {
+		t.Parallel()
+		var profiles []string
+		service := &stubSettingsService{
+			ApplySectionFn: func(ctx context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				if req.Scope != settingspkg.ScopeUser {
+					t.Fatalf("scope = %s", req.Scope)
+				}
+				profile, local := core.ProviderUsageConsentProfile(ctx)
+				if !local {
+					t.Fatal("missing local consent context")
+				}
+				profiles = append(profiles, profile)
+				return defaultApplyResult(req.Section), nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "http", service, nil)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		fixture.Engine.PATCH("/api/settings/provider-usage", fixture.Handlers.UpdateSettingsProviderUsage)
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPatch,
+			"/api/settings/provider-usage?scope=user&collection_profile=marketing",
+			strings.NewReader(
+				`{"config":{"enabled":true,"refresh_interval":"5m","providers":{"claude":{"keychain_access":true}}}}`,
+			),
+		))
+		if response.Code != http.StatusOK || len(profiles) != 1 || profiles[0] != "profile-marketing" {
+			t.Fatalf("consent profiles=%v response=%d %s", profiles, response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("Should return provider usage settings and persist typed updates", func(t *testing.T) {
+		t.Parallel()
+		cfg := compozyconfig.DefaultProviderUsageConfig()
+		service := &stubSettingsService{
+			GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				return settingspkg.SectionEnvelope{
+					Section:         req.Section,
+					Scope:           settingspkg.ScopeUser,
+					AvailableScopes: []settingspkg.ScopeKind{settingspkg.ScopeUser},
+					ProviderUsage:   &settingspkg.ProviderUsageSection{Config: cfg},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "http", service, nil)
+		fixture.Engine.GET("/api/settings/provider-usage", fixture.Handlers.GetSettingsProviderUsage)
+		fixture.Engine.PATCH("/api/settings/provider-usage", fixture.Handlers.UpdateSettingsProviderUsage)
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/settings/provider-usage", http.NoBody),
+		)
+		var body contract.SettingsProviderUsageResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if response.Code != http.StatusOK || !body.Config.Enabled || body.Config.RefreshInterval != "5m0s" ||
+			body.Config.Providers == nil || body.KeychainSupported != (runtime.GOOS == "darwin") {
+			t.Fatalf("GET = %d %s", response.Code, response.Body.String())
+		}
+		response = httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(
+			response,
+			httptest.NewRequestWithContext(t.Context(),
+				http.MethodPatch,
+				"/api/settings/provider-usage",
+				strings.NewReader(
+					`{"config":{"enabled":true,"refresh_interval":"10m","providers":{"claude":{"keychain_access":true},"cursor":{"enabled":false}}}}`,
+				),
+			),
+		)
+		got := service.LastUpdateSectionRequest.ProviderUsage
+		if response.Code != http.StatusOK || got == nil || !got.ProviderEnabled("claude") ||
+			got.ProviderEnabled("cursor") ||
+			!got.ClaudeKeychainAccess() {
+			t.Fatalf("PATCH = %d %s, config %#v", response.Code, response.Body.String(), got)
+		}
+	})
+	for _, tc := range []struct{ name, body, want string }{
+		{"Should reject missing provider usage payload", `{}`, "provider-usage.config is required"},
+		{"Should reject invalid provider usage duration", `{"config":{"refresh_interval":"bad"}}`, "provider_usage.refresh_interval"},
+		{"Should reject Keychain field on non Claude providers", `{"config":{"refresh_interval":"5m","providers":{"codex":{"keychain_access":false}}}}`, "provider_usage.providers.codex.keychain_access"},
+		{"Should reject unknown provider usage payload fields", `{"config":{"unknown":true}}`, "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixture := newSettingsHandlerFixture(t, "http", nil, nil)
+			fixture.Engine.PATCH("/api/settings/provider-usage", fixture.Handlers.UpdateSettingsProviderUsage)
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPatch,
+					"/api/settings/provider-usage",
+					strings.NewReader(tc.body),
+				),
+			)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), tc.want) {
+				t.Fatalf("PATCH = %d %s", response.Code, response.Body.String())
 			}
 		})
 	}

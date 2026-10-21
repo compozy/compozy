@@ -3949,3 +3949,74 @@ Owner: workflow `opencode-model-discovery` (Tasks 01–03 implement; Tasks 04–
 - Workspace/profile isolation and user data: unchanged; rewind remains daemon-authoritative and archives the discarded suffix without undoing file/tool effects. No migration.
 - Official runtime skill: existing rewind contract remains accurate; no skill changes.
 - Docs/QA: update RT-conversation-rewind and RT-session-transcript-whitespace; browser suites cover authored layout, persistent controls, and Stop/edit/resend.
+
+## Provider usage — topbar usage mini-app, `[provider_usage]`, `compozy provider usage` — 2026-10-21
+
+Owner: `.compozy/tasks/provider-usage/` (`_spec.md` Part II §Impact Analysis, ADR-001…005, exploration in
+`analysis/`). Implementation slices cite this entry and update only the bullets they change. Every public
+surface below is documented **experimental** (SD-013 regime 2 exception) until the history follow-up
+promotes it.
+
+- **Native tools:** additive `compozy__provider_usage_list` (read-only, cache only, no network) and
+  `compozy__provider_usage_refresh` (mutating, always background intent, caller profile, waits up to 15 s),
+  toolset `compozy__provider_usage` (sibling of `compozy__provider_models`); catalog and digests regenerate.
+  No existing tool changes.
+- **CLI/HTTP/UDS:** additive `compozy provider usage list|refresh` (refresh sends `explicit`); `GET
+  /api/provider-usage`, `GET /api/provider-usage/providers/{provider_id}`, `POST /api/provider-usage/refresh`,
+  `GET /api/provider-usage/stream` (SSE `ready`, `provider_usage_changed`, both with `boot_id`), and
+  `GET/PATCH /api/settings/provider-usage`. `explicit` is honored only for local operators. Foreign-origin
+  app tokens may use the GETs and are denied refresh; no new token scopes. Usage codes use the flat
+  `ErrorPayload`, profile codes the profile envelope. Generated OpenAPI, Go/TypeScript SDKs, tool catalog, and
+  CLI reference co-ship. A provider-filtered read or `refresh <provider>` returns only those rows with
+  `tray: null`; the envelope and settings response carry read-only `keychain_supported` (macOS daemon only).
+  Settings PATCH accepts `collection_profile` (default `default`) independently of user/machine config scope; a local consent
+  apply starts exactly one explicit collection for that profile, while gateway/agent requests stay background.
+  Reload and unrelated settings mutations never seed consent; after restart, saved consent offers explicit
+  Refresh. Unsupported provider/auth-mode pairs use the existing `no_collector` code.
+- **Extensibility and hooks:** no hook event, manifest, Host API, extension SDK, or MCP sidecar change; alert
+  hooks are deferred with history.
+- **Config:** `provider_usage.enabled` (true), `provider_usage.refresh_interval` ("5m", 1m–1h),
+  `provider_usage.providers.<id>.enabled` (true), `provider_usage.providers.claude.keychain_access` (false,
+  darwin only). User/machine scope; workspace config fails to load and profile overlays reject the root;
+  live apply; additive (ladder (a)). `config set` accepts `keychain_access` only under `claude`; agents'
+  native config tools may write the other three keys but are refused `keychain_access` (operator-only
+  consent). Deleting a custom provider removes its companion usage override in the same write.
+- **Workspace data isolation:** no SQLite migration, tables, or workspace files; snapshots are in-memory and
+  keyed by `(profile, provider, route fingerprint)`, fenced by an in-memory credential identity; aggregate
+  profile reads are rejected; no credential, digest, account ID, or raw payload in any output. CompozyOS reads
+  provider credential files read-only; the Codex CLI may renew its own login (ADR-002), file store only
+  (`keyring`/`auto` → `unsupported`). The macOS Keychain is read only on explicit local-operator intent; the
+  token stays in memory, bound to Claude's account evidence, and is dropped on re-login, logout, consent
+  revocation, or indeterminate evidence. A missing Keychain item reports `signed_out` (`auth_missing`);
+  only a real OS denial reports `keychain_denied`, retained until another explicit action. Expired Claude
+  credentials retain owner evidence and same-owner last-good values as stale; Keychain expiry offers refresh,
+  while file expiry directs the operator to sign in through Claude. Bound-key
+  replacements are checked against freshly resolved secrets without adding secrets to public fingerprints.
+  File-backed reads recheck local ownership when file metadata changes and discard mismatched snapshots
+  before returning; replacement collection runs in the background without a Keychain read.
+  Removed targets cancel only their own flights; deleted profiles close subscriptions and clear credentials.
+  Profile events reconcile through one coalescing worker with bounded resolution and joined shutdown.
+  Replaced eligible routes collect promptly after invalidation. New targets added after the startup tick
+  receive a first background collection immediately; targets discovered during startup share its jitter. Scheduled resolution uses the scheduler's
+  owned cancellation context, so disable and shutdown cancel blocked profile/credential reads.
+  A failed publication fence retains same-owner last-good values and retries only publication checks within
+  the flight deadline, without repeating the upstream collection. If a concurrent resolution supersedes
+  the captured epoch, the admitted flight recollects the eligible replacement instead of leaving it loading.
+  Cancellation and removal still stop the flight. Reads cancel ineligible flights without
+  waiting for cleanup; lifecycle reconciliation and shutdown own bounded joins. Explicit official ChatGPT
+  origins normalize to the backend API before selecting the Codex usage path.
+- **Official CompozyOS skill:** `skills/compozy/SKILL.md` router row; `references/native-tools.md` (two
+  tools), `references/runtime-operations.md` §Provider Usage (verbs, routes, intent, statuses and recovery),
+  `references/configuration.md` §Provider Usage (keys, scope, settings route).
+- **Web/Docs:** `web/src/systems/provider-usage/` (domain), OS tray slot, popover, overlay `usage`, Usage app
+  (`/usage`), Settings → Provider usage section; `unsupported`/`disabled` rows fold into one closed trailing
+  group in the popover and Usage app; Allow and the Keychain setting render only when `keychain_supported`. Site: `agents/provider-usage.mdx` tutorial (tray, popover,
+  Usage app, Keychain consent, Codex store, support table, statuses, CLI, config, tools, routes),
+  `configuration/config-toml.mdx` `[provider_usage]`, `tools/toolsets.mdx` row, generated CLI pages.
+  The daemon owns initial consent collection; the Web invalidates its query and reserves refresh for
+  later Refresh/Try again actions. Failed explicit refreshes show one error toast even if the cache reread
+  succeeds; Allow retains its settings-owned error toast. Opening also refreshes first-fetch rows without
+  an active flight. Cursor partial auto/API percentages do not imply a monthly total.
+- **QA:** `APP-provider-usage-tray` (operator walk, journey `J-provider-usage`) and
+  `ET-provider-usage-surfaces` (transport, profiles, app tokens, SSE) — both `untested` until the trailing QA
+  pair walks them with real Claude and Codex logins.

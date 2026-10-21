@@ -24,6 +24,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppTerminalRouteImport } from './routes/_app/terminal'
 import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
+import { Route as AppUsageRouteImport } from './routes/_app/usage'
 import { Route as AppVaultRouteImport } from './routes/_app/vault'
 import { Route as AppAgentsIndexRouteImport } from './routes/_app/agents.index'
 import { Route as AppAgentsNameRouteImport } from './routes/_app/agents.$name'
@@ -49,6 +50,7 @@ import { Route as AppSettingsMcpRouteImport } from './routes/_app/settings/mcp'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
 import { Route as AppSettingsPaletteRouteImport } from './routes/_app/settings/palette'
 import { Route as AppSettingsProfilesRouteImport } from './routes/_app/settings/profiles'
+import { Route as AppSettingsProviderUsageRouteImport } from './routes/_app/settings/provider-usage'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
@@ -142,6 +144,11 @@ const AppTerminalRoute = AppTerminalRouteImport.update({
 const AppTriggersRoute = AppTriggersRouteImport.update({
   id: '/triggers',
   path: '/triggers',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsageRoute = AppUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
   getParentRoute: () => AppRoute,
 } as any)
 const AppVaultRoute = AppVaultRouteImport.update({
@@ -270,6 +277,12 @@ const AppSettingsProfilesRoute = AppSettingsProfilesRouteImport.update({
   path: '/profiles',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsProviderUsageRoute =
+  AppSettingsProviderUsageRouteImport.update({
+    id: '/provider-usage',
+    path: '/provider-usage',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
   id: '/providers',
   path: '/providers',
@@ -387,6 +400,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof AppTasksRouteWithChildren
   '/terminal': typeof AppTerminalRouteWithChildren
   '/triggers': typeof AppTriggersRouteWithChildren
+  '/usage': typeof AppUsageRoute
   '/vault': typeof AppVaultRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/jobs/$jobId': typeof AppJobsJobIdRoute
@@ -409,6 +423,7 @@ export interface FileRoutesByFullPath {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/palette': typeof AppSettingsPaletteRoute
   '/settings/profiles': typeof AppSettingsProfilesRoute
+  '/settings/provider-usage': typeof AppSettingsProviderUsageRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
@@ -443,6 +458,7 @@ export interface FileRoutesByTo {
   '/sessions': typeof AppSessionsRoute
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRouteWithChildren
+  '/usage': typeof AppUsageRoute
   '/vault': typeof AppVaultRoute
   '/': typeof AppIndexRoute
   '/jobs/$jobId': typeof AppJobsJobIdRoute
@@ -465,6 +481,7 @@ export interface FileRoutesByTo {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/palette': typeof AppSettingsPaletteRoute
   '/settings/profiles': typeof AppSettingsProfilesRoute
+  '/settings/provider-usage': typeof AppSettingsProviderUsageRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
@@ -505,6 +522,7 @@ export interface FileRoutesById {
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/terminal': typeof AppTerminalRouteWithChildren
   '/_app/triggers': typeof AppTriggersRouteWithChildren
+  '/_app/usage': typeof AppUsageRoute
   '/_app/vault': typeof AppVaultRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
@@ -528,6 +546,7 @@ export interface FileRoutesById {
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/palette': typeof AppSettingsPaletteRoute
   '/_app/settings/profiles': typeof AppSettingsProfilesRoute
+  '/_app/settings/provider-usage': typeof AppSettingsProviderUsageRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
@@ -569,6 +588,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/terminal'
     | '/triggers'
+    | '/usage'
     | '/vault'
     | '/agents/$name'
     | '/jobs/$jobId'
@@ -591,6 +611,7 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/palette'
     | '/settings/profiles'
+    | '/settings/provider-usage'
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
@@ -625,6 +646,7 @@ export interface FileRouteTypes {
     | '/sessions'
     | '/tasks'
     | '/triggers'
+    | '/usage'
     | '/vault'
     | '/'
     | '/jobs/$jobId'
@@ -647,6 +669,7 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/palette'
     | '/settings/profiles'
+    | '/settings/provider-usage'
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
@@ -686,6 +709,7 @@ export interface FileRouteTypes {
     | '/_app/tasks'
     | '/_app/terminal'
     | '/_app/triggers'
+    | '/_app/usage'
     | '/_app/vault'
     | '/_app/'
     | '/_app/agents/$name'
@@ -709,6 +733,7 @@ export interface FileRouteTypes {
     | '/_app/settings/observability'
     | '/_app/settings/palette'
     | '/_app/settings/profiles'
+    | '/_app/settings/provider-usage'
     | '/_app/settings/providers'
     | '/_app/settings/roles'
     | '/_app/settings/skills'
@@ -844,6 +869,13 @@ declare module '@tanstack/react-router' {
       path: '/triggers'
       fullPath: '/triggers'
       preLoaderRoute: typeof AppTriggersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/usage': {
+      id: '/_app/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof AppUsageRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/vault': {
@@ -1019,6 +1051,13 @@ declare module '@tanstack/react-router' {
       path: '/profiles'
       fullPath: '/settings/profiles'
       preLoaderRoute: typeof AppSettingsProfilesRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/provider-usage': {
+      id: '/_app/settings/provider-usage'
+      path: '/provider-usage'
+      fullPath: '/settings/provider-usage'
+      preLoaderRoute: typeof AppSettingsProviderUsageRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/providers': {
@@ -1301,6 +1340,7 @@ interface AppSettingsRouteChildren {
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
   AppSettingsPaletteRoute: typeof AppSettingsPaletteRoute
   AppSettingsProfilesRoute: typeof AppSettingsProfilesRoute
+  AppSettingsProviderUsageRoute: typeof AppSettingsProviderUsageRoute
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
@@ -1323,6 +1363,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
   AppSettingsPaletteRoute: AppSettingsPaletteRoute,
   AppSettingsProfilesRoute: AppSettingsProfilesRoute,
+  AppSettingsProviderUsageRoute: AppSettingsProviderUsageRoute,
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,
@@ -1401,6 +1442,7 @@ interface AppRouteChildren {
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTerminalRoute: typeof AppTerminalRouteWithChildren
   AppTriggersRoute: typeof AppTriggersRouteWithChildren
+  AppUsageRoute: typeof AppUsageRoute
   AppVaultRoute: typeof AppVaultRoute
   AppIndexRoute: typeof AppIndexRoute
   AppSessionIdRoute: typeof AppSessionIdRoute
@@ -1419,6 +1461,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTerminalRoute: AppTerminalRouteWithChildren,
   AppTriggersRoute: AppTriggersRouteWithChildren,
+  AppUsageRoute: AppUsageRoute,
   AppVaultRoute: AppVaultRoute,
   AppIndexRoute: AppIndexRoute,
   AppSessionIdRoute: AppSessionIdRoute,

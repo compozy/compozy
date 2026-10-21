@@ -7,6 +7,7 @@ func CloneConfig(source *Config) Config {
 	}
 
 	cloned := *source
+	cloned.ProviderUsage = source.ProviderUsage.Clone()
 	cloned.Marketplace.PluginSources = cloneMarketplacePluginSources(source.Marketplace.PluginSources)
 	cloned.WindowManager = cloneWindowManagerConfig(source.WindowManager)
 	cloned.Terminal = source.Terminal

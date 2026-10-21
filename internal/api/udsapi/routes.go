@@ -38,6 +38,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerVaultRoutes(api, handlers)
 	registerProviderRoutes(api, handlers)
 	registerModelCatalogRoutes(api, handlers)
+	registerProviderUsageRoutes(api, handlers)
 	registerGatewayRoutes(api, handlers)
 	registerMCPRoutes(api, handlers)
 }
@@ -322,6 +323,8 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings.PATCH("/cmd-palette", handlers.UpdateSettingsCmdPalette)
 	settings.GET("/attention", handlers.GetSettingsAttention)
 	settings.PATCH("/attention", handlers.UpdateSettingsAttention)
+	settings.GET("/provider-usage", handlers.GetSettingsProviderUsage)
+	settings.PATCH("/provider-usage", handlers.UpdateSettingsProviderUsage)
 	settings.GET("/shell", handlers.GetSettingsShell)
 	settings.PATCH("/shell", handlers.UpdateSettingsShell)
 
@@ -381,4 +384,11 @@ func registerModelCatalogRoutes(api gin.IRouter, handlers *Handlers) {
 	modelCatalog := api.Group("/model-catalog")
 	modelCatalog.GET("/*catalog_path", handlers.ModelCatalogRoute)
 	modelCatalog.POST("/*catalog_path", handlers.ModelCatalogRoute)
+}
+
+func registerProviderUsageRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/provider-usage", handlers.ListProviderUsage)
+	api.GET("/provider-usage/providers/:provider_id", handlers.ListProviderUsage)
+	api.POST("/provider-usage/refresh", handlers.RefreshProviderUsage)
+	api.GET("/provider-usage/stream", handlers.StreamProviderUsage)
 }

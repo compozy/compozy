@@ -3198,6 +3198,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctLegacySessionStreamSchemas(t, baseline)
 		applyApprovedAdditiveSchemaChanges(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
+		addProviderUsageSettingsSection(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3834,4 +3835,35 @@ func schemaIncludesType(schema *openapi3.Schema, want string) bool {
 		}
 	}
 	return false
+}
+
+// Provider usage adds one section and apply target without removing existing values.
+func addProviderUsageSettingsSection(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	changes := 0
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case map[string]any:
+			if values, ok := node["enum"].([]any); ok && len(values) >= 12 && values[0] == "general" &&
+				values[8] == "shell" &&
+				values[9] == "observability" {
+				next := append([]any{}, values[:9]...)
+				next = append(next, "provider-usage")
+				node["enum"] = append(next, values[9:]...)
+				changes++
+			}
+			for _, child := range node {
+				walk(child)
+			}
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		}
+	}
+	walk(baseline)
+	if changes == 0 {
+		t.Fatal("provider usage addition: historical settings enum not found")
+	}
 }

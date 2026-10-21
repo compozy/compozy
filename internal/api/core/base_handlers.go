@@ -73,6 +73,7 @@ type BaseHandlerConfig struct {
 	AgentDefinitionSync         AgentDefinitionSync
 	ContextWindowResolver       ContextWindowResolver
 	ModelCatalog                ModelCatalogService
+	ProviderUsage               ProviderUsageService
 	MarketplaceCatalog          MarketplaceCatalogService
 	OnProviderAuthSuccess       func()
 	ProviderAuthRunner          authproviders.ProviderAuthCommandRunner
@@ -159,6 +160,7 @@ type BaseHandlers struct {
 	AgentDefinitionSync          AgentDefinitionSync
 	ContextWindowResolver        ContextWindowResolver
 	ModelCatalog                 ModelCatalogService
+	ProviderUsage                ProviderUsageService
 	MarketplaceCatalog           MarketplaceCatalogService
 	OnProviderAuthSuccess        func()
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
@@ -273,6 +275,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		AgentDefinitionSync:          cfg.AgentDefinitionSync,
 		ContextWindowResolver:        cfg.ContextWindowResolver,
 		ModelCatalog:                 cfg.ModelCatalog,
+		ProviderUsage:                cfg.ProviderUsage,
 		MarketplaceCatalog:           cfg.MarketplaceCatalog,
 		OnProviderAuthSuccess:        cfg.OnProviderAuthSuccess,
 		ProviderAuthRunner:           defaults.providerAuthRunner,

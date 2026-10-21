@@ -60,7 +60,7 @@ func (h *BaseHandlers) applySettingsSection(
 		return settingspkg.ApplyResult{}, false
 	}
 	result, err := h.Settings.ApplySection(
-		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		h.settingsMutationContext(c),
 		req,
 	)
 	if err != nil {
@@ -169,7 +169,7 @@ func (h *BaseHandlers) putSettingsCollectionItem(c *gin.Context, req settingspkg
 	}
 
 	result, err := h.Settings.ApplyCollectionItem(
-		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		h.settingsMutationContext(c),
 		req,
 	)
 	if err != nil {
@@ -187,7 +187,7 @@ func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settings
 	}
 
 	result, err := h.Settings.ApplyCollectionDelete(
-		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		h.settingsMutationContext(c),
 		req,
 	)
 	if err != nil {

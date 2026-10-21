@@ -48,6 +48,9 @@ const AutomationsWindow = lazy(() =>
 const MarketplaceWindow = lazy(() =>
   import("../apps/marketplace/marketplace-window").then(m => ({ default: m.MarketplaceWindow }))
 );
+const UsageWindow = lazy(() =>
+  import("../apps/usage/usage-window").then(m => ({ default: m.UsageWindow }))
+);
 const NewTabWindow = lazy(() =>
   import("../apps/new-tab/new-tab-window").then(m => ({ default: m.NewTabWindow }))
 );
@@ -132,6 +135,10 @@ export const OS_APPS: Record<OsAppId, OsAppDefinition> = {
     ...OS_APP_DESCRIPTORS.vault,
     preload: preloadVault,
     Controller: VaultWindow,
+  },
+  usage: {
+    ...OS_APP_DESCRIPTORS.usage,
+    Controller: UsageWindow,
   },
   settings: {
     ...OS_APP_DESCRIPTORS.settings,

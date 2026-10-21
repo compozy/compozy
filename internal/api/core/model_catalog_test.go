@@ -16,8 +16,10 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/providerusage"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -849,4 +851,87 @@ func assertRedactedModelCatalogPayload(t *testing.T, value string, secret string
 	if !strings.Contains(value, "[REDACTED]") {
 		t.Fatalf("payload value = %q, want redaction marker", value)
 	}
+}
+
+// UT-076: the shared API boundary owns intent; callers cannot promote themselves.
+func TestProviderUsageIntent(t *testing.T) {
+	for _, caller := range []string{"operator", "agent", "gateway", "app"} {
+		t.Run("Should preserve intent boundaries for "+caller, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodPost,
+				"/api/provider-usage/refresh",
+				http.NoBody,
+			)
+			switch caller {
+			case "agent":
+				c.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+			case "gateway":
+				c.Request = c.Request.WithContext(
+					gateway.ContextWithDevice(c.Request.Context(), gateway.DeviceSession{}),
+				)
+			case "app":
+				c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
+			}
+			want := providerusage.IntentBackground
+			if caller == "operator" {
+				want = providerusage.IntentExplicit
+			}
+			if got := providerUsageIntent(c, providerusage.IntentExplicit); got != want {
+				t.Fatalf("intent = %s, want %s", got, want)
+			}
+			if got := providerUsageIntent(c, providerusage.IntentBackground); got != providerusage.IntentBackground {
+				t.Fatalf("background became %s", got)
+			}
+			handler := &BaseHandlers{}
+			profileID, consent := ProviderUsageConsentProfile(handler.settingsMutationContext(c))
+			if consent || profileID != "" {
+				t.Fatalf("settings consent: profile=%s local=%v", profileID, consent)
+			}
+			c.Request.URL.Path = "/api/settings/provider-usage"
+			c.Request.URL.RawQuery = "profile=unrelated"
+			if err := handler.prepareProviderUsageConsent(c); err != nil {
+				t.Fatal(err)
+			}
+			profileID, consent = ProviderUsageConsentProfile(handler.settingsMutationContext(c))
+			if caller == "operator" {
+				if !consent || profileID != store.DefaultProfileID {
+					t.Fatalf("default PATCH consent: profile=%s local=%v", profileID, consent)
+				}
+			} else if consent {
+				t.Fatalf("%s granted consent", caller)
+			}
+		})
+	}
+}
+
+func TestProviderUsageRefreshBounds(t *testing.T) {
+	for _, wait := range []int64{-1, 30001, 45000} {
+		_, err := ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{WaitMS: &wait})
+		if err == nil || err.Error() != "wait_ms must be between 0 and 30000" {
+			t.Fatalf("wait %d: %v", wait, err)
+		}
+	}
+	zero := int64(0)
+	request, err := ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{WaitMS: &zero})
+	if err != nil || request.Wait != 0 || request.Intent != providerusage.IntentBackground {
+		t.Fatalf("zero wait: %+v, %v", request, err)
+	}
+	request, err = ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{})
+	if err != nil || request.Wait != 15*time.Second {
+		t.Fatalf("default: %+v, %v", request, err)
+	}
+}
+
+func TestProviderUsageHostCapability(t *testing.T) {
+	t.Run("Should preserve the daemon host capability in the wire envelope", func(t *testing.T) {
+		t.Parallel()
+		for _, supported := range []bool{true, false} {
+			payload := ProviderUsageEnvelopePayload(providerusage.Envelope{KeychainSupported: supported})
+			if payload.KeychainSupported != supported {
+				t.Fatalf("host capability was lost: %+v", payload)
+			}
+		}
+	})
 }

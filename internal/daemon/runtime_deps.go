@@ -62,6 +62,7 @@ type RuntimeDeps struct {
 	AgentResolver       session.AgentResolver
 	AgentDefinitionSync core.AgentDefinitionSync
 	ModelCatalog        core.ModelCatalogService
+	ProviderUsage       core.ProviderUsageService
 	MarketplaceCatalog  core.MarketplaceCatalogService
 	AgentContext        *situation.Service
 	SoulAuthoring       core.SoulAuthoringService

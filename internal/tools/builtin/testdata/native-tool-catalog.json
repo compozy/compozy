@@ -1737,6 +1737,32 @@
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
+    "tool_id": "compozy__provider_usage_list",
+    "native_name": "provider_usage_list",
+    "toolsets": [
+      "compozy__provider_usage"
+    ],
+    "risk": "read",
+    "read_only": true,
+    "destructive": false,
+    "open_world": false,
+    "input_schema_digest": "9e76351640bce7c48226a1465c9dc573d2cb2d2e0f5cd084e967173565f22e24",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
+    "tool_id": "compozy__provider_usage_refresh",
+    "native_name": "provider_usage_refresh",
+    "toolsets": [
+      "compozy__provider_usage"
+    ],
+    "risk": "mutating",
+    "read_only": false,
+    "destructive": false,
+    "open_world": true,
+    "input_schema_digest": "2369321a145a76764582de580c6cb761f363c15c856bfd5d8155efbed2d52e3f",
+    "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+  },
+  {
     "tool_id": "compozy__resources_info",
     "native_name": "resources_info",
     "toolsets": [

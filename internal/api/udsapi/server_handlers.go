@@ -67,6 +67,7 @@ func udsCoreHandlerConfig(cfg *handlerConfig) *core.BaseHandlerConfig {
 		AgentDefinitionSync:          cfg.agentSync,
 		ContextWindowResolver:        cfg.contextWindowResolver,
 		ModelCatalog:                 cfg.modelCatalog,
+		ProviderUsage:                cfg.providerUsage,
 		MarketplaceCatalog:           cfg.marketplaceCatalog,
 		AgentContextService:          cfg.agentContext,
 		SoulAuthoring:                cfg.soulAuthoring,

@@ -4982,6 +4982,37 @@ command = "/bin/workspace-profile-ship"
 	}
 }
 
+func TestProviderUsageOverrideDeletion(t *testing.T) {
+	t.Run("Should delete a custom provider and its usage override atomically", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		writeFile(t, home.ConfigFile, baseSettingsConfig()+`
+[providers.custom]
+command = "custom-acp"
+[provider_usage.providers.custom]
+enabled = false
+`)
+		svc := testService(t, home, Dependencies{})
+		_, err := svc.DeleteCollectionItem(
+			t.Context(),
+			CollectionItemDeleteRequest{Collection: CollectionProviders, Name: "custom"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := compozyconfig.LoadForHome(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, exists := cfg.Providers["custom"]; exists {
+			t.Fatal("provider remains")
+		}
+		if _, exists := cfg.ProviderUsage.Providers["custom"]; exists {
+			t.Fatal("usage override remains")
+		}
+	})
+}
+
 func TestCollectionMutationsProviderAndHook(t *testing.T) {
 	t.Parallel()
 

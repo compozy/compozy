@@ -209,6 +209,8 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__profile_current":               expectedNativeEntry("Reading", " ", false, "👤", "auto"),
 		"compozy__profile_list":                  expectedNativeEntry("Reading", " ", false, "👤", "auto"),
 		"compozy__provider_models_curate":        expectedNativeEntry("Curating", " ", false, "🤖", "auto"),
+		"compozy__provider_usage_list":           expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
+		"compozy__provider_usage_refresh":        expectedNativeEntry("Refreshing", " ", false, "🤖", "auto"),
 		"compozy__provider_models_list":          expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__provider_models_refresh":       expectedNativeEntry("Refreshing", " ", false, "🤖", "auto"),
 		"compozy__provider_models_status":        expectedNativeEntry("Reading", " ", false, "🤖", "auto"),

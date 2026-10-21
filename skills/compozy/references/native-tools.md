@@ -399,6 +399,16 @@ Workspace unregister is atomic with credential cleanup: it removes workspace-sco
 
 Provider model tools: `compozy__provider_models_list`, `compozy__provider_models_curate`, `compozy__provider_models_refresh`, `compozy__provider_models_status`.
 
+Provider usage tools (experimental, toolset `compozy__provider_usage`): `compozy__provider_usage_list`
+(optional `provider_id`) is read-only and returns the cached envelope for the session's own profile
+without contacting providers. `compozy__provider_usage_refresh` (optional `provider_ids`,
+`max_age_seconds`) is mutating, always runs with background intent, waits up to 15 seconds, and
+returns the same envelope. Agent refreshes never read the macOS Keychain, never prompt, and honor
+provider rate-limit cooldowns, so a Claude row in `needs_consent` cannot be fixed from a tool, and
+`compozy__config_set` refuses `provider_usage.providers.claude.keychain_access`: report it to the
+operator. CLI fallbacks are `compozy provider usage list|refresh`; statuses and recovery are
+in `references/runtime-operations.md#provider-usage-experimental`.
+
 Vault catalog tool: `compozy__vault_list`. It returns global reference names and redacted metadata,
 optionally filtered by prefix. It never returns secret values.
 

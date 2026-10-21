@@ -98,6 +98,7 @@ type Server struct {
 	agentSync             core.AgentDefinitionSync
 	contextWindowResolver core.ContextWindowResolver
 	modelCatalog          core.ModelCatalogService
+	providerUsage         core.ProviderUsageService
 	marketplaceCatalog    core.MarketplaceCatalogService
 	agentContext          core.AgentContextService
 	soulAuthoring         core.SoulAuthoringService

@@ -76,6 +76,20 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 		}
 	}
 	a.reconcileExtensionMarketplace(previous)
+	if a.state.providerUsage != nil && providerUsageConfigChanged(previous, next) {
+		if err := a.state.providerUsage.ReconcileConfig(ctx, previous); err != nil {
+			failures = append(
+				failures,
+				configApplyFailure(
+					"provider_usage",
+					diagnosticcontract.CategoryConfig,
+					"Provider usage reconciliation failed",
+					err,
+				),
+			)
+		}
+	}
+
 	if a.state.modelCatalog != nil && modelCatalogConfigChanged(previous, next) {
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, previous); err != nil {
 			failures = append(failures, configApplyFailure(
@@ -129,6 +143,20 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		}
 	}
 	a.reconcileExtensionMarketplace(next)
+	if a.state.providerUsage != nil && providerUsageConfigChanged(previous, next) {
+		if err := a.state.providerUsage.ReconcileConfig(ctx, next); err != nil {
+			failures = append(
+				failures,
+				configApplyFailure(
+					"provider_usage",
+					diagnosticcontract.CategoryConfig,
+					"Provider usage reconciliation failed",
+					err,
+				),
+			)
+		}
+	}
+
 	if a.state.modelCatalog != nil && modelCatalogConfigChanged(previous, next) {
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(

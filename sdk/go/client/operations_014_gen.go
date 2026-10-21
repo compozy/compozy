@@ -11,6 +11,50 @@ import (
 	"strings"
 )
 
+// InspectTask Inspect one task with diagnostics
+func (c *Client) InspectTask(ctx context.Context, params InspectTaskParams) (*TaskInspectResponse, error) {
+	path := "/api/tasks/{id}/inspect"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskInspectResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectWorktreeParams carries the path, query, and header parameters.
+type InspectWorktreeParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
+// InspectWorktree Inspect one worktree
+func (c *Client) InspectWorktree(ctx context.Context, params InspectWorktreeParams) (*WorktreeInspectionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	var out WorktreeInspectionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InstallExtensionParams carries the path, query, and header parameters.
+type InstallExtensionParams struct {
+	Profile *string `url:"profile"`
+}
+
 // InstallExtension Install a local or marketplace extension
 func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*ExtensionResponse, error) {
 	path := "/api/extensions"
@@ -382,63 +426,4 @@ type ListAutomationJobsParams struct {
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 	Loop        *string `url:"loop"`
-}
-
-// ListAutomationJobs List automation jobs
-func (c *Client) ListAutomationJobs(ctx context.Context, params ListAutomationJobsParams) (*JobsResponse, error) {
-	path := "/api/automation/jobs"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Source != nil {
-		query.Set("source", *params.Source)
-	}
-	if params.Target != nil {
-		query.Set("target", *params.Target)
-	}
-	if params.Enabled != nil {
-		query.Set("enabled", strconv.FormatBool(*params.Enabled))
-	}
-	if params.Q != nil {
-		query.Set("q", *params.Q)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if params.Loop != nil {
-		query.Set("loop", *params.Loop)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAutomationRunsParams carries the path, query, and header parameters.
-type ListAutomationRunsParams struct {
-	JobID       *string `url:"job_id"`
-	TriggerID   *string `url:"trigger_id"`
-	Status      *string `url:"status"`
-	Since       *string `url:"since"`
-	Until       *string `url:"until"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

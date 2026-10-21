@@ -10,6 +10,7 @@ import {
   getSettingsObservability,
   getSettingsPersona,
   getSettingsProvider,
+  getSettingsProviderUsage,
   getSettingsRestartStatus,
   getSettingsRoles,
   getSettingsShell,
@@ -134,6 +135,16 @@ export function settingsAutomationOptions() {
   return queryOptions({
     queryKey: settingsKeys.section("automation"),
     queryFn: ({ signal }) => getSettingsAutomation(signal),
+    staleTime: SECTION_STALE_TIME,
+    refetchInterval: SECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsProviderUsageOptions() {
+  return queryOptions({
+    queryKey: settingsKeys.section("provider-usage"),
+    queryFn: ({ signal }) => getSettingsProviderUsage(signal),
     staleTime: SECTION_STALE_TIME,
     refetchInterval: SECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

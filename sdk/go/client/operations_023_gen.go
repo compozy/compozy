@@ -10,6 +10,12 @@ import (
 	"strings"
 )
 
+// RegisterWindowManagerClientParams carries the path, query, and header parameters.
+type RegisterWindowManagerClientParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // RegisterWindowManagerClient Register a window-manager client view
 func (c *Client) RegisterWindowManagerClient(ctx context.Context, params RegisterWindowManagerClientParams, body WindowManagerClientRegistration) (*WindowManagerClientView, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager/clients"
@@ -439,10 +445,4 @@ func (c *Client) ReplaceSessionInput(ctx context.Context, params ReplaceSessionI
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ReplaceWindowManagerLayoutParams carries the path, query, and header parameters.
-type ReplaceWindowManagerLayoutParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

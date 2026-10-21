@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// ReplaceWindowManagerLayoutParams carries the path, query, and header parameters.
+type ReplaceWindowManagerLayoutParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // ReplaceWindowManagerLayout Replace one declarative window layout
 func (c *Client) ReplaceWindowManagerLayout(ctx context.Context, params ReplaceWindowManagerLayoutParams, body WindowManagerLayoutReplaceRequest) (*WindowManagerResult, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager/layout"

@@ -138,7 +138,7 @@ func (h *BaseHandlers) curateProviderModel(c *gin.Context, providerParam string)
 		return
 	}
 	result, err := h.Settings.ApplyProviderModelCuration(
-		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+		h.settingsMutationContext(c),
 		settingspkg.ProviderModelCurationRequest{
 			ProviderID:             providerID,
 			ModelID:                request.ModelID,

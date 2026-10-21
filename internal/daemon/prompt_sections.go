@@ -33,7 +33,7 @@ const (
 	// Keep the router intact; reference manuals are loaded on demand.
 	startupToolsSectionBudget = 16_000
 	// Track both complete bundled manuals; skills-disabled sessions cannot fetch omitted guidance.
-	startupToolsReferenceSectionBudget = 77_000
+	startupToolsReferenceSectionBudget = 80_000
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or

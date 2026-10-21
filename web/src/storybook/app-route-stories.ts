@@ -261,4 +261,11 @@ export const appRouteStories = [
     title: "systems/os/routes/NewTab",
     storyName: "Default",
   },
+  {
+    system: "os",
+    routePath: "/usage",
+    storybookPath: "/usage",
+    title: "systems/os/routes/Usage",
+    storyName: "Default",
+  },
 ] as const satisfies RouteStoryRegistryEntry[];

@@ -1000,6 +1000,111 @@ func TestConfigSetAttentionUsesDaemonSettingsWhenRunning(t *testing.T) {
 	}
 }
 
+func TestConfigSetProviderUsageUsesDaemonSettingsWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	// A full reload would also carry unrelated restart-required edits already
+	// on disk; the section apply changes only provider usage, live.
+	var captured []UpdateSettingsProviderUsageRequest
+	var collectionProfiles []string
+	client := &stubClient{
+		updateSettingsProviderUsageFn: func(
+			_ context.Context,
+			request UpdateSettingsProviderUsageRequest,
+			collectionProfile string,
+		) (SettingsMutationRecord, error) {
+			captured = append(captured, request)
+			collectionProfiles = append(collectionProfiles, collectionProfile)
+			return SettingsMutationRecord{
+				Section:          "provider-usage",
+				Scope:            contract.SettingsScopeUser,
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-provider-usage",
+				Applied:          true,
+				ActiveGeneration: 4,
+				ActiveConfigHash: "sha256:provider-usage",
+				NextAction:       contract.SettingsApplyNextActionNone,
+			}, nil
+		},
+		reloadSettingsFn: func(context.Context) (SettingsMutationRecord, error) {
+			t.Fatal("config set provider_usage reloaded the whole config, want the section apply")
+			return SettingsMutationRecord{}, nil
+		},
+	}
+
+	deps := newWorkspaceTestDeps(t, &profileAwareStubClient{
+		stubClient: withWorkspaceResolution(client),
+		profileClientStub: &profileClientStub{profiles: []contract.Profile{
+			{Name: "default", State: "active"},
+			{Name: "work", State: "active"},
+		}},
+	})
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		return compozydaemon.Info{PID: 42, Port: 2123, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(pid int) bool { return pid == 42 }
+
+	cases := []struct {
+		args  []string
+		check func(contract.SettingsProviderUsagePayload) bool
+	}{
+		{
+			args:  []string{"provider_usage.enabled", "false"},
+			check: func(p contract.SettingsProviderUsagePayload) bool { return !p.Enabled },
+		},
+		{
+			args: []string{"provider_usage.refresh_interval", "10m"},
+			check: func(p contract.SettingsProviderUsagePayload) bool {
+				return p.Enabled && p.RefreshInterval == "10m0s"
+			},
+		},
+		{
+			args: []string{"provider_usage.providers.cursor.enabled", "false"},
+			check: func(p contract.SettingsProviderUsagePayload) bool {
+				cursor, ok := p.Providers["cursor"]
+				return ok && cursor.Enabled != nil && !*cursor.Enabled && cursor.KeychainAccess == nil
+			},
+		},
+		{
+			args: []string{"provider_usage.providers.claude.keychain_access", "true"},
+			check: func(p contract.SettingsProviderUsagePayload) bool {
+				claude, ok := p.Providers["claude"]
+				return ok && claude.KeychainAccess != nil && *claude.KeychainAccess
+			},
+		},
+	}
+	for _, tc := range cases {
+		args := append([]string{"config", "set"}, tc.args...)
+		out, _, err := executeRootCommand(t, deps, append(args, "-o", "json")...)
+		if err != nil {
+			t.Fatalf("config set %v error = %v", tc.args, err)
+		}
+		got := captured[len(captured)-1].Config
+		if !tc.check(got) {
+			t.Fatalf("config set %v daemon payload = %#v", tc.args, got)
+		}
+		var record configSetRecord
+		if err := json.Unmarshal([]byte(out), &record); err != nil {
+			t.Fatalf("json.Unmarshal(config set %v) error = %v", tc.args, err)
+		}
+		if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied {
+			t.Fatalf("config set %v record = %#v, want live/applied=true", tc.args, record)
+		}
+	}
+
+	// Consent from a CLI acting as another profile collects for that profile.
+	_, _, err := executeRootCommand(t, deps,
+		"config", "set", "provider_usage.providers.claude.keychain_access", "true",
+		"--scope", "user", "--profile", "work", "-o", "json",
+	)
+	if err != nil {
+		t.Fatalf("config set keychain_access --profile work error = %v", err)
+	}
+	if got := collectionProfiles[len(collectionProfiles)-1]; got != "work" {
+		t.Fatalf("collection profile = %q, want work", got)
+	}
+}
+
 func TestConfigSetShellUsesDaemonSettingsWhenRunning(t *testing.T) {
 	t.Parallel()
 
@@ -2276,6 +2381,9 @@ func TestConfigRenderingAndMutationHelpers(t *testing.T) {
 			wantRedact  bool
 			wantAllowed bool
 		}{
+			{name: "Should allow operator Claude Keychain consent",
+				path: "provider_usage.providers.claude.keychain_access", wantKind: configSetBool, wantAllowed: true},
+
 			{
 				name:        "Should allow provider command",
 				path:        "providers.claude.command",

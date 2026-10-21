@@ -9,6 +9,72 @@ import (
 	"strings"
 )
 
+// ListSessionInputs List pending session input
+func (c *Client) ListSessionInputs(ctx context.Context, params ListSessionInputsParams) (*SessionInputListResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionInputListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionInteractionsParams carries the path, query, and header parameters.
+type ListSessionInteractionsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Status      *string `url:"status"`
+}
+
+// ListSessionInteractions List pending session interactions
+func (c *Client) ListSessionInteractions(ctx context.Context, params ListSessionInteractionsParams) (*SessionInteractionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInteractionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionMonitorsParams carries the path, query, and header parameters.
+type ListSessionMonitorsParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// ListSessionMonitors List a session's monitors
+func (c *Client) ListSessionMonitors(ctx context.Context, params ListSessionMonitorsParams) (*SessionMonitorsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionMonitorsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionSubagentsParams carries the path, query, and header parameters.
+type ListSessionSubagentsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Origin      *string `url:"origin"`
+	Status      *string `url:"status"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+}
+
 // ListSessionSubagents List a session's subagents
 func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSubagentsParams) (*SubagentListPayload, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"
@@ -379,44 +445,4 @@ type ListTaskRunReviewsParams struct {
 	Limit             *int    `url:"limit"`
 	Profile           *string `url:"profile"`
 	AllProfiles       *bool   `url:"all_profiles"`
-}
-
-// ListTaskRunReviews List reviews for one task run
-func (c *Client) ListTaskRunReviews(ctx context.Context, params ListTaskRunReviewsParams) (*TaskRunReviewsResponse, error) {
-	path := "/api/task-runs/{id}/reviews"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.ReviewerSessionID != nil {
-		query.Set("reviewer_session_id", *params.ReviewerSessionID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTaskRunsParams carries the path, query, and header parameters.
-type ListTaskRunsParams struct {
-	ID          string  `url:"id"`
-	Status      *string `url:"status"`
-	SessionID   *string `url:"session_id"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

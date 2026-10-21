@@ -33,6 +33,10 @@ import type {
   StreamLoopRunEventsErrors,
   StreamLoopRunEventsResponse,
   StreamLoopRunEventsResponses,
+  StreamProviderUsageData,
+  StreamProviderUsageErrors,
+  StreamProviderUsageResponse,
+  StreamProviderUsageResponses,
   StreamSessionCatalogData,
   StreamSessionCatalogErrors,
   StreamSessionCatalogResponse,
@@ -145,6 +149,25 @@ export const streamLogs = <ThrowOnError extends boolean = true>(
   (options?.client ?? client).sse.get<StreamLogsResponses, StreamLogsErrors, ThrowOnError, "data">({
     responseStyle: "data",
     url: "/api/logs/stream",
+    ...options,
+  });
+
+/**
+ * Stream provider usage invalidations (experimental)
+ *
+ * @stability experimental
+ */
+export const streamProviderUsage = <ThrowOnError extends boolean = true>(
+  options?: Options<StreamProviderUsageData, ThrowOnError, StreamProviderUsageResponse>
+): Promise<ServerSentEventsResult<StreamProviderUsageResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamProviderUsageResponses,
+    StreamProviderUsageErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseStyle: "data",
+    url: "/api/provider-usage/stream",
     ...options,
   });
 

@@ -61,6 +61,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
       "Layouts",
       "Profiles",
       "Providers",
+      "Provider usage",
       "Palette",
       "Notifications",
       "Diagnostics",

@@ -1086,6 +1086,50 @@ func TestUnixSocketClientUpdateSettingsAttentionRoundTripsContract(t *testing.T)
 	}
 }
 
+func TestUnixSocketClientUpdateSettingsProviderUsageSendsCollectionProfile(t *testing.T) {
+	t.Parallel()
+
+	want := UpdateSettingsProviderUsageRequest{Config: contract.SettingsProviderUsagePayload{
+		Enabled: true, RefreshInterval: "5m0s",
+		Providers: map[string]contract.SettingsProviderUsageProviderPayload{
+			"claude": {KeychainAccess: new(true)},
+		},
+	}}
+	for _, tc := range []struct {
+		profile string
+		query   string
+	}{
+		{profile: "work", query: "collection_profile=work"},
+		{profile: "", query: ""},
+	} {
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.Method != http.MethodPatch || req.URL.Path != "/api/settings/provider-usage" {
+					t.Fatalf("request = %s %s, want PATCH /api/settings/provider-usage", req.Method, req.URL.Path)
+				}
+				if req.URL.RawQuery != tc.query {
+					t.Fatalf("query = %q, want %q", req.URL.RawQuery, tc.query)
+				}
+				var got UpdateSettingsProviderUsageRequest
+				if err := json.NewDecoder(req.Body).Decode(&got); err != nil {
+					t.Fatalf("decode provider usage body: %v", err)
+				}
+				if !reflect.DeepEqual(got, want) {
+					t.Fatalf("provider usage request = %#v, want %#v", got, want)
+				}
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"section":"provider-usage","scope":"user","applied":true,"lifecycle":"live","next_action":"none"}`,
+				), nil
+			})},
+		}
+		if _, err := client.UpdateSettingsProviderUsage(t.Context(), want, tc.profile); err != nil {
+			t.Fatalf("UpdateSettingsProviderUsage(%q) error = %v", tc.profile, err)
+		}
+	}
+}
+
 func TestUnixSocketClientUpdateSettingsShellRoundTripsContract(t *testing.T) {
 	t.Parallel()
 

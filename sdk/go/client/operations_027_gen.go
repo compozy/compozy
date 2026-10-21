@@ -73,6 +73,24 @@ func (c *Client) StreamLoopRunEvents(ctx context.Context, params StreamLoopRunEv
 	return newStream[StreamLoopRunEventsFrame](ctx, c, "GET", path, headers, nil, "streamLoopRunEvents")
 }
 
+// StreamProviderUsageParams carries the path, query, and header parameters.
+type StreamProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
+// StreamProviderUsage Stream provider usage invalidations (experimental) Experimental: pin the exact SDK version.
+func (c *Client) StreamProviderUsage(ctx context.Context, params StreamProviderUsageParams) (*Stream[ProviderUsageStreamEvent], error) {
+	path := "/api/provider-usage/stream"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[ProviderUsageStreamEvent](ctx, c, "GET", path, nil, nil, "streamProviderUsage")
+}
+
 // StreamSessionParams carries the path, query, and header parameters.
 type StreamSessionParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
@@ -424,10 +442,4 @@ func (c *Client) SubmitTaskRunReviewVerdict(ctx context.Context, params SubmitTa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// TriggerAutomationJobParams carries the path, query, and header parameters.
-type TriggerAutomationJobParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

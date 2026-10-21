@@ -4,6 +4,7 @@ import {
   Cable,
   Command,
   Cpu,
+  Gauge,
   Palette,
   PanelTop,
   Puzzle,
@@ -75,6 +76,14 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: Cpu,
     group: "workspace",
     keywords: "models catalog auth claude codex cursor gemini sign-in",
+  },
+  {
+    slug: "provider-usage",
+    label: "Provider usage",
+    icon: Gauge,
+    group: "workspace",
+    keywords:
+      "usage limits quota subscription weekly session reset refresh interval keychain claude codex tray",
   },
   {
     slug: "roles",

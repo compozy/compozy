@@ -26,10 +26,10 @@ const DOCK_ICON_BY_APP = {
   automations: "automations",
   marketplace: "marketplace",
   vault: "vault",
-} as const satisfies Record<Exclude<OsAppId, "new-tab" | "settings">, DockIconId>;
+} as const satisfies Record<Exclude<OsAppId, "new-tab" | "settings" | "usage">, DockIconId>;
 
 export function dockIconForApp(app: Pick<OsAppDescriptor, "id">): DockIconId {
-  if (app.id === "new-tab" || app.id === "settings") {
+  if (app.id === "new-tab" || app.id === "settings" || app.id === "usage") {
     throw new Error(`App ${app.id} is not available in the dock`);
   }
   return DOCK_ICON_BY_APP[app.id];

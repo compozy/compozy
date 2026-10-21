@@ -71,6 +71,7 @@ type daemonNativeToolsDeps struct {
 	Worktrees           core.WorktreeService
 	WorkspaceResolver   workspacepkg.RuntimeResolver
 	ModelCatalog        core.ModelCatalogService
+	ProviderUsage       core.ProviderUsageService
 	MarketplaceCatalog  core.MarketplaceCatalogService
 	Settings            func() core.SettingsService
 

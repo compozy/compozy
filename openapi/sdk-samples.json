@@ -1170,6 +1170,13 @@
             "resource": "providers",
             "app_access": "denied"
         },
+        "getProviderUsage": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.providers.getProviderUsage({ path: { \"provider_id\": \"provider_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetProviderUsage(ctx, client.GetProviderUsageParams{ProviderID: \"provider_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "providers",
+            "app_access": "allowed"
+        },
         "getResource": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.resources.getResource({ path: { \"kind\": \"kind\", \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetResource(ctx, client.GetResourceParams{Kind: \"kind\", ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -1376,6 +1383,13 @@
         "getSettingsProvider": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.getSettingsProvider({ path: { \"name\": \"name\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSettingsProvider(ctx, client.GetSettingsProviderParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
+        "getSettingsProviderUsage": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.getSettingsProviderUsage();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetSettingsProviderUsage(ctx)\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
             "app_access": "denied"
@@ -1862,6 +1876,13 @@
             "kind": "json",
             "resource": "providers",
             "app_access": "denied"
+        },
+        "listProviderUsage": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.providers.listProviderUsage();",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ListProviderUsage(ctx, client.ListProviderUsageParams{})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "providers",
+            "app_access": "allowed"
         },
         "listProviders": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.providers.listProviders();",
@@ -2465,6 +2486,13 @@
             "resource": "providers",
             "app_access": "denied"
         },
+        "refreshProviderUsage": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.providers.refreshProviderUsage({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RefreshProviderUsage(ctx, client.ProviderUsageRefreshRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "providers",
+            "app_access": "denied"
+        },
         "refreshSessionSoul": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.refreshSessionSoul({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.RefreshSessionSoul(ctx, client.RefreshSessionSoulParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.SessionSoulRefreshRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
@@ -2948,6 +2976,13 @@
             "resource": "loops",
             "app_access": "allowed"
         },
+        "streamProviderUsage": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamProviderUsage\", {})) {\n  console.log(frame);\n}",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nstream, err := c.StreamProviderUsage(ctx, client.StreamProviderUsageParams{})\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}",
+            "kind": "sse",
+            "resource": "providers",
+            "app_access": "allowed"
+        },
         "streamSession": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nfor await (const frame of compozy.events(\"streamSession\", { path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } })) {\n  console.log(frame);\n}",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nstream, err := c.StreamSession(ctx, client.StreamSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\ndefer stream.Close()\nfor {\n  frame, err := stream.Next()\n  if errors.Is(err, io.EOF) { break }\n  if err != nil { return err }\n  fmt.Println(frame.Data)\n}",
@@ -3196,6 +3231,13 @@
         "updateSettingsPersona": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.updateSettingsPersona({ body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UpdateSettingsPersona(ctx, client.UpdateSettingsPersonaParams{}, client.UpdateSettingsPersonaRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "settings",
+            "app_access": "denied"
+        },
+        "updateSettingsProviderUsage": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.updateSettingsProviderUsage({ body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UpdateSettingsProviderUsage(ctx, client.UpdateSettingsProviderUsageParams{}, client.SettingsProviderUsageUpdateRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
             "app_access": "denied"
