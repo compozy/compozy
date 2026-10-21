@@ -1,5 +1,8 @@
 package contract
 
+// ProviderUsageCollectionProfileQuery selects the login to collect after a user-scoped consent change.
+const ProviderUsageCollectionProfileQuery = "collection_profile"
+
 type SettingsProviderUsageProviderPayload struct {
 	Enabled        *bool `json:"enabled,omitempty"`
 	KeychainAccess *bool `json:"keychain_access,omitempty"`

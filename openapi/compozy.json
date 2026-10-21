@@ -65396,6 +65396,16 @@
       },
       "patch": {
         "operationId": "updateSettingsProviderUsage",
+        "parameters": [
+          {
+            "description": "Collection profile name or ID for local Keychain consent; independent of user config scope; defaults to default",
+            "in": "query",
+            "name": "collection_profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -65422,7 +65432,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
                 }
               }
             },
@@ -65438,11 +65455,28 @@
             },
             "description": "Forbidden"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileErrorPayload"
+                }
+              }
+            },
+            "description": "Collection profile not found"
+          },
           "409": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorPayload"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ErrorPayload"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ProfileErrorPayload"
+                    }
+                  ]
                 }
               }
             },

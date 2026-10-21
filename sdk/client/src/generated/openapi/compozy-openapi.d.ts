@@ -33865,7 +33865,10 @@ export interface operations {
   };
   updateSettingsProviderUsage: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Collection profile name or ID for local Keychain consent; independent of user config scope; defaults to default */
+        collection_profile?: string;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -33892,7 +33895,9 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Forbidden */
@@ -33904,13 +33909,24 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description Collection profile not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Conflicting settings change */
       409: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorPayload"];
+          "application/json":
+            | components["schemas"]["ErrorPayload"]
+            | components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Internal server error */

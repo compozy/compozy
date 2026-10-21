@@ -30,10 +30,15 @@ not a completed operator walk.
    readiness and a changed boot ID after restarting the daemon. Frames contain revision metadata.
 4. Invoke both native tools from the non-default profile. Confirm background refresh cannot request
    Keychain access, and returned JSON excludes secrets and credential fingerprints.
-5. Turn Claude Keychain access on locally, then off. Verify one explicit local collection, credential
-   invalidation on revocation, and no Keychain invocation for gateway/app-token/agent actions.
+5. On a non-default profile, turn Claude Keychain access on locally with the settings PATCH
+   `collection_profile` selector, then off. Verify one explicit collection for that profile only,
+   credential invalidation on revocation, and no Keychain invocation for gateway/app-token/agent actions.
+   After an OS denial, a background tick retains `keychain_denied`; after token expiry, same-owner
+   last-good values remain stale with a refresh action.
 6. Disable usage during a collection. Verify cancellation, the disabled envelope and refresh 409.
-   Change the refresh interval and verify the active scheduler adopts it.
+   Change the refresh interval and verify the active scheduler adopts it. Disable/remove one target
+   during a multi-request collection and verify it sends no further request while another profile
+   continues. Delete a profile and verify its stream closes and no collection is scheduled for it.
 7. Exercise foreign-origin app tokens: all three GET routes are allowed, refresh is forbidden, and
    revoked tokens retain the existing authentication failure.
 8. Verify CLI `--wait 90s` exits one, consent guidance and experimental footer, and `--wait 0s`
@@ -42,3 +47,8 @@ not a completed operator walk.
 B2 supporting checks: `TestProviderUsageTransportParity`, `TestProviderUsageIntent`,
 `TestProviderUsageRefreshBounds`, CLI ProviderUsage tests, `TestProviderUsageResolver`,
 `TestProviderUsageNativeProfile`, app-access policy and native descriptor registry suites.
+
+Review remediation supporting checks: `TestUsageFenceAndWait` (same-ref credential rotation and
+per-target cancellation), `TestUsageScheduling` (failed fence recovery and deleted profiles),
+`TestProviderUsageConsentProfile` (IT-004/IT-005), `TestDaemonProfileEventRecorder` (deletion wiring),
+and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spec.ts`.

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -142,7 +143,12 @@ func (c *CodexCollector) Collect(
 		base = config.BaseURL
 	}
 	if base == "" {
-		base = "https://chatgpt.com"
+		base = "https://chatgpt.com/backend-api"
+	}
+	base = strings.TrimRight(base, "/")
+	usagePath := "/api/codex/usage"
+	if strings.HasSuffix(base, "/backend-api") {
+		usagePath = "/wham/usage"
 	}
 	headers := http.Header{
 		headerAuthorization: []string{"Bearer " + auth.Tokens.AccessToken},
@@ -155,7 +161,7 @@ func (c *CodexCollector) Collect(
 		base,
 		c.options.Transport,
 		c.options.Now,
-	).Do(ctx, http.MethodGet, "/backend-api/wham/usage", headers, nil, "Codex")
+	).Do(ctx, http.MethodGet, usagePath, headers, nil, "Codex")
 	if err != nil {
 		return Snapshot{}, err
 	}

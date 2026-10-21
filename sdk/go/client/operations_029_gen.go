@@ -69,9 +69,21 @@ func (c *Client) UpdateSettingsPersona(ctx context.Context, params UpdateSetting
 	return &out, nil
 }
 
+// UpdateSettingsProviderUsageParams carries the path, query, and header parameters.
+type UpdateSettingsProviderUsageParams struct {
+	CollectionProfile *string `url:"collection_profile"`
+}
+
 // UpdateSettingsProviderUsage Update the provider usage settings section
-func (c *Client) UpdateSettingsProviderUsage(ctx context.Context, body SettingsProviderUsageUpdateRequest) (*SettingsApplyResponse, error) {
+func (c *Client) UpdateSettingsProviderUsage(ctx context.Context, params UpdateSettingsProviderUsageParams, body SettingsProviderUsageUpdateRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/provider-usage"
+	query := url.Values{}
+	if params.CollectionProfile != nil {
+		query.Set("collection_profile", *params.CollectionProfile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SettingsApplyResponse
 	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
 		return nil, err

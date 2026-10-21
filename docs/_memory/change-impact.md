@@ -3969,6 +3969,8 @@ promotes it.
   `ErrorPayload`, profile codes the profile envelope. Generated OpenAPI, Go/TypeScript SDKs, tool catalog, and
   CLI reference co-ship. A provider-filtered read or `refresh <provider>` returns only those rows with
   `tray: null`; the envelope and settings response carry read-only `keychain_supported` (macOS daemon only).
+  Settings PATCH accepts `collection_profile` independently of user/machine config scope; a local consent
+  apply starts exactly one explicit collection for that profile, while gateway/agent requests stay background.
 - **Extensibility and hooks:** no hook event, manifest, Host API, extension SDK, or MCP sidecar change; alert
   hooks are deferred with history.
 - **Config:** `provider_usage.enabled` (true), `provider_usage.refresh_interval` ("5m", 1m–1h),
@@ -3984,7 +3986,11 @@ promotes it.
   (`keyring`/`auto` → `unsupported`). The macOS Keychain is read only on explicit local-operator intent; the
   token stays in memory, bound to Claude's account evidence, and is dropped on re-login, logout, consent
   revocation, or indeterminate evidence. A missing Keychain item reports `signed_out` (`auth_missing`);
-  only a real OS denial reports `keychain_denied`.
+  only a real OS denial reports `keychain_denied`, retained until another explicit action. Expired Claude
+  credentials retain owner evidence and same-owner last-good values as stale with a refresh action. Bound-key
+  replacements are checked against freshly resolved secrets without adding secrets to public fingerprints.
+  Removed targets cancel only their own flights; deleted profiles close subscriptions and clear credentials.
+  A failed publication fence emits a sanitized error and retries within the flight deadline.
 - **Official CompozyOS skill:** `skills/compozy/SKILL.md` router row; `references/native-tools.md` (two
   tools), `references/runtime-operations.md` §Provider Usage (verbs, routes, intent, statuses and recovery),
   `references/configuration.md` §Provider Usage (keys, scope, settings route).

@@ -20,7 +20,7 @@ func claudeKeychainCommand(ctx context.Context, service, account string) *exec.C
 	return exec.CommandContext(ctx, "/usr/bin/security", "find-generic-password", "-a", account, "-w", "-s", service)
 }
 func (claudeExecKeychain) Read(ctx context.Context, service, account string) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	command := claudeKeychainCommand(ctx, service, account)
 	command.WaitDelay = time.Second

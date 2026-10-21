@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +59,56 @@ func collectFixture(t *testing.T, c *CodexCollector, target Target) (Snapshot, e
 	return c.Collect(t.Context(), target, IntentBackground, id)
 }
 
+type codexFixtureTransport func(*http.Request) (*http.Response, error)
+
+func (f codexFixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
 func TestCodexCollector(t *testing.T) {
+	t.Run("Should preserve the default ChatGPT usage endpoint", func(t *testing.T) {
+		t.Parallel()
+		clock := fixtureClock(t)
+		target := codexTarget(t, "account-a", clock.Now().Add(time.Hour))
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			requireEqual(t, "/backend-api/wham/usage", r.URL.Path)
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		local, err := url.Parse(server.URL)
+		requireNoError(t, err)
+		transport := codexFixtureTransport(func(r *http.Request) (*http.Response, error) {
+			requireEqual(t, "https://chatgpt.com/backend-api/wham/usage", r.URL.String())
+			request := r.Clone(r.Context())
+			request.URL.Scheme, request.URL.Host = local.Scheme, local.Host
+			return http.DefaultTransport.RoundTrip(request)
+		})
+		_, err = collectFixture(t, NewCodexCollector(CodexOptions{Transport: transport, Now: clock.Now}), target)
+		requireNoError(t, err)
+	})
+
+	for _, tc := range []struct{ name, base, path string }{
+		{"Should honor a configured backend API base path Astra", "/backend-api", "/backend-api/wham/usage"},
+		{"Should normalize the backend API trailing slash", "/backend-api/", "/backend-api/wham/usage"},
+		{"Should honor a Codex API proxy prefix", "/proxy", "/proxy/api/codex/usage"},
+		{"Should honor a Codex API origin", "", "/api/codex/usage"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			clock := fixtureClock(t)
+			target := codexTarget(t, "account-a", clock.Now().Add(time.Hour))
+			server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != tc.path {
+					t.Errorf("requested path=%s, want %s", r.URL.Path, tc.path)
+					w.WriteHeader(http.StatusNotFound)
+					return
+				}
+				writeFixture(w, t, codexHTTPFixture)
+			})
+			config := fmt.Sprintf("chatgpt_base_url = %q\n", server.URL+tc.base)
+			requireNoError(t, os.WriteFile(filepath.Join(codexHome(target), "config.toml"), []byte(config), 0o600))
+			_, err := collectFixture(t, NewCodexCollector(CodexOptions{Now: clock.Now}), target)
+			requireNoError(t, err)
+		})
+	}
+
 	t.Run("Should read RPC windows credits and accept same account owner renewal", func(t *testing.T) {
 		t.Parallel()
 		clock := fixtureClock(t)
@@ -101,7 +151,11 @@ func TestCodexCollector(t *testing.T) {
 			)
 			requireNoError(t, err)
 		})
-		snapshot, err := collectFixture(t, NewCodexCollector(CodexOptions{BaseURL: server.URL, Now: clock.Now}), target)
+		snapshot, err := collectFixture(
+			t,
+			NewCodexCollector(CodexOptions{BaseURL: server.URL + "/backend-api", Now: clock.Now}),
+			target,
+		)
 		requireNoError(t, err)
 		requireEqual(t, SourceKindOAuthHTTP, snapshot.Source.Kind)
 		requireEqual(t, "model:gpt-5-3-codex-spark:weekly", snapshot.Windows[1].ID)

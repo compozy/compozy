@@ -6,13 +6,17 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 )
 
-// Start schedules all known profiles, with startup collection jitter bounded by ten seconds.
+// Start reconciles the complete live profile list and schedules startup within ten seconds.
 func (s *Manager) Start(ctx context.Context, profileIDs []string) error {
+	if err := s.removeProfiles(ctx, profileIDs); err != nil {
+		return err
+	}
 	for _, profile := range profileIDs {
 		if err := s.resolve(ctx, profile); err != nil {
 			return err
@@ -26,6 +30,38 @@ func (s *Manager) Start(ctx context.Context, profileIDs []string) error {
 	s.started = true
 	s.startScheduleLocked(ctx)
 	return nil
+}
+
+func (s *Manager) removeProfiles(ctx context.Context, live []string) error {
+	s.mu.Lock()
+	var removed []string
+	var canceled []*flight
+	for id, p := range s.profiles {
+		if slices.Contains(live, id) {
+			continue
+		}
+		removed = append(removed, id)
+		for _, state := range p.targets {
+			if state.flight != nil {
+				state.flight.cancel()
+				canceled = append(canceled, state.flight)
+			}
+		}
+		for ch := range p.subscribers {
+			delete(p.subscribers, ch)
+			close(ch)
+		}
+		delete(s.profiles, id)
+	}
+	s.mu.Unlock()
+	for _, id := range removed {
+		for _, collector := range s.options.Collectors {
+			if cache, ok := collector.(CredentialCache); ok {
+				cache.ClearCredentials(id)
+			}
+		}
+	}
+	return joinFlights(ctx, canceled)
 }
 
 type scheduleRun struct {
@@ -211,4 +247,28 @@ func (s *Manager) SetRefreshInterval(interval time.Duration) {
 			s.changedLocked(p)
 		}
 	}
+}
+
+// resolve joins only flights canceled by target reconciliation, with bounded cleanup.
+func (s *Manager) resolve(ctx context.Context, profile string) error {
+	canceled, err := s.resolveTargets(ctx, profile, nil)
+	if err != nil || len(canceled) == 0 {
+		return err
+	}
+	return joinFlights(ctx, canceled)
+}
+
+func joinFlights(ctx context.Context, canceled []*flight) error {
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	for _, f := range canceled {
+		select {
+		case <-f.done:
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return context.DeadlineExceeded
+		}
+	}
+	return nil
 }

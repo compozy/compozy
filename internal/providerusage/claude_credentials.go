@@ -17,14 +17,29 @@ import (
 )
 
 type claudeCredential struct {
-	token        []byte
-	expires      time.Time
-	plan         string
-	identity     CredentialIdentity
-	route        string
-	evidencePath string
-	keychain     bool
-	singleUse    bool
+	token           []byte
+	expires         time.Time
+	plan            string
+	identity        CredentialIdentity
+	route           string
+	evidencePath    string
+	evidenceAccount string
+	expired         bool
+	denied          bool
+	keychain        bool
+	singleUse       bool
+}
+
+type claudeRead struct{ cancel context.CancelFunc }
+
+func (r *claudeCredential) expire() { clear(r.token); r.token = nil; r.expired = true }
+
+func claudeExpiryError(keychain bool) *UsageError {
+	err := NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
+	if !keychain {
+		err.Code = ErrorCodeAuthExpired
+	}
+	return err
 }
 
 type claudeOAuthFile struct {
@@ -41,11 +56,10 @@ func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Int
 	record, err := loadClaudeFile(target, c.now())
 	if !isClaudeFileAbsent(err) {
 		c.clearLocked(target.ProfileID)
-		if err != nil {
-			return nil, err
+		if record != nil {
+			c.records[target.ProfileID] = record
 		}
-		c.records[target.ProfileID] = record
-		return record, nil
+		return record, err
 	}
 	if claudeCredentialPath(target) == "" || c.platform != "darwin" {
 		c.clearLocked(target.ProfileID)
@@ -63,39 +77,68 @@ func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Int
 		if err := c.validateLocked(target, record.identity); err != nil {
 			return nil, err
 		}
-		if record.singleUse {
-			c.clearLocked(target.ProfileID)
-			return nil, NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
+		if record.denied {
+			return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
+		}
+		if record.singleUse || record.expired || !c.now().Before(record.expires) {
+			record.expire()
+			return record, claudeExpiryError(true)
 		}
 		return record, nil
 	}
+	return c.readKeychainLocked(ctx, target)
+}
+
+// readKeychainLocked releases the collector lock while the OS may prompt the operator.
+func (c *ClaudeCollector) readKeychainLocked(ctx context.Context, target Target) (*claudeCredential, error) {
 	c.clearLocked(target.ProfileID)
 	path, account := claudeAccountEvidence(target)
 	service, username := claudeKeychainItem(target)
-	data, err := c.keychain.Read(ctx, service, username)
+	readCtx, cancel := context.WithCancel(ctx)
+	pending := &claudeRead{cancel: cancel}
+	c.pending[target.ProfileID] = pending
+	c.mu.Unlock()
+	data, err := c.keychain.Read(readCtx, service, username)
+	c.mu.Lock()
+	defer cancel()
 	defer clear(data)
+	if c.closed || c.pending[target.ProfileID] != pending {
+		return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
+	}
+	delete(c.pending, target.ProfileID)
 	if err != nil {
 		switch {
 		case errors.Is(err, os.ErrNotExist):
-			return nil, NewUsageError(ErrorCodeAuthMissing, "claude")
+			return nil, NewUsageError(ErrorCodeAuthMissing, claudeProviderID)
 		case errors.Is(err, os.ErrPermission):
+			c.records[target.ProfileID] = &claudeCredential{
+				denied:          true,
+				keychain:        true,
+				route:           target.RouteFingerprint,
+				evidencePath:    path,
+				evidenceAccount: account,
+			}
 			return nil, NewUsageError(ErrorCodeKeychainDenied, "Claude")
 		default:
 			return nil, AsUsageError(err, "Claude")
 		}
 	}
-	record, err = parseClaudeCredential(data, c.now())
-	if err != nil {
+	record, err := parseClaudeCredential(data, c.now())
+	if record == nil {
 		return nil, err
 	}
 	record.keychain, record.singleUse = true, account == ""
-	record.route, record.evidencePath = target.RouteFingerprint, path
+	record.route, record.evidencePath, record.evidenceAccount = target.RouteFingerprint, path, account
 	record.identity = claudeIdentity(record.token, account)
+	if record.expired {
+		record.expire()
+		err = claudeExpiryError(true)
+	}
 	c.records[target.ProfileID] = record
 	if err := c.validateLocked(target, record.identity); err != nil {
 		return nil, err
 	}
-	return record, nil
+	return record, err
 }
 
 func loadClaudeFile(target Target, now time.Time) (*claudeCredential, error) {
@@ -108,13 +151,16 @@ func loadClaudeFile(target Target, now time.Time) (*claudeCredential, error) {
 		return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
 	}
 	record, err := parseClaudeCredential(data, now)
-	if err != nil {
+	if record == nil {
 		return nil, err
 	}
 	path, account := claudeAccountEvidence(target)
-	record.route, record.evidencePath = target.RouteFingerprint, path
+	record.route, record.evidencePath, record.evidenceAccount = target.RouteFingerprint, path, account
 	record.identity = claudeIdentity(record.token, account)
-	return record, nil
+	if record.expired {
+		record.expire()
+	}
+	return record, err
 }
 
 func parseClaudeCredential(data []byte, now time.Time) (*claudeCredential, error) {
@@ -130,9 +176,6 @@ func parseClaudeCredential(data []byte, now time.Time) (*claudeCredential, error
 		return nil, NewUsageError(ErrorCodeAuthScope, "Claude")
 	}
 	expires := time.UnixMilli(oauth.ExpiresAt)
-	if !now.Before(expires) {
-		return nil, NewUsageError(ErrorCodeAuthExpired, "Claude")
-	}
 	plan := oauth.SubscriptionType
 	if oauth.SubscriptionType == "max" {
 		switch oauth.RateLimitTier {
@@ -145,7 +188,16 @@ func parseClaudeCredential(data []byte, now time.Time) (*claudeCredential, error
 	if plan == "" {
 		plan = oauth.RateLimitTier
 	}
-	return &claudeCredential{token: []byte(oauth.AccessToken), expires: expires, plan: plan}, nil
+	record := &claudeCredential{
+		token:   []byte(oauth.AccessToken),
+		expires: expires,
+		plan:    plan,
+		expired: !now.Before(expires),
+	}
+	if record.expired {
+		return record, claudeExpiryError(false)
+	}
+	return record, nil
 }
 
 func claudeIdentity(token []byte, account string) CredentialIdentity {

@@ -20,7 +20,6 @@ type Options struct {
 	RefreshInterval time.Duration
 	Logger          *slog.Logger
 	Metrics         Metrics
-	ProviderOrder   []string
 	// Disabled defaults to false; Start owns scheduling for the supplied profiles.
 	Disabled bool
 }

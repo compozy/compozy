@@ -2,6 +2,9 @@ package core
 
 import (
 	"context"
+	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
 
 	"github.com/compozy/compozy/internal/providerusage"
 	settingspkg "github.com/compozy/compozy/internal/settings"
@@ -22,9 +25,35 @@ func (h *BaseHandlers) settingsMutationContext(c *gin.Context) context.Context {
 	if providerUsageIntent(c, providerusage.IntentExplicit) != providerusage.IntentExplicit {
 		return ctx
 	}
+	if _, valid := ProviderUsageConsentProfile(ctx); valid {
+		return ctx
+	}
 	scope, err := h.resolveProfileReadScope(c)
 	if err != nil || scope.AllProfiles {
 		return ctx
 	}
 	return context.WithValue(ctx, providerUsageConsentKey{}, scope.ProfileID)
+}
+
+// prepareProviderUsageConsent validates collection identity independently of settings scope.
+func (h *BaseHandlers) prepareProviderUsageConsent(c *gin.Context) error {
+	if providerUsageIntent(c, providerusage.IntentExplicit) != providerusage.IntentExplicit {
+		return nil
+	}
+	selector := strings.TrimSpace(c.Query(contract.ProviderUsageCollectionProfileQuery))
+	if selector == "" {
+		return nil
+	}
+	selection := c.Copy()
+	selection.Request = c.Request.Clone(c.Request.Context())
+	query := selection.Request.URL.Query()
+	query.Set("profile", selector)
+	selection.Request.URL.RawQuery = query.Encode()
+	scope, err := h.resolveProfileMutationScope(selection)
+	if err != nil {
+		return err
+	}
+	ctx := context.WithValue(c.Request.Context(), providerUsageConsentKey{}, scope.ProfileID)
+	c.Request = c.Request.WithContext(ctx)
+	return nil
 }

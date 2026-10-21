@@ -55,6 +55,7 @@ type cooldown struct {
 	bypassed bool
 }
 type flight struct {
+	cancel   context.CancelFunc
 	done     chan struct{}
 	intent   Intent
 	explicit bool
@@ -73,7 +74,6 @@ func NewService(options Options) *Manager {
 	if options.Logger == nil {
 		options.Logger = slog.Default()
 	}
-	options.ProviderOrder = slices.Clone(options.ProviderOrder)
 	options.Collectors = maps.Clone(options.Collectors)
 	root, cancel := context.WithCancel(context.Background())
 	var id [16]byte
@@ -99,19 +99,27 @@ func (s *Manager) profileLocked(id string) *profileState {
 	return p
 }
 
-func (s *Manager) resolve(ctx context.Context, profile string) error {
+func (s *Manager) resolveTargets(ctx context.Context, profile string, owner *targetState) ([]*flight, error) {
 	if s.options.Resolver == nil {
-		return nil
+		return nil, nil
 	}
+	s.mu.Lock()
+	if owner != nil && !s.currentLocked(profile, owner.target.ProviderID, owner) {
+		s.mu.Unlock()
+		return nil, nil
+	}
+	previous := s.profiles[profile]
+	s.mu.Unlock()
 	targets, err := s.options.Resolver.Targets(ctx, profile)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.enabled || s.stopped {
-		return nil
+	if !s.enabled || s.stopped || (previous != nil && s.profiles[profile] != previous) {
+		return nil, nil
 	}
+	var canceled []*flight
 	p := s.profileLocked(profile)
 	seen := make(map[string]bool, len(targets))
 	order := make([]string, 0, len(targets))
@@ -124,8 +132,7 @@ func (s *Manager) resolve(ctx context.Context, profile string) error {
 			state = &targetState{}
 			p.targets[target.ProviderID] = state
 		}
-		if state.target.RouteFingerprint != target.RouteFingerprint || state.target.Status != target.Status ||
-			state.target.ProviderID == "" {
+		if targetChanged(state.target, target) {
 			state.epoch++
 			state.snapshot = initialSnapshot(target, s.options.Collectors[target.ProviderID])
 			state.hasIdentity = false
@@ -133,22 +140,22 @@ func (s *Manager) resolve(ctx context.Context, profile string) error {
 			state.cooldown = nil
 			changed = true
 		}
+		if target.Status != "" && state.flight != nil {
+			state.flight.cancel()
+			canceled = append(canceled, state.flight)
+		}
 		state.target = target
 	}
 	for id := range p.targets {
 		if !seen[id] {
+			if f := p.targets[id].flight; f != nil {
+				f.cancel()
+				canceled = append(canceled, f)
+			}
 			delete(p.targets, id)
 			changed = true
 		}
 	}
-	rank := func(id string) int {
-		i := slices.Index(s.options.ProviderOrder, id)
-		if i < 0 {
-			return len(s.options.ProviderOrder)
-		}
-		return i
-	}
-	slices.SortStableFunc(order, func(a, b string) int { return rank(a) - rank(b) })
 	if !slices.Equal(p.order, order) {
 		changed = true
 	}
@@ -156,7 +163,13 @@ func (s *Manager) resolve(ctx context.Context, profile string) error {
 	if changed {
 		s.changedLocked(p)
 	}
-	return nil
+	return canceled, nil
+}
+
+func targetChanged(previous, current Target) bool {
+	return previous.ProviderID == "" || previous.RouteFingerprint != current.RouteFingerprint ||
+		previous.Status != current.Status ||
+		!maps.Equal(previous.Route.BoundSecrets, current.Route.BoundSecrets)
 }
 
 func initialSnapshot(t Target, collector Collector) Snapshot {
@@ -189,17 +202,20 @@ func (s *Manager) Envelope(ctx context.Context, profile string) (Envelope, error
 }
 
 func (s *Manager) envelopeLocked(profile string) Envelope {
-	p := s.profileLocked(profile)
+	p := s.profiles[profile]
 	now := s.options.Clock.Now()
 	result := Envelope{
 		KeychainSupported: KeychainSupported(),
 		ProfileID:         profile,
-		Revision:          p.revision,
+		Revision:          0,
 		GeneratedAt:       now,
 		Enabled:           s.enabled,
 		Targets:           []Snapshot{},
 	}
-	if !s.enabled {
+	if p != nil {
+		result.Revision = p.revision
+	}
+	if !s.enabled || p == nil {
 		return result
 	}
 	for _, id := range p.order {
@@ -236,7 +252,16 @@ func (s *Manager) Subscribe(profile string) (<-chan Revision, func()) {
 	ch := make(chan Revision, 1)
 	p.subscribers[ch] = struct{}{}
 	var once sync.Once
-	return ch, func() { once.Do(func() { s.mu.Lock(); defer s.mu.Unlock(); delete(p.subscribers, ch); close(ch) }) }
+	return ch, func() {
+		once.Do(func() {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			if _, subscribed := p.subscribers[ch]; subscribed {
+				delete(p.subscribers, ch)
+				close(ch)
+			}
+		})
+	}
 }
 
 func (s *Manager) Refresh(ctx context.Context, req RefreshRequest) (Envelope, error) {
@@ -288,10 +313,16 @@ func (s *Manager) admitFlightsLocked(p *profileState, ids []string, req RefreshR
 			if intent == "" {
 				intent = IntentBackground
 			}
-			f = &flight{done: make(chan struct{}), intent: intent, maxAge: max(req.MaxAge, 30*time.Second)}
+			ctx, cancel := context.WithCancel(s.root)
+			f = &flight{
+				cancel: cancel,
+				done:   make(chan struct{}),
+				intent: intent,
+				maxAge: max(req.MaxAge, 30*time.Second),
+			}
 			state.flight = f
 			s.wg.Add(1)
-			go s.runFlight(s.root, req.ProfileID, id, state, f)
+			go s.runFlight(ctx, req.ProfileID, id, state, f)
 			s.changedLocked(p)
 		} else if req.Intent == IntentExplicit && f.intent == IntentBackground {
 			f.explicit = true

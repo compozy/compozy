@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -18,12 +19,17 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/providerusage"
+	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/gin-gonic/gin"
 )
 
 func TestDaemonModelCatalogWiring(t *testing.T) {
@@ -2748,5 +2754,168 @@ func TestProviderUsageNativeProfile(t *testing.T) {
 		},
 	); err == nil {
 		t.Fatal("native tool accepted intent escalation")
+	}
+}
+
+type usageConsentProfiles struct{ core.ProfileService }
+
+func (usageConsentProfiles) Resolve(_ context.Context, in profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	if in.Flag != "work" {
+		return profilepkg.Resolution{}, fmt.Errorf("unexpected profile %q", in.Flag)
+	}
+	return profilepkg.Resolution{
+		Profile: profilepkg.Profile{ID: "work-id", Name: "work", State: profilepkg.StateActive},
+	}, nil
+}
+
+type usageConsentSettings struct {
+	core.SettingsService
+	runtime *providerUsageRuntime
+}
+
+func (s usageConsentSettings) ApplySection(
+	ctx context.Context,
+	req settingspkg.SectionUpdateRequest,
+) (settingspkg.ApplyResult, error) {
+	s.runtime.ApplyConsent(ctx, compozyconfig.DefaultProviderUsageConfig(), *req.ProviderUsage)
+	return settingspkg.ApplyResult{}, nil
+}
+
+type usageConsentKeychain struct{ reads chan string }
+
+func (r usageConsentKeychain) Read(_ context.Context, _, account string) ([]byte, error) {
+	r.reads <- account
+	return nil, os.ErrNotExist
+}
+
+func TestProviderUsageConsentProfile(t *testing.T) {
+	for _, remote := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should apply consent only for a local selected profile IT004 IT005 remote=%t", remote),
+			func(t *testing.T) {
+				t.Parallel()
+				if !providerusage.KeychainSupported() {
+					t.Skip("Claude Keychain collection requires a macOS host")
+				}
+				reader := usageConsentKeychain{reads: make(chan string, 2)}
+				catalog := &providerusage.TargetCatalog{}
+				for _, id := range []string{store.DefaultProfileID, "work-id"} {
+					home := t.TempDir()
+					catalog.Replace(
+						id,
+						[]providerusage.Target{{ProfileID: id, ProviderID: "claude", ProviderName: "Claude",
+							RouteFingerprint: id, Route: providerusage.ResolvedRoute{KeychainAccess: true,
+								Env: []string{"HOME=" + home, "CLAUDE_CONFIG_DIR=" + home, "USER=" + id}}}},
+					)
+				}
+				manager := providerusage.NewService(providerusage.Options{
+					Resolver: catalog,
+					Collectors: providerusage.Registry{
+						"claude": providerusage.NewClaudeCollector(providerusage.WithClaudeKeychain(reader)),
+					},
+				})
+				defer func() {
+					if err := manager.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				}()
+				initial, err := manager.Refresh(
+					t.Context(),
+					providerusage.RefreshRequest{
+						ProfileID: "work-id",
+						Intent:    providerusage.IntentBackground,
+						Wait:      15 * time.Second,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if initial.Targets[0].Error.Code != providerusage.ErrorCodeKeychainConsentRequired ||
+					len(reader.reads) != 0 {
+					t.Fatal("restart/background read the Keychain")
+				}
+				before, err := manager.Envelope(t.Context(), store.DefaultProfileID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				revisions, unsubscribe := manager.Subscribe("work-id")
+				defer unsubscribe()
+				runtime := &providerUsageRuntime{Manager: manager}
+				handlers := &core.BaseHandlers{
+					Profiles:      usageConsentProfiles{},
+					ProviderUsage: manager,
+					Settings:      usageConsentSettings{runtime: runtime},
+					TransportName: "http",
+				}
+				engine := gin.New()
+				engine.PATCH("/api/settings/provider-usage", handlers.UpdateSettingsProviderUsage)
+				engine.POST("/api/provider-usage/refresh", handlers.RefreshProviderUsage)
+				requestCtx := t.Context()
+				if remote {
+					requestCtx = gateway.ContextWithDevice(requestCtx, gateway.DeviceSession{})
+				}
+				response := httptest.NewRecorder()
+				engine.ServeHTTP(response, httptest.NewRequestWithContext(
+					requestCtx,
+					http.MethodPatch,
+					"/api/settings/provider-usage?scope=user&collection_profile=work",
+					strings.NewReader(
+						`{"config":{"enabled":true,"refresh_interval":"5m","providers":{"claude":{"keychain_access":true}}}}`,
+					),
+				))
+				if response.Code != http.StatusOK {
+					t.Fatalf("PATCH: %d %s", response.Code, response.Body.String())
+				}
+				if remote {
+					refreshResponse := httptest.NewRecorder()
+					engine.ServeHTTP(
+						refreshResponse,
+						httptest.NewRequestWithContext(
+							requestCtx,
+							http.MethodPost,
+							"/api/provider-usage/refresh?profile=work",
+							strings.NewReader(
+								`{"profile":"work","provider_ids":["claude"],"intent":"explicit","wait_ms":15000}`,
+							),
+						),
+					)
+					if refreshResponse.Code != http.StatusOK {
+						t.Fatalf("refresh: %d %s", refreshResponse.Code, refreshResponse.Body.String())
+					}
+					if len(reader.reads) != 0 ||
+						!strings.Contains(refreshResponse.Body.String(), "keychain_consent_required") {
+						t.Fatalf("gateway prompted: %s", refreshResponse.Body.String())
+					}
+					return
+				}
+				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+				defer cancel()
+				for {
+					env, err := manager.Envelope(ctx, "work-id")
+					if err != nil {
+						t.Fatal(err)
+					}
+					if len(env.Targets) == 1 && !env.Targets[0].Refreshing &&
+						env.Targets[0].Status == providerusage.StatusSignedOut {
+						break
+					}
+					select {
+					case <-revisions:
+					case <-ctx.Done():
+						t.Fatal("selected profile collection did not finish")
+					}
+				}
+				if len(reader.reads) != 1 || <-reader.reads != "work-id" {
+					t.Fatal("consent read another profile login")
+				}
+				after, err := manager.Envelope(ctx, store.DefaultProfileID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if after.Revision != before.Revision {
+					t.Fatalf("default profile was changed: before=%d after=%d", before.Revision, after.Revision)
+				}
+			},
+		)
 	}
 }

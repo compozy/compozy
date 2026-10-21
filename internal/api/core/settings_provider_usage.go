@@ -22,6 +22,10 @@ func (h *BaseHandlers) UpdateSettingsProviderUsage(c *gin.Context) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
+	if err := h.prepareProviderUsageConsent(c); err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
 	h.updateSettingsSection(c, req)
 }
 

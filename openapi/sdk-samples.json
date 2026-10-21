@@ -3237,7 +3237,7 @@
         },
         "updateSettingsProviderUsage": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.settings.updateSettingsProviderUsage({ body: { /* request fields */ } });",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UpdateSettingsProviderUsage(ctx, client.SettingsProviderUsageUpdateRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.UpdateSettingsProviderUsage(ctx, client.UpdateSettingsProviderUsageParams{}, client.SettingsProviderUsageUpdateRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "settings",
             "app_access": "denied"

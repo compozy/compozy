@@ -5,16 +5,15 @@ import (
 	"time"
 )
 
-func (s *Manager) runFlight(root context.Context, profile, id string, state *targetState, f *flight) {
+func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targetState, f *flight) {
 	defer s.wg.Done()
 	defer func() { s.mu.Lock(); defer s.mu.Unlock(); s.finishFlightLocked(profile, state, f) }()
 	timeout := 30 * time.Second
-	if id == codexProviderID {
+	if id == codexProviderID || id == claudeProviderID {
 		timeout = 60 * time.Second
 	}
-	ctx, cancel := context.WithCancel(root)
-	defer cancel()
-	deadline := s.options.Clock.AfterFunc(timeout, cancel)
+	defer f.cancel()
+	deadline := s.options.Clock.AfterFunc(timeout, f.cancel)
 	defer deadline.Stop()
 	intent := f.intent
 	for ctx.Err() == nil {
@@ -86,7 +85,6 @@ func (s *Manager) collectOnce(
 	if !allowed {
 		return skippedOutcome, false
 	}
-	known := identity != (CredentialIdentity{})
 	snapshot := Snapshot{}
 	if err == nil {
 		snapshot, err = collector.Collect(ctx, target, intent, identity)
@@ -101,11 +99,16 @@ func (s *Manager) collectOnce(
 	if ctx.Err() != nil && outcome == nil {
 		outcome = NewUsageError(ErrorCodeProviderUnavailable, target.ProviderName)
 	}
-	if resolveErr := s.resolve(fenceCtx, profile); resolveErr != nil {
-		return outcome, false
+	if _, resolveErr := s.resolveTargets(fenceCtx, profile, state); resolveErr != nil {
+		return s.retryFence(ctx, profile, id, state, epoch, intent, started)
 	}
-	if known {
-		mismatch, validationErr := validatePublication(fenceCtx, collector, target, identity)
+	currentTarget, valid := s.fenceTarget(profile, id, state, epoch)
+	if !valid {
+		return outcome, true
+	}
+
+	if identity != (CredentialIdentity{}) {
+		mismatch, validationErr := validatePublication(fenceCtx, collector, currentTarget, identity)
 		if mismatch {
 			s.discardOwnership(profile, id, state)
 			return outcome, true
@@ -126,14 +129,20 @@ func (s *Manager) collectOnce(
 	}
 	s.publishLocked(profile, id, state, target, identity, snapshot, outcome)
 	status := state.snapshot.Status
-	source := ""
-	if state.snapshot.Source != nil {
-		source = string(state.snapshot.Source.Kind)
-	}
+	source := snapshotSource(state.snapshot)
 	s.mu.Unlock()
 	s.observeCollection(profile, id, source, status, intent, started, outcome)
 
 	return outcome, false
+}
+
+func (s *Manager) fenceTarget(profile, id string, state *targetState, epoch uint64) (Target, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.currentLocked(profile, id, state) || state.epoch != epoch {
+		return Target{}, false
+	}
+	return state.target, true
 }
 
 func (s *Manager) currentLocked(profile, id string, state *targetState) bool {
@@ -146,8 +155,8 @@ func (s *Manager) finishFlightLocked(profile string, state *targetState, f *flig
 		return
 	}
 	state.flight = nil
-	if s.enabled && !s.stopped {
-		s.changedLocked(s.profileLocked(profile))
+	if p := s.profiles[profile]; s.enabled && !s.stopped && p != nil {
+		s.changedLocked(p)
 	}
 	close(f.done)
 }

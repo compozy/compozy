@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -65,6 +66,62 @@ func writeFixture(w http.ResponseWriter, t *testing.T, body string) {
 }
 
 func TestUsageService(t *testing.T) {
+	for _, file := range []bool{false, true} {
+		name := "Should retain same owner Claude Keychain data after expiry UT083"
+		if file {
+			name = "Should retain same owner Claude file data after expiry UT083"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			target, _, credential := claudeFixture(t, file)
+			clock := fixtureClock(t)
+			reader := &fakeClaudeKeychain{data: credential}
+			server := fixtureServer(
+				t,
+				func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, `{"five_hour":{"utilization":42}}`) },
+			)
+			collector := NewClaudeCollector(
+				WithClaudeClock(clock.Now),
+				WithClaudeKeychain(reader),
+				WithClaudeHTTP(server.URL, nil),
+			)
+			collector.platform = "darwin"
+			catalog := &TargetCatalog{}
+			catalog.Replace(target.ProfileID, []Target{target})
+			service := NewService(Options{Resolver: catalog, Collectors: Registry{"claude": collector}, Clock: clock})
+			defer func() { requireNoError(t, service.Shutdown(context.Background())) }()
+			refresh := func(intent Intent) Snapshot {
+				env, err := service.Refresh(
+					t.Context(),
+					RefreshRequest{ProfileID: target.ProfileID, Intent: intent, Wait: 15 * time.Second},
+				)
+				requireNoError(t, err)
+				return env.Targets[0]
+			}
+			first := refresh(IntentExplicit)
+			requireEqual(t, StatusOK, first.Status)
+			oldExpiry := clock.Now().Add(time.Hour).UnixMilli()
+			clock.Advance(2 * time.Hour)
+			stale := refresh(IntentBackground)
+			requireEqual(t, StatusStale, stale.Status)
+			requireEqual(t, *first.MeasuredAt, *stale.MeasuredAt)
+			requireEqual(t, 42.0, *stale.Windows[0].UsedPercent)
+			requireEqual(t, string(ActionRefresh), stale.Error.Action)
+			renewed := strings.Replace(
+				credential,
+				fmt.Sprint(oldExpiry),
+				fmt.Sprint(clock.Now().Add(time.Hour).UnixMilli()),
+				1,
+			)
+			if file {
+				requireNoError(t, os.WriteFile(claudeCredentialPath(target), []byte(renewed), 0o600))
+			} else {
+				reader.data = renewed
+			}
+			requireEqual(t, StatusOK, refresh(IntentExplicit).Status)
+		})
+	}
+
 	t.Run("Should advertise the daemon host Keychain capability even when disabled", func(t *testing.T) {
 		t.Parallel()
 		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
@@ -369,7 +426,102 @@ func TestTraySignal(t *testing.T) {
 	)
 }
 
+type usageResolverFunc func(context.Context, string) ([]Target, error)
+
+func (f usageResolverFunc) Targets(ctx context.Context, profile string) ([]Target, error) {
+	return f(ctx, profile)
+}
+
+type usageMetricsChannel chan Status
+
+func (c usageMetricsChannel) Collect(_ string, status Status, _ time.Duration) { c <- status }
+
 func TestUsageScheduling(t *testing.T) {
+	t.Run("Should drop deleted profiles and close only their subscriptions", func(t *testing.T) {
+		t.Parallel()
+		entered := make(chan struct{})
+		var calls atomic.Int32
+		f := usageFixture(t, func(w http.ResponseWriter, r *http.Request) {
+			if calls.Add(1) == 1 {
+				close(entered)
+				<-r.Context().Done()
+				return
+			}
+			writeFixture(w, t, codexHTTPFixture)
+		})
+		other := f.target
+		other.ProfileID = "work"
+		f.catalog.Replace("work", []Target{other})
+		requireNoError(t, f.service.Start(t.Context(), []string{"personal", "work"}))
+		_, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"})
+		requireNoError(t, err)
+		<-entered
+		deleted, unsubscribe := f.service.Subscribe("personal")
+		defer unsubscribe()
+		live, unsubscribeLive := f.service.Subscribe("work")
+		defer unsubscribeLive()
+		requireNoError(t, f.service.Start(t.Context(), []string{"work"}))
+		select {
+		case _, ok := <-deleted:
+			requireEqual(t, false, ok)
+		default:
+			t.Fatal("deleted profile subscription remains open")
+		}
+		select {
+		case _, ok := <-live:
+			if !ok {
+				t.Fatal("live profile subscription was closed")
+			}
+		default:
+		}
+		f.service.mu.Lock()
+		_, retained := f.service.profiles["personal"]
+		f.service.mu.Unlock()
+		requireEqual(t, false, retained)
+		env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "work", Wait: 15 * time.Second})
+		requireNoError(t, err)
+		requireEqual(t, StatusOK, env.Targets[0].Status)
+	})
+	for _, slow := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should recover a failed publication fence slow=%t", slow), func(t *testing.T) {
+			t.Parallel()
+			f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+			var resolves atomic.Int32
+			f.service.options.Resolver = usageResolverFunc(func(ctx context.Context, profile string) ([]Target, error) {
+				if resolves.Add(1) == 2 {
+					if slow {
+						<-ctx.Done()
+					}
+					return nil, fmt.Errorf("private resolver detail")
+				}
+				return f.catalog.Targets(ctx, profile)
+			})
+			metrics := make(usageMetricsChannel, 4)
+			f.service.options.Metrics = metrics
+			var logs bytes.Buffer
+			f.service.options.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+			_, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal"})
+			requireNoError(t, err)
+			select {
+			case status := <-metrics:
+				requireEqual(t, StatusError, status)
+			case <-time.After(3 * time.Second):
+				t.Fatal("fence failure emitted no collection metric")
+			}
+			row := f.service.cached("personal").Targets[0]
+			requireEqual(t, StatusError, row.Status)
+			requireEqual(t, ErrorCodeProviderUnavailable, row.Error.Code)
+			requireEqual(t, 0, len(row.Windows))
+			if !strings.Contains(logs.String(), "provider_unavailable") ||
+				strings.Contains(logs.String(), "private resolver detail") {
+				t.Fatal("missing or unsafe fence diagnostic")
+			}
+			f.clock.Advance(5 * time.Second)
+			env, err := f.service.Refresh(t.Context(), RefreshRequest{ProfileID: "personal", Wait: 15 * time.Second})
+			requireNoError(t, err)
+			requireEqual(t, StatusOK, env.Targets[0].Status)
+		})
+	}
 	t.Run("Should apply interval bounds and recompute snapshot freshness", func(t *testing.T) {
 		t.Parallel()
 		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
@@ -524,6 +676,163 @@ func TestUsageScheduling(t *testing.T) {
 }
 
 func TestUsageFenceAndWait(t *testing.T) {
+	t.Run("Should reject replaced bound keys before publication Astra", func(t *testing.T) {
+		var calls atomic.Int32
+		entered, release := make(chan struct{}), make(chan struct{})
+		var once sync.Once
+		t.Cleanup(func() { once.Do(func() { close(release) }) })
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			if r.Header.Get("Authorization") == "Bearer synthetic-key-a" {
+				close(entered)
+				<-release
+				writeFixture(w, t, `{"balance":"10","total_used":"90"}`)
+				return
+			}
+			writeFixture(w, t, `{"balance":"90","total_used":"10"}`)
+		})
+		target := Target{
+			ProfileID:        "personal",
+			ProviderID:       "vercel-ai-gateway",
+			ProviderName:     "Vercel",
+			RouteFingerprint: "same-route",
+			Route:            ResolvedRoute{BoundSecrets: map[string]string{"api_key": "synthetic-key-a"}},
+		}
+		catalog := &TargetCatalog{}
+		catalog.Replace("personal", []Target{target})
+		svc := NewService(
+			Options{
+				Resolver:   catalog,
+				Collectors: Registry{"vercel-ai-gateway": NewVercelCollector(WithCollectorBaseURL(server.URL))},
+			},
+		)
+		defer func() { requireNoError(t, svc.Shutdown(context.Background())) }()
+		done := make(chan Envelope, 1)
+		go func() {
+			env, err := svc.Refresh(t.Context(), RefreshRequest{ProfileID: "personal", Wait: 15 * time.Second})
+			if err != nil {
+				t.Error(err)
+			}
+			done <- env
+		}()
+		<-entered
+		target.Route.BoundSecrets = map[string]string{"api_key": "synthetic-key-b"}
+		catalog.Replace("personal", []Target{target})
+		once.Do(func() { close(release) })
+		env := <-done
+		if len(env.Targets) != 1 || len(env.Targets[0].Balances) != 1 ||
+			env.Targets[0].Balances[0].Remaining.Value != "90" {
+			t.Fatalf("rotated key should recollect before publishing: calls=%d envelope=%+v", calls.Load(), env)
+		}
+	})
+
+	for _, removed := range []bool{false, true} {
+		name := "Should cancel only the disabled provider flight Astra"
+		if removed {
+			name = "Should cancel only the removed provider flight Astra"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			entered, otherEntered := make(chan struct{}), make(chan struct{})
+			release, otherRelease := make(chan struct{}), make(chan struct{})
+			var once, otherOnce sync.Once
+			t.Cleanup(func() { once.Do(func() { close(release) }); otherOnce.Do(func() { close(otherRelease) }) })
+			var credits, otherCredits atomic.Int32
+			server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+				other := r.Header.Get("Authorization") == "Bearer other-profile-key"
+				if r.URL.Path == "/api/v1/key" {
+					started, done := entered, release
+					if other {
+						started, done = otherEntered, otherRelease
+					}
+					close(started)
+					select {
+					case <-done:
+					case <-r.Context().Done():
+						return
+					}
+					writeFixture(w, t, `{"data":{"limit":100,"usage":25}}`)
+					return
+				}
+				if other {
+					otherCredits.Add(1)
+				} else {
+					credits.Add(1)
+				}
+				writeFixture(w, t, `{"data":{"total_credits":100,"total_usage":25}}`)
+			})
+			target := Target{
+				ProfileID:        "personal",
+				ProviderID:       "openrouter",
+				ProviderName:     "OpenRouter",
+				RouteFingerprint: "same-route",
+				Route:            ResolvedRoute{BoundSecrets: map[string]string{"api_key": "synthetic-key"}},
+			}
+			other := target
+			other.ProfileID = "work"
+			other.Route.BoundSecrets = map[string]string{"api_key": "other-profile-key"}
+			catalog := &TargetCatalog{}
+			catalog.Replace("personal", []Target{target})
+			catalog.Replace("work", []Target{other})
+			svc := NewService(
+				Options{
+					Resolver:   catalog,
+					Collectors: Registry{"openrouter": NewOpenRouterCollector(WithCollectorBaseURL(server.URL))},
+				},
+			)
+			defer func() { requireNoError(t, svc.Shutdown(context.Background())) }()
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			done, otherDone := make(chan Envelope, 1), make(chan Envelope, 1)
+			refresh := func(profile string, result chan<- Envelope) {
+				env, err := svc.Refresh(ctx, RefreshRequest{ProfileID: profile, Wait: 15 * time.Second})
+				if err != nil {
+					t.Error(err)
+				}
+				result <- env
+			}
+			go refresh("personal", done)
+			go refresh("work", otherDone)
+			for _, started := range []<-chan struct{}{entered, otherEntered} {
+				select {
+				case <-started:
+				case <-ctx.Done():
+					t.Fatal("collection did not start")
+				}
+			}
+			target.Status = StatusDisabled
+			target.Error = NewUsageError(ErrorCodeDisabled, "OpenRouter")
+			targets := []Target{target}
+			if removed {
+				targets = nil
+			}
+			catalog.Replace("personal", targets)
+			disabled, err := svc.Envelope(ctx, "personal")
+			requireNoError(t, err)
+			if removed {
+				requireEqual(t, 0, len(disabled.Targets))
+			} else {
+				requireEqual(t, StatusDisabled, disabled.Targets[0].Status)
+				requireEqual(t, false, disabled.Targets[0].Refreshing)
+			}
+			select {
+			case <-done:
+			case <-ctx.Done():
+				t.Fatal("canceled collection did not finish")
+			}
+			once.Do(func() { close(release) })
+			otherOnce.Do(func() { close(otherRelease) })
+			select {
+			case env := <-otherDone:
+				requireEqual(t, StatusOK, env.Targets[0].Status)
+			case <-ctx.Done():
+				t.Fatal("other profile was interrupted")
+			}
+			requireEqual(t, int32(0), credits.Load())
+			requireEqual(t, int32(1), otherCredits.Load())
+		})
+	}
+
 	t.Run("Should discard in flight route replacement even when the account stays the same", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

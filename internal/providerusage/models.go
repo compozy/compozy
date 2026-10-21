@@ -9,7 +9,7 @@ type Envelope struct {
 	GeneratedAt       time.Time
 	Enabled           bool
 	Tray              *TraySignal // nil when no known window
-	Targets           []Snapshot  // ordered by provider catalog order
+	Targets           []Snapshot  // resolver order; daemon catalog uses canonical provider IDs
 }
 
 type TraySignal struct {

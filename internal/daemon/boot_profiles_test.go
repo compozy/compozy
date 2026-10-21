@@ -12,11 +12,34 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/providerusage"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 func TestDaemonProfileEventRecorder(t *testing.T) {
+	t.Run("Should close ProviderUsage subscriptions after profile deletion", func(t *testing.T) {
+		t.Parallel()
+		manager := providerusage.NewService(providerusage.Options{Resolver: &providerusage.TargetCatalog{}})
+		defer func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		}()
+		deleted, unsubscribe := manager.Subscribe("deleted-profile")
+		defer unsubscribe()
+		runtime := &providerUsageRuntime{Manager: manager, resolver: &providerUsageResolver{}, ctx: t.Context()}
+		recorder := &daemonProfileEventRecorder{state: &bootState{providerUsage: runtime}}
+		recorder.RecordProfileEvent(profile.Event{Name: eventspkg.ProfileDeleted, ProfileID: "deleted-profile"})
+		select {
+		case _, ok := <-deleted:
+			if ok {
+				t.Fatal("deleted profile subscription remains open")
+			}
+		default:
+			t.Fatal("profile deletion did not reach provider usage")
+		}
+	})
 	t.Parallel()
 
 	t.Run("Should retain an archive event after its subject becomes unavailable", func(t *testing.T) {

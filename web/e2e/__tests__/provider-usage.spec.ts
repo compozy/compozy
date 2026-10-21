@@ -1,4 +1,4 @@
-// Provider usage in the OS shell (E2E-001..E2E-004, E2E-006): the tray meter,
+// Provider usage in the OS shell (E2E-001..E2E-006): the tray meter,
 // its popover, the Usage app, and the Provider usage settings section against
 // a real daemon whose Codex usage comes from the fake `codex` app-server on
 // PATH (internal/providerusage/testdata/codex: Session 23%, Weekly 72%, 120
@@ -64,13 +64,13 @@ async function openShell(page: Page, runtime: BrowserRuntime) {
   await expect(usageControl(page)).toBeVisible({ timeout: 30_000 });
 }
 
-async function runCLI(runtime: BrowserRuntime, args: string[]): Promise<void> {
+async function runCLI(runtime: BrowserRuntime, args: string[]) {
   if (!runtime.paths) throw new Error(`CLI ${args.join(" ")} needs launch-mode runtime paths`);
   // An agent session's identity variables would make the CLI act as that agent.
   const ambient = Object.fromEntries(
     Object.entries(process.env).filter(([name]) => !/^COMPOZY_(SESSION|AGENT)/.test(name))
   );
-  await execFileAsync(runtime.paths.cliShim, args, {
+  return await execFileAsync(runtime.paths.cliShim, args, {
     env: {
       ...ambient,
       COMPOZY_E2E_CLI_BIN: runtime.paths.cliShim,
@@ -189,5 +189,22 @@ test("turns Codex off from Settings and its row leaves the popover (E2E-006)", a
   await expect(usagePopover(appPage)).toBeVisible();
   await expect(usagePopover(appPage).getByRole("button", { name: /^Codex/ })).toHaveCount(0, {
     timeout: 30_000,
+  });
+});
+
+test("reads and refreshes usage through the real CLI (E2E-005)", async ({ appPage, runtime }) => {
+  await openShell(appPage, runtime);
+  // Refresh waits for the daemon-owned collection rather than startup jitter.
+  const refreshed = await runCLI(runtime, ["provider", "usage", "refresh", "codex"]);
+  expect(refreshed.stdout).toContain("Codex");
+  const listed = await runCLI(runtime, ["provider", "usage", "list", "codex", "-o", "json"]);
+  const envelope = JSON.parse(listed.stdout);
+  expect(envelope.targets).toHaveLength(1);
+  expect(envelope.targets[0].provider_id).toBe("codex");
+  expect(envelope.targets[0].windows[1].used_percent).toBe(72);
+  expect(envelope.tray).toBeNull();
+  await expect(runCLI(runtime, ["provider", "usage", "list", "nope"])).rejects.toMatchObject({
+    code: 1,
+    stderr: expect.stringContaining("provider_not_found"),
   });
 });

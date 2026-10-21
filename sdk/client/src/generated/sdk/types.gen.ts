@@ -22910,7 +22910,12 @@ export type UpdateSettingsProviderUsageData = {
    */
   body: SettingsProviderUsageUpdateRequest;
   path?: never;
-  query?: never;
+  query?: {
+    /**
+     * Collection profile name or ID for local Keychain consent; independent of user config scope; defaults to default
+     */
+    collection_profile?: string;
+  };
   url: "/api/settings/provider-usage";
 };
 
@@ -22918,15 +22923,19 @@ export type UpdateSettingsProviderUsageErrors = {
   /**
    * Invalid settings payload
    */
-  400: ErrorPayload;
+  400: ErrorPayload | ProfileErrorPayload;
   /**
    * Forbidden
    */
   403: ErrorPayload;
   /**
+   * Collection profile not found
+   */
+  404: ProfileErrorPayload;
+  /**
    * Conflicting settings change
    */
-  409: ErrorPayload;
+  409: ErrorPayload | ProfileErrorPayload;
   /**
    * Internal server error
    */

@@ -12,6 +12,8 @@ import (
 // KeychainSupported reports whether the daemon host has the Claude Keychain source.
 func KeychainSupported() bool { return runtime.GOOS == "darwin" }
 
+const claudeProviderID = "claude"
+
 type KeychainReader interface {
 	Read(ctx context.Context, service, account string) ([]byte, error)
 }
@@ -25,6 +27,7 @@ type ClaudeCollector struct {
 	keychain KeychainReader
 	platform string
 	records  map[string]*claudeCredential
+	pending  map[string]*claudeRead
 	closed   bool
 }
 
@@ -37,6 +40,7 @@ func NewClaudeCollector(options ...ClaudeOption) *ClaudeCollector {
 		keychain: defaultClaudeKeychain(),
 		platform: runtime.GOOS,
 		records:  make(map[string]*claudeCredential),
+		pending:  make(map[string]*claudeRead),
 	}
 	for _, option := range options {
 		option(c)
@@ -58,7 +62,7 @@ func WithClaudeClock(now func() time.Time) ClaudeOption {
 func WithClaudeKeychain(reader KeychainReader) ClaudeOption {
 	return func(c *ClaudeCollector) { c.keychain = reader }
 }
-func (*ClaudeCollector) ProviderID() string { return "claude" }
+func (*ClaudeCollector) ProviderID() string { return claudeProviderID }
 
 func (c *ClaudeCollector) ClearCredentials(profileID string) {
 	c.mu.Lock()
@@ -67,11 +71,18 @@ func (c *ClaudeCollector) ClearCredentials(profileID string) {
 		for profile := range c.records {
 			c.clearLocked(profile)
 		}
+		for profile := range c.pending {
+			c.clearLocked(profile)
+		}
 		return
 	}
 	c.clearLocked(profileID)
 }
 func (c *ClaudeCollector) clearLocked(profileID string) {
+	if pending := c.pending[profileID]; pending != nil {
+		pending.cancel()
+		delete(c.pending, profileID)
+	}
 	if record := c.records[profileID]; record != nil {
 		clear(record.token)
 		record.token = nil
@@ -85,6 +96,9 @@ func (c *ClaudeCollector) Close() error {
 	for profile := range c.records {
 		c.clearLocked(profile)
 	}
+	for profile := range c.pending {
+		c.clearLocked(profile)
+	}
 	return nil
 }
 
@@ -95,10 +109,10 @@ func (c *ClaudeCollector) Identity(ctx context.Context, target Target, intent In
 		return CredentialIdentity{}, NewUsageError(ErrorCodeAuthMissing, "Claude")
 	}
 	record, err := c.resolve(ctx, target, intent)
-	if err != nil {
+	if record == nil {
 		return CredentialIdentity{}, err
 	}
-	return record.identity, nil
+	return record.identity, err
 }
 
 func (c *ClaudeCollector) Collect(
@@ -130,6 +144,10 @@ func (c *ClaudeCollector) Collect(
 	defer c.mu.Unlock()
 	if validation := c.validateLocked(target, identity); validation != nil {
 		return Snapshot{}, validation
+	}
+	if !c.now().Before(record.expires) {
+		record.expire()
+		return Snapshot{}, claudeExpiryError(record.keychain)
 	}
 	if record.singleUse {
 		clear(record.token)
@@ -167,8 +185,10 @@ func (c *ClaudeCollector) forCollection(
 		return nil, err
 	}
 	record := c.records[target.ProfileID]
-	if len(record.token) == 0 || (record.singleUse && intent != IntentExplicit) {
-		return nil, NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
+	if record.expired || !c.now().Before(record.expires) || len(record.token) == 0 ||
+		(record.singleUse && intent != IntentExplicit) {
+		record.expire()
+		return nil, claudeExpiryError(record.keychain)
 	}
 	return record, nil
 }
@@ -187,8 +207,7 @@ func (c *ClaudeCollector) validateLocked(target Target, identity CredentialIdent
 	}
 	if record.keychain {
 		path, account := claudeAccountEvidence(target)
-		if !target.Route.KeychainAccess || path != record.evidencePath || account != record.identity.AccountID ||
-			!c.now().Before(record.expires) {
+		if !target.Route.KeychainAccess || path != record.evidencePath || account != record.evidenceAccount {
 			c.clearLocked(target.ProfileID)
 			return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 		}
@@ -202,7 +221,7 @@ func (c *ClaudeCollector) validateLocked(target Target, identity CredentialIdent
 		return nil
 	}
 	fresh, err := loadClaudeFile(target, c.now())
-	if err != nil {
+	if fresh == nil {
 		c.clearLocked(target.ProfileID)
 		return err
 	}

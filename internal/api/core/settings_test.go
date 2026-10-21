@@ -4429,6 +4429,39 @@ func TestUpdateSettingsRolesRejectsRetiredFieldsWithoutWriting(t *testing.T) {
 
 func TestSettingsProviderUsageHandlers(t *testing.T) {
 	t.Parallel()
+	t.Run("Should carry only the active collection profile into user scoped consent", func(t *testing.T) {
+		t.Parallel()
+		var profiles []string
+		service := &stubSettingsService{
+			ApplySectionFn: func(ctx context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
+				if req.Scope != settingspkg.ScopeUser {
+					t.Fatalf("scope = %s", req.Scope)
+				}
+				profile, local := core.ProviderUsageConsentProfile(ctx)
+				if !local {
+					t.Fatal("missing local consent context")
+				}
+				profiles = append(profiles, profile)
+				return defaultApplyResult(req.Section), nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "http", service, nil)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		fixture.Engine.PATCH("/api/settings/provider-usage", fixture.Handlers.UpdateSettingsProviderUsage)
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodPatch,
+			"/api/settings/provider-usage?scope=user&collection_profile=marketing",
+			strings.NewReader(
+				`{"config":{"enabled":true,"refresh_interval":"5m","providers":{"claude":{"keychain_access":true}}}}`,
+			),
+		))
+		if response.Code != http.StatusOK || len(profiles) != 1 || profiles[0] != "profile-marketing" {
+			t.Fatalf("consent profiles=%v response=%d %s", profiles, response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("Should return provider usage settings and persist typed updates", func(t *testing.T) {
 		t.Parallel()
 		cfg := compozyconfig.DefaultProviderUsageConfig()

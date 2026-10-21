@@ -1,6 +1,7 @@
 package providerusage
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"time"
@@ -128,4 +129,44 @@ func (s *Manager) observeCollection(
 	if s.options.Metrics != nil {
 		s.options.Metrics.Collect(id, status, s.options.Clock.Now().Sub(started))
 	}
+}
+
+// retryFence exposes only a sanitized failure while ownership is unknown. The
+// existing flight retries promptly, bounded by its original cancellation budget.
+func (s *Manager) retryFence(
+	ctx context.Context,
+	profile, id string,
+	state *targetState,
+	epoch uint64,
+	intent Intent,
+	started time.Time,
+) (*UsageError, bool) {
+	outcome := NewUsageError(ErrorCodeProviderUnavailable, id)
+	s.mu.Lock()
+	if !s.currentLocked(profile, id, state) || state.epoch != epoch {
+		s.mu.Unlock()
+		return outcome, true
+	}
+	s.publishLocked(profile, id, state, state.target, CredentialIdentity{}, Snapshot{}, outcome)
+	state.lastSuccess = time.Time{}
+	state.cooldown = nil
+	next := s.options.Clock.Now().Add(5 * time.Second)
+	state.snapshot.NextRefreshAt = &next
+	timer := s.options.Clock.NewTimer(5 * time.Second)
+	s.mu.Unlock()
+	defer timer.Stop()
+	s.observeCollection(profile, id, "", StatusError, intent, started, outcome)
+	select {
+	case <-ctx.Done():
+		return outcome, false
+	case <-timer.Chan():
+		return outcome, true
+	}
+}
+
+func snapshotSource(snapshot Snapshot) string {
+	if snapshot.Source == nil {
+		return ""
+	}
+	return string(snapshot.Source.Kind)
 }

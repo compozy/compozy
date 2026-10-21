@@ -14,14 +14,18 @@ import (
 
 type fakeClaudeKeychain struct {
 	calls atomic.Int32
+	read  func(context.Context, string, string) ([]byte, error)
 	data  string
 	err   error
 }
 
 var _ KeychainReader = (*fakeClaudeKeychain)(nil)
 
-func (f *fakeClaudeKeychain) Read(context.Context, string, string) ([]byte, error) {
+func (f *fakeClaudeKeychain) Read(ctx context.Context, service, account string) ([]byte, error) {
 	f.calls.Add(1)
+	if f.read != nil {
+		return f.read(ctx, service, account)
+	}
 	return []byte(f.data), f.err
 }
 
@@ -181,6 +185,66 @@ func TestClaudeCollector(t *testing.T) {
 }
 
 func TestClaudeKeychain(t *testing.T) {
+	t.Run("Should retain denial until another explicit action", func(t *testing.T) {
+		t.Parallel()
+		target, _, credential := claudeFixture(t, false)
+		reader := &fakeClaudeKeychain{data: credential, err: os.ErrPermission}
+		collector := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
+		collector.platform = "darwin"
+		_, err := collector.Identity(t.Context(), target, IntentExplicit)
+		requireEqual(t, ErrorCodeKeychainDenied, AsUsageError(err, "Claude").Code)
+		_, err = collector.Identity(t.Context(), target, IntentBackground)
+		requireEqual(t, ErrorCodeKeychainDenied, AsUsageError(err, "Claude").Code)
+		requireEqual(t, int32(1), reader.calls.Load())
+		reader.err = nil
+		_, err = collector.Identity(t.Context(), target, IntentExplicit)
+		requireNoError(t, err)
+		requireEqual(t, int32(2), reader.calls.Load())
+	})
+	t.Run("Should release the collector lock during a prompt and fence revoked consent", func(t *testing.T) {
+		t.Parallel()
+		target, _, credential := claudeFixture(t, false)
+		other, _, _ := claudeFixture(t, false)
+		other.ProfileID = "other-profile"
+		entered, release := make(chan struct{}), make(chan struct{})
+		defer close(release)
+		reader := &fakeClaudeKeychain{read: func(ctx context.Context, _, _ string) ([]byte, error) {
+			close(entered)
+			select {
+			case <-release:
+				return []byte(credential), nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}}
+		collector := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeKeychain(reader))
+		collector.platform = "darwin"
+		done := make(chan error, 1)
+		go func() { _, err := collector.Identity(t.Context(), target, IntentExplicit); done <- err }()
+		<-entered
+		background := make(chan error, 1)
+		go func() { _, err := collector.Identity(t.Context(), other, IntentBackground); background <- err }()
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		select {
+		case err := <-background:
+			requireEqual(t, ErrorCodeKeychainConsentRequired, AsUsageError(err, "Claude").Code)
+		case <-ctx.Done():
+			t.Fatal("another profile blocked behind the Keychain prompt")
+		}
+		collector.ClearCredentials(target.ProfileID)
+		select {
+		case err := <-done:
+			if err == nil {
+				t.Fatal("revoked consent installed a credential")
+			}
+		case <-ctx.Done():
+			t.Fatal("revoked prompt was not canceled")
+		}
+		_, err := collector.Identity(t.Context(), target, IntentBackground)
+		requireEqual(t, ErrorCodeKeychainConsentRequired, AsUsageError(err, "Claude").Code)
+	})
+
 	t.Run("Should report a missing Keychain login as signed out", func(t *testing.T) {
 		t.Parallel()
 		target, _, _ := claudeFixture(t, false)
