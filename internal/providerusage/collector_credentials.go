@@ -3,6 +3,7 @@ package providerusage
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,43 +17,58 @@ type collectorCredential struct{ token, account, email, domain string }
 func (c collectorCredential) identity() CredentialIdentity {
 	return NewCredentialIdentity(SourceKindOAuthHTTP, []byte(c.token), c.account)
 }
-func collectorEnv(t Target, key string) string {
+func routeEnvValue(t Target, key string) (string, bool) {
 	for _, entry := range slices.Backward(t.Route.Env) {
-		name, value, ok := strings.Cut(entry, "=")
-		if ok && name == key {
-			return value
+		if value, ok := strings.CutPrefix(entry, key+"="); ok {
+			return value, true
 		}
 	}
-	return ""
+	return "", false
 }
+func routeEnv(t Target, key string) string { value, _ := routeEnvValue(t, key); return value }
 func collectorHomePath(t Target, override string, parts ...string) (string, error) {
 	if override != "" {
-		if value := collectorEnv(t, override); value != "" {
+		if value := routeEnv(t, override); value != "" {
 			if filepath.IsAbs(value) {
 				return value, nil
 			}
 			return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
 		}
 	}
-	home := collectorEnv(t, "HOME")
+	home := routeEnv(t, "HOME")
 	if home == "" {
-		home = collectorEnv(t, "USERPROFILE")
+		home = routeEnv(t, "USERPROFILE")
 	}
 	if !filepath.IsAbs(home) {
 		return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
 	}
 	return filepath.Join(append([]string{home}, parts...)...), nil
 }
-func readCollectorCredential(path, provider string, out any) error {
+func readCredentialFile(path, provider string) ([]byte, error) {
+	if path == "" {
+		return nil, os.ErrNotExist
+	}
 	file, err := os.Open(path)
 	if err != nil {
-		return NewUsageError(ErrorCodeAuthMissing, provider)
+		return nil, err
 	}
 	defer file.Close()
 	data, err := io.ReadAll(io.LimitReader(file, MaxResponseBytes+1))
 	if err != nil || len(data) > MaxResponseBytes {
-		return NewUsageError(ErrorCodeParseError, provider)
+		clear(data)
+		return nil, NewUsageError(ErrorCodeParseError, provider)
 	}
+	return data, nil
+}
+func readCollectorCredential(path, provider string, out any) error {
+	data, err := readCredentialFile(path, provider)
+	if err != nil {
+		if usage, ok := errors.AsType[*UsageError](err); ok {
+			return usage
+		}
+		return NewUsageError(ErrorCodeAuthMissing, provider)
+	}
+	defer clear(data)
 	return decodeCollectorJSON(data, out, provider)
 }
 

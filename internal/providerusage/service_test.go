@@ -33,9 +33,11 @@ func usageFixture(t *testing.T, handler http.HandlerFunc) serviceFixture {
 	catalog.Replace("personal", []Target{target})
 	service := NewService(
 		Options{
-			Resolver:   catalog,
-			Collectors: Registry{"codex": NewCodexCollector(CodexOptions{BaseURL: server.URL, Now: clock.Now})},
-			Clock:      clock,
+			Resolver: catalog,
+			Collectors: DefaultRegistry(
+				RegistryOptions{BaseURLs: map[string]string{codexProviderID: server.URL}, Now: clock.Now},
+			),
+			Clock: clock,
 		},
 	)
 	t.Cleanup(func() {

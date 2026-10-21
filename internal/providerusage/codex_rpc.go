@@ -113,7 +113,7 @@ func (c *codexUsageRPC) call(method string, params, result any, timeout time.Dur
 			return NewUsageError(ErrorCodeParseError, "Codex")
 		}
 		if response.Method != "" {
-			if len(response.ID) > 0 && string(response.ID) != "null" {
+			if len(response.ID) > 0 && string(response.ID) != jsonNull {
 				return NewUsageError(ErrorCodeParseError, "Codex")
 			}
 			continue
@@ -121,7 +121,7 @@ func (c *codexUsageRPC) call(method string, params, result any, timeout time.Dur
 		if strings.Trim(string(response.ID), "\"") != strconv.Itoa(c.id) {
 			continue
 		}
-		if len(response.Error) > 0 && string(response.Error) != "null" {
+		if len(response.Error) > 0 && string(response.Error) != jsonNull {
 			return NewUsageError(ErrorCodeProviderUnavailable, "Codex")
 		}
 		if result == nil {

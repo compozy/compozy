@@ -26,8 +26,8 @@ func decodeClaudeUsage(data []byte) (Snapshot, error) {
 		kind           WindowKind
 		seconds        int64
 	}{
-		{"five_hour", "session", "Session", WindowKindSession, 18000},
-		{"seven_day", "weekly", "Weekly", WindowKindWeekly, 604800},
+		{"five_hour", string(WindowKindSession), sessionWindowLabel, WindowKindSession, 18000},
+		{"seven_day", string(WindowKindWeekly), weeklyWindowLabel, WindowKindWeekly, 604800},
 		{"seven_day_opus", "weekly_opus", "Weekly · Opus", WindowKindModel, 604800},
 		{"seven_day_sonnet", "model:sonnet:weekly", "Weekly · Sonnet", WindowKindModel, 604800},
 	} {
@@ -76,7 +76,7 @@ func decodeClaudeUsage(data []byte) (Snapshot, error) {
 }
 func decodeClaudeWindow(data jsontext.Value) (claudeWindow, bool) {
 	var window claudeWindow
-	if len(data) == 0 || string(data) == "null" || json.Unmarshal(data, &window) != nil {
+	if len(data) == 0 || string(data) == jsonNull || json.Unmarshal(data, &window) != nil {
 		return window, false
 	}
 	if window.Utilization != nil && *window.Utilization < 0 {
@@ -186,7 +186,8 @@ func appendClaudeScoped(snapshot *Snapshot, data jsontext.Value) {
 			continue
 		}
 		name := strings.TrimSpace(entry.Scope.Model.DisplayName)
-		if entry.Kind != "weekly_scoped" || entry.Group != "weekly" || name == "" || entry.Percent == nil ||
+		if entry.Kind != "weekly_scoped" || entry.Group != string(WindowKindWeekly) || name == "" ||
+			entry.Percent == nil ||
 			*entry.Percent < 0 {
 			continue
 		}

@@ -70,7 +70,7 @@ func addCodexWindow(
 	return nil
 }
 func addCodexCredits(snapshot *Snapshot, credits *codexCredits) error {
-	if credits == nil || len(credits.Balance) == 0 || bytes.Equal(credits.Balance, []byte("null")) {
+	if credits == nil || len(credits.Balance) == 0 || bytes.Equal(credits.Balance, []byte(jsonNull)) {
 		return nil
 	}
 	var value string
@@ -87,7 +87,7 @@ func addCodexCredits(snapshot *Snapshot, credits *codexCredits) error {
 	}
 	snapshot.Balances = append(
 		snapshot.Balances,
-		Balance{ID: "credits", Label: "Credits", Remaining: Amount{Value: value, Unit: "credits"}},
+		Balance{ID: creditsUnit, Label: "Credits", Remaining: Amount{Value: value, Unit: creditsUnit}},
 	)
 	return nil
 }
@@ -98,8 +98,8 @@ func decodeCodexRPC(limits codexRPCLimits) (Snapshot, error) {
 		kind      WindowKind
 		w         *codexRPCWindow
 	}{
-		{"session", "Session", WindowKindSession, limits.Primary},
-		{"weekly", "Weekly", WindowKindWeekly, limits.Secondary},
+		{string(WindowKindSession), sessionWindowLabel, WindowKindSession, limits.Primary},
+		{string(WindowKindWeekly), weeklyWindowLabel, WindowKindWeekly, limits.Secondary},
 	} {
 		if item.w == nil {
 			continue
@@ -170,7 +170,10 @@ func addHTTPRate(snapshot *Snapshot, rate *codexHTTPRate, prefix, suffix string)
 		id, label string
 		kind      WindowKind
 		w         *codexHTTPWindow
-	}{{"session", "Session", WindowKindSession, rate.Primary}, {"weekly", "Weekly", WindowKindWeekly, rate.Secondary}} {
+	}{
+		{string(WindowKindSession), sessionWindowLabel, WindowKindSession, rate.Primary},
+		{string(WindowKindWeekly), weeklyWindowLabel, WindowKindWeekly, rate.Secondary},
+	} {
 		if item.w == nil {
 			continue
 		}

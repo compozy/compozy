@@ -48,7 +48,7 @@ func (c *OpenRouterCollector) Collect(
 		if data.Daily != "" {
 			used = data.Daily
 		}
-	case "weekly":
+	case string(WindowKindWeekly):
 		if data.Weekly != "" {
 			used = data.Weekly
 		}
@@ -88,7 +88,7 @@ func (c *OpenRouterCollector) Collect(
 	remaining := collectorSubtract(credits.Data.Total, credits.Data.Used, scale)
 	snapshot.Balances = []Balance{
 		{
-			ID:        "credits",
+			ID:        creditsUnit,
 			Label:     "Account balance",
 			Remaining: *remaining.amount("USD"),
 		},

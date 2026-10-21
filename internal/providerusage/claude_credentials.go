@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json/v2"
 	"errors"
-	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -93,7 +92,7 @@ func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Int
 }
 
 func loadClaudeFile(target Target, now time.Time) (*claudeCredential, error) {
-	data, err := readClaudeFile(claudeCredentialPath(target))
+	data, err := readCredentialFile(claudeCredentialPath(target), "Claude")
 	defer clear(data)
 	if err != nil {
 		if isClaudeFileAbsent(err) {
@@ -151,23 +150,15 @@ func claudeIdentity(token []byte, account string) CredentialIdentity {
 	return NewCredentialIdentity(SourceKindOAuthHTTP, material, account)
 }
 
-func claudeEnv(target Target, key string) (string, bool) {
-	for _, entry := range slices.Backward(target.Route.Env) {
-		if value, found := strings.CutPrefix(entry, key+"="); found {
-			return value, true
-		}
-	}
-	return "", false
-}
 func claudeHome(target Target) string {
-	home, _ := claudeEnv(target, "HOME")
+	home, _ := routeEnvValue(target, "HOME")
 	if home == "" {
-		home, _ = claudeEnv(target, "USERPROFILE")
+		home, _ = routeEnvValue(target, "USERPROFILE")
 	}
 	return home
 }
 func claudeConfigDir(target Target) string {
-	dir, _ := claudeEnv(target, "CLAUDE_CONFIG_DIR")
+	dir, _ := routeEnvValue(target, "CLAUDE_CONFIG_DIR")
 	if dir == "" {
 		if home := claudeHome(target); home != "" {
 			dir = filepath.Join(home, ".claude")
@@ -177,7 +168,7 @@ func claudeConfigDir(target Target) string {
 }
 func claudeCredentialPath(target Target) string {
 	dir := claudeConfigDir(target)
-	if override, set := claudeEnv(target, "CLAUDE_SECURESTORAGE_CONFIG_DIR"); set {
+	if override, set := routeEnvValue(target, "CLAUDE_SECURESTORAGE_CONFIG_DIR"); set {
 		dir = norm.NFC.String(override)
 		if dir == "" && claudeHome(target) != "" {
 			dir = filepath.Join(claudeHome(target), ".claude")
@@ -189,29 +180,13 @@ func claudeCredentialPath(target Target) string {
 	return filepath.Join(dir, ".credentials.json")
 }
 func isClaudeFileAbsent(err error) bool { return errors.Is(err, os.ErrNotExist) }
-func readClaudeFile(path string) ([]byte, error) {
-	if path == "" {
-		return nil, os.ErrNotExist
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, MaxResponseBytes+1))
-	if err != nil || len(data) > MaxResponseBytes {
-		clear(data)
-		return nil, NewUsageError(ErrorCodeParseError, "Claude")
-	}
-	return data, nil
-}
 func claudeAccountEvidence(target Target) (string, string) {
 	dir := claudeConfigDir(target)
 	if !filepath.IsAbs(dir) {
 		return "", ""
 	}
 	legacy := filepath.Join(dir, ".config.json")
-	modernDir, _ := claudeEnv(target, "CLAUDE_CONFIG_DIR")
+	modernDir, _ := routeEnvValue(target, "CLAUDE_CONFIG_DIR")
 	if modernDir == "" {
 		modernDir = claudeHome(target)
 	}
@@ -220,7 +195,7 @@ func claudeAccountEvidence(target Target) (string, string) {
 	if _, err := os.Stat(legacy); isClaudeFileAbsent(err) {
 		path = modern
 	}
-	data, err := readClaudeFile(path)
+	data, err := readCredentialFile(path, "Claude")
 	defer clear(data)
 	if err != nil {
 		return path, ""
@@ -236,8 +211,8 @@ func claudeAccountEvidence(target Target) (string, string) {
 	return path, config.OAuthAccount.AccountUUID
 }
 func claudeKeychainItem(target Target) (string, string) {
-	dir, _ := claudeEnv(target, "CLAUDE_CONFIG_DIR")
-	if override, set := claudeEnv(target, "CLAUDE_SECURESTORAGE_CONFIG_DIR"); set {
+	dir, _ := routeEnvValue(target, "CLAUDE_CONFIG_DIR")
+	if override, set := routeEnvValue(target, "CLAUDE_SECURESTORAGE_CONFIG_DIR"); set {
 		dir = override
 	}
 	service := "Claude Code-credentials"
@@ -245,7 +220,7 @@ func claudeKeychainItem(target Target) (string, string) {
 		digest := sha256.Sum256([]byte(norm.NFC.String(dir)))
 		service += "-" + hex.EncodeToString(digest[:4])
 	}
-	account, _ := claudeEnv(target, "USER")
+	account, _ := routeEnvValue(target, "USER")
 	if account == "" {
 		if current, err := user.Current(); err == nil {
 			account = current.Username

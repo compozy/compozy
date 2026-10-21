@@ -109,11 +109,11 @@ func (c *ClaudeCollector) Collect(
 	c.mu.Unlock()
 	defer clear(token)
 	data, err := c.http.Do(ctx, http.MethodGet, "/api/oauth/usage?cedar_ember=1", http.Header{
-		"Authorization": {
+		headerAuthorization: {
 			"Bearer " + string(token),
 		},
-		"Accept":         {"application/json"},
-		"Content-Type":   {"application/json"},
+		headerAccept:     {collectorJSONType},
+		"Content-Type":   {collectorJSONType},
 		"Anthropic-Beta": {"oauth-2025-04-20"},
 		"User-Agent":     {"claude-cli/2.1.0 (external, cli)"},
 	}, nil, "Claude")
@@ -184,7 +184,7 @@ func (c *ClaudeCollector) validateLocked(target Target, identity CredentialIdent
 			return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 		}
 		// A newly created credential file changes the authoritative source, even for the same account.
-		fileData, fileErr := readClaudeFile(claudeCredentialPath(target))
+		fileData, fileErr := readCredentialFile(claudeCredentialPath(target), "Claude")
 		clear(fileData)
 		if !isClaudeFileAbsent(fileErr) {
 			c.clearLocked(target.ProfileID)

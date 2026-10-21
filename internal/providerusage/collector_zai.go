@@ -107,8 +107,8 @@ func (c *ZaiCollector) window(limit zaiLimit) (Window, error) {
 	if percent := collectorPercent(used, limit.Usage); percent != nil {
 		w.UsedPercent = percent
 	}
-	w.Used = used.amount("credits")
-	w.Limit = limit.Usage.amount("credits")
+	w.Used = used.amount(creditsUnit)
+	w.Limit = limit.Usage.amount(creditsUnit)
 	if limit.Reset != nil {
 		reset := time.UnixMilli(*limit.Reset)
 		if seconds != 18000 || !reset.After(c.now().Add(5*time.Hour+time.Minute)) {

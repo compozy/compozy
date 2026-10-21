@@ -69,8 +69,8 @@ func (c *CursorCollector) Collect(ctx context.Context, t Target, _ Intent, cred 
 		subject = last
 	}
 	headers := http.Header{
-		"Cookie": {"WorkosCursorSessionToken=" + url.QueryEscape(subject+"::"+value.token)},
-		"Accept": {collectorJSONType},
+		"Cookie":     {"WorkosCursorSessionToken=" + url.QueryEscape(subject+"::"+value.token)},
+		headerAccept: {collectorJSONType},
 	}
 	body, err := c.client().Do(ctx, http.MethodGet, "/api/usage-summary", headers, nil, "Cursor")
 	if err != nil {

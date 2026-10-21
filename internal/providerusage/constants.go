@@ -85,3 +85,13 @@ const (
 	ErrorCodeAuthStoreUnsupported    ErrorCode = "auth_store_unsupported"
 	ErrorCodeDisabled                ErrorCode = "disabled"
 )
+
+const (
+	headerAuthorization = "Authorization"
+	headerAccept        = "Accept"
+	collectorJSONType   = "application/json"
+	sessionWindowLabel  = "Session"
+	weeklyWindowLabel   = "Weekly"
+	jsonNull            = "null"
+	creditsUnit         = "credits"
+)

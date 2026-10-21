@@ -169,7 +169,7 @@ func (quota geminiQuota) windows() ([]Window, error) {
 var collectorModelSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
 func geminiProject(raw json.RawMessage) (string, error) {
-	if len(raw) == 0 || string(raw) == "null" {
+	if len(raw) == 0 || string(raw) == jsonNull {
 		return "", nil
 	}
 	var project string

@@ -16,7 +16,7 @@ var collectorDecimalPattern = regexp.MustCompile(`^-?[0-9]+(?:\.[0-9]+)?$`)
 type collectorDecimal string
 
 func (d *collectorDecimal) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
+	if string(data) == jsonNull {
 		return nil
 	}
 	value := string(data)
@@ -82,16 +82,16 @@ func collectorWindow(seconds int64) Window {
 	}
 	switch seconds {
 	case 18000:
-		w.ID = "session"
-		w.Label = "Session"
+		w.ID = string(WindowKindSession)
+		w.Label = sessionWindowLabel
 		w.Kind = WindowKindSession
 	case 86400:
 		w.ID = "daily"
 		w.Label = "Daily"
 		w.Kind = WindowKindDaily
 	case 604800:
-		w.ID = "weekly"
-		w.Label = "Weekly"
+		w.ID = string(WindowKindWeekly)
+		w.Label = weeklyWindowLabel
 		w.Kind = WindowKindWeekly
 	}
 	return w

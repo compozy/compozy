@@ -2,14 +2,10 @@ package providerusage
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
 	"github.com/BurntSushi/toml"
@@ -45,14 +41,6 @@ type codexConfig struct {
 	BaseURL string `toml:"chatgpt_base_url"`
 }
 
-func routeEnv(t Target, key string) string {
-	for _, entry := range slices.Backward(t.Route.Env) {
-		if value, ok := strings.CutPrefix(entry, key+"="); ok {
-			return value
-		}
-	}
-	return ""
-}
 func codexHome(t Target) string {
 	if home := routeEnv(t, "CODEX_HOME"); home != "" {
 		return home
@@ -62,18 +50,6 @@ func codexHome(t Target) string {
 	}
 	return ""
 }
-func readCredentialFile(path string) ([]byte, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, MaxResponseBytes+1))
-	if len(data) > MaxResponseBytes {
-		return nil, NewUsageError(ErrorCodeParseError, "Codex")
-	}
-	return data, err
-}
 func loadCodex(t Target) (codexConfig, codexAuth, CredentialIdentity, error) {
 	var config codexConfig
 	var auth codexAuth
@@ -81,7 +57,7 @@ func loadCodex(t Target) (codexConfig, codexAuth, CredentialIdentity, error) {
 	if home == "" {
 		return config, auth, CredentialIdentity{}, NewUsageError(ErrorCodeAuthMissing, "Codex")
 	}
-	data, err := readCredentialFile(filepath.Join(home, "config.toml"))
+	data, err := readCredentialFile(filepath.Join(home, "config.toml"), "Codex")
 	if err != nil && !os.IsNotExist(err) {
 		return config, auth, CredentialIdentity{}, NewUsageError(ErrorCodeParseError, "Codex")
 	}
@@ -93,7 +69,7 @@ func loadCodex(t Target) (codexConfig, codexAuth, CredentialIdentity, error) {
 	if config.Store != "" && config.Store != "file" {
 		return config, auth, CredentialIdentity{}, NewUsageError(ErrorCodeAuthStoreUnsupported, "Codex")
 	}
-	data, err = readCredentialFile(filepath.Join(home, "auth.json"))
+	data, err = readCredentialFile(filepath.Join(home, "auth.json"), "Codex")
 	if err != nil {
 		return config, auth, CredentialIdentity{}, NewUsageError(ErrorCodeAuthMissing, "Codex")
 	}
@@ -169,8 +145,8 @@ func (c *CodexCollector) Collect(
 		base = "https://chatgpt.com"
 	}
 	headers := http.Header{
-		"Authorization": []string{"Bearer " + auth.Tokens.AccessToken},
-		"Accept":        []string{"application/json"},
+		headerAuthorization: []string{"Bearer " + auth.Tokens.AccessToken},
+		headerAccept:        []string{collectorJSONType},
 	}
 	if auth.Tokens.AccountID != "" {
 		headers.Set("ChatGPT-Account-Id", auth.Tokens.AccountID)
@@ -187,19 +163,6 @@ func (c *CodexCollector) Collect(
 }
 
 func tokenExpired(token string, now time.Time) bool {
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return true
-	}
-	data, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return true
-	}
-	var claims struct {
-		Exp int64 `json:"exp"`
-	}
-	if err := json.Unmarshal(data, &claims); err != nil || claims.Exp == 0 {
-		return true
-	}
-	return !now.Add(5 * time.Minute).Before(time.Unix(claims.Exp, 0))
+	claims, err := readCollectorClaims(token)
+	return err != nil || claims.Expiry == 0 || !now.Add(5*time.Minute).Before(time.Unix(claims.Expiry, 0))
 }

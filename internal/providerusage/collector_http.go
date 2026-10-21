@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-const collectorJSONType = "application/json"
-
 type CollectorOption func(*collectorHTTP)
 
 type collectorHTTP struct {
@@ -40,9 +38,9 @@ func newCollectorHTTP(baseURL string, options []CollectorOption) collectorHTTP {
 func (c collectorHTTP) client() *HTTPClient { return NewHTTPClient(c.baseURL, c.transport, c.now) }
 func bearerHeaders(token string) http.Header {
 	return http.Header{
-		"Authorization": {"Bearer " + token},
-		"Accept":        {collectorJSONType},
-		"Content-Type":  {collectorJSONType},
+		headerAuthorization: {"Bearer " + token},
+		headerAccept:        {collectorJSONType},
+		"Content-Type":      {collectorJSONType},
 	}
 }
 func (c collectorHTTP) get(ctx context.Context, path, token, provider string, out any) error {
@@ -93,16 +91,4 @@ func checkedKey(t Target, cred CredentialIdentity) (string, error) {
 		return "", NewUsageError(ErrorCodeAuthMissing, t.ProviderID)
 	}
 	return key, nil
-}
-
-// RegisterKeyCollectors adds only the collectors whose credentials are already resolved by their route.
-func RegisterKeyCollectors(registry Registry, options ...CollectorOption) {
-	collectors := []Collector{
-		NewOpenRouterCollector(options...), NewVercelCollector(options...), NewZaiCollector(options...),
-		NewKimiCollector(options...), NewKimiCLICollector(options...), NewCursorCollector(options...),
-		NewGeminiCollector(options...),
-	}
-	for _, collector := range collectors {
-		registry[collector.ProviderID()] = collector
-	}
 }

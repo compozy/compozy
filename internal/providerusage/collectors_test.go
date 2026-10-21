@@ -118,9 +118,11 @@ func collectorTestTarget(t *testing.T, id string, expired bool) Target {
 }
 func collectorTestRegistry(t *testing.T, url string) Registry {
 	t.Helper()
-	registry := Registry{}
-	RegisterKeyCollectors(registry, WithCollectorBaseURL(url), WithCollectorClock(fixtureClock(t).Now))
-	return registry
+	bases := map[string]string{}
+	for _, id := range []string{"codex", "claude", "openrouter", "vercel-ai-gateway", "zai", "moonshot", "kimi-cli", "cursor", "gemini"} {
+		bases[id] = url
+	}
+	return DefaultRegistry(RegistryOptions{BaseURLs: bases, Now: fixtureClock(t).Now})
 }
 func collectorRun(t *testing.T, c Collector, target Target) (Snapshot, error) {
 	t.Helper()
@@ -136,6 +138,30 @@ func writeCollectorResponse(t *testing.T, w http.ResponseWriter, body string) {
 	requireNoError(t, err)
 }
 func TestCollectors(t *testing.T) {
+	t.Run("Should register every supported provider without probing credentials", func(t *testing.T) {
+		t.Parallel()
+		registry := DefaultRegistry(RegistryOptions{})
+		ids := []string{
+			"codex",
+			"claude",
+			"openrouter",
+			"vercel-ai-gateway",
+			"zai",
+			"moonshot",
+			"kimi-cli",
+			"cursor",
+			"gemini",
+		}
+		requireEqual(t, len(ids), len(registry))
+		for _, id := range ids {
+			collector := registry[id]
+			if collector == nil {
+				t.Fatalf("missing collector %s", id)
+			}
+			requireEqual(t, id, collector.ProviderID())
+		}
+	})
+
 	for _, fixture := range collectorFixtures() {
 		t.Run("Should translate "+fixture.id+" usage from its resolved credential", func(t *testing.T) {
 			t.Parallel()
@@ -256,7 +282,7 @@ func TestCollectorCredentials(t *testing.T) {
 			target := collectorTestTarget(t, id, true)
 			before := map[string]string{}
 			mtimes := map[string]time.Time{}
-			home := collectorEnv(target, "HOME")
+			home := routeEnv(target, "HOME")
 			requireNoError(t, filepath.WalkDir(home, func(path string, entry os.DirEntry, err error) error {
 				if err != nil {
 					return err
@@ -414,7 +440,7 @@ func TestCollectorIsolation(t *testing.T) {
 			target := collectorTestTarget(t, id, false)
 			requireNoError(
 				t,
-				filepath.WalkDir(collectorEnv(target, "HOME"), func(path string, entry os.DirEntry, err error) error {
+				filepath.WalkDir(routeEnv(target, "HOME"), func(path string, entry os.DirEntry, err error) error {
 					if err != nil {
 						return err
 					}
@@ -431,7 +457,7 @@ func TestCollectorIsolation(t *testing.T) {
 	t.Run("Should use the explicit Cursor config home and reject a changed account", func(t *testing.T) {
 		t.Parallel()
 		target := collectorTestTarget(t, "cursor", false)
-		home := collectorEnv(target, "HOME")
+		home := routeEnv(target, "HOME")
 		target.Route.Env = []string{"HOME=" + t.TempDir(), "XDG_CONFIG_HOME=" + filepath.Join(home, ".config")}
 		collector := NewCursorCollector(WithCollectorClock(fixtureClock(t).Now))
 		cred, err := collector.Identity(t.Context(), target, IntentExplicit)
