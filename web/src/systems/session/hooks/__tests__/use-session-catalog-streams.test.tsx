@@ -590,6 +590,29 @@ describe("useSessionCatalogStreams", () => {
     unmount();
   });
 
+  it("Should re-read an open monitor list when the catalog stream reconnects", async () => {
+    const queryClient = createQueryClient();
+    const read = vi.fn(async () => ({ monitors: [] }));
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        useQuery({
+          queryKey: sessionKeys.monitors("ws_mon", "sess_mon"),
+          queryFn: read,
+          staleTime: Infinity,
+          retry: false,
+        });
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    act(() => source.emit("open"));
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    unmount();
+  });
+
   it("Should keep catalog errors visible without activity bypassing thirty-second backoff", async () => {
     vi.useFakeTimers();
     const queryClient = createQueryClient();
