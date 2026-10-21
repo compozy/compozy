@@ -16,8 +16,10 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/providerusage"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -848,5 +850,51 @@ func assertRedactedModelCatalogPayload(t *testing.T, value string, secret string
 	}
 	if !strings.Contains(value, "[REDACTED]") {
 		t.Fatalf("payload value = %q, want redaction marker", value)
+	}
+}
+
+// UT-076: the shared API boundary owns intent; callers cannot promote themselves.
+func TestProviderUsageIntent(t *testing.T) {
+	for _, caller := range []string{"operator", "agent", "gateway", "app"} {
+		t.Run(caller, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/api/provider-usage/refresh", nil)
+			switch caller {
+			case "agent":
+				c.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+			case "gateway":
+				c.Request = c.Request.WithContext(gateway.ContextWithDevice(c.Request.Context(), gateway.DeviceSession{}))
+			case "app":
+				c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
+			}
+			want := providerusage.IntentBackground
+			if caller == "operator" {
+				want = providerusage.IntentExplicit
+			}
+			if got := providerUsageIntent(c, providerusage.IntentExplicit); got != want {
+				t.Fatalf("intent = %s, want %s", got, want)
+			}
+			if got := providerUsageIntent(c, providerusage.IntentBackground); got != providerusage.IntentBackground {
+				t.Fatalf("background became %s", got)
+			}
+		})
+	}
+}
+
+func TestProviderUsageRefreshBounds(t *testing.T) {
+	for _, wait := range []int64{-1, 30001, 45000} {
+		_, err := ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{WaitMS: &wait})
+		if err == nil || err.Error() != "wait_ms must be between 0 and 30000" {
+			t.Fatalf("wait %d: %v", wait, err)
+		}
+	}
+	zero := int64(0)
+	request, err := ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{WaitMS: &zero})
+	if err != nil || request.Wait != 0 || request.Intent != providerusage.IntentBackground {
+		t.Fatalf("zero wait: %+v, %v", request, err)
+	}
+	request, err = ProviderUsageRefreshInput(contract.ProviderUsageRefreshRequest{})
+	if err != nil || request.Wait != 15*time.Second {
+		t.Fatalf("default: %+v, %v", request, err)
 	}
 }

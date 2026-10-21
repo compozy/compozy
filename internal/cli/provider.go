@@ -97,6 +97,7 @@ func newProviderCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newProviderInspectCommand(deps))
 	cmd.AddCommand(newProviderListCommand(deps))
 	cmd.AddCommand(newProviderModelsCommand(deps))
+	cmd.AddCommand(newProviderUsageCommand(deps))
 	return cmd
 }
 

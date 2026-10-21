@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"listProviderUsage", "getProviderUsage", "streamProviderUsage",
 			"acceptAutomationSuggestion",
 			"acknowledgeAttentionNotifications",
 			"addTaskDependency",
@@ -199,6 +200,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"refreshProviderUsage",
 			"getStatus",
 			"resolveWorkspace",
 			"addMarketplaceSource",

@@ -48,6 +48,7 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 			availability.agentCatalog,
 		),
 	)
+	addNativeToolBindings(bindings, n.providerUsageToolBindings())
 	addNativeToolBindings(bindings, n.vaultToolBindings(availability.vault))
 	addNativeToolBindings(bindings, n.worktreeToolBindings(availability.worktrees))
 	addNativeToolBindings(bindings, n.providerModelToolBindings(

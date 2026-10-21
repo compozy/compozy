@@ -388,3 +388,10 @@ func registerWebhookRoutes(api gin.IRouter, handlers *Handlers) {
 	webhooks.POST("/global/:endpoint", handlers.DeliverGlobalWebhook)
 	webhooks.POST("/workspaces/:workspace_id/:endpoint", handlers.DeliverWorkspaceWebhook)
 }
+
+func registerProviderUsageRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/provider-usage", handlers.ListProviderUsage)
+	api.GET("/provider-usage/providers/:provider_id", handlers.ListProviderUsage)
+	api.POST("/provider-usage/refresh", handlers.RefreshProviderUsage)
+	api.GET("/provider-usage/stream", handlers.StreamProviderUsage)
+}

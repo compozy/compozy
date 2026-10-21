@@ -89,6 +89,7 @@ func registerOperatorRoutes(api gin.IRouter, handlers *Handlers, includeLocalOnl
 	registerVaultRoutes(api, handlers)
 	registerProviderRoutes(api, handlers)
 	registerModelCatalogRoutes(api, handlers)
+	registerProviderUsageRoutes(api, handlers)
 	registerOpenAIModelRoutes(api, handlers)
 }
 

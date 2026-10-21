@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/providerusage"
 
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/resources"
@@ -333,4 +334,10 @@ type HeartbeatWakeService interface {
 // HeartbeatWakeEventReader lists retained Heartbeat wake audit rows.
 type HeartbeatWakeEventReader interface {
 	ListHeartbeatWakeEvents(ctx context.Context, query heartbeat.WakeEventListQuery) ([]heartbeat.WakeEvent, error)
+}
+
+// ProviderUsageService exposes profile-scoped cached usage and invalidations.
+type ProviderUsageService interface {
+	providerusage.Service
+	BootID() string
 }
