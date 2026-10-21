@@ -236,6 +236,13 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			execution.deps.pollInterval = time.Millisecond
 			execution.deps.stopTimeout = time.Second
 
+			// A started runtime that rejects the app asks for one re-resolution, never a second.
+			if restart := execution.restartRejectingDesktopRuntime(test.status, true); restart != test.bundleRequired {
+				t.Fatalf(
+					"restartRejectingDesktopRuntime() before replacement = %t, want %t",
+					restart, test.bundleRequired,
+				)
+			}
 			replaced, err := execution.replaceOutdatedDesktopRuntime(test.status)
 			if err != nil {
 				t.Fatalf("replaceOutdatedDesktopRuntime() error = %v", err)
@@ -253,9 +260,8 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			if signaled != wantSignal {
 				t.Fatalf("signal = %v, want %v", signaled, wantSignal)
 			}
-			restart := execution.restartRejectingDesktopRuntime(test.status, true)
-			if want := test.bundleRequired && !execution.bundleRequired; restart != want {
-				t.Fatalf("restartRejectingDesktopRuntime() = %t, want %t", restart, want)
+			if execution.restartRejectingDesktopRuntime(test.status, true) {
+				t.Fatal("restartRejectingDesktopRuntime() after replacement = true, want no second restart")
 			}
 		})
 	}
