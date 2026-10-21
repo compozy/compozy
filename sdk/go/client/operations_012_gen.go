@@ -280,20 +280,30 @@ func (c *Client) GetTask(ctx context.Context, params GetTaskParams) (*TaskDetail
 
 // GetTaskDashboardParams carries the path, query, and header parameters.
 type GetTaskDashboardParams struct {
-	Scope       *string `url:"scope"`
-	Workspace   *string `url:"workspace"`
-	Worktree    *string `url:"worktree"`
-	OwnerKind   *string `url:"owner_kind"`
-	OwnerRef    *string `url:"owner_ref"`
-	OriginKind  *string `url:"origin_kind"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Scope         *string   `url:"scope"`
+	Workspace     *string   `url:"workspace"`
+	Worktree      *string   `url:"worktree"`
+	OwnerKind     *string   `url:"owner_kind"`
+	OwnerRef      *string   `url:"owner_ref"`
+	OriginKind    *string   `url:"origin_kind"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }
 
 // GetTaskDashboard Get the observer-backed task dashboard
 func (c *Client) GetTaskDashboard(ctx context.Context, params GetTaskDashboardParams) (*TaskDashboardResponse, error) {
 	path := "/api/observe/tasks/dashboard"
 	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
 	if params.Scope != nil {
 		query.Set("scope", *params.Scope)
 	}

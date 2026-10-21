@@ -56487,6 +56487,14 @@
         "operationId": "getObserveOverview",
         "parameters": [
           {
+            "description": "Read every project and User within the profile lens; conflicts with workspace",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Profile owning acknowledgement receipts, including aggregate reads",
             "in": "query",
             "name": "receipt_profile",
@@ -56542,6 +56550,26 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid workspace breadth"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent aggregate access denied"
           },
           "404": {
             "content": {
@@ -56599,6 +56627,25 @@
       "get": {
         "operationId": "getTaskDashboard",
         "parameters": [
+          {
+            "description": "Read every project and User within the profile lens; conflicts with workspace",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs; @user selects User; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
           {
             "description": "Filter by task scope",
             "in": "query",
@@ -56695,6 +56742,26 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid workspace breadth"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent aggregate access denied"
           },
           "404": {
             "content": {
@@ -69118,6 +69185,25 @@
         "operationId": "listTasks",
         "parameters": [
           {
+            "description": "Read every project and User within the profile lens; conflicts with workspace",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs; @user selects User; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Filter by catalog visibility",
             "in": "query",
             "name": "scope",
@@ -69322,6 +69408,16 @@
               }
             },
             "description": "Invalid task filter or cursor"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent aggregate access denied"
           },
           "404": {
             "content": {

@@ -4641,6 +4641,8 @@ export interface TaskDashboard {
 }
 
 export interface TaskDashboardParams {
+  all_workspaces?: boolean;
+  workspace_ids?: string[];
   scope?: Scope;
   workspace?: string;
   worktree?: string;
@@ -5548,6 +5550,8 @@ export interface TaskUpdateParams {
 export type CatalogSort = string;
 
 export interface TasksParams {
+  all_workspaces?: boolean;
+  workspace_ids?: string[];
   scope?: CatalogScope;
   workspace?: string;
   status?: Status;

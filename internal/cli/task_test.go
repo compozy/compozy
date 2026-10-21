@@ -3106,3 +3106,26 @@ func sampleTaskDetailRecord() TaskDetailRecord {
 		},
 	}
 }
+
+func TestTaskListAllWorkspaces(t *testing.T) {
+	t.Parallel()
+	t.Run("Should send explicit breadth and render User", func(t *testing.T) {
+		t.Parallel()
+		var captured TaskListQuery
+		deps := newWorkspaceTestDeps(t, &stubClient{listWorkspacesFn: func(context.Context) ([]WorkspaceRecord, error) { return nil, nil }, listTasksFn: func(_ context.Context, q TaskListQuery) ([]TaskCatalogItemRecord, error) {
+			captured = q
+			return []TaskCatalogItemRecord{{ID: "user-task", Title: "Personal task", Scope: taskpkg.ScopeGlobal}}, nil
+		}})
+		output, _, err := executeRootCommand(t, deps, "task", "list", "--all-workspaces")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !captured.AllWorkspaces || captured.Workspace != "" || !strings.Contains(output, "PROJECT") || !strings.Contains(output, "User") {
+			t.Fatalf("query=%+v output=%s", captured, output)
+		}
+		_, _, err = executeRootCommand(t, deps, "task", "list", "--all-workspaces", "--workspace", "alpha")
+		if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+			t.Fatalf("conflict error=%v", err)
+		}
+	})
+}

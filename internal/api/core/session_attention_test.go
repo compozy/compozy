@@ -392,12 +392,7 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 	t.Run("Should deny agent identity on every operator-only catalog surface", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newHandlerFixture(
-			t,
-			attentionRouteSessionManager(),
-			testutil.StubObserver{},
-			testutil.StubWorkspaceService{},
-		)
+		fixture := newHandlerFixtureWithTasks(t, attentionRouteSessionManager(), testutil.StubObserver{}, &testutil.StubTaskManager{}, testutil.StubWorkspaceService{})
 		headers := map[string]string{
 			agentidentity.HeaderSessionID: "sess-agent",
 			agentidentity.HeaderAgent:     "coder",
@@ -408,6 +403,9 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			body   []byte
 		}{
 			{method: http.MethodGet, path: "/sessions?all_workspaces=true"},
+			{method: http.MethodGet, path: "/tasks?all_workspaces=true"},
+			{method: http.MethodGet, path: "/observe/tasks/dashboard?all_workspaces=true"},
+			{method: http.MethodGet, path: "/observe/overview?all_workspaces=true"},
 			{method: http.MethodGet, path: "/sessions/attention-summary"},
 			{
 				method: http.MethodPost,

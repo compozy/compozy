@@ -14,20 +14,21 @@ import (
 const taskLoopColumn = "LOOP"
 
 type taskListOptions struct {
-	scopeRaw     string
-	workspaceRef string
-	statusRaw    string
-	priorityRaw  string
-	ownerKindRaw string
-	ownerRef     string
-	parentTaskID string
-	worktreeID   string
-	includeLoop  bool
-	loopRunID    string
-	queryRaw     string
-	sortRaw      string
-	cursor       string
-	limit        int
+	allWorkspaces bool
+	scopeRaw      string
+	workspaceRef  string
+	statusRaw     string
+	priorityRaw   string
+	ownerKindRaw  string
+	ownerRef      string
+	parentTaskID  string
+	worktreeID    string
+	includeLoop   bool
+	loopRunID     string
+	queryRaw      string
+	sortRaw       string
+	cursor        string
+	limit         int
 }
 
 func newTaskListCommand(deps commandDeps) *cobra.Command {
@@ -46,6 +47,15 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 }
 
 func (o *taskListOptions) run(cmd *cobra.Command, deps commandDeps) error {
+	if o.allWorkspaces {
+		if cmd.Flags().Changed("workspace") {
+			return errors.New("cli: --all-workspaces and --workspace are mutually exclusive")
+		}
+		if cmd.Flags().Changed("scope") && strings.TrimSpace(o.scopeRaw) != "all" {
+			return errors.New("cli: --all-workspaces conflicts with --scope")
+		}
+		o.scopeRaw = "all"
+	}
 	client, err := clientFromDeps(deps)
 	if err != nil {
 		return err
@@ -72,14 +82,31 @@ func (o *taskListOptions) run(cmd *cobra.Command, deps commandDeps) error {
 	if err != nil {
 		return err
 	}
+	query.AllWorkspaces = o.allWorkspaces
 	page, err := client.ListTasks(cmd.Context(), query)
 	if err != nil {
 		return err
+	}
+	format, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if o.allWorkspaces && format == OutputHuman {
+		workspaces, err := client.ListWorkspaces(cmd.Context())
+		if err != nil {
+			return err
+		}
+		names := make(map[string]string, len(workspaces))
+		for _, workspace := range workspaces {
+			names[workspace.ID] = workspace.Name
+		}
+		return writeCommandOutput(cmd, taskSummaryListBundleWithProjects(page, names))
 	}
 	return writeCommandOutput(cmd, taskSummaryListBundle(page))
 }
 
 func addTaskListFlags(cmd *cobra.Command, opts *taskListOptions) {
+	cmd.Flags().BoolVar(&opts.allWorkspaces, "all-workspaces", false, "List tasks across every project and User")
 	cmd.Flags().StringVar(&opts.scopeRaw, taskScopeKey, "", "Filter by scope: global or workspace")
 	cmd.Flags().
 		StringVar(&opts.workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
@@ -202,6 +229,23 @@ func resolveTaskListScopeWorkspace(
 }
 
 func taskSummaryListBundle(page TaskListRecord) outputBundle {
+	return taskSummaryListBundleWithProjects(page, nil)
+}
+
+func taskSummaryListBundleWithProjects(page TaskListRecord, names map[string]string) outputBundle {
+	workspaceHeader := strings.ToUpper(taskWorkspaceValue)
+	if names != nil {
+		workspaceHeader = "PROJECT"
+	}
+	projectLabel := func(id string) string {
+		if names == nil {
+			return stringOrDash(id)
+		}
+		if id == "" {
+			return "User"
+		}
+		return cmp.Or(names[id], id)
+	}
 	return listBundle(
 		page,
 		page.Tasks,
@@ -211,7 +255,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 			cliProfileHeader,
 			strings.ToUpper(taskIdentifierValue),
 			strings.ToUpper(taskScopeValue),
-			strings.ToUpper(taskWorkspaceValue),
+			workspaceHeader,
 			strings.ToUpper(taskParentValue),
 			strings.ToUpper(taskStatusValue),
 			strings.ToUpper(taskOwnerValue),
@@ -237,7 +281,7 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 				stringOrDash(item.ProfileName),
 				stringOrDash(item.Identifier),
 				stringOrDash(string(item.Scope)),
-				stringOrDash(item.WorkspaceID),
+				projectLabel(item.WorkspaceID),
 				stringOrDash(item.ParentTaskID),
 				stringOrDash(string(item.Status)),
 				stringOrDash(formatTaskOwnership(item.Owner)),

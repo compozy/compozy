@@ -61,6 +61,8 @@ type CatalogQuery struct {
 	ReadScope        store.ReadScope
 	Scope            CatalogScope
 	WorkspaceID      string
+	AllWorkspaces    bool
+	WorkspaceIDs     []string
 	Status           Status
 	Priority         Priority
 	IncludeDrafts    bool
@@ -112,6 +114,8 @@ type catalogFingerprint struct {
 	AllProfiles      bool          `json:"all_profiles"`
 	Scope            CatalogScope  `json:"scope"`
 	WorkspaceID      string        `json:"workspace_id"`
+	AllWorkspaces    bool          `json:"all_workspaces,omitzero"`
+	WorkspaceIDs     []string      `json:"workspace_ids,omitempty"`
 	Status           Status        `json:"status"`
 	Priority         Priority      `json:"priority"`
 	IncludeDrafts    bool          `json:"include_drafts"`
@@ -162,6 +166,7 @@ func normalizeCatalogQuery(query CatalogQuery) CatalogQuery {
 		query.Scope = CatalogScopeAll
 	}
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	query.WorkspaceIDs = normalizeWorkspaceIDs(query.WorkspaceIDs)
 	query.Status = query.Status.Normalize()
 	query.Priority = query.Priority.Normalize()
 	query.ApprovalState = query.ApprovalState.Normalize()
@@ -194,6 +199,12 @@ func validateCatalogQuery(query CatalogQuery) error {
 }
 
 func validateCatalogScope(query CatalogQuery) error {
+	if query.AllWorkspaces && (query.WorkspaceID != "" || query.Scope != CatalogScopeAll) {
+		return fmt.Errorf("%w: all_workspaces conflicts with scope or workspace", ErrValidation)
+	}
+	if len(query.WorkspaceIDs) != 0 && !query.AllWorkspaces {
+		return fmt.Errorf("%w: workspace_ids requires all_workspaces", ErrValidation)
+	}
 	switch query.Scope {
 	case CatalogScopeAll:
 	case CatalogScopeGlobal:
@@ -320,6 +331,8 @@ func taskCatalogFingerprint(query CatalogQuery) (string, error) {
 		AllProfiles:      query.ReadScope.AllProfiles,
 		Scope:            query.Scope,
 		WorkspaceID:      query.WorkspaceID,
+		AllWorkspaces:    query.AllWorkspaces,
+		WorkspaceIDs:     query.WorkspaceIDs,
 		Status:           query.Status,
 		Priority:         query.Priority,
 		IncludeDrafts:    query.IncludeDrafts,
@@ -373,4 +386,13 @@ func PriorityRank(priority Priority) int {
 	default:
 		return 0
 	}
+}
+
+func normalizeWorkspaceIDs(ids []string) []string {
+	result := slices.Clone(ids)
+	for i := range result {
+		result[i] = strings.TrimSpace(result[i])
+	}
+	slices.Sort(result)
+	return slices.Compact(result)
 }

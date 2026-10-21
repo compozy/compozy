@@ -1505,3 +1505,29 @@ func equalStringSlices(left []string, right []string) bool {
 	}
 	return true
 }
+
+func TestTaskDashboardWorkspaceBreadth(t *testing.T) {
+	t.Parallel()
+	t.Run("Should narrow every dashboard total to the selected project and User", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		for _, seed := range []struct {
+			id, ws string
+			scope  taskpkg.Scope
+		}{{"breadth-user", "", taskpkg.ScopeGlobal}, {"breadth-project", h.workspaceID, taskpkg.ScopeWorkspace}} {
+			createObserveTask(t, h, taskpkg.Task{ID: seed.id, Scope: seed.scope, WorkspaceID: seed.ws, Title: seed.id, Status: taskpkg.TaskStatusReady, CreatedBy: taskActor(taskpkg.ActorKindHuman, "user-1"), Origin: taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "breadth"}})
+		}
+		for _, tc := range []struct {
+			ids  []string
+			want int
+		}{{nil, 2}, {[]string{"@user"}, 1}, {[]string{h.workspaceID}, 1}, {[]string{h.workspaceID, "@user"}, 2}, {[]string{"missing"}, 0}} {
+			view, err := h.observer.QueryTaskDashboard(t.Context(), TaskDashboardQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceIDs: tc.ids})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if view.Totals.TasksTotal != tc.want {
+				t.Fatalf("ids=%v totals=%+v want %d", tc.ids, view.Totals, tc.want)
+			}
+		}
+	})
+}

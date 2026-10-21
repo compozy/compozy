@@ -1509,3 +1509,47 @@ func assertAppTokenHTTPResponse(t *testing.T, response *httptest.ResponseRecorde
 		}
 	}
 }
+
+func TestAppTokenTaskBreadthAdmission(t *testing.T) {
+	t.Parallel()
+	for _, query := range []string{"", "?workspace=ws-a", "?all_workspaces=true", "?all_workspaces=true&workspace_ids=@user"} {
+		t.Run("Should preserve app access for task selector "+query, func(t *testing.T) {
+			t.Parallel()
+			auth := appTokenHTTPAuthenticatorStub{origin: func(string) bool { return true }, authenticate: func(context.Context, string) (gateway.AppToken, error) {
+				return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_breadth"}, Origins: []string{"http://a.test"}}, nil
+			}, touch: func(context.Context, string, uint64) error { return nil }}
+			router := newAppTokenTestRouter(t, auth, func(method, path string) bool {
+				for _, op := range apispec.Operations() {
+					if op.Method == method && op.Path == path {
+						return op.AppAccess == apispec.AppAccessAllowed
+					}
+				}
+				return false
+			}, nil)
+			router.GET("/api/tasks", func(c *gin.Context) {
+				query, err := core.ParseTaskListQuery(c)
+				if err != nil {
+					core.RespondError(c, core.StatusForTaskError(err), err, false)
+					return
+				}
+				c.JSON(http.StatusOK, query)
+			})
+			router.GET("/api/observe/overview", func(c *gin.Context) { t.Error("app reached denied overview"); c.Status(http.StatusOK) })
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, appTokenTestRequest(t, http.MethodGet, "/api/tasks"+query, "http://a.test", "cpz_app_valid"))
+			if response.Code != http.StatusOK {
+				t.Fatalf("tasks = %d %s", response.Code, response.Body.String())
+			}
+			var got contract.TaskListQuery
+			if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			if got.AllWorkspaces != strings.Contains(query, "all_workspaces=true") {
+				t.Fatalf("query = %+v", got)
+			}
+			response = httptest.NewRecorder()
+			router.ServeHTTP(response, appTokenTestRequest(t, http.MethodGet, "/api/observe/overview?all_workspaces=true", "http://a.test", "cpz_app_valid"))
+			assertAppTokenHTTPResponse(t, response, http.StatusForbidden, "app_token_route_forbidden")
+		})
+	}
+}

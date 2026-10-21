@@ -447,3 +447,42 @@ func TestTaskNormalizationHelpers(t *testing.T) {
 		}
 	})
 }
+
+func TestTaskBreadthQuerySemantics(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, query string
+		all         bool
+		invalid     bool
+	}{
+		{name: "Should preserve omission"},
+		{name: "Should preserve false breadth", query: "all_workspaces=false"},
+		{name: "Should accept explicit all", query: "all_workspaces=true", all: true},
+		{name: "Should accept User filter", query: "all_workspaces=true&workspace_ids=@user", all: true},
+		{name: "Should reject global scope with all", query: "all_workspaces=true&scope=global", invalid: true},
+		{name: "Should reject workspace scope with all", query: "all_workspaces=true&scope=workspace", invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(t.Context(), "GET", "/?"+tc.query, nil)
+			list, err := ParseTaskListQuery(c)
+			if tc.invalid {
+				if StatusForTaskError(err) != 400 {
+					t.Fatalf("list error=%v", err)
+				}
+				return
+			}
+			if err != nil || list.AllWorkspaces != tc.all {
+				t.Fatalf("list=%+v err=%v", list, err)
+			}
+			dashboard, err := ParseTaskDashboardQuery(c)
+			if err != nil || dashboard.AllWorkspaces != tc.all {
+				t.Fatalf("dashboard=%+v err=%v", dashboard, err)
+			}
+			if strings.Contains(tc.query, "@user") && (len(list.WorkspaceIDs) != 1 || len(dashboard.WorkspaceIDs) != 1) {
+				t.Fatal("User filter lost")
+			}
+		})
+	}
+}

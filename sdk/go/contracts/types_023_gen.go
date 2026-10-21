@@ -233,6 +233,8 @@ type TaskUpdateParams struct {
 }
 
 type TasksParams struct {
+	AllWorkspaces bool          `json:"all_workspaces,omitzero"`
+	WorkspaceIDs  []string      `json:"workspace_ids,omitempty"`
 	Scope         CatalogScope  `json:"scope,omitempty"`
 	Workspace     string        `json:"workspace,omitempty"`
 	Status        Status        `json:"status,omitempty"`

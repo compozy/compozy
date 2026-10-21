@@ -18371,6 +18371,10 @@ export type GetObserveOverviewData = {
   path?: never;
   query?: {
     /**
+     * Read every project and User within the profile lens; conflicts with workspace
+     */
+    all_workspaces?: boolean;
+    /**
      * Profile owning acknowledgement receipts, including aggregate reads
      */
     receipt_profile?: string;
@@ -18395,6 +18399,14 @@ export type GetObserveOverviewData = {
 };
 
 export type GetObserveOverviewErrors = {
+  /**
+   * Invalid workspace breadth
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
   /**
    * Workspace not found
    */
@@ -18429,6 +18441,14 @@ export type GetTaskDashboardData = {
   body?: never;
   path?: never;
   query?: {
+    /**
+     * Read every project and User within the profile lens; conflicts with workspace
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs; @user selects User; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
     /**
      * Filter by task scope
      */
@@ -18474,6 +18494,14 @@ export type GetTaskDashboardData = {
 };
 
 export type GetTaskDashboardErrors = {
+  /**
+   * Invalid workspace breadth
+   */
+  400: ErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
   /**
    * Workspace not found
    */
@@ -24889,6 +24917,14 @@ export type ListTasksData = {
   path?: never;
   query?: {
     /**
+     * Read every project and User within the profile lens; conflicts with workspace
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs; @user selects User; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Filter by catalog visibility
      */
     scope?: "all" | "global" | "workspace";
@@ -24978,6 +25014,10 @@ export type ListTasksErrors = {
    * Invalid task filter or cursor
    */
   400: TaskQueryErrorPayload;
+  /**
+   * Agent aggregate access denied
+   */
+  403: ErrorPayload;
   /**
    * Workspace not found
    */

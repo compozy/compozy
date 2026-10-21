@@ -409,6 +409,7 @@ func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarke
 
 // GetObserveOverviewParams carries the path, query, and header parameters.
 type GetObserveOverviewParams struct {
+	AllWorkspaces  *bool   `url:"all_workspaces"`
 	ReceiptProfile *string `url:"receipt_profile"`
 	Workspace      *string `url:"workspace"`
 	UsageWindow    *string `url:"usage_window"`
@@ -420,6 +421,9 @@ type GetObserveOverviewParams struct {
 func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOverviewParams) (*ObserveOverviewResponse, error) {
 	path := "/api/observe/overview"
 	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
 	if params.ReceiptProfile != nil {
 		query.Set("receipt_profile", *params.ReceiptProfile)
 	}

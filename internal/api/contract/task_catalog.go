@@ -9,6 +9,8 @@ import (
 
 // TaskListQuery captures the shared bounded task catalog filters.
 type TaskListQuery struct {
+	AllWorkspaces bool                  `json:"all_workspaces,omitzero"`
+	WorkspaceIDs  []string              `json:"workspace_ids,omitempty"`
 	Scope         taskpkg.CatalogScope  `json:"scope,omitempty"`
 	Workspace     string                `json:"workspace,omitempty"`
 	Status        taskpkg.Status        `json:"status,omitempty"`

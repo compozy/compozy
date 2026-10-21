@@ -24,12 +24,15 @@ func NewTaskValidationError(err error) error {
 
 // StatusForTaskError maps task-domain, workspace, and session failures to transport statuses.
 func StatusForTaskError(err error) int {
+	if _, ok := errors.AsType[*workspaceBreadthError](err); ok {
+		return http.StatusBadRequest
+	}
 	switch {
 	case err == nil:
 		return http.StatusOK
 	case errors.Is(err, admission.ErrDraining):
 		return http.StatusServiceUnavailable
-	case errors.Is(err, taskpkg.ErrValidation),
+	case errors.Is(err, taskpkg.ErrCatalogCursorInvalid), errors.Is(err, taskpkg.ErrValidation),
 		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
 		errors.Is(err, taskpkg.ErrImmutableField):
 		return http.StatusBadRequest

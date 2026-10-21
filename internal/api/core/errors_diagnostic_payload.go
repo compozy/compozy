@@ -20,6 +20,9 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if breadth, ok := errors.AsType[*workspaceBreadthError](err); ok {
+		payload.Code = breadth.code
+	}
 	if errors.Is(err, compozyconfig.ErrWorkspaceConfigInvalid) {
 		payload.Code = "workspace_config_invalid"
 		if unknown, ok := errors.AsType[*compozyconfig.UnknownKeysError](err); ok {

@@ -26,3 +26,16 @@ QA result 2026-08-21: CLI, HTTP, UDS, and session-scoped `compozy__task_list` pr
 normalized catalogs. The calm default returned 12 ordinary tasks; typed reveal returned 17 rows,
 including five Loop records. `--loop-run` implied inclusion, the unknown filter returned empty at
 exit 0, and invalid `include_loop` returned field-addressed 400 over HTTP and UDS.
+
+QA impact 2026-10-21 (All projects backend): repeat the ordinary-work catalog and dashboard
+checks with `all_workspaces=true`; omission retains its existing population. Narrow with repeated
+`workspace_ids` values, including `@user`, and verify totals and facets before paging. A cursor from
+another project selection or profile must fail. `all_workspaces=true` conflicts with `workspace`
+and with a bounded `scope`. Compare `workspace_ids=@user` with the existing `scope=global` population.
+The CLI `task list --all-workspaces` shows a PROJECT column and labels projectless tasks User.
+Overview omission still selects global tasks; `all_workspaces=true` selects every task. App tokens
+retain task catalog/dashboard access and remain denied on overview. Ordinary agent identities cannot
+request the explicit aggregate. The unrestricted-agent exception belongs to the prerequisite grant slice.
+
+Backend evidence: [2026-10-21 All projects task slice](../reports/2026-10-21-all-projects-tasks-backend.md).
+The Web All projects journey remains an integration check for the owning frontend slice.

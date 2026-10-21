@@ -15,6 +15,18 @@ import (
 
 // ParseTaskListQuery parses the bounded task catalog query parameters.
 func ParseTaskListQuery(c *gin.Context) (contract.TaskListQuery, error) {
+	breadth, err := parseWorkspaceBreadth(c, c.Param("workspace_id"), breadthEncoding{Selector: "workspace", OmissionIsAll: true})
+	if err != nil {
+		return contract.TaskListQuery{}, err
+	}
+	explicitAll, err := ParseOptionalBool(c.Query("all_workspaces"))
+	if err != nil {
+		return contract.TaskListQuery{}, err
+	}
+	scope := taskpkg.CatalogScope(c.Query("scope")).Normalize()
+	if explicitAll && scope != "" && scope != taskpkg.CatalogScopeAll {
+		return contract.TaskListQuery{}, invalidWorkspaceBreadth("all_workspaces conflicts with scope")
+	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return contract.TaskListQuery{}, NewTaskValidationError(err)
@@ -31,6 +43,8 @@ func ParseTaskListQuery(c *gin.Context) (contract.TaskListQuery, error) {
 		}
 	}
 	query := contract.TaskListQuery{
+		AllWorkspaces: explicitAll,
+		WorkspaceIDs:  breadth.WorkspaceIDs,
 		Scope:         taskpkg.CatalogScope(c.Query("scope")).Normalize(),
 		Workspace:     strings.TrimSpace(c.Query("workspace")),
 		Status:        taskpkg.Status(c.Query("status")).Normalize(),
@@ -91,6 +105,8 @@ func (h *BaseHandlers) taskListDomainQuery(
 ) (taskpkg.CatalogQuery, error) {
 	domainQuery := taskpkg.CatalogQuery{
 		ReadScope:     readScope,
+		AllWorkspaces: query.AllWorkspaces,
+		WorkspaceIDs:  query.WorkspaceIDs,
 		Scope:         query.Scope,
 		Status:        query.Status,
 		Priority:      query.Priority,

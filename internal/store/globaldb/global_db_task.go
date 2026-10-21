@@ -296,6 +296,7 @@ func (g *TaskRepo) ListTasks(
 		store.StringClause("created_by_kind", string(normalized.CreatedByKind)),
 		store.StringClause("created_by_ref", normalized.CreatedByRef),
 	)
+	where, args = appendTaskWorkspaceIDs(where, args, normalized.WorkspaceIDs)
 	where, args = appendTaskSearchClause(where, args, normalized.Search)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += taskListOrderByActivitySQL

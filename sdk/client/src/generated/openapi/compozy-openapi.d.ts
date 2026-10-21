@@ -27868,6 +27868,8 @@ export interface operations {
   getObserveOverview: {
     parameters: {
       query?: {
+        /** @description Read every project and User within the profile lens; conflicts with workspace */
+        all_workspaces?: boolean;
         /** @description Profile owning acknowledgement receipts, including aggregate reads */
         receipt_profile?: string;
         /** @description Scope aggregates to one workspace; empty selects the global home scope */
@@ -27892,6 +27894,24 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["ObserveOverviewResponse"];
+        };
+      };
+      /** @description Invalid workspace breadth */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent aggregate access denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Workspace not found */
@@ -27935,6 +27955,10 @@ export interface operations {
   getTaskDashboard: {
     parameters: {
       query?: {
+        /** @description Read every project and User within the profile lens; conflicts with workspace */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs; @user selects User; requires all_workspaces=true */
+        workspace_ids?: string[];
         /** @description Filter by task scope */
         scope?: "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
@@ -27973,6 +27997,24 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TaskDashboardResponse"];
+        };
+      };
+      /** @description Invalid workspace breadth */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent aggregate access denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Workspace not found */
@@ -36425,6 +36467,10 @@ export interface operations {
   listTasks: {
     parameters: {
       query?: {
+        /** @description Read every project and User within the profile lens; conflicts with workspace */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs; @user selects User; requires all_workspaces=true */
+        workspace_ids?: string[];
         /** @description Filter by catalog visibility */
         scope?: "all" | "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
@@ -36493,6 +36539,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["TaskQueryErrorPayload"];
+        };
+      };
+      /** @description Agent aggregate access denied */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Workspace not found */

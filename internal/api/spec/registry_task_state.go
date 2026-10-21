@@ -335,6 +335,8 @@ func getTaskDashboardOperationSpec() OperationSpec {
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
+			boolQueryParam("all_workspaces", "Read every project and User within the profile lens; conflicts with workspace"),
+			ParameterSpec{Name: "workspace_ids", In: specParameterInQuery, Kind: "array", Description: "Repeatable project IDs; @user selects User; requires all_workspaces=true"},
 			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			queryParam("worktree", "Filter by active run worktree ID", false),
@@ -343,6 +345,8 @@ func getTaskDashboardOperationSpec() OperationSpec {
 			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
 		),
 		Responses: []ResponseSpec{
+			{Status: 403, Description: "Agent aggregate access denied", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid workspace breadth", Body: contract.ErrorPayload{}},
 			{Status: 200, Description: "OK", Body: contract.TaskDashboardResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task dashboard query", Body: contract.ErrorPayload{}},

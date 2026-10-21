@@ -219,6 +219,8 @@ CREATE INDEX idx_tasks_paused ON tasks(paused, updated_at DESC);
 
 CREATE INDEX idx_tasks_priority ON tasks(priority);
 
+CREATE INDEX idx_tasks_profile ON tasks(profile_id);
+
 CREATE INDEX idx_tasks_review_policy ON tasks(review_policy);
 
 CREATE INDEX idx_tasks_review_round ON tasks(review_round);

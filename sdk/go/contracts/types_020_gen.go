@@ -286,12 +286,14 @@ type TaskDashboardLatencyCardPayload struct {
 }
 
 type TaskDashboardParams struct {
-	Scope      TaskScope  `json:"scope,omitempty"`
-	Workspace  string     `json:"workspace,omitempty"`
-	Worktree   string     `json:"worktree,omitempty"`
-	OwnerKind  OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef   string     `json:"owner_ref,omitempty"`
-	OriginKind OriginKind `json:"origin_kind,omitempty"`
+	AllWorkspaces bool       `json:"all_workspaces,omitzero"`
+	WorkspaceIDs  []string   `json:"workspace_ids,omitempty"`
+	Scope         TaskScope  `json:"scope,omitempty"`
+	Workspace     string     `json:"workspace,omitempty"`
+	Worktree      string     `json:"worktree,omitempty"`
+	OwnerKind     OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef      string     `json:"owner_ref,omitempty"`
+	OriginKind    OriginKind `json:"origin_kind,omitempty"`
 }
 
 type TaskDashboardQueueDepthPayload struct {
