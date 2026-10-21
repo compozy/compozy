@@ -17,6 +17,7 @@ func (s *Service) run(ctx context.Context, created Monitor, spec Spec, watch Ter
 	if !ok {
 		return
 	}
+	s.notify(created.SessionID)
 	s.deliver(ctx, Notification{Monitor: state, Outcome: outcome})
 }
 

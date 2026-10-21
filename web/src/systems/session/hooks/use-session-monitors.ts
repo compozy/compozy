@@ -25,7 +25,8 @@ export function useSessionMonitors(
   enabled: boolean
 ): SessionMonitorsModel {
   const queryClient = useQueryClient();
-  const query = useQuery({ ...sessionMonitorsOptions(workspaceId, sessionId), enabled });
+  const options = sessionMonitorsOptions(workspaceId, sessionId);
+  const query = useQuery({ ...options, enabled: options.enabled && enabled });
   const mutation = useMutation({
     mutationFn: (monitorId: string) => cancelSessionMonitor(workspaceId, sessionId, monitorId),
     onSettled: () =>

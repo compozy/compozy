@@ -131,11 +131,12 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 		}
 		return state.terminals
 	}}
-	// Every change to a session's active monitors re-reads its catalog row, so
-	// lists and the open session see the monitor summary move.
-	publish := func(sessionID string) {
+	// Every change to a session's monitors re-reads its catalog row, so lists and
+	// the open session see the summary move. The service calls this off the
+	// monitor and session-manager paths, bounded and canceled at shutdown.
+	publish := func(publishCtx context.Context, sessionID string) {
 		if manager, ok := state.sessions.(sessionCatalogChangePublisher); ok {
-			manager.PublishSessionCatalogChanged(context.WithoutCancel(ctx), sessionID)
+			manager.PublishSessionCatalogChanged(publishCtx, sessionID)
 		}
 	}
 	service, err := monitorpkg.NewService(

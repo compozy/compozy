@@ -18,10 +18,12 @@ export interface SessionComposerMonitorsProps {
  */
 export function SessionComposerMonitors({ session }: SessionComposerMonitorsProps) {
   const [open, setOpen] = useState(false);
-  const model = useSessionMonitors(session.workspace_id ?? "", session.id, open);
+  const active = sessionActiveMonitors(session);
+  // The control unmounts at zero without reporting a close, so the read follows the count too.
+  const model = useSessionMonitors(session.workspace_id ?? "", session.id, open && active > 0);
   return (
     <MonitorComposerControl
-      active={sessionActiveMonitors(session)}
+      active={active}
       monitors={model.monitors}
       loading={model.loading}
       failed={model.failed}

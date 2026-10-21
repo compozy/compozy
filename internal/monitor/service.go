@@ -48,10 +48,11 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
-// WithObserver registers a callback invoked, outside the service lock, after
-// the set of monitors occupying a session's slots changes: one starts, or one
-// is canceled, delivered, or abandoned. It must not block.
-func WithObserver(observe func(sessionID string)) Option {
+// WithObserver registers a callback for every change to a session's monitors:
+// one starts, fires, is canceled, delivered, or abandoned. Calls run one at a
+// time on a service-owned goroutine with a bounded context, never on the
+// caller's path, and stop when the service shuts down.
+func WithObserver(observe func(ctx context.Context, sessionID string)) Option {
 	return func(s *Service) {
 		s.observer = observe
 	}
@@ -65,7 +66,8 @@ type Service struct {
 	waker     Waker
 	logger    *slog.Logger
 	now       func() time.Time
-	observer  func(sessionID string)
+	observer  func(ctx context.Context, sessionID string)
+	notices   chan string
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -111,6 +113,10 @@ func NewService(ctx context.Context, terminals TerminalWatcher, waker Waker, opt
 	}
 	for _, opt := range opts {
 		opt(service)
+	}
+	if service.observer != nil {
+		service.notices = make(chan string, noticeBuffer)
+		service.wg.Go(service.dispatchNotices)
 	}
 	return service, nil
 }
@@ -362,12 +368,6 @@ func (s *Service) pruneSessionLocked(sessionID string, now time.Time) {
 	}
 	if len(bucket) == 0 {
 		delete(s.sessions, sessionID)
-	}
-}
-
-func (s *Service) notify(sessionID string) {
-	if s.observer != nil {
-		s.observer(sessionID)
 	}
 }
 
