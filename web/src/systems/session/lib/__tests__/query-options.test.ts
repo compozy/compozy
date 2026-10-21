@@ -40,6 +40,27 @@ function pollingIntervalFor(state: SessionPayload["state"] | undefined): number 
 }
 
 describe("sessionDetailOptions", () => {
+  it("Should stop polling missing sessions even when cached data still says active", () => {
+    for (const options of [
+      sessionDetailOptions("ws_alpha", "sess_1"),
+      sessionScopedDetailOptions("sess_1", { profile: "default" }),
+    ]) {
+      if (typeof options.refetchInterval !== "function") throw new Error("expected interval");
+      for (const status of [404, 410]) {
+        expect(
+          options.refetchInterval({
+            state: { data: { state: "active" }, error: new SessionApiError("gone", status) },
+          } as never)
+        ).toBe(false);
+      }
+      expect(
+        options.refetchInterval({
+          state: { data: { state: "active" }, error: new SessionApiError("temporary", 503) },
+        } as never)
+      ).toBe(5000);
+    }
+  });
+
   it("Should poll starting sessions rapidly until startup reaches a durable result", () => {
     expect(pollingIntervalFor("starting")).toBe(500);
     expect(pollingIntervalFor("active")).toBe(5_000);

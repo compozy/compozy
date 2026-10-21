@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { useProfileReadScope } from "@/systems/profiles";
+import { isSessionUnavailable } from "@/systems/session/adapters/session-api-errors";
 import {
   sessionScopedDetailOptions,
   useForeignProfileSession,
@@ -44,7 +45,7 @@ export function useSessionWindowResolution({
       liveTail: liveTailEnabled,
     })
   );
-  const scopedMiss = query.isError && isNotFound(query.error);
+  const scopedMiss = query.isError && isSessionUnavailable(query.error);
   const foreign = useForeignProfileSession(sessionId, scopedMiss);
   const foreignSession = foreign.status === "found" ? foreign.session : undefined;
   const resolvedSession = query.data ?? foreignSession;
@@ -61,8 +62,4 @@ export function useSessionWindowResolution({
       runtimeWorkspaceId !== null &&
       sessionWorkspaceId !== runtimeWorkspaceId,
   };
-}
-
-function isNotFound(error: unknown): boolean {
-  return typeof error === "object" && error !== null && Reflect.get(error, "status") === 404;
 }

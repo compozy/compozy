@@ -123,6 +123,7 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
   compact?: MarkdownProps["compact"];
   /** Inline nodes rendered where a `composeMarkdownSlots` source places them. */
   slots?: StreamMarkdownSlots;
+  components?: MarkdownProps["components"];
 }
 
 /**
@@ -135,6 +136,7 @@ function StreamMarkdown({
   streaming = false,
   compact = false,
   slots,
+  components,
   className,
   ...props
 }: StreamMarkdownProps) {
@@ -143,7 +145,7 @@ function StreamMarkdown({
       data-slot="stream-markdown"
       streaming={streaming}
       compact={compact}
-      components={slots ? SLOT_COMPONENTS : STREAM_MARKDOWN_COMPONENTS}
+      components={{ ...(slots ? SLOT_COMPONENTS : STREAM_MARKDOWN_COMPONENTS), ...components }}
       plugins={slots ? SLOT_PLUGINS : undefined}
       className={cn("max-w-[72ch]", className)}
       {...props}

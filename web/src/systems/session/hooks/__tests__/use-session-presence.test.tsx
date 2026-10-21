@@ -16,9 +16,20 @@ import {
   releaseSessionPresence,
   renewSessionPresence,
 } from "../../adapters/session-presence-api";
+import { SessionApiError } from "../../adapters/session-api-errors";
 import { useSessionPresence } from "../use-session-presence";
 
 describe("useSessionPresence", () => {
+  it("Should stop acquiring a lease after the session is removed", async () => {
+    vi.mocked(acquireSessionPresence).mockRejectedValue(new SessionApiError("gone", 404));
+    renderHook(() => useSessionPresence("ws-alpha", "sess-alpha", true));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000);
+    });
+    expect(acquireSessionPresence).toHaveBeenCalledTimes(1);
+    expect(renewSessionPresence).not.toHaveBeenCalled();
+  });
+
   beforeEach(() => {
     vi.useFakeTimers();
     vi.mocked(acquireSessionPresence).mockReset();

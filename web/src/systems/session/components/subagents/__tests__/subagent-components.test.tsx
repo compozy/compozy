@@ -470,7 +470,9 @@ describe("SubagentComposerControl (issue #766)", () => {
     );
     await user.click(screen.getByRole("button", { name: "Subagents, 3 running" }));
     const popover = await screen.findByRole("dialog");
-    expect(within(popover).getByRole("button", { name: "Open running subagent 0" })).toBeVisible();
+    await waitFor(() =>
+      expect(within(popover).getByRole("button", { name: "Open running subagent 0" })).toBeVisible()
+    );
     expect(within(popover).getByText("Couldn't load subagents.")).toBeInTheDocument();
     expect(within(popover).getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
