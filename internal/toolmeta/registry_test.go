@@ -200,6 +200,9 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__mcp_auth_status":       expectedNativeEntry("Reading", " ", true, "🔌", "none"),
 		"compozy__mcp_status":            expectedNativeEntry("Reading", " ", false, "🔌", "auto"),
 
+		"compozy__monitor_cancel":                expectedNativeEntry("Canceling", " ", false, "⏰", "auto"),
+		"compozy__monitor_create":                expectedNativeEntry("Monitoring", " ", false, "⏰", "auto"),
+		"compozy__monitor_list":                  expectedNativeEntry("Reading", " ", false, "⏰", "auto"),
 		"compozy__notify":                        expectedNativeEntry("Notifying", " ", false, "🔔", "auto"),
 		"compozy__observe_metrics":               expectedNativeEntry("Reading", " ", false, "🔭", "auto"),
 		"compozy__observe_search":                expectedNativeEntry("Searching", " for ", false, "🔭", "query"),

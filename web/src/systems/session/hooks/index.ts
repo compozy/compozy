@@ -55,6 +55,11 @@ export {
   type WorkspaceSessionReturnTarget,
 } from "./use-workspace-session-activity";
 export {
+  useWorkspaceWorkingSessions,
+  workingSessionsByWorkspace,
+  type WorkspaceWorkingSessions,
+} from "./use-workspace-working-sessions";
+export {
   sessionCatalogStreamURL,
   useSessionCatalogStreams,
   type SessionCatalogEventSource,

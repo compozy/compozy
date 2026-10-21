@@ -8216,12 +8216,14 @@ export interface components {
     };
     ErrorPayload: {
       code?: string;
+      config_path?: string;
       current_turn_id?: string;
       details?: {
         [key: string]: string;
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      unknown_keys?: string[];
     };
     ExecutionPolicy: {
       retry_safe: boolean;
@@ -12932,12 +12934,14 @@ export interface components {
     SessionDeriveErrorPayload: {
       child_session_id?: string;
       code?: string;
+      config_path?: string;
       current_turn_id?: string;
       details?: {
         [key: string]: string;
       };
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
+      unknown_keys?: string[];
     };
     SessionDerivePreviewResponse: {
       cut?: components["schemas"]["SessionDeriveCutPayload"] | null;
@@ -16014,6 +16018,7 @@ export interface components {
     };
     TaskQueryErrorPayload: {
       code?: string;
+      config_path?: string;
       current_turn_id?: string;
       details?: {
         [key: string]: string;
@@ -16021,6 +16026,7 @@ export interface components {
       diagnostic?: components["schemas"]["DiagnosticItem"] | null;
       error: string;
       field: string;
+      unknown_keys?: string[];
     };
     TaskQueueDepthPayload: {
       count: number;
@@ -39680,6 +39686,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description Unknown workspace config keys (workspace_config_invalid) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -39732,6 +39747,15 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description Unknown workspace config keys (workspace_config_invalid) */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Internal server error */
       500: {
         headers: {
@@ -39766,6 +39790,15 @@ export interface operations {
       };
       /** @description Workspace not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Unknown workspace config keys (workspace_config_invalid) */
+      422: {
         headers: {
           [name: string]: unknown;
         };

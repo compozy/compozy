@@ -60,6 +60,8 @@ export interface DesktopMenubarProps {
   update: MenubarUpdateModel;
   /** Same worktree query the switcher reads; omitted, the menu stays flat. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
+  /** Working-session counts by workspace id for the menu's monogram dots. */
+  workingSessionsByWorkspace?: Readonly<Record<string, number>>;
   userHomeDir?: string;
   /** Focused window's scope, resolved against the live list. */
   worktreeSelection?: ActiveWorktreeSelection;
@@ -124,6 +126,7 @@ export function DesktopMenubar({
   attention,
   update,
   worktreesByWorkspace,
+  workingSessionsByWorkspace,
   userHomeDir,
   worktreeSelection,
   onSelectWorktree,
@@ -212,6 +215,7 @@ export function DesktopMenubar({
           onRun={onRunCommand}
           onAddWorkspace={onAddWorkspace}
           worktreesByWorkspace={worktreesByWorkspace}
+          workingSessionsByWorkspace={workingSessionsByWorkspace}
           userHomeDir={userHomeDir}
           selectedWorktreeId={
             scopeModel.globalOn ? null : (worktreeSelection?.selectedWorktreeId ?? null)

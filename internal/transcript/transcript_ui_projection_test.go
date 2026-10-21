@@ -1374,6 +1374,42 @@ func TestSessionMessageUIProjection(t *testing.T) {
 		}
 	})
 
+	t.Run("Should project a monitor wake summary and keep it off other synthetic kinds", func(t *testing.T) {
+		t.Parallel()
+		summaryOf := func(kind string) string {
+			t.Helper()
+			event := acp.AgentEvent{
+				Type: acp.EventTypeSyntheticReentry, TurnID: "wake-turn", Text: "wake",
+				Synthetic: &acp.PromptSyntheticMeta{
+					Kind: kind, Reason: "monitor_exit", WakeEventID: "mon-0123456789ab", Summary: "release workflow",
+				},
+			}
+			content, err := MarshalAgentEvent(event)
+			if err != nil {
+				t.Fatal(err)
+			}
+			messages, err := ToUIMessages([]store.SessionEvent{{
+				ID: "wake", SessionID: "sess", TurnID: "wake-turn", Sequence: 1, Type: event.Type, Content: content,
+			}})
+			if err != nil || len(messages) != 1 {
+				t.Fatalf("messages = %+v, %v", messages, err)
+			}
+			var meta struct {
+				Synthetic *acp.PromptSyntheticMeta `json:"synthetic"`
+			}
+			if err := json.Unmarshal(messages[0].Metadata, &meta); err != nil || meta.Synthetic == nil {
+				t.Fatalf("metadata = %s, %v", messages[0].Metadata, err)
+			}
+			return meta.Synthetic.Summary
+		}
+		if got := summaryOf(acp.PromptSyntheticKindMonitor); got != "release workflow" {
+			t.Fatalf("monitor summary = %q, want description", got)
+		}
+		if got := summaryOf("task_wake"); got != "" {
+			t.Fatalf("task_wake summary = %q, want omitted", got)
+		}
+	})
+
 	// Recorded provider shapes (#742), captured from real Claude and Codex sessions and sanitized:
 	// the card must not depend on one provider's wire form.
 	t.Run("Should name a Claude send once its streamed arguments do and read its string result", func(t *testing.T) {

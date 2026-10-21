@@ -482,3 +482,8 @@ export { sessionCatalogOptions, sessionFacetsOptions } from "./lib/session-catal
 export { fetchSessionFacets } from "./adapters/session-catalog-api";
 
 export { useTransportGraceElapsed } from "./hooks/use-transport-grace-elapsed";
+
+export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-provider";
+export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter";
+export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";
+export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";

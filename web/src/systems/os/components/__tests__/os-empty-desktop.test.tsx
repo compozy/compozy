@@ -1,3 +1,9 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { workspaceKeys } from "@/systems/workspace";
+import { workspaceDetailFixture } from "@/systems/workspace/mocks";
+import { providerKeys } from "@/systems/providers";
+import { modelCatalogKeys } from "@/systems/model-catalog";
+import { modelCatalogAllModelsFixture } from "@/systems/model-catalog/mocks";
 // Suite: empty desktop composer
 // Invariant: an empty desktop takes a first message: sending it starts a session with the chosen
 // agent in this scope's worktree, queues the message as that session's first prompt, and opens the
@@ -85,20 +91,37 @@ function renderDesktop(
   options: { hasProject?: boolean; onPickProject?: () => void; store?: SessionCreateStore } = {}
 ) {
   const store = options.store ?? createSessionCreateStore();
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: Infinity } },
+  });
+  for (const id of ["ws_alpha", "ws_beta"])
+    client.setQueryData(workspaceKeys.detail(id), workspaceDetailFixture);
+  client.setQueryData(providerKeys.lists(), {
+    providers: [
+      { name: "claude", display_name: "Claude", auth_status: { state: "authenticated" } },
+      { name: "codex", display_name: "Codex", auth_status: { state: "authenticated" } },
+    ],
+  });
+  client.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+    models: modelCatalogAllModelsFixture,
+  });
+  client.setQueryData(modelCatalogKeys.initialReadiness, true);
   const tree = () => (
-    <TooltipProvider delay={0}>
-      <SessionCreateProvider store={store}>
-        <OsEmptyDesktop
-          desktopName="Desktop 2"
-          paletteShortcutLabel="⌘K"
-          hasProject={options.hasProject ?? true}
-          onPickProject={options.onPickProject}
-        />
-      </SessionCreateProvider>
-    </TooltipProvider>
+    <QueryClientProvider client={client}>
+      <TooltipProvider delay={0}>
+        <SessionCreateProvider store={store}>
+          <OsEmptyDesktop
+            desktopName="Desktop 2"
+            paletteShortcutLabel="⌘K"
+            hasProject={options.hasProject ?? true}
+            onPickProject={options.onPickProject}
+          />
+        </SessionCreateProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
   );
   const view = render(tree());
-  return { store, rerender: () => view.rerender(tree()) };
+  return { store, unmount: view.unmount, rerender: () => view.rerender(tree()) };
 }
 
 async function send(text: string, via: "button" | "enter" = "button") {
@@ -117,6 +140,7 @@ async function send(text: string, via: "button" | "enter" = "button") {
 
 describe("OsEmptyDesktop", () => {
   beforeEach(() => {
+    localStorage.clear();
     workspace.runtimeWorkspaceId = "ws_alpha";
     workspace.runtimeWorkspace = { default_agent: "general" };
     workspace.scope = "workspace";
@@ -135,6 +159,63 @@ describe("OsEmptyDesktop", () => {
     }
   });
 
+  // Invariant: a pre-session runtime choice survives remount and stays scoped to its project.
+  // Owning layer and canonical suite: OsEmptyDesktop composer integration.
+  it("Should restore a chosen model after remount without leaking it to another project", async () => {
+    const user = userEvent.setup();
+    const first = renderDesktop();
+    await user.click(screen.getByTestId("session-prompt-runtime-select"));
+    await user.click(await screen.findByRole("option", { name: /Claude Fable 5/ }));
+    expect(screen.getByTestId("session-prompt-runtime-select")).toHaveTextContent("Claude Fable 5");
+    first.unmount();
+    const second = renderDesktop();
+    expect(screen.getByTestId("session-prompt-runtime-select")).toHaveTextContent("Claude Fable 5");
+    workspace.runtimeWorkspaceId = "ws_beta";
+    second.rerender();
+    expect(screen.getByTestId("session-prompt-runtime-select")).not.toHaveTextContent(
+      "Claude Fable 5"
+    );
+    workspace.runtimeWorkspaceId = "ws_alpha";
+    second.rerender();
+    expect(screen.getByTestId("session-prompt-runtime-select")).toHaveTextContent("Claude Fable 5");
+  });
+
+  it("Should carry an attachment-only prompt and the agent runtime into the new session", async () => {
+    createSessionAsync.mockResolvedValue({
+      id: "session-files",
+      workspace_id: "ws_alpha",
+      agent_name: "general",
+    });
+    renderDesktop();
+    const file = new File(["Please inspect this"], "notes.txt", { type: "text/plain" });
+    await act(async () => composer().addAttachment(file));
+    expect(screen.getByTestId("composer-attachment-strip")).toHaveTextContent("notes.txt");
+    await userEvent.setup().click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(jumpToSession).toHaveBeenCalled());
+    expect(sessionStore.getSnapshot().context.firstPrompts["session-files"]).toMatchObject({
+      text: "",
+      files: [file],
+      runtime: { provider: "claude" },
+      claimed: false,
+    });
+    await waitFor(() => expect(composer().getState().attachments).toHaveLength(0));
+  });
+
+  it("Should preserve attached files when creating the session fails", async () => {
+    createSessionAsync.mockRejectedValue(new Error("Unavailable"));
+    renderDesktop();
+    const file = new File(["draft"], "draft.txt", { type: "text/plain" });
+    await act(async () => composer().addAttachment(file));
+    await send("Keep this draft");
+    await waitFor(() => expect(createSessionAsync).toHaveBeenCalled());
+    expect(composer().getState().text).toBe("Keep this draft");
+    expect(
+      composer()
+        .getState()
+        .attachments.map(attachment => attachment.file)
+    ).toEqual([file]);
+  });
+
   it("Should start a session with the sent prompt and open it on this desktop", async () => {
     let resolveCreate: ((session: unknown) => void) | undefined;
     createSessionAsync.mockImplementation(
@@ -149,8 +230,8 @@ describe("OsEmptyDesktop", () => {
     expect(screen.getByRole("heading", { name: "What should we work on?" })).toBeInTheDocument();
     expect(screen.getByTestId("os-desk-status")).toHaveTextContent("Press ⌘K to open anything");
     expect(screen.getByTestId("os-desk-agent-select")).toHaveTextContent("general");
-    // Only text rides into a session's first message, so nothing offers files.
-    expect(screen.queryByTestId("composer-attach-button")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-attach-button")).toBeInTheDocument();
+    expect(screen.getByTestId("session-prompt-runtime-select")).toBeInTheDocument();
     await send("Fix the flaky login test", "enter");
 
     expect(createSessionAsync).toHaveBeenCalledWith({

@@ -33,6 +33,13 @@ motion against the W3C explanations for [contrast minimum](https://www.w3.org/WA
 [target size minimum](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html), and
 [pause, stop, hide](https://www.w3.org/WAI/WCAG22/Understanding/pause-stop-hide.html).
 
+## Library prototyping setup
+
+`skills/open-design-setup/` and its recipes are locally authored. They contain no OpenDesign or
+third-party text. The recipes name public tools (Vite, `vite-plugin-singlefile`, Tailwind CSS
+`@source`, story-based hosts) as options the agent verifies in each project; none is a runtime or
+build dependency of this extension.
+
 ## Agent-browser
 
 Source: [vercel-labs/agent-browser, revision 8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2](https://github.com/vercel-labs/agent-browser/tree/8c15ff9f71ae60c7e99e66afe1e2d4b9bf414fe2),

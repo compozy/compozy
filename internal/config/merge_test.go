@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -12,6 +13,74 @@ import (
 
 	"github.com/compozy/compozy/internal/resources"
 )
+
+func TestUnknownConfigKeys(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct{ name, content, key, advice string }{
+		{"loop runtime", "[loops.defaults.delivery.model_defaults.worker]\nmodel = 'opus'\n",
+			"loops.defaults.delivery.model_defaults.worker", "runtime_defaults"},
+		{"provider model", "[providers.codex]\ndefault_model = 'model'\n",
+			"providers.codex.default_model", "providers.codex.models.default"},
+		{"extension marketplace", "[extensions.marketplace]\nallow_unverified = true\n",
+			"extensions.marketplace.allow_unverified", "extensions.trust.allow_unverified"},
+	} {
+		t.Run("Should preserve removed "+test.name+" key guidance in workspace errors", func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), ".compozy", "config.toml")
+			_, err := loadWorkspaceConfigOverlayBytes([]byte(test.content), path)
+			unknown, ok := errors.AsType[*UnknownKeysError](err)
+			if !errors.Is(err, ErrWorkspaceConfigInvalid) || !ok || unknown.Path != path ||
+				!slices.Contains(unknown.Keys, test.key) || !strings.Contains(err.Error(), test.advice) {
+				t.Fatalf("error = %v, metadata = %#v; want removed key and replacement guidance", err, unknown)
+			}
+		})
+	}
+
+	t.Run("Should reject legacy workspace keys with a sorted unique list and preserve the file", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		path := filepath.Join(root, ".compozy", "config.toml")
+		content := "[defaults]\nide = 'codex'\n[tasks.run]\n" +
+			"[[tasks.run.task_runtime_rules]]\ntype = 'frontend'\nide = 'claude'\n" +
+			"[[tasks.run.task_runtime_rules]]\ntype = 'backend'\nide = 'codex'\n"
+		writeFile(t, path, content)
+		var cfg Config
+		err := applyWorkspaceConfigOverlayFile(path, &cfg)
+		if !errors.Is(err, ErrWorkspaceConfigInvalid) {
+			t.Fatalf("error = %v, want workspace config invalid", err)
+		}
+		unknown, ok := errors.AsType[*UnknownKeysError](err)
+		want := []string{"defaults.ide", "tasks.run", "tasks.run.task_runtime_rules",
+			"tasks.run.task_runtime_rules.ide", "tasks.run.task_runtime_rules.type"}
+		if !ok || unknown.Path != path || !slices.Equal(unknown.Keys, want) {
+			t.Fatalf("unknown keys error = %#v, want path %q and keys %v", unknown, path, want)
+		}
+		for _, text := range []string{"Remove the unknown keys", "rename or remove", "legacy CLI"} {
+			if !strings.Contains(err.Error(), text) {
+				t.Fatalf("error %q lacks remediation %q", err, text)
+			}
+		}
+		after, readErr := os.ReadFile(path)
+		if readErr != nil || string(after) != content {
+			t.Fatalf("file after rejection = %q, %v", after, readErr)
+		}
+	})
+
+	t.Run(
+		"Should keep global unknown keys and TOML decode errors outside the workspace error class",
+		func(t *testing.T) {
+			t.Parallel()
+			_, globalErr := loadConfigOverlayBytes([]byte("[defaults]\nide = 'codex'\n"), "global.toml")
+			_, decodeErr := loadWorkspaceConfigOverlayBytes([]byte("[invalid"), "workspace.toml")
+			for _, err := range []error{globalErr, decodeErr} {
+				if err == nil || errors.Is(err, ErrWorkspaceConfigInvalid) {
+					t.Fatalf("error = %v, want original non-workspace error class", err)
+				}
+			}
+		},
+	)
+}
 
 func TestApplyConfigOverlayFileAppliesSkillsOverlay(t *testing.T) {
 	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))

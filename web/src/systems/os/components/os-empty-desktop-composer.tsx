@@ -42,7 +42,7 @@ function focusIsFree(active: Element | null): boolean {
 /**
  * The session composer, hosted before a session exists: same input, Enter
  * behavior, and send control as a session window, without the in-session
- * extras (commands, attachments, queue) that need one.
+ * extras (commands and queue) that need one.
  */
 export function OsEmptyDesktopComposer({
   draftId,
@@ -123,7 +123,7 @@ function EmptyDesktopSessionComposer({
       allowBusyInput={false}
       placeholder={placeholder}
       inactivePlaceholder={inactivePlaceholder}
-      attachments={false}
+      attachments={canPrompt}
       backdrop={false}
       runtimeControl={control}
     />

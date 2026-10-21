@@ -5,9 +5,15 @@ import {
   type ThreadComposerRuntime,
   type ThreadMessage,
 } from "@assistant-ui/react";
-import { useEffect, useRef } from "react";
+import { use, useEffect, useRef, useState } from "react";
 
-import { sessionStore } from "@/systems/session";
+import {
+  sessionStore,
+  SessionAttachmentAdapter,
+  SessionPromptRuntimeContext,
+  getSessionPromptRuntimeSnapshot,
+  type SessionPromptRuntimeSnapshot,
+} from "@/systems/session";
 
 /**
  * Draft slot for the prompt typed before any session exists, one per project:
@@ -38,7 +44,11 @@ export interface EmptyDesktopPromptRuntimeOptions {
    * inert while the start is in flight — until `release` says a session owns
    * them; a start that fails leaves them there to edit or send again.
    */
-  onSubmit(prompt: string, release: () => void): Promise<void> | void;
+  onSubmit(
+    prompt: string,
+    release: () => void,
+    options?: { files: File[]; runtime: SessionPromptRuntimeSnapshot | null }
+  ): Promise<void> | void;
   /**
    * Runs when a session took the prompt, after its draft slot is emptied. The
    * host remounts the composer on a fresh runtime: clearing the live composer
@@ -57,21 +67,33 @@ export function useEmptyDesktopPromptRuntime({
   onSubmit,
   onRelease,
 }: EmptyDesktopPromptRuntimeOptions): AssistantRuntime {
+  const selection = use(SessionPromptRuntimeContext);
+  const [attachmentAdapter] = useState(() => new SessionAttachmentAdapter({ workspaceId: "" }));
   const composerRef = useRef<ThreadComposerRuntime | null>(null);
   const runtime = useExternalStoreRuntime({
     messages: NO_MESSAGES,
+    adapters: { attachments: attachmentAdapter },
     isRunning: false,
     isSendDisabled: !canSend,
     onNew: async message => {
       const prompt = promptTextOf(message);
-      if (prompt === "") return;
+      const files = (message.attachments ?? []).flatMap(attachment =>
+        attachment.file ? [attachment.file] : []
+      );
+      if (prompt === "" && files.length === 0) return;
+      const selectedRuntime = selection ? getSessionPromptRuntimeSnapshot(selection) : null;
       // Sending empties the composer; put the words straight back so they stay
       // visible until a session owns them.
       composerRef.current?.setText(prompt);
-      await onSubmit(prompt, () => {
-        sessionStore.trigger.composerDraftDiscarded({ sessionId: draftId });
-        onRelease();
-      });
+      await Promise.all(files.map(file => composerRef.current?.addAttachment(file)));
+      await onSubmit(
+        prompt,
+        () => {
+          sessionStore.trigger.composerDraftDiscarded({ sessionId: draftId });
+          onRelease();
+        },
+        { files, runtime: selectedRuntime }
+      );
     },
   });
   useEffect(() => {

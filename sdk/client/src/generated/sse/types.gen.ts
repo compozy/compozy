@@ -111,12 +111,14 @@ export type Entry = {
 
 export type ErrorPayload = {
   code?: string;
+  config_path?: string;
   current_turn_id?: string;
   details?: {
     [key: string]: string;
   };
   diagnostic?: DiagnosticItem | null;
   error: string;
+  unknown_keys?: Array<string>;
 };
 
 export type FormBody = {

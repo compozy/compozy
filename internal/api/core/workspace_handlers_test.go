@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +21,58 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func TestWorkspaceUnknownConfigKeys(t *testing.T) {
+	t.Parallel()
+	for _, route := range []struct{ method, path, body string }{
+		{http.MethodPost, "/workspaces", `{"root_dir":"/project"}`},
+		{http.MethodPost, "/workspaces/resolve", `{"path":"/project"}`},
+		{http.MethodGet, "/workspaces/ws_alpha", ""},
+	} {
+		t.Run("Should return actionable config rejection for "+route.method+" "+route.path, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			configPath := filepath.Join(root, ".compozy", "config.toml")
+			if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(configPath, []byte("[defaults]\nide = 'codex'\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			home := testutil.NewTestHomePaths(t)
+			_, configErr := compozyconfig.LoadForHome(home, compozyconfig.WithWorkspaceRoot(root))
+			if configErr == nil {
+				t.Fatal("expected invalid workspace configuration")
+			}
+			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+				testutil.StubWorkspaceService{
+					RegisterFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
+						return workspacepkg.Workspace{}, configErr
+					},
+					ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{}, configErr
+					},
+					ResolveOrRegisterFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+						return workspacepkg.ResolvedWorkspace{}, configErr
+					},
+				})
+			resp := performRequest(t, fixture.Engine, route.method, route.path, []byte(route.body))
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusUnprocessableEntity || payload.Code != "workspace_config_invalid" ||
+				payload.ConfigPath != configPath || !slices.Equal(payload.UnknownKeys, []string{"defaults.ide"}) {
+				t.Fatalf("response = %d %#v", resp.Code, payload)
+			}
+			if !strings.Contains(payload.Error, "rename or remove this file") {
+				t.Fatalf("missing remediation: %s", payload.Error)
+			}
+			masked := core.ErrorPayloadForStatus(http.StatusInternalServerError, configErr, true)
+			if !reflect.DeepEqual(masked, payload) {
+				t.Fatalf("HTTP masked payload = %#v, want shared payload %#v", masked, payload)
+			}
+		})
+	}
+}
 
 func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 	t.Parallel()

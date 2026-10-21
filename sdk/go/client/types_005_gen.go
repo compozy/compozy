@@ -53,6 +53,8 @@ type ErrorPayload struct {
 	CurrentTurnID string            `json:"current_turn_id,omitempty"`
 	Details       map[string]string `json:"details,omitempty"`
 	Diagnostic    *DiagnosticItem   `json:"diagnostic,omitzero"`
+	ConfigPath    string            `json:"config_path,omitempty"`
+	UnknownKeys   []string          `json:"unknown_keys,omitempty"`
 }
 
 // ErrorPolicy is a daemon API value.
@@ -438,12 +440,4 @@ type ForceFailTaskRunRequest struct {
 type ForceReleaseTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForkLoopRequest is a daemon API value.
-type ForkLoopRequest struct {
-	Generation int64          `json:"generation"`
-	Inputs     map[string]any `json:"inputs,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	RequestID  string         `json:"request_id,omitempty"`
 }

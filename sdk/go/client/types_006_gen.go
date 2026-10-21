@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// ForkLoopRequest is a daemon API value.
+type ForkLoopRequest struct {
+	Generation int64          `json:"generation"`
+	Inputs     map[string]any `json:"inputs,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+	RequestID  string         `json:"request_id,omitempty"`
+}
+
 // ForkLoopResponse is a daemon API value.
 type ForkLoopResponse struct {
 	Run      LoopRunPayload `json:"run"`
@@ -438,9 +446,3 @@ type GoalTurnPage struct {
 	Turns        []GoalTurn `json:"turns"`
 	NextAfterSeq *int64     `json:"next_after_seq"`
 }
-
-// GoalTurnResultStatus is a daemon API value.
-type GoalTurnResultStatus string
-
-// GoalVerdictOutcome is a daemon API value.
-type GoalVerdictOutcome string

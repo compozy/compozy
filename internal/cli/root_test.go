@@ -73,6 +73,46 @@ func TestRenderHumanExecutionError(t *testing.T) {
 	}
 }
 
+func TestRenderWorkspaceConfigExecutionError(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve config rejection details and exit with config invalid", func(t *testing.T) {
+		t.Parallel()
+		payload := contract.ErrorPayload{
+			Error:       `Unknown keys in "/project/.compozy/config.toml": defaults.ide. Remove the unknown keys.`,
+			Code:        "workspace_config_invalid",
+			ConfigPath:  "/project/.compozy/config.toml",
+			UnknownKeys: []string{"defaults.ide"},
+		}
+		body, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		apiErr := readAPIErrorBody(http.StatusUnprocessableEntity, "422 Unprocessable Entity", body)
+		var human bytes.Buffer
+		if code := writeExecutionError(&human, []string{"workspace", "add", "/project"}, apiErr); code != 78 {
+			t.Fatalf("exit = %d, want 78", code)
+		}
+		if !strings.Contains(human.String(), payload.Error) {
+			t.Fatalf("human error = %q", human.String())
+		}
+		var structured bytes.Buffer
+		if code := writeExecutionError(
+			&structured,
+			[]string{"workspace", "add", "/project", "-o", "json"},
+			apiErr,
+		); code != 78 {
+			t.Fatalf("JSON exit = %d, want 78", code)
+		}
+		var actual contract.ErrorPayload
+		if err := json.Unmarshal(structured.Bytes(), &actual); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(actual, payload) {
+			t.Fatalf("JSON error = %#v, want %#v", actual, payload)
+		}
+	})
+}
+
 func TestRenderExtensionOperationExecutionError(t *testing.T) {
 	t.Parallel()
 	t.Run("Should report required input ids and recovery flags with exit two", func(t *testing.T) {

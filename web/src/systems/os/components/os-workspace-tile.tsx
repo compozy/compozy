@@ -2,6 +2,8 @@ import { Check, GitBranch, Plus } from "lucide-react";
 
 import { cn } from "@compozy/ui";
 
+import { WorkspaceWorkingDot, workspaceWorkingLabel } from "@/systems/workspace";
+
 /** `root` = check pill; `wt` = branch badge while a worktree is the scope. */
 export type OsWorkspaceTileCurrent = "root" | "wt";
 
@@ -56,6 +58,8 @@ export interface OsWorkspaceTileProps extends Omit<
   focused: boolean;
   /** Absent while Global scope is on — no tile is current then. */
   current?: OsWorkspaceTileCurrent | null;
+  /** Sessions working in this workspace; the well's top corner carries the dot. */
+  workingSessions?: number;
 }
 
 /**
@@ -68,9 +72,13 @@ export function OsWorkspaceTile({
   monogram,
   focused,
   current = null,
+  workingSessions = 0,
   className,
   ...props
 }: OsWorkspaceTileProps) {
+  const identity = current ? `${name} (current)` : name;
+  const label =
+    workingSessions > 0 ? `${identity}, ${workspaceWorkingLabel(workingSessions)}` : identity;
   return (
     <button
       type="button"
@@ -79,7 +87,7 @@ export function OsWorkspaceTile({
       data-on={focused ? "true" : undefined}
       data-current={current ?? undefined}
       aria-selected={current !== null}
-      aria-label={current ? `${name} (current)` : name}
+      aria-label={label}
       className={cn(TILE_CLASS, className)}
       {...props}
     >
@@ -88,6 +96,7 @@ export function OsWorkspaceTile({
           {monogram}
         </span>
         {current ? <CurrentPill current={current} /> : null}
+        <WorkspaceWorkingDot count={workingSessions} className="top-1 right-1 ring-0" />
       </span>
       <span className={NAME_CLASS}>{name}</span>
     </button>

@@ -1,3 +1,9 @@
+import { SessionPromptRuntimeContext } from "@/systems/session/contexts/session-prompt-runtime-context-value";
+import {
+  sessionPromptRuntimeInput,
+  sessionPromptRuntimeStoreLogic,
+  type SessionPromptRuntimeStore,
+} from "@/systems/session/stores/session-prompt-runtime-store";
 import { StrictMode, useEffect, useLayoutEffect, type ComponentProps } from "react";
 import { useAui, type ThreadMessage } from "@assistant-ui/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -272,8 +278,11 @@ function sseResponse(frames: string[]) {
 }
 
 /** Records every prompt POST body so a duplicated turn is visible, not inferred. */
-function createPromptRecordingFetchMock(promptCalls: string[]) {
-  const base = createFetchMock();
+function createPromptRecordingFetchMock(
+  promptCalls: string[],
+  options?: Parameters<typeof createFetchMock>[0]
+) {
+  const base = createFetchMock(options);
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const pathname = getPathname(input);
     // A prompt POST streams, so the client identifies the listener first; a local
@@ -4512,34 +4521,37 @@ async function placeComposerCursor(offset: number) {
 function renderComposer(
   overrides: Partial<ComponentProps<typeof SessionThread>>,
   transport?: SessionTransportState,
-  overlayContainer: HTMLElement | null = null
+  overlayContainer: HTMLElement | null = null,
+  runtimeStore: SessionPromptRuntimeStore | null = null
 ) {
   const queryClient = createQueryClient();
   return render(
     <OverlayContainerContext value={overlayContainer}>
       <StrictMode>
         <QueryClientProvider client={queryClient}>
-          <SessionChatRuntimeProvider
-            sessionId={primarySessionFixture.id}
-            workspaceId={fixtureWorkspaceId()}
-          >
-            <ComposerAuiProbe />
-            <SessionTranscriptThreadProvider
-              messages={[]}
-              status="success"
-              error={null}
-              retry={vi.fn()}
-              transport={transport}
+          <SessionPromptRuntimeContext value={runtimeStore}>
+            <SessionChatRuntimeProvider
+              sessionId={primarySessionFixture.id}
+              workspaceId={fixtureWorkspaceId()}
             >
-              <SessionThread
-                sessionId={primarySessionFixture.id}
-                agentName={primarySessionFixture.agent_name}
-                canPrompt
-                onCancelPrompt={vi.fn()}
-                {...overrides}
-              />
-            </SessionTranscriptThreadProvider>
-          </SessionChatRuntimeProvider>
+              <ComposerAuiProbe />
+              <SessionTranscriptThreadProvider
+                messages={[]}
+                status="success"
+                error={null}
+                retry={vi.fn()}
+                transport={transport}
+              >
+                <SessionThread
+                  sessionId={primarySessionFixture.id}
+                  agentName={primarySessionFixture.agent_name}
+                  canPrompt
+                  onCancelPrompt={vi.fn()}
+                  {...overrides}
+                />
+              </SessionTranscriptThreadProvider>
+            </SessionChatRuntimeProvider>
+          </SessionPromptRuntimeContext>
         </QueryClientProvider>
       </StrictMode>
     </OverlayContainerContext>
@@ -6055,6 +6067,221 @@ describe("SessionThread composer running semantics", () => {
     expect(promptCalls).toHaveLength(1);
   });
 
+  it("Should upload first-prompt files once and send the selected runtime with them", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    const runtime = {
+      provider: "codex",
+      model: "gpt-5.6-sol",
+      reasoning_effort: "high",
+      speed: "fast" as const,
+    };
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: primarySessionFixture.agent_name,
+        sessionId: primarySessionFixture.id,
+        workspaceId: fixtureWorkspaceId(),
+        canPrompt: true,
+        effectiveRuntime: undefined,
+        selectedRuntime: undefined,
+        selectionRevision: 0,
+      })
+    );
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Inspect this file",
+        files: [new File(["evidence"], "notes.txt", { type: "text/plain" })],
+        runtime,
+      })
+    );
+    renderComposer({ isSessionRunning: false }, undefined, null, store);
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    const body = JSON.parse(promptCalls[0]!);
+    expect(body.runtime).toEqual(runtime);
+    expect(body.attachments).toHaveLength(1);
+    expect(body.attachments[0].id).toMatch(/^att_/);
+    await waitFor(() =>
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined()
+    );
+    expect(promptCalls).toHaveLength(1);
+  });
+
+  // Invariant: rejected first-message uploads recover the editable draft without sending.
+  // Owner: session composer/runtime handoff; canonical suite: SessionThread.
+  it("Should recover the first-prompt draft when attachment upload is refused", async () => {
+    const promptCalls: string[] = [];
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Keep this message",
+        files: [new File(["zip"], "archive.zip", { type: "application/zip" })],
+      })
+    );
+    renderComposer({ isSessionRunning: false });
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        "Couldn't send the first message. It is waiting in the composer."
+      )
+    );
+    expect(promptCalls).toHaveLength(0);
+    expect(composerText()).toBe("Keep this message");
+    expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute(
+      "data-state",
+      "rejected"
+    );
+    expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
+      "Keep this message"
+    );
+    expect(
+      sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+    ).toBeUndefined();
+  });
+
+  // Invariant: removing an uploading first-prompt file relinquishes automatic delivery immediately;
+  // neither a manual send nor reopening can replay the original handoff. Owner: SessionThread.
+  it.each([false, true])(
+    "Should not restore removed first-prompt files after reopening (manual send: %s)",
+    async manualSend => {
+      let release!: () => void;
+      const hold = new Promise<void>(resolve => {
+        release = resolve;
+      });
+      const promptCalls: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        createPromptRecordingFetchMock(promptCalls, { beforeAttachmentUpload: () => hold })
+      );
+      act(() =>
+        sessionStore.trigger.firstPromptQueued({
+          sessionId: primarySessionFixture.id,
+          text: "Keep only the edited text",
+          files: [new File(["evidence"], "removed.txt", { type: "text/plain" })],
+        })
+      );
+      const view = renderComposer({ isSessionRunning: false });
+      const tile = await screen.findByTestId("composer-attachment-tile");
+      expect(tile).toHaveAttribute("data-state", "uploading");
+      let removal!: Promise<void>;
+      act(() => {
+        const attachment = requireComposerAui().composer.getState().attachments[0]!;
+        removal = requireComposerAui().composer.attachment({ id: attachment.id }).remove();
+      });
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined();
+      if (manualSend) {
+        await act(async () => {
+          release();
+          await removal;
+        });
+        expect(promptCalls).toHaveLength(0);
+        await userEvent.setup().click(screen.getByTestId("composer-send-button"));
+        await waitFor(() => expect(promptCalls).toHaveLength(1));
+        expect(JSON.parse(promptCalls[0]!).attachments ?? []).toHaveLength(0);
+      }
+      view.unmount();
+      renderComposer({ isSessionRunning: false });
+      await screen.findByTestId("composer-input");
+      if (!manualSend)
+        await act(async () => {
+          release();
+          await removal;
+        });
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+      expect(composerText()).toBe(manualSend ? "" : "Keep only the edited text");
+      expect(promptCalls).toHaveLength(manualSend ? 1 : 0);
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined();
+    }
+  );
+
+  it("Should consume the first-prompt handoff on a manual composer send during upload", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const promptCalls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createPromptRecordingFetchMock(promptCalls, { beforeAttachmentUpload: () => hold })
+    );
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Send this draft manually",
+        files: [new File(["evidence"], "manual.txt", { type: "text/plain" })],
+      })
+    );
+    const view = renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-attachment-tile");
+    act(() => {
+      void requireComposerAui().composer.send();
+    });
+    await act(async () => release());
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    await waitFor(() =>
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined()
+    );
+    view.unmount();
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-input");
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+    expect(composerText()).toBe("");
+    expect(promptCalls).toHaveLength(1);
+  });
+
+  // Invariant: window teardown during upload preserves first-message files and resumes once.
+  // Owner: session runtime/composer lifecycle; canonical suite: SessionThread.
+  it("Should resume first-prompt attachments after closing during upload", async () => {
+    let release!: () => void;
+    const hold = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const promptCalls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      createPromptRecordingFetchMock(promptCalls, {
+        beforeAttachmentUpload: () => hold,
+      })
+    );
+    const file = new File(["evidence"], "resume.txt", { type: "text/plain" });
+    act(() =>
+      sessionStore.trigger.firstPromptQueued({
+        sessionId: primarySessionFixture.id,
+        text: "Read after reopening",
+        files: [file],
+      })
+    );
+    const first = renderComposer({ isSessionRunning: false });
+    const tile = await screen.findByTestId("composer-attachment-tile");
+    expect(tile).toHaveAttribute("data-state", "uploading");
+    first.unmount();
+    expect(sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]).toMatchObject(
+      {
+        claimed: false,
+        files: [file],
+      }
+    );
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-attachment-tile");
+    await act(async () => release());
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    expect(JSON.parse(promptCalls[0]!).attachments).toHaveLength(1);
+    expect(promptCalls[0]).toContain("Read after reopening");
+    await waitFor(() =>
+      expect(
+        sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]
+      ).toBeUndefined()
+    );
+  });
+
   it("Should hold a queued first prompt while the session cannot be prompted", async () => {
     const promptCalls: string[] = [];
     vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
@@ -6829,6 +7056,38 @@ describe("SessionThread session messages", () => {
       within(card).queryByText(/replied to your message|Wake body text/)
     ).not.toBeInTheDocument();
     expect(screen.getAllByTestId("session-reply-card")).toHaveLength(1);
+  });
+
+  it("Should render a fired monitor wake as a divider that names its cause", async () => {
+    const monitorWake = {
+      id: "wake-monitor",
+      role: "system",
+      metadata: {
+        turn_id: "turn-monitor",
+        synthetic: {
+          kind: "monitor",
+          wake_event_id: "mon-0123456789ab",
+          reason: "monitor_exit",
+          summary: "Release workflow publishes v0.3.0",
+        },
+      },
+      parts: [
+        {
+          type: "text",
+          text: "[COMPOZY MONITOR - NOT USER INPUT] body the row never reads",
+          state: "done",
+        },
+      ],
+    } as SessionMessage;
+    renderThreadState(
+      { status: "success", messages: toReadonlyThreadMessages([monitorWake]) },
+      clientWithPeers()
+    );
+
+    const divider = await screen.findByTestId("session-monitor-wake");
+    expect(within(divider).getByText("Release workflow publishes v0.3.0")).toBeInTheDocument();
+    expect(within(divider).getByText("Process exited")).toBeInTheDocument();
+    expect(screen.queryByText(/COMPOZY MONITOR/)).not.toBeInTheDocument();
   });
 
   it("UT-067: Should resolve the sent card's reply state from the matching reply wake", async () => {

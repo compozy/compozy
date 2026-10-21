@@ -82,6 +82,10 @@ Inspect the exit plan's cleanup evidence before removal. Local evidence proves w
 elsewhere; fresh forge state can prove a PR merged. Removal preserves operator-owned branches and Git
 history. The narrow exception is an unchanged runtime-owned per-run branch: CompozyOS compare-deletes
 it only while it still points at the recorded creation commit and emits `worktree.branch_reclaimed`.
+Removal excludes commits whose patches are already present in the comparison base, local default branch, or a local
+remote-tracking ref, including cherry-picked or rebased landings with different commit IDs.
+No upstream or PR is required for that evidence. Unique commits still require explicit force;
+remote evidence reflects locally available refs, so fetch first if a recent landing is not visible.
 When dirty or unpushed work remains, the first remove call returns a machine-readable refusal; use
 `compozy worktree remove <ref> --force` only after reviewing it. Use `compozy worktree dismiss <ref>`
 to clear a retained tombstone after external deletion or an unrecoverable missing path. Every
@@ -112,6 +116,12 @@ forge evidence matching the current HEAD permits removal after squash merge and 
 deletion without `--force`. Missing, expired, or mismatched evidence does not excuse unpushed work;
 dirty files and active sessions still block removal. The exit plan describes an unavailable upstream
 instead of claiming that no push is pending. Removal checks evidence again after pre-remove hooks.
+
+In Web bulk removal, **Retry failed** remains non-force. A dirty/unpushed refusal with a risk
+inventory offers **Force remove…**, which opens a second confirmation listing only eligible
+worktrees and their changed files and unique commits. Confirming retries only those targets with
+force. With **Also delete local branches** selected, this also authorizes deletion of their unmerged
+branches; the root and default branches remain protected. Other refusals cannot be forced.
 
 ## Configuration And Errors
 

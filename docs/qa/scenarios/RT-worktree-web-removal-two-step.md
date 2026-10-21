@@ -53,3 +53,21 @@ response has `reason: delete_failed` without a branch name, single and bulk clea
 that branch deletion failed and its result is unconfirmed. It must never report that the worktree
 had no branch. The lifecycle notification regression passes in the existing `use-worktrees` suite;
 full integration validation remains owned by current-head PR CI.
+
+2026-10-20 #861 impact: reproduce a mixed batch containing clean, dirty, unpushed and
+active-session targets. The first attempt is non-force. Quantified dirty/unpushed refusals offer
+**Force remove…**; the second confirmation repeats only eligible targets and their risks.
+Cancel must send no mutation. Confirm must retry only those targets with `force=true`, preserve
+successful receipts, and retain other refusals. With branch deletion selected, verify the force
+warning explicitly includes unmerged branch deletion. A plain **Retry failed** stays non-force.
+Validate a clean no-upstream checkout whose commit was cherry-picked into the base or a remote ref:
+it removes without force; adding a unique commit still refuses with the correct unique count.
+Owning evidence: `TestWorktreeLifecycleIntegration` and the `use-worktrees` lifecycle suite;
+rendered bulk confirmation in `WorktreeLifecycleDialogs`. Full journey status above is historical.
+
+Targeted #861 verification: the Git integration regression reproduced the old false refusals and
+passes for base and remote patch-equivalent landings, a mixed preserved/unique history, and a
+pre-remove hook that introduces a unique commit. The lifecycle Web suite verifies cancel and
+confirmed force against a mixed success/dirty/unpushed/active-session batch. The interactive
+Storybook confirmation was inspected at 1440×900 and 320×800, including branch-deletion consent.
+This is scoped evidence, not a claim that the older full journey was re-walked.

@@ -1,4 +1,7 @@
 import { MessagePrimitive, useAuiState } from "@assistant-ui/react";
+import { AlarmClock } from "lucide-react";
+
+import { Separator } from "@compozy/ui";
 
 import { SessionAttachmentGallery } from "@/systems/session/components/session-attachment-gallery";
 import { SessionMessageCard } from "@/systems/session/components/session-messages/session-message-card";
@@ -15,6 +18,8 @@ import {
 } from "@/systems/session/lib/session-attachment-items";
 import type {
   SessionMessageOrigin,
+  SessionMonitorWakeMeta,
+  SessionMonitorWakeReason,
   SessionReplyMeta,
 } from "@/systems/session/lib/session-message-payload";
 import type { SteerMarkerKind } from "@/systems/session/lib/steer-marker";
@@ -125,6 +130,48 @@ export function SessionReplyMessage({ reply }: { reply: SessionReplyMeta }) {
         truncated={reply.truncated}
         timestampMs={messageTimestampMs(message)}
         onOpenTarget={onOpen}
+      />
+    </MessagePrimitive.Root>
+  );
+}
+
+const MONITOR_WAKE_OUTCOME: Record<SessionMonitorWakeReason, string> = {
+  exit: "Process exited",
+  match: "Output matched",
+  timeout: "Timed out",
+  stalled: "Output ended",
+  timer_elapsed: "Timer elapsed",
+  terminal_unavailable: "Terminal unavailable",
+  unknown: "Fired",
+};
+
+/**
+ * A monitor the agent registered fired and woke this session: a hairline in the
+ * continue/subagent divider grammar, so the turn that follows has its cause.
+ * The wake text is daemon-authored and never parsed.
+ */
+export function SessionMonitorWakeMessage({ wake }: { wake: SessionMonitorWakeMeta }) {
+  const outcome = MONITOR_WAKE_OUTCOME[wake.reason];
+  const description = wake.description || wake.monitorId;
+  return (
+    <MessagePrimitive.Root className="w-full min-w-0" data-synthetic="monitor">
+      <Separator
+        aria-label={`Monitor fired: ${description}. ${outcome}`}
+        className="pt-2 pb-3.5"
+        data-testid="session-monitor-wake"
+        label={
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-muted">
+            <AlarmClock aria-hidden="true" className="size-3 shrink-0 text-subtle" />
+            <span className="shrink-0">Monitor fired</span>
+            <span className="max-w-[36ch] truncate text-fg-2" title={description}>
+              {description}
+            </span>
+            <span aria-hidden="true" className="text-faint">
+              ·
+            </span>
+            <span className="shrink-0">{outcome}</span>
+          </span>
+        }
       />
     </MessagePrimitive.Root>
   );

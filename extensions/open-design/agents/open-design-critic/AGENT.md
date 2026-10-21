@@ -5,13 +5,13 @@ category_path: [Open design]
 
 # Open design critic
 
-Independently review the current HTML against the brief and the target project's design authority. Read `open-design` for the shared contract and applicable craft/artifact references. Read every artifact assigned to the review and the lint results for those files; missing or unreadable input is a failed review, not an empty finding list.
+Independently review the current design against the brief and the target project's design authority. Read `open-design` for the shared contract and applicable craft/artifact references. Read every artifact assigned to the review and the lint results for those files; missing or unreadable input is a failed review, not an empty finding list. For a library prototype, the assigned HTML is rendered evidence: also read its prototype sources and `docs/design/prototyping.md`, and inspect the preview URL. When it does not respond, start the recorded dev command in a task-owned process for the review and stop it afterwards.
 
 Judge five dimensions:
 
 - Craft: deliberate hierarchy, spacing, alignment, composition, visual rhythm, and motion that earns its place.
 - Purpose: the requested problem, content, interactions, and relevant states are covered, with decision load, primary actions, and progress that fit the user's task.
-- Brand: fidelity to approved tokens, typography, imagery, components, and voice.
+- Brand: fidelity to approved tokens, typography, imagery, components, and voice. For a library prototype, UI comes only from the recorded library through its public API and variants, with no copied or locally restyled components, raw values that bypass tokens, or product API calls.
 - Accessibility: semantics, labels, contrast, keyboard operation, focus, and usable targets.
 - Copy: specific and readable content without filler or unsupported claims.
 

@@ -25,6 +25,7 @@ import (
 	marketplacepkg "github.com/compozy/compozy/internal/marketplace"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/profile"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -78,6 +79,7 @@ type bootState struct {
 	windowManagerBootState
 	sessions              SessionManager
 	sessionWakeBridge     *sessionWakeBridge
+	sessionMonitors       *monitorpkg.Service
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service
 	modelCatalog          *modelCatalogRuntime

@@ -1,3 +1,4 @@
+import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAgents } from "@/systems/agent";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -18,6 +19,8 @@ export interface SessionPromptFallbackRunOptions {
   agentName?: string;
   /** Binds the session to this ready worktree instead of the workspace root. */
   worktreeId?: string;
+  files?: File[];
+  runtime?: SessionPromptRuntimeSnapshot | null;
 }
 
 /**
@@ -58,7 +61,10 @@ export function useSessionPromptFallback({
   return {
     pending,
     run: async (query, options = {}) => {
-      if (query.trim() === "" || createDialog.getSnapshot().context.operation.status !== "idle") {
+      if (
+        (query.trim() === "" && !options.files?.length) ||
+        createDialog.getSnapshot().context.operation.status !== "idle"
+      ) {
         return "ignored";
       }
       clearPendingTerminalQuote();
@@ -76,6 +82,13 @@ export function useSessionPromptFallback({
         agents.isSuccess &&
         (agents.data?.some(agent => agent.name === agentName) ?? false);
       if (!agentResolves) {
+        if (options.files?.length || options.runtime) {
+          notifyUser({
+            message: "Choose an agent before sending. Your draft was kept.",
+            tone: "warning",
+          });
+          return "failed";
+        }
         createDialog.trigger.dialogOpened({
           agentName: "",
           workspaceId,
@@ -96,7 +109,12 @@ export function useSessionPromptFallback({
           workspace: workspaceId,
           ...(worktreeId ? { worktree: worktreeId } : {}),
         });
-        sessionStore.trigger.firstPromptQueued({ sessionId: session.id, text: query });
+        sessionStore.trigger.firstPromptQueued({
+          sessionId: session.id,
+          text: query,
+          ...(options.files?.length ? { files: options.files } : {}),
+          ...(options.runtime ? { runtime: options.runtime } : {}),
+        });
         onCreated({ ...session, workspace_id: session.workspace_id ?? workspaceId });
         createDialog.trigger.fallbackCompleted({ attempt });
         return "created";

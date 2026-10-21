@@ -76,6 +76,12 @@ only terminals the task authorizes you to close. `close` is idempotent: closing 
 terminal succeeds and reports the recorded exit, while `signal` and `write` on an ended terminal
 still fail with `terminal_exited`.
 
+When a command outlives your turn (a build, a deploy, a release workflow), do not poll it and do not
+use a provider-internal background task or monitor: they cannot wake a CompozyOS session. Run it with
+`exec`; when the result reports `still_running`, register `compozy__monitor_create` with
+`kind="terminal"` on the returned `terminal_id` (`until="exit"`, or `until="match"` for a log line)
+and end your turn. The daemon wakes this session when the monitor fires.
+
 Processes opened by an agent inherit the originating session and agent identity for managed CLI
 commands. `exec` environment overrides cannot replace that identity. A persistent terminal keeps its
 origin identity when other authorized actors write to it; shared input does not rebind its process.

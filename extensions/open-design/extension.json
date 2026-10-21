@@ -3,7 +3,7 @@
         "provides": ["tool.provider"]
     },
     "extension": {
-        "description": "Design interfaces, sites, slides, and visual documents as workspace HTML with curated design guidance and OpenDesign-derived lints.",
+        "description": "Design interfaces, sites, slides, and visual documents as workspace HTML or as prototypes built with the project's own component library, with curated design guidance and OpenDesign-derived lints.",
         "min_compozy_version": "0.3.0-beta.1",
         "name": "open-design",
         "version": "0.1.0"
@@ -40,6 +40,10 @@
             },
             {
                 "path": "skills/open-design-review/SKILL.md",
+                "profile": "open-design"
+            },
+            {
+                "path": "skills/open-design-setup/SKILL.md",
                 "profile": "open-design"
             },
             {

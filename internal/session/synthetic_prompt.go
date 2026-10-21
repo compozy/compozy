@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // SyntheticPromptOpts carries daemon-owned synthetic prompt input plus
@@ -150,4 +151,38 @@ func promptMetaRunID(meta acp.PromptMeta) string {
 		return strings.TrimSpace(normalized.Synthetic.Goal.RunID)
 	}
 	return ""
+}
+
+// EnqueueSyntheticWake admits daemon-owned work to the durable queue and returns
+// only its receipt. Unlike PromptSynthetic it opens no delivery stream or
+// persistence observer: the shared queue pump owns execution, so wake producers
+// that never read the turn (monitors) cost one queue row and one pump nudge.
+// A stable opts.MessageID makes a retried admission return the existing row.
+func (m *Manager) EnqueueSyntheticWake(
+	ctx context.Context,
+	id string,
+	opts SyntheticPromptOpts,
+) (store.SessionInputQueueEntry, error) {
+	req, err := m.parseSyntheticPromptRequest(ctx, id, opts)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	if err := m.checkNewWorkAdmission(ctx); err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	session, err := m.lookupPromptSession(ctx, req.target)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	if m.inputQueue == nil {
+		return store.SessionInputQueueEntry{}, errors.New(
+			"session: durable input queue is required for synthetic prompts",
+		)
+	}
+	entry, err := m.enqueueDurableSyntheticPrompt(ctx, session, req, opts)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
+	m.startNextQueuedInputPrompt(session.ID)
+	return entry, nil
 }

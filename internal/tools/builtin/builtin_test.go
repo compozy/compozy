@@ -1381,6 +1381,12 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__mcp_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__monitor_cancel", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__monitor_create", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__monitor_list", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__notify", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__observe_metrics", risk: toolspkg.RiskRead,
@@ -2925,6 +2931,9 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionHealth) ||
 			!slices.Contains(sessions, toolspkg.ToolIDNotify) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionWait) ||
+			!slices.Contains(sessions, toolspkg.ToolIDMonitorCreate) ||
+			!slices.Contains(sessions, toolspkg.ToolIDMonitorList) ||
+			!slices.Contains(sessions, toolspkg.ToolIDMonitorCancel) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionSpawn) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionStop) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionApprove) ||

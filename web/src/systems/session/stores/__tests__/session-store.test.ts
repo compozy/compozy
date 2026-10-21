@@ -198,7 +198,10 @@ describe("session store", () => {
       sendFirstPrompt(sessionId, send);
 
       expect(send).toHaveBeenCalledTimes(1);
-      expect(send).toHaveBeenCalledWith("Investigate the regression");
+      expect(send).toHaveBeenCalledWith(
+        "Investigate the regression",
+        expect.objectContaining({ text: "Investigate the regression" })
+      );
       expect(sessionStore.getSnapshot().context.firstPrompts[sessionId]).toBeUndefined();
       expect(sessionStore.getSnapshot().context.drafts[sessionId]).toBeUndefined();
     });
