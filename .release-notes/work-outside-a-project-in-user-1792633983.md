@@ -40,7 +40,7 @@ links, model discovery contexts) are kept in `user_scope_migration_archive` with
 `user_scope_migrations` records progress. Projects named `user`, `global`, or starting with `@` are
 renamed (leading `@` stripped, `-project` appended when needed); the old name keeps working with a
 deprecation warning through v0.4.0 and is removed in v0.5.0. `@user` always means User; on window
-surfaces `global` always means the All projects desktop. Daemons older than v0.4.0 reject `AGENT.md`
+surfaces `global` always means the All projects desktop. Daemons older than v0.3.0 reject `AGENT.md`
 files that contain `workspace_access`, so upgrade every daemon that reads them before adding it.
 Records saved before this release carry no grant ceiling; save them again as the operator to let a
 granted agent's tasks, automations, or Loop runs keep the grant.
