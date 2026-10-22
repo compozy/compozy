@@ -21,6 +21,7 @@ const singleApproval = () => ({
       kind: "approval" as const,
       title: "Deploy docs site",
       task_id: "task-approval",
+      workspace_id: "ws-proj",
       occurred_at: "2026-07-23T10:00:00Z",
       actions: ["approve" as const, "reject" as const, "open" as const],
     },

@@ -31,11 +31,12 @@ func TestObserveOverviewHandler(t *testing.T) {
 						Total:  2,
 						ByKind: map[string]int{"approval": 1, "failure": 1},
 						Items: []observe.OverviewAttentionItem{{
-							Kind:       "approval",
-							Title:      "Deploy docs site",
-							TaskID:     "task-1",
-							OccurredAt: time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC),
-							Actions:    []string{"approve", "reject", "open"},
+							Kind:        "approval",
+							Title:       "Deploy docs site",
+							TaskID:      "task-1",
+							WorkspaceID: "ws-home",
+							OccurredAt:  time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC),
+							Actions:     []string{"approve", "reject", "open"},
 						}},
 					},
 					Today:  observe.OverviewToday{RunsCompleted: 5, RunsFailed: 1, TasksClosed: 3},
@@ -71,8 +72,9 @@ func TestObserveOverviewHandler(t *testing.T) {
 				decoded.Overview.SchemaVersion, contract.ObserveOverviewSchemaVersion,
 			)
 		}
-		if decoded.Overview.Attention.Total != 2 || len(decoded.Overview.Attention.Items) != 1 {
-			t.Fatalf("attention = %+v, want mapped items", decoded.Overview.Attention)
+		if decoded.Overview.Attention.Total != 2 || len(decoded.Overview.Attention.Items) != 1 ||
+			decoded.Overview.Attention.Items[0].WorkspaceID != "ws-home" {
+			t.Fatalf("attention = %+v, want mapped items with their owning workspace", decoded.Overview.Attention)
 		}
 		if decoded.Overview.Today.RunsCompleted != 5 || decoded.Overview.System.RetentionDays != 7 {
 			t.Fatalf("payload = %+v, want mapped today and system blocks", decoded.Overview)

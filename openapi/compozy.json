@@ -17080,13 +17080,17 @@
           },
           "title": {
             "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
           }
         },
         "required": [
           "actions",
           "kind",
           "occurred_at",
-          "title"
+          "title",
+          "workspace_id"
         ],
         "type": "object"
       },

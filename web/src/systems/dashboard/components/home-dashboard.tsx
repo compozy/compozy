@@ -77,6 +77,7 @@ export function HomeDashboard({ className, liveEnabled = true, ...props }: HomeD
                 actions={model.attentionActions}
                 notificationScope={model.notificationScope}
                 scopeLabel={model.activeWorkspaceName ?? "Selected project"}
+                bindItemsToOwner={model.scope.dataScope.kind === "all"}
               />
               {model.hasNoWork ? (
                 <HomeFirstRun workspaceName={workspaceName} />

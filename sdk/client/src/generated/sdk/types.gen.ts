@@ -4687,6 +4687,7 @@ export type OverviewAttentionItemPayload = {
   session_id?: string;
   task_id?: string;
   title: string;
+  workspace_id: string;
 };
 
 export type OverviewAttentionPayload = {
