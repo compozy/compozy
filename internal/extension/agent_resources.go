@@ -136,7 +136,12 @@ func loadStaticAgent(rootDir, agentDir string) (StaticAgent, error) {
 		)
 	}
 	if agent.WorkspaceAccess != "" {
-		slog.Warn("workspace_access_untrusted_source", "agent_name", agent.Name, "source", agentPath)
+		slog.Warn(
+			"extension agent workspace_access dropped",
+			"code", "workspace_access_untrusted_source",
+			"agent_name", agent.Name,
+			"source", agentPath,
+		)
 		agent.WorkspaceAccess = ""
 	}
 	result := StaticAgent{Agent: compozyconfig.CloneAgentDef(agent)}

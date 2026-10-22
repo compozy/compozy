@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/clientstate"
@@ -26,9 +25,13 @@ func reconcileUserScopeMigrations(
 	}
 	for _, migration := range migrations {
 		id := migration.SourceWorkspaceID
+		// A defect in legacy journal or layout data keeps that store pending and the registration in
+		// place; it is logged for diagnosis and never prevents the daemon from booting (USW BR-15,
+		// SD-013). The next boot retries the pending store.
 		if migration.JournalState != "verified" && migration.JournalState != "skipped" {
 			if err := workspacedb.ImportLegacyJournal(ctx, homeDir, id, migration.ProfileIDs); err != nil {
-				return fmt.Errorf("migrate User journal %s: %w", id, err)
+				logger.WarnContext(ctx, "user_scope.migration.journal_retained", "workspace_id", id, "error", err)
+				continue
 			}
 			if err := db.MarkUserScopeStoreVerified(ctx, id, "journal"); err != nil {
 				return err
@@ -37,7 +40,8 @@ func reconcileUserScopeMigrations(
 		}
 		if migration.LayoutState != "verified" && migration.LayoutState != "skipped" {
 			if err := migrateUserScopeLayouts(ctx, engine, id, logger); err != nil {
-				return err
+				logger.WarnContext(ctx, "user_scope.migration.layout_retained", "workspace_id", id, "error", err)
+				continue
 			}
 			if err := db.MarkUserScopeStoreVerified(ctx, id, "layout"); err != nil {
 				return err
@@ -94,6 +98,8 @@ func migrateUserScopeLayouts(
 			return errors.New("legacy layout workspace identity mismatch")
 		}
 		snapshot.WorkspaceID = windowmanager.UserDesktopWorkspaceID
+		// The bound work moves to the User scope with the layout (USW BR-15).
+		windowmanager.RebindWorkspace(&snapshot, sourceID, "@user")
 		encoded, err := json.Marshal(snapshot)
 		if err != nil {
 			return err

@@ -905,6 +905,38 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 }
 
 func TestUserScopeLayoutMigration(t *testing.T) {
+	t.Run("Should keep booting and retain the registration when a legacy journal is defective", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		source := fixture.workspace.ID
+		journalRoot := filepath.Join(fixture.homePaths.HomeDir, "workspaces", source)
+		for _, dir := range []string{journalRoot, journalRoot + ".migrated"} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := fixture.database.DB().ExecContext(ctx,
+			`INSERT INTO user_scope_migrations(source_workspace_id,source_root,disposition,profile_ids,sql_done_at)
+			VALUES (?,?,'migrate','[]',datetime('now'))`, source, fixture.workspace.RootDir); err != nil {
+			t.Fatal(err)
+		}
+		if err := reconcileUserScopeMigrations(ctx, fixture.database, fixture.engine,
+			fixture.homePaths.HomeDir, discardLogger()); err != nil {
+			t.Fatalf("reconcileUserScopeMigrations() error = %v, want a logged retention instead of a boot failure", err)
+		}
+		var registered int
+		var journalState string
+		if err := fixture.database.DB().QueryRowContext(ctx,
+			`SELECT (SELECT count(*) FROM workspaces WHERE id=?), journal_state FROM user_scope_migrations
+			WHERE source_workspace_id=?`, source, source).Scan(&registered, &journalState); err != nil {
+			t.Fatal(err)
+		}
+		if registered != 1 || journalState != "pending" {
+			t.Fatalf("registration=%d journal_state=%q, want the registration kept and the journal pending", registered, journalState)
+		}
+	})
+
 	t.Run("Should copy a profile layout once and retain both source and existing destination", func(t *testing.T) {
 		t.Parallel()
 		fixture := newDaemonWindowManagerFixture(t)
