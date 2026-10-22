@@ -86,7 +86,8 @@ func (m *Manager) ProfileName(ctx context.Context, profileID string) (string, er
 	return profile.Name, nil
 }
 
-func (m *Manager) List(ctx context.Context) (profiles []WithCounts, err error) {
+// ListIdentities reads profile metadata without ownership counts or credential requirements.
+func (m *Manager) ListIdentities(ctx context.Context) (profiles []Profile, err error) {
 	if ctx == nil {
 		return nil, errors.New("profile: list context is required")
 	}
@@ -99,18 +100,26 @@ func (m *Manager) List(ctx context.Context) (profiles []WithCounts, err error) {
 			err = errors.Join(err, fmt.Errorf("profile: close list rows: %w", closeErr))
 		}
 	}()
-	profiles = make([]WithCounts, 0)
-	profilesByID := make([]Profile, 0)
+	profiles = make([]Profile, 0)
 	for rows.Next() {
 		profile, scanErr := scanProfile(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("profile: scan list row: %w", scanErr)
 		}
-		profilesByID = append(profilesByID, profile)
+		profiles = append(profiles, profile)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("profile: iterate list: %w", err)
 	}
+	return profiles, nil
+}
+
+func (m *Manager) List(ctx context.Context) ([]WithCounts, error) {
+	profilesByID, err := m.ListIdentities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	profiles := make([]WithCounts, 0, len(profilesByID))
 	profileIDs := make([]string, 0, len(profilesByID))
 	for _, profile := range profilesByID {
 		profileIDs = append(profileIDs, profile.ID)

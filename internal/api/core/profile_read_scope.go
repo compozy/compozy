@@ -223,7 +223,7 @@ func profileOwnerIdentities(ctx context.Context, profiles ProfileOwnerReader) (m
 			"":                     {ID: store.DefaultProfileID, Name: profileDefaultName},
 		}, nil
 	}
-	items, err := profiles.List(ctx)
+	items, err := profiles.ListIdentities(ctx)
 	if err != nil {
 		return nil, err
 	}

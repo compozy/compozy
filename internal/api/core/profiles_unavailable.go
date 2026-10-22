@@ -100,3 +100,7 @@ func (s unavailableProfileService) RetryOp(context.Context, string) (profilepkg.
 }
 
 var _ ProfileService = unavailableProfileService{}
+
+func (s unavailableProfileService) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
+	return nil, s.unavailable()
+}

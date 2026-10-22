@@ -12,6 +12,7 @@ type profileCatalog interface {
 	GetWithCounts(context.Context, string) (profilepkg.WithCounts, error)
 	Resolve(context.Context, profilepkg.ResolveInput) (profilepkg.Resolution, error)
 	List(context.Context) ([]profilepkg.WithCounts, error)
+	ListIdentities(context.Context) ([]profilepkg.Profile, error)
 	ListNames(context.Context) ([]string, error)
 	UpdateIdentity(context.Context, string, profilepkg.IdentityPatch) (profilepkg.Profile, error)
 	ListSelections(context.Context) ([]profilepkg.Selection, error)

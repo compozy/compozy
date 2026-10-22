@@ -19,7 +19,7 @@ func (h *BaseHandlers) decorateSessionOwners(
 }
 
 type ProfileOwnerReader interface {
-	List(context.Context) ([]profilepkg.WithCounts, error)
+	ListIdentities(context.Context) ([]profilepkg.Profile, error)
 }
 
 func SessionPayloadsWithProfileOwners(
@@ -27,6 +27,9 @@ func SessionPayloadsWithProfileOwners(
 	payloads []contract.SessionPayload,
 	profiles ProfileOwnerReader,
 ) ([]contract.SessionPayload, error) {
+	if len(payloads) == 0 {
+		return payloads, nil
+	}
 	owners, err := profileOwnerIdentities(ctx, profiles)
 	if err != nil {
 		return nil, err
