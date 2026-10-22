@@ -453,6 +453,8 @@ test("operator manages a webhook trigger and verifies authentication replay and 
     await ensureProjectWorkspace(appPage, runtime);
     await appPage.reload({ waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(shellUI);
+    // The fixture trigger is User-scope (global), listed under the User destination.
+    await focusUserScope(appPage);
     await appPage.goto(runtime.url("/automations?start=event"), { waitUntil: "domcontentloaded" });
     await expect(ui.automationsShell).toBeVisible();
     await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
