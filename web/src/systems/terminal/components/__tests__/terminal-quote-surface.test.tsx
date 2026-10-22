@@ -7,7 +7,7 @@ import { destroyTerminalInstances, type TerminalEngine } from "@compozy/ui";
 import { buildTerminalQuote } from "../../lib/terminal-quote";
 import { terminalReplayFailedCopy } from "../../lib/terminal-copy";
 import { DEV_SERVER_TERMINAL, MAKE_GATE_TERMINAL } from "../../mocks/terminal-fixtures";
-import { SESSION_TERMINAL_MAX_ROWS } from "../../lib/session-terminal-rows";
+import { SESSION_TERMINAL_MAX_ROWS, sessionTerminalRows } from "../../lib/session-terminal-rows";
 import { SessionTerminalBlock } from "../session-terminal-block";
 import { TerminalExpiredState } from "../terminal-empty-states";
 import type { TerminalPaneSelectionActions } from "../terminal-pane";
@@ -18,6 +18,14 @@ import {
   stubEngineLoader,
   stubTerminalTicketFetch,
 } from "./terminal-window-harness";
+
+import {
+  createFakeSocketFactory,
+  attachedFrame,
+  serverOutputFrame,
+  serverControlFrame,
+} from "../../lib/__tests__/terminal-stream-harness";
+import { TERMINAL_SERVER_OP } from "../../lib/terminal-wire";
 
 function stubThrowingEngineLoader(error: Error) {
   return async (): Promise<TerminalEngine> => {
@@ -233,17 +241,32 @@ describe("SessionTerminalBlock", () => {
           }),
       };
     };
+    const sockets = createFakeSocketFactory();
     const props = {
       blockId: "tool-call-live",
       engineLoader: recordingEngineLoader,
       preview: "stale recorded preview",
       scope: { workspaceId: "ws-atlas", profile: "work" },
-      socketFactory: silentSocketFactory,
+      socketFactory: sockets.factory,
       terminalId: DEV_SERVER_TERMINAL.id,
       title: "dev server",
     };
     const { rerender } = render(<SessionTerminalBlock {...props} />);
     await waitFor(() => expect(resizes).toContain(SESSION_TERMINAL_MAX_ROWS));
+
+    await waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    await act(async () => {
+      sockets.last().open();
+      sockets.last().deliver(attachedFrame());
+      sockets.last().deliver(serverOutputFrame("1", "live output"));
+    });
+    await waitFor(() => expect(writes.length).toBeGreaterThan(0));
+    await act(async () => {
+      sockets
+        .last()
+        .deliver(serverControlFrame(TERMINAL_SERVER_OP.resized, { cols: 96, rows: 24 }));
+    });
+    expect(resizes.at(-1)).toBe(SESSION_TERMINAL_MAX_ROWS);
 
     rerender(
       <SessionTerminalBlock
@@ -258,6 +281,54 @@ describe("SessionTerminalBlock", () => {
     expect(writes).not.toContain("stale recorded preview");
     expect(resizes.at(-1)).toBe(SESSION_TERMINAL_MAX_ROWS);
     restoreFetch();
+  });
+
+  it("Should replay the record when attachment ends before painting any bytes", async () => {
+    const restoreFetch = stubTerminalTicketFetch();
+    const writes: unknown[] = [];
+    const engineLoader = async (): Promise<TerminalEngine> => {
+      const engine = await stubEngineLoader();
+      return {
+        ...engine,
+        createTerminal: options =>
+          Object.assign(engine.createTerminal(options), {
+            write: (data: unknown, callback?: () => void) => {
+              writes.push(data);
+              callback?.();
+            },
+          }),
+      };
+    };
+    const props = {
+      blockId: "unpainted",
+      terminalId: "term",
+      title: "command",
+      preview: "recorded output",
+      scope: { workspaceId: "ws", profile: "default" },
+      socketFactory: silentSocketFactory,
+      engineLoader,
+    };
+    const { rerender } = render(<SessionTerminalBlock {...props} />);
+    await waitFor(() =>
+      expect(screen.getByRole("log", { name: "command — watching" })).toBeInTheDocument()
+    );
+    rerender(
+      <SessionTerminalBlock
+        {...props}
+        exit={{ at: "2026-10-22T12:00:00Z", cause: "exited", code: 0 }}
+      />
+    );
+    await waitFor(() => expect(writes).toContain("recorded output"));
+    restoreFetch();
+  });
+
+  it.each([
+    ["界".repeat(60), 2],
+    ["a".repeat(79) + "\tb", 2],
+    ["\u001b]8;;https://example.com/" + "x".repeat(100) + "\u0007link\u001b]8;;\u0007", 1],
+    ["e\u0301".repeat(80), 1],
+  ])("Should size terminal cells and controls correctly", (output, rows) => {
+    expect(sessionTerminalRows(output, 80)).toBe(rows);
   });
 
   it("Should say a terminal was cleaned up without inventing how long it waited", () => {

@@ -87,19 +87,12 @@ function runDurationMs(facts: SessionTerminalFacts, catalog: TerminalInfo | unde
   return Number.isFinite(span) && span > 0 ? span : null;
 }
 
-function TerminalToolRowView({
-  message,
-  facts,
-  catalog,
-  scope,
-  shell,
-  defaultExpanded = false,
-  partIndex,
-  revealOpen = false,
-  onRevealRelease,
-  onRail = false,
-}: TerminalToolRowViewProps) {
-  const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
+function terminalRowPresentation(
+  message: UIMessage,
+  facts: SessionTerminalFacts,
+  catalog: TerminalInfo | undefined,
+  scope: TerminalScope | undefined
+) {
   const run = resolveSessionTerminalRun(facts, catalog);
   const outcome = sessionTerminalOutcome(run, message.toolError === true);
   const title = readNonEmptyString(catalog?.title) ?? facts.title;
@@ -116,6 +109,28 @@ function TerminalToolRowView({
   // A running PTY the catalog confirms streams live once opened; everything
   // else paints the screen the tool result recorded.
   const live = scope !== undefined && catalog?.mode === "pty" && catalog.state === "running";
+  return { run, outcome, title, registryTool, verb, statText, live };
+}
+
+function TerminalToolRowView({
+  message,
+  facts,
+  catalog,
+  scope,
+  shell,
+  defaultExpanded = false,
+  partIndex,
+  revealOpen = false,
+  onRevealRelease,
+  onRail = false,
+}: TerminalToolRowViewProps) {
+  const [ownExpanded, setOwnExpanded] = useState(defaultExpanded);
+  const { run, outcome, title, registryTool, verb, statText, live } = terminalRowPresentation(
+    message,
+    facts,
+    catalog,
+    scope
+  );
   const expanded = ownExpanded || revealOpen;
   // An open screen that streamed stays a screen when the run ends — its bytes
   // are the final screen. Closing it lets go: a later open paints the record.

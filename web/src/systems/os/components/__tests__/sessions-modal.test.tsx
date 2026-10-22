@@ -2,7 +2,7 @@
 // Invariant: the modal filters catalog truth, retains group state, and dismisses via Dialog.
 // Boundary IN: OsSessionsModal, OS controller, and routing coordinator.
 // Boundary OUT: session catalog transport and full browser window journeys.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
@@ -136,7 +136,10 @@ describe("OsSessionsModal", () => {
     for (const manager of managers.splice(0)) manager.destroy();
   });
 
-  it("Should count every grouped session in the header while the flat list is empty", () => {
+  it.each([
+    ["", "Sessions 3"],
+    ["no-match", "Sessions"],
+  ])("Should show a grouped total only without a search (%s)", (search, expected) => {
     const group = (key: string, total: number, workspaceId: string): SessionListGroupSpec => ({
       key,
       kind: "project",
@@ -150,6 +153,7 @@ describe("OsSessionsModal", () => {
     });
     const groups = [group("project:ws-a", 2, "ws-a"), group("user", 1, "")];
     const view = listView({
+      search,
       groupBy: "project",
       groupByOptions: ["none", "project"],
       groups,
@@ -157,7 +161,7 @@ describe("OsSessionsModal", () => {
     });
     renderModal(createShell(), true, view, vi.fn(), []);
     const close = screen.getByRole("button", { name: "Close sessions" });
-    expect(close.parentElement).toHaveTextContent(/^Sessions\s*3$/);
+    expect(close.parentElement?.textContent?.trim()).toBe(expected);
   });
 
   it("Should keep the modal open when selecting and use Escape to finish selection first", async () => {
@@ -183,7 +187,7 @@ describe("OsSessionsModal", () => {
     expect(jumpToSession).not.toHaveBeenCalled();
     await user.click(screen.getByTestId("os-sessions-modal-selection-delete"));
     expect(onDeleteMany).toHaveBeenCalledWith([SESSIONS[0]], expect.any(Function));
-    row.focus();
+    act(() => row.focus());
     await user.keyboard("{Escape}");
     expect(screen.queryByTestId("os-sessions-modal-selection-bar")).not.toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);

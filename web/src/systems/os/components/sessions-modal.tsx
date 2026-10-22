@@ -154,7 +154,10 @@ export function OsSessionsModal({
           header={visibleCount => (
             <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
               <Eyebrow className="min-w-0 flex-1 text-subtle">
-                Sessions <span className="ml-1 text-faint">{visibleCount}</span>
+                Sessions{" "}
+                {visibleCount !== null ? (
+                  <span className="ml-1 text-faint">{visibleCount}</span>
+                ) : null}
               </Eyebrow>
               <Button
                 type="button"

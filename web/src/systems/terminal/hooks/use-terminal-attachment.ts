@@ -23,6 +23,10 @@ export interface UseTerminalAttachmentOptions {
   /** Test seam; the browser socket is the default. */
   socketFactory?: TerminalAttachmentSocketFactory;
   enabled?: boolean;
+  /** A transcript preview keeps its own display height, independent of the PTY. */
+  displayRows?: number;
+  /** Called only after live bytes have been parsed by the emulator. */
+  onOutputPainted?: () => void;
   /**
    * Bumped to start the connection over.
    *
@@ -61,9 +65,18 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   const viewerAttachmentToken = options.viewer?.attachmentToken ?? null;
 
   const buildSink = useEffectEvent((): TerminalStreamSink => ({
-    write: data => options.handleRef.current?.write(data) ?? Promise.resolve(),
+    write: async data => {
+      const handle = options.handleRef.current;
+      if (!handle) return;
+      await handle.write(data);
+      if (data.length > 0) options.onOutputPainted?.();
+    },
     reset: () => options.handleRef.current?.reset(),
-    applyDimensions: dimensions => options.handleRef.current?.applyDimensions(dimensions),
+    applyDimensions: dimensions =>
+      options.handleRef.current?.applyDimensions({
+        ...dimensions,
+        rows: options.displayRows ?? dimensions.rows,
+      }),
   }));
 
   useEffect(() => {

@@ -544,7 +544,9 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(row.querySelector("[data-slot='tool-call-row-stat']")).toHaveTextContent(
       "exit 255 · 12m"
     );
-    expect(row.querySelector("[data-live]")).toHaveAttribute("data-live", "false");
+    await waitFor(() =>
+      expect(row.querySelector("[data-live]")).toHaveAttribute("data-live", "false")
+    );
   });
 
   it("Should title a terminal from the catalog or a human name, never the argv", async () => {

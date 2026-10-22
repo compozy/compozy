@@ -92,7 +92,7 @@ function SessionTerminalBlockBody({
   // recorded preview is older than those bytes, and replaying it would wipe
   // the final screen the reader just watched.
   const [streamed, setStreamed] = useState(false);
-  if (live && !streamed) setStreamed(true);
+
   const replay = useTerminalReplay(instanceId, preview, !live && !streamed);
   useTerminalAttachment({
     workspaceId: scope?.workspaceId ?? "",
@@ -103,6 +103,8 @@ function SessionTerminalBlockBody({
     handleRef: replay.handleRef,
     socketFactory,
     enabled: live,
+    displayRows: SESSION_TERMINAL_MAX_ROWS,
+    onOutputPainted: () => setStreamed(true),
   });
 
   // Sized once the emulator can measure its width, and again whenever the

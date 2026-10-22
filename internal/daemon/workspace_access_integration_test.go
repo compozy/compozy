@@ -91,7 +91,11 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 
 		assertWorkspaceAccessAuditDelta(t, ctx, db, 3, func() {
 			operator := request
-			operator.Actor = workspaceaccess.ActorRef{Kind: workspaceaccess.ActorHuman, Operator: true, WorkspaceID: workspaceAccessIntegrationHome}
+			operator.Actor = workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorHuman,
+				Operator:    true,
+				WorkspaceID: workspaceAccessIntegrationHome,
+			}
 			decision, authErr := denyPolicy.Authorize(ctx, operator)
 			if authErr != nil || !decision.Allowed || decision.Source != workspaceaccess.SourceOperator {
 				t.Fatalf("Authorize(operator) = %#v, %v, want an audited operator allow", decision, authErr)
@@ -422,7 +426,11 @@ func (s workspaceAccessIntegrationModeSource) SessionFacts(
 	context.Context,
 	string,
 ) (workspaceaccess.SessionFacts, error) {
-	return workspaceaccess.SessionFacts{Mode: s.mode, ProfileID: store.DefaultProfileID, WorkspaceID: workspaceAccessIntegrationHome}, nil
+	return workspaceaccess.SessionFacts{
+		Mode:        s.mode,
+		ProfileID:   store.DefaultProfileID,
+		WorkspaceID: workspaceAccessIntegrationHome,
+	}, nil
 }
 
 type workspaceAccessIntegrationConsentStub struct{}

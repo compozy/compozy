@@ -92,3 +92,6 @@ by the frontend slice and integrated journey.
 
 
 2026-10-21 backend gap follow-up: compare `compozy session list --all-workspaces` with the catalog. Its additional PROJECT column names registered projects and labels workspace-less rows User while retaining Workspace and all existing columns. The focused CLI suite covers the output contract; the full browser walk remains pending integration QA.
+
+Release review regression (#887): search while sessions are grouped. The modal header must omit the
+unfiltered total while a search is active; clearing the search restores the complete facets total.

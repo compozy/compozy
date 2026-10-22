@@ -38,7 +38,7 @@ export interface SessionListProps {
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   /** Rendered above the controls (the modal's eyebrow + close chrome). */
-  header?: (visibleCount: number) => React.ReactNode;
+  header?: (visibleCount: number | null) => React.ReactNode;
 }
 
 /**
@@ -87,7 +87,9 @@ export function SessionList({
   const grouped = view.groupBy !== "none";
   // Grouped lists read each group separately; the flat list is empty, so the groups own the count.
   const visibleCount = grouped
-    ? view.groups.reduce((sum, group) => sum + group.total, 0)
+    ? normalizedFilter
+      ? null
+      : view.groups.reduce((sum, group) => sum + group.total, 0)
     : countThreadSessions(threads);
   const collapsedThreads = new Set(collapsedThreadIds);
   const filtering = normalizedFilter !== "";

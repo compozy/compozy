@@ -4175,3 +4175,12 @@ Owner: `docs/research/desktop-update-flow/README.md`; branch `fix/desktop-update
   Signed release delivery and upgrades from already shipped broken updater code remain distinct
   from local fixture evidence; the research report records these limits.
 
+
+## Beta release review corrections (2026-10-22, PRs #887 and #893)
+
+Transcript previews retain recorded output until live bytes are painted, constrain server resize
+frames to the inline display height, and count terminal cells for recorded output. Grouped session
+search hides the unfiltered header total. Native tools, extensibility/hooks/config, persisted data,
+workspace isolation, and the official skill are unchanged. Web impact is covered by the existing
+terminal surface, tool-call card, and sessions modal suites; the affected QA scenarios are updated.
+Go integration fixture changes are formatter-only and preserve their existing assertions.

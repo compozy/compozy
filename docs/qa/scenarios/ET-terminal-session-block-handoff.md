@@ -101,3 +101,8 @@ the live PTY streamed while opened and kept its final screen after exit, the ear
 `No output yet` then settled, and no transcript text contained the envelope's `command_id`. Teardown
 was clean. A provider-backed walk with a real model remains unverified.
 
+
+Release review regressions (#893): a PTY attachment that ends before painting any bytes must replay
+its recorded output. Attached/resized frames must retain the eight-row transcript display height.
+Recorded previews must size wide characters, combining marks, tabs, and OSC hyperlinks by terminal
+cells rather than JavaScript string length. Exercise these alongside the live-to-exit walk above.
