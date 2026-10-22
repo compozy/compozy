@@ -28,6 +28,7 @@ func sessionInfoFromCatalog(info *store.SessionInfo) *Info {
 		SelectedRuntime:          runtimeSelectionFromSessionStore(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
 		WorkspaceID:              strings.TrimSpace(info.WorkspaceID),
+		EffectiveWorkspaceAccess: strings.TrimSpace(info.EffectiveWorkspaceAccess),
 		WorktreeID:               strings.TrimSpace(info.WorktreeID),
 		Type:                     Type(strings.TrimSpace(info.SessionType)),
 		Lineage:                  store.CloneSessionLineage(info.Lineage),

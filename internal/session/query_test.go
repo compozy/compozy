@@ -3623,3 +3623,14 @@ func TestSessionWorkspaceFilter(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionInfoFromCatalogKeepsEffectiveWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project the persisted grant for a session that is not loaded", func(t *testing.T) {
+		t.Parallel()
+		info := sessionInfoFromCatalog(&store.SessionInfo{ID: "sess-granted", EffectiveWorkspaceAccess: "unrestricted"})
+		if info.EffectiveWorkspaceAccess != "unrestricted" {
+			t.Fatalf("EffectiveWorkspaceAccess = %q, want the persisted unrestricted grant (USW BR-13)", info.EffectiveWorkspaceAccess)
+		}
+	})
+}

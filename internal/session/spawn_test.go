@@ -197,7 +197,7 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 			t.Fatalf("ResolveSpawnWorkspace(allowed) = %q, %v; want %q", target, err, foreign.ID)
 		}
 		if last := policy.requests[len(policy.requests)-1]; last.Seam != workspaceaccess.SeamSpawn ||
-			last.TargetWorkspaceID != foreign.ID {
+			last.Target.WorkspaceID != foreign.ID {
 			t.Fatalf("policy request = %#v, want spawn seam for %q", last, foreign.ID)
 		}
 	})
