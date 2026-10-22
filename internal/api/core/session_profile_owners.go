@@ -5,13 +5,29 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 )
 
 func (h *BaseHandlers) decorateSessionOwners(
 	ctx context.Context,
 	payloads []contract.SessionPayload,
 ) ([]contract.SessionPayload, error) {
-	owners, err := h.profileOwnerIdentities(ctx)
+	if h == nil {
+		return SessionPayloadsWithProfileOwners(ctx, payloads, nil)
+	}
+	return SessionPayloadsWithProfileOwners(ctx, payloads, h.Profiles)
+}
+
+type ProfileOwnerReader interface {
+	List(context.Context) ([]profilepkg.WithCounts, error)
+}
+
+func SessionPayloadsWithProfileOwners(
+	ctx context.Context,
+	payloads []contract.SessionPayload,
+	profiles ProfileOwnerReader,
+) ([]contract.SessionPayload, error) {
+	owners, err := profileOwnerIdentities(ctx, profiles)
 	if err != nil {
 		return nil, err
 	}
@@ -24,7 +40,7 @@ func (h *BaseHandlers) decorateSessionOwners(
 				payloads[index].ProfileID,
 			)
 		}
-		if payloads[index].ProfileID == "" && (h == nil || h.Profiles == nil) {
+		if payloads[index].ProfileID == "" && profiles == nil {
 			payloads[index].ProfileID = owner.ID
 		}
 		payloads[index].ProfileName = owner.Name

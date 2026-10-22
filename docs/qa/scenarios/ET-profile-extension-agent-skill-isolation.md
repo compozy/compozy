@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pass
 fix_commits: 3bfa4da4;1e6a6315;7c53637c
 evidence: qa-artifacts/qa/public-cli-api/agents-default-final-2.json;qa-artifacts/qa/public-cli-api/agents-finance-final-2.json;qa-artifacts/qa/public-cli-api/skill-global-view.json;qa-artifacts/qa/public-cli-api/skill-default-view.json;qa-artifacts/qa/public-cli-api/skill-finance-view.json;qa-artifacts/qa/public-cli-api/skill-workspace-profile-repeat-view.json;qa-artifacts/qa/qa-audit-report.json;qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-09-01-profile-extension-agent-skill-isolation.md
+last_report: docs/qa/reports/2026-10-22-issue-895-profile-agent-resolution.md
 overlaps: ET-001; ET-skill-source-agent-parity
 ---
 
@@ -79,3 +79,21 @@ deletion, and retained the exact definition digest after restart. Evidence:
 Round-one final strict audit passed without blockers or warnings; the local gate passed all
 affected lanes (7,277 Web tests). Lab teardown completed with `clean: true` and no surviving
 owned process.
+
+## Session-bound agent catalog and delegation
+
+Create one session in the extension's non-default Profile and another in `default`.
+From each session, read `compozy__profile_current`, `compozy__agent_list`, and
+`compozy__subagent_capabilities`. Run `compozy agent list -o json` with the session
+identity and no `COMPOZY_PROFILE` or `--profile` override. Every catalog must include
+the Profile-placed extension Agent only for its owning Profile.
+
+Delegate to that Agent using `compozy__subagent_delegate`: the owning session must
+complete a child turn, while the other session must receive `agent_not_found`.
+Read native session status/list and HTTP/UDS status/list; their existing
+`profile_id` and `profile_name` fields must agree with `profile_current`.
+Create a session without an explicit Agent and verify the Profile's `[defaults] agent`;
+then create one with an explicit Agent and verify that explicit selection wins.
+
+Targeted session-bound verification: [2026-10-22 report](../reports/2026-10-22-issue-895-profile-agent-resolution.md).
+The broader skill-precedence evidence remains in the [2026-09-01 report](../reports/2026-09-01-profile-extension-agent-skill-isolation.md).

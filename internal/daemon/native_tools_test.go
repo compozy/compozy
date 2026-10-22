@@ -2960,6 +2960,48 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	for _, profile := range []struct{ id, name string }{
+		{store.DefaultProfileID, "default"}, {"profile-design", "design"},
+	} {
+		t.Run("Should scope extension agent reads to session profile "+profile.name, func(t *testing.T) {
+			t.Parallel()
+			catalog := newResourceCatalog(cloneAgentDef)
+			catalog.Replace(1, []resources.Record[compozyconfig.AgentDef]{{
+				ID:    "design:designer",
+				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "design"},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-design"},
+				Spec:  compozyconfig.AgentDef{Name: "designer", Prompt: "Design"},
+			}})
+			resolver := nativeTestWorkspaceService(t)
+			resolver.ResolveForProfileFn = func(_ context.Context, ref, name string) (workspacepkg.ResolvedWorkspace, error) {
+				if name != profile.name {
+					t.Fatalf("resolved profile = %q, want %q", name, profile.name)
+				}
+				return workspacepkg.ResolvedWorkspace{ID: ref, ProfileID: profile.id, ProfileName: name}, nil
+			}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				HomePaths:  apitest.NewTestHomePaths(t),
+				Workspaces: resolver, WorkspaceResolver: resolver,
+				Sessions: nativeTestSessionManager("ws-design", profile.id),
+				Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
+					{ID: store.DefaultProfileID, Name: "default"}, {ID: "profile-design", Name: "design"},
+				}},
+				AgentCatalog: agentCatalogDependency(catalog),
+			}, nativeApproveAllPolicyInputs())
+			result, err := registry.Call(t.Context(), toolspkg.Scope{
+				SessionID: "sess-design", AgentName: "coder", WorkspaceID: "ws-design",
+			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentList, Input: json.RawMessage(`{}`)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if profile.name == "design" {
+				requireNativeStructuredContains(t, result, []byte(`"name":"designer"`))
+			} else {
+				requireNativeStructuredExcludes(t, result, []byte(`"name":"designer"`))
+			}
+		})
+	}
+
 	t.Run("Should list workspace agents and redacted global Vault refs", func(t *testing.T) {
 		t.Parallel()
 
@@ -2978,9 +3020,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			Present: true,
 		}}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			AgentCatalog: agents,
-			Vault:        secrets,
-			Workspaces:   nativeTestWorkspaceService(t),
+			AgentCatalog:      agents,
+			Vault:             secrets,
+			Workspaces:        nativeTestWorkspaceService(t),
+			WorkspaceResolver: nativeTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		agentResult, err := registry.Call(

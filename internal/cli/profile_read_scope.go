@@ -75,7 +75,10 @@ func configureSingleProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
 		if err != nil {
 			return err
 		}
-		if !requested {
+		credentials := agentCredentialsFromEnv(deps)
+		bound := credentials.SessionID != "" && credentials.AgentName != "" &&
+			agentCommandUsesProfileScopedSessionSurface(cmd)
+		if !requested && !bound {
 			recordProfileResolution(cmd, profileResolution{
 				Profile: contract.Profile{Name: configDefaultKey}, Source: profileResolutionDefault,
 			})
@@ -283,7 +286,7 @@ func agentCommandUsesProfileScopedSessionSurface(cmd *cobra.Command) bool {
 		return false
 	}
 	parts := strings.Fields(cmd.CommandPath())
-	return len(parts) >= 2 && parts[1] == "session"
+	return len(parts) >= 2 && (parts[1] == "session" || parts[1] == "agent")
 }
 
 func recordProfileReadSelection(cmd *cobra.Command, selection profileReadSelection) {

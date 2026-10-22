@@ -41,7 +41,11 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+	owned, err := core.SessionPayloadsWithProfileOwners(ctx, []contract.SessionPayload{payload}, n.deps.Profiles)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	return structuredResult(map[string]any{nativeToolsSessionKey: owned[0]}, payload.ID)
 }
 
 func (n *daemonNativeTools) commandList(

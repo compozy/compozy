@@ -28,23 +28,17 @@ func (n *daemonNativeTools) agentList(
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.Workspace, scope)
-	var entries []core.AgentCatalogEntry
-	if workspaceID == "" {
-		listed, err := n.deps.AgentCatalog.ListAgents(ctx)
-		if err != nil {
-			return toolspkg.ToolResult{}, fmt.Errorf("daemon: list agent catalog: %w", err)
-		}
-		entries = listed
-	} else {
-		resolved, err := n.deps.Workspaces.Resolve(ctx, workspaceID)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		listed, err := n.workspaceAgents(ctx, &resolved)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		entries = listed
+	profileID, _, _, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	resolved, err := n.nativeSkillWorkspace(ctx, profileID, workspaceID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	entries, err := n.workspaceAgents(ctx, resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	payload := core.AgentPayloadsFromEntries(entries)
 	return structuredResult(

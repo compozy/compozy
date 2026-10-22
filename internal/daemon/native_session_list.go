@@ -96,6 +96,10 @@ func (n *daemonNativeTools) sessionList(
 			return toolspkg.ToolResult{}, err
 		}
 	}
+	payload, err = core.SessionPayloadsWithProfileOwners(ctx, payload, n.deps.Profiles)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	core.ApplySessionPlacements(payload, page.Placements)
 	response := contract.SessionCatalogResponse{
 		Sessions: payload,

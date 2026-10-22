@@ -210,18 +210,25 @@ func (h *BaseHandlers) respondProfileReadScopeError(c *gin.Context, err error) {
 }
 
 func (h *BaseHandlers) profileOwnerIdentities(ctx context.Context) (map[string]profileOwnerIdentity, error) {
-	if h == nil || h.Profiles == nil {
+	if h == nil {
+		return profileOwnerIdentities(ctx, nil)
+	}
+	return profileOwnerIdentities(ctx, h.Profiles)
+}
+
+func profileOwnerIdentities(ctx context.Context, profiles ProfileOwnerReader) (map[string]profileOwnerIdentity, error) {
+	if profiles == nil {
 		return map[string]profileOwnerIdentity{
 			store.DefaultProfileID: {ID: store.DefaultProfileID, Name: profileDefaultName},
 			"":                     {ID: store.DefaultProfileID, Name: profileDefaultName},
 		}, nil
 	}
-	profiles, err := h.profileService().List(ctx)
+	items, err := profiles.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]profileOwnerIdentity, len(profiles))
-	for _, item := range profiles {
+	result := make(map[string]profileOwnerIdentity, len(items))
+	for _, item := range items {
 		result[item.ID] = profileOwnerIdentity{
 			ID: strings.TrimSpace(item.ID), Name: strings.TrimSpace(item.Name),
 			Color: strings.TrimSpace(item.Color), Icon: strings.TrimSpace(item.Icon),

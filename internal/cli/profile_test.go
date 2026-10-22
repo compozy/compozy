@@ -153,6 +153,60 @@ func TestSessionCommandUsesTheDaemonSessionOwnerProfile(t *testing.T) {
 	})
 }
 
+func TestAgentCatalogCommandUsesSessionProfile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should inherit the session profile without an environment profile", func(t *testing.T) {
+		t.Parallel()
+		called := false
+		client := &profileTestDaemonClient{
+			DaemonClient: &stubClient{
+				getSessionFn: func(context.Context, string) (SessionRecord, error) {
+					return SessionRecord{
+						ID:          "sess-design",
+						ProfileID:   "profile-design",
+						AgentName:   "general",
+						WorkspaceID: "ws-design",
+						State:       session.StateActive,
+					}, nil
+				},
+				getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{
+						Workspace: WorkspaceRecord{ID: "ws-design", RootDir: "/workspace"},
+					}, nil
+				},
+				listAgentsFn: func(ctx context.Context, _ AgentQuery) ([]AgentRecord, error) {
+					called = true
+					if got := profileQueryValues(ctx, nil).Get("profile"); got != "design" {
+						t.Fatalf("profile = %q", got)
+					}
+					return []AgentRecord{}, nil
+				},
+			},
+			profileClientAPI: &profileClientStub{profiles: []contract.Profile{
+				{ID: store.DefaultProfileID, Name: "default", State: "active"},
+				{ID: "profile-design", Name: "design", State: "active"},
+			}},
+		}
+		deps := newTestDeps(t, client)
+		deps.getenv = func(key string) string {
+			switch key {
+			case agentidentity.EnvSessionID:
+				return "sess-design"
+			case agentidentity.EnvAgent:
+				return "general"
+			default:
+				return ""
+			}
+		}
+		if _, _, err := executeRootCommand(t, deps, "agent", "list", "-o", "json"); err != nil {
+			t.Fatal(err)
+		}
+		if !called {
+			t.Fatal("agent list was not called")
+		}
+	})
+}
+
 func TestTaskExecutionCommandProfileSelection(t *testing.T) {
 	t.Parallel()
 	for _, args := range [][]string{
