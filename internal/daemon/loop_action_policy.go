@@ -42,7 +42,7 @@ func (g *loopSessionPolicyGate) apply(
 
 // applyLoopSessionCWD resolves the CWD only for project sessions: User-scope sessions always
 // run in the configured User work directory and reject a caller directory.
-func applyLoopSessionCWD(opts *session.CreateOpts, resolved workspacepkg.ResolvedWorkspace) error {
+func applyLoopSessionCWD(opts *session.CreateOpts, resolved *workspacepkg.ResolvedWorkspace) error {
 	if resolved.Scope == workspacepkg.ScopeUser {
 		return nil
 	}
@@ -98,7 +98,7 @@ func (g *loopSessionPolicyGate) applyResolved(
 		resolvedAgent.DenyTools,
 		opts.DeniedToolsOverride,
 	)
-	if err := applyLoopSessionCWD(opts, resolved); err != nil {
+	if err := applyLoopSessionCWD(opts, &resolved); err != nil {
 		return loopSessionPolicyResolution{}, err
 	}
 	opts.Provider = strings.TrimSpace(resolvedAgent.Provider)

@@ -47,37 +47,15 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	cursor := query.Cursor
-	query.Cursor = ""
-	limit := query.Limit
-	query.Limit = 0
-	fingerprint, err := listcursor.Fingerprint(struct {
-		Query   agentCatalogQuery
-		Breadth WorkspaceBreadth
-		Profile string
-	}{query, breadth, scope.ProfileID})
+	paging, err := newAggregateAgentPaging(&query, breadth, scope.ProfileID)
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+		h.respondError(c, paging.errorStatus, err)
 		return
-	}
-	var after aggregateAgentPosition
-	if cursor != "" {
-		after, err = listcursor.Decode[aggregateAgentPosition](
-			cursor,
-			1,
-			"agents_aggregate",
-			fingerprint,
-			listcursor.DefaultMaxEncodedSize,
-		)
-		if err != nil {
-			h.respondError(c, http.StatusBadRequest, err)
-			return
-		}
 	}
 	response := contract.AgentCatalogResponse{
 		Agents:            []contract.AgentCatalogItemPayload{},
 		SessionsAvailable: true,
-		Page:              contract.CountedCursorPagePayload{Limit: limit},
+		Page:              contract.CountedCursorPagePayload{Limit: paging.limit},
 		Facets:            contract.AgentCatalogFacetsPayload{Categories: []string{}},
 	}
 	userAgents, err := h.globalAgentEntries(c.Request.Context(), scope.ProfileID, profileName)
@@ -114,6 +92,58 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		response.Facets.Idle += page.Facets.Idle
 		response.Facets.Categories = append(response.Facets.Categories, page.Facets.Categories...)
 	}
+	if err := paging.finish(&response); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, response)
+}
+
+// aggregateAgentPaging carries the aggregate agent cursor, which pages the merged sorted rows.
+type aggregateAgentPaging struct {
+	fingerprint string
+	cursor      string
+	after       aggregateAgentPosition
+	limit       int
+	errorStatus int
+}
+
+// newAggregateAgentPaging moves the cursor and limit off the per-workspace query and decodes the
+// cursor against the query, breadth, and profile it was issued for.
+func newAggregateAgentPaging(
+	query *agentCatalogQuery,
+	breadth WorkspaceBreadth,
+	profileID string,
+) (aggregateAgentPaging, error) {
+	paging := aggregateAgentPaging{
+		cursor:      query.Cursor,
+		limit:       query.Limit,
+		errorStatus: http.StatusInternalServerError,
+	}
+	query.Cursor, query.Limit = "", 0
+	fingerprint, err := listcursor.Fingerprint(struct {
+		Query   agentCatalogQuery
+		Breadth WorkspaceBreadth
+		Profile string
+	}{*query, breadth, profileID})
+	if err != nil {
+		return paging, err
+	}
+	paging.fingerprint = fingerprint
+	if paging.cursor == "" {
+		return paging, nil
+	}
+	paging.after, err = listcursor.Decode[aggregateAgentPosition](
+		paging.cursor, 1, "agents_aggregate", fingerprint, listcursor.DefaultMaxEncodedSize,
+	)
+	if err != nil {
+		paging.errorStatus = http.StatusBadRequest
+	}
+	return paging, err
+}
+
+// finish sorts the merged rows and facets, then cuts the requested page and its next cursor.
+func (p aggregateAgentPaging) finish(response *contract.AgentCatalogResponse) error {
 	slices.Sort(response.Facets.Categories)
 	response.Facets.Categories = slices.Compact(response.Facets.Categories)
 	slices.SortFunc(response.Agents, func(a, b contract.AgentCatalogItemPayload) int {
@@ -123,24 +153,22 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		)
 	})
 	response.Page.Total = len(response.Agents)
-	start := aggregateAgentPageStart(response.Agents, cursor, after)
-	end := min(start+limit, len(response.Agents))
+	start := aggregateAgentPageStart(response.Agents, p.cursor, p.after)
+	end := min(start+p.limit, len(response.Agents))
 	response.Page.HasMore = end < len(response.Agents)
 	response.Agents = response.Agents[start:end]
-	if response.Page.HasMore {
-		last := response.Agents[len(response.Agents)-1].Agent
-		response.Page.NextCursor, err = listcursor.Encode(
-			1,
-			"agents_aggregate",
-			fingerprint,
-			aggregateAgentPosition{last.Name, last.WorkspaceID},
-		)
-		if err != nil {
-			h.respondError(c, http.StatusInternalServerError, err)
-			return
-		}
+	if !response.Page.HasMore {
+		return nil
 	}
-	c.JSON(http.StatusOK, response)
+	last := response.Agents[len(response.Agents)-1].Agent
+	cursor, err := listcursor.Encode(
+		1,
+		"agents_aggregate",
+		p.fingerprint,
+		aggregateAgentPosition{last.Name, last.WorkspaceID},
+	)
+	response.Page.NextCursor = cursor
+	return err
 }
 
 // agentMetricsWorkspace is the session-metrics selector of one aggregate row set.

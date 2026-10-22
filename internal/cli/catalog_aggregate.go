@@ -57,26 +57,11 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 			rows = append(rows, []string{label(item.WorkspaceID), item.Name, item.State})
 		}
 	case "agents":
-		var items []AgentRecord
-		for {
-			var response contract.AgentCatalogResponse
-			if err := reader.ReadAggregateCatalog(
-				cmd.Context(),
-				"/api/agents/aggregate",
-				values,
-				&response,
-			); err != nil {
-				return err
-			}
-			for _, item := range response.Agents {
-				items = append(items, item.Agent)
-				rows = append(rows, []string{label(item.Agent.WorkspaceID), item.Agent.Name, item.Agent.Provider})
-			}
-			if !response.Page.HasMore {
-				break
-			}
-			values.Set("cursor", response.Page.NextCursor)
+		items, agentRows, err := readAggregateAgents(cmd, reader, label)
+		if err != nil {
+			return err
 		}
+		rows = agentRows
 		headers[2] = "PROVIDER"
 		bundle = agentListBundle(items)
 	case "suggestions":
@@ -103,6 +88,31 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 	}
 	bundle.human = func() (string, error) { return renderHumanTable(kind, headers, rows), nil }
 	return writeCommandOutput(cmd, bundle)
+}
+
+// readAggregateAgents pages through every aggregate agent row.
+func readAggregateAgents(
+	cmd *cobra.Command,
+	reader aggregateCatalogClient,
+	label func(string) string,
+) ([]AgentRecord, [][]string, error) {
+	values := url.Values{}
+	var items []AgentRecord
+	rows := [][]string{}
+	for {
+		var response contract.AgentCatalogResponse
+		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/agents/aggregate", values, &response); err != nil {
+			return nil, nil, err
+		}
+		for _, item := range response.Agents {
+			items = append(items, item.Agent)
+			rows = append(rows, []string{label(item.Agent.WorkspaceID), item.Agent.Name, item.Agent.Provider})
+		}
+		if !response.Page.HasMore {
+			return items, rows, nil
+		}
+		values.Set("cursor", response.Page.NextCursor)
+	}
 }
 
 func addAllWorkspacesFlag(cmd *cobra.Command) {

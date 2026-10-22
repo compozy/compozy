@@ -19,20 +19,9 @@ const (
 const userScopeMigrationVersion int64 = 152
 
 func prepareUserScopeMigrationContext(ctx context.Context, db *sql.DB, homeDir, operatorHome string) (resultErr error) {
-	status, err := store.Status(ctx, db, MigrationStream())
-	if err != nil {
-		return fmt.Errorf("inspect User migration status: %w", err)
-	}
-	if status.Version >= userScopeMigrationVersion {
-		return nil
-	}
-	var exists int
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='workspaces'").
-		Scan(&exists); err != nil {
+	pending, err := userScopeMigrationPending(ctx, db)
+	if err != nil || !pending {
 		return err
-	}
-	if exists == 0 {
-		return nil
 	}
 	roots, err := userScopeMigrationRoots(homeDir, operatorHome)
 	if err != nil {
@@ -155,4 +144,22 @@ func renamedReservedWorkspace(name string, taken map[string]bool) (string, bool)
 	}
 	taken[renamed] = true
 	return renamed, true
+}
+
+// userScopeMigrationPending reports a database that has registrations and has not yet applied
+// the User-scope migration.
+func userScopeMigrationPending(ctx context.Context, db *sql.DB) (bool, error) {
+	status, err := store.Status(ctx, db, MigrationStream())
+	if err != nil {
+		return false, fmt.Errorf("inspect User migration status: %w", err)
+	}
+	if status.Version >= userScopeMigrationVersion {
+		return false, nil
+	}
+	var exists int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='workspaces'").
+		Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists != 0, nil
 }
