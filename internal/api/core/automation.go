@@ -39,7 +39,7 @@ func (h *BaseHandlers) ListAutomationJobs(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	query, err := ParseAutomationJobListQuery(c, readScope)
+	query, err := ParseAutomationJobListQuery(c, readScope, h.Workspaces)
 	if err != nil {
 		if _, ok := err.(*workspaceBreadthError); ok {
 			h.respondAggregateBreadthError(c, err)

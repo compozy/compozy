@@ -31,7 +31,7 @@ func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	query, err := ParseAutomationTriggerListQuery(c, readScope)
+	query, err := ParseAutomationTriggerListQuery(c, readScope, h.Workspaces)
 	if err != nil {
 		if _, ok := err.(*workspaceBreadthError); ok {
 			h.respondAggregateBreadthError(c, err)

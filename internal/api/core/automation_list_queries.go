@@ -11,7 +11,11 @@ import (
 )
 
 // ParseAutomationJobListQuery parses the shared automation job list filters.
-func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (automationpkg.JobListQuery, error) {
+func ParseAutomationJobListQuery(
+	c *gin.Context,
+	readScope store.ReadScope,
+	workspaces ...WorkspaceGetter,
+) (automationpkg.JobListQuery, error) {
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
 		return automationpkg.JobListQuery{}, err
@@ -21,20 +25,23 @@ func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (aut
 		return automationpkg.JobListQuery{}, err
 	}
 
-	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true})
+	breadth, err := parseWorkspaceBreadth(
+		c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true}, workspaces...,
+	)
 	if err != nil {
 		return automationpkg.JobListQuery{}, err
 	}
 	query := automationpkg.JobListQuery{
 		WorkspaceIDs: breadth.WorkspaceIDs,
 		ReadScope:    readScope,
-		WorkspaceID:  strings.TrimSpace(c.Query("workspace_id")),
-		LoopName:     strings.TrimSpace(c.Query("loop")),
-		Target:       strings.TrimSpace(c.Query("target")),
-		Enabled:      enabled,
-		Search:       strings.TrimSpace(c.Query("q")),
-		Cursor:       strings.TrimSpace(c.Query("cursor")),
-		Limit:        limit,
+		// The breadth carries the selector with a migrated legacy alias already resolved.
+		WorkspaceID: breadth.WorkspaceID,
+		LoopName:    strings.TrimSpace(c.Query("loop")),
+		Target:      strings.TrimSpace(c.Query("target")),
+		Enabled:     enabled,
+		Search:      strings.TrimSpace(c.Query("q")),
+		Cursor:      strings.TrimSpace(c.Query("cursor")),
+		Limit:       limit,
 	}
 	if query.WorkspaceID == workspaceaccess.UserSelector {
 		query.WorkspaceID = ""
@@ -66,6 +73,7 @@ func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (aut
 func ParseAutomationTriggerListQuery(
 	c *gin.Context,
 	readScope store.ReadScope,
+	workspaces ...WorkspaceGetter,
 ) (automationpkg.TriggerListQuery, error) {
 	limit, err := ParseOptionalInt(c.Query("limit"))
 	if err != nil {
@@ -76,21 +84,24 @@ func ParseAutomationTriggerListQuery(
 		return automationpkg.TriggerListQuery{}, err
 	}
 
-	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true})
+	breadth, err := parseWorkspaceBreadth(
+		c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true}, workspaces...,
+	)
 	if err != nil {
 		return automationpkg.TriggerListQuery{}, err
 	}
 	query := automationpkg.TriggerListQuery{
 		WorkspaceIDs: breadth.WorkspaceIDs,
 		ReadScope:    readScope,
-		WorkspaceID:  strings.TrimSpace(c.Query("workspace_id")),
-		Event:        strings.TrimSpace(c.Query("event")),
-		LoopName:     strings.TrimSpace(c.Query("loop")),
-		Target:       strings.TrimSpace(c.Query("target")),
-		Enabled:      enabled,
-		Search:       strings.TrimSpace(c.Query("q")),
-		Cursor:       strings.TrimSpace(c.Query("cursor")),
-		Limit:        limit,
+		// The breadth carries the selector with a migrated legacy alias already resolved.
+		WorkspaceID: breadth.WorkspaceID,
+		Event:       strings.TrimSpace(c.Query("event")),
+		LoopName:    strings.TrimSpace(c.Query("loop")),
+		Target:      strings.TrimSpace(c.Query("target")),
+		Enabled:     enabled,
+		Search:      strings.TrimSpace(c.Query("q")),
+		Cursor:      strings.TrimSpace(c.Query("cursor")),
+		Limit:       limit,
 	}
 	if query.WorkspaceID == workspaceaccess.UserSelector {
 		query.WorkspaceID = ""
