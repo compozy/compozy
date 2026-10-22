@@ -17,9 +17,16 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 			sessionWaitInputSchema, sessionWaitOutputSchema, toolspkg.RiskRead, true, false,
 		),
 		orchestrationDescriptor(
-			toolspkg.ToolIDSessionSpawn, "session_spawn", "Session Spawn",
-			"Create one governed child session with narrowed permissions and a required TTL.",
-			sessionSpawnInputSchema, sessionSpawnOutputSchema, toolspkg.RiskMutating, false, false,
+			toolspkg.ToolIDSessionSpawn,
+			"session_spawn",
+			"Session Spawn",
+			"Create one governed child session with a required TTL, narrowed or inherited permissions, "+
+				"an optional bound worktree, and an optional first prompt.",
+			sessionSpawnInputSchema,
+			sessionSpawnOutputSchema,
+			toolspkg.RiskMutating,
+			false,
+			false,
 		),
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionStop, "session_stop", "Session Stop",
@@ -114,25 +121,69 @@ const sessionSpawnInputSchema = `{
 		"provider":{"type":"string"},"model":{"type":"string"},
 		"reasoning_effort":{"type":"string"},"speed":{"type":"string","enum":["normal","fast"]},
 		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
-		"name":{"type":"string"},
+		"name":{"type":"string"},"workspace":{"type":"string","minLength":1},
 		"prompt_overlay":{"type":"string"},"spawn_role":{"type":"string"},
 		"ttl_seconds":{"type":"integer","minimum":1},
 		"auto_stop_on_parent":{"type":"boolean"},"notify_creator":{"type":"boolean"},
+		"inherit_permissions":{"type":"boolean"},
 		"tools":{"type":"array","items":{"type":"string"},"uniqueItems":true},
+		"toolsets":{"type":"array","items":{"type":"string","minLength":1},"uniqueItems":true},
 		"skills":{"type":"array","items":{"type":"string"},"uniqueItems":true},
 		"mcp_servers":{"type":"array","items":{"type":"string"},"uniqueItems":true},
 		"workspace_paths":{"type":"array","items":{"type":"string"},"uniqueItems":true},
+		"worktree":{"type":"string","minLength":1},
+		"new_worktree":` + spawnNewWorktreeInputSchema + `,
+		"prompt":{"type":"string","minLength":1},
 		"idempotency_key":{"type":"string"}
+	},
+	"not":{"required":["worktree","new_worktree"]},
+	"additionalProperties":false
+}`
+
+const spawnNewWorktreeInputSchema = `{
+	"type":"object",
+	"properties":{
+		"name":{"type":"string"},"base_ref":{"type":"string"},"branch":{"type":"string"}
 	},
 	"additionalProperties":false
 }`
 
 const sessionSpawnOutputSchema = `{
 	"type":"object",
-	"required":["session_id","spawn_role","spawn_depth","ttl_expires_at"],
+	"required":["session_id","spawn_role","spawn_depth","ttl_expires_at","permissions"],
 	"properties":{
 		"session_id":{"type":"string"},"spawn_role":{"type":"string"},
-		"spawn_depth":{"type":"integer","minimum":1},"ttl_expires_at":{"type":"string","format":"date-time"}
+		"spawn_depth":{"type":"integer","minimum":1},"ttl_expires_at":{"type":"string","format":"date-time"},
+		"permissions":{
+			"type":"object",
+			"required":["tools","skills","mcp_servers","workspace_paths"],
+			"properties":{
+				"tools":{"type":"array","items":{"type":"string"}},
+				"skills":{"type":"array","items":{"type":"string"}},
+				"mcp_servers":{"type":"array","items":{"type":"string"}},
+				"workspace_paths":{"type":"array","items":{"type":"string"}}
+			},
+			"additionalProperties":false
+		},
+		"worktree":{
+			"type":"object",
+			"required":["id","name","branch","path","created"],
+			"properties":{
+				"id":{"type":"string"},"name":{"type":"string"},"branch":{"type":"string"},
+				"path":{"type":"string"},"base_sha":{"type":"string"},"created":{"type":"boolean"}
+			},
+			"additionalProperties":false
+		},
+		"prompt":{
+			"type":"object",
+			"required":["message_id","status"],
+			"properties":{
+				"message_id":{"type":"string"},"status":{"type":"string"},
+				"reply_watch_id":{"type":"string"},"reply_watch_state":{"type":"string"},
+				"error":{"type":"string"}
+			},
+			"additionalProperties":false
+		}
 	},
 	"additionalProperties":false
 }`

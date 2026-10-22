@@ -25,31 +25,47 @@ compozy spawn [flags]
     --prompt-overlay "Review only the implementation diff." \
     --tool read \
     --skill code-review
+
+  # Spawn into a new managed worktree with the parent's grant and a first prompt
+  compozy spawn \
+    --agent general \
+    --ttl-seconds 3600 \
+    --new-worktree=feature-auth \
+    --base main \
+    --inherit-permissions \
+    --prompt "Implement the auth task, commit, and report the branch."
 ```
 
 ### Options
 
 ```
-      --acp-option stringArray       ACP select override as id=value (repeatable)
-      --acp-toggle stringArray       ACP boolean override as id=true|false (repeatable)
-      --agent string                 Child agent name
-      --auto-stop-on-parent          Stop the child when the parent stops (default true)
-  -h, --help                         help for spawn
-      --idempotency-key string       Optional idempotency key
-      --mcp-server stringArray       Allowed MCP server id (repeatable)
-      --model string                 Optional model override
-      --name string                  Optional child session display name
-      --no-notify-creator            Do not wake this session when the child needs attention or stops
-      --prompt-overlay string        Prompt overlay for the child session
-      --provider string              Optional provider override
-      --reasoning-effort string      Optional reasoning effort override
-      --role string                  Child spawn role (default "worker")
-      --skill stringArray            Allowed skill atom (repeatable)
-      --speed string                 Optional runtime speed override (normal or fast)
-      --tool stringArray             Allowed tool atom (repeatable)
-      --ttl-seconds int              Mandatory child TTL in seconds
-      --workspace string             Override child workspace (ID, name, or path)
-      --workspace-path stringArray   Allowed workspace path grant (repeatable)
+      --acp-option stringArray                     ACP select override as id=value (repeatable)
+      --acp-toggle stringArray                     ACP boolean override as id=true|false (repeatable)
+      --agent string                               Child agent name
+      --auto-stop-on-parent                        Stop the child when the parent stops (default true)
+      --base string                                Base ref for --new-worktree
+      --branch string                              Branch name for --new-worktree
+  -h, --help                                       help for spawn
+      --idempotency-key string                     Optional idempotency key
+      --inherit-permissions                        Keep the parent's grant for every permission list not given by flags
+      --mcp-server stringArray                     Allowed MCP server id (repeatable)
+      --model string                               Optional model override
+      --name string                                Optional child session display name
+      --new-worktree string[="__compozy_auto__"]   Create and bind a managed worktree for the child; optionally provide its name
+      --no-notify-creator                          Do not wake this session when the child needs attention or stops
+      --prompt string                              First prompt for the child; its answer wakes this session
+      --prompt-overlay string                      Prompt overlay for the child session
+      --provider string                            Optional provider override
+      --reasoning-effort string                    Optional reasoning effort override
+      --role string                                Child spawn role (default "worker")
+      --skill stringArray                          Allowed skill atom (repeatable)
+      --speed string                               Optional runtime speed override (normal or fast)
+      --tool stringArray                           Allowed tool atom (repeatable)
+      --toolset stringArray                        Select parent-granted tools by toolset ID (repeatable)
+      --ttl-seconds int                            Mandatory child TTL in seconds
+      --workspace string                           Override child workspace (ID, name, or path)
+      --workspace-path stringArray                 Allowed workspace path grant (repeatable)
+      --worktree string                            Bind the child to an existing ready worktree
 ```
 
 ### Options inherited from parent commands

@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -68,12 +70,14 @@ type daemonNativeToolsDeps struct {
 	ProfileManager      *profilepkg.Manager
 	SessionAttachments  attachmentspkg.Store
 	Workspaces          core.WorkspaceService
-	Worktrees           core.WorktreeService
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	ModelCatalog        core.ModelCatalogService
-	ProviderUsage       core.ProviderUsageService
-	MarketplaceCatalog  core.MarketplaceCatalogService
-	Settings            func() core.SettingsService
+	// WorkspaceAccess lets a bound session's workspace list include other workspaces it may address.
+	WorkspaceAccess    func() workspaceaccess.Policy
+	Worktrees          core.WorktreeService
+	WorkspaceResolver  workspacepkg.RuntimeResolver
+	ModelCatalog       core.ModelCatalogService
+	ProviderUsage      core.ProviderUsageService
+	MarketplaceCatalog core.MarketplaceCatalogService
+	Settings           func() core.SettingsService
 
 	Tasks            taskpkg.Manager
 	TaskDesignations core.TaskDesignationStore

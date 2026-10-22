@@ -66,6 +66,21 @@ type SpawnPermissionPolicyPayload struct {
 	WorkspacePaths []string `json:"workspace_paths"`
 }
 
+// SpawnPermissionRequestPayload is the requested spawn permission narrowing. An absent
+// list stays distinct from an empty one: with inherit_permissions it keeps the caller's
+// grant, while [] grants nothing.
+type SpawnPermissionRequestPayload struct {
+	Tools          []string `json:"tools,omitzero"`
+	Skills         []string `json:"skills,omitzero"`
+	MCPServers     []string `json:"mcp_servers,omitzero"`
+	WorkspacePaths []string `json:"workspace_paths,omitzero"`
+}
+
+// Policy returns the literal requested atoms as a policy payload.
+func (p SpawnPermissionRequestPayload) Policy() SpawnPermissionPolicyPayload {
+	return SpawnPermissionPolicyPayload(p)
+}
+
 // AgentCapabilityPayload describes one caller capability atom.
 type AgentCapabilityPayload struct {
 	ID      string `json:"id"`
@@ -158,21 +173,60 @@ type AgentContextPayload struct {
 
 // AgentSpawnRequest asks the daemon to create a narrowed child session.
 type AgentSpawnRequest struct {
-	AgentName        string                       `json:"agent_name"`
-	Provider         string                       `json:"provider,omitempty"`
-	Model            string                       `json:"model,omitempty"`
-	ReasoningEffort  ReasoningEffort              `json:"reasoning_effort,omitempty"`
-	Speed            Speed                        `json:"speed,omitempty"`
-	ACPOptions       []AgentACPOptionSelection    `json:"acp_options,omitempty"`
-	Name             string                       `json:"name,omitempty"`
-	Workspace        string                       `json:"workspace,omitempty"`
-	PromptOverlay    string                       `json:"prompt_overlay,omitempty"`
-	SpawnRole        string                       `json:"spawn_role"`
-	TTLSeconds       int64                        `json:"ttl_seconds"`
-	AutoStopOnParent bool                         `json:"auto_stop_on_parent"`
-	NotifyCreator    *bool                        `json:"notify_creator,omitzero"`
-	Permissions      SpawnPermissionPolicyPayload `json:"permissions"`
-	IdempotencyKey   string                       `json:"idempotency_key,omitempty"`
+	AgentName        string                        `json:"agent_name"`
+	Provider         string                        `json:"provider,omitempty"`
+	Model            string                        `json:"model,omitempty"`
+	ReasoningEffort  ReasoningEffort               `json:"reasoning_effort,omitempty"`
+	Speed            Speed                         `json:"speed,omitempty"`
+	ACPOptions       []AgentACPOptionSelection     `json:"acp_options,omitempty"`
+	Name             string                        `json:"name,omitempty"`
+	Workspace        string                        `json:"workspace,omitempty"`
+	PromptOverlay    string                        `json:"prompt_overlay,omitempty"`
+	SpawnRole        string                        `json:"spawn_role"`
+	TTLSeconds       int64                         `json:"ttl_seconds"`
+	AutoStopOnParent bool                          `json:"auto_stop_on_parent"`
+	NotifyCreator    *bool                         `json:"notify_creator,omitzero"`
+	Permissions      SpawnPermissionRequestPayload `json:"permissions"`
+	// InheritPermissions starts from the caller's grant; permission lists that are
+	// present replace only their own category.
+	InheritPermissions bool `json:"inherit_permissions,omitempty"`
+	// Toolsets selects caller-granted tools by toolset ID.
+	Toolsets []string `json:"toolsets,omitempty"`
+	// Worktree binds an existing ready worktree of the child workspace.
+	Worktree string `json:"worktree,omitempty"`
+	// NewWorktree creates and binds a managed worktree; exclusive with Worktree.
+	NewWorktree *SpawnNewWorktreeRequest `json:"new_worktree,omitzero"`
+	// Prompt is the child's first prompt, sent from the caller with notify_on_complete.
+	Prompt         string `json:"prompt,omitempty"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// SpawnNewWorktreeRequest names the managed worktree created for a spawned child.
+type SpawnNewWorktreeRequest struct {
+	Name    string `json:"name,omitempty"`
+	BaseRef string `json:"base_ref,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+}
+
+// SpawnWorktreePayload identifies the worktree bound to a spawned child.
+type SpawnWorktreePayload struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Branch  string `json:"branch"`
+	Path    string `json:"path"`
+	BaseSHA string `json:"base_sha,omitempty"`
+	Created bool   `json:"created"`
+}
+
+// SpawnPromptPayload reports the admitted first prompt of a spawned child.
+type SpawnPromptPayload struct {
+	MessageID       string `json:"message_id"`
+	Status          string `json:"status"`
+	ReplyWatchID    string `json:"reply_watch_id,omitempty"`
+	ReplyWatchState string `json:"reply_watch_state,omitempty"`
+	// Error explains a first prompt that failed after the child was created; the child
+	// stays live, so retry with session_prompt instead of spawning again.
+	Error string `json:"error,omitempty"`
 }
 
 // AgentSpawnPayload is the safe spawn response projection.
@@ -180,4 +234,6 @@ type AgentSpawnPayload struct {
 	Session     SessionPayload               `json:"session"`
 	Lineage     SessionLineagePayload        `json:"lineage"`
 	Permissions SpawnPermissionPolicyPayload `json:"permissions"`
+	Worktree    *SpawnWorktreePayload        `json:"worktree,omitzero"`
+	Prompt      *SpawnPromptPayload          `json:"prompt,omitzero"`
 }

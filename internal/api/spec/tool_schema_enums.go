@@ -47,6 +47,7 @@ func toolReasonCodeValues() []string {
 		string(tools.ReasonHookDenied),
 		string(tools.ReasonSchemaInvalid),
 		string(tools.ReasonConflictedID),
+		string(tools.ReasonSpawnBudgetExhausted),
 		string(tools.ReasonConflictedSanitizedName),
 		string(tools.ReasonResultBudgetExceeded),
 		string(tools.ReasonResultPersistenceFailed),

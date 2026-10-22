@@ -1430,8 +1430,34 @@
           "permissions": {
             "$ref": "#/components/schemas/SpawnPermissionPolicyPayload"
           },
+          "prompt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SpawnPromptPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "session": {
             "$ref": "#/components/schemas/SessionPayload"
+          },
+          "worktree": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SpawnWorktreePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           }
         },
         "required": [
@@ -1460,18 +1486,37 @@
           "idempotency_key": {
             "type": "string"
           },
+          "inherit_permissions": {
+            "type": "boolean"
+          },
           "model": {
             "type": "string"
           },
           "name": {
             "type": "string"
           },
+          "new_worktree": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SpawnNewWorktreeRequest"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "notify_creator": {
             "nullable": true,
             "type": "boolean"
           },
           "permissions": {
-            "$ref": "#/components/schemas/SpawnPermissionPolicyPayload"
+            "$ref": "#/components/schemas/SpawnPermissionRequestPayload"
+          },
+          "prompt": {
+            "type": "string"
           },
           "prompt_overlay": {
             "type": "string"
@@ -1492,11 +1537,20 @@
             ],
             "type": "string"
           },
+          "toolsets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "ttl_seconds": {
             "format": "int64",
             "type": "integer"
           },
           "workspace": {
+            "type": "string"
+          },
+          "worktree": {
             "type": "string"
           }
         },
@@ -19250,6 +19304,7 @@
               "skill_resource_not_found",
               "slow_consumer",
               "source_disabled",
+              "spawn_budget_exhausted",
               "subscriber_limit_reached",
               "terminal_exited",
               "terminal_expired",
@@ -30967,6 +31022,20 @@
         ],
         "type": "object"
       },
+      "SpawnNewWorktreeRequest": {
+        "properties": {
+          "base_ref": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SpawnPermissionPolicyPayload": {
         "properties": {
           "mcp_servers": {
@@ -30999,6 +31068,89 @@
           "skills",
           "tools",
           "workspace_paths"
+        ],
+        "type": "object"
+      },
+      "SpawnPermissionRequestPayload": {
+        "properties": {
+          "mcp_servers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workspace_paths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SpawnPromptPayload": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "reply_watch_id": {
+            "type": "string"
+          },
+          "reply_watch_state": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "SpawnWorktreePayload": {
+        "properties": {
+          "base_sha": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "branch",
+          "created",
+          "id",
+          "name",
+          "path"
         ],
         "type": "object"
       },
@@ -36986,6 +37138,7 @@
                 "skill_resource_not_found",
                 "slow_consumer",
                 "source_disabled",
+                "spawn_budget_exhausted",
                 "subscriber_limit_reached",
                 "terminal_exited",
                 "terminal_expired",
@@ -37218,6 +37371,7 @@
                 "skill_resource_not_found",
                 "slow_consumer",
                 "source_disabled",
+                "spawn_budget_exhausted",
                 "subscriber_limit_reached",
                 "terminal_exited",
                 "terminal_expired",
@@ -37570,6 +37724,7 @@
                 "skill_resource_not_found",
                 "slow_consumer",
                 "source_disabled",
+                "spawn_budget_exhausted",
                 "subscriber_limit_reached",
                 "terminal_exited",
                 "terminal_expired",
@@ -37786,6 +37941,7 @@
                 "skill_resource_not_found",
                 "slow_consumer",
                 "source_disabled",
+                "spawn_budget_exhausted",
                 "subscriber_limit_reached",
                 "terminal_exited",
                 "terminal_expired",
@@ -38049,6 +38205,7 @@
                 "skill_resource_not_found",
                 "slow_consumer",
                 "source_disabled",
+                "spawn_budget_exhausted",
                 "subscriber_limit_reached",
                 "terminal_exited",
                 "terminal_expired",

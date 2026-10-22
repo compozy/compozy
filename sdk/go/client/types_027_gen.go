@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// WorkspaceAttentionSummaryPayload is a daemon API value.
+type WorkspaceAttentionSummaryPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	NeedsYou    int    `json:"needs_you"`
+	Finished    int    `json:"finished"`
+}
+
+// WorkspaceConfig is a daemon API value.
+type WorkspaceConfig struct {
+	NewWindowPolicy     *NewWindowPolicy     `json:"new_window_policy,omitzero"`
+	SmallViewportPolicy *SmallViewportPolicy `json:"small_viewport_policy,omitzero"`
+	FocusPolicy         *FocusPolicy         `json:"focus_policy,omitzero"`
+	FocusWrap           *bool                `json:"focus_wrap,omitzero"`
+	FocusFollowsPointer *bool                `json:"focus_follows_pointer,omitzero"`
+	RaiseOnFocus        *bool                `json:"raise_on_focus,omitzero"`
+	DragAwayPolicy      *DragAwayPolicy      `json:"drag_away_policy,omitzero"`
+	GroupMoveModifier   *string              `json:"group_move_modifier,omitzero"`
+	SwapModifier        *string              `json:"swap_modifier,omitzero"`
+	HistoryLimit        *int                 `json:"history_limit,omitzero"`
+	NavStackLimit       *int                 `json:"nav_stack_limit,omitzero"`
+	ClosedEntryLimit    *int                 `json:"closed_entry_limit,omitzero"`
+	DesktopTransition   *DesktopTransition   `json:"desktop_transition,omitzero"`
+	Gaps                *GapsConfig          `json:"gaps,omitzero"`
+	Snap                *SnapConfig          `json:"snap,omitzero"`
+	Bindings            *BindingsConfig      `json:"bindings,omitzero"`
+	Shortcuts           map[string][]string  `json:"shortcuts,omitempty"`
+}
+
 // WorkspaceDetailPayload is a daemon API value.
 type WorkspaceDetailPayload struct {
 	Workspace    WorkspacePayload               `json:"workspace"`

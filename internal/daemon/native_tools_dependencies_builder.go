@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (d *Daemon) nativeToolsDeps(
@@ -29,6 +30,7 @@ func (d *Daemon) nativeToolsDeps(
 		ProfileManager:      state.profiles,
 		SessionAttachments:  state.sessionAttachments,
 		Workspaces:          state.workspaceResolver,
+		WorkspaceAccess:     func() workspaceaccess.Policy { return state.accessPolicy },
 		Worktrees:           state.worktrees,
 		WorkspaceResolver:   state.workspaceResolver,
 		ModelCatalog:        state.deps.ModelCatalog,

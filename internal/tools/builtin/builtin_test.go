@@ -679,6 +679,42 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 	})
 
+	t.Run("Should advertise spawn worktree, inheritance, and first prompt contracts", func(t *testing.T) {
+		t.Parallel()
+
+		// Invariant: session_spawn accepts the orchestration inputs it handles and its results validate.
+		spawn := descriptors[toolspkg.ToolIDSessionSpawn]
+		input := compileNativeSchema(t, spawn, spawn.InputSchema, "input")
+		for _, payload := range []string{
+			`{"agent_name":"general","ttl_seconds":60,"inherit_permissions":true,"toolsets":["compozy__sessions"],` +
+				`"new_worktree":{"name":"auth","base_ref":"main","branch":"feat/auth"},"prompt":"Do the task."}`,
+			`{"agent_name":"general","ttl_seconds":60,"worktree":"wt-ready"}`,
+		} {
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := input.Validate(instance); err != nil {
+				t.Fatalf("session_spawn input schema rejected %s: %v", payload, err)
+			}
+		}
+		conflicting, err := jsonschema.UnmarshalJSON(strings.NewReader(
+			`{"agent_name":"general","ttl_seconds":60,"worktree":"wt-ready","new_worktree":{}}`,
+		))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := input.Validate(conflicting); err == nil {
+			t.Fatal("session_spawn input schema accepted worktree with new_worktree")
+		}
+		assertNativeOutputSchemaAccepts(t, spawn, `{
+			"session_id":"sess-child","spawn_role":"worker","spawn_depth":1,"ttl_expires_at":"2026-10-21T12:00:00Z",
+			"permissions":{"tools":["compozy__read"],"skills":[],"mcp_servers":[],"workspace_paths":[]},
+			"worktree":{"id":"wt-1","name":"auth","branch":"feat/auth","path":"/wt/auth","base_sha":"abc","created":true},
+			"prompt":{"message_id":"spawn-prompt-sess-child","status":"accepted","reply_watch_id":"rw-1","reply_watch_state":"armed"}
+		}`)
+	})
+
 	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
 		t.Parallel()
 

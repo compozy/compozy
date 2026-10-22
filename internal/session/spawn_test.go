@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/transcript"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -159,6 +161,44 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 		})
 		if !errors.Is(err, ErrSpawnLimitExceeded) || !strings.Contains(err.Error(), foreign.ID) {
 			t.Fatalf("Spawn(second foreign child) error = %v, want target workspace cap", err)
+		}
+	})
+
+	t.Run("Should authorize a spawn target workspace before transport side effects", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		foreign, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(home) error = %v", err)
+		}
+		foreign.ID, foreign.Name = "ws-other", "other"
+		h.resolver.upsert(&foreign)
+		policy := &recordingSpawnWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: false}}
+		h.manager.SetWorkspaceAccessPolicy(policy)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 2,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		home, err := h.manager.ResolveSpawnWorkspace(testutil.Context(t), parent.ID, "")
+		if err != nil || home != h.workspaceID {
+			t.Fatalf("ResolveSpawnWorkspace(empty) = %q, %v; want parent workspace %q", home, err, h.workspaceID)
+		}
+		if _, err := h.manager.ResolveSpawnWorkspace(testutil.Context(t), parent.ID, "other"); !errors.Is(
+			err, ErrSpawnPermissionDenied,
+		) {
+			t.Fatalf("ResolveSpawnWorkspace(denied) error = %v, want %v", err, ErrSpawnPermissionDenied)
+		}
+		policy.decision = workspaceaccess.Decision{Allowed: true}
+		target, err := h.manager.ResolveSpawnWorkspace(testutil.Context(t), parent.ID, "other")
+		if err != nil || target != foreign.ID {
+			t.Fatalf("ResolveSpawnWorkspace(allowed) = %q, %v; want %q", target, err, foreign.ID)
+		}
+		if last := policy.requests[len(policy.requests)-1]; last.Seam != workspaceaccess.SeamSpawn ||
+			last.TargetWorkspaceID != foreign.ID {
+			t.Fatalf("policy request = %#v, want spawn seam for %q", last, foreign.ID)
 		}
 	})
 
@@ -440,6 +480,46 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		if got := len(h.driver.startCalls); got != startsBefore {
 			t.Fatalf("driver starts after missing binding = %d, want %d", got, startsBefore)
+		}
+	})
+
+	t.Run("Should bind a selected worktree as the child checkout of an unbound parent", func(t *testing.T) {
+		t.Parallel()
+
+		worktreeRoot := filepath.Join(t.TempDir(), "worktree")
+		if err := os.MkdirAll(worktreeRoot, 0o755); err != nil {
+			t.Fatalf("MkdirAll(worktree root) error = %v", err)
+		}
+		worktreeResolver := &fakeSessionWorktreeResolver{id: "wt-child", root: worktreeRoot}
+		h := newHostedMCPHarness(t, WithWorktreeResolver(worktreeResolver))
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 2,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID:    parent.ID,
+			AgentName:          "coder",
+			TTL:                time.Minute,
+			IsolatedWorktreeID: "wt-child",
+		})
+		if err != nil {
+			t.Fatalf("Spawn(selected worktree) error = %v", err)
+		}
+		cleanupSessionStop(t, h, child.ID)
+		if got := child.Info().WorktreeID; got != "wt-child" {
+			t.Fatalf("child worktree = %q, want %q", got, "wt-child")
+		}
+		canonicalRoot, err := canonicalDirectory(worktreeRoot)
+		if err != nil {
+			t.Fatalf("canonicalDirectory(worktree root) error = %v", err)
+		}
+		if got := h.driver.startCalls[len(h.driver.startCalls)-1].Cwd; got != canonicalRoot {
+			t.Fatalf("child cwd = %q, want worktree checkout %q", got, canonicalRoot)
+		}
+		if len(worktreeResolver.calls) == 0 || worktreeResolver.calls[len(worktreeResolver.calls)-1].ref != "wt-child" {
+			t.Fatalf("worktree resolve calls = %#v, want selected worktree", worktreeResolver.calls)
 		}
 	})
 
@@ -1496,4 +1576,192 @@ func TestSubagentSpawn(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestManagerSpawnResolvesPermissionSelection(t *testing.T) {
+	t.Parallel()
+
+	const testToolWrite = "compozy__write"
+	parentPolicy := store.SessionPermissionPolicy{
+		Tools:      []string{testToolEdit, testToolRead, testToolShell},
+		Skills:     []string{"go", "tests"},
+		MCPServers: []string{"filesystem"},
+	}
+	catalog, err := toolspkg.NewToolsetCatalog(toolspkg.Toolset{
+		ID:    "compozy__files",
+		Tools: []string{testToolEdit, testToolRead, testToolWrite},
+	})
+	if err != nil {
+		t.Fatalf("NewToolsetCatalog() error = %v", err)
+	}
+	universe := []toolspkg.ToolID{testToolEdit, testToolRead, testToolShell, testToolWrite}
+
+	tests := []struct {
+		name string
+		opts SpawnOpts
+		want store.SessionPermissionPolicy
+	}{
+		{
+			name: "Should keep omitted lists empty without inheritance",
+			opts: SpawnOpts{},
+			want: store.SessionPermissionPolicy{},
+		},
+		{
+			name: "Should inherit every omitted category from the parent",
+			opts: SpawnOpts{InheritPermissions: true},
+			want: parentPolicy,
+		},
+		{
+			name: "Should replace only the categories an inheriting request sets",
+			opts: SpawnOpts{
+				InheritPermissions:  true,
+				PermissionNarrowing: &SubagentPermissionNarrowing{Tools: []string{testToolRead}, Skills: []string{}},
+			},
+			want: store.SessionPermissionPolicy{Tools: []string{testToolRead}, MCPServers: []string{"filesystem"}},
+		},
+		{
+			name: "Should select only parent-granted toolset members",
+			opts: SpawnOpts{Toolsets: []string{"compozy__files"}},
+			want: store.SessionPermissionPolicy{Tools: []string{testToolEdit, testToolRead}},
+		},
+		{
+			name: "Should let toolsets replace an inherited tool ceiling",
+			opts: SpawnOpts{InheritPermissions: true, Toolsets: []string{"compozy__files"}},
+			want: store.SessionPermissionPolicy{
+				Tools:      []string{testToolEdit, testToolRead},
+				Skills:     []string{"go", "tests"},
+				MCPServers: []string{"filesystem"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHostedMCPHarness(t, WithToolsetCatalog(catalog), WithToolUniverse(universe))
+			parent := createSpawnParent(t, h, parentPolicy, store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+			cleanupSessionStop(t, h, parent.ID)
+			opts := tt.opts
+			opts.ParentSessionID, opts.AgentName, opts.TTL = parent.ID, "coder", time.Minute
+			child, err := h.manager.Spawn(testutil.Context(t), opts)
+			if err != nil {
+				t.Fatalf("Spawn() error = %v", err)
+			}
+			cleanupSessionStop(t, h, child.ID)
+			got := child.Info().Lineage.PermissionPolicy
+			if want := store.NormalizeSessionPermissionPolicy(tt.want); !reflect.DeepEqual(got, want) {
+				t.Fatalf("child permission policy = %#v, want %#v", got, want)
+			}
+		})
+	}
+}
+
+func TestManagerSpawnNamesTheRefusedPermission(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		opts         SpawnOpts
+		want         SpawnPermissionError
+		wantRecovery string
+	}{
+		{
+			name: "Should name the tool that widens the parent grant",
+			opts: SpawnOpts{PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolShell}}},
+			want: SpawnPermissionError{
+				Field: "tools", Value: testToolShell, Rule: SpawnPermissionRuleSubset, Allowed: []string{testToolRead},
+			},
+			wantRecovery: "inherit_permissions",
+		},
+		{
+			name: "Should point workspace path requests at the worktree binding",
+			opts: SpawnOpts{
+				PermissionPolicy: store.SessionPermissionPolicy{WorkspacePaths: []string{"/elsewhere/worktree"}},
+			},
+			want: SpawnPermissionError{
+				Field: "workspace_paths", Value: "/elsewhere/worktree", Rule: SpawnPermissionRuleSubset,
+			},
+			wantRecovery: "new_worktree",
+		},
+		{
+			name: "Should name an unknown toolset",
+			opts: SpawnOpts{Toolsets: []string{"compozy__missing"}},
+			want: SpawnPermissionError{
+				Field: "toolsets", Value: "compozy__missing", Rule: SpawnPermissionRuleUnknownToolset,
+			},
+			wantRecovery: "compozy__tool_search",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			h := newHostedMCPHarness(t)
+			parent := createSpawnParent(t, h, store.SessionPermissionPolicy{Tools: []string{testToolRead}},
+				store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1})
+			cleanupSessionStop(t, h, parent.ID)
+			opts := tt.opts
+			opts.ParentSessionID, opts.AgentName, opts.TTL = parent.ID, "coder", time.Minute
+			_, err := h.manager.Spawn(testutil.Context(t), opts)
+			if !errors.Is(err, ErrSpawnPermissionDenied) {
+				t.Fatalf("Spawn() error = %v, want %v", err, ErrSpawnPermissionDenied)
+			}
+			refusal, ok := errors.AsType[*SpawnPermissionError](err)
+			if !ok {
+				t.Fatalf("Spawn() error = %T %v, want *SpawnPermissionError", err, err)
+			}
+			if refusal.Field != tt.want.Field || refusal.Value != tt.want.Value || refusal.Rule != tt.want.Rule ||
+				!reflect.DeepEqual(refusal.Allowed, tt.want.Allowed) {
+				t.Fatalf("refusal = %#v, want %#v", *refusal, tt.want)
+			}
+			if !strings.Contains(err.Error(), tt.want.Field) || !strings.Contains(err.Error(), tt.want.Value) {
+				t.Fatalf("Spawn() error text = %q, want field and value", err.Error())
+			}
+			if !strings.Contains(refusal.Recovery(), tt.wantRecovery) {
+				t.Fatalf("Recovery() = %q, want mention of %q", refusal.Recovery(), tt.wantRecovery)
+			}
+		})
+	}
+}
+
+func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should name the cap and free the slot when a live child stops", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		parent := createSpawnParent(t, h, store.SessionPermissionPolicy{}, store.SessionSpawnBudget{
+			MaxChildren: 1,
+			MaxDepth:    1,
+		})
+		cleanupSessionStop(t, h, parent.ID)
+		spawn := func() (*Session, error) {
+			return h.manager.Spawn(testutil.Context(t), SpawnOpts{
+				ParentSessionID: parent.ID, AgentName: "coder", TTL: time.Minute,
+			})
+		}
+		first, err := spawn()
+		if err != nil {
+			t.Fatalf("Spawn(first) error = %v", err)
+		}
+
+		_, err = spawn()
+		limit, ok := errors.AsType[*SpawnLimitError](err)
+		if !ok || !errors.Is(err, ErrSpawnLimitExceeded) {
+			t.Fatalf("Spawn(over budget) error = %T %v, want *SpawnLimitError", err, err)
+		}
+		if *limit != (SpawnLimitError{Limit: SpawnLimitMaxChildren, Max: 1, Live: 1, Scope: parent.ID}) {
+			t.Fatalf("limit = %#v, want max_children 1 with one live child", *limit)
+		}
+
+		if err := h.manager.Stop(testutil.Context(t), first.ID); err != nil {
+			t.Fatalf("Stop(first) error = %v", err)
+		}
+		second, err := spawn()
+		if err != nil {
+			t.Fatalf("Spawn(after stop) error = %v, want the stopped child's slot released", err)
+		}
+		cleanupSessionStop(t, h, second.ID)
+	})
 }

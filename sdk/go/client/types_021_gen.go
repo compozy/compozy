@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// Speed is a daemon API value.
+type Speed string
+
+// StartBinding is a daemon API value.
+type StartBinding struct {
+	Kind         StartKind         `json:"kind"`
+	Inputs       map[string]any    `json:"inputs,omitempty"`
+	InputMapping map[string]string `json:"input_mapping,omitempty"`
+}
+
+// StartKind is a daemon API value.
+type StartKind string
+
+// StartTaskRunRequest is a daemon API value.
+type StartTaskRunRequest struct {
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// State is a daemon API value.
+type State string
+
+// Status is a daemon API value.
+type Status string
+
 // StatusPayload is a daemon API value.
 type StatusPayload struct {
 	SchemaVersion    string                           `json:"schema_version"`
@@ -419,31 +443,4 @@ type TaskDashboardBlockedCardPayload struct {
 	AwaitingApproval     int    `json:"awaiting_approval"`
 	AwaitingDependencies int    `json:"awaiting_dependencies"`
 	HealthStatus         string `json:"health_status"`
-}
-
-// TaskDashboardCardsPayload is a daemon API value.
-type TaskDashboardCardsPayload struct {
-	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
-	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
-	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
-	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
-}
-
-// TaskDashboardFailedCardPayload is a daemon API value.
-type TaskDashboardFailedCardPayload struct {
-	Tasks        int    `json:"tasks"`
-	FailedRuns   int    `json:"failed_runs"`
-	ForcedStops  int    `json:"forced_stops"`
-	HealthStatus string `json:"health_status"`
-}
-
-// TaskDashboardFreshnessPayload is a daemon API value.
-type TaskDashboardFreshnessPayload struct {
-	ObservedAt       time.Time `json:"observed_at"`
-	LatestActivityAt time.Time `json:"latest_activity_at"`
-	AgeMilli         int64     `json:"age_ms"`
-	StaleAfterMilli  int64     `json:"stale_after_ms"`
-	HasLiveWork      bool      `json:"has_live_work"`
-	Status           string    `json:"status"`
-	Stale            bool      `json:"stale"`
 }

@@ -34,7 +34,7 @@ func (m *Manager) publishLifecycleAttentionTransition(
 	before *Info,
 	after *Info,
 ) {
-	m.publishLifecycleAttentionTransitionWake(ctx, before, after, true)
+	m.publishLifecycleAttentionTransitionWake(ctx, before, after, true, "")
 }
 
 // publishLifecycleAttentionTransitionWake publishes the canonical attention edge
@@ -46,6 +46,7 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	before *Info,
 	after *Info,
 	deliverCompletedWake bool,
+	completedTurnID string,
 ) {
 	if after == nil {
 		return
@@ -77,5 +78,5 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if !deliverCompletedWake && to == BadgeDone {
 		return
 	}
-	m.dispatchSpawnWake(ctx, after, to)
+	m.dispatchSpawnWakeForTurn(ctx, after, to, completedTurnID)
 }

@@ -207,11 +207,25 @@ the canonical attention/lifecycle badges; omission uses the settled set, and `do
 session supervision does not mistake orchestration for inactivity.
 
 `compozy__session_spawn` creates one governed child of the caller. It requires `agent_name` and a
-positive `ttl_seconds`; optional permission arrays can only narrow the parent. Omitted
-`notify_creator` defaults to true, while explicit false suppresses the synthetic parent wake for
-that child. Optional `provider`, `model`, `reasoning_effort`, `speed`, and `acp_options` fields
-override the named agent's runtime for the child. The result returns the child session ID, role,
-depth, and TTL expiry.
+positive `ttl_seconds`; permission arrays only narrow the parent. Omitted lists grant nothing unless
+`inherit_permissions: true` keeps the parent's grant for each omitted list; `toolsets` adds the
+parent-granted members of named toolsets. `notify_creator` defaults to true. `provider`, `model`,
+`reasoning_effort`, `speed`, and `acp_options` override the agent's runtime.
+
+`workspace` targets another registered workspace when the access policy allows it. `worktree` binds
+a ready worktree of that workspace; `new_worktree: {name?, base_ref?, branch?}` creates and binds
+one (mutually exclusive). The workspace is authorized before any worktree is touched. The checkout
+becomes the child's cwd and provider sandbox root, and a worktree created for a refused spawn is
+removed. Use this instead of `workspace_paths`, which only records a narrowing atom.
+
+`prompt` sends the first prompt from the caller with `notify_on_complete` (message ID
+`spawn-prompt-<child_session_id>`), so the reply wake carries the child's final answer. The result
+returns the child ID, role, depth, TTL expiry, effective `permissions`, and optional `worktree` and
+`prompt` objects; a failed first prompt returns `prompt.status: "failed"` with `error`, and the
+child stays live for a `session_prompt` retry. Refusals are structured: `operator_cause` names the field, value, and rule
+(`subset_of_parent`, `blank_atom`, `known_toolset`) and `operator_recovery` the next step. A
+live-child cap fails with reason `spawn_budget_exhausted` and names the cap and live count; stopped
+children and subagents hold no slot.
 
 Subagent tools, also in the `sessions` toolset: `compozy__subagent_capabilities`,
 `compozy__subagent_delegate`, `compozy__subagent_status`, `compozy__subagent_cancel`. A subagent is a
@@ -389,7 +403,7 @@ payload carries `fallback_chain` with `command_fingerprint` (`sha256:`) on route
 
 Fresh daemon boot does not register a workspace automatically, so `compozy__workspace_list` may return an empty catalog on a clean install. Register the intended project explicitly before starting workspace-bound work.
 
-A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog.
+A successful workspace catalog read reconciles registered roots before returning: entries whose directories no longer exist are durably unregistered, while other filesystem or deletion failures fail the read instead of hiding uncertain state. `compozy__workspace_list`, `compozy workspace list`, and HTTP/UDS `GET /api/workspaces` share this catalog. A bound session's `compozy__workspace_list` adds every workspace its permission mode already lets it address (never prompting); pass one to a tool's `workspace` input.
 
 The workspace setup browser reads `GET /api/fs/browse`; its response includes `home` and every
 filesystem `root` so the UI can navigate outside the operator home. Agents should register a known

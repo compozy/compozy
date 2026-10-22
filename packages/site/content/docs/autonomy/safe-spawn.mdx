@@ -20,7 +20,7 @@ TTL, caps, and permission policy.
 | Valid parent identity   | The caller must be a CompozyOS-managed session resolved from daemon-issued identity.                      |
 | TTL                     | `--ttl-seconds` is required and must be positive. Spawned sessions cannot be unbounded.                   |
 | Depth cap               | The MVP default max spawn depth is `1`.                                                                   |
-| Child cap               | The MVP default max children per parent is `5`.                                                           |
+| Child cap               | The MVP default max children per parent is `5`. Only live children count; subagents never do.             |
 | Workspace target        | Children inherit the parent workspace. `--workspace` may target another workspace when the policy allows. |
 | Coordinator role denial | `--role coordinator` is rejected. Coordinators are daemon-managed root sessions, not child sessions.      |
 | Permission subset       | Child tools, skills, MCP servers, and workspace paths must be a subset of the parent set.                 |
@@ -62,8 +62,66 @@ Permission flags are repeatable:
 grant checked against the parent set, not a placement flag — it does not choose which workspace the
 child runs in. Use `--workspace` for that.
 
+### Inherit the parent's permissions
+
+Without flags, a child gets no native tools, skills, or MCP servers. `--inherit-permissions` keeps
+the parent's grant for every list you do not pass, and a list you pass replaces only its own
+category. `--toolset` picks the parent-granted members of a named toolset:
+
+```bash
+compozy spawn \
+  --agent general \
+  --ttl-seconds 3600 \
+  --inherit-permissions \
+  --toolset compozy__sessions
+```
+
+Inheritance and toolsets never widen the parent. These grants cover CompozyOS-native tools only;
+the child's provider keeps its own shell and file tools under its sandbox and permission mode.
+
+When the daemon refuses a request, the error names the field, the refused value, the rule
+(`subset_of_parent`, `blank_atom`, or `known_toolset`), and a recovery hint.
+
 The response includes the child session, lineage, and safe permission projection. It does not create
 or claim task work by itself.
+
+## Give the child its own worktree
+
+Bind the child to a worktree so it changes code on its own branch:
+
+```bash
+compozy spawn \
+  --agent general \
+  --ttl-seconds 3600 \
+  --new-worktree=feature-auth \
+  --base main \
+  --branch feat/auth
+```
+
+`--worktree <ref>` binds an existing ready worktree instead. The two flags are mutually exclusive,
+and `--base` and `--branch` apply only to `--new-worktree`. Combined with `--workspace`, the worktree
+belongs to that workspace: the daemon authorizes the cross-workspace spawn first and only then
+resolves or creates the worktree there, so a denied request leaves no worktree behind. The child's working directory, and so
+its provider sandbox root, is the worktree checkout. A worktree created for a refused spawn is
+removed again. The response's `worktree` object reports its ID, branch, path, and base commit. Use
+this instead of `--workspace-path` to place a worker in another checkout.
+
+## Send the first prompt
+
+`--prompt` sends the child's first prompt from the parent with a reply watch:
+
+```bash
+compozy spawn \
+  --agent general \
+  --ttl-seconds 3600 \
+  --new-worktree=feature-auth \
+  --prompt "Implement the auth task, commit on this branch, and report the commit."
+```
+
+When the child finishes that turn, the parent receives one reply wake that carries the child's
+final answer. The response's `prompt` object reports the message ID and the reply watch. If the
+prompt fails after the child starts, the spawn still succeeds with `prompt.status` set to `failed`
+and an `error`; send the prompt again with `session_prompt` instead of spawning a second child.
 
 ## Wake the creator
 
@@ -83,6 +141,10 @@ compozy spawn \
 
 HTTP, UDS, and `compozy__session_spawn` use the presence-aware `notify_creator` boolean: omission
 keeps the default, while explicit false opts out. There is no `config.toml` key for this default.
+
+While the parent holds an open reply watch on the child, from `--prompt` or a `session_prompt` with
+`notify_on_complete`, the reply wake already carries the child's answer, so the plain completed wake
+is skipped. Wakes for failure, stop, and needs-you states still arrive.
 
 ## Cross-workspace spawn
 

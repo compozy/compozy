@@ -8,20 +8,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
-	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
-	speedpkg "github.com/compozy/compozy/internal/speed"
-	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 type nativeSessionWaiter interface {
 	WaitForBadge(context.Context, session.WaitRequest) (session.WaitOutcome, error)
-}
-
-type nativeSessionSpawner interface {
-	Spawn(context.Context, session.SpawnOpts) (*session.Session, error)
 }
 
 const (
@@ -71,65 +64,6 @@ func (n *daemonNativeTools) sessionWait(
 		payload[nativePayloadStateKey] = outcome.State
 	}
 	return structuredResult(payload, string(outcome.Outcome))
-}
-
-func (n *daemonNativeTools) sessionSpawn(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	var input nativeSessionSpawnInput
-	if err := decodeNativeInput(req, &input); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	parentID, parent, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, scope.SessionID, false)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	spawner, ok := n.deps.Sessions.(nativeSessionSpawner)
-	if !ok {
-		return toolspkg.ToolResult{}, nativeUnavailableError(req.ToolID, "session spawn service is unavailable")
-	}
-	autoStop := true
-	if input.AutoStopOnParent != nil {
-		autoStop = *input.AutoStopOnParent
-	}
-	child, err := spawner.Spawn(ctx, session.SpawnOpts{
-		ParentSessionID:  parentID,
-		AgentName:        strings.TrimSpace(input.AgentName),
-		Provider:         strings.TrimSpace(input.Provider),
-		Model:            strings.TrimSpace(input.Model),
-		ReasoningEffort:  strings.TrimSpace(input.ReasoningEffort),
-		Speed:            speedpkg.Speed(strings.TrimSpace(input.Speed)),
-		ACPOptions:       contract.ACPOptionSelectionsFromPayload(input.ACPOptions),
-		Name:             strings.TrimSpace(input.Name),
-		Workspace:        parent.WorkspaceID,
-		PromptOverlay:    strings.TrimSpace(input.PromptOverlay),
-		SpawnRole:        strings.TrimSpace(input.SpawnRole),
-		TTL:              time.Duration(input.TTLSeconds) * time.Second,
-		AutoStopOnParent: autoStop,
-		NotifyCreator:    input.NotifyCreator != nil && *input.NotifyCreator,
-		NotifyCreatorSet: input.NotifyCreator != nil,
-		PermissionPolicy: store.SessionPermissionPolicy{
-			Tools:          trimNativeStrings(input.Tools),
-			Skills:         trimNativeStrings(input.Skills),
-			MCPServers:     trimNativeStrings(input.MCPServers),
-			WorkspacePaths: trimNativeStrings(input.WorkspacePaths),
-		},
-		IdempotencyKey: strings.TrimSpace(input.IdempotencyKey),
-	})
-	if err != nil {
-		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
-	}
-	info := child.Info()
-	if info == nil || info.Lineage == nil || info.Lineage.TTLExpiresAt == nil {
-		return toolspkg.ToolResult{}, errors.New("daemon: spawned session is missing lineage")
-	}
-	payload := map[string]any{
-		watchEventsPayloadSessionIDKey: info.ID, "spawn_role": info.Lineage.SpawnRole,
-		"spawn_depth": info.Lineage.SpawnDepth, "ttl_expires_at": info.Lineage.TTLExpiresAt.UTC(),
-	}
-	return structuredResult(payload, info.ID)
 }
 
 func (n *daemonNativeTools) sessionApprove(
@@ -293,12 +227,11 @@ func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
 		status = 404
 	case errors.Is(err, toolspkg.ErrClarifyPending), errors.Is(err, toolspkg.ErrClarifyCanceled):
 		status = 409
-	case errors.Is(err, session.ErrSpawnPermissionDenied):
-		status = 403
-	case errors.Is(err, session.ErrSpawnLimitExceeded):
-		status = 409
-	case errors.Is(err, session.ErrSpawnValidation),
-		errors.Is(err, session.ErrWaitValidation),
+	case errors.Is(err, session.ErrSpawnPermissionDenied),
+		errors.Is(err, session.ErrSpawnLimitExceeded),
+		errors.Is(err, session.ErrSpawnValidation):
+		return nativeSpawnRefusalError(id, err)
+	case errors.Is(err, session.ErrWaitValidation),
 		errors.Is(err, session.ErrWaitStateInvalid):
 		status = 422
 	}

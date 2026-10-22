@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// TaskResponse is a daemon API value.
+type TaskResponse struct {
+	Task TaskPayload `json:"task"`
+}
+
+// TaskRunDetailPayload is a daemon API value.
+type TaskRunDetailPayload struct {
+	Run     TaskRunPayload                   `json:"run"`
+	Task    *TaskReferencePayload            `json:"task,omitempty"`
+	Session *TaskRunSessionPayload           `json:"session,omitempty"`
+	Summary TaskRunOperationalSummaryPayload `json:"summary"`
+}
+
+// TaskRunDetailResponse is a daemon API value.
+type TaskRunDetailResponse struct {
+	Run TaskRunDetailPayload `json:"run"`
+}
+
 // TaskRunLeaseSummaryPayload is a daemon API value.
 type TaskRunLeaseSummaryPayload struct {
 	TaskID         string         `json:"task_id"`
@@ -424,20 +442,3 @@ type TerminalExecRequest struct {
 	Visible bool                `json:"visible,omitzero"`
 	Output  TerminalOutputShape `json:"output,omitzero"`
 }
-
-// TerminalExecResponse is a daemon API value.
-type TerminalExecResponse struct {
-	ExitCode     *int                  `json:"exit_code"`
-	Signal       *TerminalSignal       `json:"signal"`
-	Output       string                `json:"output"`
-	Truncated    bool                  `json:"truncated"`
-	Untrusted    bool                  `json:"untrusted"`
-	Spill        *TerminalSpillPayload `json:"spill,omitzero"`
-	DurationMs   int64                 `json:"duration_ms"`
-	CommandID    string                `json:"command_id"`
-	StillRunning bool                  `json:"still_running,omitzero"`
-	TerminalID   *TerminalID           `json:"terminal_id"`
-}
-
-// TerminalExitCause is a daemon API value.
-type TerminalExitCause string

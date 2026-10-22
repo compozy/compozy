@@ -403,7 +403,9 @@ export type AgentSoulValidateRequest = {
 export type AgentSpawnPayload = {
   lineage: SessionLineagePayload;
   permissions: SpawnPermissionPolicyPayload;
+  prompt?: SpawnPromptPayload | null;
   session: SessionPayload;
+  worktree?: SpawnWorktreePayload | null;
 };
 
 export type AgentSpawnRequest = {
@@ -411,17 +413,22 @@ export type AgentSpawnRequest = {
   agent_name: string;
   auto_stop_on_parent: boolean;
   idempotency_key?: string;
+  inherit_permissions?: boolean;
   model?: string;
   name?: string;
+  new_worktree?: SpawnNewWorktreeRequest | null;
   notify_creator?: boolean | null;
-  permissions: SpawnPermissionPolicyPayload;
+  permissions: SpawnPermissionRequestPayload;
+  prompt?: string;
   prompt_overlay?: string;
   provider?: string;
   reasoning_effort?: string;
   spawn_role: string;
   speed?: "normal" | "fast";
+  toolsets?: Array<string>;
   ttl_seconds: number;
   workspace?: string;
+  worktree?: string;
 };
 
 export type AgentSpawnResponse = {
@@ -5307,6 +5314,7 @@ export type Redaction = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -8619,11 +8627,41 @@ export type SpawnBudgetPayload = {
   ttl_seconds: number;
 };
 
+export type SpawnNewWorktreeRequest = {
+  base_ref?: string;
+  branch?: string;
+  name?: string;
+};
+
 export type SpawnPermissionPolicyPayload = {
   mcp_servers: Array<string>;
   skills: Array<string>;
   tools: Array<string>;
   workspace_paths: Array<string>;
+};
+
+export type SpawnPermissionRequestPayload = {
+  mcp_servers?: Array<string>;
+  skills?: Array<string>;
+  tools?: Array<string>;
+  workspace_paths?: Array<string>;
+};
+
+export type SpawnPromptPayload = {
+  error?: string;
+  message_id: string;
+  reply_watch_id?: string;
+  reply_watch_state?: string;
+  status: string;
+};
+
+export type SpawnWorktreePayload = {
+  base_sha?: string;
+  branch: string;
+  created: boolean;
+  id: string;
+  name: string;
+  path: string;
 };
 
 export type StartBinding = {
@@ -10305,6 +10343,7 @@ export type ToolAvailabilityPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10463,6 +10502,7 @@ export type ToolCallEventPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10646,6 +10686,7 @@ export type ToolErrorPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10768,6 +10809,7 @@ export type ToolPolicyDecisionPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"
@@ -10903,6 +10945,7 @@ export type ToolsetPayload = {
     | "skill_resource_not_found"
     | "slow_consumer"
     | "source_disabled"
+    | "spawn_budget_exhausted"
     | "subscriber_limit_reached"
     | "terminal_exited"
     | "terminal_expired"

@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 
@@ -36,7 +37,9 @@ func hostedToolErrorStructuredContent(err error) any {
 		}}
 	}
 	if provider, ok := errors.AsType[hostedToolResponseProvider](err); ok && provider != nil {
-		return provider.Response()
+		response := provider.Response()
+		response.Error.Details = contract.FilterToolOperatorFailureDetails(response.Error.Details)
+		return response
 	}
 	return nil
 }
@@ -58,7 +61,7 @@ func hostedToolErrorMessage(err error) string {
 	}
 	if provider, ok := errors.AsType[hostedToolResponseProvider](err); ok && provider != nil {
 		payload := provider.Response().Error
-		message := strings.TrimSpace(payload.Message)
+		message := hostedOperatorFailureMessage(strings.TrimSpace(payload.Message), payload.Details)
 		if payload.Code == tools.ErrorCodeInvalidRequest {
 			return string(payload.Code) + ": " + message
 		}
@@ -70,4 +73,20 @@ func hostedToolErrorMessage(err error) string {
 		}
 	}
 	return err.Error()
+}
+
+// hostedOperatorFailureMessage appends the daemon's safe cause and recovery details so a
+// masked denial still tells the agent which field and rule refused the call.
+func hostedOperatorFailureMessage(message string, details map[string]json.RawMessage) string {
+	filtered := contract.FilterToolOperatorFailureDetails(details)
+	for _, entry := range []struct{ key, label string }{
+		{contract.ToolOperatorCauseDetailKey, "Cause"},
+		{contract.ToolOperatorRecoveryDetailKey, "Recovery"},
+	} {
+		var value string
+		if raw, ok := filtered[entry.key]; ok && json.Unmarshal(raw, &value) == nil && value != "" {
+			message += "\n" + entry.label + ": " + value
+		}
+	}
+	return message
 }
