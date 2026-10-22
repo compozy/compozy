@@ -9240,7 +9240,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					},
 				},
 				Workspaces:      workspaces,
-				WorkspaceAccess: func() workspaceaccess.Policy { return policy },
+				WorkspaceAccess: policy,
 			}, nativeApproveAllPolicyInputs())
 			result, err := registry.Call(
 				t.Context(),
@@ -9254,7 +9254,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			if got := bytes.Contains(result.Structured, []byte(`"id":"ws-b"`)); got != tt.allowed {
 				t.Fatalf("%s: workspace_list = %s, want ws-b listed = %t", tt.name, result.Structured, tt.allowed)
 			}
-			if policy.last.Seam != workspaceaccess.SeamCatalog || policy.last.TargetWorkspaceID != "ws-b" ||
+			if policy.last.Seam != workspaceaccess.SeamCatalog || policy.last.Target.WorkspaceID != "ws-b" ||
 				policy.last.Actor.SessionID != "sess-a" {
 				t.Fatalf("%s: access request = %#v, want catalog seam for ws-b", tt.name, policy.last)
 			}

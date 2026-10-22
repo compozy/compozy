@@ -98,12 +98,46 @@ type SpawnBudgetPayload struct {
 	MaxActivePerWorkspace int   `json:"max_active_per_workspace,omitempty"`
 }
 
+// SpawnNewWorktreeRequest is a daemon API value.
+type SpawnNewWorktreeRequest struct {
+	Name    string `json:"name,omitempty"`
+	BaseRef string `json:"base_ref,omitempty"`
+	Branch  string `json:"branch,omitempty"`
+}
+
 // SpawnPermissionPolicyPayload is a daemon API value.
 type SpawnPermissionPolicyPayload struct {
 	Tools          []string `json:"tools"`
 	Skills         []string `json:"skills"`
 	MCPServers     []string `json:"mcp_servers"`
 	WorkspacePaths []string `json:"workspace_paths"`
+}
+
+// SpawnPermissionRequestPayload is a daemon API value.
+type SpawnPermissionRequestPayload struct {
+	Tools          []string `json:"tools,omitzero"`
+	Skills         []string `json:"skills,omitzero"`
+	MCPServers     []string `json:"mcp_servers,omitzero"`
+	WorkspacePaths []string `json:"workspace_paths,omitzero"`
+}
+
+// SpawnPromptPayload is a daemon API value.
+type SpawnPromptPayload struct {
+	MessageID       string `json:"message_id"`
+	Status          string `json:"status"`
+	ReplyWatchID    string `json:"reply_watch_id,omitempty"`
+	ReplyWatchState string `json:"reply_watch_state,omitempty"`
+	Error           string `json:"error,omitempty"`
+}
+
+// SpawnWorktreePayload is a daemon API value.
+type SpawnWorktreePayload struct {
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Branch  string `json:"branch"`
+	Path    string `json:"path"`
+	BaseSHA string `json:"base_sha,omitempty"`
+	Created bool   `json:"created"`
 }
 
 // Speed is a daemon API value.
@@ -410,20 +444,4 @@ type TaskBlockPayload struct {
 	ClearedAt   *time.Time      `json:"cleared_at,omitempty"`
 	ClearedBy   *ActorIdentity  `json:"cleared_by,omitempty"`
 	ClearNote   string          `json:"clear_note,omitempty"`
-}
-
-// TaskBlockResponse is a daemon API value.
-type TaskBlockResponse struct {
-	Block TaskBlockPayload `json:"block"`
-}
-
-// TaskBlocksResponse is a daemon API value.
-type TaskBlocksResponse struct {
-	Blocks []TaskBlockPayload `json:"blocks"`
-}
-
-// TaskCatalogFacetsPayload is a daemon API value.
-type TaskCatalogFacetsPayload struct {
-	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
-	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
 }
