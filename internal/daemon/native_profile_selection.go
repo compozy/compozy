@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -12,6 +13,19 @@ import (
 )
 
 func (n *daemonNativeTools) nativeProfileSelection(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest, descriptor toolspkg.Descriptor) (toolspkg.Scope, toolspkg.CallRequest, error) {
+	// Extension lifecycle handlers own installation profile selection.
+	if slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDExtensions) {
+		return scope, req, nil
+	}
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+		return scope, req, err
+	}
+	if _, ok := schema.Properties["workspace"]; !ok {
+		return scope, req, nil
+	}
 	var input map[string]json.RawMessage
 	if err := json.Unmarshal(req.Input, &input); err != nil {
 		return scope, req, err

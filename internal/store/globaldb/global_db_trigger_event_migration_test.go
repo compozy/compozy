@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/store"
@@ -422,6 +423,20 @@ func TestGlobalDBMemoryTriggerRetirementMigration(t *testing.T) {
 			}
 			before := make([]string, len(keptQueries))
 			for i, query := range keptQueries {
+				rows, err := prior.QueryContext(ctx, query)
+				if err != nil {
+					t.Fatal(err)
+				}
+				columns, err := rows.Columns()
+				closeErr := rows.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+				if closeErr != nil {
+					t.Fatal(closeErr)
+				}
+				query = strings.Replace(query, "SELECT *", "SELECT "+strings.Join(columns, ","), 1)
+				keptQueries[i] = query
 				before[i] = memoryRetirementRows(t, prior, query)
 			}
 			if err := prior.Close(); err != nil {

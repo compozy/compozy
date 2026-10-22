@@ -32,8 +32,6 @@ const (
 	startupSkillsSectionBudget    = 16_000
 	// Keep the router intact; reference manuals are loaded on demand.
 	startupToolsSectionBudget = 16_000
-	// Track both complete bundled manuals; skills-disabled sessions cannot fetch omitted guidance.
-	startupToolsReferenceSectionBudget = 80_000
 )
 
 // PromptSectionPosition identifies whether a startup section renders before or
@@ -151,12 +149,12 @@ func defaultBundledStartupPromptSectionDescriptors() []PromptSectionDescriptor {
 			},
 		},
 		{
-			Name:           string(HarnessPromptSectionTools),
-			Position:       PromptSectionPositionAppend,
-			Order:          startupToolsSectionOrder,
-			Budget:         startupToolsReferenceSectionBudget,
-			BudgetBehavior: PromptSectionBudgetBehaviorTrim,
-			Provider:       promptSectionProviderFunc(bundledToolReferencesPromptSection),
+			Name:     string(HarnessPromptSectionTools),
+			Position: PromptSectionPositionAppend,
+			Order:    startupToolsSectionOrder,
+			// Skills-disabled sessions cannot fetch omitted guidance.
+			Budget:   0,
+			Provider: promptSectionProviderFunc(bundledToolReferencesPromptSection),
 			Predicate: func(policy ResolvedHarnessPolicy) bool {
 				return containsHarnessSection(policy.IncludeSections, HarnessPromptSectionTools) &&
 					!containsHarnessSection(policy.IncludeSections, HarnessPromptSectionSkills)

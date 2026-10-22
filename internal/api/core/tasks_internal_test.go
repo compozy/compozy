@@ -126,6 +126,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks", http.NoBody)
 			handlers := &BaseHandlers{TransportName: tc.transport}
 
 			actor, err := handlers.taskActorContext(ctx, taskActionGet)
@@ -144,6 +145,7 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 
 		recorder := httptest.NewRecorder()
 		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/tasks", http.NoBody)
 		handlers := &BaseHandlers{
 			TaskActorContextResolver: func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 				return taskpkg.DeriveHumanActorContext("user-2", taskpkg.OriginKindHTTP, "custom."+action)

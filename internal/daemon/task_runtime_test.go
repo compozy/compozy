@@ -2648,7 +2648,7 @@ func TestBootTasksSchedulerStatusUsesDurableStarvationEpisodes(t *testing.T) {
 			t.Fatalf("workspace.NewResolver() error = %v", err)
 		}
 		workspaceRecord, err := resolver.Register(ctx, workspacepkg.RegisterOptions{
-			RootDir: homePaths.HomeDir,
+			RootDir: t.TempDir(),
 			Name:    "scheduler-status-workspace",
 		})
 		if err != nil {

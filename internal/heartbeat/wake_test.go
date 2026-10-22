@@ -564,7 +564,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 
 		decisions, err := service.WakeMany(t.Context(), []WakeRequest{
 			{WorkspaceID: "ws-1", AgentName: "coder", SessionID: "sess-1", Source: WakeSourceScheduler},
-			{AgentName: "coder", SessionID: "sess-2", Source: WakeSourceScheduler},
+			{SessionID: "sess-2", Source: WakeSourceScheduler},
 		})
 		if err == nil {
 			t.Fatal("WakeMany(partial invalid request) error = nil, want aggregate error")

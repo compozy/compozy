@@ -45,7 +45,14 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
 	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon {
 		return nil
 	}
-	if actor.Scope.UserProfileID != actor.ReadScope.ProfileID || scope.Normalize() == ScopeGlobal || strings.TrimSpace(actor.Scope.WorkspaceID) != strings.TrimSpace(workspaceID) {
+	sameScope := strings.TrimSpace(actor.Scope.WorkspaceID) == strings.TrimSpace(workspaceID)
+	if scope.Normalize() == ScopeGlobal {
+		sameScope = sameScope && actor.Actor.Kind.Normalize() != ActorKindAgentSession
+		if actor.Actor.Kind.Normalize() == ActorKindAgentSession {
+			sameScope = actor.Scope.UserProfileID != "" && actor.Scope.UserProfileID == actor.ReadScope.ProfileID
+		}
+	}
+	if !sameScope || (a.workspaceAccess != nil && actor.Actor.Kind.Normalize() == ActorKindAgentSession) {
 		allowed, err := taskWorkspaceAccessAllowed(ctx, a.workspaceAccess, actor, strings.TrimSpace(workspaceID))
 		if err != nil {
 			return errors.Join(ErrPermissionDenied, err)

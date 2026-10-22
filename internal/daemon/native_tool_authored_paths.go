@@ -67,6 +67,9 @@ func (n *daemonNativeTools) nativeSkillWorkspace(
 	workspaceID string,
 ) (*workspacepkg.ResolvedWorkspace, error) {
 	profileID = strings.TrimSpace(profileID)
+	if workspacepkg.ParseWorkspaceRef(workspaceID).Kind == workspacepkg.RefUser {
+		workspaceID = ""
+	}
 	if profileID == "" && workspaceID == "" {
 		return nil, nil
 	}

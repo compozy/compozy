@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestSessionPolicyGateAppliesEvidencePermissionPolicy(t *testing.T) {
@@ -96,6 +97,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			t.Fatalf("taskRoleCreateOpts() error = %v", err)
 		}
 		want := session.CreateOpts{
+			Origin:        workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation},
 			AgentName:     "frontend-engineer",
 			Provider:      "claude",
 			Model:         "sonnet",

@@ -4304,7 +4304,12 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 			loopName string
 			want     string
 		}{
-			{name: "Should reject empty workspace", ws: " ", loopName: "delivery", want: "workspace_id is required"},
+			{
+				name:     "Should reject User scope without profile",
+				ws:       " ",
+				loopName: "delivery",
+				want:     "User scope requires profile_id",
+			},
 			{name: "Should reject empty loop name", ws: "ws-1", loopName: " ", want: "loop_name is required"},
 		}
 		for _, tc := range cases {

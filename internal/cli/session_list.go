@@ -123,7 +123,11 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 	if err != nil {
 		return err
 	}
-	if flags.allWorkspaces {
+	format, err := resolveInheritedOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if flags.allWorkspaces && len(page.Sessions) > 0 && format != OutputJSON && format != OutputJSONL {
 		labels, err := aggregateProjectLabels(cmd, client)
 		if err != nil {
 			return err

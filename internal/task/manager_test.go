@@ -4367,7 +4367,12 @@ func TestManagerCreateTaskUsesTrustedActorContext(t *testing.T) {
 
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
-	actor, err := DeriveAgentSessionActorContext("sess-123", "ws-1")
+	actor, err := DeriveUserSessionActorContextForOrigin(
+		"sess-123",
+		storepkg.DefaultProfileID,
+		OriginKindAgentSession,
+		"",
+	)
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 	}
@@ -4448,7 +4453,12 @@ func TestManagerCreateTaskRecordsIntentWithoutRuns(t *testing.T) {
 			name: "agent-created approval task",
 			actor: func(t *testing.T) ActorContext {
 				t.Helper()
-				actor, err := DeriveAgentSessionActorContext("sess-agent-create", "ws-1")
+				actor, err := DeriveUserSessionActorContextForOrigin(
+					"sess-agent-create",
+					storepkg.DefaultProfileID,
+					OriginKindAgentSession,
+					"",
+				)
 				if err != nil {
 					t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 				}
@@ -5681,7 +5691,7 @@ func TestManagerGlobalTaskWorkspaceIsolation(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	workspaceActor := agentSessionActorContextForWorkspace("sess-ws-a", "ws-a")
+	workspaceActor := agentSessionActorContext("sess-ws-a")
 
 	root, err := manager.CreateTask(
 		ctx,
@@ -7726,6 +7736,29 @@ func TestManagerTaskResourceAuthorityFencesWorkspaces(t *testing.T) {
 		err := failed.AuthorizeTaskScope(t.Context(), agent, ScopeWorkspace, "ws-b")
 		if !errors.Is(err, ErrPermissionDenied) || !errors.Is(err, policyErr) {
 			t.Fatalf("AuthorizeTaskScope(policy failure) error = %v, want denial joined with cause", err)
+		}
+	})
+
+	t.Run("Should authorize same-project sessions through their authenticated profile policy", func(t *testing.T) {
+		t.Parallel()
+		actor := agentSessionActorContextForWorkspace("sess-a", "ws-a")
+		actor.ReadScope = storepkg.ReadScope{ProfileID: "profile-b"}
+		policy := &recordingTaskWorkspaceAccessPolicy{}
+		authorizer := scopedTaskResourceAuthorizer{workspaceAccess: policy}
+		err := authorizer.AuthorizeTask(t.Context(), actor, Task{
+			Scope: ScopeWorkspace, WorkspaceID: "ws-a", ProfileID: "profile-b",
+		})
+		if !errors.Is(err, ErrPermissionDenied) || policy.calls != 1 {
+			t.Fatalf("same-project policy denial = %v, calls = %d", err, policy.calls)
+		}
+		if policy.last.Target != workspaceaccess.ScopeTarget("ws-a", "profile-b") {
+			t.Fatalf("policy target = %#v", policy.last.Target)
+		}
+		policy.decision = workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant}
+		if err := authorizer.AuthorizeTask(t.Context(), actor, Task{
+			Scope: ScopeWorkspace, WorkspaceID: "ws-a", ProfileID: "profile-b",
+		}); err != nil {
+			t.Fatalf("granted cross-profile task read = %v", err)
 		}
 	})
 
@@ -9890,7 +9923,12 @@ func TestManagerForceRunOperations(t *testing.T) {
 			WithForceRecoveryOptions(ForceRecoveryOptions{AllowAgentForce: false}),
 		)
 		operator := validActorContext()
-		agent, err := DeriveAgentSessionActorContext("sess-force-agent", "ws-1")
+		agent, err := DeriveUserSessionActorContextForOrigin(
+			"sess-force-agent",
+			storepkg.DefaultProfileID,
+			OriginKindAgentSession,
+			"",
+		)
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -11543,7 +11581,7 @@ func TestManagerStartRunTransfersClaimedPerRunExecutionToDedicatedSession(t *tes
 	}
 	manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(executor))
 	actor := validActorContext()
-	claimer := agentSessionActorContext("sess-claimer")
+	claimer := agentSessionActorContextForWorkspace("sess-claimer", "ws-test")
 
 	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID:   storepkg.DefaultProfileID,
@@ -13648,7 +13686,10 @@ func TestManagerWakeCreatorSummarizesFailedRunsByTaskTerminalState(t *testing.T)
 }
 
 func agentSessionActorContext(sessionID string) ActorContext {
-	return agentSessionActorContextForWorkspace(sessionID, "ws-test")
+	actor := agentSessionActorContextForWorkspace(sessionID, "")
+	actor.Scope.UserProfileID = storepkg.DefaultProfileID
+	actor.ReadScope = storepkg.ReadScope{ProfileID: storepkg.DefaultProfileID}
+	return actor
 }
 
 func agentSessionActorContextForWorkspace(sessionID string, workspaceID string) ActorContext {

@@ -1518,7 +1518,11 @@ func TestGlobalDBUserFolderMigration(t *testing.T) {
 		ctx := t.Context()
 		workspace := registerWorkspaceForGlobalTests(t, old, "preserved", t.TempDir())
 		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: workspace}
-		registerLayoutSession(ctx, t, old, workspace, "sess-preserved")
+		if _, err := raw.ExecContext(ctx, `INSERT INTO sessions
+(id, profile_id, name, agent_name, workspace_id, session_type, state, created_at, updated_at)
+VALUES ('sess-preserved', ?, 'Preserved', 'coder', ?, 'user', 'stopped', '2026-10-17', '2026-10-17')`, store.DefaultProfileID, workspace); err != nil {
+			t.Fatal(err)
+		}
 		folder := createLayoutFolder(ctx, t, old, scope, "folder-preserved", "Preserved")
 		if err := old.MoveSession(ctx, scope, "sess-preserved", folder.ID); err != nil {
 			t.Fatal(err)
