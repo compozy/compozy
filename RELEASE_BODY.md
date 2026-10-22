@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-10-20
+## 0.3.0 - 2026-10-22
 
 ### ♻️ Refactoring
 
@@ -109,6 +109,13 @@
 - Add opencode v2 support (#811)
 - Let open-design prototype with the project's component library (#867)
 - Wake agent sessions natively when background work finishes (#860)
+- Mark workspaces with working sessions in the switchers (#869)
+- Remove discovered worktrees without adopting them (#870)
+- Show and cancel session monitors from the session list and composer (#876)
+- Add provider usage tray, usage app and daemon collectors (#871)
+- Move selected sessions into folders by drag or menu (#881)
+- Bind spawned workers to worktrees and inherit parent permissions (#885)
+- Work across all projects and in a User scope without a project (#887)
 
 ### 🐛 Bug Fixes
 
@@ -375,6 +382,20 @@
 - Bring runtime and attachments to the empty desktop composer (#865)
 - Report actionable errors for invalid workspace config (#866)
 - Consume first-message handoffs when attachments are removed
+- Preserve session message formatting and editing (#874)
+- Stop stale session and terminal retry loops (#875)
+- Replace newer desktop runtimes that reject the app (#878)
+- Keep terminal journal databases outside project directories (#877)
+- Scope session monitor routes to the profile and never drop monitor refreshes
+- Re-read open monitor lists when the session catalog stream reconnects
+- Keep stale provider usage resolutions from restoring disabled targets
+- Prevent session deletion from deadlocking the daemon (#880)
+- Allow session derivation after root deletion (#884)
+- Stage desktop updates before installer shutdown (#886)
+- Default new automations to the host time zone with a searchable picker (#889)
+- Render supervised terminal calls as compact tool rows (#893)
+- Keep skill_view source a string and expose command_source for command_id reads (#892)
+- Address terminal and session release review findings
 
 ### 🔧 Miscellaneous Tasks
 
@@ -410,6 +431,10 @@
 - Synchronize migration and startup verification
 - Apply formatter to blank promotion regression
 - Assert bounded caller reads in native policy regression
+- Assert specific workspacedb validation errors
+- Assert desktop runtime retry before and after replacement
+- Align UDS integration runtime with user scope
+- Align HTTP integration runtime with user scope
 
 ### Release Notes
 
@@ -551,6 +576,21 @@ state disposition and integration changes.
 
 Migration notes: this ships without the usual one-release deprecation window. The exception is recorded in the agent-collaboration spec (Business Rule 18, ADR-002). To keep working in the same session, end the turn. To schedule work, use a subagent (`compozy__subagent_delegate`) or `compozy session prompt` from the operator.
 
+##### Terminal history stays outside project directories
+
+Terminal journal databases now live in `~/.compozy/workspaces/<workspace-id>/compozy.db`, beside
+the workspace's retained terminal artifacts and recordings. The configured `COMPOZY_HOME` is
+respected. Terminal use no longer creates SQLite databases or WAL/shared-memory sidecars in the
+project's `.compozy/` directory.
+
+## Migration notes
+
+This is an explicitly approved storage hard cut. Existing `<project>/.compozy/compozy.db` files
+are not imported, read, modified or deleted. The new journal starts empty, so old command history
+and its recording/artifact index are not available through the journal after upgrading. Retain
+the old files if you need that history; never remove SQLite files while an older daemon uses them.
+New history persists across restarts and remains isolated by workspace and profile.
+
 ##### The desktop app is now Electron
 
 The Tauri/Rust desktop host is replaced by an Electron shell with a narrow preload boundary, and updating became one durable daemon-owned operation exposed identically through the CLI, HTTP, UDS, Settings, and the menubar. The app provisions the bundled daemon from an empty home, or attaches to a compatible daemon that is already running without taking ownership of it, keeping single-instance focus, deep links, safe navigation boundaries, page zoom, window geometry recovery, diagnostics, logs, and the owned-versus-attached quit contract. (#424)
@@ -648,6 +688,44 @@ compozy cmd-palette invoke <destructive-id> -o json   # returns approval_pending
 compozy approvals show <approval-id> -o json          # pending → terminal
 compozy approvals cancel <approval-id>
 ```
+
+##### See every project at once with All projects
+
+The topbar globe now turns on **All projects**, a real place to work. Sessions, Tasks, Loops and Goals,
+Automations, Terminals, Worktrees, Agents, Home, and needs-you badges list every project plus User,
+and each row names its project. Items open on the All projects desktop without switching projects,
+New session asks which project (and, under All profiles, which profile) it belongs to, and turning
+the globe off returns to the project or User exactly as you left it. Listing toolbars gain a
+**Project** filter, and the session list gains **Group by** (None, Project, Profile).
+
+- CLI: `--all-workspaces` on `loop runs`, `loop requests`, `loop list`, `task list`,
+  `automation jobs|triggers|runs|suggestions`, `worktree list`, `terminal list`, and `agent list`, with
+  a `PROJECT` column (`User` for User rows, `?` when unknown).
+- HTTP/UDS: `all_workspaces=true` and repeatable `workspace_ids` (`@user` for User) on sessions,
+  tasks, the task dashboard, the overview, and automation jobs, triggers, and runs, with their existing
+  envelopes and app access. New operator-only aggregates that refuse app tokens: `/api/loop-runs`,
+  `/api/loop-requests`, `/api/loops`, `/api/worktrees`, `/api/terminals` (local only),
+  `/api/automation/suggestions`, and `/api/agents/aggregate`. Agents need the unrestricted grant to read
+  them; others get `agent_scope_denied`. New errors: `workspace_breadth_invalid`, `workspace_reserved`,
+  `window_binding_invalid`.
+- Automation runs record the project of the job or trigger that started them (`workspace_id`,
+  `attribution`); runs whose project cannot be established read **Unknown project**.
+- Window, desktop, and layout tools accept `workspace: "global"` for the All projects desktop
+  (operator only; every agent is refused).
+
+Breaking: the needs-you bell's `workspace_label` for items without a project changes from `"Global"`
+to `"User"`. It is a display string; match on `workspace_id` instead.
+
+Migration notes: `shell.sessions.scope` is deprecated. Through v0.4.0 it stays stored and returned,
+old clients may keep writing it, and each write warns and names `shell.sessions.group_by` and the
+topbar globe. While `group_by` is unset, `scope = "all-workspaces"` groups the list by project; an
+explicit `group_by` wins. In v0.5.0 the daemon turns `scope = "all-workspaces"` into
+`group_by = "project"` when grouping is unset, drops the key with a logged notice, and removes it from
+`config.toml` on the next apply; it never blocks startup. To migrate now, run
+`compozy config unset shell.sessions.scope` and `compozy config set shell.sessions.group_by project`.
+Automation run history is kept: older runs whose job or trigger still exists get its project
+(`derived`), the rest stay `unknown`. Per-project desktops and saved layouts are unchanged; All
+projects uses the profile's existing `global` desktop.
 
 ##### Build apps on CompozyOS with TypeScript and Go
 
@@ -1140,6 +1218,26 @@ Messages between agent sessions now reach long-running targets, stay behind the 
 
 Migration notes: migration 00138 is applied automatically on daemon start and preserves all queued inputs and reply watches.
 
+##### Spawned workers get their own worktree, the parent's grant, and a first prompt
+
+`compozy spawn`, `compozy__session_spawn`, and `POST /api/agent/spawn` can now:
+
+- bind the child to a worktree with `--worktree <ref>` or `--new-worktree[=name] --base --branch`.
+  The checkout becomes the child's working directory and provider sandbox root.
+- keep the parent's permission grant with `--inherit-permissions`, and select parent-granted tools
+  by toolset with `--toolset`. Neither widens the parent.
+- send the first prompt with `--prompt`. The parent's reply wake then carries the child's final
+  answer.
+- target another registered workspace with `--workspace` together with a worktree. The daemon
+  authorizes the workspace before it resolves or creates the worktree there.
+
+In a session, `compozy__workspace_list` now also lists the other workspaces the session's
+permission mode lets it address. A refused spawn now names the field, value, and rule that
+refused it, and a worktree created for it is removed again. An exhausted `max_children` budget
+fails with `spawn_budget_exhausted` and the live count instead of a generic conflict; subagents no
+longer count against it. The native session tools' output schemas now match the session runtime they
+return, so `compozy__session_create` no longer reports a schema mismatch for a session it created.
+
 ##### Steer a working session and see when Stop has actually finished
 
 Follow-ups now default to steering. Runtimes that advertise live steering receive the guidance inside the active turn; other runtimes report an explicit interrupt-and-replace fallback. The composer shows what happened, restores refused drafts, and Settings lets you choose queueing instead. CLI and native-tool responses expose the send outcome and steering capability.
@@ -1241,6 +1339,50 @@ The OS shell now groups windows into first-class tab frames instead of assuming 
 - `compozy config set window_manager.*` applies through the canonical Settings section endpoint, so a live apply projects only that section and unrelated restart-required drift stays pending and truthful in `compozy status`.
 
 Migration notes: persisted window layouts move to v3 as a hard cut — v2 layout compatibility paths and singleton-window assumptions were removed from the runtime, generated contracts, and layout profiles.
+
+##### Work outside a project in User
+
+Sessions, Loops, Goals, terminals, tasks, and automations can now run in **User**, a scope for work
+that belongs to no project. Each profile has its own User scope. It runs in your home folder (set
+`[user_scope] work_dir` to change it), loads your personal configuration, and never registers a
+project. Pick **User** in the workspace switcher, between **All projects** and your projects, to see
+only User work on its own desktop.
+
+- CLI: `compozy session new --user`, and `--workspace @user` on every command that takes
+  `--workspace`. HTTP/UDS: `POST /api/sessions` with `{"scope":"user"}`, `@user` in workspace paths and
+  selectors (`/api/workspaces/@user/...`, `workspace_id=@user`). Native tools accept
+  `"workspace": "@user"`. Session payloads add `scope` and `effective_workspace_access`.
+- The new AGENT.md field `workspace_access: unrestricted` lets one agent read and act on every project,
+  User, and every profile, including All projects aggregates. Only the operator can set it; agents
+  that try get `workspace_access_operator_only`, and marketplace or extension agents cannot ship it.
+  Sessions started by other agents never get more than their creator. Tool approvals still follow
+  `permissions`. Every allowed decision is logged as `workspace.access_granted` with source
+  `agent_grant`, and granted sessions show an **Unrestricted** badge. This deliberately reintroduces a
+  grant for this one field, superseding the earlier "no grant vocabulary" rule for cross-workspace
+  access.
+- New errors: `session_create_scope_conflict`, `user_scope_unsupported`,
+  `user_scope_worktree_unsupported`, `user_scope_work_dir_invalid`, `workspace_name_reserved`,
+  `workspace_access_operator_only`. Registering `COMPOZY_HOME` now fails like the home folder
+  (`workspace_home_forbidden`). User work has no worktrees.
+
+Migration notes: the first start moves the hidden `COMPOZY_HOME` project (and any leftover
+home-folder registration) into the User scope of each profile that owns its work. Tasks, automations,
+Loop judges, and managed Goals that ran there now run in User; automations that target a project Loop
+keep running in that project. Session identities and creation stamps are unchanged. Terminal history
+and retained recordings are copied per profile and verified before the old journal folder is renamed
+with `.migrated`; keep those folders for recovery. Layouts are copied when no User layout exists yet.
+The hidden project is removed only after every store finishes and no row still references it; an
+interrupted upgrade resumes on the next start. A hidden project with worktrees, or targeted by a
+Loop automation, stays an ordinary project, addressable by its ID or name, and the log says so.
+Nothing is deleted: colliding rows and project-only data (coordination, extension bindings and dev
+links, model discovery contexts) are kept in `user_scope_migration_archive` with their original JSON;
+`user_scope_migrations` records progress. Projects named `user`, `global`, or starting with `@` are
+renamed (leading `@` stripped, `-project` appended when needed); the old name keeps working with a
+deprecation warning through v0.4.0 and is removed in v0.5.0. `@user` always means User; on window
+surfaces `global` always means the All projects desktop. Daemons older than v0.3.0 reject `AGENT.md`
+files that contain `workspace_access`, so upgrade every daemon that reads them before adding it.
+Records saved before this release carry no grant ceiling; save them again as the operator to let a
+granted agent's tasks, automations, or Loop runs keep the grant.
 
 #### Fixes
 

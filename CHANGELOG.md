@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-20
+## 0.3.0 - 2026-10-22
 
 ### ♻️ Refactoring
 
@@ -116,6 +116,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add opencode v2 support (#811)
 - Let open-design prototype with the project's component library (#867)
 - Wake agent sessions natively when background work finishes (#860)
+- Mark workspaces with working sessions in the switchers (#869)
+- Remove discovered worktrees without adopting them (#870)
+- Show and cancel session monitors from the session list and composer (#876)
+- Add provider usage tray, usage app and daemon collectors (#871)
+- Move selected sessions into folders by drag or menu (#881)
+- Bind spawned workers to worktrees and inherit parent permissions (#885)
+- Work across all projects and in a User scope without a project (#887)
 
 ### 🐛 Bug Fixes
 
@@ -382,6 +389,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bring runtime and attachments to the empty desktop composer (#865)
 - Report actionable errors for invalid workspace config (#866)
 - Consume first-message handoffs when attachments are removed
+- Preserve session message formatting and editing (#874)
+- Stop stale session and terminal retry loops (#875)
+- Replace newer desktop runtimes that reject the app (#878)
+- Keep terminal journal databases outside project directories (#877)
+- Scope session monitor routes to the profile and never drop monitor refreshes
+- Re-read open monitor lists when the session catalog stream reconnects
+- Keep stale provider usage resolutions from restoring disabled targets
+- Prevent session deletion from deadlocking the daemon (#880)
+- Allow session derivation after root deletion (#884)
+- Stage desktop updates before installer shutdown (#886)
+- Default new automations to the host time zone with a searchable picker (#889)
+- Render supervised terminal calls as compact tool rows (#893)
+- Keep skill_view source a string and expose command_source for command_id reads (#892)
+- Address terminal and session release review findings
 
 ### 🔧 Miscellaneous Tasks
 
@@ -417,6 +438,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Synchronize migration and startup verification
 - Apply formatter to blank promotion regression
 - Assert bounded caller reads in native policy regression
+- Assert specific workspacedb validation errors
+- Assert desktop runtime retry before and after replacement
+- Align UDS integration runtime with user scope
+- Align HTTP integration runtime with user scope
 
 ## 0.2.15 - 2026-07-17
 
