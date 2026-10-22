@@ -20,6 +20,9 @@ Use it when you want the state of a project summarized on a fixed rhythm rather 
 Config-backed jobs live in `config.toml`. This is the whole definition.
 
 ```toml title="config.toml"
+[automation]
+timezone = "America/Sao_Paulo" # Replace with your local IANA zone
+
 [[automation.jobs]]
 scope = "workspace"
 workspace = "/Users/you/src/checkout-api"
@@ -41,8 +44,10 @@ retry = { strategy = "backoff", max_retries = 2, base_delay = "5m" }
 fire_limit = { max = 4, window = "24h" }
 ```
 
-Schedules are evaluated in the automation timezone, which defaults to `UTC` — set it explicitly if
-`08:30` should mean your local morning.
+Schedules use `automation.timezone`. New configs record the detected host IANA zone, falling back
+to `UTC`; existing configs without the key keep UTC. Set your local zone before using this example
+so `08:30` means your local morning. Do not convert the cron expression to a fixed UTC offset:
+daylight saving time can change that offset.
 
 ## Run it
 

@@ -71,7 +71,7 @@ CompozyOS archives them on load instead of failing; see
 | `[extensions.sources.*]`             | Published extension source availability and endpoints.                                 | GitHub and git enabled, `https://api.github.com`                                                      |
 | `[extensions.dev]`                   | CLI-side extension dev-loop poll cadence.                                              | `watch_interval = "2s"`                                                                               |
 | `[extensions.resources]`             | Resource kinds, scope ceiling, and rate limits for extension-published resources.      | unrestricted kinds and scope, rate limits off                                                         |
-| `[automation]`                       | Automation scheduler defaults.                                                         | enabled, UTC, 5 concurrent jobs                                                                       |
+| `[automation]`                       | Automation scheduler defaults.                                                         | enabled, host time zone for new configs, 5 concurrent jobs                                            |
 | `[[automation.jobs]]`                | Scheduled automation jobs.                                                             | empty list                                                                                            |
 | `[[automation.triggers]]`            | Event-driven automation triggers.                                                      | empty list                                                                                            |
 | `[loops]`                            | Daemon reconciliation cadence for terminal Loop execution records.                     | `reconcile_interval = "1m"`                                                                           |
@@ -554,7 +554,7 @@ max_scope = "workspace"
 
 [automation]
 enabled = true
-timezone = "UTC"
+timezone = "America/Sao_Paulo" # Example: choose your local IANA zone
 max_concurrent_jobs = 5
 default_fire_limit = { max = 12, window = "1h" }
 
@@ -2076,12 +2076,30 @@ requires positive `requests` and `window`, and a non-negative `queue`.
 
 ## `[automation]`
 
-| Field                 | Type    | Default                       | Valid values                                                        | Description                                                                         |
-| --------------------- | ------- | ----------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `enabled`             | boolean | `true`                        | `true` or `false`                                                   | Enables config-defined automation jobs and triggers.                                |
-| `timezone`            | string  | `UTC`                         | IANA timezone loadable by Go, such as `UTC` or `America/Sao_Paulo`. | Schedule timezone for automation.                                                   |
-| `max_concurrent_jobs` | integer | `5`                           | Positive integer.                                                   | Global automation concurrency cap.                                                  |
-| `default_fire_limit`  | object  | `{ max = 12, window = "1h" }` | `max` positive, `window` positive Go duration.                      | Default rolling fire limit copied into jobs and triggers that omit their own limit. |
+| Field                 | Type    | Default                                   | Valid values                                                        | Description                                                                         |
+| --------------------- | ------- | ----------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `enabled`             | boolean | `true`                                    | `true` or `false`                                                   | Enables config-defined automation jobs and triggers.                                |
+| `timezone`            | string  | Host zone for new configs; `UTC` fallback | IANA timezone loadable by Go, such as `UTC` or `America/Sao_Paulo`. | Schedule timezone for automation.                                                   |
+| `max_concurrent_jobs` | integer | `5`                                       | Positive integer.                                                   | Global automation concurrency cap.                                                  |
+| `default_fire_limit`  | object  | `{ max = 12, window = "1h" }`             | `max` positive, `window` positive Go duration.                      | Default rolling fire limit copied into jobs and triggers that omit their own limit. |
+
+New user configs persist the detected IANA time zone of the machine running CompozyOS. If detection
+fails, they persist `UTC`. Existing configs without `automation.timezone` continue using `UTC`;
+upgrading or running the installer again does not shift existing schedules.
+
+Choose **Settings → Automation → Schedule time zone**, or run
+`compozy config set automation.timezone America/Sao_Paulo` with your local IANA zone. The Settings
+shortcut uses the machine running CompozyOS, including when you connect remotely; it does not use
+the browser's zone. The shortcut is absent when host detection is unavailable. Detection checks
+`TZ`, the system zone name, the `/etc/localtime` zoneinfo link, and `/etc/timezone`; unrecognized
+names fall back to UTC for new configs.
+
+Write cron in that zone's wall-clock time. Do not manually convert local schedules to a fixed UTC
+offset: daylight saving time can change that offset. Changing the shared zone affects cron schedules; review existing expressions before saving.
+Restart CompozyOS when prompted to apply the change. Existing cron cursors then recalculate in the
+new zone; intervals and absolute timestamps keep their timing. A fire already deferred for capacity
+is honored once, followed by the next cron time in the new zone. Upgrading alone preserves legacy
+cursors and catch-up work.
 
 ## `[automation.suggestions]`
 

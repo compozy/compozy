@@ -305,6 +305,18 @@ lifecycle contract.
 
 ## Automation Schedules
 
+Schedules use the single shared `automation.timezone`. First creation of the user config writes the
+host's detected, loadable IANA zone, or `UTC` if detection fails. Existing configs without the key
+retain UTC on upgrade and reinstall. Set a local IANA zone with
+`compozy config set automation.timezone America/Sao_Paulo` or the searchable Settings picker.
+Settings offers the daemon host zone (not the browser zone) and signals a mismatch; detection failure
+omits the shortcut. Review existing schedules before changing the shared zone. Keep cron in local
+time: manually converting it to a fixed UTC offset breaks where daylight saving time changes.
+The zone change requires a daemon restart. Cron cursors then recalculate in the new zone; interval
+and absolute-time schedules are unchanged. Already deferred fires retain their identity and run
+once before the new cron cursor continues. Legacy cursor identity upgrades preserve pending times
+and catch-up work.
+
 Automation schedule catch-up policy is part of the public schedule contract. Recurring schedules accept `skip_missed`, `coalesce`, `replay`, and `run_once_on_catchup`; one-time `at` schedules reject catch-up fields. Omit the policy for the target-aware default: Loop targets with a `watch-source` use `coalesce`, while other scheduled targets use `skip_missed`. `misfire_grace_seconds=0` uses the daemon jitter grace. Durable canceled runs identify `misfire_grace_exceeded` and `self_overlap` under `metadata.reason`. Catch-up starts carry structured automation-run metadata so agents can distinguish normal starts from recovered starts and reason about `concurrency: forbid|queue` outcomes.
 
 CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields without replacing the target; use native tools or HTTP/UDS for target replacement.

@@ -19,9 +19,18 @@ from their source, and only their enabled state can be overlaid at runtime. Dyna
 created, updated, and deleted through the automation API.
 
 <OperatorNote>
-  CompozyOS evaluates job schedules in the automation timezone. The default timezone is `UTC`, and
-  the default global automation concurrency limit is `5` active jobs.
+  CompozyOS evaluates job schedules in `automation.timezone`. New user configs record the host’s
+  detected IANA zone, with `UTC` as a fallback. Existing configs without the key keep using `UTC`.
+  The default global automation concurrency limit is `5` active jobs.
 </OperatorNote>
+
+Choose your local IANA zone in **Settings → Automation → Schedule time zone** or with
+`compozy config set automation.timezone America/Sao_Paulo`. Then write cron in local time.
+Avoid converting cron to a fixed UTC offset: that conversion becomes wrong when daylight saving
+time changes the offset. Review existing schedules before changing the shared zone, then restart
+CompozyOS to apply it. Cron cursors recalculate in the new zone; interval and absolute-time schedules
+keep their timing. An already deferred fire keeps its original identity and runs once before the
+new cron cursor continues. Upgrading alone preserves existing cursors and catch-up work.
 
 ## Browse the job catalog
 
@@ -353,13 +362,13 @@ default_fire_limit = { max = 6, window = "1h" }
 
 ## Worked example: daily code review
 
-This workspace job asks the `reviewer` agent to inspect the repository every weekday at 09:00 UTC,
+This workspace job asks the `reviewer` agent to inspect the repository every weekday at 09:00 in `America/Sao_Paulo`,
 allows one run per day, and retries failed runs with exponential backoff.
 
 ```toml
 [automation]
 enabled = true
-timezone = "UTC"
+timezone = "America/Sao_Paulo"
 max_concurrent_jobs = 5
 default_fire_limit = { max = 12, window = "1h" }
 

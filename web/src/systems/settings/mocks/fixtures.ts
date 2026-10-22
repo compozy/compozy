@@ -136,6 +136,7 @@ export const settingsAutomationSectionFixture: SettingsAutomationSection = {
     default_fire_limit: { max: 5, window: "1m" },
   },
   runtime: {
+    host_timezone: "America/Sao_Paulo",
     available: true,
     running: true,
     scheduler_running: true,

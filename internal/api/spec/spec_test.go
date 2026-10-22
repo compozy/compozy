@@ -3444,6 +3444,22 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #888: optional daemon host zone; existing config fields and required fields stay unchanged.
+	automationProperties := baseline
+	for _, key := range []string{
+		"paths", "/api/settings/automation", "get", "responses", "200", "content", "application/json",
+		"schema", "properties", "runtime", "properties",
+	} {
+		next, ok := automationProperties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved automation schema addition: missing object %q", key)
+		}
+		automationProperties = next
+	}
+	if _, exists := automationProperties["host_timezone"]; exists {
+		t.Fatal("host_timezone already exists in the historical baseline")
+	}
+	automationProperties["host_timezone"] = map[string]any{"type": "string"}
 	// #864: optional workspace-config error details; required fields stay unchanged.
 	if addWorkspaceConfigErrorSchema(baseline) == 0 {
 		t.Fatal("approved workspace config error additions: no historical error schemas found")

@@ -127,6 +127,7 @@ func settingsAutomationRuntimePayload(
 	value settingspkg.AutomationRuntimeStatus,
 ) contract.SettingsAutomationRuntimePayload {
 	return contract.SettingsAutomationRuntimePayload{
+		HostTimezone:     value.HostTimezone,
 		Available:        value.Available,
 		Running:          value.Running,
 		SchedulerRunning: value.SchedulerRunning,

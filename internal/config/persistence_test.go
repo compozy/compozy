@@ -14,6 +14,123 @@ import (
 	burnttoml "github.com/BurntSushi/toml"
 )
 
+func TestEditConfigOverlayInitialTimezone(t *testing.T) {
+	// not parallel: each case controls the process TZ environment for first-config detection.
+	for _, tc := range []struct {
+		name     string
+		tz       string
+		existing *string
+		want     string
+	}{
+		{name: "Should persist the host zone for a new user config", tz: "America/Sao_Paulo", want: "America/Sao_Paulo"},
+		{name: "Should fall back to UTC for an invalid host zone", tz: "Invalid/Zone", want: "UTC"},
+		{name: "Should preserve UTC for an existing empty config", tz: "America/Sao_Paulo", existing: new(""), want: "UTC"},
+		{name: "Should preserve an explicit zone on reinstall", tz: "America/Sao_Paulo", existing: new("[automation]\ntimezone = \"Europe/London\"\n"), want: "Europe/London"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TZ", tc.tz)
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.existing != nil {
+				writeFile(t, homePaths.ConfigFile, *tc.existing)
+			}
+			cfg, err := SaveBootstrapConfig(homePaths, "claude", "claude-sonnet-4-6")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Automation.Timezone != tc.want {
+				t.Fatalf("timezone = %q, want %q", cfg.Automation.Timezone, tc.want)
+			}
+			reloaded, err := LoadGlobalConfig(homePaths)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reloaded.Automation.Timezone != tc.want {
+				t.Fatalf("persisted timezone = %q, want %q", reloaded.Automation.Timezone, tc.want)
+			}
+			if tc.existing == nil {
+				contents, err := os.ReadFile(homePaths.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var persisted struct{ Automation struct{ Timezone string } }
+				if _, err := burnttoml.Decode(string(contents), &persisted); err != nil {
+					t.Fatal(err)
+				}
+				if persisted.Automation.Timezone != tc.want {
+					t.Fatalf("explicit timezone = %q, want %q", persisted.Automation.Timezone, tc.want)
+				}
+			}
+		})
+	}
+}
+
+func TestHostTimezoneDetection(t *testing.T) {
+	t.Run("Should accept only loadable IANA zone names", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct{ input, want string }{
+			{"America/Sao_Paulo", "America/Sao_Paulo"},
+			{":Europe/London", "Europe/London"},
+			{"/var/db/timezone/zoneinfo/America/New_York", "America/New_York"},
+			{"UTC", "UTC"}, {"Japan", "Japan"}, {"Local", ""}, {"PST", ""}, {"Invalid/Zone", ""},
+			{"/etc/localtime", ""}, {"../America/Sao_Paulo", ""},
+		} {
+			if got := hostIANATimezone(tc.input); got != tc.want {
+				t.Errorf("hostIANATimezone(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		}
+	})
+	t.Run("Should detect a zoneinfo symlink when the local name is Local", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		zonePath := filepath.Join(root, "zoneinfo", "America", "Sao_Paulo")
+		writeFile(t, zonePath, "")
+		localPath := filepath.Join(root, "localtime")
+		if err := os.Symlink(zonePath, localPath); err != nil {
+			t.Fatal(err)
+		}
+		if got := detectHostTimezone(
+			"",
+			false,
+			"Local",
+			localPath,
+			filepath.Join(root, "missing"),
+		); got != "America/Sao_Paulo" {
+			t.Fatalf("detected timezone = %q", got)
+		}
+		for _, tz := range []string{localPath, ":" + localPath} {
+			if got := detectHostTimezone(tz, true, "Local", localPath, ""); got != "America/Sao_Paulo" {
+				t.Fatalf("explicit TZ %q detected timezone = %q", tz, got)
+			}
+		}
+	})
+	t.Run("Should read the timezone file and tolerate missing host data", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		missing := filepath.Join(root, "missing")
+		zonePath := filepath.Join(root, "timezone")
+		writeFile(t, zonePath, "Europe/Paris\n")
+		if got := detectHostTimezone("", false, "Local", missing, zonePath); got != "Europe/Paris" {
+			t.Fatalf("detected timezone = %q", got)
+		}
+		if got := detectHostTimezone("", false, "Local", missing, missing); got != "" {
+			t.Fatalf("undetectable timezone = %q", got)
+		}
+		if got := detectHostTimezone("Invalid/Zone", true, "Europe/Paris", missing, zonePath); got != "" {
+			t.Fatalf("invalid TZ must not use a different host zone: %q", got)
+		}
+		if got := detectHostTimezone("", true, "Europe/Paris", missing, zonePath); got != "UTC" {
+			t.Fatalf("empty TZ = %q, want UTC", got)
+		}
+		missingZone := filepath.Join(root, "zoneinfo", "Europe", "Paris")
+		if got := detectHostTimezone(missingZone, true, "Europe/Paris", missing, zonePath); got != "" {
+			t.Fatalf("missing explicit TZ file must not infer a zone from its path: %q", got)
+		}
+	})
+}
+
 func TestEditConfigOverlayPreservesCommentsAndUntouchedSections(t *testing.T) {
 	t.Parallel()
 

@@ -1391,6 +1391,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					DefaultFireLimit:  automationmodel.FireLimitConfig{Max: 5, Window: "1m"},
 				},
 				Runtime: settingspkg.AutomationRuntimeStatus{
+					HostTimezone:     "America/Sao_Paulo",
 					Available:        true,
 					Running:          true,
 					SchedulerRunning: true,
@@ -1581,6 +1582,15 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						"general config idle_release_after=%q session_timeout=%q, want 45m0s and the deprecated 30m0s",
 						payload.Config.IdleReleaseAfter, payload.Config.SessionTimeout,
 					)
+				}
+				return
+			case settingspkg.SectionAutomation:
+				payload, ok := response.(contract.SettingsAutomationResponse)
+				if !ok {
+					t.Fatalf("automation response = %T, want SettingsAutomationResponse", response)
+				}
+				if payload.Runtime.HostTimezone != "America/Sao_Paulo" || payload.Config.Timezone != "UTC" {
+					t.Fatalf("automation response = %#v, want distinct host and schedule zones", payload)
 				}
 				return
 			case settingspkg.SectionAttention:

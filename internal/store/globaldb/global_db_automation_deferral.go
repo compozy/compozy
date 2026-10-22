@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
@@ -89,7 +90,15 @@ func (g *AutomationRepo) saveSchedulerState(
 		if err != nil && !errors.Is(err, automation.ErrSchedulerStateNotFound) {
 			return err
 		}
-		if existing.ScheduleHash != state.ScheduleHash {
+		// A zone change or legacy identity upgrade can retain an already reserved fire.
+		// Schedule replacement clears DeferredUntil and still cancels its old reservation.
+		preservesDeferredFire := existing.DeferredUntil != nil && state.DeferredUntil != nil &&
+			existing.LastFireID != "" && existing.LastFireID == state.LastFireID &&
+			existing.LastScheduledAt != nil && state.LastScheduledAt != nil &&
+			existing.LastScheduledAt.Equal(*state.LastScheduledAt)
+		legacyIdentityUpgrade := existing.ScheduleHash != "" &&
+			strings.HasPrefix(state.ScheduleHash, existing.ScheduleHash+":")
+		if existing.ScheduleHash != state.ScheduleHash && !preservesDeferredFire && !legacyIdentityUpgrade {
 			if err := cancelSupersededAutomationReservation(ctx, exec, state.JobID, g.now()); err != nil {
 				return err
 			}
