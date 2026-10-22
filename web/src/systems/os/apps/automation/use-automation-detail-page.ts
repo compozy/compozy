@@ -53,7 +53,7 @@ export function useAutomationDetailPage(
   } = useActiveWorkspace();
   // The window's own scope decides readability: its binding, else its desktop.
   const windowScope = useWindowDataWorkspace();
-  const readableWorkspaceId = windowScope?.kind === "project" ? windowScope.workspaceId : null;
+  const readableWorkspaceId = readableProjectWorkspaceId(windowScope);
   const [queuedRun, setQueuedRun] = useState<AutomationRun | null>(null);
 
   const { accessError, detailQuery, entity } = useAutomationDetailEntity(
@@ -72,14 +72,8 @@ export function useAutomationDetailPage(
     detailQuery.error
   );
 
-  const workspaceNameById = (workspaceId: string | undefined): string | null => {
-    if (!workspaceId) return null;
-    return workspaces.find(workspace => workspace.id === workspaceId)?.name ?? workspaceId;
-  };
-  const sentenceContext = {
-    ...(timeZone ? { timeZone } : {}),
-    workspaceName: workspaceNameById,
-  };
+  const workspaceNameById = workspaceNameResolver(workspaces);
+  const sentenceContext = automationSentenceContext(timeZone, workspaceNameById);
   const view = entity ? toAutomationView(entity, sentenceContext) : undefined;
   const { loopTarget, loopMissing } = useLoopTargetPresence(entity, liveDataEnabled);
 
@@ -126,17 +120,9 @@ export function useAutomationDetailPage(
       loopMissing,
       lastRanAt: automationLastRanAt(runs) ?? view?.lastRun?.startedAt ?? null,
       runs,
-      runsError: entity ? runsQuery.error : null,
-      runsLoading: entity ? runsQuery.isLoading : false,
+      ...automationRunsState(entity !== undefined && entity !== null, runsQuery),
       // All projects: a run keeps the project it was recorded in, even after a retarget.
-      runProject:
-        breadthMode === "all"
-          ? (run: AutomationRun) =>
-              automationRunProject(
-                run,
-                new Map(workspaces.map(workspace => [workspace.id, workspace.name]))
-              )
-          : undefined,
+      runProject: breadthMode === "all" ? automationRunProjectResolver(workspaces) : undefined,
       state: {
         isDeleting: mutations.remove.isPending,
         isTogglePending: mutations.update.isPending,
@@ -153,4 +139,35 @@ export function useAutomationDetailPage(
       onToggleEnabled: (enabled: boolean) => void actions.toggleEnabled(enabled),
     },
   };
+}
+
+function readableProjectWorkspaceId(windowScope: ReturnType<typeof useWindowDataWorkspace>) {
+  return windowScope?.kind === "project" ? windowScope.workspaceId : null;
+}
+
+function workspaceNameResolver(workspaces: readonly { id: string; name: string }[]) {
+  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  return (workspaceId: string | undefined): string | null =>
+    workspaceId ? (names.get(workspaceId) ?? workspaceId) : null;
+}
+
+function automationSentenceContext(
+  timeZone: string | undefined,
+  workspaceName: (workspaceId: string | undefined) => string | null
+) {
+  return { ...(timeZone ? { timeZone } : {}), workspaceName };
+}
+
+function automationRunsState(
+  hasEntity: boolean,
+  runsQuery: { error: Error | null; isLoading: boolean }
+) {
+  return hasEntity
+    ? { runsError: runsQuery.error, runsLoading: runsQuery.isLoading }
+    : { runsError: null, runsLoading: false };
+}
+
+function automationRunProjectResolver(workspaces: readonly { id: string; name: string }[]) {
+  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  return (run: AutomationRun) => automationRunProject(run, names);
 }

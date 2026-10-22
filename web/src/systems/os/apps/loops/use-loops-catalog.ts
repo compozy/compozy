@@ -8,7 +8,6 @@ import { normalizeListingSearchValue } from "@/lib/listing-search";
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import {
   loopCatalogBatchEntries,
-  type LoopCatalogAggregate,
   type LoopCatalogEntry,
   type LoopCatalogFilter,
   useLoops,
@@ -17,7 +16,6 @@ import {
 import { useProfileReadScope } from "@/systems/profiles";
 import {
   breadthQuery,
-  DESTINATION_COPY,
   itemBindingSearch,
   loopBreadthTarget,
   useActiveWorkspace,
@@ -25,6 +23,15 @@ import {
   workspaceBadgeIdentity,
 } from "@/systems/workspace";
 import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
+import {
+  loopCatalogFilterFromSearch,
+  loopsCatalogAggregate,
+  loopsCatalogQueryState,
+  loopsCategoryOptions,
+  loopsHasActiveFilters,
+  loopsServerFilters,
+  loopsWorkspaceLabel,
+} from "./loops-catalog-model";
 
 /**
  * View-model for the Loops catalog route: URL state, data, bindings, and Run
@@ -42,24 +49,8 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
 
   const searchQuery = search.q ?? "";
   const view: ListingViewMode = search.view ?? "rows";
-  const filter: LoopCatalogFilter = {
-    kind: search.kind ?? "all",
-    category: search.category ?? null,
-    status: search.status ?? null,
-  };
-
-  const serverFilters = {
-    category: filter.category ?? undefined,
-    kind:
-      filter.kind === "read-only"
-        ? ("read_only" as const)
-        : filter.kind === "workspace"
-          ? ("workspace" as const)
-          : undefined,
-    q: searchQuery,
-    sort: "name" as const,
-    status: filter.status ?? undefined,
-  };
+  const filter = loopCatalogFilterFromSearch(search);
+  const serverFilters = loopsServerFilters(filter, searchQuery);
   const loopsQuery = useLoops(workspaceId, { ...serverFilters, limit: 50 }, workspaceId !== "");
   const target = loopBreadthTarget(breadthQuery({ kind: "all" }, projectFilter.values));
   const batchQuery = useLoopsAggregate(
@@ -71,18 +62,7 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
   const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
   const projectOf = (id: string | undefined) => workspaceBadgeIdentity(id, names);
   const batchEntries = loopCatalogBatchEntries(batchQuery.entries);
-  const aggregate: LoopCatalogAggregate | undefined = allProjects
-    ? {
-        projectOf,
-        errors: batchQuery.errors.map(error => ({
-          workspaceId: error.workspace_id ?? "",
-          label: projectOf(error.workspace_id).name,
-          message: error.message,
-        })),
-        truncated: batchQuery.truncated,
-        onRetry: () => void batchQuery.refetch(),
-      }
-    : undefined;
+  const aggregate = allProjects ? loopsCatalogAggregate(batchQuery, projectOf) : undefined;
 
   const updateSearch = (updater: (current: LoopsRouteSearch) => LoopsRouteSearch) => {
     void navigate({
@@ -135,50 +115,21 @@ function useLoopsCatalog(search: LoopsRouteSearch = {}) {
   };
 
   const entries = allProjects ? batchEntries : loopsQuery.loops;
-  // The batch carries no facets; its categories come from the complete, bounded batch.
-  const categories = allProjects
-    ? batchEntries.flatMap(entry => entry.catalog?.category?.trim() || [])
-    : Object.keys(loopsQuery.facets?.categories ?? {});
 
   return {
     allProjects,
     aggregate,
-    workspaceLabel: allProjects
-      ? DESTINATION_COPY.allProjects
-      : scope?.kind === "user"
-        ? DESTINATION_COPY.user
-        : projectOf(workspaceId).name,
+    workspaceLabel: loopsWorkspaceLabel(scope, projectOf(workspaceId).name),
     /** Under All profiles definitions resolve for one concrete profile; the toolbar says which. */
     definitionsNote: profile.aggregate ? `Definitions for ${profile.destination}` : null,
-    hasActiveFilters:
-      searchQuery.trim() !== "" ||
-      filter.kind !== "all" ||
-      filter.category !== null ||
-      filter.status !== null ||
-      projectFilter.values.length > 0,
+    hasActiveFilters: loopsHasActiveFilters(searchQuery, filter, projectFilter.values.length),
     clearFilters,
     filter,
-    categoryOptions: [...new Set(categories)].sort(),
+    categoryOptions: loopsCategoryOptions(allProjects, batchEntries, loopsQuery),
     entries,
     facets: allProjects ? undefined : loopsQuery.facets,
     total: allProjects ? batchEntries.length : loopsQuery.total,
-    catalogQuery: allProjects
-      ? {
-          isLoading: batchQuery.isLoading,
-          error: batchQuery.error,
-          hasNextPage: false,
-          isFetchingNextPage: false,
-          fetchNextPage: () => undefined,
-          retry: () => void batchQuery.refetch(),
-        }
-      : {
-          isLoading: loopsQuery.isLoading,
-          error: loopsQuery.error,
-          hasNextPage: loopsQuery.hasNextPage,
-          isFetchingNextPage: loopsQuery.isFetchingNextPage,
-          fetchNextPage: () => void loopsQuery.fetchNextPage(),
-          retry: () => void loopsQuery.refetch(),
-        },
+    catalogQuery: loopsCatalogQueryState(allProjects, batchQuery, loopsQuery),
     handleRun,
     projectFilter,
     searchQuery: queryInput.draftValue,

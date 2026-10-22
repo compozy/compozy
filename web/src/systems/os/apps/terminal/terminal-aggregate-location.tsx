@@ -107,17 +107,16 @@ export function TerminalAggregateLocation({
     if (requested) openBound(requested.id, requested.workspace_id);
   });
 
-  const startNew = async () => {
+  const startNew = () => {
     if (!viewer || creating) return;
     setCreating(true);
-    try {
-      const terminal = await createTerminal(target, {}, { profile }, viewer);
-      openBound(terminal.id, terminal.workspace_id);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to open terminal");
-    } finally {
-      setCreating(false);
-    }
+    void createTerminal(target, {}, { profile }, viewer)
+      .then(
+        terminal => openBound(terminal.id, terminal.workspace_id),
+        (error: unknown) =>
+          toast.error(error instanceof Error ? error.message : "Failed to open terminal")
+      )
+      .then(() => setCreating(false));
   };
 
   if (catalog.isPending || requested) {

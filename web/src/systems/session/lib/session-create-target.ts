@@ -47,9 +47,9 @@ export function prefillSessionProject(
   options: readonly SessionTargetOption[],
   candidates: { focusedBinding?: string | null; lastUsed?: string | null }
 ): string {
+  const values = new Set(options.map(option => option.value));
   for (const candidate of [candidates.focusedBinding, candidates.lastUsed]) {
-    const match = options.find(option => option.value === candidate);
-    if (match) return match.value;
+    if (candidate && values.has(candidate)) return candidate;
   }
   return options[0]?.value ?? USER_SCOPE_SELECTOR;
 }

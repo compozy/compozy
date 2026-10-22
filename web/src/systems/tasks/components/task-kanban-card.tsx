@@ -34,13 +34,7 @@ export function TaskKanbanCard({
   profileOwner,
   projectBadge,
 }: TaskKanbanCardProps) {
-  const activeRun = task.active_run ?? null;
-  const isFailed = task.status === "failed";
-  const failedError = isFailed && activeRun?.error ? activeRun.error : null;
-  const retryRunId = isFailed && onRetry ? activeRun?.id : undefined;
-  // Single-status columns already name the status; only the mixed Done column
-  // needs to tell failed and canceled cards apart from completed ones.
-  const showStatus = task.status === "failed" || task.status === "canceled";
+  const retryRunId = task.status === "failed" && onRetry ? task.active_run?.id : undefined;
   const selection = kanbanCardSelection(task.id, selected, onSelect);
 
   return (
@@ -58,47 +52,71 @@ export function TaskKanbanCard({
         selected && "bg-selected inset-ring-1 inset-ring-line-strong"
       )}
     >
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <h3 className="line-clamp-2 min-w-0 text-small-body font-medium leading-snug text-fg">
-          {task.title}
-        </h3>
-        {showStatus ? (
-          <Pill data-testid={`tasks-kanban-card-status-${task.id}`} form="plain">
-            <StateGlyph size="sm" state={taskStateGlyph(task.status)} />
-            {taskStatusLabel(task.status)}
-          </Pill>
-        ) : null}
-      </div>
-
-      {task.identifier || projectBadge ? (
-        <div className="flex min-w-0 items-center gap-2">
-          {projectBadge ? (
-            <WorkspaceBadge
-              className="min-w-0"
-              data-testid={`tasks-kanban-card-project-${task.id}`}
-              identity={projectBadge}
-            />
-          ) : null}
-          {task.identifier ? (
-            <MonoId value={taskShortId(task)} size="sm" data-slot="k-card-id" />
-          ) : null}
-        </div>
-      ) : null}
-
-      {failedError ? (
-        <p
-          className="min-w-0 truncate text-form-hint text-danger"
-          data-testid={`tasks-kanban-card-error-${task.id}`}
-          title={failedError}
-        >
-          {failedError}
-        </p>
-      ) : null}
+      <TaskKanbanCardHeader task={task} />
+      <TaskKanbanCardMeta projectBadge={projectBadge} task={task} />
+      <TaskKanbanCardError task={task} />
 
       <TaskKanbanCardFooter profileOwner={profileOwner} task={task} />
 
       {retryRunId ? <TaskKanbanCardRetry onRetry={onRetry} runId={retryRunId} task={task} /> : null}
     </div>
+  );
+}
+
+function TaskKanbanCardHeader({ task }: { task: TaskListItem }) {
+  // Single-status columns already name the status; only the mixed Done column
+  // needs to tell failed and canceled cards apart from completed ones.
+  const showStatus = task.status === "failed" || task.status === "canceled";
+  return (
+    <div className="flex min-w-0 items-start justify-between gap-2">
+      <h3 className="line-clamp-2 min-w-0 text-small-body font-medium leading-snug text-fg">
+        {task.title}
+      </h3>
+      {showStatus ? (
+        <Pill data-testid={`tasks-kanban-card-status-${task.id}`} form="plain">
+          <StateGlyph size="sm" state={taskStateGlyph(task.status)} />
+          {taskStatusLabel(task.status)}
+        </Pill>
+      ) : null}
+    </div>
+  );
+}
+
+function TaskKanbanCardMeta({
+  task,
+  projectBadge,
+}: {
+  task: TaskListItem;
+  projectBadge?: WorkspaceBadgeIdentity;
+}) {
+  if (!task.identifier && !projectBadge) return null;
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      {projectBadge ? (
+        <WorkspaceBadge
+          className="min-w-0"
+          data-testid={`tasks-kanban-card-project-${task.id}`}
+          identity={projectBadge}
+        />
+      ) : null}
+      {task.identifier ? (
+        <MonoId value={taskShortId(task)} size="sm" data-slot="k-card-id" />
+      ) : null}
+    </div>
+  );
+}
+
+function TaskKanbanCardError({ task }: { task: TaskListItem }) {
+  const failedError = task.status === "failed" ? task.active_run?.error : null;
+  if (!failedError) return null;
+  return (
+    <p
+      className="min-w-0 truncate text-form-hint text-danger"
+      data-testid={`tasks-kanban-card-error-${task.id}`}
+      title={failedError}
+    >
+      {failedError}
+    </p>
   );
 }
 

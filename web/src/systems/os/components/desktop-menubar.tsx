@@ -125,8 +125,8 @@ export function DesktopMenubar({
   workspaces,
   activeWorkspace,
   chip,
-  breadthMode = activeWorkspace ? "focused" : "all",
-  focus = activeWorkspace ? { kind: "project", workspaceId: activeWorkspace.id } : { kind: "user" },
+  breadthMode: breadthModeProp,
+  focus: focusProp,
   scopePending = false,
   focusWorkspaceName,
   onToggleAllProjects,
@@ -152,6 +152,10 @@ export function DesktopMenubar({
   pager,
   layoutUnbound = false,
 }: DesktopMenubarProps) {
+  const breadthMode = breadthModeProp ?? (activeWorkspace ? "focused" : "all");
+  const focus: Focus =
+    focusProp ??
+    (activeWorkspace ? { kind: "project", workspaceId: activeWorkspace.id } : { kind: "user" });
   const actions = useMenubarActions();
   const paletteOpen = usePaletteCommand("palette.open");
   const scopeModel = desktopMenubarScopeModel({
