@@ -40,7 +40,7 @@ func listAutomationJobsOperationSpec() OperationSpec {
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by automation scope", append(automationScopeValues(), "user", "@user")),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			boolQueryParam("all_workspaces", "Read every definition"),
 			ParameterSpec{Name: "workspace_ids", In: "query", Kind: "array", Description: "Project IDs or @user; requires all_workspaces=true"},
@@ -295,7 +295,7 @@ func listAutomationTriggersOperationSpec() OperationSpec {
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by automation scope", append(automationScopeValues(), "user", "@user")),
 			queryParam("workspace_id", "Filter by workspace id", false),
 			boolQueryParam("all_workspaces", "Read every definition"),
 			ParameterSpec{Name: "workspace_ids", In: "query", Kind: "array", Description: "Project IDs or @user; requires all_workspaces=true"},

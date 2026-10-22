@@ -138,7 +138,8 @@ apply. It has no worktrees.
   `workspace_id=@user` or `workspace=@user`.
 - Session payloads carry `scope` (`"workspace"` or `"user"`) and `effective_workspace_access`. User
   items have `workspace_id` absent or empty; test for both. Task and automation `scope` values stay
-  `"global"` for User rows. Stored and emitted `"global"` values keep their meaning.
+  `"global"` for User rows. Their scope inputs additionally accept `"user"` and `"@user"`;
+  updates keep scope immutable. Stored and emitted `"global"` values keep their meaning.
 - `@user` resolves to the User scope of the request's profile (`profile=` or the acting profile).
   `all_profiles=true` (operator or granted reads only) returns the User rows of every profile,
   owner-labeled. Mutations through `@user` need exactly one profile. An empty workspace value never

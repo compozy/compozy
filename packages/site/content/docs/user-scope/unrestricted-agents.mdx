@@ -93,10 +93,11 @@ cross-workspace prompt. An ordinary `approve-reads` agent would have asked you f
 Every allowed crossing is logged as `workspace.access_granted` with source `agent_grant`:
 
 ```bash
-curl -s "http://localhost:2123/api/logs?type=workspace.access_granted&session_id=<session-id>"
+compozy logs --workspace @user --type workspace.access_granted --session <session-id> -o json
 ```
 
-Use the HTTP address from `compozy status`. The event shows who acted and on what (trimmed):
+`--workspace @user` selects only User events in the selected profile. The event shows who acted
+and on what (trimmed):
 
 ```json
 {

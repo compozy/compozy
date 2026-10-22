@@ -14606,3 +14606,29 @@ func TestNativeGrantSelection(t *testing.T) {
 		}
 	})
 }
+
+func TestNativeUserLogSelection(t *testing.T) {
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDListLogs, toolspkg.ToolIDObserveSearch} {
+		t.Run(string(toolID), func(t *testing.T) {
+			t.Parallel()
+			observer := &nativeObserverStub{}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Observer: observer, Sessions: nativeTestSessionManager("ws-1"),
+				Workspaces: nativeUserWorkspaceService{},
+			}, nativeApproveAllPolicyInputs())
+			input := json.RawMessage(`{"workspace":"@user"}`)
+			if toolID == toolspkg.ToolIDObserveSearch {
+				input = json.RawMessage(`{"workspace":"@user","query":"audit"}`)
+			}
+			_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true, ProfileID: "profile-user"}, toolspkg.CallRequest{
+				ToolID: toolID, Input: input,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if observer.lastEventQuery.WorkspaceID != "@user" || observer.lastEventQuery.ReadScope.ProfileID != "profile-user" {
+				t.Fatalf("User event query lost its workspace or profile filter: %+v", observer.lastEventQuery)
+			}
+		})
+	}
+}

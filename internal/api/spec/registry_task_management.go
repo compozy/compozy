@@ -42,7 +42,7 @@ func listTasksOperationSpec() OperationSpec {
 		Parameters: withProfileScope(
 			boolQueryParam("all_workspaces", "Read every project and User within the profile lens; conflicts with workspace"),
 			ParameterSpec{Name: "workspace_ids", In: specParameterInQuery, Kind: "array", Description: "Repeatable project IDs; @user selects User; requires all_workspaces=true"},
-			enumQueryParam(specScopeKey, "Filter by catalog visibility", taskCatalogScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by catalog visibility", append(taskCatalogScopeValues(), "user", "@user")),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
 			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),

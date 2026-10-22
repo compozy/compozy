@@ -89,3 +89,6 @@ report's session matrix in a future QA cycle.
 Backend evidence is owned by the session query/store, shell settings, window-manager lifecycle,
 and daemon partition reconciliation suites. Browser grouping and destination behavior are validated
 by the frontend slice and integrated journey.
+
+
+2026-10-21 backend gap follow-up: compare `compozy session list --all-workspaces` with the catalog. Its additional PROJECT column names registered projects and labels workspace-less rows User while retaining Workspace and all existing columns. The focused CLI suite covers the output contract; the full browser walk remains pending integration QA.

@@ -5084,7 +5084,9 @@
           "scope": {
             "enum": [
               "global",
-              "workspace"
+              "workspace",
+              "user",
+              "@user"
             ],
             "type": "string"
           },
@@ -5327,7 +5329,9 @@
           "scope": {
             "enum": [
               "global",
-              "workspace"
+              "workspace",
+              "user",
+              "@user"
             ],
             "type": "string"
           },
@@ -5402,7 +5406,9 @@
           "scope": {
             "enum": [
               "global",
-              "workspace"
+              "workspace",
+              "user",
+              "@user"
             ],
             "type": "string"
           },
@@ -5494,7 +5500,9 @@
           "scope": {
             "enum": [
               "global",
-              "workspace"
+              "workspace",
+              "user",
+              "@user"
             ],
             "type": "string"
           },
@@ -48611,7 +48619,9 @@
             "schema": {
               "enum": [
                 "global",
-                "workspace"
+                "workspace",
+                "user",
+                "@user"
               ],
               "type": "string"
             }
@@ -49731,7 +49741,9 @@
             "schema": {
               "enum": [
                 "global",
-                "workspace"
+                "workspace",
+                "user",
+                "@user"
               ],
               "type": "string"
             }
@@ -57848,7 +57860,9 @@
             "schema": {
               "enum": [
                 "global",
-                "workspace"
+                "workspace",
+                "user",
+                "@user"
               ],
               "type": "string"
             }
@@ -58022,7 +58036,9 @@
             "schema": {
               "enum": [
                 "global",
-                "workspace"
+                "workspace",
+                "user",
+                "@user"
               ],
               "type": "string"
             }
@@ -62036,7 +62052,9 @@
               "enum": [
                 "all",
                 "global",
-                "workspace"
+                "workspace",
+                "user",
+                "@user"
               ],
               "type": "string"
             }
@@ -70428,7 +70446,9 @@
               "enum": [
                 "all",
                 "global",
-                "workspace"
+                "workspace",
+                "user",
+                "@user"
               ],
               "type": "string"
             }

@@ -34,7 +34,7 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 	}
 
 	return automationpkg.Trigger{
-		Scope:        req.Scope,
+		Scope:        req.Scope.Normalize(),
 		Name:         strings.TrimSpace(req.Name),
 		TargetKind:   req.TargetKind,
 		AgentName:    strings.TrimSpace(req.AgentName),

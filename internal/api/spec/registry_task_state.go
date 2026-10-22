@@ -337,7 +337,7 @@ func getTaskDashboardOperationSpec() OperationSpec {
 		Parameters: withProfileScope(
 			boolQueryParam("all_workspaces", "Read every project and User within the profile lens; conflicts with workspace"),
 			ParameterSpec{Name: "workspace_ids", In: specParameterInQuery, Kind: "array", Description: "Repeatable project IDs; @user selects User; requires all_workspaces=true"},
-			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by task scope", append(taskScopeValues(), "user", "@user")),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
@@ -365,7 +365,7 @@ func getTaskInboxOperationSpec() OperationSpec {
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by task scope", append(taskScopeValues(), "user", "@user")),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),

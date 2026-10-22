@@ -37,10 +37,12 @@ func customizeWorkspaceAgentNameSchema(schema *openapi3.Schema) {
 }
 
 func customizeJobAgentNameSchema(schema *openapi3.Schema) {
+	customizeUserScopeInputSchema(schema)
 	setAgentNameSchema(schema, "agent_name", compozyconfig.OptionalAgentNamePattern)
 }
 
 func customizeTriggerAgentNameSchema(schema *openapi3.Schema) {
+	customizeUserScopeInputSchema(schema)
 	setAgentNameSchema(schema, "agent_name", compozyconfig.OptionalAgentNamePattern)
 }
 

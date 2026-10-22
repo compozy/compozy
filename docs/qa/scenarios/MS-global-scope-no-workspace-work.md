@@ -67,3 +67,6 @@ the CLI leg `compozy session new --user` → `session prompt` → daemon restart
 failed on the integrated branch (reply-watch sender scope; CLI route without `workspace_id`; prompt
 admission without workspace) and was fixed with regression coverage. Re-walk that CLI leg and the
 HTTP `POST /api/workspaces/@user/sessions/<id>/prompt` leg in the trailing QA pair.
+
+
+2026-10-21 backend gap follow-up: scope inputs for task creation/catalog and automation creation/catalog accept `user` and `@user`, persisting/emitting `global`. Scope remains immutable on updates. Include `compozy logs --workspace @user --type workspace.access_granted` in the User audit leg; it must exclude project rows and other profiles. Focused SQLite and native-dispatch integration coverage verifies the backend boundary; the complete browser scenario remains pending integration QA.

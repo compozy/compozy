@@ -2,7 +2,10 @@ package config
 
 import (
 	"errors"
+	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -123,6 +126,34 @@ func TestShellGroupingCompatibility(t *testing.T) {
 		cfg.Sessions.GroupBy = "folders"
 		if err := cfg.Validate(); err == nil {
 			t.Fatal("invalid grouping accepted")
+		}
+	})
+}
+
+func TestShellScopeDeprecationLoggedOnce(t *testing.T) {
+	if os.Getenv("COMPOZY_TEST_SCOPE_WARNING") == "1" {
+		for range 5 {
+			if _, err := loadConfigOverlayBytes([]byte("[shell.sessions]\nscope = 'all-workspaces'\n"), "user.toml"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return
+	}
+	t.Parallel()
+	t.Run("Should warn once across repeated config decodes", func(t *testing.T) {
+		t.Parallel()
+		executable, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd := exec.CommandContext(t.Context(), executable, "-test.run=^TestShellScopeDeprecationLoggedOnce$")
+		cmd.Env = append(os.Environ(), "COMPOZY_TEST_SCOPE_WARNING=1")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("child: %v: %s", err, output)
+		}
+		if count := strings.Count(string(output), ShellScopeDeprecationWarning); count != 1 {
+			t.Fatalf("warning count = %d: %s", count, output)
 		}
 	})
 }

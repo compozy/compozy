@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"time"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -14,6 +15,15 @@ const DefaultMaxConcurrentJobs = 5
 
 // Scope identifies the visibility boundary of an automation resource.
 type Scope string
+
+// Normalize translates public User aliases into the persisted scope.
+func (s Scope) Normalize() Scope {
+	value := Scope(strings.TrimSpace(string(s)))
+	if value == "user" || value == "@user" {
+		return AutomationScopeGlobal
+	}
+	return value
+}
 
 const (
 	// AutomationScopeGlobal targets daemon-wide automation without a workspace binding.

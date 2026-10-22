@@ -107,7 +107,7 @@ func (o *taskListOptions) run(cmd *cobra.Command, deps commandDeps) error {
 
 func addTaskListFlags(cmd *cobra.Command, opts *taskListOptions) {
 	cmd.Flags().BoolVar(&opts.allWorkspaces, "all-workspaces", false, "List tasks across every project and User")
-	cmd.Flags().StringVar(&opts.scopeRaw, taskScopeKey, "", "Filter by scope: global or workspace")
+	cmd.Flags().StringVar(&opts.scopeRaw, taskScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&opts.workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&opts.statusRaw, taskStatusKey, "", "Filter by task status")

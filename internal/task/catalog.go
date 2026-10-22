@@ -45,7 +45,7 @@ type CatalogScope string
 
 // Normalize returns the canonical catalog scope.
 func (s CatalogScope) Normalize() CatalogScope {
-	return CatalogScope(strings.ToLower(strings.TrimSpace(string(s))))
+	return CatalogScope(Scope(s).Normalize())
 }
 
 // CatalogSort identifies a supported task catalog ordering.

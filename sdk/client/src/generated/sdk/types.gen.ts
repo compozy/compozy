@@ -1345,7 +1345,7 @@ export type CreateJobRequest = {
   prompt: string;
   retry?: RetryConfig | null;
   schedule: ScheduleSpec;
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   target_kind?: string;
   task?: JobTaskConfig | null;
   workspace_id?: string;
@@ -1405,7 +1405,7 @@ export type CreateTaskChildRequest = {
   metadata?: unknown;
   owner?: Ownership | null;
   priority?: "low" | "medium" | "high" | "urgent";
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   title: string;
   wake_creator?: boolean | null;
   workspace?: string;
@@ -1422,7 +1422,7 @@ export type CreateTaskRequest = {
   metadata?: unknown;
   owner?: Ownership | null;
   priority?: "low" | "medium" | "high" | "urgent";
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   title: string;
   wake_creator?: boolean | null;
   workspace?: string;
@@ -1441,7 +1441,7 @@ export type CreateTriggerRequest = {
   name: string;
   prompt: string;
   retry?: RetryConfig | null;
-  scope: "global" | "workspace";
+  scope: "global" | "workspace" | "user" | "@user";
   target_kind?: string;
   webhook_id?: string;
   webhook_secret_value?: string;
@@ -14192,7 +14192,7 @@ export type ListAutomationJobsData = {
     /**
      * Filter by automation scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace id
      */
@@ -14783,7 +14783,7 @@ export type ListAutomationTriggersData = {
     /**
      * Filter by automation scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace id
      */
@@ -18978,7 +18978,7 @@ export type GetTaskDashboardData = {
     /**
      * Filter by task scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */
@@ -19064,7 +19064,7 @@ export type GetTaskInboxData = {
     /**
      * Filter by task scope
      */
-    scope?: "global" | "workspace";
+    scope?: "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */
@@ -21102,7 +21102,7 @@ export type GetSchedulerBacklogData = {
     /**
      * Filter by catalog visibility
      */
-    scope?: "all" | "global" | "workspace";
+    scope?: "all" | "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */
@@ -25461,7 +25461,7 @@ export type ListTasksData = {
     /**
      * Filter by catalog visibility
      */
-    scope?: "all" | "global" | "workspace";
+    scope?: "all" | "global" | "workspace" | "user" | "@user";
     /**
      * Filter by workspace path, name, or ID
      */

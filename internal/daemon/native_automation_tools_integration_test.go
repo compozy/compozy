@@ -451,3 +451,37 @@ func nativeAutomationResultResourceID(t *testing.T, result toolspkg.ToolResult, 
 	}
 	return resource.ID
 }
+
+func TestNativeAutomationUserAliasesIntegration(t *testing.T) {
+	t.Parallel()
+	for _, alias := range []string{"user", "@user"} {
+		t.Run("Should persist canonical User jobs and triggers from "+alias, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			manager := newNativeAutomationIntegrationManager(t, ctx)
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Automation: manager}, nativeApproveAllPolicyInputs())
+			scope := toolspkg.Scope{Operator: true}
+			result, err := registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationJobsCreate, Input: json.RawMessage(fmt.Sprintf(`{"scope":%q,"name":"personal-job","agent_name":"codex","prompt":"review","schedule":{"mode":"every","interval":"1h"}}`, alias))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			job, err := manager.GetJob(ctx, nativeAutomationResultResourceID(t, result, "job"))
+			if err != nil || job.Scope != automationpkg.AutomationScopeGlobal || job.WorkspaceID != "" {
+				t.Fatalf("job = %#v, %v", job, err)
+			}
+			result, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationTriggersCreate, Input: json.RawMessage(fmt.Sprintf(`{"scope":%q,"name":"personal-trigger","agent_name":"codex","prompt":"review","event":"session.stopped"}`, alias))})
+			if err != nil {
+				t.Fatal(err)
+			}
+			trigger, err := manager.GetTrigger(ctx, nativeAutomationResultResourceID(t, result, "trigger"))
+			if err != nil || trigger.Scope != automationpkg.AutomationScopeGlobal || trigger.WorkspaceID != "" {
+				t.Fatalf("trigger = %#v, %v", trigger, err)
+			}
+			for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAutomationJobsList, toolspkg.ToolIDAutomationTriggersList} {
+				if _, err := registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(fmt.Sprintf(`{"scope":%q}`, alias))}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}

@@ -311,7 +311,7 @@ func getSchedulerBacklogOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			intQueryParam("limit", "Maximum number of queued runs to return"),
-			enumQueryParam(specScopeKey, "Filter by catalog visibility", taskCatalogScopeValues()),
+			enumQueryParam(specScopeKey, "Filter by catalog visibility", append(taskCatalogScopeValues(), "user", "@user")),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			boolQueryParam("include_paused", "Include runs blocked by task pause state"),
 		},

@@ -60,7 +60,7 @@ func jobFromCreateRequest(req contract.CreateJobRequest) automationpkg.Job {
 
 	schedule := req.Schedule
 	return automationpkg.Job{
-		Scope:       req.Scope,
+		Scope:       req.Scope.Normalize(),
 		Name:        strings.TrimSpace(req.Name),
 		TargetKind:  req.TargetKind,
 		AgentName:   strings.TrimSpace(req.AgentName),

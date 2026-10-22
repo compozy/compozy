@@ -57,7 +57,8 @@ See [`[user_scope]`](/docs/configuration/config-toml#userscope).
 
 `@user` always means the User scope of the profile you are acting as. An empty workspace value never
 means User. In responses, User items have an empty or absent `workspace_id`; sessions also carry
-`"scope": "user"`. Task and automation rows keep reporting `"scope": "global"` for the same thing.
+`"scope": "user"`. Task and automation scope inputs accept `user`, `@user`, or `global`; rows keep reporting
+`"scope": "global"` for the same thing. Scope is set at creation and cannot be changed by an update.
 
 ## Who can reach User
 

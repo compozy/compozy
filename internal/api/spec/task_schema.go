@@ -28,3 +28,11 @@ func customizeSchedulerDrainRequestSchema(schema *openapi3.Schema) {
 		WithMin(0).
 		WithMax(float64(contract.SchedulerDrainTimeoutMaxSeconds))
 }
+
+func customizeUserScopeInputSchema(schema *openapi3.Schema) {
+	if schema == nil || schema.Properties["scope"] == nil || schema.Properties["scope"].Value == nil {
+		return
+	}
+	scope := schema.Properties["scope"].Value
+	scope.Enum = append(scope.Enum, "user", "@user")
+}

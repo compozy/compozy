@@ -1305,7 +1305,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				createJobSchema := jsonRequestSchema(t, createJob)
 				assertRequired(t, createJobSchema, "scope", "name", "agent_name", "prompt", "schedule")
 				assertNotRequired(t, createJobSchema, "workspace_id", "enabled", "retry", "fire_limit")
-				assertEnumValues(t, propertySchema(t, createJobSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, createJobSchema, "scope"), "global", "workspace", "user", "@user")
 
 				scheduleSchema := propertySchema(t, createJobSchema, "schedule")
 				assertRequired(t, scheduleSchema, "mode")
@@ -1336,7 +1336,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"endpoint_slug",
 					"webhook_secret_value",
 				)
-				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace", "user", "@user")
 
 				healthOperation := operationFor(t, doc, "/api/status", "GET")
 				healthSchema := jsonResponseSchema(t, healthOperation, 200)
@@ -1981,7 +1981,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"wake_creator",
 					"metadata",
 				)
-				assertEnumValues(t, propertySchema(t, createTaskSchema, "scope"), "global", "workspace")
+				assertEnumValues(t, propertySchema(t, createTaskSchema, "scope"), "global", "workspace", "user", "@user")
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "priority"), "low", "medium", "high", "urgent")
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "approval_policy"), "none", "manual")
 
@@ -2066,7 +2066,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(
 					t,
 					parameterSchema(t, listTasks, "scope", openapi3.ParameterInQuery),
-					"all", "global", "workspace",
+					"all", "global", "workspace", "user", "@user",
 				)
 				listTasksSchema := jsonResponseSchema(t, listTasks, 200)
 				assertRequired(t, listTasksSchema, "tasks", "page", "facets")

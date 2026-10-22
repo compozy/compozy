@@ -5042,3 +5042,24 @@ func TestSessionLayoutCommands(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionListAllProjectsColumn(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain session columns and name project and User rows", func(t *testing.T) {
+		t.Parallel()
+		page := SessionListPage{Sessions: []SessionRecord{
+			{ID: "sess-user", WorkspaceID: ""},
+			{ID: "sess-project", WorkspaceID: "ws-1", WorkspacePath: "/project"},
+		}}
+		bundle := sessionListBundle(page, func() time.Time { return fixedTestNow }, map[string]string{"": "User", "ws-1": "Example"})
+		human, err := bundle.human()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"PROJECT", "User", "Example", "sess-user", "sess-project", "/project", "Workspace"} {
+			if !strings.Contains(human, want) {
+				t.Fatalf("output %q lacks %q", human, want)
+			}
+		}
+	})
+}

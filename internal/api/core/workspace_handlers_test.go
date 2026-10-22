@@ -557,3 +557,28 @@ func TestUserSessionCreate(t *testing.T) {
 		}
 	})
 }
+
+func TestUserLogsReferenceGuard(t *testing.T) {
+	t.Parallel()
+	t.Run("Should admit explicit User logs and preserve the selector", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		router := gin.New()
+		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+		router.GET("/logs", func(c *gin.Context) {
+			query, err := core.ParseLogsQuery(c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c.JSON(http.StatusOK, gin.H{"workspace": query.WorkspaceID})
+		})
+		resp := performRequest(t, router, http.MethodGet, "/logs?workspace_id=@user", nil)
+		var payload struct {
+			Workspace string `json:"workspace"`
+		}
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusOK || payload.Workspace != "@user" {
+			t.Fatalf("response = %d %#v", resp.Code, payload)
+		}
+	})
+}

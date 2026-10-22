@@ -45,7 +45,7 @@ func bindAutomationTriggerCreateFlags(
 	input *automationTriggerCommandInput,
 ) {
 	cmd.Flags().StringVar(&input.Name, automationNameKey, "", "Trigger name")
-	cmd.Flags().StringVar(&input.ScopeRaw, automationScopeKey, "", "Trigger scope: global or workspace")
+	cmd.Flags().StringVar(&input.ScopeRaw, automationScopeKey, "", "Trigger scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().StringVar(
 		&input.EventRaw,
 		automationEventKey,

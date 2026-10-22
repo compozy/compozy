@@ -43,7 +43,7 @@ func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (aut
 		query.Limit = automationpkg.DefaultListLimit
 	}
 	if rawScope := strings.TrimSpace(c.Query("scope")); rawScope != "" {
-		query.Scope = automationpkg.Scope(rawScope)
+		query.Scope = automationpkg.Scope(rawScope).Normalize()
 		if err := query.Scope.Validate("scope"); err != nil {
 			return automationpkg.JobListQuery{}, err
 		}
@@ -99,7 +99,7 @@ func ParseAutomationTriggerListQuery(
 		query.Limit = automationpkg.DefaultListLimit
 	}
 	if rawScope := strings.TrimSpace(c.Query("scope")); rawScope != "" {
-		query.Scope = automationpkg.Scope(rawScope)
+		query.Scope = automationpkg.Scope(rawScope).Normalize()
 		if err := query.Scope.Validate("scope"); err != nil {
 			return automationpkg.TriggerListQuery{}, err
 		}

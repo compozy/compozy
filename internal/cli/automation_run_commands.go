@@ -193,7 +193,7 @@ func parseOptionalAutomationScope(raw string) (automationpkg.Scope, error) {
 	if trimmed == "" {
 		return "", nil
 	}
-	scope := automationpkg.Scope(trimmed)
+	scope := automationpkg.Scope(trimmed).Normalize()
 	if err := scope.Validate(automationScopeKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}

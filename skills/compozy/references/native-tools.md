@@ -659,7 +659,9 @@ extension owner. Browser/OAuth login remains a management operation.
 
 ## Observability Tools
 
-Runtime log inspection is available through `compozy__logs`. Metrics and redacted event search are available through `compozy__observe_metrics` and `compozy__observe_search`.
+Runtime log inspection is available through `compozy__logs`. Logs and `compozy__observe_search`
+accept `workspace: "@user"` to read only User events in the selected profile. The CLI equivalent is
+`compozy logs --workspace @user --type workspace.access_granted`. Metrics and redacted event search are available through `compozy__observe_metrics` and `compozy__observe_search`.
 
 ## CLI/HTTP-Only Management Surfaces
 

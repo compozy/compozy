@@ -8193,7 +8193,7 @@ export interface components {
       retry?: components["schemas"]["RetryConfig"] | null;
       schedule: components["schemas"]["ScheduleSpec"];
       /** @enum {string} */
-      scope: "global" | "workspace";
+      scope: "global" | "workspace" | "user" | "@user";
       target_kind?: string;
       task?: components["schemas"]["JobTaskConfig"] | null;
       workspace_id?: string;
@@ -8251,7 +8251,7 @@ export interface components {
       /** @enum {string} */
       priority?: "low" | "medium" | "high" | "urgent";
       /** @enum {string} */
-      scope: "global" | "workspace";
+      scope: "global" | "workspace" | "user" | "@user";
       title: string;
       wake_creator?: boolean | null;
       workspace?: string;
@@ -8270,7 +8270,7 @@ export interface components {
       /** @enum {string} */
       priority?: "low" | "medium" | "high" | "urgent";
       /** @enum {string} */
-      scope: "global" | "workspace";
+      scope: "global" | "workspace" | "user" | "@user";
       title: string;
       wake_creator?: boolean | null;
       workspace?: string;
@@ -8289,7 +8289,7 @@ export interface components {
       prompt: string;
       retry?: components["schemas"]["RetryConfig"] | null;
       /** @enum {string} */
-      scope: "global" | "workspace";
+      scope: "global" | "workspace" | "user" | "@user";
       target_kind?: string;
       webhook_id?: string;
       webhook_secret_value?: string;
@@ -22614,7 +22614,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by automation scope */
-        scope?: "global" | "workspace";
+        scope?: "global" | "workspace" | "user" | "@user";
         /** @description Filter by workspace id */
         workspace_id?: string;
         /** @description Read every definition */
@@ -23285,7 +23285,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by automation scope */
-        scope?: "global" | "workspace";
+        scope?: "global" | "workspace" | "user" | "@user";
         /** @description Filter by workspace id */
         workspace_id?: string;
         /** @description Read every definition */
@@ -28611,7 +28611,7 @@ export interface operations {
         /** @description Repeatable project IDs; @user selects User; requires all_workspaces=true */
         workspace_ids?: string[];
         /** @description Filter by task scope */
-        scope?: "global" | "workspace";
+        scope?: "global" | "workspace" | "user" | "@user";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
         /** @description Filter by active run worktree ID */
@@ -28710,7 +28710,7 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Filter by task scope */
-        scope?: "global" | "workspace";
+        scope?: "global" | "workspace" | "user" | "@user";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
         /** @description Filter by active run worktree ID */
@@ -31587,7 +31587,7 @@ export interface operations {
         /** @description Maximum number of queued runs to return */
         limit?: number;
         /** @description Filter by catalog visibility */
-        scope?: "all" | "global" | "workspace";
+        scope?: "all" | "global" | "workspace" | "user" | "@user";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
         /** @description Include runs blocked by task pause state */
@@ -37127,7 +37127,7 @@ export interface operations {
         /** @description Repeatable project IDs; @user selects User; requires all_workspaces=true */
         workspace_ids?: string[];
         /** @description Filter by catalog visibility */
-        scope?: "all" | "global" | "workspace";
+        scope?: "all" | "global" | "workspace" | "user" | "@user";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
         /** @description Filter by task status */
