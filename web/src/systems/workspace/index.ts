@@ -173,6 +173,14 @@ export {
 } from "./lib/breadth-query";
 export type { BreadthQuery, ProjectFilterValue } from "./lib/breadth-query";
 export {
+  PROJECT_FILTER_FIELD,
+  projectFilterChip,
+  projectFilterField,
+  projectFilterValuesFromChips,
+} from "./lib/project-filter";
+export { useProjectFilter } from "./hooks/use-project-filter";
+export type { ProjectFilterModel } from "./hooks/use-project-filter";
+export {
   activeWorkspaceStore,
   isActiveWorkspaceStoreHydrated,
   rehydrateActiveWorkspaceStore,

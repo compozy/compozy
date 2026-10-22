@@ -91,6 +91,10 @@ const activeWorkspaceState = {
     | { kind: "all" }
     | { kind: "user" }
     | { kind: "project"; workspaceId: string },
+  registeredWorkspaces: [
+    { id: "ws-home", root_dir: "/Users/tester", name: "home" },
+    { id: "ws-proj", root_dir: "/Users/tester/dev/proj", name: "proj" },
+  ],
   isLoading: false,
 };
 
@@ -164,7 +168,9 @@ describe("useHomeDashboard", () => {
     }
   });
 
-  it("Should resolve All projects to the empty workspace param", async () => {
+  // W-22: Home under All projects reads the explicit overview and task aggregates, never
+  // the overview's omission (which is User's tasks only), and its header names All projects.
+  it("Should read every project under All projects through the explicit aggregates", async () => {
     getHomeOverview.mockResolvedValue(makeHomeOverview());
 
     const { result } = renderHook(() => useHomeDashboard(), { wrapper: wrapper() });
@@ -174,11 +180,24 @@ describe("useHomeDashboard", () => {
       expect(result.current.overviewStatus).toBe("ready");
     });
     expect(result.current.scope.workspaceParam).toBe("");
+    expect(result.current.scope.taskScope).toEqual({ all_workspaces: true });
+    expect(result.current.activeWorkspaceName).toBe("All projects");
     expect(result.current.agents.workspaceId).toBe("ws-home");
     expect(result.current.overview?.attention.total).toBe(2);
     expect(getHomeOverview).toHaveBeenCalledWith(
-      expect.objectContaining({ workspace: undefined, usageWindow: 30 }),
+      expect.objectContaining({ allWorkspaces: true, usageWindow: 30 }),
       expect.anything()
+    );
+    for (const [filter] of getHomeOverview.mock.calls) {
+      expect(filter).not.toHaveProperty("workspace");
+    }
+    // Working-now cards name their projects from the registered catalog.
+    const [, , names] = useHomeWorkingNow.mock.calls.at(-1) ?? [];
+    expect(names).toEqual(
+      new Map([
+        ["ws-home", "home"],
+        ["ws-proj", "proj"],
+      ])
     );
   });
 
@@ -201,7 +220,8 @@ describe("useHomeDashboard", () => {
       });
       expect(useHomeWorkingNow).toHaveBeenLastCalledWith(
         expect.objectContaining({ workspaceParam: "" }),
-        liveEnabled
+        liveEnabled,
+        expect.any(Map)
       );
     }
   );

@@ -11,7 +11,12 @@ import {
 } from "@/systems/automation";
 import type { VaultSecret } from "@/systems/vault";
 import { ownerFromRow, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
-import { DESTINATION_COPY, type DataScope } from "@/systems/workspace";
+import {
+  breadthQuery,
+  DESTINATION_COPY,
+  taskBreadthParams,
+  type DataScope,
+} from "@/systems/workspace";
 
 import { compareStatusAttentionFirst } from "@/lib/status-tone";
 
@@ -286,14 +291,9 @@ export function projectAutomationRows(
   }));
 }
 
-/** Tasks: the project's, User's (`scope=global`, no workspace), or every task. */
-export function paletteTaskFilters(scope: DataScope): {
-  scope: "all" | "global" | "workspace";
-  workspace?: string;
-} {
-  if (scope.kind === "project") return { scope: "workspace", workspace: scope.workspaceId };
-  if (scope.kind === "user") return { scope: "global" };
-  return { scope: "all" };
+/** Tasks: the project's, User's, or every project's (`all_workspaces`), through the task encoder. */
+export function paletteTaskFilters(scope: DataScope) {
+  return taskBreadthParams(breadthQuery(scope));
 }
 
 /**

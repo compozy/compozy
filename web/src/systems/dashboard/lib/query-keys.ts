@@ -16,7 +16,9 @@ export const dashboardKeys = {
   overview: (filters: HomeOverviewFilter = {}) =>
     [
       ...dashboardKeys.overviewRoot(),
-      normalizeText(filters.workspace),
+      // `@all` cannot be a workspace id, so the aggregate never shares an entry
+      // with a project or with the omission read.
+      filters.allWorkspaces === true ? "@all" : normalizeText(filters.workspace),
       normalizeNumber(filters.usageWindow),
       normalizeText(filters.receiptProfile ?? filters.profile),
       // Two profiles reading the same window are two answers, never one entry.

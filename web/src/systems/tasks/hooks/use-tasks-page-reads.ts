@@ -11,7 +11,7 @@ import {
   taskListFilterFromRouteSearch,
 } from "../lib/task-catalog-filter";
 import type { TasksRouteSearch } from "../lib/task-location-search";
-import type { ActiveTaskScopeFilter } from "../lib/workspace-scope";
+import { taskInboxScope, type ActiveTaskScopeFilter } from "../lib/workspace-scope";
 
 type PagedQuery = {
   isFetchNextPageError: boolean;
@@ -141,12 +141,7 @@ function useTasksPageInbox(input: TasksPageInboxInput) {
   const { activeTaskScope } = input;
   const inboxQuery = useTaskInbox(taskInboxFilters(input), { enabled: input.enabled });
   const inboxBadgeQuery = useTaskInboxBadge(
-    {
-      scope: activeTaskScope?.scope,
-      workspace: activeTaskScope?.workspace,
-      worktree: activeTaskScope?.worktree,
-      limit: 1,
-    },
+    { ...taskInboxScope(activeTaskScope), limit: 1 },
     { enabled: input.badgeEnabled }
   );
   return {

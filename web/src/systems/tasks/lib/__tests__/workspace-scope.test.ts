@@ -1,20 +1,45 @@
-// Suite: task scope for the menubar destination
-// Invariant: a project binds its id (and only then a worktree); User binds `scope=global`
-// (tasks with no workspace), All projects keeps that population until it gains its own
-// aggregate; an unsettled destination withholds the query.
+// Suite: task-route breadth for a data scope
+// Invariant: All projects reads the `all_workspaces` aggregate (narrowed only by its Project
+// filter), User reads its unbound `scope=global` population, a project binds its id (and only
+// then a worktree); the inbox and scheduler backlog keep their own aggregate spellings; an
+// unsettled destination withholds the query.
 import { describe, expect, it } from "vitest";
 
-import { taskScopeForActiveWorkspace } from "../workspace-scope";
+import {
+  schedulerBacklogScope,
+  taskInboxScope,
+  taskScopeForActiveWorkspace,
+} from "../workspace-scope";
 
 const PROJECT = { kind: "project", workspaceId: "ws_alpha" } as const;
 
 describe("taskScopeForActiveWorkspace", () => {
-  it("Should bind User focus to global task scope", () => {
+  it("Should bind User focus to the unbound task scope", () => {
     expect(taskScopeForActiveWorkspace({ kind: "user" })).toEqual({ scope: "global" });
   });
 
-  it("Should keep All projects on global task scope", () => {
-    expect(taskScopeForActiveWorkspace({ kind: "all" })).toEqual({ scope: "global" });
+  it("Should read All projects through the all_workspaces aggregate", () => {
+    expect(taskScopeForActiveWorkspace({ kind: "all" })).toEqual({ all_workspaces: true });
+  });
+
+  it("Should narrow All projects by its Project filter, User included", () => {
+    expect(taskScopeForActiveWorkspace({ kind: "all" }, null, ["ws_alpha", "@user"])).toEqual({
+      all_workspaces: true,
+      workspace_ids: ["ws_alpha", "@user"],
+    });
+    expect(taskScopeForActiveWorkspace({ kind: "all" }, null, [])).toEqual({
+      all_workspaces: true,
+    });
+  });
+
+  it("Should ignore a Project filter outside All projects", () => {
+    expect(taskScopeForActiveWorkspace(PROJECT, null, ["ws_beta"])).toEqual({
+      scope: "workspace",
+      workspace: "ws_alpha",
+    });
+    expect(taskScopeForActiveWorkspace({ kind: "user" }, null, ["ws_beta"])).toEqual({
+      scope: "global",
+    });
   });
 
   it("Should bind a focused project to its id", () => {
@@ -34,7 +59,7 @@ describe("taskScopeForActiveWorkspace", () => {
       scope: "global",
     });
     expect(taskScopeForActiveWorkspace({ kind: "all" }, "wt_payments")).toEqual({
-      scope: "global",
+      all_workspaces: true,
     });
   });
 
@@ -49,5 +74,36 @@ describe("taskScopeForActiveWorkspace", () => {
   it("Should withhold task queries until the destination settles", () => {
     expect(taskScopeForActiveWorkspace(null)).toBeNull();
     expect(taskScopeForActiveWorkspace(undefined)).toBeNull();
+  });
+});
+
+describe("taskInboxScope", () => {
+  it("Should omit the scope under All projects, since the inbox omission is every task", () => {
+    expect(taskInboxScope({ all_workspaces: true, workspace_ids: ["ws_alpha"] })).toEqual({
+      scope: undefined,
+      workspace: undefined,
+      worktree: undefined,
+    });
+  });
+
+  it("Should keep a bounded scope and its worktree", () => {
+    expect(
+      taskInboxScope({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_payments" })
+    ).toEqual({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_payments" });
+    expect(taskInboxScope({ scope: "global" })).toMatchObject({ scope: "global" });
+  });
+});
+
+describe("schedulerBacklogScope", () => {
+  it("Should spell All projects as scope=all and keep bounded scopes", () => {
+    expect(schedulerBacklogScope({ all_workspaces: true })).toEqual({ scope: "all" });
+    expect(schedulerBacklogScope({ scope: "workspace", workspace: "ws_alpha" })).toEqual({
+      scope: "workspace",
+      workspace: "ws_alpha",
+    });
+    expect(schedulerBacklogScope({ scope: "global" })).toEqual({
+      scope: "global",
+      workspace: undefined,
+    });
   });
 });

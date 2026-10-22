@@ -134,6 +134,8 @@ const paletteMocks = vi.hoisted(() => {
     openForAgent: vi.fn(),
     pending: false,
     profileAggregate: false,
+    /** The one item-open path (`openTarget`); its in-place semantics are owned by its own suite. */
+    openItem: vi.fn(),
     /** Destination: a project (`activeWorkspaceId`), User, or All projects (`global`). */
     scope: "workspace" as "workspace" | "global" | "user",
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
@@ -330,6 +332,10 @@ vi.mock("../../../profiles/hooks/use-profile-read-scope", () => ({
 
 vi.mock("../use-attention-jump", () => ({
   useAttentionJump: () => paletteMocks.jumpToSession,
+}));
+
+vi.mock("../use-open-target", () => ({
+  useOpenTarget: () => paletteMocks.openItem,
 }));
 
 vi.mock("@/lib/user-feedback", () => ({
@@ -745,6 +751,7 @@ function resetPaletteHarness() {
   paletteMocks.sessionsWorkspaceId.mockClear();
   paletteMocks.sessionsFilters.mockClear();
   paletteMocks.jumpToSession.mockClear();
+  paletteMocks.openItem.mockClear();
   paletteMocks.notifyUser.mockClear();
   paletteMocks.workspaceGroups = [];
   paletteMocks.writeViewStack([]);
@@ -1128,14 +1135,42 @@ describe("useOsPaletteRoot", () => {
         key: "task:task-42",
         label: "Review release",
         route: { pathname: "/tasks/task-42", search: {} },
+        workspaceId: "workspace:alpha",
       });
     });
 
+    // A task row takes the one item path, bound to its own project, so under All
+    // projects it opens in place instead of switching project.
     expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(false);
-    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-      app: "tasks",
-      route: { pathname: "/tasks/task-42", search: {} },
+    expect(paletteMocks.openItem).toHaveBeenCalledExactlyOnceWith(
+      {
+        app: "tasks",
+        binding: { kind: "project", workspaceId: "workspace:alpha" },
+        route: { pathname: "/tasks/task-42", search: {} },
+      },
+      "Couldn't open Review release. Try again."
+    );
+    expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+    expect(paletteMocks.setActiveWorkspaceId).not.toHaveBeenCalled();
+  });
+
+  it("Should bind a User task row to the User scope", async () => {
+    paletteMocks.scope = "global";
+    const { result } = renderRoot(true);
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "tasks",
+        key: "task:task-user",
+        label: "User task",
+        route: { pathname: "/tasks/task-user", search: {} },
+      });
     });
+
+    expect(paletteMocks.openItem).toHaveBeenCalledWith(
+      expect.objectContaining({ binding: { kind: "user" } }),
+      expect.any(String)
+    );
   });
 
   it("Should open a terminal catalog row as that instance, not a session", async () => {
@@ -1177,16 +1212,16 @@ describe("useOsPaletteRoot", () => {
 
     await act(async () => {
       result.current.openDomainRow({
-        app: "tasks",
-        key: "task:unreachable",
-        label: "Unavailable task",
-        route: { pathname: "/tasks/unreachable", search: {} },
+        app: "vault",
+        key: "vault:unreachable",
+        label: "Unavailable secret",
+        route: { pathname: "/vault", search: { ref: "unreachable" } },
       });
     });
 
     await waitFor(() =>
       expect(paletteMocks.notifyUser).toHaveBeenCalledWith({
-        message: "Couldn't open Unavailable task. Try again.",
+        message: "Couldn't open Unavailable secret. Try again.",
         tone: "error",
       })
     );
@@ -1280,10 +1315,10 @@ describe("useOsPaletteRoot", () => {
 
     act(() => {
       rendered.result.current.openDomainRow({
-        app: "tasks",
-        key: "task:task-alpha",
-        label: "Alpha task",
-        route: { pathname: "/tasks/task-alpha", search: {} },
+        app: "automations",
+        key: "job:job-alpha",
+        label: "Alpha job",
+        route: { pathname: "/automations/jobs/job-alpha", search: {} },
         workspaceId: "workspace:alpha",
       });
     });
@@ -1299,8 +1334,8 @@ describe("useOsPaletteRoot", () => {
 
     await waitFor(() =>
       expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "tasks",
-        route: { pathname: "/tasks/task-alpha", search: {} },
+        app: "automations",
+        route: { pathname: "/automations/jobs/job-alpha", search: {} },
       })
     );
   });

@@ -47,7 +47,7 @@ export async function preloadHomeWorkspace(queryClient: QueryClient): Promise<vo
     ),
     queryClient.ensureQueryData(
       homeOverviewOptions({
-        workspace: scope.workspaceParam || undefined,
+        ...scope.overview,
         usageWindow,
         receiptProfile: readActingProfile(queryClient),
         ...("all_profiles" in profileScope

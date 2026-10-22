@@ -14,6 +14,7 @@ import {
 } from "../lib/task-formatters";
 import type { TaskListItem } from "../types";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 export interface TaskKanbanCardProps {
   task: TaskListItem;
@@ -21,6 +22,8 @@ export interface TaskKanbanCardProps {
   onSelect?: (taskId: string) => void;
   onRetry?: (runId: string) => void;
   profileOwner?: ProfileOwner;
+  /** The task's project, under All projects only. */
+  projectBadge?: WorkspaceBadgeIdentity;
 }
 
 export function TaskKanbanCard({
@@ -29,6 +32,7 @@ export function TaskKanbanCard({
   onSelect,
   onRetry,
   profileOwner,
+  projectBadge,
 }: TaskKanbanCardProps) {
   const activeRun = task.active_run ?? null;
   const isFailed = task.status === "failed";
@@ -66,8 +70,19 @@ export function TaskKanbanCard({
         ) : null}
       </div>
 
-      {task.identifier ? (
-        <MonoId value={taskShortId(task)} size="sm" data-slot="k-card-id" />
+      {task.identifier || projectBadge ? (
+        <div className="flex min-w-0 items-center gap-2">
+          {projectBadge ? (
+            <WorkspaceBadge
+              className="min-w-0"
+              data-testid={`tasks-kanban-card-project-${task.id}`}
+              identity={projectBadge}
+            />
+          ) : null}
+          {task.identifier ? (
+            <MonoId value={taskShortId(task)} size="sm" data-slot="k-card-id" />
+          ) : null}
+        </div>
       ) : null}
 
       {failedError ? (

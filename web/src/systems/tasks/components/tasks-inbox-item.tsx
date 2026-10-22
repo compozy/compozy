@@ -14,8 +14,10 @@ import {
 } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 import { inboxBlockingReasonLabel, type InboxGroupId } from "../lib/inbox-grouping";
+import { taskWindowBinding } from "../lib/task-detail-search";
 import { taskStateGlyph, taskStatusLabel } from "../lib/task-formatters";
 import type { TaskInboxItem } from "../types";
 import { TasksInboxRow } from "./tasks-inbox-row";
@@ -36,6 +38,8 @@ export interface TasksInboxItemProps {
   pendingArchiveIds?: ReadonlySet<string>;
   pendingDismissIds?: ReadonlySet<string>;
   pendingMarkReadIds?: ReadonlySet<string>;
+  /** The task's project under All projects; the item then opens bound to it. */
+  projectBadgeOf?: (task: { workspace_id?: string }) => WorkspaceBadgeIdentity;
 }
 
 export function TasksInboxItem({
@@ -54,8 +58,10 @@ export function TasksInboxItem({
   pendingArchiveIds,
   pendingDismissIds,
   pendingMarkReadIds,
+  projectBadgeOf,
 }: TasksInboxItemProps) {
   const { task, run, triage, lane } = item;
+  const projectBadge = projectBadgeOf?.(task);
   const taskId = task.id;
   const unread = !triage.read && !triage.dismissed;
   const isApprovalItem = lane === "approvals";
@@ -101,6 +107,18 @@ export function TasksInboxItem({
       ) : null}
 
       <p className="flex flex-wrap items-center gap-1.5 text-subtle">
+        {projectBadge ? (
+          <>
+            <WorkspaceBadge
+              className="max-w-40"
+              data-testid={`tasks-inbox-item-project-${taskId}`}
+              identity={projectBadge}
+            />
+            <span aria-hidden="true" className="text-faint opacity-60">
+              ·
+            </span>
+          </>
+        ) : null}
         <span data-testid={`tasks-inbox-item-owner-${taskId}`}>{ownerLabel}</span>
         <span aria-hidden="true" className="text-faint opacity-60">
           ·
@@ -127,6 +145,7 @@ export function TasksInboxItem({
       pendingMarkReadIds={pendingMarkReadIds}
       pendingRejectIds={pendingRejectIds}
       pendingRetryIds={pendingRetryIds}
+      openSearch={projectBadge ? taskWindowBinding(task.workspace_id) : undefined}
       runId={run?.id}
       taskId={taskId}
       unread={unread}
@@ -150,6 +169,8 @@ export function TasksInboxItem({
 
 interface InboxItemActionsProps {
   taskId: string;
+  /** The window binding Open carries under All projects. */
+  openSearch?: { workspace: string };
   runId?: string;
   unread: boolean;
   isApprovalItem: boolean;
@@ -171,6 +192,7 @@ interface InboxItemActionsProps {
 
 function InboxItemActions({
   taskId,
+  openSearch,
   runId,
   unread,
   isApprovalItem,
@@ -217,7 +239,7 @@ function InboxItemActions({
       <Button
         data-testid={`tasks-inbox-item-open-${taskId}`}
         nativeButton={false}
-        render={<Link params={{ id: taskId }} to="/tasks/$id" />}
+        render={<Link params={{ id: taskId }} search={openSearch} to="/tasks/$id" />}
         size="xs"
         variant="ghost"
       >

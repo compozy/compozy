@@ -94,23 +94,28 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", async () => {
     // resolves to User, and `pending` claims nothing it cannot prove.
     useActiveWorkspace: (options: unknown) => {
       workspaceMockState.options = options;
-      const selected = workspaceMockState.selectedWorkspaceId;
-      const resolution = resolveActiveWorkspace({
-        workspaces: workspaceFixtures,
-        breadthMode: workspaceMockState.breadthMode,
-        focus: selected ? { kind: "project", workspaceId: selected } : { kind: "user" },
-        pending: workspaceMockState.pending,
-      });
-      return {
-        ...resolution,
-        error: workspaceMockState.error,
-        hasHydrated: workspaceMockState.hasHydrated,
-        isLoading: workspaceMockState.isLoading,
-        isPending: workspaceMockState.isLoading,
-        workspaces: resolution.projectWorkspaces,
-      };
+      return resolveFixture();
     },
+    // Outside a window frame the window's data scope is the menubar destination.
+    useDataScope: () => resolveFixture().dataScope,
   };
+  function resolveFixture() {
+    const selected = workspaceMockState.selectedWorkspaceId;
+    const resolution = resolveActiveWorkspace({
+      workspaces: workspaceFixtures,
+      breadthMode: workspaceMockState.breadthMode,
+      focus: selected ? { kind: "project", workspaceId: selected } : { kind: "user" },
+      pending: workspaceMockState.pending,
+    });
+    return {
+      ...resolution,
+      error: workspaceMockState.error,
+      hasHydrated: workspaceMockState.hasHydrated,
+      isLoading: workspaceMockState.isLoading,
+      isPending: workspaceMockState.isLoading,
+      workspaces: resolution.projectWorkspaces,
+    };
+  }
 });
 
 import {
@@ -484,7 +489,8 @@ describe("useTasksPage", () => {
     expect(listFilters?.workspace).toBeUndefined();
   });
 
-  it("maps All projects to global task queries", async () => {
+  // W-17: All projects reads the task aggregate (every project plus User), never `scope=global`.
+  it("maps All projects to the all_workspaces task aggregate", async () => {
     workspaceMockState.breadthMode = "all";
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
@@ -493,9 +499,61 @@ describe("useTasksPage", () => {
     });
 
     const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
-    expect(listFilters?.scope).toBe("global");
+    expect(listFilters?.all_workspaces).toBe(true);
+    expect(listFilters?.scope).toBeUndefined();
     expect(listFilters?.workspace).toBeUndefined();
+    expect(listFilters?.workspace_ids).toBeUndefined();
     expect(result.current.activeWorkspaceName).toBeNull();
+    expect(result.current.projectFilter.visible).toBe(true);
+    expect(result.current.projectBadgeOf?.({ workspace_id: "ws_beta" })).toMatchObject({
+      kind: "project",
+      name: "Beta",
+    });
+    expect(result.current.projectBadgeOf?.({})).toMatchObject({ kind: "user", name: "User" });
+    // The inbox has no aggregate selector: omission is every task.
+    expect(getTaskInbox).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: undefined, workspace: undefined, limit: 1 }),
+      expect.any(AbortSignal)
+    );
+  });
+
+  // W-23: the Project filter narrows the aggregate server-side, and exists only under All projects.
+  it("narrows the aggregate by the Project filter and hides it outside All projects", async () => {
+    workspaceMockState.breadthMode = "all";
+    const { result, rerender } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    act(() => {
+      result.current.projectFilter.setValues(["ws_alpha", "@user"]);
+    });
+
+    await waitFor(() => {
+      const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+      expect(listFilters).toMatchObject({
+        all_workspaces: true,
+        workspace_ids: ["@user", "ws_alpha"],
+      });
+    });
+    expect(result.current.hasListFilters).toBe(true);
+
+    workspaceMockState.breadthMode = "focused";
+    rerender();
+
+    await waitFor(() => {
+      const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+      expect(listFilters).toMatchObject({ scope: "workspace", workspace: "ws_alpha" });
+      expect(listFilters?.workspace_ids).toBeUndefined();
+    });
+    expect(result.current.projectFilter.visible).toBe(false);
+    expect(result.current.projectFilter.values).toEqual([]);
+    expect(result.current.projectBadgeOf).toBeUndefined();
+
+    // Back under All projects the filter starts empty: it is transient per mode.
+    workspaceMockState.breadthMode = "all";
+    rerender();
+    expect(result.current.projectFilter.values).toEqual([]);
   });
 
   it("withholds task-scoped reads until scope resolution settles", async () => {
@@ -610,7 +668,7 @@ describe("useTasksPage", () => {
     });
   });
 
-  it("maps All projects into global dashboard and backlog queries", async () => {
+  it("maps All projects into the aggregate dashboard and backlog queries", async () => {
     workspaceMockState.breadthMode = "all";
     renderHook(() => useTasksPage({ search: { mode: "dashboard" } }), {
       wrapper: createWrapper(),
@@ -622,10 +680,11 @@ describe("useTasksPage", () => {
     });
 
     const [dashboardFilters] = vi.mocked(getTaskDashboard).mock.calls.at(-1) ?? [];
-    expect(dashboardFilters?.scope).toBe("global");
+    expect(dashboardFilters?.all_workspaces).toBe(true);
+    expect(dashboardFilters?.scope).toBeUndefined();
     expect(dashboardFilters?.workspace).toBeUndefined();
     const [backlogFilters] = vi.mocked(getSchedulerBacklog).mock.calls.at(-1) ?? [];
-    expect(backlogFilters?.scope).toBe("global");
+    expect(backlogFilters?.scope).toBe("all");
     expect(backlogFilters?.workspace).toBeUndefined();
   });
 

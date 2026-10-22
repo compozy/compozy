@@ -70,3 +70,9 @@ HTTP `POST /api/workspaces/@user/sessions/<id>/prompt` leg in the trailing QA pa
 
 
 2026-10-21 backend gap follow-up: scope inputs for task creation/catalog and automation creation/catalog accept `user` and `@user`, persisting/emitting `global`. Scope remains immutable on updates. Include `compozy logs --workspace @user --type workspace.access_granted` in the User audit leg; it must exclude project rows and other profiles. Focused SQLite and native-dispatch integration coverage verifies the backend boundary; the complete browser scenario remains pending integration QA.
+
+2026-10-21 qa-impact (all-projects AW2): Tasks and Home under All projects now read the explicit
+aggregates (`all_workspaces=true` on tasks, task dashboard, and overview; `scope=all` on the scheduler
+backlog); User focus keeps `scope=global` for tasks and `@user` for Home. Re-walk the User half with a
+projectless task and confirm it never appears in a project's listing and shows the "User" badge under
+All projects.

@@ -5,11 +5,11 @@ title: Keep task listings calm while preserving typed Loop drilldown
 persona: Ada
 journey: J-operate-loop-run-headless
 expected: During an active Loop, default task catalogs, counts, dashboard totals, and inbox lanes omit coordinator and cell records on HTTP, UDS, CLI, and native tools; typed include and run filters reveal the same records with structured provenance, while a parent drilldown still returns its children.
-entry_points: compozy task list; compozy task list --include-loop; compozy task list --loop-run <run-id>; compozy task list --parent <task-id>; GET /api/tasks over HTTP and UDS; GET /api/tasks/:id over HTTP and UDS; compozy__task_list; task dashboard and inbox; skills/compozy/references/tasks-and-orchestration.md; /docs/cli/task/list
-qa_status: pass
+entry_points: web Tasks window under All projects (List, Kanban, Inbox, Dashboard, Project filter); compozy task list; compozy task list --include-loop; compozy task list --loop-run <run-id>; compozy task list --parent <task-id>; GET /api/tasks over HTTP and UDS; GET /api/tasks/:id over HTTP and UDS; compozy__task_list; task dashboard and inbox; skills/compozy/references/tasks-and-orchestration.md; /docs/cli/task/list
+qa_status: untested
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status: untested
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/cross-surface/default-parity.sha256; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/cross-surface/include-parity.sha256; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/cross-surface/loop-run-parity.sha256
 last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
@@ -39,3 +39,16 @@ request the explicit aggregate. The unrestricted-agent exception belongs to the 
 
 Backend evidence: [2026-10-21 All projects task slice](../reports/2026-10-21-all-projects-user-scope.md).
 The Web All projects journey remains an integration check for the owning frontend slice.
+
+2026-10-21 qa-impact (all-projects AW2, web Tasks): **reset to `untested`** for the web consumer.
+Under All projects the Tasks list, Kanban, and Dashboard read `all_workspaces=true` (never
+`scope=global`); the scheduler backlog reads `scope=all`; the Inbox omits the scope (its omission is
+every task). Each row, Kanban card, Inbox item, and active run shows its project badge ("User" for a
+projectless task) and opens the task in place on the All projects desktop with the project badge in
+the window chrome. The list toolbar gains a **Project** filter (multi-select, User last) that narrows
+server-side with repeated `workspace_ids`, resets when All projects turns off or back on, and is hidden
+in project mode; a filter that empties the list shows "No tasks match the current filters" with
+Clear filters. The task dock badge counts awaiting-approval tasks across every project under All
+projects and only the focused project (or User) otherwise. Also open a task from the bell and from the
+⌘K Tasks section: both stay in All projects. The calm default and the loop reveal keep their
+behaviour inside the aggregate.

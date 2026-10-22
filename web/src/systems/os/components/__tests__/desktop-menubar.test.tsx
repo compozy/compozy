@@ -69,6 +69,10 @@ vi.mock("../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => vi.fn(),
 }));
 
+vi.mock("../../hooks/use-open-target", () => ({
+  useOpenTarget: () => vi.fn(),
+}));
+
 const ATTENTION: OsAttentionModel = {
   badges: {},
   notificationCount: 0,

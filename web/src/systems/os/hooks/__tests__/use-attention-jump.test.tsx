@@ -32,10 +32,14 @@ vi.mock("@/systems/session", () => ({
   }),
 }));
 
-vi.mock("@/systems/workspace", async importOriginal => {
-  const actual = await importOriginal<typeof import("@/systems/workspace")>();
+vi.mock("@/systems/workspace", async () => {
+  // The pure destination helpers only: loading the whole barrel here would evaluate the OS
+  // hooks that import this mock before it resolves.
+  const destination = await import("@/systems/workspace/lib/destination");
+  const binding = await import("@/systems/workspace/lib/window-data-scope");
   return {
-    ...actual,
+    ...destination,
+    ...binding,
     focusDestination,
     useActiveWorkspace: () => ({
       dataScope,

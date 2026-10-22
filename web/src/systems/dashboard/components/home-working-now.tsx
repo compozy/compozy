@@ -17,6 +17,7 @@ import { useElapsedNowSeconds } from "../hooks/use-elapsed-ticker";
 import { formatHomeDurationSeconds } from "../lib/home-formatters";
 import type { HomeRunCardModel, HomeWorkingNowStatus } from "../types";
 import { useSessionCreateActions } from "@/systems/session";
+import { WorkspaceBadge } from "@/systems/workspace";
 
 export interface HomeWorkingNowProps {
   cards: HomeRunCardModel[];
@@ -47,7 +48,16 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
             </Pill>
           ) : null}
         </div>
-        <p className="mt-1 truncate text-small-body text-muted">{card.subtitle}</p>
+        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-small-body text-muted">
+          {card.project ? (
+            <WorkspaceBadge
+              className="max-w-40 shrink-[1000]"
+              data-testid={`home-run-card-project-${card.key}`}
+              identity={card.project.badge}
+            />
+          ) : null}
+          <span className="min-w-0 truncate">{card.subtitle}</span>
+        </p>
       </div>
       <span className="text-meta tabular-nums text-muted">
         {formatHomeDurationSeconds(ticked, "clock")}
@@ -60,6 +70,7 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
       <Link
         className="block min-w-0 focus-visible:shadow-focus-inset focus-visible:outline-none"
         params={{ name: card.sessionLink.agentName, id: card.sessionLink.sessionId }}
+        search={card.project ? { workspace: card.project.binding } : undefined}
         to="/agents/$name/sessions/$id"
       >
         {body}
@@ -71,6 +82,7 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
       <Link
         className="block min-w-0 focus-visible:shadow-focus-inset focus-visible:outline-none"
         params={{ id: card.runLink.taskId, runId: card.runLink.runId }}
+        search={card.project ? { workspace: card.project.binding } : undefined}
         to="/tasks/$id/runs/$runId"
       >
         {body}

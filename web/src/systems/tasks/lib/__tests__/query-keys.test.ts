@@ -41,6 +41,8 @@ describe("tasksKeys", () => {
     ).toEqual([
       "tasks",
       "list",
+      // A bounded read carries no aggregate axis.
+      "",
       "workspace",
       "ws_alpha",
       // Worktree scope is part of the key so two window scopes never share a
@@ -63,7 +65,18 @@ describe("tasksKeys", () => {
       "marketing",
     ]);
 
-    expect(tasksKeys.list()).toEqual(["tasks", "list", ...Array.from({ length: 16 }, () => "")]);
+    expect(tasksKeys.list()).toEqual(["tasks", "list", ...Array.from({ length: 17 }, () => "")]);
+
+    // All projects is its own population, and each Project filter narrows it to
+    // another one; the filter's order never forks the cache.
+    expect(tasksKeys.list({ all_workspaces: true })[2]).toBe("all");
+    expect(
+      tasksKeys.list({ all_workspaces: true, workspace_ids: ["ws_b", "@user", "ws_b"] })[2]
+    ).toBe("all,@user,ws_b");
+    expect(tasksKeys.list({ all_workspaces: true, workspace_ids: ["@user", "ws_b"] })).toEqual(
+      tasksKeys.list({ all_workspaces: true, workspace_ids: ["ws_b", "@user"] })
+    );
+    expect(tasksKeys.list({ all_workspaces: true })).not.toEqual(tasksKeys.list({}));
 
     // The calm default sends no include flag at all, so it must not collide
     // with an explicit reveal.
@@ -131,7 +144,9 @@ describe("tasksKeys", () => {
   it("serializes dashboard and inbox filters stably", () => {
     expect(
       tasksKeys.dashboard({ scope: "workspace", workspace: "ws_alpha", worktree: "wt_alpha" })
-    ).toEqual(["tasks", "dashboard", "workspace", "ws_alpha", "wt_alpha", "", "", "", ""]);
+    ).toEqual(["tasks", "dashboard", "", "workspace", "ws_alpha", "wt_alpha", "", "", "", ""]);
+    // All projects reads every task; the empty-scope (omission) read must not share its entry.
+    expect(tasksKeys.dashboard({ all_workspaces: true })).not.toEqual(tasksKeys.dashboard({}));
 
     expect(
       tasksKeys.inbox({

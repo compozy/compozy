@@ -74,11 +74,15 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   // available for any non-terminal, published task.
   const showFanOut = Boolean(command?.canFanOut);
 
+  // The window's data binding (open-in-place under All projects) follows every
+  // move inside this task, so the window keeps reading — and badging — its scope.
+  const binding = search.workspace ? { workspace: search.workspace } : {};
+
   const setTab = (tab: TaskDetailTab) => {
     void navigate({
       to: "/tasks/$id",
       params: { id: taskId },
-      search: { tab, inspect: search.inspect },
+      search: { tab, inspect: search.inspect, ...binding },
       replace: true,
     });
   };
@@ -87,7 +91,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
     void navigate({
       to: "/tasks/$id",
       params: { id: taskId },
-      search: { tab: search.tab, inspect },
+      search: { tab: search.tab, inspect, ...binding },
       replace: true,
     });
   };
@@ -100,7 +104,7 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
     void navigate({
       to: "/tasks/$id",
       params: { id: taskId },
-      search: { tab: search.tab },
+      search: { tab: search.tab, ...binding },
       replace: true,
     });
   };
@@ -110,13 +114,17 @@ export function useTaskDetailLocation(taskId: string, search: ResolvedTaskDetail
   };
 
   const openTask = (id: string) => {
-    void navigate({ to: "/tasks/$id", params: { id } });
+    void navigate({ to: "/tasks/$id", params: { id }, search: binding });
   };
 
   // The editor layers over this location, so the active tab rides along and
   // dismissal returns to the tab the operator was reading.
   const openEdit = () => {
-    void navigate({ to: "/tasks/$id/edit", params: { id: taskId }, search: { tab: search.tab } });
+    void navigate({
+      to: "/tasks/$id/edit",
+      params: { id: taskId },
+      search: { tab: search.tab, ...binding },
+    });
   };
 
   const backToTasks = () => {

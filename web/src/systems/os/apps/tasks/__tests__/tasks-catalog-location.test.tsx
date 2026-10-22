@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   listSurfaceProps: null as null | { profile: unknown },
   navigate: vi.fn(),
   userOpen: vi.fn(),
+  openTarget: vi.fn(),
   page: {
     // The listing's profile axis, as the page hook resolves it.
     profile: {
@@ -96,7 +97,10 @@ const mocks = vi.hoisted(() => ({
     statusFilter: null,
     tasksCount: 3,
     unreadOnly: false,
-    visibleTasks: [],
+    visibleTasks: [] as Array<{ id: string; workspace_id?: string }>,
+    projectFilter: { visible: false, values: [], setValues: vi.fn(), clear: vi.fn(), field: null },
+    projectBadgeOf: undefined,
+    clearListFilters: vi.fn(),
   },
 }));
 
@@ -124,6 +128,10 @@ vi.mock("@/systems/os/hooks/use-os-shell", () => ({
   useOsShell: () => ({ coordinator: { userOpen: mocks.userOpen } }),
 }));
 
+vi.mock("@/systems/os/hooks/use-open-target", () => ({
+  useOpenTarget: () => mocks.openTarget,
+}));
+
 vi.mock("@/systems/tasks/components/public-api", () => ({
   TasksDashboardView: () => <div data-testid="tasks-dashboard-view" />,
   TasksEmptyState: (props: {
@@ -145,7 +153,15 @@ vi.mock("@/systems/tasks/components/public-api", () => ({
     );
   },
   TasksInboxView: () => <div data-testid="tasks-inbox-view" />,
-  TasksKanbanBoard: () => <div data-testid="tasks-kanban-view" />,
+  TasksKanbanBoard: (props: { onSelectTask: (taskId: string) => void }) => (
+    <button
+      data-testid="tasks-kanban-view"
+      onClick={() => props.onSelectTask("task-beta")}
+      type="button"
+    >
+      Open task
+    </button>
+  ),
   TasksListSurface: (props: { profile: unknown }) => {
     mocks.listSurfaceProps = props;
     return <div data-testid="tasks-list-surface" />;
@@ -183,6 +199,8 @@ describe("TasksCatalogLocation", () => {
     mocks.page.profile.destination = "default";
     mocks.page.profile.scopeLabel = "default";
     mocks.userOpen.mockReset();
+    mocks.openTarget.mockReset();
+    mocks.page.visibleTasks = [];
   });
 
   it("Should lead the strip with List and Kanban views while keeping them out of the head [UT-130]", () => {
@@ -237,6 +255,23 @@ describe("TasksCatalogLocation", () => {
       app: "tasks",
       route: { pathname: "/tasks/new", search: { mode: "list", template: "blank" } },
     });
+  });
+
+  // Open-in-place (BR-4): a task opens through the one item path bound to its own scope, so
+  // under All projects it lands on the All projects desktop instead of switching project.
+  it("Should open a selected task through the item path bound to its own project", async () => {
+    const user = userEvent.setup();
+    mocks.page.visibleTasks = [{ id: "task-beta", workspace_id: "ws_beta" }];
+
+    renderCatalog("kanban");
+    await user.click(screen.getByTestId("tasks-kanban-view"));
+
+    expect(mocks.openTarget).toHaveBeenCalledWith({
+      app: "tasks",
+      binding: { kind: "project", workspaceId: "ws_beta" },
+      route: { pathname: "/tasks/task-beta", search: {} },
+    });
+    expect(mocks.userOpen).not.toHaveBeenCalled();
   });
 
   it("Should pass the resolved default profile into the list surface", () => {

@@ -120,6 +120,11 @@ function useTasksPageSearch(routeSearch: TasksRouteSearch, onSearchChange?: Sear
       updateSearch({ sort: sort === "recent" ? undefined : sort }),
     handleStatusChange: (status: TaskStatus | null) =>
       updateSearch({ status: status ?? undefined }),
+    /** Clears every route-owned list filter (status, owner, priority, search). */
+    clearRouteListFilters: () => {
+      listSearch.setDraftValue("");
+      updateSearch({ status: undefined, owner: undefined, priority: undefined, query: undefined });
+    },
     hasListFilters,
     inboxSearchQuery: inboxSearch.draftValue,
     searchQuery: listSearch.draftValue,

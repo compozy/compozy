@@ -4,7 +4,10 @@ import { AlertCircle } from "lucide-react";
 import { Disclosure, Empty, Eyebrow } from "@compozy/ui";
 
 import type { TaskDashboardView } from "../types";
-import { TasksDashboardActiveRuns } from "./tasks-dashboard-active-runs";
+import {
+  TasksDashboardActiveRuns,
+  type TasksDashboardActiveRunsProps,
+} from "./tasks-dashboard-active-runs";
 import { TasksDashboardCards } from "./tasks-dashboard-cards";
 import { TasksDashboardQueueHealth } from "./tasks-dashboard-queue-health";
 import { TasksDashboardStatusBreakdown } from "./tasks-dashboard-status-breakdown";
@@ -29,6 +32,8 @@ export interface TasksDashboardViewProps {
   onPauseScheduler?: (reason: string) => void | Promise<void>;
   onResumeScheduler?: () => void | Promise<void>;
   onDrainScheduler?: (input: { reason?: string; timeoutSeconds?: number }) => void | Promise<void>;
+  /** Each active run's project under All projects; absent while one scope is shown. */
+  projectBadgeOf?: TasksDashboardActiveRunsProps["projectBadgeOf"];
 }
 
 /** The queue needs a person when it is paused or holding stuck/attention work. */
@@ -87,6 +92,7 @@ export function TasksDashboardView({
   onPauseScheduler,
   onResumeScheduler,
   onDrainScheduler,
+  projectBadgeOf,
 }: TasksDashboardViewProps) {
   if (dashboardStatus === "loading" && !dashboard) {
     return <TasksDashboardLoadingSkeleton />;
@@ -121,7 +127,7 @@ export function TasksDashboardView({
     >
       <TasksDashboardCards dashboard={dashboard} />
 
-      <TasksDashboardActiveRuns dashboard={dashboard} />
+      <TasksDashboardActiveRuns dashboard={dashboard} projectBadgeOf={projectBadgeOf} />
 
       <div className="grid grid-cols-1 gap-4 @5xl:grid-cols-[2fr_1fr]">
         <TasksDashboardQueueHealth dashboard={dashboard} />

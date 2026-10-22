@@ -66,14 +66,15 @@ function surfaceStatus(isLoading: boolean, isError: boolean, hasData: boolean): 
 const UNSETTLED_HOME_SCOPE: HomeScope = {
   dataScope: { kind: "all" },
   workspaceParam: "",
-  taskScope: { scope: "global" },
+  taskScope: { all_workspaces: true },
+  overview: { allWorkspaces: true },
 };
 
 export function useHomeDashboard({
   liveEnabled = true,
 }: UseHomeDashboardOptions = {}): HomeDashboardModel {
   const { connectionStatus } = useDaemonHealth();
-  const { activeWorkspace, dataScope } = useActiveWorkspace();
+  const { activeWorkspace, dataScope, registeredWorkspaces } = useActiveWorkspace();
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
 
@@ -85,7 +86,7 @@ export function useHomeDashboard({
   const overviewQuery = useQuery(
     homeOverviewOptions(
       {
-        workspace: scope.workspaceParam || undefined,
+        ...scope.overview,
         usageWindow,
         receiptProfile: destination,
         // Usage follows the active view: a scoped profile sees only its own
@@ -112,7 +113,11 @@ export function useHomeDashboard({
     enabled: scopeSettled && liveEnabled,
   });
 
-  const workingNow = useHomeWorkingNow(scope, scopeSettled && liveEnabled);
+  const workingNow = useHomeWorkingNow(
+    scope,
+    scopeSettled && liveEnabled,
+    new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]))
+  );
   const overviewPresentation = queryPresentation(overviewQuery, scopeSettled);
   const activityPresentation = queryPresentation(activityQuery, scopeSettled);
   const overview = overviewQuery.data;

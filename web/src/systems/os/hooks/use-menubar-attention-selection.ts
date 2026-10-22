@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { ownerDataScope, useActiveWorkspace } from "@/systems/workspace";
 import { notifyUser } from "@/lib/user-feedback";
 import { useDesktop } from "./use-desktop";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
@@ -10,6 +10,7 @@ import { terminalAttentionLocation } from "@/systems/terminal";
 import type { DesktopOverlay } from "./use-desktop-overlays";
 import type { OsAttentionRow } from "../lib/attention-model";
 import { useAttentionJump } from "./use-attention-jump";
+import { useOpenTarget } from "./use-open-target";
 import { useOsShell } from "./use-os-shell";
 
 export function useMenubarAttentionSelection(
@@ -17,6 +18,7 @@ export function useMenubarAttentionSelection(
 ) {
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
+  const openItem = useOpenTarget();
   const { runtimeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
   const commandWorkspaceId = useDesktop(state =>
     windowManagerCommandsAvailable(state) ? state.snapshot?.workspaceId : null
@@ -80,10 +82,14 @@ export function useMenubarAttentionSelection(
         });
         return;
       case "task":
-        openInWorkspace(row.workspaceId, {
-          app: "tasks",
-          route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
-        });
+        openItem(
+          {
+            app: "tasks",
+            binding: ownerDataScope(row.workspaceId),
+            route: { pathname: `/tasks/${encodeURIComponent(row.id)}`, search: {} },
+          },
+          "Couldn't open this notification. Try again."
+        );
     }
   };
 }

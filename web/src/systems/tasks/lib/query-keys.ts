@@ -25,6 +25,15 @@ function normalizeNumber(value?: number): string {
   return value === undefined ? "" : String(value);
 }
 
+/** The aggregate axis: `all` plus its sorted Project filter, or empty for a bounded read. */
+function breadthKey(filters: {
+  all_workspaces?: boolean | null;
+  workspace_ids?: readonly string[] | null;
+}): string {
+  if (!filters.all_workspaces) return "";
+  return ["all", ...[...new Set(filters.workspace_ids ?? [])].sort()].join(",");
+}
+
 function profileLens(scope: { profile?: string | null; all_profiles?: boolean | null }): string {
   return scope.all_profiles ? PROFILE_AGGREGATE : normalizeText(scope.profile);
 }
@@ -37,6 +46,7 @@ export const tasksKeys = {
     const normalized = taskListStableFilter(filters);
     return [
       ...tasksKeys.lists(),
+      breadthKey(normalized),
       normalizeText(normalized.scope),
       normalizeText(normalized.workspace),
       // Part of the key, not just the request: two window scopes must not share
@@ -127,6 +137,7 @@ export const tasksKeys = {
   dashboard: (filters: TaskDashboardFilter = {}) =>
     [
       ...tasksKeys.dashboardRoot(),
+      breadthKey(filters),
       normalizeText(filters.scope),
       normalizeText(filters.workspace),
       normalizeText(filters.worktree),

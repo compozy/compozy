@@ -102,6 +102,28 @@ describe("TasksKanbanBoard", () => {
     expect(onSelectTask).toHaveBeenCalledWith("a");
   });
 
+  it("Should name each card's project only under All projects", () => {
+    const task = buildTask({ id: "task_beta", workspace_id: "ws_beta" });
+    const { rerender } = render(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban([task])}
+        onSelectTask={vi.fn()}
+        projectBadgeOf={() => ({ kind: "project", name: "Beta", monogram: "BE" })}
+        selectedTaskId={null}
+      />
+    );
+    expect(screen.getByTestId("tasks-kanban-card-project-task_beta")).toHaveTextContent("Beta");
+
+    rerender(
+      <TasksKanbanBoard
+        columns={groupTasksForKanban([task])}
+        onSelectTask={vi.fn()}
+        selectedTaskId={null}
+      />
+    );
+    expect(screen.queryByTestId("tasks-kanban-card-project-task_beta")).toBeNull();
+  });
+
   it("Should expose a generic create action without promising a target column", () => {
     const onCreate = vi.fn();
     render(

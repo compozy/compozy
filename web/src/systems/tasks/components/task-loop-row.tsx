@@ -13,12 +13,15 @@ import { formatRelativeTime, taskStateGlyph, taskStatusLabel } from "../lib/task
 import type { TaskListItem } from "../types";
 import { TasksListRow } from "./tasks-list-row";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 export interface TaskLoopRowProps {
   task: TaskListItem;
   loop: TaskLoopProvenance;
   onOpenRun?: () => void;
   profileOwner?: ProfileOwner;
+  /** The record's project, under All projects only. */
+  projectBadge?: WorkspaceBadgeIdentity;
 }
 
 /**
@@ -30,10 +33,19 @@ export interface TaskLoopRowProps {
  * state glyph column. Identity is plain words end to end; the machine run id only
  * ever appears in the identifier column.
  */
-export function TaskLoopRow({ task, loop, onOpenRun, profileOwner }: TaskLoopRowProps) {
+export function TaskLoopRow({
+  task,
+  loop,
+  onOpenRun,
+  profileOwner,
+  projectBadge,
+}: TaskLoopRowProps) {
   const runLink = taskLoopRunLink(loop);
   const identity = taskLoopIdentityLabel(loop);
   const meta = [
+    projectBadge ? (
+      <WorkspaceBadge className="max-w-40 shrink-[1000]" identity={projectBadge} key="project" />
+    ) : null,
     <Pill data-slot="task-loop-row-role" key="role" size="sm" tone="neutral">
       {taskLoopRoleLabel(loop)}
     </Pill>,

@@ -43,6 +43,7 @@ export interface TasksInboxViewProps {
   onDismiss?: TasksInboxItemProps["onDismiss"];
   onMarkRead?: TasksInboxItemProps["onMarkRead"];
   onOpen?: TasksInboxItemProps["onOpen"];
+  projectBadgeOf?: TasksInboxItemProps["projectBadgeOf"];
   pendingApproveIds?: ReadonlySet<string>;
   pendingRejectIds?: ReadonlySet<string>;
   pendingRetryIds?: ReadonlySet<string>;

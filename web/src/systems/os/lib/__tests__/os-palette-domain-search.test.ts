@@ -191,7 +191,7 @@ describe("os-palette-domain-search helpers", () => {
   it("Should scope catalog filters to one project, User, or every project", () => {
     const project = { kind: "project", workspaceId: "ws-a" } as const;
     expect(paletteTaskFilters(project)).toEqual({ scope: "workspace", workspace: "ws-a" });
-    expect(paletteTaskFilters({ kind: "all" })).toEqual({ scope: "all" });
+    expect(paletteTaskFilters({ kind: "all" })).toEqual({ all_workspaces: true });
     expect(paletteWorkspaceCatalogFilters(project)).toEqual({
       scope: "workspace",
       workspace_id: "ws-a",
