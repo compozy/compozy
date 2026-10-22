@@ -8,6 +8,7 @@ import {
   inspectWorktree,
 } from "../adapters/worktree-exit-api";
 import { workspaceKeys } from "./query-keys";
+import { USER_SCOPE_SELECTOR } from "./destination";
 
 export const WORKSPACE_REFETCH_INTERVAL = 10_000;
 
@@ -39,7 +40,8 @@ export function worktreesListOptions(workspaceID: string, enabled = true) {
   return queryOptions({
     queryKey: workspaceKeys.worktrees(workspaceID),
     queryFn: ({ signal }) => fetchWorktrees(workspaceID, {}, signal),
-    enabled: enabled && workspaceID !== "",
+    // User-scope work has no worktrees (USW BR-4); the daemon rejects the read.
+    enabled: enabled && workspaceID !== "" && workspaceID !== USER_SCOPE_SELECTOR,
     staleTime: 60_000,
   });
 }

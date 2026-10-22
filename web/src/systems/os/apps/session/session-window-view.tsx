@@ -11,6 +11,7 @@ import {
   type SessionPayload,
   SessionPromptRuntimeProvider,
 } from "@/systems/session";
+import { USER_SCOPE_SELECTOR } from "@/systems/workspace";
 
 const SessionWindowContent = lazy(() =>
   loadSessionWindowContent().then(module => ({ default: module.SessionWindowContent }))
@@ -54,7 +55,10 @@ export function SessionWindowView({
   }
 
   const resolvedAgentName = session.agent_name || name;
-  if (sessionWorkspaceId === "") {
+  // A User-scope session has no workspace but is live work; only legacy sessions without
+  // any scope fall back to the read-only history.
+  const runtimeWorkspaceId = session.scope === "user" ? USER_SCOPE_SELECTOR : sessionWorkspaceId;
+  if (runtimeWorkspaceId === "") {
     return (
       <SessionReadOnlyTranscript
         session={session}
@@ -67,7 +71,7 @@ export function SessionWindowView({
     <SessionPromptRuntimeProvider key={id} canPrompt={canPromptSession(session)} session={session}>
       <SessionChatRuntimeProvider
         sessionId={id}
-        workspaceId={sessionWorkspaceId}
+        workspaceId={runtimeWorkspaceId}
         liveTailEnabled={liveTailEnabled}
       >
         <SessionWindowContent
@@ -76,7 +80,7 @@ export function SessionWindowView({
           agentName={resolvedAgentName}
           sessionId={id}
           session={session}
-          workspaceId={sessionWorkspaceId}
+          workspaceId={runtimeWorkspaceId}
           onDeleteSuccess={onDeleteSuccess}
         />
       </SessionChatRuntimeProvider>
