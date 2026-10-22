@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -629,4 +631,26 @@ func TestAgentWorkspaceRefUserReference(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRequestOperatorOriginAppTokens(t *testing.T) {
+	t.Parallel()
+	t.Run("Should never let an app token carry the unrestricted grant", func(t *testing.T) {
+		t.Parallel()
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/sessions", nil)
+		c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
+		origin := requestOperatorOrigin(c)
+		if origin.Kind != workspaceaccess.ActorApp || origin.Effective(workspaceaccess.Unrestricted) != "" {
+			t.Fatalf("app token origin = %#v, effective = %q, want no grant", origin, origin.Effective(workspaceaccess.Unrestricted))
+		}
+	})
+	t.Run("Should keep the operator origin without an app token", func(t *testing.T) {
+		t.Parallel()
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/sessions", nil)
+		if got := requestOperatorOrigin(c).Effective(workspaceaccess.Unrestricted); got != workspaceaccess.Unrestricted {
+			t.Fatalf("operator effective grant = %q, want unrestricted", got)
+		}
+	})
 }

@@ -108,7 +108,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 			Kind:            createSessionLineageKind(req.LineageKind),
 		}
 	}
-	opts.Origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}
+	opts.Origin = requestOperatorOrigin(c)
 	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
 		caller, err := h.resolveAgentCaller(c.Request.Context(), agentCallerCredentialsFromRequest(c), agentActionSessionCreate)
 		if err != nil {

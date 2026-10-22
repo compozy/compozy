@@ -52,7 +52,7 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 			Cause:   profilepkg.ErrInvalidInput,
 		}
 	}
-	origin := workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}
+	origin := requestOperatorOrigin(c)
 	sessionProfileID := ""
 	var grantCaller agentidentity.Caller
 	granted := false

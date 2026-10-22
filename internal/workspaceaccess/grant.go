@@ -4,6 +4,10 @@ import "context"
 
 const Unrestricted = "unrestricted"
 
+// ActorApp marks work created through an app token. App tokens never carry the unrestricted grant
+// (USW Extensibility, Authority Matrix), so app-originated work gets no ceiling.
+const ActorApp ActorKind = "app"
+
 type Origin struct {
 	Kind    ActorKind
 	Ceiling string
