@@ -52,6 +52,7 @@ func (s *FilesystemAttachmentStore) AcquireScopeLease(
 	if err := attachmentContextErr(ctx); err != nil {
 		return nil, err
 	}
+	workspaceID = scopeWorkspaceID(workspaceID)
 	if _, err := sanitizeScopeID(workspaceID, "workspace"); err != nil {
 		return nil, err
 	}

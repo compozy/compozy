@@ -15,8 +15,20 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 )
 
+// userScopeAttachmentDir holds attachments of User-scope sessions, which have no workspace
+// (USW BR-1). Workspace ids never take this value, and retention is keyed by session.
+const userScopeAttachmentDir = "user"
+
+// scopeWorkspaceID maps the User scope's empty workspace to its reserved attachment directory.
+func scopeWorkspaceID(workspaceID string) string {
+	if workspaceID == "" {
+		return userScopeAttachmentDir
+	}
+	return workspaceID
+}
+
 func sanitizeScopeIDs(workspaceID string, sessionID string) (string, string, error) {
-	workspaceID, err := sanitizeScopeID(workspaceID, "workspace")
+	workspaceID, err := sanitizeScopeID(scopeWorkspaceID(workspaceID), "workspace")
 	if err != nil {
 		return "", "", err
 	}
