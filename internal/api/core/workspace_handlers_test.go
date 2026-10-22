@@ -466,7 +466,7 @@ func TestUserWorkspaceReferenceGuard(t *testing.T) {
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 		router := gin.New()
 		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
-		for _, surface := range []string{"loops", "loop-runs", "loop-requests", "terminals", "goal"} {
+		for _, surface := range []string{"loops", "loop-runs", "loop-requests", "terminals", "goal", "session-order"} {
 			path := "/workspaces/:workspace_id/" + surface
 			router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
 			for _, suffix := range []string{"", "?worktree=feature"} {
@@ -478,6 +478,24 @@ func TestUserWorkspaceReferenceGuard(t *testing.T) {
 				if resp.Code != expected {
 					t.Fatalf("%s%s = %d", surface, suffix, resp.Code)
 				}
+			}
+		}
+	})
+
+	t.Run("Should admit User selectors on agent, task, automation and Home reads", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		router := gin.New()
+		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
+		for _, path := range []string{"/agents", "/agents/:name", "/tasks", "/automation/runs", "/observe/overview"} {
+			router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		}
+		for _, target := range []string{
+			"/agents?workspace=@user", "/agents/coder?workspace=@user", "/tasks?workspace=@user",
+			"/automation/runs?workspace_id=@user", "/observe/overview?workspace=@user",
+		} {
+			if resp := performRequest(t, router, http.MethodGet, target, nil); resp.Code != http.StatusNoContent {
+				t.Fatalf("%s = %d, want the User selector admitted", target, resp.Code)
 			}
 		}
 	})
@@ -579,6 +597,24 @@ func TestUserLogsReferenceGuard(t *testing.T) {
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if resp.Code != http.StatusOK || payload.Workspace != "@user" {
 			t.Fatalf("response = %d %#v", resp.Code, payload)
+		}
+	})
+}
+
+func TestUserSessionRouteAllProfilesRead(t *testing.T) {
+	t.Parallel()
+	t.Run("Should read one User session under the all-profiles lens through its own profile", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			if id != "sess-user" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder", State: session.StateStopped}, nil
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/@user/sessions/sess-user?all_profiles=true", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("GET User session (all_profiles) = %d %s, want 200", resp.Code, resp.Body.String())
 		}
 	})
 }

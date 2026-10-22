@@ -596,3 +596,37 @@ func TestTaskExecutionRequestFromRequestValidatesDomainRequest(t *testing.T) {
 		}
 	})
 }
+
+func TestResolveTaskCatalogWorkspaceUserReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should map the User reference to global-scope tasks without a registry lookup", func(t *testing.T) {
+		t.Parallel()
+		h := &BaseHandlers{}
+		scope := taskpkg.CatalogScopeWorkspace
+		workspaceID := "stale"
+		if err := h.resolveTaskCatalogWorkspace(t.Context(), "@user", &scope, &workspaceID); err != nil {
+			t.Fatalf("resolveTaskCatalogWorkspace(@user) error = %v", err)
+		}
+		if scope != taskpkg.CatalogScopeGlobal || workspaceID != "" {
+			t.Fatalf("scope = %q workspace = %q, want global User rows", scope, workspaceID)
+		}
+	})
+}
+
+func TestAgentWorkspaceRefUserReference(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ query, want string }{
+		{query: "workspace=@user", want: ""},
+		{query: "workspace=ws-a", want: "ws-a"},
+		{query: "", want: ""},
+	} {
+		t.Run("Should map "+tc.query+" to the agent selector", func(t *testing.T) {
+			t.Parallel()
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/agents?"+tc.query, nil)
+			if got := agentWorkspaceRef(c); got != tc.want {
+				t.Fatalf("agentWorkspaceRef(%q) = %q, want %q (User selects the user layer)", tc.query, got, tc.want)
+			}
+		})
+	}
+}

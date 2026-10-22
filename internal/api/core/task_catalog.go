@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"fmt"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -176,6 +177,12 @@ func (h *BaseHandlers) resolveTaskCatalogWorkspace(
 ) error {
 	ref := strings.TrimSpace(workspaceRef)
 	if ref == "" {
+		return nil
+	}
+	if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+		// User tasks are stored as global-scope tasks without a workspace (USW BR-1, BR-17).
+		*scope = taskpkg.CatalogScopeGlobal
+		*workspaceID = ""
 		return nil
 	}
 	if scope.Normalize() == taskpkg.CatalogScopeGlobal {

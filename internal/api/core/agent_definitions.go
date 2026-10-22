@@ -134,7 +134,7 @@ func (h *BaseHandlers) DeleteAgent(c *gin.Context) {
 		return
 	}
 	resolved, err := h.resolveAgentDefinition(
-		c.Request.Context(), c.Query("workspace"), name, profileScope, profileName,
+		c.Request.Context(), agentWorkspaceRef(c), name, profileScope, profileName,
 	)
 	if err != nil {
 		h.respondError(c, statusForAgentDefinitionError(err), err)

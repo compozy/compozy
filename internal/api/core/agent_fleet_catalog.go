@@ -133,7 +133,7 @@ func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
 			agentCatalogMaxLimit,
 		)
 	}
-	workspace := strings.TrimSpace(c.Query("workspace"))
+	workspace := agentWorkspaceRef(c)
 	status := strings.ToLower(strings.TrimSpace(c.Query("status")))
 	if status != "" && status != queryFilterActiveValue && status != "idle" {
 		return agentCatalogQuery{}, fmt.Errorf(
