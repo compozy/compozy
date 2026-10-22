@@ -385,7 +385,7 @@ func (m *Service) lookup(key terminalKey) (*session, error) {
 	return nil, &Error{Code: ErrorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 }
 
-func (m *Service) admit(ctx context.Context, workspaceID string, actor Actor) error {
+func (m *Service) admit(ctx context.Context, _ string, actor Actor) error {
 	if strings.TrimSpace(actor.ProfileID) == "" {
 		return errors.New("terminal: actor profile is required")
 	}

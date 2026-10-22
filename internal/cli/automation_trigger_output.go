@@ -84,7 +84,7 @@ func automationTriggerListBundle(
 	projectLabels ...map[string]string,
 ) outputBundle {
 	projectHeader := automationWorkspaceValue
-	projectName := func(id string) string { return stringOrDash(id) }
+	projectName := stringOrDash
 	if len(projectLabels) > 0 {
 		projectHeader = cliProjectHeader
 		projectName = func(id string) string { return aggregateProjectName(projectLabels[0], id) }

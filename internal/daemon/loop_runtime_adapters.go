@@ -95,10 +95,7 @@ func (r *loopGateJudgeRunner) Judge(
 	if agent == "" {
 		return gate.JudgeResponse{}, fmt.Errorf("%w: judge agent is required", looppkg.ErrValidation)
 	}
-	opts, err := r.judgeCreateOptions(req, agent)
-	if err != nil {
-		return gate.JudgeResponse{}, err
-	}
+	opts := r.judgeCreateOptions(req, agent)
 	if err := r.policyGate.apply(ctx, &opts, agent, nil); err != nil {
 		return gate.JudgeResponse{}, err
 	}
@@ -141,7 +138,7 @@ func (r *loopGateJudgeRunner) Judge(
 func (r *loopGateJudgeRunner) judgeCreateOptions(
 	req gate.JudgeRequest,
 	agent string,
-) (session.CreateOpts, error) {
+) session.CreateOpts {
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
 		Origin: workspaceaccess.Origin{
@@ -164,10 +161,10 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 	}
 	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" {
 		opts.Workspace = workspaceID
-		return opts, nil
+		return opts
 	}
 	opts.Scope = workspacepkg.ScopeUser
-	return opts, nil
+	return opts
 }
 
 func (r *loopGateJudgeRunner) stopJudgeSession(ctx context.Context, sessionID string, terminalErr error) error {

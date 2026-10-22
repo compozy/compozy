@@ -127,15 +127,6 @@ func (c *terminalCatalog) drainLocked() {
 	}
 }
 
-func (c *terminalCatalog) replayLocked(
-	workspaceID, profileID string,
-	after uint64,
-) ([]terminalCatalogEvent, bool, uint64) {
-	return c.replaySelectionLocked(after, func(event terminalpkg.Event) bool {
-		return event.WorkspaceID == workspaceID && event.ProfileID == profileID
-	})
-}
-
 func (c *terminalCatalog) replaySelectionLocked(
 	after uint64,
 	matches func(terminalpkg.Event) bool,

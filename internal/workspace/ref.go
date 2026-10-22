@@ -21,17 +21,17 @@ const (
 	ScopeUser      ScopeKind = "user"
 )
 
-type WorkspaceRef struct {
+type Ref struct {
 	Kind  RefKind
 	Value string
 }
 
-func ParseWorkspaceRef(raw string) WorkspaceRef {
+func ParseRef(raw string) Ref {
 	value := strings.TrimSpace(raw)
 	if value == workspaceaccess.UserSelector {
-		return WorkspaceRef{Kind: RefUser}
+		return Ref{Kind: RefUser}
 	}
-	return WorkspaceRef{Kind: RefWorkspace, Value: value}
+	return Ref{Kind: RefWorkspace, Value: value}
 }
 
 var (

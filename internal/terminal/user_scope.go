@@ -7,7 +7,7 @@ import (
 )
 
 func terminalWorkspaceID(value string) string {
-	if workspacepkg.ParseWorkspaceRef(value).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(value).Kind == workspacepkg.RefUser {
 		return ""
 	}
 	return strings.TrimSpace(value)

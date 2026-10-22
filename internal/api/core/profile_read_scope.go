@@ -52,66 +52,19 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 			Cause:   profilepkg.ErrInvalidInput,
 		}
 	}
-	origin := requestOperatorOrigin(c)
-	sessionProfileID := ""
-	var grantCaller agentidentity.Caller
-	granted := false
-	credentials := agentCallerCredentialsFromRequest(c)
-	if hasAgentCallerIdentityCredentials(credentials) {
-		var caller agentidentity.Caller
-		var resolveErr error
-		if strings.TrimSpace(workspaceID) == "" {
-			caller, resolveErr = h.resolveAgentCaller(c.Request.Context(), credentials, "profile.read")
-		} else {
-			caller, resolveErr = h.resolveAgentCallerForWorkspace(
-				c.Request.Context(), credentials, "terminal.read", workspaceID,
-			)
-		}
-		if resolveErr != nil {
-			return resolvedProfileReadScope{}, resolveErr
-		}
-		sessionProfileID = strings.TrimSpace(caller.Session.ProfileID)
-		origin = workspaceaccess.Origin{
-			Kind:    workspaceaccess.ActorAgentSession,
-			Ceiling: caller.Session.EffectiveWorkspaceAccess,
-		}
-		grantCaller = caller
-		granted = caller.Session.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
+	caller, err := h.resolveProfileReadCaller(c, workspaceID)
+	if err != nil {
+		return resolvedProfileReadScope{}, err
 	}
-	c.Request = c.Request.WithContext(workspaceaccess.WithOrigin(c.Request.Context(), origin))
+	sessionProfileID, granted, grantCaller := caller.sessionProfileID, caller.granted, caller.caller
 	if allProfiles {
-		if sessionProfileID != "" && !granted {
-			return resolvedProfileReadScope{}, &profilepkg.Error{
-				Code:    profileSelectionConflictCode,
-				Message: "all_profiles is only available to operators",
-				Action:  "read the agent profile selected by the authenticated session",
-				Cause:   profilepkg.ErrInvalidInput,
-			}
-		}
-		if granted {
-			if err := h.authorizeGrantedProfile(c, grantCaller, workspaceID, "", true); err != nil {
-				return resolvedProfileReadScope{}, err
-			}
-		}
-		return resolvedProfileReadScope{Scope: profilepkg.ReadScope{AllProfiles: true}}, nil
+		return h.allProfilesReadScope(c, caller, workspaceID)
 	}
 	if requested == "" && sessionProfileID == "" {
 		requested = profileDefaultName
 	}
 	if h == nil || h.Profiles == nil {
-		if sessionProfileID != "" && requested == "" {
-			return resolvedProfileReadScope{Scope: profilepkg.ReadScope{ProfileID: sessionProfileID}}, nil
-		}
-		if requested == profileDefaultName {
-			if sessionProfileID != "" && sessionProfileID != store.DefaultProfileID {
-				return resolvedProfileReadScope{}, fmt.Errorf("profile service is unavailable")
-			}
-			return resolvedProfileReadScope{
-				Scope:       profilepkg.ReadScope{ProfileID: store.DefaultProfileID},
-				ProfileName: profileDefaultName,
-			}, nil
-		}
-		return resolvedProfileReadScope{}, fmt.Errorf("profile service is unavailable")
+		return profileReadScopeWithoutService(sessionProfileID, requested)
 	}
 	boundProfileID := sessionProfileID
 	if granted && requested != "" {
@@ -135,6 +88,89 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 		}
 	}
 	return resolvedProfileReadScope{Scope: scope, ProfileName: strings.TrimSpace(resolved.Profile.Name)}, nil
+}
+
+// profileReadCaller is the authenticated agent session behind a profile read, when there is one.
+type profileReadCaller struct {
+	caller           agentidentity.Caller
+	sessionProfileID string
+	granted          bool
+}
+
+// resolveProfileReadCaller authenticates an agent caller and binds the request's access origin:
+// the operator origin, or the agent session's effective grant.
+func (h *BaseHandlers) resolveProfileReadCaller(c *gin.Context, workspaceID string) (profileReadCaller, error) {
+	origin := requestOperatorOrigin(c)
+	var result profileReadCaller
+	credentials := agentCallerCredentialsFromRequest(c)
+	if hasAgentCallerIdentityCredentials(credentials) {
+		var caller agentidentity.Caller
+		var err error
+		if strings.TrimSpace(workspaceID) == "" {
+			caller, err = h.resolveAgentCaller(c.Request.Context(), credentials, "profile.read")
+		} else {
+			caller, err = h.resolveAgentCallerForWorkspace(
+				c.Request.Context(),
+				credentials,
+				"terminal.read",
+				workspaceID,
+			)
+		}
+		if err != nil {
+			return profileReadCaller{}, err
+		}
+		origin = workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAgentSession,
+			Ceiling: caller.Session.EffectiveWorkspaceAccess,
+		}
+		result = profileReadCaller{
+			caller:           caller,
+			sessionProfileID: strings.TrimSpace(caller.Session.ProfileID),
+			granted:          caller.Session.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted,
+		}
+	}
+	c.Request = c.Request.WithContext(workspaceaccess.WithOrigin(c.Request.Context(), origin))
+	return result, nil
+}
+
+// allProfilesReadScope admits the machine-wide read for operators and unrestricted agents only.
+func (h *BaseHandlers) allProfilesReadScope(
+	c *gin.Context,
+	caller profileReadCaller,
+	workspaceID string,
+) (resolvedProfileReadScope, error) {
+	if caller.sessionProfileID != "" && !caller.granted {
+		return resolvedProfileReadScope{}, &profilepkg.Error{
+			Code:    profileSelectionConflictCode,
+			Message: "all_profiles is only available to operators",
+			Action:  "read the agent profile selected by the authenticated session",
+			Cause:   profilepkg.ErrInvalidInput,
+		}
+	}
+	if caller.granted {
+		if err := h.authorizeGrantedProfile(c, caller.caller, workspaceID, "", true); err != nil {
+			return resolvedProfileReadScope{}, err
+		}
+	}
+	return resolvedProfileReadScope{Scope: profilepkg.ReadScope{AllProfiles: true}}, nil
+}
+
+// profileReadScopeWithoutService resolves only the session's or the default profile when no
+// profile service is wired.
+func profileReadScopeWithoutService(sessionProfileID, requested string) (resolvedProfileReadScope, error) {
+	if sessionProfileID != "" && requested == "" {
+		return resolvedProfileReadScope{Scope: profilepkg.ReadScope{ProfileID: sessionProfileID}}, nil
+	}
+	if requested == profileDefaultName {
+		if sessionProfileID != "" && sessionProfileID != store.DefaultProfileID {
+			return resolvedProfileReadScope{}, fmt.Errorf("profile service is unavailable")
+		}
+		return resolvedProfileReadScope{
+			Scope:       profilepkg.ReadScope{ProfileID: store.DefaultProfileID},
+			ProfileName: profileDefaultName,
+		}, nil
+	}
+	return resolvedProfileReadScope{}, fmt.Errorf("profile service is unavailable")
 }
 
 func (h *BaseHandlers) resolveProfileMutationScope(c *gin.Context) (profilepkg.ReadScope, error) {

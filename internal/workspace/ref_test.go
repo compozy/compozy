@@ -6,21 +6,21 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-func TestParseWorkspaceRef(t *testing.T) {
+func TestParseRef(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, raw string
-		want      WorkspaceRef
+		want      Ref
 	}{
-		{"Should select User explicitly", workspaceaccess.UserSelector, WorkspaceRef{Kind: RefUser}},
-		{"Should preserve legacy user name", "user", WorkspaceRef{Kind: RefWorkspace, Value: "user"}},
-		{"Should preserve workspace id", "ws_1", WorkspaceRef{Kind: RefWorkspace, Value: "ws_1"}},
-		{"Should preserve workspace path", "~/x", WorkspaceRef{Kind: RefWorkspace, Value: "~/x"}},
+		{"Should select User explicitly", workspaceaccess.UserSelector, Ref{Kind: RefUser}},
+		{"Should preserve legacy user name", "user", Ref{Kind: RefWorkspace, Value: "user"}},
+		{"Should preserve workspace id", "ws_1", Ref{Kind: RefWorkspace, Value: "ws_1"}},
+		{"Should preserve workspace path", "~/x", Ref{Kind: RefWorkspace, Value: "~/x"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if got := ParseWorkspaceRef(tc.raw); got != tc.want {
-				t.Fatalf("ParseWorkspaceRef(%q) = %#v, want %#v", tc.raw, got, tc.want)
+			if got := ParseRef(tc.raw); got != tc.want {
+				t.Fatalf("ParseRef(%q) = %#v, want %#v", tc.raw, got, tc.want)
 			}
 		})
 	}

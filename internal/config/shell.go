@@ -107,7 +107,8 @@ const (
 )
 
 // Scope remains functional through v0.4.0; remove this translation in v0.5.0.
-const ShellScopeDeprecationWarning = "shell.sessions.scope is deprecated; use shell.sessions.group_by for grouping and the topbar globe for All projects (removed in v0.5.0)"
+const ShellScopeDeprecationWarning = "shell.sessions.scope is deprecated; use shell.sessions.group_by for grouping " +
+	"and the topbar globe for All projects (removed in v0.5.0)"
 
 func (c *ShellSessionsConfig) ResolveGroupBy() {
 	if c.GroupByExplicit {

@@ -86,7 +86,7 @@ func (g *GlobalDB) CompleteUserScopeMigration(ctx context.Context, id string) (r
 		return err
 	}
 	if ready != 1 {
-		return errors.New("User migration stores are not verified")
+		return errors.New("migration stores for the User scope are not verified")
 	}
 	references, err := workspaceReferenceColumns(ctx, tx)
 	if err != nil {
@@ -95,13 +95,15 @@ func (g *GlobalDB) CompleteUserScopeMigration(ctx context.Context, id string) (r
 	for table, columns := range references {
 		for _, column := range columns {
 			var count int
-			if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM "+quoteMigrationIdentifier(table)+" WHERE "+quoteMigrationIdentifier(column)+"=?", id).
+			query := "SELECT count(*) FROM " + quoteMigrationIdentifier(table) +
+				" WHERE " + quoteMigrationIdentifier(column) + "=?"
+			if err := tx.QueryRowContext(ctx, query, id).
 				Scan(&count); err != nil {
 				return err
 			}
 			if count != 0 {
 				return fmt.Errorf(
-					"User migration registration retained: table %s column %s has %d references",
+					"migration registration retained for the User scope: table %s column %s has %d references",
 					table,
 					column,
 					count,

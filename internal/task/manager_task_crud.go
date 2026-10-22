@@ -55,7 +55,7 @@ func (m *Service) CreateTask(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
+	if err := m.store.CreateTaskDefinition(ctx, &CreateTaskDefinitionMutation{
 		Task: record, Events: []Event{event},
 	}); err != nil {
 		return nil, err
@@ -170,7 +170,7 @@ func (m *Service) CreateChildTask(
 		return nil, err
 	}
 	events := []Event{createdEvent, parentEvent}
-	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
+	if err := m.store.CreateTaskDefinition(ctx, &CreateTaskDefinitionMutation{
 		Task: child, Events: events,
 	}); err != nil {
 		return nil, err
@@ -265,8 +265,7 @@ func (m *Service) UpdateTask(
 	}
 
 	updated, changedFields := applyTaskPatch(current, normalizedPatch)
-	if len(changedFields) > 0 &&
-		(actor.Scope.Operator || normalizedPatch.Title != nil || normalizedPatch.Description != nil || normalizedPatch.Owner != nil || normalizedPatch.ClearOwner || normalizedPatch.Metadata != nil) {
+	if len(changedFields) > 0 && taskPatchReauthors(&normalizedPatch, actor.Scope.Operator) {
 		ceiling := workspaceaccess.AuthoringCeiling(ctx, actor.Scope.Operator)
 		if actor.Scope.Operator {
 			updated.GrantCeiling = ceiling
@@ -317,6 +316,13 @@ func (m *Service) UpdateTask(
 	}
 
 	return &updated, nil
+}
+
+// taskPatchReauthors reports an edit that re-authors the task, so its grant ceiling follows the
+// editor: any operator change, or an agent changing the authored content or ownership.
+func taskPatchReauthors(patch *Patch, operator bool) bool {
+	return operator || patch.Title != nil || patch.Description != nil ||
+		patch.Owner != nil || patch.ClearOwner || patch.Metadata != nil
 }
 
 func (m *Service) taskUpdateEvents(

@@ -27,7 +27,8 @@ const sessionCatalogVerdictOnlyExpression = `(session_type = 'system' AND EXISTS
  WHERE policy.profile_ref = sessions.creation_profile_ref
  AND json_extract(policy.profile_json, '$.runtime_mode') = 'verdict-only'))`
 
-const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_id, name, agent_name, provider, model, reasoning_effort, speed,
+const sessionInfoSelectQuery = `SELECT effective_workspace_access, id, profile_id, name, agent_name, provider, model,
+	reasoning_effort, speed,
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	runtime_generation, runtime_recovery_json,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
@@ -151,6 +152,25 @@ func appendSessionCatalogVisibilityFilters(where []string, query store.SessionCa
 	return appendSubagentSessionFilter(where, query.Subagents)
 }
 
+// appendSessionWorkspaceIDsFilter narrows to the All projects Project filter; @user selects User rows.
+func appendSessionWorkspaceIDsFilter(where []string, args []any, workspaceIDs []string) ([]string, []any, error) {
+	if len(workspaceIDs) == 0 {
+		return where, args, nil
+	}
+	ids := append([]string(nil), workspaceIDs...)
+	for i, id := range ids {
+		if id == workspaceaccess.UserSelector {
+			ids[i] = ""
+		}
+	}
+	encoded, err := json.Marshal(ids)
+	if err != nil {
+		return nil, nil, fmt.Errorf("store: encode session workspace filter: %w", err)
+	}
+	where = append(where, "workspace_id IN (SELECT CAST(value AS TEXT) FROM json_each(?))")
+	return where, append(args, string(encoded)), nil
+}
+
 func sessionCatalogPageFilters(
 	query store.SessionCatalogPageQuery,
 	now string,
@@ -166,19 +186,9 @@ func sessionCatalogPageFilters(
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("lineage_kind", string(query.LineageKind)),
 	)
-	if len(query.WorkspaceIDs) > 0 {
-		ids := append([]string(nil), query.WorkspaceIDs...)
-		for i, id := range ids {
-			if id == workspaceaccess.UserSelector {
-				ids[i] = ""
-			}
-		}
-		encoded, err := json.Marshal(ids)
-		if err != nil {
-			return nil, nil, fmt.Errorf("store: encode session workspace filter: %w", err)
-		}
-		where = append(where, "workspace_id IN (SELECT CAST(value AS TEXT) FROM json_each(?))")
-		args = append(args, string(encoded))
+	where, args, err := appendSessionWorkspaceIDsFilter(where, args, query.WorkspaceIDs)
+	if err != nil {
+		return nil, nil, err
 	}
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
 		if query.SearchFields == "title_agent" {
@@ -219,8 +229,6 @@ func sessionCatalogPageFilters(
 		args = append(args, now)
 	}
 	where, args = appendSessionArchiveFilter(where, args, query.Archive)
-
-	var err error
 	where, args, err = appendSessionCatalogExclusion(where, args, "id", query.ExcludeIDs)
 	if err != nil {
 		return nil, nil, err

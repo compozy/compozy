@@ -1918,7 +1918,7 @@ func (s *inMemoryManagerStore) DeleteExecutionProfile(_ context.Context, taskID 
 
 func (s *inMemoryManagerStore) CreateTaskDefinition(
 	ctx context.Context,
-	mutation CreateTaskDefinitionMutation,
+	mutation *CreateTaskDefinitionMutation,
 ) error {
 	if err := s.CreateTask(ctx, mutation.Task); err != nil {
 		return err

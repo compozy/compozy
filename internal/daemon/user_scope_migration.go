@@ -127,7 +127,7 @@ func migrateUserScopeLayouts(
 			return err
 		}
 		if !bytes.Equal(saved.Value, encoded) {
-			return errors.New("User layout verification failed")
+			return errors.New("layout verification failed for the User scope")
 		}
 	}
 	return nil

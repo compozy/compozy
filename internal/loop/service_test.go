@@ -4108,7 +4108,7 @@ func (s *fakeLoopStore) ReactivateLoopCoordinator(
 
 func (s *fakeLoopStore) GetLoopDefinitionSnapshot(
 	_ context.Context,
-	ws loop.WorkspaceID, profileID string,
+	ws loop.WorkspaceID, _ string,
 	digest string,
 ) (loop.DefinitionSnapshot, error) {
 	s.mu.Lock()
@@ -4122,7 +4122,7 @@ func (s *fakeLoopStore) GetLoopDefinitionSnapshot(
 
 func (s *fakeLoopStore) FindActiveLoopRun(
 	_ context.Context,
-	ws loop.WorkspaceID, profileID string,
+	ws loop.WorkspaceID, _ string,
 	loopName string,
 ) (*loop.Run, error) {
 	s.mu.Lock()
@@ -4241,7 +4241,7 @@ func (s *fakeLoopStore) SetLoopRunPauseRequested(
 
 func (s *fakeLoopStore) UpsertLoopConfig(
 	_ context.Context,
-	ws loop.WorkspaceID, profileID string,
+	ws loop.WorkspaceID, _ string,
 	loopName string,
 	cfg loop.LoopConfig,
 ) error {
@@ -4253,7 +4253,7 @@ func (s *fakeLoopStore) UpsertLoopConfig(
 
 func (s *fakeLoopStore) GetLoopConfig(
 	_ context.Context,
-	ws loop.WorkspaceID, profileID string,
+	ws loop.WorkspaceID, _ string,
 	loopName string,
 ) (*loop.LoopConfig, error) {
 	s.mu.Lock()

@@ -309,7 +309,7 @@ func (h *BaseHandlers) validateCreateSessionRequest(req contract.CreateSessionRe
 		return errors.New("invalid session scope")
 	}
 
-	if workspacepkg.ParseWorkspaceRef(req.Workspace).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(req.Workspace).Kind == workspacepkg.RefUser {
 		if strings.TrimSpace(req.Worktree) != "" || req.NewWorktree != nil {
 			return workspacepkg.ErrUserScopeWorktreeUnsupported
 		}

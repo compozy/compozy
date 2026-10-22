@@ -28,20 +28,11 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 	if !ok {
 		return fmt.Errorf("cli: aggregate catalog client unavailable")
 	}
-	workspaces, err := client.ListWorkspaces(cmd.Context())
+	labels, err := aggregateProjectLabels(cmd, client)
 	if err != nil {
 		return err
 	}
-	labels := map[string]string{"": cliUserScopeLabel}
-	for _, ws := range workspaces {
-		labels[ws.ID] = ws.Name
-	}
-	label := func(id string) string {
-		if name, ok := labels[id]; ok {
-			return name
-		}
-		return id
-	}
+	label := func(id string) string { return aggregateProjectName(labels, id) }
 	values := url.Values{}
 	var bundle outputBundle
 	rows := [][]string{}
@@ -63,7 +54,7 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 		}
 		bundle = worktreeListBundle(response.Worktrees)
 		for _, item := range response.Worktrees {
-			rows = append(rows, []string{label(item.WorkspaceID), item.Name, string(item.State)})
+			rows = append(rows, []string{label(item.WorkspaceID), item.Name, item.State})
 		}
 	case "agents":
 		var items []AgentRecord
@@ -124,9 +115,28 @@ func wantsAllWorkspaces(cmd *cobra.Command) bool {
 	return flag != nil && flag.Value.String() == "true"
 }
 
-func aggregateProjectLabels(cmd *cobra.Command, client interface {
+type workspaceLister interface {
 	ListWorkspaces(context.Context) ([]WorkspaceRecord, error)
-}) (map[string]string, error) {
+}
+
+// writeProjectLabeledOutput writes a listing, labeling rows by project only under All projects.
+func writeProjectLabeledOutput(
+	cmd *cobra.Command,
+	client workspaceLister,
+	allWorkspaces bool,
+	bundle func(projectLabels ...map[string]string) outputBundle,
+) error {
+	if !allWorkspaces {
+		return writeCommandOutput(cmd, bundle())
+	}
+	labels, err := aggregateProjectLabels(cmd, client)
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, bundle(labels))
+}
+
+func aggregateProjectLabels(cmd *cobra.Command, client workspaceLister) (map[string]string, error) {
 	labels := map[string]string{"": cliUserScopeLabel}
 	items, err := client.ListWorkspaces(cmd.Context())
 	if err != nil {

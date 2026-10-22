@@ -10,7 +10,7 @@ import (
 
 // RequireProjectReference rejects User on surfaces that require a registered project.
 func (h *BaseHandlers) RequireProjectReference(c *gin.Context, raw string) bool {
-	if workspacepkg.ParseWorkspaceRef(raw).Kind != workspacepkg.RefUser {
+	if workspacepkg.ParseRef(raw).Kind != workspacepkg.RefUser {
 		return true
 	}
 	path := c.FullPath()

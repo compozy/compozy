@@ -12,7 +12,7 @@ import (
 
 // ListAutomationRuns returns filtered automation run history.
 func (h *BaseHandlers) ListAutomationRuns(c *gin.Context) {
-	if all, _ := ParseOptionalBool(c.Query("all_workspaces")); all && !h.requireAggregateSurface(c) {
+	if all, err := ParseOptionalBool(c.Query("all_workspaces")); err == nil && all && !h.requireAggregateSurface(c) {
 		return
 	}
 	manager, ok := h.requireAutomationManager(c)
@@ -35,18 +35,10 @@ func (h *BaseHandlers) ListAutomationRuns(c *gin.Context) {
 		return
 	}
 	query.ReadScope = readScope
-
-	paged := query.AllWorkspaces || query.Cursor != "" || query.WorkspaceID != "" || len(query.WorkspaceIDs) > 0
-	limit := query.Limit
-	if limit == 0 && paged {
-		limit = automationpkg.DefaultListLimit
-	}
-	if limit < 0 || (paged && limit > automationpkg.MaxListLimit) {
-		h.respondError(c, http.StatusBadRequest, NewAutomationValidationError(fmt.Errorf("invalid run limit")))
+	limit, paged, err := applyAutomationRunPageLimit(&query)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
 		return
-	}
-	if paged && limit > 0 {
-		query.Limit = limit + 1
 	}
 	runs, err := manager.ListRuns(c.Request.Context(), query)
 	if err != nil {
@@ -54,7 +46,7 @@ func (h *BaseHandlers) ListAutomationRuns(c *gin.Context) {
 		return
 	}
 	var page *contract.CursorPagePayload
-	if paged && limit > 0 {
+	if paged {
 		page = &contract.CursorPagePayload{Limit: limit, HasMore: len(runs) > limit}
 	}
 	if page != nil && page.HasMore {
@@ -71,4 +63,22 @@ func (h *BaseHandlers) ListAutomationRuns(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.RunsResponse{Runs: runPayloads, Page: page})
+}
+
+// applyAutomationRunPageLimit pages bounded reads (aggregate, cursor, or project filter) and asks
+// the store for one look-ahead row; a plain unbounded history read stays unpaged.
+func applyAutomationRunPageLimit(query *automationpkg.RunQuery) (int, bool, error) {
+	paged := query.AllWorkspaces || query.Cursor != "" || query.WorkspaceID != "" || len(query.WorkspaceIDs) > 0
+	limit := query.Limit
+	if limit == 0 && paged {
+		limit = automationpkg.DefaultListLimit
+	}
+	if limit < 0 || (paged && limit > automationpkg.MaxListLimit) {
+		return 0, false, NewAutomationValidationError(fmt.Errorf("invalid run limit"))
+	}
+	if !paged || limit == 0 {
+		return limit, false, nil
+	}
+	query.Limit = limit + 1
+	return limit, true, nil
 }

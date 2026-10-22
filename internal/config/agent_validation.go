@@ -34,13 +34,7 @@ func (a AgentDef) Validate() error {
 			return err
 		}
 	}
-	if err := validateAgentToolPatterns(a.Tools, "agent.tools"); err != nil {
-		return err
-	}
-	if err := validateAgentToolsets(a.Toolsets, "agent.toolsets"); err != nil {
-		return err
-	}
-	if err := validateAgentToolPatterns(a.DenyTools, "agent.deny_tools"); err != nil {
+	if err := validateAgentToolPolicy(a.Tools, a.Toolsets, a.DenyTools); err != nil {
 		return err
 	}
 	if err := validateAgentCategoryPath(a.CategoryPath); err != nil {
@@ -50,15 +44,8 @@ func (a AgentDef) Validate() error {
 	if err := validateFallbackChain(AgentFallbackChainPath(a.Name), a.FallbackChain, nil, false); err != nil {
 		return err
 	}
-	for i, server := range a.MCPServers {
-		if err := server.Validate(fmt.Sprintf("agent.mcp_servers[%d]", i)); err != nil {
-			return err
-		}
-	}
-	for i, hook := range a.Hooks {
-		if err := hookspkg.ValidateHookDecl(hook); err != nil {
-			return fmt.Errorf("agent.hooks[%d]: %w", i, err)
-		}
+	if err := validateAgentMCPServersAndHooks(a.MCPServers, a.Hooks); err != nil {
+		return err
 	}
 	normalizedCapabilities, err := normalizeCapabilityCatalog(a.Capabilities, "agent.capabilities")
 	if err != nil {
@@ -68,6 +55,30 @@ func (a AgentDef) Validate() error {
 		*a.Capabilities = *normalizedCapabilities
 	}
 
+	return nil
+}
+
+func validateAgentToolPolicy(tools, toolsets, denyTools []string) error {
+	if err := validateAgentToolPatterns(tools, "agent.tools"); err != nil {
+		return err
+	}
+	if err := validateAgentToolsets(toolsets, "agent.toolsets"); err != nil {
+		return err
+	}
+	return validateAgentToolPatterns(denyTools, "agent.deny_tools")
+}
+
+func validateAgentMCPServersAndHooks(servers []MCPServer, hooks []hookspkg.HookDecl) error {
+	for i, server := range servers {
+		if err := server.Validate(fmt.Sprintf("agent.mcp_servers[%d]", i)); err != nil {
+			return err
+		}
+	}
+	for i, hook := range hooks {
+		if err := hookspkg.ValidateHookDecl(hook); err != nil {
+			return fmt.Errorf("agent.hooks[%d]: %w", i, err)
+		}
+	}
 	return nil
 }
 

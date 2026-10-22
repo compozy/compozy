@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	profilepkg "github.com/compozy/compozy/internal/profile"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -95,40 +97,17 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		Type:          session.SessionTypeUser,
 	}
 	if parentSessionID != "" {
-		parent, statusErr := h.Sessions.Status(c.Request.Context(), parentSessionID)
-		if statusErr != nil {
-			h.respondError(c, StatusForSessionError(statusErr), statusErr)
+		lineage, ok := h.createSessionLineage(c, parentSessionID, mutationScope, req.LineageKind)
+		if !ok {
 			return
 		}
-		if !h.requireSessionInProfile(c, parent, mutationScope) {
-			return
-		}
-		opts.Lineage = &store.SessionLineage{
-			ParentSessionID: parentSessionID,
-			Kind:            createSessionLineageKind(req.LineageKind),
-		}
+		opts.Lineage = lineage
 	}
-	opts.Origin = requestOperatorOrigin(c)
-	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
-		caller, err := h.resolveAgentCaller(
-			c.Request.Context(),
-			agentCallerCredentialsFromRequest(c),
-			agentActionSessionCreate,
-		)
-		if err != nil {
-			h.respondError(c, StatusForAgentIdentityError(err), err)
-			return
-		}
-		creator, err := h.Sessions.Status(c.Request.Context(), caller.Session.ID)
-		if err != nil {
-			h.respondError(c, StatusForSessionError(err), err)
-			return
-		}
-		opts.Origin = workspaceaccess.Origin{
-			Kind:    workspaceaccess.ActorAgentSession,
-			Ceiling: creator.EffectiveWorkspaceAccess,
-		}
+	origin, ok := h.createSessionOrigin(c)
+	if !ok {
+		return
 	}
+	opts.Origin = origin
 	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
 	if err != nil {
 		status := StatusForSessionError(err)
@@ -145,6 +124,49 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	}
 	payload.FolderID = folderID
 	c.JSON(http.StatusCreated, contract.SessionResponse{Session: payload})
+}
+
+// createSessionLineage checks the parent is readable in the mutation profile and links the child to it.
+func (h *BaseHandlers) createSessionLineage(
+	c *gin.Context,
+	parentSessionID string,
+	mutationScope profilepkg.ReadScope,
+	lineageKind string,
+) (*store.SessionLineage, bool) {
+	parent, err := h.Sessions.Status(c.Request.Context(), parentSessionID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return nil, false
+	}
+	if !h.requireSessionInProfile(c, parent, mutationScope) {
+		return nil, false
+	}
+	return &store.SessionLineage{
+		ParentSessionID: parentSessionID,
+		Kind:            createSessionLineageKind(lineageKind),
+	}, true
+}
+
+// createSessionOrigin is the operator origin, or the creating agent session's effective grant.
+func (h *BaseHandlers) createSessionOrigin(c *gin.Context) (workspaceaccess.Origin, bool) {
+	credentials := agentCallerCredentialsFromRequest(c)
+	if !hasAgentCallerIdentityCredentials(credentials) {
+		return requestOperatorOrigin(c), true
+	}
+	caller, err := h.resolveAgentCaller(c.Request.Context(), credentials, agentActionSessionCreate)
+	if err != nil {
+		h.respondError(c, StatusForAgentIdentityError(err), err)
+		return workspaceaccess.Origin{}, false
+	}
+	creator, err := h.Sessions.Status(c.Request.Context(), caller.Session.ID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return workspaceaccess.Origin{}, false
+	}
+	return workspaceaccess.Origin{
+		Kind:    workspaceaccess.ActorAgentSession,
+		Ceiling: creator.EffectiveWorkspaceAccess,
+	}, true
 }
 
 func (h *BaseHandlers) resolveCreateSessionWorktree(

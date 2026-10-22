@@ -34,7 +34,10 @@ func WithOrigin(ctx context.Context, origin Origin) context.Context {
 }
 
 func OriginFromContext(ctx context.Context) Origin {
-	origin, _ := ctx.Value(originKey{}).(Origin)
+	origin, ok := ctx.Value(originKey{}).(Origin)
+	if !ok {
+		return Origin{}
+	}
 	return origin
 }
 

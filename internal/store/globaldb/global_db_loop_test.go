@@ -8003,13 +8003,13 @@ func TestGlobalDBLoopUserScope(t *testing.T) {
 			if got.Status != looppkg.StatusQueued {
 				t.Fatalf("status = %s", got.Status)
 			}
-			cap := index + 3
+			iterationCap := index + 3
 			if err := db.UpsertLoopConfig(
 				ctx,
 				"",
 				profileID,
 				"delivery",
-				looppkg.LoopConfig{IterationCap: &cap},
+				looppkg.LoopConfig{IterationCap: &iterationCap},
 			); err != nil {
 				t.Fatal(err)
 			}

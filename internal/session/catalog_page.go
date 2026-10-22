@@ -232,6 +232,20 @@ func (m *Manager) activeSessionCatalogRows(
 	return activeByID, activeIDs, activeMatches
 }
 
+// normalizeListBreadth requires exactly one workspace or the All projects read with its narrowing.
+func normalizeListBreadth(query *ListQuery) error {
+	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	if (query.WorkspaceID != "") == query.AllWorkspaces {
+		return fmt.Errorf("%w: choose exactly one workspace or all workspaces", ErrListQueryInvalid)
+	}
+	ids, err := NormalizeWorkspaceIDs(query.WorkspaceIDs, query.AllWorkspaces)
+	if err != nil {
+		return err
+	}
+	query.WorkspaceIDs = ids
+	return nil
+}
+
 func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	filter, err := normalizeSubagentListFilter(query.Subagents)
 	if err != nil {
@@ -242,15 +256,7 @@ func normalizeListQuery(query ListQuery) (ListQuery, error) {
 	if err := query.ReadScope.Validate(); err != nil {
 		return ListQuery{}, fmt.Errorf("%w: %w", ErrListQueryInvalid, err)
 	}
-	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
-	if (query.WorkspaceID != "") == query.AllWorkspaces {
-		return ListQuery{}, fmt.Errorf(
-			"%w: choose exactly one workspace or all workspaces",
-			ErrListQueryInvalid,
-		)
-	}
-	query.WorkspaceIDs, err = NormalizeWorkspaceIDs(query.WorkspaceIDs, query.AllWorkspaces)
-	if err != nil {
+	if err := normalizeListBreadth(&query); err != nil {
 		return ListQuery{}, err
 	}
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
@@ -354,7 +360,8 @@ func sessionMatchesIdentityFilters(info *Info, query ListQuery) bool {
 		return false
 	}
 	return query.ReadScope.Matches(info.ProfileID) &&
-		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID || (query.WorkspaceID == workspaceaccess.UserSelector && info.WorkspaceID == "")) &&
+		(query.WorkspaceID == "" || strings.TrimSpace(info.WorkspaceID) == query.WorkspaceID ||
+			(query.WorkspaceID == workspaceaccess.UserSelector && info.WorkspaceID == "")) &&
 		sessionMatchesWorkspaceIDs(info.WorkspaceID, query.WorkspaceIDs) &&
 		(query.WorktreeID == "" || strings.TrimSpace(info.WorktreeID) == query.WorktreeID) &&
 		(query.State == "" || strings.TrimSpace(string(info.State)) == query.State) &&

@@ -76,7 +76,7 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 			workspacepkg.ErrWorkspaceResolverUnavailable,
 		)
 	}
-	if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
 		resolver, ok := n.deps.Workspaces.(workspacepkg.UserRuntimeResolver)
 		if !ok {
 			return workspacepkg.ResolvedWorkspace{}, nativeInputError(id, workspacepkg.ErrUserScopeUnsupported)

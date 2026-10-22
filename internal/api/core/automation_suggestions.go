@@ -38,7 +38,11 @@ func (h *BaseHandlers) ListAutomationSuggestions(c *gin.Context) {
 			return
 		}
 		reader, ok := manager.(interface {
-			ListSuggestionsAggregate(context.Context, store.ReadScope, automationpkg.SuggestionStatus) ([]automationpkg.Suggestion, error)
+			ListSuggestionsAggregate(
+				context.Context,
+				store.ReadScope,
+				automationpkg.SuggestionStatus,
+			) ([]automationpkg.Suggestion, error)
 		})
 		if !ok {
 			h.respondError(c, http.StatusServiceUnavailable, fmt.Errorf("automation suggestion aggregate unavailable"))

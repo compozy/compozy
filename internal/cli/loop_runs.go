@@ -72,8 +72,8 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 			}
 			if allWorkspaces {
 				ids := make([]string, 0, len(response.Runs))
-				for _, run := range response.Runs {
-					ids = append(ids, run.WorkspaceID)
+				for index := range response.Runs {
+					ids = append(ids, response.Runs[index].WorkspaceID)
 				}
 				labels, err := loopProjectNames(cmd.Context(), client, ids)
 				if err != nil {

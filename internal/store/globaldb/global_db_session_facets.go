@@ -9,7 +9,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionCatalogFacetSelect = "SELECT workspace_id, profile_id, " + sessionCatalogBadgeExpression + ", COUNT(1) FROM sessions"
+const sessionCatalogFacetSelect = "SELECT workspace_id, profile_id, " + sessionCatalogBadgeExpression +
+	", COUNT(1) FROM sessions"
 const sessionCatalogFacetGrouping = " GROUP BY workspace_id, profile_id, " +
 	sessionCatalogBadgeExpression + " ORDER BY workspace_id"
 

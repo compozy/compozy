@@ -192,7 +192,7 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 // user-layer definitions, which is the route's omission population (USW ADR-004, AP route matrix).
 func agentWorkspaceRef(c *gin.Context) string {
 	ref := strings.TrimSpace(c.Query("workspace"))
-	if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
 		return ""
 	}
 	return ref

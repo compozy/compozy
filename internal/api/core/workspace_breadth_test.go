@@ -67,7 +67,7 @@ func TestWorkspaceBreadth(t *testing.T) {
 func TestWorkspaceBreadthLegacyGlobalAlias(t *testing.T) {
 	t.Run("Should resolve the migration alias before applying data filters", func(t *testing.T) {
 		t.Parallel()
-		getter := workspaceGetterStub{get: func(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+		getter := workspaceGetterStub{get: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
 			if ref != "global" {
 				t.Fatalf("ref=%q", ref)
 			}

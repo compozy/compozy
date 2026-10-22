@@ -11,23 +11,43 @@ import (
 	"strings"
 )
 
-func copyLegacyBlob(sourceRoot, targetRoot, path, digest string) (destinationPath string, resultErr error) {
-	realRoot, err := filepath.EvalSymlinks(sourceRoot)
+// legacyBlobLocation resolves a journal blob inside the real journal root and names its kind.
+func legacyBlobLocation(sourceRoot, path string) (root, relative, kind string, err error) {
+	root, err = filepath.EvalSymlinks(sourceRoot)
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 	realPath, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
-	sourceRoot = realRoot
-	relative, err := filepath.Rel(sourceRoot, realPath)
+	relative, err = filepath.Rel(root, realPath)
 	if err != nil || !filepath.IsLocal(relative) {
-		return "", fmt.Errorf("legacy blob outside journal root: %q", path)
+		return "", "", "", fmt.Errorf("legacy blob outside journal root: %q", path)
 	}
 	kind, _, ok := strings.Cut(filepath.ToSlash(relative), "/")
 	if !ok || (kind != "terminal-recordings" && kind != "terminal-artifacts") {
-		return "", fmt.Errorf("unexpected legacy blob kind: %q", path)
+		return "", "", "", fmt.Errorf("unexpected legacy blob kind: %q", path)
+	}
+	return root, relative, kind, nil
+}
+
+// legacyBlobDigest is the hex SHA-256 a journal row declares for its blob.
+func legacyBlobDigest(digest string) (string, error) {
+	expected := strings.TrimPrefix(digest, "sha256:")
+	if len(expected) != 64 {
+		return "", errors.New("invalid legacy blob digest")
+	}
+	if _, err := hex.DecodeString(expected); err != nil {
+		return "", err
+	}
+	return expected, nil
+}
+
+func copyLegacyBlob(sourceRoot, targetRoot, path, digest string) (destinationPath string, resultErr error) {
+	sourceRoot, relative, kind, err := legacyBlobLocation(sourceRoot, path)
+	if err != nil {
+		return "", err
 	}
 	source, err := os.OpenRoot(sourceRoot)
 	if err != nil {
@@ -47,11 +67,8 @@ func copyLegacyBlob(sourceRoot, targetRoot, path, digest string) (destinationPat
 		return "", fmt.Errorf("legacy blob is not regular: %q", path)
 	}
 	// Content-addressed destination avoids overwriting any preexisting User blob.
-	expected := strings.TrimPrefix(digest, "sha256:")
-	if len(expected) != 64 {
-		return "", errors.New("invalid legacy blob digest")
-	}
-	if _, err := hex.DecodeString(expected); err != nil {
+	expected, err := legacyBlobDigest(digest)
+	if err != nil {
 		return "", err
 	}
 	directory := filepath.Join(targetRoot, kind)

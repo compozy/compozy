@@ -96,7 +96,7 @@ func (d *Daemon) bootToolRegistry(
 
 func nativeWorkspaceIDResolver(state *bootState) func(context.Context, string) (string, error) {
 	return func(ctx context.Context, ref string) (string, error) {
-		if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+		if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
 			return workspaceaccess.UserSelector, nil
 		}
 		resolved, err := state.workspaceResolver.Resolve(ctx, ref)

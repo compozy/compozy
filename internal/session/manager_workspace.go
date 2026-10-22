@@ -60,7 +60,7 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 		}
 		return resolveUserWorkspace(ctx, resolver, normalizeCreateProfileID(opts.ProfileID))
 	}
-	if workspacepkg.ParseWorkspaceRef(workspaceRef).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(workspaceRef).Kind == workspacepkg.RefUser {
 		if workspacePath != "" || opts.Worktree != "" || opts.CWD != "" {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrUserScopeWorktreeUnsupported
 		}
@@ -75,48 +75,7 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 			"session: workspace and workspace path are mutually exclusive",
 		)
 	case workspacePath != "":
-		if strings.TrimSpace(opts.ProfileID) == "" || strings.TrimSpace(opts.ProfileID) == store.DefaultProfileID {
-			profileResolver, ok := resolver.(workspacepkg.ProfileRegistrationResolver)
-			if !ok {
-				return workspacepkg.ResolvedWorkspace{}, errors.New(
-					"session: workspace resolver does not support profile path registration",
-				)
-			}
-			resolved, err := profileResolver.ResolveOrRegisterForProfile(
-				ctx,
-				workspacePath,
-				sessionDefaultProfileName,
-			)
-			if err != nil {
-				return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-					"session: resolve default profile workspace path %q: %w",
-					workspacePath,
-					err,
-				)
-			}
-			applyDefaultProfileIdentity(&resolved)
-			return resolved, nil
-		}
-		profileName, err := resolveProfileName(ctx, m.profileNames, opts.ProfileID)
-		if err != nil {
-			return workspacepkg.ResolvedWorkspace{}, err
-		}
-		profileResolver, ok := resolver.(workspacepkg.ProfileRegistrationResolver)
-		if !ok {
-			return workspacepkg.ResolvedWorkspace{}, errors.New(
-				"session: workspace resolver does not support profile path registration",
-			)
-		}
-		resolved, err := profileResolver.ResolveOrRegisterForProfile(ctx, workspacePath, profileName)
-		if err != nil {
-			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-				"session: resolve profile workspace path %q: %w",
-				workspacePath,
-				err,
-			)
-		}
-		resolved.ProfileID = strings.TrimSpace(opts.ProfileID)
-		return resolved, nil
+		return m.resolveCreateWorkspacePath(ctx, resolver, workspacePath, opts.ProfileID)
 	default:
 		resolved, err := resolveWorkspaceForProfile(ctx, resolver, m.profileNames, workspaceRef, opts.ProfileID)
 		if err != nil {
@@ -124,6 +83,44 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 		}
 		return resolved, nil
 	}
+}
+
+// resolveCreateWorkspacePath registers or resolves a workspace path for the creating profile.
+func (m *Manager) resolveCreateWorkspacePath(
+	ctx context.Context,
+	resolver workspacepkg.RuntimeResolver,
+	workspacePath string,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	profileResolver, ok := resolver.(workspacepkg.ProfileRegistrationResolver)
+	if !ok {
+		return workspacepkg.ResolvedWorkspace{}, errors.New(
+			"session: workspace resolver does not support profile path registration",
+		)
+	}
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" || profileID == store.DefaultProfileID {
+		resolved, err := profileResolver.ResolveOrRegisterForProfile(ctx, workspacePath, sessionDefaultProfileName)
+		if err != nil {
+			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
+				"session: resolve default profile workspace path %q: %w", workspacePath, err,
+			)
+		}
+		applyDefaultProfileIdentity(&resolved)
+		return resolved, nil
+	}
+	profileName, err := resolveProfileName(ctx, m.profileNames, profileID)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved, err := profileResolver.ResolveOrRegisterForProfile(ctx, workspacePath, profileName)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
+			"session: resolve profile workspace path %q: %w", workspacePath, err,
+		)
+	}
+	resolved.ProfileID = profileID
+	return resolved, nil
 }
 
 func (m *Manager) resolveResumeWorkspace(
@@ -145,7 +142,7 @@ func resolveWorkspaceForProfile(
 	workspaceRef string,
 	profileID string,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	if workspacepkg.ParseWorkspaceRef(workspaceRef).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(workspaceRef).Kind == workspacepkg.RefUser {
 		return resolveUserWorkspace(ctx, resolver, profileID)
 	}
 	profileID = strings.TrimSpace(profileID)

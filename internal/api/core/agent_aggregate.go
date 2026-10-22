@@ -98,24 +98,8 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 				return
 			}
 		}
-		metricsWorkspace := workspace
-		if workspace == "" {
-			metricsWorkspace = workspaceaccess.UserSelector
-		}
-		metrics, available := h.agentCatalogSessionMetrics(c, scope, metricsWorkspace)
-		agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
-		for _, entry := range resolved.Entries {
-			// Unavailable counts never prove zero sessions, so inherited rows stay listed then.
-			if workspace != "" && available && inheritedUserAgentWithoutProjectWork(entry, userAgentNames, metrics) {
-				continue
-			}
-			payload := AgentPayloadFromEntryWithConfig(entry, &resolved.Config)
-			payload.WorkspaceID = workspace
-			agents = append(agents, payload)
-		}
-		for _, diagnostic := range resolved.Diagnostics {
-			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, workspace))
-		}
+		metrics, available := h.agentCatalogSessionMetrics(c, scope, agentMetricsWorkspace(workspace))
+		agents := aggregateWorkspaceAgents(workspace, &resolved, userAgentNames, metrics, available)
 		response.SessionsAvailable = response.SessionsAvailable && available
 		local := query
 		local.Limit = len(agents) + 1
@@ -139,19 +123,7 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		)
 	})
 	response.Page.Total = len(response.Agents)
-	start := 0
-	if cursor != "" {
-		start = len(response.Agents)
-		for i, item := range response.Agents {
-			if cmp.Or(
-				compareAgentCatalogNames(item.Agent.Name, after.Name),
-				cmp.Compare(item.Agent.WorkspaceID, after.WorkspaceID),
-			) > 0 {
-				start = i
-				break
-			}
-		}
-	}
+	start := aggregateAgentPageStart(response.Agents, cursor, after)
 	end := min(start+limit, len(response.Agents))
 	response.Page.HasMore = end < len(response.Agents)
 	response.Agents = response.Agents[start:end]
@@ -169,6 +141,58 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+// agentMetricsWorkspace is the session-metrics selector of one aggregate row set.
+func agentMetricsWorkspace(workspace string) string {
+	if workspace == "" {
+		return workspaceaccess.UserSelector
+	}
+	return workspace
+}
+
+// aggregateWorkspaceAgents lists one workspace's agents and diagnostics, bound to that workspace.
+func aggregateWorkspaceAgents(
+	workspace string,
+	resolved *workspaceAgentEntries,
+	userAgentNames map[string]struct{},
+	metrics map[string]session.AgentSessionMetrics,
+	available bool,
+) []contract.AgentPayload {
+	agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
+	for _, entry := range resolved.Entries {
+		// Unavailable counts never prove zero sessions, so inherited rows stay listed then.
+		if workspace != "" && available && inheritedUserAgentWithoutProjectWork(entry, userAgentNames, metrics) {
+			continue
+		}
+		payload := AgentPayloadFromEntryWithConfig(entry, &resolved.Config)
+		payload.WorkspaceID = workspace
+		agents = append(agents, payload)
+	}
+	for _, diagnostic := range resolved.Diagnostics {
+		agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, workspace))
+	}
+	return agents
+}
+
+// aggregateAgentPageStart is the first row after the cursor position in the sorted rows.
+func aggregateAgentPageStart(
+	agents []contract.AgentCatalogItemPayload,
+	cursor string,
+	after aggregateAgentPosition,
+) int {
+	if cursor == "" {
+		return 0
+	}
+	for i := range agents {
+		if cmp.Or(
+			compareAgentCatalogNames(agents[i].Agent.Name, after.Name),
+			cmp.Compare(agents[i].Agent.WorkspaceID, after.WorkspaceID),
+		) > 0 {
+			return i
+		}
+	}
+	return len(agents)
 }
 
 // inheritedUserAgentWithoutProjectWork reports a project catalog entry that only inherits a User

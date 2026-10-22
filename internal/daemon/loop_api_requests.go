@@ -124,7 +124,7 @@ func (s *daemonLoopAPIService) RespondLoopRequest(
 func loopRequestPayload(request looppkg.Request) contract.LoopRequestPayload {
 	payload := contract.LoopRequestPayload{
 		ProfileID:   request.ProfileID,
-		WorkspaceID: string(request.WorkspaceID),
+		WorkspaceID: request.WorkspaceID,
 		LoopRunID:   string(request.LoopRunID),
 		LoopName:    request.LoopName,
 		Generation:  request.Generation,

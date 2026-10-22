@@ -57,7 +57,7 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 		)
 		return workspaceScope{}, false
 	}
-	if workspacepkg.ParseWorkspaceRef(workspaceRef).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(workspaceRef).Kind == workspacepkg.RefUser {
 		profile, err := h.resolveProfileReadScope(c)
 		if err != nil {
 			h.respondProfileReadScopeError(c, err)
@@ -67,7 +67,11 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 			// Reading one existing User session under the all-profiles lens is allowed; the session
 			// supplies the concrete profile (USW BR-7). Collection routes still need one profile.
 			if routeSessionID(c) == "" {
-				h.respondError(c, http.StatusBadRequest, errors.New("User session routes require one profile"))
+				h.respondError(
+					c,
+					http.StatusBadRequest,
+					errors.New("session routes in the User scope require one profile"),
+				)
 				return workspaceScope{}, false
 			}
 			return workspaceScope{

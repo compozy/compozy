@@ -33,7 +33,10 @@ func ParseAutomationRunQuery(c *gin.Context) (automationpkg.RunQuery, error) {
 	if err != nil {
 		return automationpkg.RunQuery{}, err
 	}
-	allWorkspaces, _ := ParseOptionalBool(c.Query("all_workspaces"))
+	allWorkspaces, err := ParseOptionalBool(c.Query("all_workspaces"))
+	if err != nil {
+		return automationpkg.RunQuery{}, err
+	}
 	query := automationpkg.RunQuery{
 		AllWorkspaces: allWorkspaces,
 		WorkspaceID:   breadth.WorkspaceID,

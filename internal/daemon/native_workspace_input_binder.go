@@ -208,7 +208,7 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	payload map[string]json.RawMessage,
 	ref string,
 ) error {
-	if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
 		if strings.Contains(string(id), "worktree") || nativeUserHasWorktree(payload) {
 			return nativeInputError(id, workspacepkg.ErrUserScopeWorktreeUnsupported)
 		}

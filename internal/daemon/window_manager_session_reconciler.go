@@ -37,8 +37,8 @@ func (r *windowManagerSessionReconciler) SetReady() {
 
 func (r *windowManagerSessionReconciler) ReconcileDeletedSession(
 	ctx context.Context,
-	profileID string,
-	workspaceID string,
+	_ string,
+	_ string,
 	sessionID string,
 ) error {
 	if r == nil || r.registry == nil {

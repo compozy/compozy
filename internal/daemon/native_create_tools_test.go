@@ -34,8 +34,7 @@ func TestNativeAgentCreate(t *testing.T) {
 				),
 			},
 		)
-		var toolErr *toolspkg.ToolError
-		if !errors.As(err, &toolErr) || !errors.Is(err, toolspkg.ErrToolDenied) ||
+		if _, ok := errors.AsType[*toolspkg.ToolError](err); !ok || !errors.Is(err, toolspkg.ErrToolDenied) ||
 			!strings.Contains(err.Error(), "only the operator") {
 			t.Fatalf("error=%v", err)
 		}

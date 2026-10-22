@@ -444,7 +444,7 @@ func loopAnnotationsDomain(input []contract.LoopAnnotationPayload) []looppkg.UIA
 }
 
 func normalizeLoopWorkspaceID(workspaceID string) (looppkg.WorkspaceID, error) {
-	if workspacepkg.ParseWorkspaceRef(workspaceID).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(workspaceID).Kind == workspacepkg.RefUser {
 		return "", nil
 	}
 	trimmed := strings.TrimSpace(workspaceID)

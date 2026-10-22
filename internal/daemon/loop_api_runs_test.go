@@ -841,7 +841,7 @@ type loopRunHistoryPersistenceStub struct {
 
 func (s *loopRunHistoryPersistenceStub) GetLoopDefinitionSnapshot(
 	_ context.Context,
-	workspaceID looppkg.WorkspaceID, profileID string,
+	workspaceID looppkg.WorkspaceID, _ string,
 	digest string,
 ) (looppkg.DefinitionSnapshot, error) {
 	if s.definitionSnapshot == nil || s.definitionSnapshot.WorkspaceID != workspaceID ||

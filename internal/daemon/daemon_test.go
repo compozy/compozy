@@ -8630,7 +8630,7 @@ func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 
 func (r *recordingRegistry) CreateTaskDefinition(
 	context.Context,
-	taskpkg.CreateTaskDefinitionMutation,
+	*taskpkg.CreateTaskDefinitionMutation,
 ) error {
 	return nil
 }

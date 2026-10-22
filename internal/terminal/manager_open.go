@@ -323,7 +323,7 @@ func (m *Service) resolveWorkspace(
 	workspaceID string,
 	profileID string,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	if workspacepkg.ParseWorkspaceRef(workspaceID).Kind == workspacepkg.RefUser || workspaceID == "" {
+	if workspacepkg.ParseRef(workspaceID).Kind == workspacepkg.RefUser || workspaceID == "" {
 		resolver, ok := m.workspaces.(workspacepkg.UserRuntimeResolver)
 		if !ok {
 			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrUserScopeUnsupported

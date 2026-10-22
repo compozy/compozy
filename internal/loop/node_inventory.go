@@ -132,8 +132,10 @@ func DecodeNodeInventoryCursor(query NodeInventoryQuery) (*NodeInventoryCursor, 
 	if err := json.Unmarshal(raw, &cursor); err != nil {
 		return nil, fmt.Errorf("%w: node inventory cursor is invalid", ErrValidation)
 	}
-	if cursor.AllWorkspaces != query.AllWorkspaces || cursor.ReadScope != query.ReadScope || cursor.WorkspaceID != query.WorkspaceID || cursor.State != query.State ||
-		cursor.LoopName != query.LoopName || cursor.RunID != query.RunID ||
+	if cursor.AllWorkspaces != query.AllWorkspaces || cursor.ReadScope != query.ReadScope ||
+		cursor.WorkspaceID != query.WorkspaceID || cursor.State != query.State ||
+		cursor.LoopName != query.LoopName ||
+		cursor.RunID != query.RunID ||
 		cursor.StateAt.IsZero() ||
 		cursor.LoopRunID == "" ||
 		cursor.NodeID == "" ||

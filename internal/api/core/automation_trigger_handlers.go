@@ -14,7 +14,7 @@ import (
 
 // ListAutomationTriggers returns the filtered automation trigger list.
 func (h *BaseHandlers) ListAutomationTriggers(c *gin.Context) {
-	if all, _ := ParseOptionalBool(c.Query("all_workspaces")); all && !h.requireAggregateSurface(c) {
+	if all, err := ParseOptionalBool(c.Query("all_workspaces")); err == nil && all && !h.requireAggregateSurface(c) {
 		return
 	}
 	manager, ok := h.requireAutomationManager(c)

@@ -6506,11 +6506,11 @@ func TestUserScopeMigration(t *testing.T) {
 			name != "user-project" {
 			t.Fatalf("name=%q err=%v", name, err)
 		}
-		var cap int
+		var iterationCap int
 		if err := db.QueryRowContext(t.Context(), "SELECT iteration_cap FROM loop_config WHERE workspace_id='' AND profile_id<>'' ORDER BY profile_id LIMIT 1").
-			Scan(&cap); err != nil ||
-			cap != 3 {
-			t.Fatalf("cap=%d err=%v", cap, err)
+			Scan(&iterationCap); err != nil ||
+			iterationCap != 3 {
+			t.Fatalf("cap=%d err=%v", iterationCap, err)
 		}
 		for _, check := range []struct {
 			query string

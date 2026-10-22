@@ -103,7 +103,11 @@ func (g *LoopRepo) ListRequests(
 	}
 	where, args := loopRequestWhere(workspaceID, query)
 	where = append(where, "request.state = 'pending'")
-	if err := g.db.QueryRowContext(ctx, store.AppendWhere("SELECT count(*) FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id", where), args...).
+	countQuery := store.AppendWhere(
+		"SELECT count(*) FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id",
+		where,
+	)
+	if err := g.db.QueryRowContext(ctx, countQuery, args...).
 		Scan(&page.Pending); err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: count pending Loop requests: %w", err)
 	}
@@ -151,7 +155,7 @@ func scanRequestPage(rows *sql.Rows, limit int, state string, fingerprint string
 	}
 	page := looppkg.RequestPage{Items: items}
 	if hasMore {
-		position := cursorForRequest(lastIncluded, state)
+		position := cursorForRequest(&lastIncluded, state)
 		position.Fingerprint = fingerprint
 		cursor, err := encodeRequestCursor(position)
 		if err != nil {
@@ -315,7 +319,7 @@ func requestAllowsDecision(decisions []string, decision string) bool {
 func resolvedRequestOutcome(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	stored storedRequest,
+	stored *storedRequest,
 	decision string,
 	payload json.RawMessage,
 	actorKind string,
@@ -350,7 +354,7 @@ func resolvedRequestOutcome(
 	}
 }
 
-func requestResolutionEventPayload(stored storedRequest, decision, actorKind, actorID string) map[string]any {
+func requestResolutionEventPayload(stored *storedRequest, decision, actorKind, actorID string) map[string]any {
 	return map[string]any{
 		loopRunEventPayloadKeyGeneration: stored.request.Generation,
 		loopRunEventPayloadKeyNodeID:     stored.request.NodeID,
@@ -385,7 +389,7 @@ func decodeRequestCursor(encoded string) (*requestCursor, error) {
 	return &cursor, nil
 }
 
-func cursorForRequest(stored storedRequest, state string) requestCursor {
+func cursorForRequest(stored *storedRequest, state string) requestCursor {
 	if state == looppkg.RequestStatePending {
 		cursor := requestCursor{Secondary: stored.request.OpenedAt, RowID: stored.rowID}
 		if stored.request.ExpiresAt == nil {

@@ -5942,7 +5942,7 @@ func (s *coordinatorRunnerLoopStore) GetLoopRunByID(_ context.Context, runID Run
 
 func (s *coordinatorRunnerLoopStore) GetLoopDefinitionSnapshot(
 	_ context.Context,
-	workspaceID WorkspaceID, profileID string,
+	workspaceID WorkspaceID, _ string,
 	digest string,
 ) (DefinitionSnapshot, error) {
 	if s.snapshot != nil && s.snapshot.WorkspaceID == workspaceID && s.snapshot.Digest == digest {

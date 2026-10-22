@@ -48,25 +48,8 @@ func ImportLegacyJournal(ctx context.Context, homeDir, sourceID string, profiles
 			resultErr = errors.Join(resultErr, source.Close())
 		}
 	}()
-	rows, err := source.QueryContext(
-		ctx,
-		`SELECT profile_id FROM terminal_recordings UNION SELECT profile_id FROM terminal_commands UNION SELECT profile_id FROM terminal_artifacts`,
-	)
+	seen, err := legacyJournalProfiles(ctx, source, profiles)
 	if err != nil {
-		return err
-	}
-	seen := map[string]bool{}
-	for _, profile := range profiles {
-		seen[profile] = true
-	}
-	for rows.Next() {
-		var profile string
-		if err := rows.Scan(&profile); err != nil {
-			return errors.Join(err, rows.Close())
-		}
-		seen[profile] = true
-	}
-	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
 		return err
 	}
 	for profile := range seen {
@@ -101,6 +84,31 @@ func ImportLegacyJournal(ctx context.Context, homeDir, sourceID string, profiles
 	return nil
 }
 
+// legacyJournalProfiles is every profile the journal must land in: the registered
+// owners plus each profile that owns a journal row.
+func legacyJournalProfiles(ctx context.Context, source *sql.DB, profiles []string) (map[string]bool, error) {
+	rows, err := source.QueryContext(ctx, `SELECT profile_id FROM terminal_recordings
+		UNION SELECT profile_id FROM terminal_commands UNION SELECT profile_id FROM terminal_artifacts`)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	for _, profile := range profiles {
+		seen[profile] = true
+	}
+	for rows.Next() {
+		var profile string
+		if err := rows.Scan(&profile); err != nil {
+			return nil, errors.Join(err, rows.Close())
+		}
+		seen[profile] = true
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return nil, err
+	}
+	return seen, nil
+}
+
 func importLegacyProfile(
 	ctx context.Context,
 	source, target *sql.DB,
@@ -108,6 +116,7 @@ func importLegacyProfile(
 ) error {
 	// Structural SQL is limited to the three journal tables and their introspected columns.
 	for _, table := range []string{"terminal_recordings", "terminal_commands", "terminal_artifacts"} {
+		// #nosec G202 -- table comes from the fixed journal inventory; values are parameterized.
 		rows, err := source.QueryContext(ctx, "SELECT * FROM "+table+" WHERE profile_id=? ORDER BY id", profile)
 		if err != nil {
 			return err
@@ -145,16 +154,9 @@ func importLegacyProfile(
 	return nil
 }
 
-func importLegacyRow(
-	ctx context.Context,
-	target *sql.DB,
-	table string,
-	columns []string,
-	values []any,
-	sourceRoot, targetRoot, sourceID string,
-) (resultErr error) {
-	var id, digest, path string
-	pathIndex := -1
+// legacyRowFields reads a journal row's identity, blob digest, and blob path (index -1 without one).
+func legacyRowFields(columns []string, values []any) (id, digest, path string, pathIndex int) {
+	pathIndex = -1
 	for i, col := range columns {
 		switch col {
 		case "id":
@@ -166,6 +168,18 @@ func importLegacyRow(
 			pathIndex = i
 		}
 	}
+	return id, digest, path, pathIndex
+}
+
+func importLegacyRow(
+	ctx context.Context,
+	target *sql.DB,
+	table string,
+	columns []string,
+	values []any,
+	sourceRoot, targetRoot, sourceID string,
+) (resultErr error) {
+	id, digest, path, pathIndex := legacyRowFields(columns, values)
 	if pathIndex >= 0 {
 		copied, err := copyLegacyBlob(sourceRoot, targetRoot, path, digest)
 		if err != nil {
@@ -190,7 +204,12 @@ func importLegacyRow(
 	}()
 	key := table + ":" + id
 	var recorded string
-	err = tx.QueryRowContext(ctx, "SELECT content_digest FROM legacy_import WHERE source_workspace_id=? AND source_row_id=?", sourceID, key).
+	err = tx.QueryRowContext(
+		ctx,
+		"SELECT content_digest FROM legacy_import WHERE source_workspace_id=? AND source_row_id=?",
+		sourceID,
+		key,
+	).
 		Scan(&recorded)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return err
@@ -200,6 +219,7 @@ func importLegacyRow(
 	}
 	if errors.Is(err, sql.ErrNoRows) {
 		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(values)), ",")
+		// #nosec G202 -- table is a fixed journal table and columns are its introspected names.
 		if _, err := tx.ExecContext(
 			ctx,
 			"INSERT INTO "+table+" ("+strings.Join(columns, ",")+") VALUES ("+placeholders+")",

@@ -283,7 +283,10 @@ func nativeAutomationDescriptor(
 const automationJobsListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"scope":{"type":"string","description":"User scope accepts global, user, or @user; workspace selects a project. Responses use global or workspace."},
+		"scope":{
+			"type":"string",
+			"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
+		},
 		"workspace":{"type":"string"},
 		"source":{"type":"string","enum":["config","package","dynamic"]},
 		"enabled":{"type":"boolean"},
@@ -330,7 +333,10 @@ const automationJobUpdateInputSchema = `{
 const automationTriggersListInputSchema = `{
 	"type":"object",
 	"properties":{
-		"scope":{"type":"string","description":"User scope accepts global, user, or @user; workspace selects a project. Responses use global or workspace."},
+		"scope":{
+			"type":"string",
+			"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
+		},
 		"workspace":{"type":"string"},
 		"event":{"type":"string"},
 		"source":{"type":"string","enum":["config","package","dynamic"]},
@@ -392,7 +398,10 @@ const automationRunIDInputSchema = `{
 }`
 
 var automationJobProperties = `{
-	"scope":{"type":"string","description":"User scope accepts global, user, or @user; workspace selects a project. Responses use global or workspace."},
+	"scope":{
+		"type":"string",
+		"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
+	},
 	"name":{"type":"string"},
 	"agent_name":` + optionalAgentNameInputSchema + `,
 	"workspace":{"type":"string"},
@@ -417,7 +426,10 @@ const automationJobPatchProperties = `{
 }`
 
 var automationTriggerProperties = `{
-	"scope":{"type":"string","description":"User scope accepts global, user, or @user; workspace selects a project. Responses use global or workspace."},
+	"scope":{
+		"type":"string",
+		"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
+	},
 	"name":{"type":"string"},
 	"agent_name":` + optionalAgentNameInputSchema + `,
 	"workspace":{"type":"string"},

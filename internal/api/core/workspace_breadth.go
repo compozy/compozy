@@ -72,24 +72,10 @@ func parseWorkspaceBreadth(
 	if all && (len(selectors) != 0 || route != "") {
 		return WorkspaceBreadth{}, invalidWorkspaceBreadth("all_workspaces conflicts with a workspace selector")
 	}
-	ids, hasIDs := values["workspace_ids"]
-	if hasIDs && !all {
-		return WorkspaceBreadth{}, invalidWorkspaceBreadth("workspace_ids requires all_workspaces=true")
+	normalized, err := parseBreadthWorkspaceIDs(c, values["workspace_ids"], all, getter)
+	if err != nil {
+		return WorkspaceBreadth{}, err
 	}
-	normalized := make([]string, 0, len(ids))
-	for _, raw := range ids {
-		id := strings.TrimSpace(raw)
-		if id == "" {
-			return WorkspaceBreadth{}, invalidWorkspaceBreadth("workspace_ids must not be empty; use @user")
-		}
-		id, err = resolveLegacyGlobalSelector(c, id, getter)
-		if err != nil {
-			return WorkspaceBreadth{}, err
-		}
-		normalized = append(normalized, id)
-	}
-	slices.Sort(normalized)
-	normalized = slices.Compact(normalized)
 	if !all && selector == "" && !enc.OmissionIsAll {
 		return WorkspaceBreadth{}, invalidWorkspaceBreadth(
 			fmt.Sprintf("choose %s or all_workspaces=true", enc.Selector),
@@ -100,6 +86,27 @@ func parseWorkspaceBreadth(
 		WorkspaceID:   selector,
 		WorkspaceIDs:  normalized,
 	}, nil
+}
+
+// parseBreadthWorkspaceIDs normalizes the All projects narrowing: sorted, unique, legacy alias resolved.
+func parseBreadthWorkspaceIDs(c *gin.Context, ids []string, all bool, getter WorkspaceGetter) ([]string, error) {
+	if ids != nil && !all {
+		return nil, invalidWorkspaceBreadth("workspace_ids requires all_workspaces=true")
+	}
+	normalized := make([]string, 0, len(ids))
+	for _, raw := range ids {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			return nil, invalidWorkspaceBreadth("workspace_ids must not be empty; use @user")
+		}
+		id, err := resolveLegacyGlobalSelector(c, id, getter)
+		if err != nil {
+			return nil, err
+		}
+		normalized = append(normalized, id)
+	}
+	slices.Sort(normalized)
+	return slices.Compact(normalized), nil
 }
 
 func resolveLegacyGlobalSelector(c *gin.Context, value string, workspaces WorkspaceGetter) (string, error) {

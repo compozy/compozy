@@ -66,24 +66,7 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 				if err != nil {
 					return err
 				}
-				bundle.human = func() (string, error) {
-					rows := make([][]string, 0, len(runs))
-					for _, run := range runs {
-						project := "Unknown project"
-						if run.WorkspaceID != nil {
-							project = aggregateProjectName(labels, *run.WorkspaceID)
-						}
-						rows = append(
-							rows,
-							[]string{project, run.ID, string(run.Status), formatOptionalTime(run.StartedAt)},
-						)
-					}
-					return renderHumanTable(
-						"Automation Runs",
-						[]string{cliProjectHeader, "ID", "STATUS", cliStartedHeader},
-						rows,
-					), nil
-				}
+				bundle.human = automationRunAggregateTable(runs, labels)
 			}
 			return writeCommandOutput(cmd, bundle)
 		},

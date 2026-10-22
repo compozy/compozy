@@ -57,38 +57,10 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	id := func(sequence uint64) string { return strconv.FormatUint(sequence, 10) + "." + fingerprint }
-	write := func() error {
-		if reset {
-			items, readErr := h.aggregateTerminalItems(c, breadth, scope)
-			if readErr != nil {
-				return readErr
-			}
-			if writeErr := WriteSSE(
-				writer,
-				SSEMessage{ID: id(fence), Name: "terminal.snapshot", Data: gin.H{terminalsKey: items, "reset": true}},
-			); writeErr != nil {
-				return writeErr
-			}
-			after = fence
-			return nil
-		}
-		for _, event := range replay {
-			name, payload, payloadErr := terminalCatalogPayload(event.Event)
-			if payloadErr != nil {
-				return payloadErr
-			}
-			if writeErr := WriteSSE(
-				writer,
-				SSEMessage{ID: id(event.Sequence), Name: name, Data: payload},
-			); writeErr != nil {
-				return writeErr
-			}
-			after = event.Sequence
-		}
-		return nil
+	stream := &terminalAggregateStream{
+		h: h, c: c, writer: writer, breadth: breadth, scope: scope, fingerprint: fingerprint, after: after,
 	}
-	if err := write(); err != nil {
+	if err := stream.write(replay, reset, fence); err != nil {
 		h.logSSEWriteFailure("terminal.aggregate", err)
 		return
 	}
@@ -97,8 +69,8 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 	for {
 		select {
 		case <-changed:
-			replay, reset, fence, changed = h.terminalCatalog.readSelection(after, matches)
-			if err := write(); err != nil {
+			replay, reset, fence, changed = h.terminalCatalog.readSelection(stream.after, matches)
+			if err := stream.write(replay, reset, fence); err != nil {
 				h.logSSEWriteFailure("terminal.aggregate", err)
 				return
 			}
@@ -112,6 +84,49 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 			return
 		}
 	}
+}
+
+// terminalAggregateStream writes one aggregate terminal SSE stream and tracks its replay position.
+type terminalAggregateStream struct {
+	h           *BaseHandlers
+	c           *gin.Context
+	writer      FlushWriter
+	breadth     WorkspaceBreadth
+	scope       store.ReadScope
+	fingerprint string
+	after       uint64
+}
+
+func (s *terminalAggregateStream) id(sequence uint64) string {
+	return strconv.FormatUint(sequence, 10) + "." + s.fingerprint
+}
+
+// write sends a fresh snapshot after a reset, otherwise the replayed catalog events in order.
+func (s *terminalAggregateStream) write(replay []terminalCatalogEvent, reset bool, fence uint64) error {
+	if reset {
+		items, err := s.h.aggregateTerminalItems(s.c, s.breadth, s.scope)
+		if err != nil {
+			return err
+		}
+		if err := WriteSSE(s.writer, SSEMessage{
+			ID: s.id(fence), Name: "terminal.snapshot", Data: gin.H{terminalsKey: items, "reset": true},
+		}); err != nil {
+			return err
+		}
+		s.after = fence
+		return nil
+	}
+	for _, event := range replay {
+		name, payload, err := terminalCatalogPayload(event.Event)
+		if err != nil {
+			return err
+		}
+		if err := WriteSSE(s.writer, SSEMessage{ID: s.id(event.Sequence), Name: name, Data: payload}); err != nil {
+			return err
+		}
+		s.after = event.Sequence
+	}
+	return nil
 }
 
 func terminalAggregateCursor(value, fingerprint string) (uint64, error) {

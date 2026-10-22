@@ -211,7 +211,7 @@ func (h *BaseHandlers) resolveTaskCatalogWorkspace(
 	if ref == "" {
 		return nil
 	}
-	if workspacepkg.ParseWorkspaceRef(ref).Kind == workspacepkg.RefUser {
+	if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
 		// User tasks are stored as global-scope tasks without a workspace (USW BR-1, BR-17).
 		*scope = taskpkg.CatalogScopeGlobal
 		*workspaceID = ""

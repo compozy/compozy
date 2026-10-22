@@ -24,6 +24,7 @@ func prepareUserScopeAutomationNames(ctx context.Context, tx *sql.Tx) error {
 		if exists == 0 {
 			continue
 		}
+		// #nosec G202 -- table comes from the fixed migration inventory above.
 		rows, err := tx.QueryContext(
 			ctx,
 			"SELECT id,name,scope,coalesce(workspace_id,'') FROM "+table+" ORDER BY created_at,id",
@@ -51,7 +52,9 @@ func prepareUserScopeAutomationNames(ctx context.Context, tx *sql.Tx) error {
 		}
 		for _, r := range records {
 			var candidate int
-			if err := tx.QueryRowContext(ctx, "SELECT count(*) FROM user_scope_migration_context WHERE workspace_id=?", r.workspace).
+			if err := tx.QueryRowContext(
+				ctx, "SELECT count(*) FROM user_scope_migration_context WHERE workspace_id=?", r.workspace,
+			).
 				Scan(&candidate); err != nil {
 				return err
 			}

@@ -2618,7 +2618,7 @@ func TestAutomationUserScopeAliases(t *testing.T) {
 				t.Fatalf("scopes = %q, %q", job.Scope, trigger.Scope)
 			}
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodGet, "/?scope="+raw, http.NoBody)
+			c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/?scope="+raw, http.NoBody)
 			jobs, err := ParseAutomationJobListQuery(c, store.ReadScope{ProfileID: store.DefaultProfileID})
 			if err != nil || jobs.Scope != automationpkg.AutomationScopeGlobal {
 				t.Fatalf("jobs = %#v, %v", jobs, err)

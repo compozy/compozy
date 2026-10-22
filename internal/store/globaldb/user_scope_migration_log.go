@@ -59,7 +59,9 @@ func logUserScopeMigration(ctx context.Context, db *sql.DB) error {
 	for _, table := range userScopeMigrationInventory {
 		var userRows, archived int
 		// The static inventory is also checked against the schema by the migration fixture suite.
-		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM "+quoteMigrationIdentifier(table)+" WHERE workspace_id='' OR workspace_id IS NULL").
+		query := "SELECT count(*) FROM " + quoteMigrationIdentifier(table) +
+			" WHERE workspace_id='' OR workspace_id IS NULL"
+		if err := db.QueryRowContext(ctx, query).
 			Scan(&userRows); err != nil {
 			return err
 		}

@@ -59,14 +59,8 @@ func evaluateGateNode(
 	if empty {
 		return approveGateOutput(output)
 	}
-	if err := validateJudgeGateRuntimes(
-		ctx,
-		runtimeCatalog,
-		run.WorkspaceID,
-		run.ProfileID,
-		effective.RuntimeDefaults.Judge,
-		runtimeGate.Criteria,
-	); err != nil {
+	if err := validateJudgeGateRuntimes(ctx, runtimeCatalog, run.WorkspaceID, run.ProfileID,
+		effective.RuntimeDefaults.Judge, runtimeGate.Criteria); err != nil {
 		return GenerationOutput{}, nil, err
 	}
 	humanDecisions, err := loadGateDecisions(ctx, decisions, run, generation, dsl.NodeID(runtimeGate.ID))
