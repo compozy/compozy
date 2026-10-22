@@ -288,8 +288,10 @@ skills use `/registry-id:skill`; a skill shadowed by a same-named winner stays i
 Slash activation belongs to authenticated operator prompt ingress. Agent-authored prompts and
 `compozy__session_prompt` keep slash-shaped text literal. When a catalog row identifies a skill, pass
 its opaque `id` as `command_id` to the session-bound `compozy__skill_view`; this reads the exact source
-without exposing or reconstructing a filesystem path. If that source is no longer effective, treat
-the unavailable result as terminal and read the catalog again.
+without exposing or reconstructing a filesystem path. The result keeps `skill.source` as the same
+source string a name read returns and adds `skill.command_source{kind, id, key, scope, origin}` with
+the exact command source identity. If that source is no longer effective, treat the unavailable
+result as terminal and read the catalog again.
 
 ## Bundled Skill Resources
 

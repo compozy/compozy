@@ -3405,6 +3405,23 @@ func TestDaemonNativeTools(t *testing.T) {
 		if exposures, present := viewedSkill["exposures"].([]any); !present || len(exposures) != 0 {
 			t.Fatalf("skill_view command_id exposures = %#v, want explicit empty list", viewedSkill["exposures"])
 		}
+		// Invariant: the command_id result validates against the advertised output schema while
+		// keeping the exact source identity under command_source.
+		view, err := registry.Get(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.ToolIDSkillView)
+		if err != nil {
+			t.Fatalf("Registry.Get(skill_view) error = %v", err)
+		}
+		requireNativeOutputSchemaAccepts(t, view.Descriptor, result.Structured)
+		if source := viewedSkill["source"]; source != "bundled" {
+			t.Fatalf("skill_view command_id source = %#v, want bundled", source)
+		}
+		commandSource, ok := viewedSkill["command_source"].(map[string]any)
+		if !ok || commandSource["kind"] != "extension" || commandSource["id"] != "spec-cycle" {
+			t.Fatalf(
+				"skill_view command_id command_source = %#v, want extension spec-cycle",
+				viewedSkill["command_source"],
+			)
+		}
 	})
 
 	t.Run("Should report an unknown session skill command id as not found", func(t *testing.T) {

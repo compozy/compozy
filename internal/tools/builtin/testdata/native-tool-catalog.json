@@ -2329,7 +2329,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "dc1a683fe39428e9e4eddf29e6e878dfcf3b7ec434175cf02abcf6e0d0280545",
-    "output_schema_digest": "fadf40d7421248945f924e72c73663e92867d40edcc29049ff4e298b51cf006b"
+    "output_schema_digest": "88e1121337493382d7a168c2d67059a215ca081d35dc1ec020caf8dfebb10f46"
   },
   {
     "tool_id": "compozy__subagent_cancel",
