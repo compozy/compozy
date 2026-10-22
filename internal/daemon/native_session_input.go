@@ -209,7 +209,7 @@ func (n *daemonNativeTools) nativeSessionInputWorkspaceScope(
 	if err != nil {
 		return "", nativeInputError(toolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, toolID, workspaceID, sessionID); err != nil {
+	if _, err := n.nativeSessionInWorkspace(ctx, scope, toolID, workspaceID, sessionID); err != nil {
 		return "", err
 	}
 	return sessionID, nil

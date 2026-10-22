@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +35,24 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			query.AllWorkspaces = wantsAllWorkspaces(cmd)
+			workspaceRef, flagErr := cmd.Flags().GetString("workspace")
+			if flagErr != nil {
+				return flagErr
+			}
+			if !query.AllWorkspaces {
+				if resolution, ok, resolveErr := resolveWorkspaceOverrideOnly(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceRef,
+				); resolveErr != nil {
+					return resolveErr
+				} else if ok {
+					query.WorkspaceID = resolution.ID
+				}
+			}
 			query.JobID = strings.TrimSpace(jobID)
 			query.TriggerID = strings.TrimSpace(triggerID)
 
@@ -43,9 +60,19 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, automationRunListBundle(runs))
+			bundle := automationRunListBundle(runs)
+			if query.AllWorkspaces {
+				labels, err := aggregateProjectLabels(cmd, client)
+				if err != nil {
+					return err
+				}
+				bundle.human = automationRunAggregateTable(runs, labels)
+			}
+			return writeCommandOutput(cmd, bundle)
 		},
 	}
+	cmd.Flags().String("workspace", "", "Filter by source project")
+	addAllWorkspacesFlag(cmd)
 	cmd.Flags().StringVar(&jobID, "job-id", "", "Filter by automation job ID")
 	cmd.Flags().StringVar(&triggerID, "trigger-id", "", "Filter by automation trigger ID")
 	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
@@ -162,7 +189,7 @@ func parseOptionalAutomationScope(raw string) (automationpkg.Scope, error) {
 	if trimmed == "" {
 		return "", nil
 	}
-	scope := automationpkg.Scope(trimmed)
+	scope := automationpkg.Scope(trimmed).Normalize()
 	if err := scope.Validate(automationScopeKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}

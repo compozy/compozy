@@ -36,6 +36,7 @@ function request(
 ): LoopRequest {
   return {
     loop_run_id: GRAPH_ENG_RUN_ID,
+    profile_id: "",
     loop_name: LOOP_NAME,
     generation: 3,
     item_index: 0,

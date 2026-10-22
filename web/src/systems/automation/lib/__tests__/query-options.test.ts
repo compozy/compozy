@@ -41,6 +41,7 @@ describe("automation list options", () => {
       "list",
       "workspace",
       "ws_alpha",
+      "",
       "dynamic",
       "",
       "true",

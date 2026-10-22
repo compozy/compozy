@@ -107,7 +107,6 @@ export function useSessionWindowController(input: {
     transportDisconnected:
       transport.phase === "failed" || isSessionTransportDisconnected(transport),
     windowId,
-    workspaceId,
   });
   // Secondary goal reader for the head action — the goal strip inside the
   // thread owns the loop-stream reconciliation, so this instance reads cache only.

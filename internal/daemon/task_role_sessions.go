@@ -9,10 +9,13 @@ import (
 	"strings"
 	"time"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (r *taskRoleRuntime) activeRoleSession(
@@ -44,6 +47,7 @@ func (r *taskRoleRuntime) startRoleSession(
 
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
+		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: activation.GrantCeiling},
 		ProfileID: activation.ProfileID,
 		AgentName: activation.AgentName,
 		Provider:  activation.Provider,
@@ -63,7 +67,7 @@ func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, erro
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = activation.WorkspaceID
 	case taskpkg.ScopeGlobal:
-		opts.WorkspacePath = activation.WorkspacePath
+		opts.Scope = workspacepkg.ScopeUser
 	default:
 		return session.CreateOpts{}, fmt.Errorf(
 			"%w: unsupported task scope %q for role session start",
@@ -200,6 +204,8 @@ func (r *taskRoleRuntime) starvationActivation(
 		Scope:       taskRecord.Scope.Normalize(),
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
 		AgentName:   agentName,
+		// The starvation worker keeps the task's persisted grant ceiling (USW BR-9).
+		GrantCeiling: taskRecord.GrantCeiling,
 
 		Title: strings.TrimSpace(taskRecord.Title),
 		Worktree: taskpkg.WorktreePolicy{
@@ -260,8 +266,7 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 	case taskpkg.ScopeWorkspace:
 		return strings.TrimSpace(info.WorkspaceID) == activation.WorkspaceID
 	case taskpkg.ScopeGlobal:
-		return strings.TrimSpace(info.WorkspaceID) == "" &&
-			strings.TrimSpace(info.Workspace) == activation.WorkspacePath
+		return strings.TrimSpace(info.WorkspaceID) == ""
 	default:
 		return false
 	}

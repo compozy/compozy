@@ -246,6 +246,41 @@ func TestManagerDelete(t *testing.T) {
 		run  func(*testing.T)
 	}{
 		{
+			name: "Should remove a User session's attachments from the reserved User directory",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t)
+				homePaths, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+				if err != nil {
+					t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+				}
+				if err := compozyconfig.EnsureHomeLayout(homePaths); err != nil {
+					t.Fatalf("EnsureHomeLayout() error = %v", err)
+				}
+				const sessionID = "sess-user-delete"
+				sessionDir := filepath.Join(homePaths.SessionAttachmentsDir, attachmentspkg.ScopeDir(""), sessionID)
+				if err := os.MkdirAll(sessionDir, 0o700); err != nil {
+					t.Fatalf("MkdirAll(User attachment fixture) error = %v", err)
+				}
+				if err := os.WriteFile(filepath.Join(sessionDir, "notes.txt"), []byte("user"), 0o600); err != nil {
+					t.Fatalf("WriteFile(User attachment fixture) error = %v", err)
+				}
+				manager := &Manager{homePaths: homePaths, attachmentScopeLease: newSignalingAttachmentScopeLease()}
+				staged, err := manager.stageSessionAttachmentDelete(ctx, "", sessionID, "delete-user")
+				if err != nil {
+					t.Fatalf("stageSessionAttachmentDelete(User) error = %v", err)
+				}
+				if err := manager.commitStagedAttachmentDelete(ctx, staged); err != nil {
+					t.Fatalf("commitStagedAttachmentDelete(User) error = %v", err)
+				}
+				if err := staged.Release(); err != nil {
+					t.Fatalf("Release(User staged delete) error = %v", err)
+				}
+				if _, err := os.Stat(sessionDir); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("User attachment directory still present after deletion: %v", err)
+				}
+			},
+		},
+		{
 			name: "Should fence a concurrent attachment upload until deletion commits",
 			run: func(t *testing.T) {
 				ctx := testutil.Context(t)

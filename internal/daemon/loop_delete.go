@@ -38,7 +38,7 @@ func (s *daemonLoopAPIService) DeleteLoop(
 	if err != nil {
 		return err
 	}
-	state, err := s.persistence.DeleteLoopDefinitionState(ctx, ws, name)
+	state, err := s.persistence.DeleteLoopDefinitionState(ctx, ws, profileID, name)
 	if err != nil {
 		return errors.Join(
 			fmt.Errorf("daemon: delete Loop definition state %q: %w", name, err),
@@ -46,7 +46,7 @@ func (s *daemonLoopAPIService) DeleteLoop(
 		)
 	}
 	if err := s.syncLoopResources(ctx); err != nil {
-		return s.rollbackLoopDelete(ctx, staged, ws, name, state, err)
+		return s.rollbackLoopDelete(ctx, staged, ws, profileID, name, state, err)
 	}
 	if err := staged.Commit(); err != nil {
 		logger := s.logger
@@ -67,6 +67,7 @@ func (s *daemonLoopAPIService) rollbackLoopDelete(
 	ctx context.Context,
 	staged *looppkg.StagedWritableDefinitionDeletion,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	name string,
 	state looppkg.DefinitionState,
 	primary error,
@@ -74,7 +75,7 @@ func (s *daemonLoopAPIService) rollbackLoopDelete(
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loopDeleteRollbackTimeout)
 	defer cancel()
 
-	restoreStateErr := s.persistence.RestoreLoopDefinitionState(rollbackCtx, workspaceID, name, state)
+	restoreStateErr := s.persistence.RestoreLoopDefinitionState(rollbackCtx, workspaceID, profileID, name, state)
 	restoreDefinitionErr := staged.Restore()
 	reconcileErr := s.syncLoopResources(rollbackCtx)
 	return errors.Join(

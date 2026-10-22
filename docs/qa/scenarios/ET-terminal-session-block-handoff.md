@@ -4,7 +4,7 @@ area: ET
 title: Follow a deliberate terminal run from the session transcript
 persona: Bruno
 journey: J-operate-integrated-terminal
-expected: A deliberate terminal tool call renders a live block in the transcript with its exit outcome, jumps to the owning terminal window, hands a still-running command over instead of pretending it finished, and marks the output it feeds back to the model as untrusted data.
+expected: A deliberate terminal tool call renders as one compact transcript tool row with a single exit outcome, opens on demand to a content-sized or live screen, jumps to the owning terminal window, hands a still-running command over instead of pretending it finished, and marks the output it feeds back to the model as untrusted data.
 entry_points: Session transcript terminal block; Open terminal affordance; Web dock Terminal app; compozy__terminal_exec with visible true; compozy__terminal_read; compozy__terminal_wait
 qa_status: blocked-verify
 bug_ids:
@@ -79,3 +79,25 @@ Targeted browser evidence (2026-10-21): the isolated Web Storybook rendered
 and zero resource requests for that host path. `SessionTerminalBlock/StillRunningHandoff` retained
 the output, running label and Open terminal action with no attach-ticket request. This is rendered
 component evidence, not a provider-backed session lifecycle claim.
+
+## Compact terminal row (#890)
+
+A supervised terminal call is a collapsed tool row by default: verb, the terminal's name (catalog or
+agent-given title, never the argv), one outcome (no glyph on success, `exit N` beside the settled ×,
+`signal X`, a spinner while running), the duration, and an Open terminal jump on hover. Output opens
+on demand.
+
+1. Run a finished short command and a non-zero exit. Each reads as one line; opened, the screen is
+   sized to the printed lines with no empty emulator area, and the outcome appears once.
+2. Run a command that outlives the yield window with no output yet. The row spins; opened, it says
+   `No output yet` and never shows the tool envelope JSON.
+3. Open a still-running visible PTY row. It streams live in a fixed window; when the command ends the
+   row settles to its outcome and the opened screen keeps the bytes it streamed.
+4. Confirm a catalog exit wins a stale `still_running` envelope: one settled outcome and its span.
+
+2026-10-22 targeted walk (isolated lab, real daemon, acpmock agent calling the native
+`compozy__terminal_exec`, Vite Web at 1280×760): pipe and visible PTY execs rendered as compact rows,
+the live PTY streamed while opened and kept its final screen after exit, the early-yield exec showed
+`No output yet` then settled, and no transcript text contained the envelope's `command_id`. Teardown
+was clean. A provider-backed walk with a real model remains unverified.
+

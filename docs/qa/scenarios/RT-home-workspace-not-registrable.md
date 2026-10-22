@@ -75,3 +75,10 @@ remain before this row's final closure.
 QA closure 2026-10-05: all planned legs above pass. Fix 60ddd98e12e10731a7f98d8dedca20ff88f2e459
 passes the warning-free affected gate and matches its recorded tree. This scenario is
 Fixed for the current cycle; earlier pending notes record the progression of the walk.
+
+
+User-scope foundation follow-up (U1): repeat steps 1–2 with the isolated lab's `COMPOZY_HOME`,
+including a symlink, and require `workspace_home_forbidden` with no inserted row. Attempt registration
+and rename to `user`, `global`, and `@example`; require `workspace_name_reserved`. The resolver suite
+covers these guards; the combined HTTP/UDS scenario replay remains part of the all-projects integration
+QA and is not established by the older evidence above.

@@ -19,6 +19,7 @@ var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
+	WorkspaceAccess       string     `json:"workspace_access,omitempty" yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
 	SessionEnv            SessionEnv `json:"session_env,omitempty"      yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
 	Name                  string     `json:"name"                       yaml:"name"                       toml:"name"`
 	Provider              string     `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
@@ -49,6 +50,7 @@ type AgentDefinitionRef struct {
 }
 
 type parsedAgentDef struct {
+	WorkspaceAccess string                  `yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
 	SessionEnv      SessionEnv              `yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
 	Name            string                  `yaml:"name"                       toml:"name"`
 	Provider        string                  `yaml:"provider"                   toml:"provider"`
@@ -313,6 +315,7 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		Toolsets:        normalizeAgentToolsetRefs(parsed.Toolsets),
 		DenyTools:       normalizeAgentToolPatterns(parsed.DenyTools),
 		Permissions:     strings.TrimSpace(parsed.Permissions),
+		WorkspaceAccess: parsed.WorkspaceAccess,
 		Skills:          normalizeAgentSkillsConfig(parsed.Skills),
 		CategoryPath:    normalizeAgentCategoryPath(parsed.CategoryPath),
 		MCPServers:      cloneMCPServers(parsed.MCPServers),
@@ -447,24 +450,6 @@ func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
 	}
 	*parsed = parsedTOML
 	return nil
-}
-
-func hasEmbeddedTabFrontmatterKey(data []byte) bool {
-	lines := strings.SplitSeq(string(data), "\n")
-	for line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		key, _, ok := strings.Cut(line, ":")
-		if !ok {
-			continue
-		}
-		if strings.Contains(key, "\t") {
-			return true
-		}
-	}
-	return false
 }
 
 type mappedFrontmatterError struct {

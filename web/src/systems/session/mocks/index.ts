@@ -37,3 +37,4 @@ export {
   userMessageFixture,
   writeToolMessageFixture,
 } from "./fixtures";
+export { sessionListCatalogFixture, sessionListViewFixture } from "./session-list-view-fixtures";

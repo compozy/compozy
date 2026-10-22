@@ -10,6 +10,7 @@ import {
   useTopbarSlot,
 } from "@compozy/ui";
 
+import { LoopUnboundState } from "./loop-unbound-state";
 import { useLoopRunFormPage } from "./use-loop-run-form-page";
 import { LoopRunForm } from "@/systems/loops";
 
@@ -20,7 +21,7 @@ import { LoopRunForm } from "@/systems/loops";
  */
 export function LoopRunFormLocation({ name }: { name: string }) {
   const page = useLoopRunFormPage(name);
-  const { configQuery, loopQuery, openLoop, openLoops, workspaceId } = page;
+  const { configQuery, loopQuery, openLoop, openLoops, scope, workspaceId } = page;
   useTopbarSlot({
     onBack: openLoop,
     crumbs: [
@@ -46,10 +47,10 @@ export function LoopRunFormLocation({ name }: { name: string }) {
 
   if (workspaceId === "") {
     return (
-      <RunFormState
-        description="Select a project to run this Loop."
+      <LoopUnboundState
+        description="Open this Loop from the Loops catalog to run it."
+        scope={scope}
         testId="loop-run-form-no-workspace"
-        title="No project selected"
       />
     );
   }

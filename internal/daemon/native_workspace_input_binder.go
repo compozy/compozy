@@ -73,7 +73,7 @@ func (b *nativeWorkspaceInputBinder) BindCallInput(
 	if payload == nil {
 		return nil, nativeWorkspaceObjectInputError(descriptor.ID, nil)
 	}
-	if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor.ID, schema, payload); err != nil {
+	if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor, schema, payload); err != nil {
 		return nil, err
 	}
 	return json.Marshal(payload)
@@ -82,13 +82,14 @@ func (b *nativeWorkspaceInputBinder) BindCallInput(
 func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	id toolspkg.ToolID,
+	descriptor toolspkg.Descriptor,
 	schema map[string]json.RawMessage,
 	payload map[string]json.RawMessage,
 ) error {
+	id := descriptor.ID
 	properties := nativeWorkspaceSchemaProperties(schema)
 	if _, ok := properties[nativeWorkspaceInputKey]; ok {
-		if err := b.bindNativeWorkspaceField(ctx, scope, id, payload); err != nil {
+		if err := b.bindNativeWorkspaceField(ctx, scope, descriptor, payload); err != nil {
 			return err
 		}
 	}
@@ -108,7 +109,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 		if err := json.Unmarshal(rawPayload, &childPayload); err != nil || childPayload == nil {
 			return nativeWorkspaceObjectInputError(id, err)
 		}
-		if err := b.bindNativeWorkspaceNode(ctx, scope, id, childSchema, childPayload); err != nil {
+		if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor, childSchema, childPayload); err != nil {
 			return err
 		}
 		encoded, err := json.Marshal(childPayload)
@@ -122,7 +123,7 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 			if !nativeWorkspaceSchemaAcceptsWorkspace(childSchema) {
 				continue
 			}
-			if err := b.bindNativeWorkspaceNode(ctx, scope, id, childSchema, payload); err != nil {
+			if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor, childSchema, payload); err != nil {
 				return err
 			}
 		}
@@ -133,17 +134,32 @@ func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceNode(
 func (b *nativeWorkspaceInputBinder) bindNativeWorkspaceField(
 	ctx context.Context,
 	scope toolspkg.Scope,
-	id toolspkg.ToolID,
+	descriptor toolspkg.Descriptor,
 	payload map[string]json.RawMessage,
 ) error {
+	id := descriptor.ID
 	requested, validString := nativeWorkspaceInputValue(payload[nativeWorkspaceInputKey])
 	if !validString {
 		return nil
 	}
+	if requested == "global" && descriptor.ExecutionMetadata().ReservedWorkspacePartition {
+		if !nativeWorkspaceScopeHasOperatorAuthority(scope) {
+			return nativeWorkspaceAccessDeniedError(id)
+		}
+		return setNativeWorkspaceInput(payload, requested)
+	}
 	trusted := strings.TrimSpace(scope.WorkspaceID)
 	hasOperatorAuthority := nativeWorkspaceScopeHasOperatorAuthority(scope)
 	if nativeInputHasGlobalScope(payload) {
-		if !hasOperatorAuthority {
+		granted := false
+		if !hasOperatorAuthority && b.sessions != nil && scope.SessionID != "" {
+			info, err := b.sessions.Status(ctx, scope.SessionID)
+			if err != nil {
+				return err
+			}
+			granted = info != nil && info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
+		}
+		if !hasOperatorAuthority && !granted {
 			return nativeWorkspaceAccessDeniedError(id)
 		}
 		return nil
@@ -192,6 +208,12 @@ func (b *nativeWorkspaceInputBinder) resolveNativeWorkspaceInput(
 	payload map[string]json.RawMessage,
 	ref string,
 ) error {
+	if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
+		if strings.Contains(string(id), "worktree") || nativeUserHasWorktree(payload) {
+			return nativeInputError(id, workspacepkg.ErrUserScopeWorktreeUnsupported)
+		}
+		return setNativeWorkspaceInput(payload, workspaceaccess.UserSelector)
+	}
 	if b == nil || b.workspaces == nil {
 		return nativeInputError(id, workspacepkg.ErrWorkspaceResolverUnavailable)
 	}
@@ -323,4 +345,14 @@ func (n *daemonNativeTools) nativeWorkspaceRoot(
 		return "", nativeInputError(id, err)
 	}
 	return strings.TrimSpace(resolved.RootDir), nil
+}
+
+func nativeUserHasWorktree(payload map[string]json.RawMessage) bool {
+	for _, key := range []string{worktreeKey, "new_worktree"} {
+		raw := bytes.TrimSpace(payload[key])
+		if len(raw) != 0 && !bytes.Equal(raw, []byte("null")) && !bytes.Equal(raw, []byte(`""`)) {
+			return true
+		}
+	}
+	return false
 }

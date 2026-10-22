@@ -16,6 +16,7 @@ import {
 import type { LoopRunInputRow } from "../../lib/loop-run-about";
 import { loopRunBestLabel } from "../../lib/loop-generation-presentation";
 import type { LoopRunRecord } from "../../types";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 interface LoopRunAboutRailProps extends ComponentProps<"div"> {
   run: LoopRunRecord;
@@ -48,6 +49,7 @@ export function LoopRunAboutRail({
   className,
   ...props
 }: LoopRunAboutRailProps) {
+  const bindingSearch = useWindowBindingSearch();
   const best = loopRunBestLabel(run);
   const showBest = best && run.best_generation !== null && run.best_generation !== undefined;
   const hasStatusRows = Boolean(showBest || lastWakeAt);
@@ -94,6 +96,7 @@ export function LoopRunAboutRail({
               className="inline-flex min-h-6 items-center truncate rounded-xs text-small-body font-medium text-fg hover:text-fg-strong focus-visible:outline-none focus-visible:shadow-focus-ring"
               data-testid="loop-run-about-loop"
               params={{ name: run.loop_name }}
+              search={bindingSearch}
               to="/loops/$name"
             >
               {run.loop_name}

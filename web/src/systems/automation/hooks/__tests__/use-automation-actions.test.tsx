@@ -87,6 +87,7 @@ describe("automation mutation hooks", () => {
     vi.mocked(triggerAutomationJob).mockResolvedValue({
       profile_id: "00000000000000000000000000",
       profile_name: "default",
+      attribution: "recorded",
       id: "run_queued",
       attempt: 1,
       status: "running",
@@ -360,18 +361,18 @@ describe("automation mutation hooks", () => {
     });
   });
 
-  it("invalidates the exact pending suggestions list and job lists after acceptance", async () => {
+  it("invalidates the exact pending list, the All projects lists and job lists after acceptance", async () => {
     vi.mocked(acceptAutomationSuggestion).mockResolvedValue({} as never);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    const { result } = renderHook(() => useAcceptAutomationSuggestion("ws_alpha"), {
+    const { result } = renderHook(() => useAcceptAutomationSuggestion(), {
       wrapper: createWrapper(queryClient),
     });
 
     act(() => {
-      result.current.mutate({ suggestionID: "suggestion_1" });
+      result.current.mutate({ workspaceID: "ws_alpha", suggestionID: "suggestion_1" });
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
@@ -381,6 +382,9 @@ describe("automation mutation hooks", () => {
       queryKey: ["automation", "suggestions", "list", "ws_alpha", "pending"],
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, {
+      queryKey: ["automation", "suggestions", "list", "all"],
+    });
+    expect(invalidateSpy).toHaveBeenNthCalledWith(3, {
       queryKey: ["automation", "jobs", "list"],
     });
   });
@@ -391,37 +395,40 @@ describe("automation mutation hooks", () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    const { result } = renderHook(() => useAcceptAutomationSuggestion("ws_alpha"), {
+    const { result } = renderHook(() => useAcceptAutomationSuggestion(), {
       wrapper: createWrapper(queryClient),
     });
 
     act(() => {
-      result.current.mutate({ suggestionID: "suggestion_1" });
+      result.current.mutate({ workspaceID: "ws_alpha", suggestionID: "suggestion_1" });
     });
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
 
-  it("invalidates only the exact pending suggestions list after dismissal", async () => {
+  it("invalidates the exact pending list and the All projects lists after dismissal", async () => {
     vi.mocked(dismissAutomationSuggestion).mockResolvedValue({} as never);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    const { result } = renderHook(() => useDismissAutomationSuggestion("ws_alpha"), {
+    const { result } = renderHook(() => useDismissAutomationSuggestion(), {
       wrapper: createWrapper(queryClient),
     });
 
     act(() => {
-      result.current.mutate({ suggestionID: "suggestion_1" });
+      result.current.mutate({ workspaceID: "ws_alpha", suggestionID: "suggestion_1" });
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(invalidateSpy).toHaveBeenCalledOnce();
+    expect(invalidateSpy).toHaveBeenCalledTimes(2);
     expect(invalidateSpy).toHaveBeenCalledWith({
       exact: true,
       queryKey: ["automation", "suggestions", "list", "ws_alpha", "pending"],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ["automation", "suggestions", "list", "all"],
     });
   });
 });

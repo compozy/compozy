@@ -66,6 +66,7 @@ export type {
   PermissionDecision,
   SessionRepairQuery,
 } from "../types";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export async function createSession(
   params: CreateSessionParams,
@@ -96,7 +97,7 @@ export async function fetchSession(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
         query: { include_health: true, all_profiles: true },
       },
       signal,
@@ -118,7 +119,10 @@ export async function deleteSession(
   const { error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { profile },
+      },
       signal,
     }
   );
@@ -138,7 +142,10 @@ export async function renameSession(
   const { data, error, response } = await apiClient.PATCH(
     "/api/workspaces/{workspace_id}/sessions/{session_id}",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { profile },
+      },
       body: request,
       signal,
     }
@@ -175,7 +182,10 @@ export async function stopSession(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { profile },
+      },
       body: { wait: options.wait === true },
       signal: options.signal,
     }
@@ -241,7 +251,7 @@ export async function sendSessionPrompt(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       body: params,
       parseAs: "stream",
       signal,
@@ -283,7 +293,7 @@ export async function setSessionRuntime(
   const { data, error, response } = await apiClient.PUT(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       body: params,
       signal,
     }
@@ -304,7 +314,7 @@ export async function clearSessionRuntime(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
         query: { expected_revision: expectedRevision },
       },
       signal,
@@ -326,7 +336,7 @@ export async function repairSession(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/repair",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
         query,
       },
       signal,
@@ -407,7 +417,7 @@ export async function approveSession(
   const { error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       body: params,
       signal,
     }

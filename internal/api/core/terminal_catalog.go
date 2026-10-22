@@ -82,11 +82,20 @@ func (c *terminalCatalog) read(
 	workspaceID, profileID string,
 	after uint64,
 ) ([]terminalCatalogEvent, bool, uint64, <-chan struct{}) {
+	return c.readSelection(after, func(event terminalpkg.Event) bool {
+		return event.WorkspaceID == workspaceID && event.ProfileID == profileID
+	})
+}
+
+func (c *terminalCatalog) readSelection(
+	after uint64,
+	matches func(terminalpkg.Event) bool,
+) ([]terminalCatalogEvent, bool, uint64, <-chan struct{}) {
 	for {
 		signal := c.signal.Load()
 		c.mu.Lock()
 		c.drainLocked()
-		replay, reset, fence := c.replayLocked(workspaceID, profileID, after)
+		replay, reset, fence := c.replaySelectionLocked(after, matches)
 		c.mu.Unlock()
 		if !signal.closed.Load() {
 			return replay, reset, fence, signal.done
@@ -118,9 +127,9 @@ func (c *terminalCatalog) drainLocked() {
 	}
 }
 
-func (c *terminalCatalog) replayLocked(
-	workspaceID, profileID string,
+func (c *terminalCatalog) replaySelectionLocked(
 	after uint64,
+	matches func(terminalpkg.Event) bool,
 ) ([]terminalCatalogEvent, bool, uint64) {
 	reset := after == 0
 	fence := c.next.Load()
@@ -136,7 +145,7 @@ func (c *terminalCatalog) replayLocked(
 	replay := make([]terminalCatalogEvent, 0)
 	if !reset {
 		for _, event := range c.events {
-			if event.Sequence > after && event.Event.WorkspaceID == workspaceID && event.Event.ProfileID == profileID {
+			if event.Sequence > after && matches(event.Event) {
 				replay = append(replay, event)
 			}
 		}
@@ -154,7 +163,7 @@ func storeAtomicMaximum(target *atomic.Uint64, value uint64) {
 
 func catalogEventKind(kind terminalpkg.EventKind) bool {
 	switch kind {
-	case terminalpkg.EventKindOpened,
+	case terminalpkg.EventKindDeleted, terminalpkg.EventKindOpened,
 		terminalpkg.EventKindClosed,
 		terminalpkg.EventKindTitleChanged,
 		terminalpkg.EventKindModeChanged,

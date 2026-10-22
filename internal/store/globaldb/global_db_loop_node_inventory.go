@@ -12,12 +12,13 @@ import (
 )
 
 type loopNodeInventoryRow struct {
-	loopRunID  string
-	loopName   string
-	generation int64
-	nodeID     string
-	itemIndex  int64
-	stateAt    time.Time
+	workspaceID string
+	loopRunID   string
+	loopName    string
+	generation  int64
+	nodeID      string
+	itemIndex   int64
+	stateAt     time.Time
 }
 
 // ListNodeInventory returns one stable, workspace-scoped node-state page.
@@ -58,7 +59,7 @@ func (g *LoopRepo) ListNodeInventory(
 			break
 		}
 		items = append(items, looppkg.NodeInventoryItem{
-			State:      normalized.State,
+			WorkspaceID: row.workspaceID, State: normalized.State,
 			LoopRunID:  looppkg.RunID(row.loopRunID),
 			LoopName:   row.loopName,
 			Generation: int(row.generation),
@@ -67,7 +68,7 @@ func (g *LoopRepo) ListNodeInventory(
 			StateAt:    row.stateAt.UTC(),
 		})
 	}
-	items, err = hydrateNodeInventoryItems(ctx, queries, normalized.WorkspaceID, items)
+	items, err = hydrateNodeInventoryItems(ctx, queries, items)
 	if err != nil {
 		return looppkg.NodeInventoryPage{}, err
 	}
@@ -85,6 +86,9 @@ func (g *LoopRepo) ListNodeInventory(
 }
 
 type nodeInventorySQLParams struct {
+	allWorkspaces    bool
+	allProfiles      bool
+	profileID        string
 	workspaceID      string
 	loopName         string
 	runID            string
@@ -102,10 +106,13 @@ func loopNodeInventoryParams(
 	cursor *looppkg.NodeInventoryCursor,
 ) nodeInventorySQLParams {
 	params := nodeInventorySQLParams{
-		workspaceID: string(query.WorkspaceID),
-		loopName:    query.LoopName,
-		runID:       string(query.RunID),
-		pageLimit:   int64(query.Limit + 1),
+		allWorkspaces: query.AllWorkspaces,
+		allProfiles:   query.ReadScope.AllProfiles,
+		profileID:     query.ReadScope.ProfileID,
+		workspaceID:   string(query.WorkspaceID),
+		loopName:      query.LoopName,
+		runID:         string(query.RunID),
+		pageLimit:     int64(query.Limit + 1),
 	}
 	if cursor != nil {
 		params.hasCursor = 1
@@ -127,6 +134,9 @@ func (g *LoopRepo) listNodeInventoryRows(
 	switch state {
 	case looppkg.NodeInventoryWaiting:
 		rows, err := queries.ListWaitingLoopNodeInventory(ctx, sqlcgen.ListWaitingLoopNodeInventoryParams{
+			AllWorkspaces:     params.allWorkspaces,
+			AllProfiles:       params.allProfiles,
+			ProfileID:         params.profileID,
 			FilterWorkspaceID: params.workspaceID,
 			FilterLoopName:    params.loopName,
 			FilterRunID:       params.runID,
@@ -141,6 +151,9 @@ func (g *LoopRepo) listNodeInventoryRows(
 		return waitingInventoryRows(rows), err
 	case looppkg.NodeInventoryQuarantined:
 		rows, err := queries.ListQuarantinedLoopNodeInventory(ctx, sqlcgen.ListQuarantinedLoopNodeInventoryParams{
+			AllWorkspaces:     params.allWorkspaces,
+			AllProfiles:       params.allProfiles,
+			ProfileID:         params.profileID,
 			FilterWorkspaceID: params.workspaceID,
 			FilterLoopName:    params.loopName,
 			FilterRunID:       params.runID,
@@ -154,6 +167,9 @@ func (g *LoopRepo) listNodeInventoryRows(
 		return quarantinedInventoryRows(rows), err
 	case looppkg.NodeInventoryAttention:
 		rows, err := queries.ListAttentionLoopNodeInventory(ctx, sqlcgen.ListAttentionLoopNodeInventoryParams{
+			AllWorkspaces:     params.allWorkspaces,
+			AllProfiles:       params.allProfiles,
+			ProfileID:         params.profileID,
 			FilterWorkspaceID: params.workspaceID,
 			FilterLoopName:    params.loopName,
 			FilterRunID:       params.runID,
@@ -167,6 +183,9 @@ func (g *LoopRepo) listNodeInventoryRows(
 		return attentionInventoryRows(rows), err
 	case looppkg.NodeInventoryRetrying:
 		rows, err := queries.ListRetryingLoopNodeInventory(ctx, sqlcgen.ListRetryingLoopNodeInventoryParams{
+			AllWorkspaces:     params.allWorkspaces,
+			AllProfiles:       params.allProfiles,
+			ProfileID:         params.profileID,
 			FilterWorkspaceID: params.workspaceID,
 			FilterLoopName:    params.loopName,
 			FilterRunID:       params.runID,
@@ -188,7 +207,7 @@ func waitingInventoryRows(rows []sqlcgen.ListWaitingLoopNodeInventoryRow) []loop
 	items := make([]loopNodeInventoryRow, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, loopNodeInventoryRow{
-			row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt,
+			row.WorkspaceID, row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt,
 		})
 	}
 	return items
@@ -201,7 +220,7 @@ func quarantinedInventoryRows(rows []sqlcgen.ListQuarantinedLoopNodeInventoryRow
 			continue
 		}
 		items = append(items, loopNodeInventoryRow{
-			row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt.Time,
+			row.WorkspaceID, row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt.Time,
 		})
 	}
 	return items
@@ -211,7 +230,7 @@ func attentionInventoryRows(rows []sqlcgen.ListAttentionLoopNodeInventoryRow) []
 	items := make([]loopNodeInventoryRow, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, loopNodeInventoryRow{
-			row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt,
+			row.WorkspaceID, row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt,
 		})
 	}
 	return items
@@ -224,7 +243,7 @@ func retryingInventoryRows(rows []sqlcgen.ListRetryingLoopNodeInventoryRow) []lo
 			continue
 		}
 		items = append(items, loopNodeInventoryRow{
-			row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt.Time,
+			row.WorkspaceID, row.LoopRunID, row.LoopName, row.Generation, row.NodeID, row.ItemIndex, row.StateAt.Time,
 		})
 	}
 	return items

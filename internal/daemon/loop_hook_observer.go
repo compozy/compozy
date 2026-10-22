@@ -26,6 +26,7 @@ type loopHookCoordinatorStore interface {
 	PromoteOldestQueuedLoopRun(
 		ctx context.Context,
 		workspaceID string,
+		profileID string,
 		loopName string,
 		origin taskpkg.Origin,
 		now time.Time,
@@ -385,10 +386,17 @@ func (o *loopNativeHookObserver) promoteQueuedLoop(
 ) (bool, error) {
 	workspaceID := strings.TrimSpace(payload.WorkspaceID)
 	loopName := strings.TrimSpace(payload.LoopName)
-	if workspaceID == "" || loopName == "" {
+	if loopName == "" {
 		return false, nil
 	}
-	_, added, err := o.store.PromoteOldestQueuedLoopRun(ctx, workspaceID, loopName, o.actor.Origin, o.now().UTC())
+	_, added, err := o.store.PromoteOldestQueuedLoopRun(
+		ctx,
+		workspaceID,
+		payload.ProfileID,
+		loopName,
+		o.actor.Origin,
+		o.now().UTC(),
+	)
 	if err := normalizeLoopWakeError(err); err != nil {
 		return false, err
 	}

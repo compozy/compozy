@@ -1,28 +1,39 @@
-export const GLOBAL_SCOPE_COPY = {
-  controlName: "Global scope",
-  chipLabel: "Global",
-  chipMonogram: "~",
-  tooltipOff: "Global — every project",
-  tooltipLocked: "Add a project to focus on it",
-  tooltipPickWorkspace: "Pick a project to focus on it",
-  liveOn: "Global scope on",
-  liveOff: "Global scope off",
-  paletteToggleOn: "Turn on Global scope",
-  paletteToggleOff: "Turn off Global scope",
-  paletteSwitchTurnsOff: "turns Global scope off",
+import type { Focus } from "./destination";
+
+/** Destination vocabulary: All projects (the globe), User, and projects. Never "Global". */
+export const DESTINATION_COPY = {
+  allProjects: "All projects",
+  /** Text mark for All projects where only a monogram fits; the chip draws a stack icon. */
+  allProjectsMonogram: "∗",
+  user: "User",
+  userMonogram: "~",
+  /** An automation run whose source project could not be established. */
+  unknownProject: "Unknown project",
+  unknownProjectMonogram: "?",
+  liveOn: "All projects on",
+  liveOff: "All projects off",
   skipOnboarding: "Skip — use my home folder",
-  /** Global has no project to start a session in: the reason on every New session it disables. */
-  newSessionNeedsProject: "Pick a project to start a session",
-  /** Accessible name of a disabled New session control in Global. */
-  newSessionNeedsProjectName: "New session — pick a project to start a session",
 } as const;
 
-export function globalScopeTooltipOn(workspaceName: string): string {
-  return `Back to ${workspaceName}`;
+/** Globe tooltip while All projects is on: where turning it off returns. */
+export function allProjectsTooltipOn(focusName: string): string {
+  return `Back to ${focusName}`;
 }
 
-export function destinationLabel(scope: string, workspaceName: string | undefined | null): string {
-  if (scope === "global") return GLOBAL_SCOPE_COPY.chipLabel;
+/** Where a new item lands: inside a project, or in User outside any project. */
+export type DestinationKind = "project" | "user";
+
+/** Display name of a destination: the project's name, or "User". */
+export function destinationLabel(
+  kind: DestinationKind,
+  workspaceName: string | undefined | null
+): string {
+  if (kind === "user") return DESTINATION_COPY.user;
   const name = workspaceName?.trim();
   return name && name.length > 0 ? name : "project";
+}
+
+/** Display name of a focus: the project's name, or "User". */
+export function focusLabel(focus: Focus, workspaceName: string | undefined | null): string {
+  return destinationLabel(focus.kind, workspaceName);
 }

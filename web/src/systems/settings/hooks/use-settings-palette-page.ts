@@ -72,13 +72,13 @@ export function useSettingsPalettePage(): SettingsPalettePageModel {
   // Until workspace truth settles, the resolver reports the *requested* scope
   // with no id — indistinguishable from user scope. Asking then would write a
   // user read into the cache for an operator who is actually in a workspace.
-  // `pending` is its own signal: the catalog can be loaded while `$HOME` is
-  // still unknown, and the resolver settles nothing until both have landed.
+  // `pending` is its own signal: the resolver settles nothing until the
+  // workspace catalog has landed.
   const settled = workspace.hasHydrated && !workspace.isLoading && !workspace.pending;
   const filter: SettingsCmdPaletteFilter =
     destination !== "default"
       ? { scope: "profile", profile: destination }
-      : workspace.scope === "workspace" && workspace.activeWorkspaceId !== null
+      : workspace.activeWorkspaceId !== null
         ? { scope: "workspace", workspace_id: workspace.activeWorkspaceId }
         : { scope: "user" };
   const needsWorkspace = destination === "default";

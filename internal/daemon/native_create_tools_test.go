@@ -21,6 +21,25 @@ import (
 func TestNativeAgentCreate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject a grant authored by an agent before writing", func(t *testing.T) {
+		t.Parallel()
+		n := &daemonNativeTools{}
+		_, err := n.agentCreate(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-author"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentCreate,
+				Input: json.RawMessage(
+					`{"name":"privileged","scope":"global","prompt":"Assist.","workspace_access":"unrestricted"}`,
+				),
+			},
+		)
+		if _, ok := errors.AsType[*toolspkg.ToolError](err); !ok || !errors.Is(err, toolspkg.ErrToolDenied) ||
+			!strings.Contains(err.Error(), "only the operator") {
+			t.Fatalf("error=%v", err)
+		}
+	})
+
 	t.Run("Should report the registered target workspace", func(t *testing.T) {
 		t.Parallel()
 

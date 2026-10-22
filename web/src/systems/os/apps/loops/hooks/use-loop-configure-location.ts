@@ -2,19 +2,18 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { useTopbarSlot } from "@compozy/ui";
 import { useLoop, useLoopConfig } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
 import { useCurrentWindowLiveDataEnabled } from "../../../hooks/use-window-live-data-enabled";
+import { useLoopWindowScope } from "./use-loop-window-scope";
 
 export function useLoopConfigureLocation(name: string) {
   const navigate = useNavigate();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const { scope, workspaceId, search } = useLoopWindowScope();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const queryEnabled = workspaceId !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, queryEnabled);
   const configQuery = useLoopConfig(workspaceId, name, queryEnabled);
   const openLoops = () => void navigate({ to: "/loops" });
-  const close = () => void navigate({ to: "/loops/$name", params: { name } });
+  const close = () => void navigate({ to: "/loops/$name", params: { name }, search });
 
   useTopbarSlot({
     onBack: close,
@@ -29,7 +28,8 @@ export function useLoopConfigureLocation(name: string) {
     close,
     configQuery,
     loopQuery,
-    openEditor: () => void navigate({ to: "/loops/$name/editor", params: { name } }),
+    openEditor: () => void navigate({ to: "/loops/$name/editor", params: { name }, search }),
+    scope,
     workspaceId,
   };
 }

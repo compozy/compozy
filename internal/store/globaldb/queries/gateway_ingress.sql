@@ -30,10 +30,15 @@ FROM gateway_endpoint_state
 ORDER BY tier;
 
 -- name: GetGatewayWebhookIngressSubject :one
-SELECT scope_kind, workspace_id, endpoint_slug, webhook_id
+SELECT scope_kind, workspace_id, endpoint_slug, webhook_id, profile_id
 FROM (
   SELECT
     resource.scope_kind,
+    CASE resource.scope_kind
+      WHEN 'profile' THEN (SELECT id FROM profiles WHERE name = resource.scope_id)
+      WHEN 'workspace_profile' THEN (SELECT id FROM profiles WHERE name = substr(resource.scope_id, instr(resource.scope_id, '@pf:') + 4))
+      ELSE '00000000000000000000000000'
+    END AS profile_id,
     resource.scope_id AS workspace_id,
     CAST(json_extract(resource.spec_json, '$.endpoint_slug') AS TEXT) AS endpoint_slug,
     CAST(json_extract(resource.spec_json, '$.webhook_id') AS TEXT) AS webhook_id,
@@ -43,6 +48,7 @@ FROM (
   UNION ALL
   SELECT
     legacy.scope AS scope_kind,
+    legacy.profile_id,
     legacy.workspace_id,
     legacy.endpoint_slug,
     legacy.webhook_id,

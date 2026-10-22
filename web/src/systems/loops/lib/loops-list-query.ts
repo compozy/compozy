@@ -2,6 +2,7 @@ import type { InfiniteData } from "@tanstack/react-query";
 
 import { normalizeOptionalText } from "../adapters/loops-api-errors";
 import type {
+  LoopCatalogBatchEntry,
   LoopCatalogEntry,
   LoopCatalogFilter,
   LoopCatalogStableFilter,
@@ -49,4 +50,20 @@ export function loopCatalogPage(
   data: InfiniteData<LoopsListResponse, unknown> | undefined
 ): LoopsListResponse | undefined {
   return data?.pages[0];
+}
+
+/**
+ * The All projects batch as catalog rows. Each row keeps its owner
+ * (`workspace_id`, empty for User) and reads its kind from `source.kind`,
+ * so the Built-in/Custom grouping is the workspace catalog's.
+ */
+export function loopCatalogBatchEntries(
+  entries: readonly LoopCatalogBatchEntry[]
+): LoopCatalogEntry[] {
+  return entries.map(entry => ({ ...entry, source: entry.source.kind }));
+}
+
+/** Stable row identity across projects: `(workspace_id, name)`. */
+export function loopCatalogEntryKey(entry: Pick<LoopCatalogEntry, "name" | "workspace_id">) {
+  return `${entry.workspace_id ?? ""}:${entry.name}`;
 }

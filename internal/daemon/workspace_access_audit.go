@@ -21,6 +21,10 @@ type workspaceAccessAuditEmitter struct {
 }
 
 type workspaceAccessAuditPayload struct {
+	ActorProfileID    string                         `json:"actor_profile_id"`
+	TargetProfileID   string                         `json:"target_profile_id"`
+	TargetKind        workspaceaccess.TargetKind     `json:"target_kind"`
+	AllProfiles       bool                           `json:"all_profiles"`
 	TargetWorkspaceID string                         `json:"target_workspace_id"`
 	Seam              workspaceaccess.Seam           `json:"seam"`
 	Source            workspaceaccess.DecisionSource `json:"source"`
@@ -58,6 +62,10 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	}
 	content, err := json.Marshal(workspaceAccessAuditPayload{
 		TargetWorkspaceID: strings.TrimSpace(record.TargetID),
+		ActorProfileID:    record.ActorProfileID,
+		TargetProfileID:   record.Target.ProfileID,
+		TargetKind:        record.Target.Kind,
+		AllProfiles:       record.Target.AllProfiles,
 		Seam:              record.Seam,
 		Source:            record.Source,
 		Mode:              record.Mode,
@@ -69,7 +77,7 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), workspaceAccessAuditWriteTimeout)
 	defer cancel()
 	if err := e.store.WriteEventSummary(writeCtx, daemonEventSummary(store.EventSummary{
-		ProfileID:   store.DefaultProfileID,
+		ProfileID:   workspaceAccessAuditOwner(record),
 		SessionID:   strings.TrimSpace(record.Actor.SessionID),
 		WorkspaceID: strings.TrimSpace(record.Actor.WorkspaceID),
 		Type:        eventType,
@@ -83,4 +91,17 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 		return fmt.Errorf("daemon: write workspace access audit event: %w", err)
 	}
 	return nil
+}
+
+// workspaceAccessAuditOwner picks the profile that owns the audit summary. Operator, non-session,
+// and failed decisions have no resolved actor profile; they are owned by the target profile, or
+// the default profile, so every decision stays visible while the payload keeps the honest
+// actor_profile_id.
+func workspaceAccessAuditOwner(record workspaceaccess.AccessRecord) string {
+	for _, candidate := range []string{record.ActorProfileID, record.Target.ProfileID} {
+		if owner := strings.TrimSpace(candidate); owner != "" {
+			return owner
+		}
+	}
+	return store.DefaultProfileID
 }

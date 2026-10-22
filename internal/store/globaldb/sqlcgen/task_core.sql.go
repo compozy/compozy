@@ -79,7 +79,7 @@ func (q *Queries) DeleteTask(ctx context.Context, id string) (int64, error) {
 }
 
 const getTask = `-- name: GetTask :one
-SELECT
+SELECT grant_ceiling,
   id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
@@ -92,6 +92,7 @@ WHERE tasks.id = ?1
 `
 
 type GetTaskRow struct {
+	GrantCeiling         string         `json:"grant_ceiling"`
 	ID                   string         `json:"id"`
 	ProfileID            string         `json:"profile_id"`
 	Identifier           sql.NullString `json:"identifier"`
@@ -133,6 +134,7 @@ func (q *Queries) GetTask(ctx context.Context, taskID string) (GetTaskRow, error
 	row := q.db.QueryRowContext(ctx, getTask, taskID)
 	var i GetTaskRow
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.Identifier,
@@ -335,6 +337,7 @@ func (q *Queries) InsertRequiredTaskRunCapability(ctx context.Context, arg Inser
 
 const insertTask = `-- name: InsertTask :exec
 INSERT INTO tasks (
+ grant_ceiling,
   profile_id,
   id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
@@ -342,19 +345,21 @@ INSERT INTO tasks (
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
   metadata_json
 ) VALUES (
-  ?1,
-  ?2, ?3, ?4, ?5,
-  ?6, ?7, ?8,
-  ?9, ?10, ?11, ?12,
-  ?13, ?14, ?15, ?16,
-  ?17, ?18, ?19, ?20,
-  ?21, ?22, ?23, ?24,
-  ?25, ?26, ?27, ?28,
-  ?29
+ ?1,
+  ?2,
+  ?3, ?4, ?5, ?6,
+  ?7, ?8, ?9,
+  ?10, ?11, ?12, ?13,
+  ?14, ?15, ?16, ?17,
+  ?18, ?19, ?20, ?21,
+  ?22, ?23, ?24, ?25,
+  ?26, ?27, ?28, ?29,
+  ?30
 )
 `
 
 type InsertTaskParams struct {
+	GrantCeiling       string         `json:"grant_ceiling"`
 	ProfileID          string         `json:"profile_id"`
 	ID                 string         `json:"id"`
 	Identifier         sql.NullString `json:"identifier"`
@@ -388,6 +393,7 @@ type InsertTaskParams struct {
 
 func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 	_, err := q.db.ExecContext(ctx, insertTask,
+		arg.GrantCeiling,
 		arg.ProfileID,
 		arg.ID,
 		arg.Identifier,
@@ -809,40 +815,41 @@ func (q *Queries) TransitionTerminalTaskRun(ctx context.Context, arg TransitionT
 
 const updateTask = `-- name: UpdateTask :execrows
 UPDATE tasks
-SET identifier = ?1,
-    scope = ?2,
-    workspace_id = ?3,
-    parent_task_id = ?4,
-    title = ?5,
-    description = ?6,
-    priority = ?7,
-    max_attempts = ?8,
-    auto_enqueue_on_ready = ?9,
-    approval_policy = ?10,
-    approval_state = ?11,
-    owner_kind = ?12,
-    owner_ref = ?13,
-    created_by_kind = ?14,
-    created_by_ref = ?15,
-    origin_kind = ?16,
-    origin_ref = ?17,
-    created_at = ?18,
-    updated_at = ?19,
-    closed_at = ?20,
-    paused = ?21,
-    paused_by = ?22,
-    paused_at = ?23,
-    paused_reason = ?24,
-    needs_attention_reason = ?25,
-    needs_attention_at = ?26,
-    needs_attention_by_kind = ?27,
-    needs_attention_by_ref = ?28,
-    wake_creator = ?29,
-    metadata_json = ?30
-WHERE id = ?31
+SET grant_ceiling = ?1, identifier = ?2,
+    scope = ?3,
+    workspace_id = ?4,
+    parent_task_id = ?5,
+    title = ?6,
+    description = ?7,
+    priority = ?8,
+    max_attempts = ?9,
+    auto_enqueue_on_ready = ?10,
+    approval_policy = ?11,
+    approval_state = ?12,
+    owner_kind = ?13,
+    owner_ref = ?14,
+    created_by_kind = ?15,
+    created_by_ref = ?16,
+    origin_kind = ?17,
+    origin_ref = ?18,
+    created_at = ?19,
+    updated_at = ?20,
+    closed_at = ?21,
+    paused = ?22,
+    paused_by = ?23,
+    paused_at = ?24,
+    paused_reason = ?25,
+    needs_attention_reason = ?26,
+    needs_attention_at = ?27,
+    needs_attention_by_kind = ?28,
+    needs_attention_by_ref = ?29,
+    wake_creator = ?30,
+    metadata_json = ?31
+WHERE id = ?32
 `
 
 type UpdateTaskParams struct {
+	GrantCeiling         string         `json:"grant_ceiling"`
 	Identifier           sql.NullString `json:"identifier"`
 	Scope                string         `json:"scope"`
 	WorkspaceID          sql.NullString `json:"workspace_id"`
@@ -878,6 +885,7 @@ type UpdateTaskParams struct {
 
 func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateTask,
+		arg.GrantCeiling,
 		arg.Identifier,
 		arg.Scope,
 		arg.WorkspaceID,
@@ -914,6 +922,23 @@ func (q *Queries) UpdateTask(ctx context.Context, arg UpdateTaskParams) (int64, 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const updateTaskGrantCeiling = `-- name: UpdateTaskGrantCeiling :exec
+UPDATE tasks SET grant_ceiling = CASE WHEN CAST(?1 AS BOOLEAN) THEN ?2
+ WHEN grant_ceiling = 'unrestricted' AND ?2 = 'unrestricted' THEN 'unrestricted' ELSE '' END
+WHERE id = ?3
+`
+
+type UpdateTaskGrantCeilingParams struct {
+	Operator bool   `json:"operator"`
+	Ceiling  string `json:"ceiling"`
+	ID       string `json:"id"`
+}
+
+func (q *Queries) UpdateTaskGrantCeiling(ctx context.Context, arg UpdateTaskGrantCeilingParams) error {
+	_, err := q.db.ExecContext(ctx, updateTaskGrantCeiling, arg.Operator, arg.Ceiling, arg.ID)
+	return err
 }
 
 const updateTaskRunMetadata = `-- name: UpdateTaskRunMetadata :execrows

@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import type { ForkSessionToWorktreeParams, SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 /**
  * Creates a fresh session bound to the target worktree. The origin session is
@@ -21,7 +22,7 @@ export async function forkSessionToWorktree(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork",
     {
-      params: { path: { workspace_id: workspaceId, session_id: sessionId } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
       body: params,
       signal,
     }

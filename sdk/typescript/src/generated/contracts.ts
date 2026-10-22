@@ -853,6 +853,7 @@ export interface AutomationJobsParams {
 export type JobSource = string;
 
 export interface Job {
+  grant_ceiling: string;
   id: string;
   profile_id: string;
   scope: Scope;
@@ -3278,6 +3279,8 @@ export interface ResourcesSnapshotParams {
 }
 
 export interface Run {
+  workspace_id?: string;
+  attribution: string;
   id: string;
   profile_id?: string;
   job_id?: string;
@@ -4641,6 +4644,8 @@ export interface TaskDashboard {
 }
 
 export interface TaskDashboardParams {
+  all_workspaces?: boolean;
+  workspace_ids?: string[];
   scope?: Scope;
   workspace?: string;
   worktree?: string;
@@ -4916,6 +4921,7 @@ export type CatalogScope = string;
 export interface TaskInboxParams {
   scope?: CatalogScope;
   workspace?: string;
+  workspace_ids?: string[];
   worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;
@@ -5548,6 +5554,8 @@ export interface TaskUpdateParams {
 export type CatalogSort = string;
 
 export interface TasksParams {
+  all_workspaces?: boolean;
+  workspace_ids?: string[];
   scope?: CatalogScope;
   workspace?: string;
   status?: Status;
@@ -5845,6 +5853,7 @@ export interface Tool {
   display_title?: string;
   friendly_verb?: string;
   preview?: string;
+  reserved_workspace_partition?: boolean;
   max_result_bytes?: number;
   idempotent?: boolean;
   input_error_code?: ErrorCode;

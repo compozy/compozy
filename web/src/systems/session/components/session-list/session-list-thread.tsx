@@ -98,6 +98,7 @@ export function SessionListThread({
           session={child}
           // A child in its root's profile repeats nothing; only a different owner is tagged.
           owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}
+          inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
           current={child.id === currentSessionId}
           onSelect={() => onSelectSession(child)}
           selection={selection}

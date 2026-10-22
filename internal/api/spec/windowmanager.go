@@ -16,6 +16,7 @@ func windowManagerOperations() []OperationSpec {
 		{Status: 503, Description: windowManagerUnavailableDescription, Body: errorBody},
 	}
 	mutationErrors := []ResponseSpec{
+		{Status: 400, Description: "Invalid window workspace binding", Body: errorBody},
 		{Status: 404, Description: "Workspace or referenced entity not found", Body: errorBody},
 		{Status: 409, Description: "Revision or state conflict", Body: errorBody},
 		{Status: 422, Description: "Invalid window-manager request", Body: errorBody},

@@ -2281,8 +2281,14 @@ func TestGoalContractsShouldValidateIdentityDependenciesAndHarvest(t *testing.T)
 		if err := validKey.Validate(); err != nil {
 			t.Fatalf("TurnKey.Validate() error = %v", err)
 		}
+		validKey.WorkspaceID = ""
+		if err := validKey.Validate(); err != nil {
+			t.Fatalf("TurnKey.Validate(User) error = %v", err)
+		}
+		if err := (BindingKey{LoopRunID: "run", Handle: "goal:handle"}).Validate(); err != nil {
+			t.Fatalf("BindingKey.Validate(User) error = %v", err)
+		}
 		invalidKeys := []TurnKey{
-			{LoopRunID: "run", Generation: 1, NodeID: "goal"},
 			{WorkspaceID: "ws", Generation: 1, NodeID: "goal"},
 			{WorkspaceID: "ws", LoopRunID: "run", NodeID: "goal"},
 			{WorkspaceID: "ws", LoopRunID: "run", Generation: 1},
@@ -2329,6 +2335,11 @@ func TestGoalContractsShouldValidateIdentityDependenciesAndHarvest(t *testing.T)
 		if err := valid.Validate(); err != nil {
 			t.Fatalf("EnqueueSessionOutboxRequest.Validate(start) error = %v", err)
 		}
+		userRequest := valid
+		userRequest.WorkspaceID = ""
+		if err := userRequest.Validate(); err != nil {
+			t.Fatalf("User outbox identity: %v", err)
+		}
 		clearRequest := valid
 		clearRequest.Cause = SessionOutboxCauseClear
 		clearRequest.BoundSessionID = nil
@@ -2352,7 +2363,6 @@ func TestGoalContractsShouldValidateIdentityDependenciesAndHarvest(t *testing.T)
 			mutate func(*EnqueueSessionOutboxRequest)
 		}{
 			{name: "event id", mutate: func(req *EnqueueSessionOutboxRequest) { req.EventID = "" }},
-			{name: "workspace", mutate: func(req *EnqueueSessionOutboxRequest) { req.WorkspaceID = "" }},
 			{name: "origin session", mutate: func(req *EnqueueSessionOutboxRequest) { req.OriginSessionID = "" }},
 			{name: "Loop Run", mutate: func(req *EnqueueSessionOutboxRequest) { req.LoopRunID = "" }},
 			{name: "blank bound session", mutate: func(req *EnqueueSessionOutboxRequest) {

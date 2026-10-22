@@ -1,10 +1,14 @@
-import { queryOptions, useQueries, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 
-import { agentsListOptions, type AgentPayload } from "@/systems/agent";
+import { agentAggregateOptions, type AgentPayload } from "@/systems/agent";
 import { extensionsListOptions, type ExtensionEntry } from "@/systems/extensions";
-import { listLoops, loopsCatalogOptions, type LoopCatalogEntry } from "@/systems/loops";
+import {
+  loopCatalogBatchEntries,
+  loopsAggregateOptions,
+  type LoopCatalogEntry,
+} from "@/systems/loops";
 import type { ProfileOwnerLabel } from "@/systems/profiles";
-import { worktreesListOptions } from "@/systems/workspace";
+import { useWorktreeAggregate } from "@/systems/workspace";
 
 import type { QueryState } from "../lib/os-palette-domain-search";
 
@@ -64,28 +68,13 @@ function queryState(
   };
 }
 
-async function fetchAllWorkspaceLoops(profile: string, workspaceId: string, signal: AbortSignal) {
-  const loops: LoopCatalogEntry[] = [];
-  const seenCursors = new Set<string>();
-  let cursor: string | undefined;
-  let total = 0;
-  for (;;) {
-    const page = await listLoops(workspaceId, { cursor, profile }, signal);
-    loops.push(...page.loops);
-    total = page.page.total;
-    if (!page.page.has_more) return { loops, total };
-    const nextCursor = page.page.next_cursor?.trim();
-    if (!nextCursor || seenCursors.has(nextCursor)) {
-      throw new Error(`Loop catalog returned an invalid continuation for ${workspaceId}`);
-    }
-    seenCursors.add(nextCursor);
-    cursor = nextCursor;
-  }
-}
+/** The palette reads one bounded page of the All projects agent catalog. */
+const PALETTE_AGENT_LIMIT = 100;
 
 /**
- * Globe-mode catalogs that have no all-workspaces list API. Each workspace is
- * its own query under the domain option factory.
+ * Globe-mode catalogs. Loops, agents and worktrees read their All projects
+ * aggregates (User rows plus every project's) in one query each; extensions,
+ * which have no all-workspaces list API, stay one query per workspace.
  */
 export function useOsPaletteWorkspaceCatalogs({
   profile,
@@ -96,48 +85,28 @@ export function useOsPaletteWorkspaceCatalogs({
   worktreesEnabled,
 }: UseOsPaletteWorkspaceCatalogsOptions): OsPaletteWorkspaceCatalogs {
   const ids = workspaceIds.filter(id => id.trim() !== "");
-  const loopQueries = useQueries({
-    queries: ids.map(workspaceId => {
-      const base = loopsCatalogOptions(workspaceId, { profile });
-      const queryKey: readonly unknown[] = [...base.queryKey, "palette-all-pages"];
-      return queryOptions({
-        queryKey,
-        queryFn: ({ signal }) => fetchAllWorkspaceLoops(profile, workspaceId, signal),
-        enabled: loopsEnabled,
-        staleTime: 15_000,
-      });
-    }),
-  });
-  const agentQueries = useQueries({
-    queries: ids.map(workspaceId => ({
-      ...agentsListOptions(workspaceId),
-      enabled: agentsEnabled,
-    })),
+  const loopQuery = useQuery(
+    loopsAggregateOptions({ all_workspaces: true }, { profile }, loopsEnabled)
+  );
+  // User agents plus every project's, one row per (project, name).
+  const agentAggregate = useInfiniteQuery({
+    ...agentAggregateOptions([], { profile, limit: PALETTE_AGENT_LIMIT }),
+    enabled: agentsEnabled,
   });
   const extensionQueries = useQueries({
     queries: ids.map(workspaceId => extensionsListOptions({ workspaceId }, extensionsEnabled)),
   });
   const publishedExtensions = useQuery(extensionsListOptions({}, extensionsEnabled));
-  const worktreeQueries = useQueries({
-    queries: ids.map(workspaceId => worktreesListOptions(workspaceId, worktreesEnabled)),
-  });
+  const worktreeAggregate = useWorktreeAggregate([], { enabled: worktreesEnabled });
 
-  const loops: PaletteWorkspaceLoop[] = [];
-  let loopTotal = 0;
-  ids.forEach((workspaceId, index) => {
-    const catalog = loopQueries[index]?.data;
-    loopTotal += catalog?.total ?? 0;
-    for (const loop of catalog?.loops ?? []) {
-      loops.push({ loop, workspaceId });
-    }
-  });
+  // A User row has no `workspace_id`: it opens bound to User.
+  const loops: PaletteWorkspaceLoop[] = loopCatalogBatchEntries(loopQuery.data?.entries ?? []).map(
+    loop => ({ loop, workspaceId: loop.workspace_id ?? "" })
+  );
 
-  const workspaceAgents: PaletteWorkspaceAgent[] = [];
-  ids.forEach((workspaceId, index) => {
-    for (const agent of agentQueries[index]?.data ?? []) {
-      workspaceAgents.push({ agent, workspaceId: agent.workspace_id ?? workspaceId });
-    }
-  });
+  const workspaceAgents: PaletteWorkspaceAgent[] = (
+    agentAggregate.data?.pages[0]?.agents ?? []
+  ).map(item => ({ agent: item.agent, workspaceId: item.agent.workspace_id ?? "" }));
 
   const workspaceExtensions: PaletteWorkspaceExtension[] = [];
   ids.forEach((workspaceId, index) => {
@@ -146,36 +115,33 @@ export function useOsPaletteWorkspaceCatalogs({
     }
   });
 
-  const worktrees: PaletteWorkspaceWorktree[] = [];
-  ids.forEach((workspaceId, index) => {
-    for (const worktree of worktreeQueries[index]?.data?.worktrees ?? []) {
-      worktrees.push({
-        id: worktree.id,
-        name: worktree.name,
-        branch: worktree.branch,
-        state: worktree.state,
-        workspace_id: worktree.workspace_id ?? workspaceId,
-        profile_id: worktree.profile_id,
-        profile_name: worktree.profile_name,
-        profile_color: worktree.profile_color,
-        profile_icon: worktree.profile_icon,
-        profile_emoji: worktree.profile_emoji,
-        profile_archived: worktree.profile_archived,
-      });
-    }
-  });
+  const worktrees: PaletteWorkspaceWorktree[] = (worktreeAggregate.data?.worktrees ?? []).map(
+    worktree => ({
+      id: worktree.id,
+      name: worktree.name,
+      branch: worktree.branch,
+      state: worktree.state,
+      workspace_id: worktree.workspace_id,
+      profile_id: worktree.profile_id,
+      profile_name: worktree.profile_name,
+      profile_color: worktree.profile_color,
+      profile_icon: worktree.profile_icon,
+      profile_emoji: worktree.profile_emoji,
+      profile_archived: worktree.profile_archived,
+    })
+  );
 
   return {
     loops,
-    loopTotal,
-    loopState: queryState(loopQueries),
+    loopTotal: loops.length,
+    loopState: queryState([loopQuery]),
     workspaceAgents,
-    workspaceAgentState: queryState(agentQueries),
+    workspaceAgentState: queryState([agentAggregate]),
     publishedExtensions: publishedExtensions.data ?? [],
     workspaceExtensions,
     workspaceExtensionState: queryState([publishedExtensions, ...extensionQueries]),
     worktrees,
     worktreeTotal: worktrees.length,
-    worktreeState: queryState(worktreeQueries),
+    worktreeState: queryState([worktreeAggregate]),
   };
 }

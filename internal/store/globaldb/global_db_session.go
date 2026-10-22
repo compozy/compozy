@@ -113,7 +113,7 @@ func (g *SessionRepo) ListSessions(
 		store.StringClause("id", query.ID),
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),
-		store.StringClause("workspace_id", query.WorkspaceID),
+		store.SessionWorkspaceClause(query.WorkspaceID),
 		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("session_type", query.SessionType),
 		store.StringClause("parent_session_id", query.ParentSessionID),

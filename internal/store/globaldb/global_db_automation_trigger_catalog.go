@@ -94,6 +94,7 @@ func automationTriggerCatalogWhere(query automation.TriggerListQuery) (string, [
 	profileClauses, profileArgs := store.BuildClauses(store.ReadScopeClause("t.profile_id", query.ReadScope))
 	clauses = append(clauses, profileClauses...)
 	args = append(args, profileArgs...)
+	clauses, args = appendAutomationWorkspaceClauses(clauses, args, "c.workspace_id", query.WorkspaceIDs)
 	if query.Scope != "" {
 		clauses = append(clauses, "c.scope = ?")
 		args = append(args, query.Scope)

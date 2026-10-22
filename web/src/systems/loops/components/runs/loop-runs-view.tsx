@@ -17,6 +17,7 @@ import { buildRunsRoster, type LoopOutcomeValue } from "../../lib/loop-runs-view
 import type { LoopRun } from "../../types";
 import { LoopRunsTable } from "./loop-runs-table";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 export interface LoopRunsViewProps extends Omit<ComponentProps<"div">, "children"> {
   runs: readonly LoopRun[];
@@ -44,6 +45,8 @@ export interface LoopRunsViewProps extends Omit<ComponentProps<"div">, "children
   lastReadAt?: string;
   /** Display clock for live durations, shared with the Loop page's recent runs. */
   nowMs: number;
+  /** Under All projects: resolves each run's project for its Project column. */
+  projectOf?: (workspaceId: string) => WorkspaceBadgeIdentity;
 }
 
 /** Which transport failed. They are told apart because they recover differently. */
@@ -65,20 +68,24 @@ function DegradedNotice({
   hasRows,
   lastReadAt,
   onRetry,
+  allProjects,
 }: {
   cause: DegradedCause;
   hasRows: boolean;
   lastReadAt?: string;
   onRetry?: () => void;
+  /** The All projects list is one read: it fails as a whole, never per project. */
+  allProjects: boolean;
 }) {
   const failed = cause === "read-failed";
+  const subject = allProjects ? "Runs across projects" : "This project's runs";
   // Only ages a read that is actually on screen; "no runs read yet" has no age.
   const age = hasRows && lastReadAt ? formatRelativeTime(lastReadAt) : null;
   const retained = age ? `, from ${age}` : "";
   const body = failed
     ? hasRows
-      ? `This project's runs could not be read. The list below is the last read that worked${retained}.`
-      : "This project's runs could not be read."
+      ? `${subject} could not be read. The list below is the last read that worked${retained}.`
+      : `${subject} could not be read.`
     : hasRows
       ? `Reconnecting to CompozyOS. The list below is the last read${retained}.`
       : "Reconnecting to CompozyOS. No runs have been read yet.";
@@ -129,6 +136,7 @@ export function LoopRunsView({
   onEmptyAction,
   lastReadAt,
   nowMs,
+  projectOf,
   className,
   ...props
 }: LoopRunsViewProps) {
@@ -153,7 +161,13 @@ export function LoopRunsView({
       {...props}
     >
       {cause ? (
-        <DegradedNotice cause={cause} hasRows={hasRows} lastReadAt={lastReadAt} onRetry={onRetry} />
+        <DegradedNotice
+          allProjects={projectOf !== undefined}
+          cause={cause}
+          hasRows={hasRows}
+          lastReadAt={lastReadAt}
+          onRetry={onRetry}
+        />
       ) : null}
       <RosterBody
         degraded={degraded}
@@ -163,6 +177,7 @@ export function LoopRunsView({
         onEmptyAction={onEmptyAction}
         ownerOf={ownerOf}
         profileScope={profileScope}
+        projectOf={projectOf}
         roster={roster}
       />
     </div>
@@ -178,6 +193,7 @@ interface RosterBodyProps {
   hasActiveFilters: boolean;
   ownerOf?: ProfileListingScope["ownerOf"];
   profileScope: ProfileListingScope;
+  projectOf?: LoopRunsViewProps["projectOf"];
 }
 
 function RosterBody({
@@ -189,12 +205,19 @@ function RosterBody({
   hasActiveFilters,
   ownerOf,
   profileScope,
+  projectOf,
 }: RosterBodyProps): ReactNode {
   if (hasRows) {
     return (
       <div className="flex flex-col gap-3">
         {roster.groups.map(group => (
-          <LoopRunsTable group={group} key={group.id} nowMs={nowMs} ownerOf={ownerOf} />
+          <LoopRunsTable
+            group={group}
+            key={group.id}
+            nowMs={nowMs}
+            ownerOf={ownerOf}
+            projectOf={projectOf}
+          />
         ))}
       </div>
     );

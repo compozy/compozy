@@ -89,3 +89,10 @@ CREATE TRIGGER terminal_artifacts_profile_owner_immutable
 BEFORE UPDATE OF profile_id ON terminal_artifacts
 WHEN NEW.profile_id <> OLD.profile_id
 BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
+
+CREATE TABLE legacy_import (
+    source_workspace_id TEXT NOT NULL,
+    source_row_id TEXT NOT NULL,
+    content_digest TEXT NOT NULL,
+    PRIMARY KEY (source_workspace_id, source_row_id)
+);

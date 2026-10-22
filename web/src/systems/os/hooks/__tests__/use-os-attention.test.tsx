@@ -6,6 +6,8 @@
 import { act, renderHook as renderReactHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DataScope } from "@/systems/workspace";
+
 vi.mock("@tanstack/react-query", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();
   const queryMock = vi.fn();
@@ -155,6 +157,8 @@ function waitingSession(id: string): SessionPayload {
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
+    scope: "workspace",
+    effective_workspace_access: "",
     id,
     agent_name: "atlas",
     runtime: {
@@ -184,7 +188,7 @@ function filtersForCall(call: number): Record<string, unknown> {
   return (options ?? {}) as Record<string, unknown>;
 }
 
-function workspaceForCall(call: number): string | null | undefined {
+function workspaceForCall(call: number): DataScope | null | undefined {
   return vi.mocked(useSessionCatalog).mock.calls[call]?.[0];
 }
 
@@ -201,7 +205,7 @@ describe("useOsAttention", () => {
     terminalMetadataError = false;
     vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
     vi.mocked(useActiveWorkspace).mockReturnValue({
-      scope: "workspace",
+      dataScope: { kind: "project", workspaceId: "ws_alpha" },
       activeWorkspaceId: "ws_alpha",
       workspaces: [workspace],
     } as never);
@@ -300,15 +304,15 @@ describe("useOsAttention", () => {
     });
     vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
-    expect(workspaceForCall(MODAL_CALL)).toBe(workspace.id);
+    expect(workspaceForCall(MODAL_CALL)).toEqual({ kind: "project", workspaceId: workspace.id });
     expect(filtersForCall(MODAL_CALL).worktree).toBe("wt_payments");
     expect(vi.mocked(useSessionCatalog)).toHaveBeenCalledTimes(1);
     expect(result.current.sections.needsYou).toEqual([]);
   });
 
-  it("Should enable Global session and attention catalogs without a project workspace", () => {
+  it("Should enable All projects session and attention catalogs without a project workspace", () => {
     vi.mocked(useActiveWorkspace).mockReturnValue({
-      scope: "global",
+      dataScope: { kind: "all" },
       activeWorkspaceId: null,
       workspaces: [workspace],
     } as never);
@@ -320,13 +324,30 @@ describe("useOsAttention", () => {
     const { result } = renderHook(() => useOsAttention(null, "live", false));
 
     for (const call of [MODAL_CALL]) {
-      expect(workspaceForCall(call)).toBeNull();
+      expect(workspaceForCall(call)).toEqual({ kind: "all" });
       expect(vi.mocked(useSessionCatalog).mock.calls[call]?.[2]).toBe(true);
       expect(filtersForCall(call).worktree).toBeUndefined();
     }
     expect(result.current.sessions).toHaveLength(1);
     expect(result.current.sessionsDisconnected).toBe(false);
     expect(result.current.badges.terminal).toBeUndefined();
+  });
+
+  // Invariant (W-06): under User the modal and task attention read User only — never the
+  // aggregate — and no worktree filter applies.
+  it("Should read User sessions and tasks under User focus with no worktree filter", () => {
+    vi.mocked(useActiveWorkspace).mockReturnValue({
+      dataScope: { kind: "user" },
+      activeWorkspaceId: null,
+      workspaces: [workspace],
+    } as never);
+    vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
+
+    renderHook(() => useOsAttention(null, "live", false));
+
+    expect(workspaceForCall(MODAL_CALL)).toEqual({ kind: "user" });
+    expect(vi.mocked(useScopedWorktreeFilter).mock.calls.at(-1)?.[2]).toEqual({ enabled: false });
+    expect(vi.mocked(taskScopeForActiveWorkspace)).toHaveBeenLastCalledWith({ kind: "user" });
   });
 
   it("Should drop the worktree filter entirely when the scope falls back to the workspace", () => {
@@ -488,6 +509,7 @@ describe("useOsAttention", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 1 },
       by_workspace: [],
+      by_profile: [],
     });
     let status: SessionCatalogStreamStatus = "live";
     const { result, rerender, unmount } = renderHook(
@@ -506,6 +528,7 @@ describe("useOsAttention", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 2 },
       by_workspace: [],
+      by_profile: [],
     });
     await act(async () => {
       await client.invalidateQueries({
@@ -560,6 +583,7 @@ describe("useOsAttention", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 3 },
       by_workspace: [],
+      by_profile: [],
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(29_000);

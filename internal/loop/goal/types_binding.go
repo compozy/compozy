@@ -38,9 +38,8 @@ type BindingKey struct {
 
 // Validate enforces workspace-safe binding identity.
 func (k BindingKey) Validate() error {
-	if strings.TrimSpace(string(k.WorkspaceID)) == "" ||
-		strings.TrimSpace(string(k.LoopRunID)) == "" || strings.TrimSpace(k.Handle) == "" {
-		return fmt.Errorf("%w: binding workspace_id, loop_run_id, and handle are required", loop.ErrValidation)
+	if strings.TrimSpace(string(k.LoopRunID)) == "" || strings.TrimSpace(k.Handle) == "" {
+		return fmt.Errorf("%w: binding loop_run_id and handle are required", loop.ErrValidation)
 	}
 	return nil
 }

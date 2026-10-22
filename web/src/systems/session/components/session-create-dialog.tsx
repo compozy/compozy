@@ -17,18 +17,22 @@ import { SessionCreateAdvancedSection } from "./session-create-advanced-section"
 import { SessionEnvironmentField } from "./session-environment-field";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
 import type { AgentPayload } from "@/systems/agent";
-import { CreateDestinationStatement, type WorkspaceScopeMode } from "@/systems/workspace";
+import {
+  SessionDestinationRow,
+  type DestinationKind,
+  type SessionDestinationAxis,
+} from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
-  /** The profile a creation lands in while the aggregate is on (ADR-005). */
-  profileDestination?: string | null;
+  /** Inline pickers, present only for the aggregated axes (ADR-003). */
+  destinationAxes?: { project?: SessionDestinationAxis; profile?: SessionDestinationAxis };
   open: boolean;
   restoreFocusOnClose: boolean;
   onOpenChange: (open: boolean) => void;
   mode: EntityMode;
   onModeChange: (mode: EntityMode) => void;
   agents: AgentPayload[];
-  scope: WorkspaceScopeMode;
+  scope: DestinationKind;
   destinationLabel: string;
   sessionRoot: string;
   destinationReady: boolean;
@@ -71,7 +75,7 @@ function SessionCreateDialog({
   isAwaitingEnvironment,
   onCancelEnvironment,
   submitError,
-  profileDestination,
+  destinationAxes,
 }: SessionCreateDialogProps) {
   const restoreFocusOnCloseRef = useRef(restoreFocusOnClose);
   useLayoutEffect(() => {
@@ -178,13 +182,13 @@ function SessionCreateDialog({
 
           <EntityDialogFooter
             hint={
-              <CreateDestinationStatement
-                profileDestination={profileDestination}
+              <SessionDestinationRow
                 destination={destinationLabel}
-                kind="session"
+                disabled={isSubmitting}
+                profile={destinationAxes?.profile}
+                project={destinationAxes?.project}
                 root={sessionRoot}
                 scope={scope}
-                variant="note"
               />
             }
             isSaving={isSubmitting}

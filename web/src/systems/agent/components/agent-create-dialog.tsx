@@ -167,9 +167,12 @@ function AgentCreateDialog({
             cancelTestId="agent-create-cancel"
             hint={
               <WorkspaceScopeStatement
-                destination={destinationLabel(draft.scope, workspaceName)}
+                destination={destinationLabel(
+                  draft.scope === "workspace" ? "project" : "user",
+                  workspaceName
+                )}
                 kind="create"
-                scope={draft.scope}
+                scope={draft.scope === "workspace" ? "project" : "user"}
                 variant="note"
               />
             }

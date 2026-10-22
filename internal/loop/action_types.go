@@ -86,6 +86,7 @@ type ActionExecutor interface {
 
 // ActionExecutionInput is the loop-owned execution context for one node instance.
 type ActionExecutionInput struct {
+	GrantCeiling     string
 	WorkspaceID      WorkspaceID
 	LoopRunID        RunID
 	Generation       int
@@ -250,6 +251,7 @@ type ActionSessionBinder interface {
 
 // ActionSessionBindRequest describes shared-default or isolated run-agent binding.
 type ActionSessionBindRequest struct {
+	GrantCeiling                   string
 	ProfileID                      string
 	WorkspaceID                    WorkspaceID
 	LoopRunID                      RunID

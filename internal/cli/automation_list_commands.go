@@ -46,14 +46,19 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
+			query.AllWorkspaces = wantsAllWorkspaces(cmd)
 			page, err := client.ListAutomationJobs(cmd.Context(), query)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, automationJobListBundle(page, deps.now))
+			return writeProjectLabeledOutput(cmd, client, query.AllWorkspaces,
+				func(labels ...map[string]string) outputBundle {
+					return automationJobListBundle(page, deps.now, labels...)
+				})
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
+	cmd.Flags().
+		StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().
@@ -70,12 +75,12 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after this automation job cursor")
 	cmd.Flags().IntVar(&limit, "limit", automationpkg.DefaultListLimit, "Maximum jobs per page")
 
-	cmd.AddCommand(newAutomationJobsCreateCommand(deps))
-	cmd.AddCommand(newAutomationJobsGetCommand(deps))
-	cmd.AddCommand(newAutomationJobsUpdateCommand(deps))
-	cmd.AddCommand(newAutomationJobsDeleteCommand(deps))
-	cmd.AddCommand(newAutomationJobsTriggerCommand(deps))
-	cmd.AddCommand(newAutomationJobsHistoryCommand(deps))
+	cmd.AddCommand(
+		newAutomationJobsCreateCommand(deps), newAutomationJobsGetCommand(deps),
+		newAutomationJobsUpdateCommand(deps), newAutomationJobsDeleteCommand(deps),
+		newAutomationJobsTriggerCommand(deps), newAutomationJobsHistoryCommand(deps),
+	)
+	addAllWorkspacesFlag(cmd)
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
@@ -123,14 +128,19 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
+			query.AllWorkspaces = wantsAllWorkspaces(cmd)
 			page, err := client.ListAutomationTriggers(cmd.Context(), query)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, automationTriggerListBundle(page, deps.now))
+			return writeProjectLabeledOutput(cmd, client, query.AllWorkspaces,
+				func(labels ...map[string]string) outputBundle {
+					return automationTriggerListBundle(page, deps.now, labels...)
+				})
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
+	cmd.Flags().
+		StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Filter by activation event")
@@ -148,11 +158,12 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&cursor, "cursor", "", "Continue after this automation trigger cursor")
 	cmd.Flags().IntVar(&limit, "limit", automationpkg.DefaultListLimit, "Maximum triggers per page")
 
-	cmd.AddCommand(newAutomationTriggersCreateCommand(deps))
-	cmd.AddCommand(newAutomationTriggersGetCommand(deps))
-	cmd.AddCommand(newAutomationTriggersUpdateCommand(deps))
-	cmd.AddCommand(newAutomationTriggersDeleteCommand(deps))
-	cmd.AddCommand(newAutomationTriggersHistoryCommand(deps))
+	cmd.AddCommand(
+		newAutomationTriggersCreateCommand(deps), newAutomationTriggersGetCommand(deps),
+		newAutomationTriggersUpdateCommand(deps), newAutomationTriggersDeleteCommand(deps),
+		newAutomationTriggersHistoryCommand(deps),
+	)
+	addAllWorkspacesFlag(cmd)
 	configureProfileReadCommand(cmd, deps)
 	return cmd
 }

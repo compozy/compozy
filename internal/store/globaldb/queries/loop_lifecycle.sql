@@ -18,11 +18,13 @@ WHERE run.workspace_id = sqlc.arg(workspace_id) AND wait_row.loop_run_id = sqlc.
 ORDER BY wait_row.generation ASC, wait_row.node_id ASC, wait_row.item_index ASC;
 
 -- name: ListWaitingLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, wait_row.generation, wait_row.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, wait_row.generation, wait_row.node_id,
   wait_row.item_index, wait_row.created_at AS state_at
 FROM loop_node_waits AS wait_row
 JOIN loop_runs AS run ON run.id = wait_row.loop_run_id
-WHERE run.workspace_id = sqlc.arg(filter_workspace_id)
+WHERE (CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = sqlc.arg(filter_workspace_id))
+ AND (NOT CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(sqlc.arg(all_profiles) AS BOOLEAN) OR run.profile_id = sqlc.arg(profile_id))
   AND wait_row.claim_state IN ('waiting', 'intervention_required')
   AND (CAST(sqlc.arg(filter_loop_name) AS TEXT) = '' OR run.loop_name = CAST(sqlc.arg(filter_loop_name) AS TEXT))
   AND (CAST(sqlc.arg(filter_run_id) AS TEXT) = '' OR run.id = CAST(sqlc.arg(filter_run_id) AS TEXT))
@@ -43,11 +45,13 @@ ORDER BY wait_row.created_at ASC, run.id ASC, wait_row.generation ASC,
 LIMIT sqlc.arg(page_limit);
 
 -- name: ListQuarantinedLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
   0 AS item_index, control.quarantined_at AS state_at
 FROM loop_node_controls AS control
 JOIN loop_runs AS run ON run.id = control.loop_run_id
-WHERE run.workspace_id = sqlc.arg(filter_workspace_id) AND control.quarantined = 1
+WHERE (CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = sqlc.arg(filter_workspace_id))
+ AND (NOT CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(sqlc.arg(all_profiles) AS BOOLEAN) OR run.profile_id = sqlc.arg(profile_id)) AND control.quarantined = 1
   AND control.quarantined_at IS NOT NULL
   AND (CAST(sqlc.arg(filter_loop_name) AS TEXT) = '' OR run.loop_name = CAST(sqlc.arg(filter_loop_name) AS TEXT))
   AND (CAST(sqlc.arg(filter_run_id) AS TEXT) = '' OR run.id = CAST(sqlc.arg(filter_run_id) AS TEXT))
@@ -66,11 +70,13 @@ ORDER BY state_at ASC, run.id ASC, run.generation ASC, control.node_id ASC
 LIMIT sqlc.arg(page_limit);
 
 -- name: ListAttentionLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, run.generation, control.node_id,
   0 AS item_index, control.updated_at AS state_at
 FROM loop_node_controls AS control
 JOIN loop_runs AS run ON run.id = control.loop_run_id
-WHERE run.workspace_id = sqlc.arg(filter_workspace_id) AND control.attention_flag != ''
+WHERE (CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = sqlc.arg(filter_workspace_id))
+ AND (NOT CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(sqlc.arg(all_profiles) AS BOOLEAN) OR run.profile_id = sqlc.arg(profile_id)) AND control.attention_flag != ''
   AND (CAST(sqlc.arg(filter_loop_name) AS TEXT) = '' OR run.loop_name = CAST(sqlc.arg(filter_loop_name) AS TEXT))
   AND (CAST(sqlc.arg(filter_run_id) AS TEXT) = '' OR run.id = CAST(sqlc.arg(filter_run_id) AS TEXT))
   AND (
@@ -86,11 +92,13 @@ ORDER BY control.updated_at ASC, run.id ASC, run.generation ASC, control.node_id
 LIMIT sqlc.arg(page_limit);
 
 -- name: ListRetryingLoopNodeInventory :many
-SELECT run.id AS loop_run_id, run.loop_name, output.generation, output.node_id,
+SELECT run.workspace_id, run.id AS loop_run_id, run.loop_name, output.generation, output.node_id,
   output.item_index, output.next_attempt_at AS state_at
 FROM loop_generation_outputs AS output
 JOIN loop_runs AS run ON run.id = output.loop_run_id
-WHERE run.workspace_id = sqlc.arg(filter_workspace_id)
+WHERE (CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = sqlc.arg(filter_workspace_id))
+ AND (NOT CAST(sqlc.arg(all_workspaces) AS BOOLEAN) OR run.workspace_id = '' OR run.workspace_id IN (SELECT id FROM workspaces))
+ AND (CAST(sqlc.arg(all_profiles) AS BOOLEAN) OR run.profile_id = sqlc.arg(profile_id))
   AND output.status = 'retrying' AND output.next_attempt_at IS NOT NULL
   AND (CAST(sqlc.arg(filter_loop_name) AS TEXT) = '' OR run.loop_name = CAST(sqlc.arg(filter_loop_name) AS TEXT))
   AND (CAST(sqlc.arg(filter_run_id) AS TEXT) = '' OR run.id = CAST(sqlc.arg(filter_run_id) AS TEXT))
@@ -112,7 +120,7 @@ LIMIT sqlc.arg(page_limit);
 
 -- name: GetLoopAdmissionClaim :one
 SELECT * FROM loop_admission_claims
-WHERE workspace_id = sqlc.arg(workspace_id)
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id)
   AND loop_name = sqlc.arg(loop_name)
   AND source_key = sqlc.arg(source_key)
   AND event_key = sqlc.arg(event_key);

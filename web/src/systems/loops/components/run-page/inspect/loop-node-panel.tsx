@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import type { LoopNodeLink, LoopNodePanelModel } from "../../../lib/loop-node-panel-view";
 import { LoopNodeStateChip } from "../loop-node-state-chip";
 import { LoopRunChildRuns } from "../loop-run-child-runs";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 interface LoopNodePanelProps {
   panel: LoopNodePanelModel;
@@ -29,6 +30,7 @@ const LINK_CLASS =
   "inline-flex items-center gap-1 text-form-label text-subtle hover:text-fg-strong";
 
 function LoopNodeLinkRow({ link }: { link: LoopNodeLink }) {
+  const bindingSearch = useWindowBindingSearch();
   const label = (
     <>
       {link.label}
@@ -51,6 +53,7 @@ function LoopNodeLinkRow({ link }: { link: LoopNodeLink }) {
         className={LINK_CLASS}
         data-testid={testId}
         params={{ runId: link.id }}
+        search={bindingSearch}
         to="/loop-runs/$runId"
       >
         {label}

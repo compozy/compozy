@@ -25,6 +25,7 @@ Match the task to the row. Read the listed files in full before producing output
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | Delegate code changes on an isolated branch, inspect subagent Git/PR facts, or deliver its work                                | references/native-tools.md; references/worktrees.md                |
 | Start, inspect, prompt, stop, resume, compact, or debug CompozyOS sessions and daemon state                                    | references/runtime-operations.md                                   |
+| Work in the User scope (`@user`, no project) or read All projects aggregates (`--all-workspaces`, `all_workspaces=true`)       | references/runtime-operations.md + references/native-tools.md      |
 | Open, inspect, retry, diagnose, or recover the desktop app; update the host runtime and app                                    | references/desktop.md                                              |
 | Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing             | references/runtime-operations.md + references/agent-definitions.md |
 | Inspect, refresh, curate, or configure provider models, runtime strategies, ACP options, reasoning, Fast, or pricing           | references/runtime-operations.md + references/native-tools.md      |
@@ -33,7 +34,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Expose one CompozyOS workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                   |
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS      | references/window-management.md + references/native-tools.md       |
 | Open, inspect, attach to, execute in, or interact with CompozyOS terminals; answer terminal input or audit terminal commands   | references/terminal.md + references/native-tools.md                |
-| Create or review CompozyOS agent definitions, provider defaults, permissions, or MCP sidecars                                  | references/agent-definitions.md + references/tools-and-skills.md   |
+| Create or review CompozyOS agent definitions, provider defaults, permissions, workspace access, or MCP sidecars                | references/agent-definitions.md + references/tools-and-skills.md   |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
 | List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
 | Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                          | references/tasks-and-orchestration.md                              |

@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
 	"strings"
+	"time"
 
 	modelpkg "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/store"
@@ -56,6 +55,10 @@ func (m *Manager) UpdateJob(ctx context.Context, job Job) (Job, error) {
 	}
 
 	next := cloneJob(job)
+	next.GrantCeiling, err = updatedJobGrant(ctx, currentStored, next)
+	if err != nil {
+		return Job{}, err
+	}
 	next.ID = currentStored.ID
 	next.Source = currentStored.Source
 	next.CreatedAt = currentStored.CreatedAt

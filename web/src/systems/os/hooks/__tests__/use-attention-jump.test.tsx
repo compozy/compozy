@@ -1,17 +1,20 @@
-// Suite: attention jump coordination
-// Invariant: a cross-workspace attention activation changes workspace first
-// and opens the session only after that workspace's window manager is live.
+// Suite: attention jump coordination (session kind of openTarget)
+// Invariant: under All projects a session opens in place in the `global` desktop, bound to its
+// own scope, and the destination never changes. With a project or User focused, a foreign
+// session focuses its destination first — its project, or User for a session without one — and
+// opens only after that partition's window manager is live. A User session resolves via `@user`.
 // Owning layer: OS navigation hook. No prior suite owned this coordination.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { ensureQueryData, notifyUser } = vi.hoisted(() => ({
+const { ensureQueryData, focusDestination, notifyUser } = vi.hoisted(() => ({
   ensureQueryData: vi.fn(),
+  focusDestination: vi.fn(),
   notifyUser: vi.fn(),
 }));
-let runtimeWorkspaceId = "ws-alpha";
+type TestDataScope = { kind: "project"; workspaceId: string } | { kind: "user" } | { kind: "all" };
+let dataScope: TestDataScope = { kind: "project", workspaceId: "ws-alpha" };
 let commandWorkspaceId: string | null = "ws-alpha";
-const setActiveWorkspaceId = vi.fn();
 const userOpen = vi.fn(() => Promise.resolve("window-session"));
 const userOpenCreatedSession = vi.fn(() => Promise.resolve("window-session"));
 
@@ -29,12 +32,26 @@ vi.mock("@/systems/session", () => ({
   }),
 }));
 
-vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({
-    runtimeWorkspaceId,
-    setActiveWorkspaceId,
-  }),
-}));
+vi.mock("@/systems/workspace", async () => {
+  // The pure destination helpers only: loading the whole barrel here would evaluate the OS
+  // hooks that import this mock before it resolves.
+  const destination = await import("@/systems/workspace/lib/destination");
+  const binding = await import("@/systems/workspace/lib/window-data-scope");
+  return {
+    ...destination,
+    ...binding,
+    focusDestination,
+    useActiveWorkspace: () => ({
+      dataScope,
+      desktopWorkspaceId:
+        dataScope.kind === "all"
+          ? "global"
+          : dataScope.kind === "user"
+            ? "user"
+            : dataScope.workspaceId,
+    }),
+  };
+});
 
 vi.mock("../use-desktop", () => ({
   useDesktop: (selector: (state: unknown) => unknown) =>
@@ -54,7 +71,7 @@ import { useAttentionJump } from "../use-attention-jump";
 
 describe("useAttentionJump", () => {
   beforeEach(() => {
-    runtimeWorkspaceId = "ws-alpha";
+    dataScope = { kind: "project", workspaceId: "ws-alpha" };
     commandWorkspaceId = "ws-alpha";
     vi.clearAllMocks();
     ensureQueryData.mockResolvedValue({ agent_name: "claude" });
@@ -71,10 +88,13 @@ describe("useAttentionJump", () => {
       });
     });
 
-    expect(setActiveWorkspaceId).toHaveBeenCalledExactlyOnceWith("ws-beta");
+    expect(focusDestination).toHaveBeenCalledExactlyOnceWith({
+      kind: "project",
+      workspaceId: "ws-beta",
+    });
     expect(userOpen).not.toHaveBeenCalled();
 
-    runtimeWorkspaceId = "ws-beta";
+    dataScope = { kind: "project", workspaceId: "ws-beta" };
     rerender();
     expect(userOpen).not.toHaveBeenCalled();
 
@@ -91,6 +111,87 @@ describe("useAttentionJump", () => {
         },
       });
     });
+  });
+
+  it("Should focus User before opening a User session from a project", async () => {
+    const { result, rerender } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-user", agentName: "claude", workspaceId: "" });
+    });
+
+    expect(focusDestination).toHaveBeenCalledExactlyOnceWith({ kind: "user" });
+    expect(notifyUser).not.toHaveBeenCalled();
+
+    dataScope = { kind: "user" };
+    rerender();
+    expect(userOpen).not.toHaveBeenCalled();
+
+    commandWorkspaceId = "user";
+    rerender();
+    await waitFor(() => {
+      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-user",
+        route: { pathname: "/agents/claude/sessions/sess-user", search: {} },
+      });
+    });
+  });
+
+  it("Should resolve a User session's agent through @user and open it on the User desktop", async () => {
+    dataScope = { kind: "user" };
+    commandWorkspaceId = "user";
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-user", workspaceId: "" });
+    });
+
+    await waitFor(() => expect(userOpen).toHaveBeenCalledOnce());
+    expect(ensureQueryData).toHaveBeenCalledWith({
+      queryKey: ["sessions", "workspace", "@user", "detail", "sess-user"],
+    });
+    expect(focusDestination).not.toHaveBeenCalled();
+  });
+
+  it("Should open a foreign session in place under All projects without changing destination", async () => {
+    dataScope = { kind: "all" };
+    commandWorkspaceId = "global";
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-beta", agentName: "claude", workspaceId: "ws-beta" });
+    });
+
+    await waitFor(() => {
+      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-beta",
+        route: {
+          pathname: "/agents/claude/sessions/sess-beta",
+          search: { workspace: "ws-beta" },
+        },
+      });
+    });
+    expect(focusDestination).not.toHaveBeenCalled();
+  });
+
+  it("Should bind a User session opened under All projects to @user", async () => {
+    dataScope = { kind: "all" };
+    commandWorkspaceId = "global";
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-user", agentName: "claude", workspaceId: "" });
+    });
+
+    await waitFor(() => expect(userOpen).toHaveBeenCalledOnce());
+    expect(userOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: { pathname: "/agents/claude/sessions/sess-user", search: { workspace: "@user" } },
+      })
+    );
+    expect(focusDestination).not.toHaveBeenCalled();
   });
 
   it("Should land a just-created session through the created-session policy", async () => {

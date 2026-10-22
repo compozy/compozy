@@ -46,14 +46,14 @@ func (g *LoopRepo) ListLoopRuns(
 	if err != nil {
 		return nil, err
 	}
-	if normalized.After != nil {
+	if normalized.OperationalOrder && normalized.After != nil {
 		if err := g.validateLoopRunListPosition(ctx, normalized); err != nil {
 			return nil, err
 		}
 	}
 	clauses := []store.Clause{
 		store.ReadScopeClause("profile_id", normalized.ReadScope),
-		store.StringClause("workspace_id", string(normalized.WorkspaceID)),
+
 		store.StringClause("loop_name", normalized.LoopName),
 		store.StringClause("status", string(normalized.Status)),
 		store.StringClause("origin_kind", normalized.OriginKind),
@@ -61,6 +61,14 @@ func (g *LoopRepo) ListLoopRuns(
 		store.TimeClause("created_at", ">=", normalized.CreatedAfter),
 	}
 	where, args := store.BuildClauses(clauses...)
+	where, args = appendLoopWorkspaceFilter(
+		where,
+		args,
+		"workspace_id",
+		string(normalized.WorkspaceID),
+		normalized.AllWorkspaces,
+		normalized.WorkspaceIDs,
+	)
 	if normalized.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*normalized.Live))
 	}
@@ -77,6 +85,10 @@ func (g *LoopRepo) ListLoopRuns(
 			store.FormatTimestamp(normalized.After.CreatedAt),
 			normalized.After.ID,
 		)
+	}
+	if !normalized.OperationalOrder && normalized.After != nil {
+		where = append(where, "(created_at, id) < (?, ?)")
+		args = append(args, store.FormatTimestamp(normalized.After.CreatedAt), string(normalized.After.ID))
 	}
 	// dynamic-sql: optional run filters, live-state predicate, and caller limit change the statement shape.
 	orderBy := ` ORDER BY created_at DESC, id DESC LIMIT ?`
@@ -113,7 +125,7 @@ func (g *LoopRepo) validateLoopRunListPosition(
 	query looppkg.RunListQuery,
 ) error {
 	clauses := []store.Clause{
-		store.StringClause("workspace_id", string(query.WorkspaceID)),
+		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("loop_name", query.LoopName),
 		store.StringClause("status", string(query.Status)),
 		store.StringClause("origin_kind", query.OriginKind),
@@ -122,6 +134,14 @@ func (g *LoopRepo) validateLoopRunListPosition(
 		store.StringClause("id", string(query.After.ID)),
 	}
 	where, args := store.BuildClauses(clauses...)
+	where, args = appendLoopWorkspaceFilter(
+		where,
+		args,
+		"workspace_id",
+		string(query.WorkspaceID),
+		query.AllWorkspaces,
+		query.WorkspaceIDs,
+	)
 	if query.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*query.Live))
 	}
@@ -236,7 +256,7 @@ func (g *LoopRepo) ListRouteCauses(
 	if err := g.checkReady(ctx, "list loop route causes"); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(runID)) == "" || generation < 1 {
+	if strings.TrimSpace(string(runID)) == "" || generation < 1 {
 		return nil, fmt.Errorf("%w: route cause scope is invalid", looppkg.ErrValidation)
 	}
 	rows, err := g.queries.ListLoopRouteCauses(ctx, sqlcgen.ListLoopRouteCausesParams{
@@ -259,9 +279,12 @@ func (g *LoopRepo) ListRouteCauses(
 // ListLoopUIAnnotations loads editor node positions for one workspace loop.
 func (g *LoopRepo) ListLoopUIAnnotations(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	loopName string,
 ) ([]looppkg.UIAnnotation, error) {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return nil, err
+	}
 	if err := g.checkReady(ctx, "list loop ui annotations"); err != nil {
 		return nil, err
 	}
@@ -270,6 +293,7 @@ func (g *LoopRepo) ListLoopUIAnnotations(
 		return nil, err
 	}
 	rows, err := g.queries.ListLoopUIAnnotations(ctx, sqlcgen.ListLoopUIAnnotationsParams{
+		ProfileID:   loopStateProfileID(workspaceID, profileID),
 		WorkspaceID: string(workspaceID), LoopName: name,
 	})
 	if err != nil {
@@ -285,10 +309,13 @@ func (g *LoopRepo) ListLoopUIAnnotations(
 // ReplaceLoopUIAnnotations replaces editor node positions for one workspace loop.
 func (g *LoopRepo) ReplaceLoopUIAnnotations(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	loopName string,
 	annotations []looppkg.UIAnnotation,
 ) error {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return err
+	}
 	if err := g.checkReady(ctx, "replace loop ui annotations"); err != nil {
 		return err
 	}
@@ -303,12 +330,14 @@ func (g *LoopRepo) ReplaceLoopUIAnnotations(
 	return g.withTaskImmediateTransaction(ctx, "replace loop ui annotations", func(exec taskSQLExecutor) error {
 		queries := sqlcgen.New(exec)
 		if err := queries.DeleteLoopUIAnnotations(ctx, sqlcgen.DeleteLoopUIAnnotationsParams{
+			ProfileID:   loopStateProfileID(workspaceID, profileID),
 			WorkspaceID: string(workspaceID), LoopName: name,
 		}); err != nil {
 			return fmt.Errorf("store: delete loop ui annotations: %w", err)
 		}
 		for _, annotation := range normalized {
 			if err := queries.InsertLoopUIAnnotation(ctx, sqlcgen.InsertLoopUIAnnotationParams{
+				ProfileID:   loopStateProfileID(workspaceID, profileID),
 				WorkspaceID: string(workspaceID), LoopName: name, NodeID: string(annotation.NodeID),
 				X: annotation.X, Y: annotation.Y,
 			}); err != nil {
@@ -321,6 +350,9 @@ func (g *LoopRepo) ReplaceLoopUIAnnotations(
 
 func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery, error) {
 	normalized := query
+	if query.AllWorkspaces && query.OperationalOrder {
+		return looppkg.RunListQuery{}, fmt.Errorf("%w: aggregate runs require recency order", looppkg.ErrValidation)
+	}
 	normalized.WorkspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(query.WorkspaceID)))
 	normalized.LoopName = strings.TrimSpace(query.LoopName)
 	normalized.Status = looppkg.Status(strings.TrimSpace(string(query.Status)))
@@ -329,9 +361,6 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 	normalized.CreatedAfter = query.CreatedAfter.UTC()
 	if err := normalized.ReadScope.Validate(); err != nil {
 		return looppkg.RunListQuery{}, fmt.Errorf("%w: %w", looppkg.ErrValidation, err)
-	}
-	if normalized.WorkspaceID == "" {
-		return looppkg.RunListQuery{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
 	}
 	if normalized.Status != "" && !normalized.Status.Valid() {
 		return looppkg.RunListQuery{}, fmt.Errorf("%w: loop status is invalid: %q", looppkg.ErrValidation, query.Status)
@@ -358,12 +387,12 @@ func normalizeLoopRunListQuery(query looppkg.RunListQuery) (looppkg.RunListQuery
 		normalized.After = &after
 		normalized.After.ID = looppkg.RunID(strings.TrimSpace(string(after.ID)))
 		normalized.After.CreatedAt = after.CreatedAt.UTC()
-		if !normalized.OperationalOrder || normalized.After.Rank < 0 || normalized.After.Rank > 2 ||
+		if normalized.After.Rank < 0 || normalized.After.Rank > 2 ||
 			normalized.After.CreatedAt.IsZero() || normalized.After.ID == "" {
 			return looppkg.RunListQuery{}, fmt.Errorf("%w: loop run list position is invalid", looppkg.ErrValidation)
 		}
 	}
-	if normalized.OperationalOrder && normalized.Limit == loopRunOperationalFetchLimit {
+	if normalized.Limit == loopRunOperationalFetchLimit {
 		normalized.Limit = loopRunOperationalFetchLimit
 	} else {
 		normalized.Limit = normalizeLoopAPILimit(normalized.Limit)
@@ -385,9 +414,6 @@ func normalizeLoopRunEventQuery(query looppkg.RunEventQuery) (looppkg.RunEventQu
 	}
 	normalized.WorkspaceID = looppkg.WorkspaceID(strings.TrimSpace(string(query.WorkspaceID)))
 	normalized.RunID = looppkg.RunID(strings.TrimSpace(string(query.RunID)))
-	if normalized.WorkspaceID == "" {
-		return looppkg.RunEventQuery{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
-	}
 	if normalized.RunID == "" {
 		return looppkg.RunEventQuery{}, fmt.Errorf("%w: run_id is required", looppkg.ErrValidation)
 	}
@@ -415,9 +441,6 @@ func normalizeLoopAnnotationKey(
 ) (looppkg.WorkspaceID, string, error) {
 	workspaceID := looppkg.WorkspaceID(strings.TrimSpace(string(ws)))
 	name := strings.TrimSpace(loopName)
-	if workspaceID == "" {
-		return "", "", fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
-	}
 	if name == "" {
 		return "", "", fmt.Errorf("%w: loop name is required", looppkg.ErrValidation)
 	}

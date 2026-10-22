@@ -42,13 +42,19 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 				}},
 			},
 			{
-				name: "closed", event: terminalpkg.Event{
+				name: "closed",
+				event: terminalpkg.Event{
 					Kind: terminalpkg.EventKindClosed, TerminalID: "term-a", Exit: exit,
 				},
 				wantName: "terminal.closed",
-				wantPayload: gin.H{"terminal_id": terminalpkg.ID("term-a"), "exit": &terminalExitPayload{
-					Cause: "exit", Code: &exitCode,
-				}},
+				wantPayload: gin.H{
+					"workspace_id": "",
+					"profile_id":   "",
+					"terminal_id":  terminalpkg.ID("term-a"),
+					"exit": &terminalExitPayload{
+						Cause: "exit", Code: &exitCode,
+					},
+				},
 			},
 			{
 				name: "title", event: terminalpkg.Event{
@@ -253,4 +259,130 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 			t.Fatalf("stale cursor replay/reset/fence/changed = %#v/%v/%d/%v", replay, reset, fence, changed)
 		}
 	})
+}
+
+func TestTerminalCatalogAggregateSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should replay only matching owners and reset an expired fence", func(t *testing.T) {
+		t.Parallel()
+		catalog := &terminalCatalog{inbox: make(chan terminalCatalogEvent, terminalCatalogMailbox)}
+		catalog.signal.Store(newTerminalCatalogSignal())
+		for _, event := range []terminalpkg.Event{
+			{Kind: terminalpkg.EventKindClosed, WorkspaceID: "a", ProfileID: "p1", TerminalID: "one"},
+			{Kind: terminalpkg.EventKindClosed, WorkspaceID: "b", ProfileID: "p2", TerminalID: "two"},
+			{Kind: terminalpkg.EventKindClosed, WorkspaceID: "a", ProfileID: "p1", TerminalID: "three"},
+		} {
+			catalog.observe(t.Context(), event)
+		}
+		replay, reset, fence, _ := catalog.readSelection(
+			1,
+			func(event terminalpkg.Event) bool { return event.WorkspaceID == "a" && event.ProfileID == "p1" },
+		)
+		if reset || fence != 3 || len(replay) != 1 || replay[0].Event.TerminalID != "three" {
+			t.Fatalf("replay=%v reset=%v fence=%d", replay, reset, fence)
+		}
+		for range terminalCatalogRetention + 1 {
+			catalog.observe(t.Context(), terminalpkg.Event{Kind: terminalpkg.EventKindClosed})
+		}
+		expiredReplay, expiredReset, expiredFence, changed := catalog.readSelection(
+			1,
+			func(terminalpkg.Event) bool { return true },
+		)
+		if len(expiredReplay) != 0 || expiredFence <= fence || changed == nil {
+			t.Fatalf("invalid reset fence %d replay %v", expiredFence, expiredReplay)
+		}
+		reset = expiredReset
+		if !reset {
+			t.Fatal("expired cursor did not reset")
+		}
+	})
+}
+
+func TestTerminalAggregateCursorSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reset when the selection changes and preserve matching replay positions", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			raw  string
+			want uint64
+		}{{"12.p1", 12}, {"12.p2", 0}, {"12", 0}, {"", 0}} {
+			got, err := terminalAggregateCursor(tc.raw, "p1")
+			if err != nil || got != tc.want {
+				t.Fatalf("cursor %q = %d,%v", tc.raw, got, err)
+			}
+		}
+		if _, err := terminalAggregateCursor("bad.p1", "p1"); err == nil {
+			t.Fatal("accepted invalid matching cursor")
+		}
+	})
+}
+
+// Invariant: server shutdown waits for open SSE requests before it closes the terminal stream
+// lifecycle, so every terminal stream must also end on the shared stream-done signal; otherwise a
+// runtime restart stalls until the shutdown deadline.
+func TestTerminalStreamsEndOnStreamDone(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name  string
+		route string
+		path  string
+		mount func(*BaseHandlers) gin.HandlerFunc
+	}{
+		{
+			name:  "workspace catalog stream",
+			route: "/api/workspaces/:workspace_id/terminals/stream",
+			path:  "/api/workspaces/workspace-a/terminals/stream?profile=default",
+			mount: func(h *BaseHandlers) gin.HandlerFunc { return h.StreamTerminalCatalog },
+		},
+		{
+			name:  "All projects aggregate stream",
+			route: "/api/terminals/catalog-stream",
+			path:  "/api/terminals/catalog-stream?all_workspaces=true&profile=default",
+			mount: func(h *BaseHandlers) gin.HandlerFunc { return h.StreamTerminalAggregate },
+		},
+	} {
+		t.Run("Should end the "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			streamDone := make(chan struct{})
+			provider := terminalAggregateProviderStub{&terminalProviderStub{Manager: terminalManagerStub{}}}
+			handlers := NewBaseHandlers(&BaseHandlerConfig{
+				TransportName: "udsapi",
+				Terminal:      provider,
+				Workspaces:    workspaceServiceStub{},
+				StreamDone:    streamDone,
+			})
+			router := gin.New()
+			router.GET(testCase.route, testCase.mount(handlers))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, testCase.path, http.NoBody)
+			response := httptest.NewRecorder()
+			served := make(chan struct{})
+			go func() {
+				defer close(served)
+				router.ServeHTTP(response, request)
+			}()
+			// The stream is live until the server starts shutting down.
+			select {
+			case <-served:
+				t.Fatalf("stream ended before shutdown: %d/%q", response.Code, response.Body.String())
+			case <-time.After(200 * time.Millisecond):
+			}
+			close(streamDone)
+			select {
+			case <-served:
+			case <-time.After(5 * time.Second):
+				t.Fatal("terminal stream stayed open after the stream-done signal")
+			}
+			if response.Code != http.StatusOK {
+				t.Fatalf("stream status/body = %d/%q, want an opened stream", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+// terminalAggregateProviderStub adds the empty machine-wide terminal read the aggregate stream lists.
+type terminalAggregateProviderStub struct{ *terminalProviderStub }
+
+func (terminalAggregateProviderStub) ListAggregate(context.Context, store.ReadScope) ([]terminalpkg.Info, error) {
+	return nil, nil
 }

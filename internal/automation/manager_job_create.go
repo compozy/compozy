@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // CreateJob stores a new dynamic automation job and registers it into the
@@ -23,6 +24,7 @@ func (m *Manager) prepareJobForCreate(ctx context.Context, job Job) (Job, error)
 		return Job{}, errors.New("automation: create job context is required")
 	}
 	next := cloneJob(job)
+	next.GrantCeiling = workspaceaccess.AuthoringCeiling(ctx, false)
 	next.ProfileID = strings.TrimSpace(next.ProfileID)
 	if next.ProfileID == "" {
 		next.ProfileID = store.DefaultProfileID

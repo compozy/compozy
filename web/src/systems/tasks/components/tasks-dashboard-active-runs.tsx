@@ -4,6 +4,7 @@ import { Activity, AlertCircle, ChevronRight } from "lucide-react";
 import { Empty, Eyebrow, Panel, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 import {
   formatAttemptLabel,
@@ -11,16 +12,20 @@ import {
   taskRunStateGlyph,
   taskRunStatusLabel,
 } from "../lib/task-formatters";
+import { taskWindowBinding } from "../lib/task-detail-search";
 import type { TaskDashboardView } from "../types";
 
 export interface TasksDashboardActiveRunsProps {
   dashboard: TaskDashboardView;
   maxItems?: number;
+  /** Each run's project under All projects; the run then opens bound to it. */
+  projectBadgeOf?: (run: { workspace_id?: string }) => WorkspaceBadgeIdentity;
 }
 
 export function TasksDashboardActiveRuns({
   dashboard,
   maxItems = 6,
+  projectBadgeOf,
 }: TasksDashboardActiveRunsProps) {
   const runs = dashboard.active_runs.items ?? [];
   const visible = runs.slice(0, maxItems);
@@ -51,6 +56,7 @@ export function TasksDashboardActiveRuns({
         <ul className="divide-y divide-line-soft" data-testid="tasks-dashboard-active-runs-list">
           {visible.map(run => {
             const attemptLabel = formatAttemptLabel(run.attempt, run.max_attempts);
+            const projectBadge = projectBadgeOf?.(run);
             return (
               <li
                 className="flex flex-col gap-1.5 px-5 py-2.5 transition-colors hover:bg-surface-2"
@@ -64,6 +70,7 @@ export function TasksDashboardActiveRuns({
                   )}
                   data-testid={`tasks-dashboard-active-run-link-${run.run_id}`}
                   params={{ id: run.task_id, runId: run.run_id }}
+                  search={projectBadge ? taskWindowBinding(run.workspace_id) : undefined}
                   to="/tasks/$id/runs/$runId"
                 >
                   <StateGlyph state={taskRunStateGlyph(run.run_status)} />
@@ -75,6 +82,13 @@ export function TasksDashboardActiveRuns({
                       <span className="shrink-0 font-mono text-mono-id tabular-nums text-faint">
                         {run.task_identifier}
                       </span>
+                    ) : null}
+                    {projectBadge ? (
+                      <WorkspaceBadge
+                        className="max-w-40 shrink-[1000]"
+                        data-testid={`tasks-dashboard-active-run-project-${run.run_id}`}
+                        identity={projectBadge}
+                      />
                     ) : null}
                   </div>
                   <span className="hidden shrink-0 text-form-label tabular-nums text-muted @xl:inline">

@@ -20,6 +20,7 @@ import {
   type AutomationOverflowHandlers,
 } from "./automation-row-parts";
 import { ProfileOwnerTag } from "@/systems/profiles";
+import { WorkspaceBadge } from "@/systems/workspace";
 
 export interface AutomationItemControls extends AutomationOverflowHandlers {
   /** Listing state carried into the detail route so Back restores it. */
@@ -90,7 +91,14 @@ export function AutomationRow({ view, controls }: AutomationRowProps) {
             <AutomationSentenceText sentence={view.sentence} />
           </ListingRow.Description>
           <ListingRow.Meta>
-            <span>{automationLocationLabel(view)}</span>
+            {view.project ? (
+              <WorkspaceBadge
+                data-testid={`automation-project-${view.id}`}
+                identity={view.project}
+              />
+            ) : (
+              <span>{automationLocationLabel(view)}</span>
+            )}
             {view.start === "webhook" && !failed ? (
               <>
                 <ListingRow.MetaDot />

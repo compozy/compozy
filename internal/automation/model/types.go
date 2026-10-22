@@ -1,7 +1,10 @@
 package model
 
 import (
+	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -14,6 +17,15 @@ const DefaultMaxConcurrentJobs = 5
 
 // Scope identifies the visibility boundary of an automation resource.
 type Scope string
+
+// Normalize translates public User aliases into the persisted scope.
+func (s Scope) Normalize() Scope {
+	value := Scope(strings.TrimSpace(string(s)))
+	if value == "user" || value == workspaceaccess.UserSelector {
+		return AutomationScopeGlobal
+	}
+	return value
+}
 
 const (
 	// AutomationScopeGlobal targets daemon-wide automation without a workspace binding.
@@ -146,23 +158,24 @@ type LoopTarget struct {
 
 // Job is the canonical scheduled automation definition used by runtime and storage layers.
 type Job struct {
-	ID          string          `json:"id"`
-	ProfileID   string          `json:"profile_id"`
-	Scope       Scope           `json:"scope"`
-	Name        string          `json:"name"`
-	TargetKind  TargetKind      `json:"target_kind"`
-	AgentName   string          `json:"agent_name"`
-	WorkspaceID string          `json:"workspace_id,omitempty"`
-	Prompt      string          `json:"prompt"`
-	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
-	Task        *JobTaskConfig  `json:"task,omitempty"`
-	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
-	Enabled     bool            `json:"enabled"`
-	Retry       RetryConfig     `json:"retry"`
-	FireLimit   FireLimitConfig `json:"fire_limit"`
-	Source      JobSource       `json:"source"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	GrantCeiling string          `json:"grant_ceiling"`
+	ID           string          `json:"id"`
+	ProfileID    string          `json:"profile_id"`
+	Scope        Scope           `json:"scope"`
+	Name         string          `json:"name"`
+	TargetKind   TargetKind      `json:"target_kind"`
+	AgentName    string          `json:"agent_name"`
+	WorkspaceID  string          `json:"workspace_id,omitempty"`
+	Prompt       string          `json:"prompt"`
+	Schedule     *ScheduleSpec   `json:"schedule,omitempty"`
+	Task         *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget   *LoopTarget     `json:"loop_target,omitempty"`
+	Enabled      bool            `json:"enabled"`
+	Retry        RetryConfig     `json:"retry"`
+	FireLimit    FireLimitConfig `json:"fire_limit"`
+	Source       JobSource       `json:"source"`
+	CreatedAt    time.Time       `json:"created_at"`
+	UpdatedAt    time.Time       `json:"updated_at"`
 }
 
 // ScheduleSpec describes how a job should be scheduled.
@@ -177,6 +190,7 @@ type ScheduleSpec struct {
 
 // Trigger is the canonical event-driven automation definition used by runtime and storage layers.
 type Trigger struct {
+	GrantCeiling     string            `json:"grant_ceiling"`
 	ID               string            `json:"id"`
 	ProfileID        string            `json:"profile_id"`
 	Scope            Scope             `json:"scope"`
@@ -214,6 +228,8 @@ type FireLimitConfig struct {
 
 // Run records the execution state of a single automation fire.
 type Run struct {
+	WorkspaceID     *string        `json:"workspace_id,omitempty"`
+	Attribution     string         `json:"attribution"`
 	ID              string         `json:"id"`
 	ProfileID       string         `json:"profile_id,omitempty"`
 	JobID           string         `json:"job_id,omitempty"`
@@ -263,6 +279,7 @@ type SchedulerState struct {
 // SchedulerClaim reserves one scheduled fire after the durable cursor has
 // been advanced.
 type SchedulerClaim struct {
+	WorkspaceID         string
 	ProfileID           string
 	JobID               string
 	RunID               string

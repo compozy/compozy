@@ -1,4 +1,10 @@
-import { useScopedWorktreeFilter } from "@/systems/workspace";
+import {
+  ownerDataScope,
+  sameDataScope,
+  useDataScope,
+  useScopedWorktreeFilter,
+  useWindowDataWorkspace,
+} from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 import { runViewTransition } from "@compozy/ui";
@@ -7,6 +13,7 @@ import { useOsReducedMotion } from "../../hooks/use-os-reduced-motion";
 import { useOsShell } from "../../hooks/use-os-shell";
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 import { useAttentionJump } from "../../hooks/use-attention-jump";
+import { boundRoute } from "../../lib/open-target";
 import {
   type SessionLifecycleActionHandlers,
   type SessionPayload,
@@ -44,23 +51,25 @@ export interface SessionWindowSidebarModel {
 }
 
 /**
- * In-window sessions rail view-model. Shares the shell's catalog query key so
- * the list is cache-warm on first open and stays live through the catalog
- * stream; row activation retargets this window in place, unless the target
- * session already owns a window — that window wins focus instead.
+ * In-window sessions rail view-model. It follows the topbar breadth — the
+ * aggregate under All projects, the focused project or User otherwise — and
+ * shares the shell's catalog query key, so the list is cache-warm on first
+ * open and stays live through the catalog stream. Row activation retargets
+ * this window in place (rebinding it under All projects), unless the target
+ * belongs elsewhere or already owns a window — that window wins focus instead.
  */
 export function useSessionWindowSidebar({
   transportDisconnected = false,
   windowId,
-  workspaceId,
   sessionId,
 }: {
   /** The window's live stream is down; the rail must not read "connected" (US-018.AC-1). */
   transportDisconnected?: boolean;
   windowId: string;
-  workspaceId: string;
   sessionId?: string;
 }): SessionWindowSidebarModel {
+  const scope = useDataScope();
+  const windowScope = useWindowDataWorkspace();
   const sidebar = useSessionSidebarState();
   const transport = useSessionTransportState();
   const transportGraceElapsed = useTransportGraceElapsed(transport.degradedAt);
@@ -68,29 +77,38 @@ export function useSessionWindowSidebar({
   const jumpToSession = useAttentionJump();
   const { openForAgent } = useSessionCreateActions();
   const lifecycle = useSessionListLifecycleActions();
-  const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
-    enabled: sidebar.open,
-  });
+  // Only a project narrows to a worktree.
+  const worktree = useScopedWorktreeFilter(
+    scope?.kind === "project" ? scope.workspaceId : null,
+    useWorktreeScopeId(),
+    { enabled: sidebar.open }
+  );
   const view = useSessionListView({
-    workspaceId,
+    scope,
     worktreeId: worktree.worktreeId,
-    enabled: sidebar.open && worktree.resolved && workspaceId !== "",
+    enabled: sidebar.open && worktree.resolved && scope !== null,
   });
 
   const reducedMotion = useOsReducedMotion();
 
   const openSession = (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => {
     if (sessionId !== undefined && target.sessionId === sessionId) return;
-    const targetWorkspaceId = target.workspaceId || workspaceId;
-    if (options.newWindow || targetWorkspaceId !== workspaceId || !target.agentName) {
+    const targetScope = ownerDataScope(target.workspaceId);
+    const allProjects = scope?.kind === "all";
+    const sameScope = windowScope !== null && sameDataScope(windowScope, targetScope);
+    if (options.newWindow || !target.agentName || (!allProjects && !sameScope)) {
       jumpToSession({
         sessionId: target.sessionId,
         agentName: target.agentName || undefined,
-        workspaceId: targetWorkspaceId,
+        workspaceId: target.workspaceId,
         ...(options.newWindow ? { placement: "split" as const } : {}),
       });
       return;
     }
+    const route = {
+      pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
+      search: {},
+    };
     // Same window, different conversation: the pane (named per window in
     // session-window-content) cross-fades instead of snapping to the skeleton.
     void runViewTransition(
@@ -98,10 +116,8 @@ export function useSessionWindowSidebar({
         void coordinator.userRetarget(windowId, {
           app: "session",
           instanceKey: target.sessionId,
-          route: {
-            pathname: `/agents/${encodeURIComponent(target.agentName)}/sessions/${encodeURIComponent(target.sessionId)}`,
-            search: {},
-          },
+          // Under All projects the window follows the session it now shows.
+          route: allProjects ? boundRoute({ binding: targetScope, route }) : route,
         });
       },
       { reduced: reducedMotion }
@@ -113,7 +129,7 @@ export function useSessionWindowSidebar({
       {
         sessionId: target.id,
         agentName: target.agent_name,
-        workspaceId: target.workspace_id ?? workspaceId,
+        workspaceId: target.workspace_id ?? "",
       },
       { newWindow: false }
     );

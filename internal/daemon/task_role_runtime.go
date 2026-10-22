@@ -51,31 +51,31 @@ type taskRoleSessionManager interface {
 }
 
 type taskRoleRuntime struct {
-	drainCtx            context.Context
-	cancel              context.CancelFunc
-	lifecycleMu         sync.Mutex
-	stopping            bool
-	mu                  sync.Mutex
-	store               taskRoleStore
-	sessions            taskRoleSessionManager
-	globalWorkspacePath string
-	logger              *slog.Logger
-	now                 func() time.Time
-	promptInFlight      map[string]struct{}
-	wg                  sync.WaitGroup
-	done                chan struct{}
+	drainCtx    context.Context
+	cancel      context.CancelFunc
+	lifecycleMu sync.Mutex
+	stopping    bool
+	mu          sync.Mutex
+	store       taskRoleStore
+	sessions    taskRoleSessionManager
+
+	logger         *slog.Logger
+	now            func() time.Time
+	promptInFlight map[string]struct{}
+	wg             sync.WaitGroup
+	done           chan struct{}
 }
 
 type taskRoleActivation struct {
-	TaskID        string
-	RunID         string
-	ProfileID     string
-	Scope         taskpkg.Scope
-	WorkspaceID   string
-	WorkspacePath string
-	AgentName     string
-	Provider      string
-	Model         string
+	GrantCeiling string
+	TaskID       string
+	RunID        string
+	ProfileID    string
+	Scope        taskpkg.Scope
+	WorkspaceID  string
+	AgentName    string
+	Provider     string
+	Model        string
 
 	Title          string
 	Profile        *taskpkg.ExecutionProfile
@@ -90,7 +90,6 @@ var _ taskRunEnqueuedObserver = (*taskRoleRuntime)(nil)
 func newTaskRoleRuntime(
 	store taskRoleStore,
 	sessions taskRoleSessionManager,
-	globalWorkspacePath string,
 	logger *slog.Logger,
 	now func() time.Time,
 ) (*taskRoleRuntime, error) {
@@ -109,15 +108,15 @@ func newTaskRoleRuntime(
 	// #nosec G118 -- cancel is owned by taskRoleRuntime and invoked from shutdown.
 	drainCtx, cancel := context.WithCancel(context.Background())
 	return &taskRoleRuntime{
-		drainCtx:            drainCtx,
-		cancel:              cancel,
-		store:               store,
-		sessions:            sessions,
-		globalWorkspacePath: strings.TrimSpace(globalWorkspacePath),
-		logger:              logger,
-		now:                 now,
-		promptInFlight:      make(map[string]struct{}),
-		done:                make(chan struct{}),
+		drainCtx: drainCtx,
+		cancel:   cancel,
+		store:    store,
+		sessions: sessions,
+
+		logger:         logger,
+		now:            now,
+		promptInFlight: make(map[string]struct{}),
+		done:           make(chan struct{}),
 	}, nil
 }
 
@@ -284,14 +283,15 @@ func (r *taskRoleRuntime) activationForRun(
 	}
 
 	activation := taskRoleActivation{
-		TaskID:      strings.TrimSpace(taskRecord.ID),
-		RunID:       strings.TrimSpace(run.ID),
-		ProfileID:   strings.TrimSpace(taskRecord.ProfileID),
-		Scope:       taskRecord.Scope.Normalize(),
-		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
-		AgentName:   agentName,
-		Provider:    provider,
-		Model:       model,
+		GrantCeiling: taskRecord.GrantCeiling,
+		TaskID:       strings.TrimSpace(taskRecord.ID),
+		RunID:        strings.TrimSpace(run.ID),
+		ProfileID:    strings.TrimSpace(taskRecord.ProfileID),
+		Scope:        taskRecord.Scope.Normalize(),
+		WorkspaceID:  strings.TrimSpace(taskRecord.WorkspaceID),
+		AgentName:    agentName,
+		Provider:     provider,
+		Model:        model,
 
 		Title:   strings.TrimSpace(taskRecord.Title),
 		Profile: profile,
@@ -355,10 +355,7 @@ func (r *taskRoleRuntime) applyActivationScope(activation *taskRoleActivation, t
 			return fmt.Errorf("%w: workspace-scoped task %q has no workspace id", taskpkg.ErrValidation, taskID)
 		}
 	case taskpkg.ScopeGlobal:
-		if r.globalWorkspacePath == "" {
-			return errors.New("daemon: task role global workspace path is required")
-		}
-		activation.WorkspacePath = r.globalWorkspacePath
+
 	default:
 		return fmt.Errorf("%w: unsupported task scope %q for role activation", taskpkg.ErrValidation, activation.Scope)
 	}

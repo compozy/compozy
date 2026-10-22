@@ -232,6 +232,46 @@ describe("AgentSettingsPanels", () => {
     expect(onDelete).toHaveBeenCalledTimes(1);
   });
 
+  // USW W-09 / S6: the Access field offers Default and Unrestricted, warns inline on
+  // Unrestricted, and is read-only with a note for definitions from untrusted sources.
+  it("W-09 shows the Access field, warns on Unrestricted, and locks untrusted sources", async () => {
+    const user = userEvent.setup();
+    const onPatch = vi.fn();
+    const trusted = agent({ layer: "project" });
+    const draft = buildSettingsDraftFromAgent(trusted);
+    const view = render(
+      <AgentSettingsPanels {...props("access", { agent: trusted, draft, onPatch })} />
+    );
+    expect(screen.queryByTestId("agent-settings-workspace-access-warning")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("agent-settings-workspace-access-unrestricted"));
+    expect(onPatch).toHaveBeenCalledWith({ workspaceAccess: "unrestricted" });
+
+    view.rerender(
+      <AgentSettingsPanels
+        {...props("access", {
+          agent: trusted,
+          draft: { ...draft, workspaceAccess: "unrestricted" },
+        })}
+      />
+    );
+    expect(screen.getByTestId("agent-settings-workspace-access-warning")).toBeInTheDocument();
+
+    const installed = agent({ layer: "marketplace" });
+    const lockedPatch = vi.fn();
+    view.rerender(
+      <AgentSettingsPanels
+        {...props("access", {
+          agent: installed,
+          draft: buildSettingsDraftFromAgent(installed),
+          onPatch: lockedPatch,
+        })}
+      />
+    );
+    expect(screen.getByTestId("agent-settings-workspace-access-readonly")).toBeInTheDocument();
+    await user.click(screen.getByTestId("agent-settings-workspace-access-unrestricted"));
+    expect(lockedPatch).not.toHaveBeenCalled();
+  });
+
   it("Should keep fields visible and read-only after mutation denial", () => {
     const view = render(
       <AgentSettingsPanels

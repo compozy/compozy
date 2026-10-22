@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 
 import type { LoopForkLink } from "../../types";
 import { LoopSection } from "../loop-section";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 export interface LoopRunLineageSectionProps extends Omit<
   ComponentProps<typeof LoopSection>,
@@ -21,6 +22,7 @@ interface LineageRowProps {
 }
 
 function LineageRow({ generation, lead, runId, testId }: LineageRowProps) {
+  const bindingSearch = useWindowBindingSearch();
   return (
     <li
       className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-line-soft py-2 first:border-t-0 first:pt-0"
@@ -33,6 +35,7 @@ function LineageRow({ generation, lead, runId, testId }: LineageRowProps) {
       <Link
         className="font-mono text-mono-id tabular-nums text-fg underline-offset-3 hover:underline"
         params={{ runId }}
+        search={bindingSearch}
         to="/loop-runs/$runId"
       >
         {runId}

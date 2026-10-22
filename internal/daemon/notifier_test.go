@@ -1569,6 +1569,7 @@ func (r *recordingLoopHookStore) EnqueueLoopCoordinatorWake(
 func (r *recordingLoopHookStore) PromoteOldestQueuedLoopRun(
 	_ context.Context,
 	workspaceID string,
+	_ string,
 	loopName string,
 	origin taskpkg.Origin,
 	now time.Time,

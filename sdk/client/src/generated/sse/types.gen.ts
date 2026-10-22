@@ -1431,6 +1431,76 @@ export type StreamTaskResponses = {
 
 export type StreamTaskResponse = StreamTaskResponses[keyof StreamTaskResponses];
 
+export type StreamTerminalsAggregateData = {
+  body?: never;
+  headers?: {
+    /**
+     * Resume after the last terminal catalog event
+     */
+    "Last-Event-ID"?: string;
+  };
+  path?: never;
+  query?: {
+    /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/terminals/catalog-stream";
+};
+
+export type StreamTerminalsAggregateErrors = {
+  /**
+   * Malformed terminal request
+   */
+  400: TerminalErrorResponse;
+  /**
+   * Terminal authentication required
+   */
+  401: TerminalErrorResponse;
+  /**
+   * Terminal operation forbidden
+   */
+  403: TerminalErrorResponse;
+  /**
+   * Terminal state or profile conflict
+   */
+  409: TerminalErrorResponse;
+  /**
+   * Invalid terminal catalog cursor
+   */
+  422: TerminalErrorResponse;
+  /**
+   * Terminal transport failed
+   */
+  500: TerminalErrorResponse;
+  /**
+   * Terminal catalog unavailable
+   */
+  503: TerminalErrorResponse;
+};
+
+export type StreamTerminalsAggregateError =
+  StreamTerminalsAggregateErrors[keyof StreamTerminalsAggregateErrors];
+
+export type StreamTerminalsAggregateResponses = {
+  /**
+   * Terminal catalog event stream
+   */
+  200: TerminalCatalogSnapshot;
+};
+
+export type StreamTerminalsAggregateResponse =
+  StreamTerminalsAggregateResponses[keyof StreamTerminalsAggregateResponses];
+
 export type StreamLoopRunEventsData = {
   body?: never;
   headers?: {

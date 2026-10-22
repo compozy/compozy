@@ -3,6 +3,8 @@ package task
 import (
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // FullAccessAuthority returns the v1 broad task-domain authority granted to
@@ -68,6 +70,39 @@ func DeriveAgentSessionActorContextForOrigin(
 	originKind OriginKind,
 	originRef string,
 ) (ActorContext, error) {
+	return deriveAgentSessionActorForOrigin(
+		sessionRef,
+		originKind,
+		originRef,
+		agentCallerScope(sessionRef, workspaceID),
+	)
+}
+
+// DeriveUserSessionActorContextForOrigin binds authenticated User work to its concrete profile.
+func DeriveUserSessionActorContextForOrigin(
+	sessionRef, profileID string,
+	originKind OriginKind,
+	originRef string,
+) (ActorContext, error) {
+	if strings.TrimSpace(profileID) == "" {
+		return ActorContext{}, fmt.Errorf("%w: User actor profile is required", ErrValidation)
+	}
+	actor, err := deriveAgentSessionActorForOrigin(sessionRef, originKind, originRef, CallerScope{
+		SessionID: strings.TrimSpace(sessionRef), UserProfileID: strings.TrimSpace(profileID),
+	})
+	if err != nil {
+		return ActorContext{}, err
+	}
+	actor.ReadScope = store.ReadScope{ProfileID: strings.TrimSpace(profileID)}
+	return actor, nil
+}
+
+func deriveAgentSessionActorForOrigin(
+	sessionRef string,
+	originKind OriginKind,
+	originRef string,
+	scope CallerScope,
+) (ActorContext, error) {
 	switch originKind.Normalize() {
 	case OriginKindCLI, OriginKindUDS, OriginKindHTTP, OriginKindAgentSession:
 	default:
@@ -85,7 +120,7 @@ func DeriveAgentSessionActorContextForOrigin(
 		sessionRef,
 		originKind,
 		originRef,
-		agentCallerScope(sessionRef, workspaceID),
+		scope,
 	)
 }
 
@@ -108,6 +143,34 @@ func DeriveAutomationLinkedAgentSessionActorContext(
 		originRef,
 		agentCallerScope(sessionRef, workspaceID),
 	)
+}
+
+// DeriveAutomationLinkedUserSessionActorContext is the User-scope form of
+// DeriveAutomationLinkedAgentSessionActorContext: the automation-launched session runs without a
+// workspace, so it is bound to its concrete profile instead.
+func DeriveAutomationLinkedUserSessionActorContext(
+	sessionRef string,
+	profileID string,
+	originRef string,
+) (ActorContext, error) {
+	if strings.TrimSpace(profileID) == "" {
+		return ActorContext{}, fmt.Errorf("%w: User actor profile is required", ErrValidation)
+	}
+	if originRef == "" {
+		originRef = sessionRef
+	}
+	actor, err := deriveActorContext(
+		ActorKindAgentSession,
+		sessionRef,
+		OriginKindAutomation,
+		originRef,
+		CallerScope{SessionID: strings.TrimSpace(sessionRef), UserProfileID: strings.TrimSpace(profileID)},
+	)
+	if err != nil {
+		return ActorContext{}, err
+	}
+	actor.ReadScope = store.ReadScope{ProfileID: strings.TrimSpace(profileID)}
+	return actor, nil
 }
 
 // DeriveAutomationActorContext derives one trusted automation actor context.

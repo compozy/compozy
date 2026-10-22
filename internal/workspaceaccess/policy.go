@@ -39,15 +39,17 @@ const (
 
 // Request is the complete input to one workspace-access decision.
 type Request struct {
-	Actor             ActorRef
-	TargetWorkspaceID string
-	Seam              Seam
+	Actor    ActorRef
+	Target   TargetRef
+	ReadOnly bool
+	Seam     Seam
 }
 
 // DecisionSource records the policy branch that produced a decision.
 type DecisionSource string
 
 const (
+	SourceAgentGrant     DecisionSource = "agent_grant"
 	SourceOperator       DecisionSource = "operator"
 	SourceSameWorkspace  DecisionSource = "same_workspace"
 	SourcePermissionMode DecisionSource = "permission_mode"
@@ -65,4 +67,31 @@ type Decision struct {
 // Policy is the single decision funnel for cross-workspace access.
 type Policy interface {
 	Authorize(ctx context.Context, req Request) (Decision, error)
+}
+
+type TargetKind string
+
+const (
+	TargetWorkspace TargetKind = "workspace"
+	TargetUser      TargetKind = "user"
+	TargetAggregate TargetKind = "aggregate"
+)
+
+type TargetRef struct {
+	Kind        TargetKind
+	WorkspaceID string
+	ProfileID   string
+	AllProfiles bool
+	Surface     string
+}
+
+// UserSelector is the reserved workspace selector naming the User scope.
+const UserSelector = "@user"
+
+// ScopeTarget translates an internal owner or an explicit User selector into a policy target.
+func ScopeTarget(workspaceID, profileID string) TargetRef {
+	if workspaceID == "" || workspaceID == "@user" {
+		return TargetRef{Kind: TargetUser, ProfileID: profileID}
+	}
+	return TargetRef{Kind: TargetWorkspace, WorkspaceID: workspaceID, ProfileID: profileID}
 }

@@ -2,9 +2,7 @@ package automation
 
 import (
 	"context"
-
 	"fmt"
-
 	"time"
 )
 
@@ -28,6 +26,7 @@ func (s *Scheduler) claimScheduledJob(
 	claimedAt := s.now()
 	nextRun := nextRunAfter(job, scheduledAt, s.location)
 	claim := SchedulerClaim{
+		WorkspaceID:         job.WorkspaceID,
 		ProfileID:           job.ProfileID,
 		JobID:               job.ID,
 		RunID:               scheduledRunID(job.ID, scheduledAt),

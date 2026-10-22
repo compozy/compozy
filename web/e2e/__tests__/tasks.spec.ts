@@ -192,7 +192,8 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   const activeRunPath = `/tasks/${seeded.runningTask.id}/runs/${seeded.runningRun.id}`;
   const activeRunLink = tasksUI.dashboardActiveRunLink(seeded.runningRun.id);
   await expect(activeRunLink).toBeVisible();
-  await expect(activeRunLink).toHaveAttribute("href", activeRunPath);
+  // The seeded run belongs to a User (global) task, so its link opens bound to `@user`.
+  await expect(activeRunLink).toHaveAttribute("href", `${activeRunPath}?workspace=%40user`);
   const layoutReady = appPage
     .waitForEvent("websocket", {
       predicate: socket => socket.url().includes("/window-manager/stream"),

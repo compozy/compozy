@@ -60,6 +60,18 @@ func (s *daemonLoopAPIService) Handle(
 		return goalCommandErrorDecision(session.GoalReasonRuntimeInvalid, nil), nil
 	}
 	actor, err := goalCommandActor(caller, workspaceID, sessionID)
+	if workspaceID == "" && taskpkg.ActorKind(caller.Kind).Normalize() == taskpkg.ActorKindAgentSession {
+		info, statusErr := s.sessionStatus.Status(ctx, sessionID)
+		if statusErr != nil {
+			return session.GoalDispatchDecision{}, statusErr
+		}
+		if info == nil {
+			return goalCommandErrorDecision(session.GoalReasonCallerUnauthorized, nil), nil
+		}
+		actor, err = taskpkg.DeriveUserSessionActorContextForOrigin(
+			caller.ID, info.ProfileID, taskpkg.OriginKind(caller.Source), "goal.command:"+sessionID,
+		)
+	}
 	if err != nil {
 		s.logGoalCommandWarning(ctx, "Goal caller actor invalid", workspaceID, sessionID, err)
 		return goalCommandErrorDecision(session.GoalReasonCode(looppkg.ReasonCodeGoalOriginInvalid), nil), nil

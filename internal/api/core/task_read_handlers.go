@@ -2,14 +2,11 @@ package core
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
-
 	"net/http"
 
 	"github.com/compozy/compozy/internal/api/contract"
-
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
 )
@@ -293,15 +290,18 @@ func (h *BaseHandlers) TaskDashboard(c *gin.Context) {
 	if !ok {
 		return
 	}
+
+	transportQuery, err := ParseTaskDashboardQuery(c, h.Workspaces)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	if transportQuery.AllWorkspaces && !h.requireOperatorOrGrantedAgent(c, "all-workspaces tasks") {
+		return
+	}
 	readScope, err := h.resolveProfileReadScope(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
-		return
-	}
-
-	transportQuery, err := ParseTaskDashboardQuery(c)
-	if err != nil {
-		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
 	query, err := h.taskDashboardDomainQuery(c.Request.Context(), readScope, transportQuery)
@@ -316,6 +316,16 @@ func (h *BaseHandlers) TaskDashboard(c *gin.Context) {
 		return
 	}
 
+	if transportQuery.AllWorkspaces && h.Logger != nil {
+		h.Logger.DebugContext(
+			c.Request.Context(),
+			"task aggregate read",
+			"all_workspaces",
+			true,
+			"result_count",
+			view.Totals.TasksTotal,
+		)
+	}
 	c.JSON(http.StatusOK, contract.TaskDashboardResponse{Dashboard: TaskDashboardPayloadFromView(&view)})
 }
 

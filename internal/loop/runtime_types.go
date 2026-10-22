@@ -131,7 +131,7 @@ type RuntimeCatalog interface {
 
 // WorkspaceRuntimeCatalog resolves workspace-specific provider validation authority.
 type WorkspaceRuntimeCatalog interface {
-	ForWorkspace(context.Context, WorkspaceID) (RuntimeCatalog, error)
+	ForWorkspace(context.Context, WorkspaceID, string) (RuntimeCatalog, error)
 }
 
 // NewRuntimeValidationError constructs a normalized validation error.

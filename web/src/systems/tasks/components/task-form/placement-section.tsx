@@ -15,8 +15,8 @@ export function PlacementSection({ parentTaskId, onParentTaskId }: PlacementSect
       <FieldHeader>
         <FieldLabel htmlFor="task-parent-input">Parent task</FieldLabel>
         <HelpTip label="About parent task">
-          A parent makes this a child task in an epic. Global tasks aren&apos;t bound to a
-          workspace; any owner across the runtime can claim them.
+          A parent makes this a child task in an epic. User tasks aren&apos;t bound to a project;
+          any owner across the runtime can claim them.
         </HelpTip>
       </FieldHeader>
       <Input

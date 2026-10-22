@@ -7,14 +7,15 @@ INSERT INTO session_derivations (
   sqlc.arg(source_session_id), sqlc.arg(child_session_id), sqlc.arg(kind), sqlc.arg(outcome_json),
   sqlc.arg(created_at)
 )
-ON CONFLICT(workspace_id, idempotency_key) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- name: GetSessionDerivation :one
 SELECT workspace_id, idempotency_key, profile_id, request_fingerprint, source_session_id,
        child_session_id, kind, outcome_json, created_at, child_deleted_at
 FROM session_derivations
 WHERE workspace_id = sqlc.arg(workspace_id)
-  AND idempotency_key = sqlc.arg(idempotency_key);
+  AND idempotency_key = sqlc.arg(idempotency_key)
+  AND (workspace_id <> '' OR profile_id = sqlc.arg(profile_id));
 
 -- name: MarkSessionDerivationChildDeleted :exec
 UPDATE session_derivations

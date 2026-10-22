@@ -254,6 +254,53 @@ func (q *Queries) ListAutomationSuggestions(ctx context.Context, arg ListAutomat
 	return items, nil
 }
 
+const listAutomationSuggestionsAggregate = `-- name: ListAutomationSuggestionsAggregate :many
+SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
+FROM automation_suggestions
+WHERE (?1 OR profile_id = ?2)
+AND (CAST(?3 AS TEXT) = '' OR status = CAST(?3 AS TEXT))
+ORDER BY created_at ASC, id ASC
+`
+
+type ListAutomationSuggestionsAggregateParams struct {
+	AllProfiles any    `json:"all_profiles"`
+	ProfileID   string `json:"profile_id"`
+	Status      string `json:"status"`
+}
+
+func (q *Queries) ListAutomationSuggestionsAggregate(ctx context.Context, arg ListAutomationSuggestionsAggregateParams) ([]AutomationSuggestion, error) {
+	rows, err := q.db.QueryContext(ctx, listAutomationSuggestionsAggregate, arg.AllProfiles, arg.ProfileID, arg.Status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AutomationSuggestion{}
+	for rows.Next() {
+		var i AutomationSuggestion
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.WorkspaceID,
+			&i.Source,
+			&i.DedupKey,
+			&i.Status,
+			&i.Payload,
+			&i.CreatedAt,
+			&i.ResolvedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAutomationSuggestionsAllProfiles = `-- name: ListAutomationSuggestionsAllProfiles :many
 SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 FROM automation_suggestions

@@ -13,12 +13,12 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
-
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 const loopRuntimeSessionPrefix = "loop"
@@ -65,10 +65,10 @@ func (c loopCancellationSessionController) StopLoopSession(ctx context.Context, 
 }
 
 type loopGateJudgeRunner struct {
-	sessions            loopJudgeSessionManager
-	globalWorkspacePath string
-	policyGate          *loopSessionPolicyGate
-	executions          *loopJudgeExecutionRegistry
+	sessions loopJudgeSessionManager
+
+	policyGate *loopSessionPolicyGate
+	executions *loopJudgeExecutionRegistry
 }
 
 var _ gate.JudgeRunner = (*loopGateJudgeRunner)(nil)
@@ -95,10 +95,7 @@ func (r *loopGateJudgeRunner) Judge(
 	if agent == "" {
 		return gate.JudgeResponse{}, fmt.Errorf("%w: judge agent is required", looppkg.ErrValidation)
 	}
-	opts, err := r.judgeCreateOptions(req, agent)
-	if err != nil {
-		return gate.JudgeResponse{}, err
-	}
+	opts := r.judgeCreateOptions(req, agent)
 	if err := r.policyGate.apply(ctx, &opts, agent, nil); err != nil {
 		return gate.JudgeResponse{}, err
 	}
@@ -141,9 +138,13 @@ func (r *loopGateJudgeRunner) Judge(
 func (r *loopGateJudgeRunner) judgeCreateOptions(
 	req gate.JudgeRequest,
 	agent string,
-) (session.CreateOpts, error) {
+) session.CreateOpts {
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			Ceiling: req.GrantCeiling,
+		},
 		ProvenanceParentSessionID: strings.TrimSpace(req.ParentSessionID),
 		ProfileID:                 strings.TrimSpace(req.ProfileID),
 		AgentName:                 agent,
@@ -160,13 +161,10 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 	}
 	if workspaceID := strings.TrimSpace(req.WorkspaceID); workspaceID != "" {
 		opts.Workspace = workspaceID
-		return opts, nil
+		return opts
 	}
-	if workspacePath := strings.TrimSpace(r.globalWorkspacePath); workspacePath != "" {
-		opts.WorkspacePath = workspacePath
-		return opts, nil
-	}
-	return session.CreateOpts{}, errors.New("daemon: loop judge workspace is required")
+	opts.Scope = workspacepkg.ScopeUser
+	return opts
 }
 
 func (r *loopGateJudgeRunner) stopJudgeSession(ctx context.Context, sessionID string, terminalErr error) error {
@@ -210,13 +208,20 @@ func (r loopGateCommandRunner) RunCommand(
 		return gate.CommandResult{}, fmt.Errorf("%w: command check is required", looppkg.ErrValidation)
 	}
 	workspaceID := strings.TrimSpace(req.WorkspaceID)
-	if workspaceID == "" {
-		return gate.CommandResult{}, fmt.Errorf("%w: command workspace_id is required", looppkg.ErrValidation)
-	}
 	if r.workspaceResolver == nil {
 		return gate.CommandResult{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}
-	resolved, err := r.workspaceResolver.Resolve(ctx, workspaceID)
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	if workspaceID == "" {
+		resolver, ok := r.workspaceResolver.(workspacepkg.UserRuntimeResolver)
+		if !ok {
+			return gate.CommandResult{}, workspacepkg.ErrWorkspaceResolverUnavailable
+		}
+		resolved, err = resolver.ResolveUser(ctx, req.ProfileID)
+	} else {
+		resolved, err = r.workspaceResolver.Resolve(ctx, workspaceID)
+	}
 	if err != nil {
 		return gate.CommandResult{}, fmt.Errorf("daemon: resolve command workspace %q: %w", workspaceID, err)
 	}

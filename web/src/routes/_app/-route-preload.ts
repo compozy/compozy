@@ -1,11 +1,11 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { statusOptions } from "@/systems/status";
 import {
   activeWorkspaceStore,
   isActiveWorkspaceStoreHydrated,
   rehydrateActiveWorkspaceStore,
   resolveActiveWorkspace,
+  USER_FOCUS,
   workspacesListOptions,
   type ActiveWorkspaceResolution,
 } from "@/systems/workspace";
@@ -24,27 +24,19 @@ export function settleRouteQueries(queries: readonly Promise<unknown>[]): Promis
 export async function resolveActiveWorkspaceSelection(
   queryClient: QueryClient
 ): Promise<ActiveWorkspaceResolution> {
-  const [hydrationResult, workspacesResult, statusResult] =
-    await loadWorkspaceSelection(queryClient);
+  const [hydrationResult, workspacesResult] = await loadWorkspaceSelection(queryClient);
 
   if (workspacesResult.status === "rejected") {
     throw workspacesResult.reason;
   }
-  // Without `$HOME` the home row cannot be told apart from a project workspace,
-  // so a failed status read is a failed resolution — never a silent guess.
-  if (statusResult.status === "rejected") {
-    throw statusResult.reason;
-  }
 
   const hydrated = hydrationResult.status === "fulfilled";
   const context = activeWorkspaceStore.getSnapshot().context;
-  const userHomeDir = statusResult.value.daemon.user_home_dir;
 
   return resolveActiveWorkspace({
     workspaces: workspacesResult.value,
-    userHomeDir,
-    scope: hydrated ? context.scope : "global",
-    selectedWorkspaceId: hydrated ? context.selectedWorkspaceId : null,
+    breadthMode: hydrated ? context.breadthMode : "all",
+    focus: hydrated ? context.focus : USER_FOCUS,
   });
 }
 
@@ -53,7 +45,7 @@ export async function resolveActiveWorkspaceId(queryClient: QueryClient): Promis
   return resolution.runtimeWorkspaceId;
 }
 
-/** Workspace that owns the mounted desktop, including while data scope is Global. */
+/** Partition that owns the mounted desktop: the focused project, `user`, or `global`. */
 export async function resolveDesktopWorkspaceId(queryClient: QueryClient): Promise<string | null> {
   const resolution = await resolveActiveWorkspaceSelection(queryClient);
   return resolution.desktopWorkspaceId;
@@ -67,6 +59,5 @@ function loadWorkspaceSelection(queryClient: QueryClient) {
   return Promise.allSettled([
     hydration,
     queryClient.ensureQueryData(workspacesListOptions()),
-    queryClient.ensureQueryData(statusOptions()),
   ] as const);
 }

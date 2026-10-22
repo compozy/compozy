@@ -15,6 +15,7 @@ compozy task list [flags]
 
 ```
       --all-profiles        Read across every profile and include owner labels
+      --all-workspaces      List tasks across every project and User
       --cursor string       Continue from an opaque catalog cursor
   -h, --help                help for list
       --include-loop        Include Loop execution records
@@ -25,7 +26,7 @@ compozy task list [flags]
       --parent string       Filter by parent task ID
       --priority string     Filter by task priority
       --query string        Search task title or identifier
-      --scope string        Filter by scope: global or workspace
+      --scope string        Filter by scope: user (aliases: @user, global) or workspace
       --sort string         Sort by recent or priority (default "recent")
       --status string       Filter by task status
       --workspace string    Override workspace filter (ID, name, or path)

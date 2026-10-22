@@ -5,6 +5,7 @@
 - Operating model and updating
 - Daemon drain
 - Session lifecycle and CLI
+- User scope and All projects
 - Session event store ownership
 - Background roles and usage cost
 - Subagents
@@ -113,6 +114,58 @@ operator intent is guidance. Neither mode reuses or combines the canceled author
 
 The event store and materialized transcript are the durable source of truth for reattach. Transcript GET returns the newest bounded `entries` page plus `epoch`, `generation`, `max_sequence`, and `has_older`; request older entries with `before_sequence=next_before_sequence`. Each entry carries immutable `start_sequence` identity and its latest shaping `sequence`. Do not reconstruct session state from UI cache or JSONL sidecars.
 
+### User scope and All projects
+
+The **User scope** holds work that belongs to no project. There is one per profile; it is never a
+row in `workspaces`, and the operator home and `COMPOZY_HOME` can never be registered as projects
+(`workspace_home_forbidden`). User work runs in `[user_scope] work_dir` (default `~`) and loads
+Bundled, Marketplace, User, Profile, and Agent-local configuration only; workspace layers never
+apply. It has no worktrees.
+
+    compozy session new --user --agent general -o json
+    compozy session new --workspace @user --agent general -o json
+    compozy session list --workspace @user -o json
+    compozy loop runs --workspace @user -o json
+
+- `--user` is shorthand for `--workspace @user` and conflicts with `--workspace`, `--cwd`,
+  `--worktree`, and `--new-worktree`. The CLI forwards `@user` verbatim; it never resolves it as a
+  name or path.
+- HTTP/UDS: `POST /api/sessions` with `{"scope":"user","agent_name":"general"}`. `scope:"user"` plus
+  `workspace`, `workspace_path`, `worktree`, or `new_worktree` fails with
+  `400 session_create_scope_conflict`. Workspace-path routes accept `@user`
+  (`/api/workspaces/@user/sessions/<id>/prompt`, loop runs, loop requests, loops, loop nodes,
+  terminals, window manager) and behave as on a project. Query selectors accept
+  `workspace_id=@user` or `workspace=@user`.
+- Session payloads carry `scope` (`"workspace"` or `"user"`) and `effective_workspace_access`. User
+  items have `workspace_id` absent or empty; test for both. Task and automation `scope` values stay
+  `"global"` for User rows. Their scope inputs additionally accept `"user"` and `"@user"`;
+  updates keep scope immutable. Stored and emitted `"global"` values keep their meaning.
+- `@user` resolves to the User scope of the request's profile (`profile=` or the acting profile).
+  `all_profiles=true` (operator or granted reads only) returns the User rows of every profile,
+  owner-labeled. Mutations through `@user` need exactly one profile. An empty workspace value never
+  means User and never means "all".
+- Errors, in precedence order: `session_create_scope_conflict`; `user_scope_worktree_unsupported`
+  (worktree routes or parameters with `@user`); `user_scope_unsupported` (other routes with no User
+  meaning, such as workspace settings or delete). An invalid work directory fails User starts with
+  `user_scope_work_dir_invalid`; existing User work stays listed.
+- The work directory is not a sandbox: provider filesystem tools can reach beyond it. Access from a
+  User session to any registered project, and from a project session to User, is cross-scope and
+  follows the permission mode, consent, or the unrestricted grant (`references/native-tools.md`,
+  Workspace Boundary).
+
+**All projects** is the Web's breadth mode (the topbar globe): every registered project plus User,
+within the profile lens. Agents and scripts read the same aggregates with `--all-workspaces` or
+`all_workspaces=true`; ordinary agent identities are denied (`agent_scope_denied`). The route
+matrix, `workspace_ids` filter, cursors, and per-route rules are in `references/native-tools.md`
+(All-Projects Aggregates). Session lists take `--all-workspaces` and, over HTTP/UDS,
+`workspace_ids` (`@user` selects User rows); facets add `by_profile`.
+
+Upgrading to v0.4.0 migrates the former `COMPOZY_HOME` pseudo-project into the User scope of each
+owning profile. A pseudo-project that has worktrees or is the target of a Loop-targeting automation
+stays an ordinary project (`keep_project`, logged). Rows that cannot move are kept in
+`user_scope_migration_archive`; progress is recorded in `user_scope_migrations`. See
+`references/configuration.md` (User-scope execution directory) before diagnosing a migration.
+
 ### Session event store ownership
 
 Each `events.db` is bound to one exact session and workspace. Session reads and writes through CLI,
@@ -123,20 +176,19 @@ sidecars. A partially checkpointed main file is not evidence of corruption by it
 owner-read corruption errors are retried only after SQLite verifies integrity; confirmed corruption
 is refused. Keep the complete database family intact when diagnosing storage failures.
 
-History migrated from the former operator-home registration appears in the catalog as Global
-(`workspace_id` is empty). Its database still belongs to the original workspace recorded in the
+History migrated from the former operator-home registration appears in the catalog as a User
+session (`workspace_id` is empty). Its database still belongs to the original workspace recorded in the
 immutable creation witness. CompozyOS validates that witness and the physical owner together;
 the empty catalog scope is not permission to adopt another database. Retained version 3–5
 creation profiles preserve their original hashes without enabling retired runtime policies.
 
-Read Global history through `GET /api/sessions/{session_id}/transcript`, with the same paging
-parameters and profile read scope as project history. The same Global prefix exposes `/status`,
+Read that history through `GET /api/sessions/{session_id}/transcript`, with the same paging
+parameters and profile read scope as project history. The same prefix exposes `/status`,
 `/events`, `/history` and `/stream`, preserving event filters, archive selection, bounds and
 resume cursors. CLI `session status`, `events` (including `--follow`) and `history` resolve that
 owner automatically. Project mutation routes and native-tool workspace requirements remain unchanged.
 The corresponding owner lookup reports
-an empty workspace ID and the name `Global`. Web links enable Global after confirmation while
-preserving the remembered project; the recovered transcript is read-only.
+an empty workspace ID and the legacy name `Global`; treat an empty workspace ID as User.
 
 At startup, a missing or mismatched owner, or a changed physical database identity, produces a
 warning with the session and workspace IDs. That store is excluded from boot history processing;
@@ -503,7 +555,7 @@ the `finished` class. A new turn, terminal lifecycle state, or higher-priority p
 always outranks `done`. CLI and API reads never mark a session seen.
 
 Use `compozy session list --attention` for the `needs-you` class, `--badge <token>` for an exact
-badge, and `--all-workspaces` to remove the workspace filter. `--summary` returns exact `needs_you`,
+badge, and `--all-workspaces` to read every project plus User. `--summary` returns exact `needs_you`,
 `finished`, and per-workspace totals across the whole catalog. Attention lists default to
 `--sort attention`, ordered by the latest attention transition with a stable session-ID tie-break.
 
@@ -1047,7 +1099,7 @@ First-run onboarding completion is a global instance flag (stored in the `app_me
     compozy onboarding complete    # mark first-run onboarding as done
     compozy onboarding reset       # clear the flag so the web wizard runs again
 
-The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot does not register a workspace automatically. Project folders are optional: finishing or choosing Skip without a project opens the desktop in Global scope without registering the operator `$HOME`.
+The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot does not register a workspace automatically. Project folders are optional: finishing or choosing Skip without a project focuses **User** without registering the operator `$HOME`.
 
 Native session tools include scoped wait, governed spawn, stop, approval, clarification answer, and
 prompt cancel. Recap, repair, inspect, and Soul refresh remain CLI/HTTP/UDS management surfaces unless
@@ -1386,10 +1438,10 @@ operator trail: `entries: [{sequence, turn_id, preview, reply_preview, at}]`, wi
 previews. HTTP/UDS routes are `/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search`
 and `/transcript/outline`; CLI twins are `compozy session search <id> <query> --limit 50 -o json`
 and `compozy session outline <id> -o json`.
-For retained Global history, CLI selects `/api/sessions/{session_id}/transcript/search` or
-`/transcript/outline` automatically. These HTTP/UDS routes accept only Global-owned sessions
-and enforce profile read scope. Native session tools retain their project/caller workspace
-boundary; use the operator CLI or HTTP/UDS Global routes to inspect migrated home history.
+For retained User history migrated from the former home registration, CLI selects `/api/sessions/{session_id}/transcript/search` or
+`/transcript/outline` automatically. These HTTP/UDS routes accept only sessions with an empty workspace
+and enforce profile read scope. Native session tools address User sessions with `workspace: "@user"`
+under the Workspace Boundary rules.
 After rewind/clear, re-read navigation against the current transcript fences.
 
 Session resource reads include `stop_cause` with the existing `stop_reason`,

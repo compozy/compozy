@@ -22,6 +22,8 @@ const fallbackFraudSession: SessionPayload = {
   supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
+  scope: "workspace",
+  effective_workspace_access: "",
   id: storySessionIds.fraud,
   name: "Payout hold triage",
   agent_name: storyAgentNames.fraud,

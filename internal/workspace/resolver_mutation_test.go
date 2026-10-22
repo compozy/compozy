@@ -1081,3 +1081,63 @@ func TestUnregisterFinalizationRecovery(t *testing.T) {
 		}
 	})
 }
+
+func TestReservedWorkspaceRegistration(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject reserved names on registration and rename", func(t *testing.T) {
+		t.Parallel()
+		home := newTestHomePaths(t)
+		store := newMockWorkspaceStore()
+		resolver := newTestResolver(t, store, WithHomePaths(home))
+		for _, name := range []string{"user", "global", "@x"} {
+			root := filepath.Join(t.TempDir(), name)
+			if err := os.MkdirAll(root, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := resolver.Register(
+				t.Context(),
+				RegisterOptions{RootDir: root},
+			); !errors.Is(
+				err,
+				ErrWorkspaceNameReserved,
+			) {
+				t.Fatalf("register %q: %v", name, err)
+			}
+		}
+		registered, err := resolver.Register(t.Context(), RegisterOptions{RootDir: t.TempDir(), Name: "project"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := resolver.Update(
+			t.Context(),
+			registered.ID,
+			UpdateOptions{Name: new("user")},
+		); !errors.Is(
+			err,
+			ErrWorkspaceNameReserved,
+		) {
+			t.Fatalf("rename: %v", err)
+		}
+	})
+	t.Run("Should reject Compozy home and its symlink before insertion", func(t *testing.T) {
+		t.Parallel()
+		home := newTestHomePaths(t)
+		store := newMockWorkspaceStore()
+		resolver := newTestResolver(t, store, WithHomePaths(home))
+		for _, root := range []string{home.HomeDir, symlinkWorkspaceRootForTest(t, home.HomeDir)} {
+			if _, err := resolver.Register(
+				t.Context(),
+				RegisterOptions{RootDir: root},
+			); !errors.Is(
+				err,
+				ErrOperatorHomeWorkspace,
+			) {
+				t.Fatalf("register home: %v", err)
+			}
+		}
+		rows, err := resolver.List(t.Context())
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("registrations = %v, %v", rows, err)
+		}
+	})
+}

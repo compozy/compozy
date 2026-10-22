@@ -11,7 +11,7 @@ type RunReadStore interface {
 	GenerationLineageReader
 	RunListSummaryReader
 	GetLoopRun(context.Context, WorkspaceID, RunID) (Run, error)
-	GetLoopDefinitionSnapshot(context.Context, WorkspaceID, string) (DefinitionSnapshot, error)
+	GetLoopDefinitionSnapshot(context.Context, WorkspaceID, string, string) (DefinitionSnapshot, error)
 	ListGenerationOutputs(context.Context, WorkspaceID, RunID, int) ([]GenerationOutput, error)
 	ListNodeAttempts(context.Context, WorkspaceID, RunID) ([]NodeAttempt, error)
 	ListNodeControls(context.Context, WorkspaceID, RunID) ([]NodeControl, error)
@@ -166,7 +166,7 @@ func (s *computedRunReadService) loadRosterSource(
 	if err != nil {
 		return RosterSource{}, err
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, workspaceID, run.DefinitionDigest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, workspaceID, run.ProfileID, run.DefinitionDigest)
 	if err != nil {
 		return RosterSource{}, fmt.Errorf("read loop definition snapshot: %w", err)
 	}

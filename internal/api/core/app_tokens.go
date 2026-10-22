@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
@@ -152,4 +154,15 @@ func AppTokenPayload(token gateway.AppToken) contract.AppTokenPayload {
 		payload.RevokedAt = new(token.Session.RevokedAt)
 	}
 	return payload
+}
+
+// requestOperatorOrigin is the creation origin of a request without agent credentials: an app
+// token is a non-human principal with no grant ceiling; anything else is the operator.
+func requestOperatorOrigin(c *gin.Context) workspaceaccess.Origin {
+	if c != nil && c.Request != nil {
+		if _, ok := AppTokenFromContext(c.Request.Context()); ok {
+			return workspaceaccess.Origin{Kind: workspaceaccess.ActorApp}
+		}
+	}
+	return workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}
 }

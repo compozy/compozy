@@ -1,49 +1,40 @@
 import {
-  GLOBAL_SCOPE_COPY,
   destinationLabel,
+  type DataScope,
+  type DestinationKind,
   type WorkspacePayload,
-  type WorkspaceScopeMode,
 } from "@/systems/workspace";
 
 import { sessionCreateBinding } from "./session-create-binding";
 
 interface ResolveSessionCreateDestinationOptions {
   activeWorkspace: WorkspacePayload | undefined;
-  homeWorkspaceId?: string;
   projectWorkspaceId?: string | null;
-  requestedScope?: WorkspaceScopeMode;
+  /** The menubar destination; omitted follows `activeWorkspace`. */
+  dataScope?: DataScope | null;
   userHomeDir?: string;
 }
 
 export function resolveSessionCreateDestination({
   activeWorkspace,
-  homeWorkspaceId,
   projectWorkspaceId,
-  requestedScope,
+  dataScope,
   userHomeDir,
 }: ResolveSessionCreateDestinationOptions) {
-  const scope: WorkspaceScopeMode = requestedScope ?? (activeWorkspace ? "workspace" : "global");
+  const projectScoped =
+    dataScope === undefined ? activeWorkspace !== undefined : dataScope?.kind === "project";
+  const scope: DestinationKind = projectScoped ? "project" : "user";
   const runtimeWorkspaceId = activeWorkspace?.id ?? null;
   const binding = sessionCreateBinding({
     scope,
-    projectWorkspaceId:
-      scope === "workspace"
-        ? (projectWorkspaceId ?? runtimeWorkspaceId)
-        : (projectWorkspaceId ?? null),
-    homeWorkspaceId:
-      homeWorkspaceId ?? (scope === "global" ? (runtimeWorkspaceId ?? undefined) : undefined),
-    userHomeDir,
+    projectWorkspaceId: projectScoped ? (projectWorkspaceId ?? runtimeWorkspaceId) : null,
   });
   return {
     binding,
-    destinationLabel: destinationLabel(
-      scope,
-      scope === "global" ? GLOBAL_SCOPE_COPY.chipLabel : activeWorkspace?.name
-    ),
-    environmentWorkspaceId:
-      scope === "workspace" ? (projectWorkspaceId ?? runtimeWorkspaceId ?? "") : "",
+    destinationLabel: destinationLabel(scope, activeWorkspace?.name),
+    environmentWorkspaceId: projectScoped ? (projectWorkspaceId ?? runtimeWorkspaceId ?? "") : "",
     runtimeWorkspaceId,
     scope,
-    sessionRoot: scope === "global" ? (userHomeDir ?? "~") : (activeWorkspace?.root_dir ?? ""),
+    sessionRoot: projectScoped ? (activeWorkspace?.root_dir ?? "") : (userHomeDir ?? "~"),
   };
 }

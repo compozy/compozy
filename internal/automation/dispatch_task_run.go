@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
-
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (d *Dispatcher) dispatchTaskBackedAttempt(
@@ -45,7 +44,14 @@ func (d *Dispatcher) dispatchTaskBackedAttempt(
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
 
-	taskRecord, err := d.tasks.CreateTask(ctx, directTaskSpec(req.Job, preFirePrompt), actor)
+	taskRecord, err := d.tasks.CreateTask(
+		workspaceaccess.WithOrigin(
+			ctx,
+			workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.grantCeiling()},
+		),
+		directTaskSpec(req.Job, preFirePrompt),
+		actor,
+	)
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, classifyDispatchError(err), err)
 	}

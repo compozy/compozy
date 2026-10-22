@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -2299,4 +2301,20 @@ func TestSessionLoopWorkFreshness(t *testing.T) {
 			t.Fatal("quarantine lost attention")
 		}
 	})
+}
+
+func TestCreateOptionsFromProfileKeepsGrantCeiling(t *testing.T) {
+	t.Parallel()
+	for _, ceiling := range []string{"", workspaceaccess.Unrestricted} {
+		t.Run("Should carry the persisted loop run ceiling "+ceiling+" into a pinned recreation", func(t *testing.T) {
+			t.Parallel()
+			opts := createOptionsFromProfile(
+				looppkg.ActionSessionBindRequest{GrantCeiling: ceiling},
+				store.SessionCreationProfile{ProfileID: "profile-a", AgentName: "coder", WorkspaceID: "ws-a"},
+			)
+			if opts.Origin.Kind != workspaceaccess.ActorAutomation || opts.Origin.Ceiling != ceiling {
+				t.Fatalf("Origin = %#v, want automation origin with ceiling %q (USW BR-9)", opts.Origin, ceiling)
+			}
+		})
+	}
 }

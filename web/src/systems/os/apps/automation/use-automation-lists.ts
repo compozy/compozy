@@ -9,10 +9,13 @@ type ListFilters = Parameters<typeof useAutomationJobs>[0];
  * never asks for triggers.
  */
 export function useAutomationLists({
+  enabled = true,
   filters,
   start,
   targetFilter,
 }: {
+  /** False while the window's data scope is unsettled: nothing loads. */
+  enabled?: boolean;
   filters: ListFilters;
   start: "schedule" | "event" | null;
   targetFilter: string | null | undefined;
@@ -20,8 +23,8 @@ export function useAutomationLists({
   const fetchTriggers = targetFilter !== "task";
   const showJobs = start !== "event";
   const showTriggers = start !== "schedule" && fetchTriggers;
-  const jobsQuery = useAutomationJobs(filters);
-  const triggersQuery = useAutomationTriggers(filters, { enabled: fetchTriggers });
+  const jobsQuery = useAutomationJobs(filters, { enabled });
+  const triggersQuery = useAutomationTriggers(filters, { enabled: enabled && fetchTriggers });
   const jobsMore = Boolean(jobsQuery.hasNextPage);
   const triggersMore = fetchTriggers && Boolean(triggersQuery.hasNextPage);
 

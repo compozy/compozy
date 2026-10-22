@@ -21,11 +21,10 @@ const PREVIEW_AGENTS = agentFixtures.map(agent => ({
 }));
 
 const submitPrompt = fn().mockName("onSubmit");
-const pickProject = fn().mockName("onPickProject");
 
 export interface EmptyDesktopPreviewProps {
-  /** Global scope has no project to start a session in. */
-  hasProject?: boolean;
+  /** All projects: New session asks for the project and agent, so the composer has no agent control. */
+  asksTarget?: boolean;
   /** A session is starting from the sent prompt. */
   starting?: boolean;
   /** Text in the composer (the sent prompt while starting); empty by default. */
@@ -34,15 +33,15 @@ export interface EmptyDesktopPreviewProps {
 
 /**
  * Story-only empty desktop: the production view and session composer on a
- * transcript-less runtime, with the send and project pick recorded as actions
- * instead of reaching a daemon.
+ * transcript-less runtime, with the send recorded as an action instead of
+ * reaching a daemon.
  */
 export function EmptyDesktopPreview({
-  hasProject = true,
+  asksTarget = false,
   starting = false,
   prompt = "",
 }: EmptyDesktopPreviewProps) {
-  const draftId = emptyDesktopDraftId(hasProject ? storyDefaultWorkspaceId : null);
+  const draftId = emptyDesktopDraftId(asksTarget ? null : storyDefaultWorkspaceId);
   const [agentName, setAgentName] = useState<string | null>(storyAgentNames.product);
   // Every story owns its draft slot's text, so one story's prompt never leaks into the next.
   useEffect(() => {
@@ -54,12 +53,13 @@ export function EmptyDesktopPreview({
       draftId={draftId}
       workspaceId={storyDefaultWorkspaceId}
       agentName={agentName ?? ""}
-      canPrompt={hasProject && !starting}
+      canPrompt={!starting}
     >
       <OsEmptyDesktopView
         desktopName="Desktop 1"
         paletteShortcutLabel={shortcutLabel("meta+KeyK")}
-        hasProject={hasProject}
+        canStart
+        asksTarget={asksTarget}
         starting={starting}
         draftId={draftId}
         onSubmit={text => submitPrompt(text)}
@@ -67,9 +67,8 @@ export function EmptyDesktopPreview({
         agentName={agentName}
         onAgentChange={setAgentName}
         runtimeControl={
-          hasProject ? <SessionPromptRuntimeSelector canPrompt={!starting} /> : undefined
+          asksTarget ? undefined : <SessionPromptRuntimeSelector canPrompt={!starting} />
         }
-        onPickProject={pickProject}
       />
     </SessionDraftRuntimeProvider>
   );

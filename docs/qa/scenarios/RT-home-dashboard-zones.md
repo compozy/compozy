@@ -4,9 +4,9 @@ area: RT
 title: Home dashboard renders seven truthful zones
 persona: Cora
 journey: J-operate-home-dashboard
-expected: On a workspace that has recorded any work, Home window (`/`) renders pagemeta → Needs you → KPI strip → Working now → Pulse → Outcomes | Usage & cost → Agents | Activity → System, each backed by `GET /api/observe/overview` plus existing status/sessions/tasks/agents/logs reads; empty windows show honest empty states (no invented metrics); insights with no data are omitted; a workspace with no recorded work at all renders the zero-inventory start instead of the seven zones (`RT-home-zero-inventory-first-run` owns that read); the head carries glyph + Live pill + one primary New session action and the body renders no H1. Zone queries follow the menubar Global switch: Global (`~`) uses the home-scope filter; a project workspace uses that workspace id. Toggling Global does not invent a home row in the workspace menu.
+expected: On a workspace that has recorded any work, Home window (`/`) renders pagemeta → Needs you → KPI strip → Working now → Pulse → Outcomes | Usage & cost → Agents | Activity → System, each backed by `GET /api/observe/overview` plus existing status/sessions/tasks/agents/logs reads; empty windows show honest empty states (no invented metrics); insights with no data are omitted; a workspace with no recorded work at all renders the zero-inventory start instead of the seven zones (`RT-home-zero-inventory-first-run` owns that read); the head carries glyph + Live pill + one primary New session action and the body renders no H1. Zone queries follow the menubar destination: under All projects the header reads "All projects", the overview reads the explicit aggregate (`all_workspaces=true`, never the overview omission, which is User's tasks only) and Working now lists every project's live sessions and task runs (`all_workspaces=true`) with a project badge on each card ("User" for work outside a project) that opens the item in place on the All projects desktop; User reads `@user`; a project uses that workspace id. Toggling All projects does not invent a home row in the workspace menu.
 entry_points: web `/` (dashboard OS window); `GET /api/observe/overview` (HTTP+UDS)
-qa_status: skipped
+qa_status: untested
 bug_ids: BUG-20260813-retry-leaves-blank-route
 fix_status: fixed
 retest_status:
@@ -64,3 +64,12 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 QA impact 2026-10-07 (memory removal): the System zone renders five tiles (daemon, providers, scheduler, hooks, retention); the Memory tile and `status.memory` were removed, and Activity no longer folds `memory.*` events as quiet (historical `memory.*` rows still within retention render as ordinary rows). The skip above still stands; the next cycle that walks this scenario should expect five tiles.
+
+2026-10-21 qa-impact (all-projects AW2, Tasks + Home): **reset to `untested`**. Under All projects
+Home now asks for the aggregates explicitly — `GET /api/observe/overview?all_workspaces=true` and
+`GET /api/observe/tasks/dashboard?all_workspaces=true` — instead of the omission that only read User
+tasks. Walk with two projects plus User work: the header reads "All projects", the KPI strip and
+Needs you count every project, Working now badges each session and task-run card with its project (or
+User), and opening a card keeps All projects on and shows the project badge in the window chrome.
+Repeat in project mode (no badges, that project only) and with User focused (`@user`). The Needs you
+items carry no project in the overview payload, so their Open lands unbound on the All projects desktop.

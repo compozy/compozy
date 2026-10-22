@@ -3,6 +3,7 @@ package httpapi
 import "github.com/gin-gonic/gin"
 
 func registerWorktreeRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/worktrees", handlers.ListWorktreeAggregate)
 	api.GET("/worktrees/catalog-stream", handlers.StreamWorktreeCatalog)
 	worktrees := api.Group("/workspaces/:workspace_id/worktrees")
 	worktrees.GET("", handlers.ListWorktrees)

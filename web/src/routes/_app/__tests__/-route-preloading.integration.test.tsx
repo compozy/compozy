@@ -13,7 +13,7 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useAgent, useAgentCatalog, useAgents } from "@/systems/agent";
+import { useAgent, useAgentAggregate, useAgentCatalog, useAgents } from "@/systems/agent";
 import {
   useAutomationJobs,
   useAutomationSuggestions,
@@ -25,7 +25,9 @@ import {
   useLoopConfig,
   useLoopRun,
   useLoopRuns,
+  useLoopRunsList,
   useLoops,
+  useLoopsAggregate,
 } from "@/systems/loops";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
@@ -37,7 +39,6 @@ import {
 } from "@/systems/profiles";
 import { useSchedulerBacklog, useSchedulerStatus } from "@/systems/scheduler";
 import { useSessions } from "@/systems/session";
-import { statusOptions } from "@/systems/status";
 import {
   taskDashboardOptions,
   useTask,
@@ -61,7 +62,8 @@ import {
 import { useVaultSecrets, vaultSecretsListOptions } from "@/systems/vault";
 import {
   setActiveWorkspaceId,
-  enableGlobalScope,
+  enableAllProjects,
+  focusUser,
   useWorkspace,
   useWorkspaces,
   workspacesListOptions,
@@ -70,6 +72,7 @@ import { routeLoader } from "@/test/route-options";
 
 const adapterMocks = vi.hoisted(() => ({
   fetchAgent: vi.fn(),
+  fetchAgentAggregate: vi.fn(),
   fetchAgentCatalog: vi.fn(),
   fetchAgents: vi.fn(),
   fetchOnboardingStatus: vi.fn(),
@@ -104,9 +107,12 @@ const adapterMocks = vi.hoisted(() => ({
   listAutomationJobRuns: vi.fn(),
   listAutomationTriggerRuns: vi.fn(),
   listAutomationSuggestions: vi.fn(),
+  listAutomationSuggestionsAggregate: vi.fn(),
   listAutomationTriggers: vi.fn(),
   listLoopRuns: vi.fn(),
+  listLoopRunsAggregate: vi.fn(),
   listLoops: vi.fn(),
+  listLoopsAggregate: vi.fn(),
   listTasks: vi.fn(),
   listSettingsApplyRecords: vi.fn(),
   listSettingsMCPServers: vi.fn(),
@@ -124,6 +130,7 @@ vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
 vi.mock("@/systems/agent/adapters/agent-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-api")>()),
   fetchAgent: adapterMocks.fetchAgent,
+  fetchAgentAggregate: adapterMocks.fetchAgentAggregate,
   fetchAgentCatalog: adapterMocks.fetchAgentCatalog,
   fetchAgents: adapterMocks.fetchAgents,
 }));
@@ -205,6 +212,7 @@ vi.mock("@/systems/automation/adapters/automation-suggestions-api", async import
     typeof import("@/systems/automation/adapters/automation-suggestions-api")
   >()),
   listAutomationSuggestions: adapterMocks.listAutomationSuggestions,
+  listAutomationSuggestionsAggregate: adapterMocks.listAutomationSuggestionsAggregate,
 }));
 
 vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
@@ -214,7 +222,9 @@ vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
   getLoopConfig: adapterMocks.getLoopConfig,
   getLoopRun: adapterMocks.getLoopRun,
   listLoopRuns: adapterMocks.listLoopRuns,
+  listLoopRunsAggregate: adapterMocks.listLoopRunsAggregate,
   listLoops: adapterMocks.listLoops,
+  listLoopsAggregate: adapterMocks.listLoopsAggregate,
 }));
 
 import { Route as AppRoute } from "../../_app";
@@ -349,7 +359,7 @@ const cases: PreloadCase[] = [
     ],
   },
   {
-    name: "home → status/workspace/agent/exact-active-session options",
+    name: "home → workspace/agent/exact-active-session options",
     load: queryClient => invokeLoader(HomeRoute, context(queryClient)),
     mountConsumer: queryClient =>
       mountQueries(queryClient, () => {
@@ -361,12 +371,7 @@ const cases: PreloadCase[] = [
           filters: { state: "active", type: "user", sort: "last_activity", limit: 6 },
         });
       }),
-    requests: [
-      adapterMocks.fetchStatus,
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.fetchAgents,
-      adapterMocks.fetchSessions,
-    ],
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.fetchAgents, adapterMocks.fetchSessions],
   },
   {
     name: "tasks → exact route-filtered active-workspace catalog options",
@@ -398,12 +403,7 @@ const cases: PreloadCase[] = [
         });
         useTaskInboxBadge({ scope: "workspace", workspace: workspace.id, limit: 1 });
       }),
-    requests: [
-      adapterMocks.fetchWorkspaces,
-      adapterMocks.fetchStatus,
-      adapterMocks.listTasks,
-      adapterMocks.getTaskInbox,
-    ],
+    requests: [adapterMocks.fetchWorkspaces, adapterMocks.listTasks, adapterMocks.getTaskInbox],
   },
   {
     name: "agents → exact workspace/filter infinite catalog options",
@@ -596,6 +596,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopRunFormRoute, {
         ...context(queryClient),
+        deps: {},
         params: { name: "review" },
       }),
     mountConsumer: queryClient =>
@@ -611,6 +612,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopEditorRoute, {
         ...context(queryClient),
+        deps: {},
         params: { name: "review" },
       }),
     mountConsumer: queryClient =>
@@ -626,6 +628,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopConfigureRoute, {
         ...context(queryClient),
+        deps: {},
         params: { name: "review" },
       }),
     mountConsumer: queryClient =>
@@ -763,6 +766,12 @@ describe("route query preloading", () => {
       page: { has_more: false, limit: 50, total: 0 },
       sessions_available: true,
     });
+    adapterMocks.fetchAgentAggregate.mockResolvedValue({
+      agents: [],
+      facets: { active: 0, categories: [], idle: 0, total: 0 },
+      page: { has_more: false, limit: 50, total: 0 },
+      sessions_available: true,
+    });
     adapterMocks.fetchAgent.mockResolvedValue({ name: "codex" });
     adapterMocks.fetchSessions.mockResolvedValue({
       sessions: [],
@@ -787,6 +796,7 @@ describe("route query preloading", () => {
       page: { has_more: false, limit: 50, total: 0 },
     });
     adapterMocks.listAutomationSuggestions.mockResolvedValue({ suggestions: [] });
+    adapterMocks.listAutomationSuggestionsAggregate.mockResolvedValue({ suggestions: [] });
     adapterMocks.listAutomationTriggers.mockResolvedValue({
       page: { has_more: false, limit: 50, total: 0 },
       triggers: [],
@@ -861,7 +871,8 @@ describe("route query preloading", () => {
       const queryClient = createQueryClient();
       adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "marketing" });
       setProfileView(profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile });
-      const scope = profile === "@all" ? { all_profiles: true } : { profile };
+      // Definitions resolve for one concrete profile: under All profiles, the acting one.
+      const scope = { profile: "marketing" };
       await invokeLoader(LoopsRoute, {
         ...context(queryClient),
         deps: { limit: 50, sort: "name" as const },
@@ -907,38 +918,135 @@ describe("route query preloading", () => {
     queryClient.clear();
   });
 
-  it("Should skip workspace suggestions when the automations route is globally scoped", async () => {
+  it("Should preload only the project's automations in project mode (8A)", async () => {
     const queryClient = createQueryClient();
 
     await invokeLoader(AutomationsRoute, {
       ...context(queryClient),
-      deps: { scope: "global" as const, start: "schedule" as const },
+      deps: { start: "schedule" as const },
       location: { pathname: "/automations" },
     });
 
-    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
-    expect(adapterMocks.fetchWorkspaces).not.toHaveBeenCalled();
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace_id: workspace.id }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listAutomationJobs.mock.calls[0]?.[0].all_workspaces).toBeUndefined();
+    queryClient.clear();
+  });
+
+  it("Should preload every project's automations and suggestions under All projects", async () => {
+    const queryClient = createQueryClient();
+    enableAllProjects();
+
+    await invokeLoader(AutomationsRoute, {
+      ...context(queryClient),
+      deps: {},
+      location: { pathname: "/automations" },
+    });
+    await waitFor(() =>
+      expect(adapterMocks.listAutomationSuggestionsAggregate).toHaveBeenCalledTimes(1)
+    );
+
+    for (const list of [adapterMocks.listAutomationJobs, adapterMocks.listAutomationTriggers]) {
+      expect(list).toHaveBeenCalledWith(
+        expect.objectContaining({ all_workspaces: true }),
+        expect.any(AbortSignal)
+      );
+      expect(list.mock.calls[0]?.[0].scope).toBeUndefined();
+      expect(list.mock.calls[0]?.[0].workspace_id).toBeUndefined();
+    }
     expect(adapterMocks.listAutomationSuggestions).not.toHaveBeenCalled();
     queryClient.clear();
   });
 
-  it("Should preload and reuse the Global agent catalog without a project", async () => {
+  it("Should preload User lists under User focus, never the aggregate", async () => {
     const queryClient = createQueryClient();
-    enableGlobalScope();
+    focusUser();
+
+    await invokeLoader(TasksRoute, { ...context(queryClient), deps: {} });
+    await invokeLoader(AutomationsRoute, {
+      ...context(queryClient),
+      deps: {},
+      location: { pathname: "/automations" },
+    });
+
+    expect(adapterMocks.listTasks).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "global" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listTasks.mock.calls[0]?.[0].workspace).toBeUndefined();
+    expect(adapterMocks.listAutomationJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "global" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listAutomationSuggestions).not.toHaveBeenCalled();
+    queryClient.clear();
+  });
+
+  it("Should preload and reuse the agents aggregate under All projects", async () => {
+    const queryClient = createQueryClient();
+    enableAllProjects();
     await invokeLoader(AgentsRoute, {
       ...context(queryClient),
       deps: { q: "reading", limit: 50 },
     });
-    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledExactlyOnceWith(
+    expect(adapterMocks.fetchAgentAggregate).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ profile: "default", q: "reading", limit: 50 }),
       expect.any(AbortSignal)
     );
-    expect(adapterMocks.fetchAgentCatalog.mock.calls[0]?.[0].workspace).toBeUndefined();
+    expect(adapterMocks.fetchAgentCatalog).not.toHaveBeenCalled();
     const unmount = mountQueries(queryClient, () => {
-      useAgentCatalog("", { q: "reading", limit: 50 });
+      useAgentAggregate([], { q: "reading", limit: 50 });
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
-    expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.fetchAgentAggregate).toHaveBeenCalledTimes(1);
+    unmount();
+    queryClient.clear();
+  });
+
+  it("Should preload and reuse the All projects Loop catalog and runs aggregates", async () => {
+    const queryClient = createQueryClient();
+    enableAllProjects();
+    adapterMocks.listLoopsAggregate.mockResolvedValue({
+      entries: [],
+      errors: [],
+      truncated: false,
+    });
+    adapterMocks.listLoopRunsAggregate.mockResolvedValue({ runs: [] });
+
+    await invokeLoader(LoopsRoute, {
+      ...context(queryClient),
+      deps: { limit: 50, sort: "name" as const },
+      location: { pathname: "/loops" },
+    });
+    await invokeLoader(LoopRunsRoute, {
+      ...context(queryClient),
+      deps: {},
+      location: { pathname: "/loop-runs" },
+    });
+
+    // The aggregate is one bounded batch: no per-project page size, no workspace route.
+    expect(adapterMocks.listLoopsAggregate).toHaveBeenCalledExactlyOnceWith(
+      { all_workspaces: true },
+      expect.objectContaining({ sort: "name", profile: "default" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listLoopsAggregate.mock.calls[0]?.[1].limit).toBeUndefined();
+    expect(adapterMocks.listLoopRunsAggregate).toHaveBeenCalledExactlyOnceWith(
+      { all_workspaces: true },
+      expect.objectContaining({ profile: "default" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listLoops).not.toHaveBeenCalled();
+    expect(adapterMocks.listLoopRuns).not.toHaveBeenCalled();
+    const unmount = mountQueries(queryClient, () => {
+      useLoopsAggregate({ all_workspaces: true }, { sort: "name" });
+      useLoopRunsList({ kind: "aggregate", params: { all_workspaces: true } }, {});
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.listLoopsAggregate).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listLoopRunsAggregate).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
   });
@@ -954,9 +1062,9 @@ describe("route query preloading", () => {
     await waitFor(() => expect(adapterMocks.listAutomationSuggestions).toHaveBeenCalledTimes(1));
 
     const unmount = mountQueries(queryClient, () => {
-      useAutomationJobs({ limit: 50 });
-      useAutomationTriggers({ limit: 50 });
-      useAutomationSuggestions(workspace.id, "pending");
+      useAutomationJobs({ limit: 50, scope: "workspace", workspace_id: workspace.id });
+      useAutomationTriggers({ limit: 50, scope: "workspace", workspace_id: workspace.id });
+      useAutomationSuggestions({ kind: "workspace", workspaceID: workspace.id }, "pending");
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
@@ -1011,14 +1119,14 @@ describe("route query preloading", () => {
     await expect(
       invokeLoader(AutomationsRoute, {
         ...context(queryClient),
-        deps: { scope: "global" as const, start: "schedule" as const },
+        deps: { start: "schedule" as const },
         location: { pathname: "/automations" },
       })
     ).resolves.toBeUndefined();
 
     expect(queryClient.isFetching()).toBe(1);
     const unmount = mountQueries(queryClient, () => {
-      useAutomationJobs({ limit: 50, scope: "global" });
+      useAutomationJobs({ limit: 50, scope: "workspace", workspace_id: workspace.id });
     });
     expect(adapterMocks.listAutomationJobs).toHaveBeenCalledTimes(1);
 
@@ -1062,11 +1170,6 @@ describe("route query preloading", () => {
   });
 
   it.each([
-    {
-      name: "status",
-      reject: () => adapterMocks.fetchStatus.mockRejectedValue(new Error("status unavailable")),
-      queryKey: statusOptions().queryKey,
-    },
     {
       name: "workspace catalog",
       reject: () =>
@@ -1334,7 +1437,7 @@ describe("route query preloading", () => {
     "Should restore the remembered profile in %s breadth before cold-entry task and shell reads",
     async scope => {
       const queryClient = createQueryClient();
-      if (scope === "global") enableGlobalScope();
+      if (scope === "global") enableAllProjects();
       adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "marketing" });
       adapterMocks.getTaskRun.mockResolvedValue({ run: { id: "run-1", status: "completed" } });
       adapterMocks.getTask.mockResolvedValue({

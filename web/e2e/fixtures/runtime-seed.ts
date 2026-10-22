@@ -665,7 +665,12 @@ export async function seedBrowserAutomationOperatorFlow(
         `/api/sessions/${encodeURIComponent(baselineRun.session_id ?? "")}/owner`
       );
       const payload = await runtime.requestJSON<{ entries: Array<{ message: unknown }> }>(
-        workspaceSessionPath(owner.workspace_id, baselineRun.session_id ?? "", "/transcript")
+        // A global automation runs a User session, which owns no workspace.
+        workspaceSessionPath(
+          owner.workspace_id || "@user",
+          baselineRun.session_id ?? "",
+          "/transcript"
+        )
       );
       const transcript = JSON.stringify(payload.entries.map(entry => entry.message));
 

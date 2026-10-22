@@ -1,5 +1,6 @@
 import type { SessionPayload } from "../types";
 import { SessionApiError, SessionNotFoundError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export interface SessionRewindRequest {
   expected_epoch: number;
@@ -37,7 +38,7 @@ export async function rewindSession(
 ): Promise<SessionRewindResult> {
   const request = new Request(
     new URL(
-      `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/rewind?${new URLSearchParams({ profile })}`,
+      `/api/workspaces/${encodeURIComponent(sessionWorkspacePath(workspaceId))}/sessions/${encodeURIComponent(id)}/rewind?${new URLSearchParams({ profile })}`,
       typeof window === "undefined" ? "http://localhost" : window.location.origin
     ),
     {

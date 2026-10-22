@@ -41,13 +41,13 @@ func (s *Service) CloseTerminal(ctx context.Context, info terminalpkg.Info) erro
 	lane := s.lanes[key]
 	s.mu.Unlock()
 	if lane == nil {
-		s.removeTerminalLiveTails(info.WS, info.ID)
+		s.removeTerminalLiveTails(terminalpkg.JournalWorkspaceID(info.WS, info.ProfileID), info.ID)
 		return nil
 	}
 	err := lane.close(ctx)
 	s.removeStoppedLane(key, lane)
 	if err == nil {
-		s.removeTerminalLiveTails(info.WS, info.ID)
+		s.removeTerminalLiveTails(terminalpkg.JournalWorkspaceID(info.WS, info.ProfileID), info.ID)
 	}
 	return err
 }
@@ -91,7 +91,7 @@ func (s *Service) ConsumeMarkerFacts(
 			if !ok {
 				actor = lane.actor()
 			}
-			id, err := s.reserveObservedCommandID(ctx, info.WS)
+			id, err := s.reserveObservedCommandID(ctx, terminalpkg.JournalWorkspaceID(info.WS, info.ProfileID))
 			if err != nil {
 				s.logger.Error("terminal journal: reserve command id", "terminal_id", info.ID, "error", err)
 				lane.setAuditBlocked()
@@ -101,7 +101,7 @@ func (s *Service) ConsumeMarkerFacts(
 				id: id, command: scrubCommand(fact.Command), cwd: fact.Cwd, startedAt: s.now(),
 				actor: actor, detectedBy: commandDetectionMarker,
 			}) {
-				s.ReleaseCommandID(info.WS, id)
+				s.ReleaseCommandID(terminalpkg.JournalWorkspaceID(info.WS, info.ProfileID), id)
 				continue
 			}
 			lane.emitEvent(terminalpkg.Event{
@@ -158,7 +158,7 @@ func (l *terminalLane) finishCommand(row terminalpkg.CommandRow, finishedAt time
 	select {
 	case err := <-result:
 		if err != nil {
-			l.service.ReleaseCommandID(l.info.WS, row.ID)
+			l.service.ReleaseCommandID(terminalpkg.JournalWorkspaceID(l.info.WS, l.info.ProfileID), row.ID)
 			return
 		}
 	default:

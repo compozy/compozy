@@ -8,6 +8,7 @@ import type {
   SessionListViewModel,
   SessionPayload,
 } from "@/systems/session";
+import { sessionListViewFixture } from "@/systems/session/mocks";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { CmdPaletteRegistryProvider } from "../../contexts/cmd-palette-registry-context";
@@ -29,6 +30,8 @@ function session(
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
+    scope: "workspace",
+    effective_workspace_access: "",
     id,
     name,
     agent_name: agentName,
@@ -71,21 +74,12 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
   onUnarchive: fn(),
 };
 
-const SESSION_LIST_VIEW: SessionListViewModel = {
-  scope: "workspace",
+const SESSION_LIST_VIEW: SessionListViewModel = sessionListViewFixture({
   sort: "last_activity",
-  archived: false,
-  saving: false,
-  setScope: fn(),
   setSort: fn(),
   setArchived: fn(),
-  aggregate: false,
-  scopeLabel: "default",
   ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
-  workspaceGroups: [],
-  collapsedWorkspaceIds: new Set<string>(),
-  toggleWorkspace: fn(),
-};
+});
 
 const WORKSPACE: WorkspacePayload = {
   id: "workspace-compozy",

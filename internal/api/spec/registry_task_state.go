@@ -1,6 +1,9 @@
 package spec
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/workspaceaccess"
+)
 
 func registryTaskStateOperations() []OperationSpec {
 	operations := []OperationSpec{
@@ -335,7 +338,16 @@ func getTaskDashboardOperationSpec() OperationSpec {
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
+			boolQueryParam(
+				"all_workspaces",
+				"Read every project and User within the profile lens; conflicts with workspace",
+			),
+			workspaceIDsQueryParam("Repeatable project IDs; @user selects User; requires all_workspaces=true"),
+			enumQueryParam(
+				specScopeKey,
+				"Filter by task scope",
+				append(taskScopeValues(), "user", workspaceaccess.UserSelector),
+			),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
@@ -343,6 +355,8 @@ func getTaskDashboardOperationSpec() OperationSpec {
 			enumQueryParam("origin_kind", "Filter by task origin kind", taskOriginKindValues()),
 		),
 		Responses: []ResponseSpec{
+			{Status: 403, Description: specAggregateDeniedText, Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid workspace breadth", Body: contract.ErrorPayload{}},
 			{Status: 200, Description: "OK", Body: contract.TaskDashboardResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task dashboard query", Body: contract.ErrorPayload{}},
@@ -361,8 +375,14 @@ func getTaskInboxOperationSpec() OperationSpec {
 		Tags:        []string{specObserveKey, specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			enumQueryParam(specScopeKey, "Filter by task scope", taskScopeValues()),
+			enumQueryParam(
+				specScopeKey,
+				"Filter by task scope",
+				append(taskScopeValues(), "user", workspaceaccess.UserSelector),
+			),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
+			aggregateWorkspaceParameters()[0],
+			aggregateWorkspaceParameters()[1],
 			queryParam("worktree", "Filter by active run worktree ID", false),
 			enumQueryParam("owner_kind", "Filter by owner kind", taskOwnerKindValues()),
 			queryParam("owner_ref", "Filter by owner reference", false),

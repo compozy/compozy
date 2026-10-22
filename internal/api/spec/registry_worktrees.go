@@ -132,8 +132,8 @@ func worktreeExitPlanOperationSpec() OperationSpec {
 			worktreeRouteParams(),
 			ParameterSpec{
 				Name: specIncludeKey,
-				In:   "query",
-				Kind: "array",
+				In:   specParameterInQuery,
+				Kind: specArrayKind,
 				Description: "Exact worktree-relative reviewed file paths; " +
 					"scoped plans return a complete include set and fingerprint.",
 			},

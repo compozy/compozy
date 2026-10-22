@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/store"
@@ -1401,4 +1403,46 @@ func TestAutomationListLastRunOutput(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestAutomationUserScopeAliases(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{"user", workspaceaccess.UserSelector} {
+		t.Run("Should forward canonical scope for "+raw, func(t *testing.T) {
+			t.Parallel()
+			deps := newDefaultProfileTestDeps(
+				t,
+				&stubClient{
+					createAutomationJobFn: func(_ context.Context, got AutomationJobCreateRequest) (JobRecord, error) {
+						if got.Scope != automationpkg.AutomationScopeGlobal {
+							t.Fatalf("scope = %q", got.Scope)
+						}
+						return sampleAutomationJobRecord(), nil
+					},
+				},
+			)
+			_, _, err := executeRootCommand(
+				t,
+				deps,
+				"automation",
+				"jobs",
+				"create",
+				"--scope",
+				raw,
+				"--name",
+				"personal",
+				"--schedule",
+				"every:30m",
+				"--agent",
+				"coder",
+				"--prompt",
+				"review",
+				"-o",
+				"json",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }

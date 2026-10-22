@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (s *daemonLoopAPIService) GetLoopConfig(
@@ -81,7 +82,7 @@ func (s *daemonLoopAPIService) GetLoopAnnotations(
 	if err != nil {
 		return contract.LoopAnnotationsResponse{}, err
 	}
-	annotations, err := s.persistence.ListLoopUIAnnotations(ctx, ws, name)
+	annotations, err := s.persistence.ListLoopUIAnnotations(ctx, ws, profileID, name)
 	if err != nil {
 		return contract.LoopAnnotationsResponse{}, err
 	}
@@ -100,7 +101,7 @@ func (s *daemonLoopAPIService) PutLoopAnnotations(
 		return contract.LoopAnnotationsResponse{}, err
 	}
 	annotations := loopAnnotationsDomain(req.Annotations)
-	if err := s.persistence.ReplaceLoopUIAnnotations(ctx, ws, name, annotations); err != nil {
+	if err := s.persistence.ReplaceLoopUIAnnotations(ctx, ws, profileID, name, annotations); err != nil {
 		return contract.LoopAnnotationsResponse{}, err
 	}
 	return contract.LoopAnnotationsResponse{Annotations: loopAnnotationsPayload(annotations)}, nil
@@ -170,7 +171,7 @@ func (s *daemonLoopAPIService) loadExecutedLoopDefinition(
 	workspaceID looppkg.WorkspaceID,
 	run *looppkg.Run,
 ) (contract.LoopDefinitionDocument, contract.LoopContract, looppkg.EffectiveConfig, error) {
-	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, workspaceID, run.DefinitionDigest)
+	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, workspaceID, run.ProfileID, run.DefinitionDigest)
 	if err != nil {
 		return contract.LoopDefinitionDocument{}, contract.LoopContract{}, looppkg.EffectiveConfig{}, fmt.Errorf(
 			"daemon: load executed definition snapshot %q for run %q: %w",
@@ -443,6 +444,9 @@ func loopAnnotationsDomain(input []contract.LoopAnnotationPayload) []looppkg.UIA
 }
 
 func normalizeLoopWorkspaceID(workspaceID string) (looppkg.WorkspaceID, error) {
+	if workspacepkg.ParseRef(workspaceID).Kind == workspacepkg.RefUser {
+		return "", nil
+	}
 	trimmed := strings.TrimSpace(workspaceID)
 	if trimmed == "" {
 		return "", fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)

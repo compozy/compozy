@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -54,6 +55,11 @@ func (d *Daemon) bootWindowManager(
 		return fmt.Errorf("daemon: open window-manager store: %w", err)
 	}
 	cleanup.add(func(context.Context) error { return engine.Close() })
+	if db, ok := state.registry.(*globaldb.GlobalDB); ok {
+		if err := reconcileUserScopeMigrations(ctx, db, engine, d.homePaths.HomeDir, state.logger); err != nil {
+			return err
+		}
+	}
 	if state.windowLayoutCatalog == nil {
 		state.windowLayoutCatalog = newResourceCatalog(windowmanager.CloneLayoutResource)
 	}
@@ -188,6 +194,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 				deadEntities:  state.deadEntities,
 				mcpTools:      state.mcpToolProvider,
 				workspaceID:   workspace.ID,
+				registry:      state.windowManagers,
 			}, nil
 		},
 	)
@@ -195,6 +202,7 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 }
 
 type workspaceRemovalPreparation struct {
+	registry      *windowManagerRegistry
 	windowManager workspacepkg.UnregisterPreparation
 	session       workspacepkg.UnregisterPreparation
 	terminal      workspacepkg.UnregisterPreparation
@@ -249,6 +257,11 @@ func (p *workspaceRemovalPreparation) Commit(ctx context.Context) error {
 	}
 	if err := errors.Join(terminalErr, windowManagerErr, sessionErr); err != nil {
 		return err
+	}
+	if p.registry != nil {
+		if err := p.registry.ReconcileUnregisteredWorkspace(ctx, p.workspaceID); err != nil {
+			return err
+		}
 	}
 	if p.deadEntities != nil {
 		p.deadEntities.ForgetWorkspace(p.workspaceID)

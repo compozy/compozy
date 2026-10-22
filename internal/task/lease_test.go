@@ -609,7 +609,7 @@ func TestManagerClaimNextRunAndLeaseFencing(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	agent := agentActorContextForTest("sess-agent", "ws-agent")
+	agent := agentSessionActorContext("sess-agent")
 
 	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
@@ -1662,7 +1662,7 @@ func TestManagerBlockTaskAndReleaseRunParksActiveLease(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	agent := agentActorContextForTest("sess-blocker", "ws-blocker")
+	agent := agentSessionActorContext("sess-blocker")
 
 	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
@@ -1747,7 +1747,7 @@ func TestManagerBlockTaskAndReleaseRunRejectsClaimTokenMismatch(t *testing.T) {
 	store := newInMemoryManagerStore()
 	manager := newTaskManagerForTest(t, store)
 	operator := validActorContext()
-	agent := agentActorContextForTest("sess-mismatch", "ws-mismatch")
+	agent := agentSessionActorContext("sess-mismatch")
 
 	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,
@@ -1813,7 +1813,7 @@ func TestManagerBlockTaskAndReleaseRunSerializesDuplicateActiveCallers(t *testin
 		return prefix + "-race-" + strconv.Itoa(nextID), nil
 	}))
 	operator := validActorContext()
-	agent := agentActorContextForTest("sess-race", "ws-race")
+	agent := agentSessionActorContext("sess-race")
 
 	taskRecord, err := manager.CreateTask(t.Context(), CreateTask{
 		ProfileID: storepkg.DefaultProfileID,

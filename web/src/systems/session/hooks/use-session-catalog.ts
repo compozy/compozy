@@ -1,26 +1,31 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useProfileReadScope } from "@/systems/profiles";
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
+import type { DataScope } from "@/systems/workspace";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../lib/session-catalog-options";
+import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionListFilters } from "../types";
 
+/**
+ * One session catalog page for a data scope: a project, User (`@user`), or
+ * every project. `null` — an unsettled scope — reads nothing; it never
+ * widens to the aggregate. `lens` overrides the read profile lens (a
+ * Group-by profile group reads exactly one profile).
+ */
 export function useSessionCatalog(
-  workspaceId: string | null,
+  scope: DataScope | null,
   filters: SessionListFilters = {},
   enabled = true,
-  options: { facets?: boolean } = {}
+  options: { facets?: boolean; lens?: ProfileScopeParams } = {}
 ) {
   const { params } = useProfileReadScope();
-  const scoped = {
-    ...filters,
-    ...(workspaceId ? { workspace_id: workspaceId } : { all_workspaces: true }),
-    ...params,
-  };
+  const scoped = sessionCatalogScopedFilters(scope, filters, options.lens ?? params);
+  const active = enabled && scope !== null;
   const pageOptions = sessionCatalogOptions(scoped);
   const { q: _search, ...population } = pageOptions.queryKey[4];
   const populationKey = JSON.stringify(population);
   const page = useInfiniteQuery({
     ...pageOptions,
-    enabled,
+    enabled: active,
     placeholderData: (previousData, previousQuery) => {
       const previousFilters = previousQuery?.queryKey[4];
       if (!previousFilters || typeof previousFilters !== "object") return undefined;
@@ -33,7 +38,7 @@ export function useSessionCatalog(
   const withFacets = options.facets === true;
   const facets = useQuery({
     ...sessionFacetsOptions(scoped),
-    enabled: enabled && withFacets,
+    enabled: active && withFacets,
   });
   return {
     sessions: page.data?.pages[0]?.sessions ?? [],

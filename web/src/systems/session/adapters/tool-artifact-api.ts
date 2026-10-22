@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-client";
 
 import type { ToolArtifactPage } from "../types";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 const TOOL_ARTIFACT_URI_PATTERN = /^compozy:\/\/tool-artifacts\/(art_[a-f0-9]{64})$/;
 
@@ -39,7 +40,7 @@ export async function fetchToolArtifactPage(
     "/api/workspaces/{workspace_id}/tool-artifacts/{artifact_id}",
     {
       params: {
-        path: { workspace_id: workspaceId, artifact_id: artifactID },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), artifact_id: artifactID },
         query: { offset, limit },
       },
       signal,

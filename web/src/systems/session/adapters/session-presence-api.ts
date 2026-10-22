@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import type { SessionPresenceRequest } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export type SessionPresenceRenewalResult = "renewed" | "lease-invalid" | "retryable-error";
 
@@ -22,7 +23,7 @@ async function postPresence(
   signal?: AbortSignal
 ) {
   return apiClient.POST("/api/workspaces/{workspace_id}/sessions/{session_id}/presence", {
-    params: { path: { workspace_id: workspaceId, session_id: sessionId } },
+    params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
     body,
     signal,
   });

@@ -8,6 +8,7 @@ import { Button, cn, Pill, Time } from "@compozy/ui";
 import type { LoopStoryBeat } from "../../lib/loop-run-story-beats";
 import { LOOP_STORY_ICONS } from "../../lib/loop-story-icons";
 import { LoopSection } from "../loop-section";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 /**
  * Backward paging over the durable story; the live tail arrives by stream.
@@ -63,6 +64,7 @@ const TONE_RING = {
 } as const;
 
 function LoopRunStoryBeat({ beat }: { beat: LoopStoryBeat }) {
+  const bindingSearch = useWindowBindingSearch();
   const icon = LOOP_STORY_ICONS[beat.icon];
   return (
     <li
@@ -91,6 +93,7 @@ function LoopRunStoryBeat({ beat }: { beat: LoopStoryBeat }) {
               className="ml-1.5 font-mono text-mono-id text-fg underline-offset-3 hover:underline"
               data-testid={`loop-run-beat-related-${beat.seq}`}
               params={{ runId: beat.relatedRunId }}
+              search={bindingSearch}
               to="/loop-runs/$runId"
             >
               {beat.relatedRunId}

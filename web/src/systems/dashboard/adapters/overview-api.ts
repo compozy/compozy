@@ -24,7 +24,9 @@ const USAGE_WINDOW_WIRE = {
 
 function normalizeOverviewFilter(filters: HomeOverviewFilter = {}): HomeOverviewWireFilter {
   return {
-    workspace: normalizeOptionalText(filters.workspace),
+    ...(filters.allWorkspaces
+      ? { all_workspaces: true }
+      : { workspace: normalizeOptionalText(filters.workspace) }),
     receipt_profile: normalizeOptionalText(filters.receiptProfile),
     usage_window:
       filters.usageWindow === undefined ? undefined : USAGE_WINDOW_WIRE[filters.usageWindow],

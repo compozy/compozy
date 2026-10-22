@@ -16,6 +16,8 @@
         "agents",
         "autonomy",
         "workspaces",
+        "all-projects",
+        "user-scope",
         "profiles",
         "worktrees",
         "---Automation---",

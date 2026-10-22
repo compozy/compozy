@@ -12,6 +12,10 @@ func getObserveOverviewOperationSpec() OperationSpec {
 		Tags:        []string{specObserveKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
+			boolQueryParam(
+				"all_workspaces",
+				"Read every project and User within the profile lens; conflicts with workspace",
+			),
 			queryParam("receipt_profile", "Profile owning acknowledgement receipts, including aggregate reads", false),
 			queryParam(
 				specWorkspaceKey,
@@ -21,6 +25,8 @@ func getObserveOverviewOperationSpec() OperationSpec {
 			enumQueryParam("usage_window", "Usage window in days (default 30)", []string{"7", "30", "90"}),
 		),
 		Responses: []ResponseSpec{
+			{Status: 403, Description: specAggregateDeniedText, Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid workspace breadth", Body: contract.ErrorPayload{}},
 			{Status: 200, Description: "OK", Body: contract.ObserveOverviewResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid overview query", Body: contract.ErrorPayload{}},

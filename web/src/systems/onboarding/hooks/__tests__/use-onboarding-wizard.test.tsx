@@ -1,5 +1,5 @@
 // Suite: first-run onboarding progression
-// Invariant: onboarding completes without creating a session; explicit Skip selects Global only
+// Invariant: onboarding completes without creating a session; explicit Skip focuses User only
 // after persistence succeeds, while normal Finish retains the selected project.
 // Boundary IN: onboarding wizard orchestration and draft reset.
 // Boundary OUT: provider/workspace adapters and completion persistence.
@@ -86,25 +86,29 @@ describe("useOnboardingWizard", () => {
   });
 
   it.each([
-    { action: "next" as const, scope: "workspace" },
-    { action: "skipToGlobal" as const, scope: "global" },
-  ])("Should finish through $action in $scope while remembering the project", async testCase => {
-    setActiveWorkspaceId("ws_main");
-    onboardingDraftStore.trigger.stepVisited({ step: 2 });
-    const onComplete = vi.fn();
-    const { result } = renderHook(() => useOnboardingWizard(onComplete));
+    { action: "next" as const, focus: { kind: "project", workspaceId: "ws_main" } },
+    { action: "skipToUser" as const, focus: { kind: "user" } },
+  ])(
+    "Should finish through $action focused on $focus.kind while remembering the project",
+    async testCase => {
+      setActiveWorkspaceId("ws_main");
+      onboardingDraftStore.trigger.stepVisited({ step: 2 });
+      const onComplete = vi.fn();
+      const { result } = renderHook(() => useOnboardingWizard(onComplete));
 
-    await act(async () => {
-      await result.current[testCase.action]();
-    });
+      await act(async () => {
+        await result.current[testCase.action]();
+      });
 
-    expect(activeWorkspaceStore.getSnapshot().context).toMatchObject({
-      scope: testCase.scope,
-      selectedWorkspaceId: "ws_main",
-    });
-    expect(onComplete).toHaveBeenCalledOnce();
-    expect(onboardingDraftStore.getSnapshot().context.step).toBe(1);
-  });
+      expect(activeWorkspaceStore.getSnapshot().context).toMatchObject({
+        breadthMode: "focused",
+        focus: testCase.focus,
+        selectedWorkspaceId: "ws_main",
+      });
+      expect(onComplete).toHaveBeenCalledOnce();
+      expect(onboardingDraftStore.getSnapshot().context.step).toBe(1);
+    }
+  );
 
   it("Should preserve the project and setup draft when Skip cannot persist completion", async () => {
     setActiveWorkspaceId("ws_main");
@@ -114,12 +118,13 @@ describe("useOnboardingWizard", () => {
     const { result } = renderHook(() => useOnboardingWizard(onComplete));
 
     await act(async () => {
-      await result.current.skipToGlobal();
+      await result.current.skipToUser();
     });
 
     expect(result.current.commitError).toBe("Daemon unavailable");
     expect(activeWorkspaceStore.getSnapshot().context).toMatchObject({
-      scope: "workspace",
+      breadthMode: "focused",
+      focus: { kind: "project", workspaceId: "ws_main" },
       selectedWorkspaceId: "ws_main",
     });
     expect(onboardingDraftStore.getSnapshot().context.step).toBe(2);
@@ -137,7 +142,7 @@ describe("useOnboardingWizard", () => {
       expect(result.current.isBusy).toBe(true);
       await act(async () => {
         await result.current.next();
-        await result.current.skipToGlobal();
+        await result.current.skipToUser();
       });
 
       expect(mocks.completeOnboarding).not.toHaveBeenCalled();

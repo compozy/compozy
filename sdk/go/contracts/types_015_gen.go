@@ -95,6 +95,8 @@ type RowAction struct {
 }
 
 type Run struct {
+	WorkspaceID     *string        `json:"workspace_id,omitempty"`
+	Attribution     string         `json:"attribution"`
 	ID              string         `json:"id"`
 	ProfileID       string         `json:"profile_id,omitempty"`
 	JobID           string         `json:"job_id,omitempty"`

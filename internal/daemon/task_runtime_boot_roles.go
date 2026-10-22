@@ -106,7 +106,6 @@ func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
 	runtime, err := newTaskRoleRuntime(
 		state.tasks.store,
 		state.sessions,
-		d.homePaths.HomeDir,
 		state.logger,
 		d.now,
 	)
@@ -290,10 +289,10 @@ func newBootLoopCoordinatorRuntime(
 		}),
 	}
 	judgeRunner := &loopGateJudgeRunner{
-		sessions:            state.sessions,
-		globalWorkspacePath: homePaths.HomeDir,
-		policyGate:          policyGate,
-		executions:          newLoopJudgeExecutionRegistry(),
+		sessions: state.sessions,
+
+		policyGate: policyGate,
+		executions: newLoopJudgeExecutionRegistry(),
 	}
 	gateEvaluator := gate.NewEvaluator(
 		gate.WithCommandRunner(loopGateCommandRunner{workspaceResolver: workspaceResolver}),
@@ -303,7 +302,6 @@ func newBootLoopCoordinatorRuntime(
 	actions, err := newBootLoopActionRegistry(
 		store,
 		state,
-		homePaths.HomeDir,
 		toolRegistry,
 		policyGate,
 		gateEvaluator,

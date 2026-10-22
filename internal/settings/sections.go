@@ -146,6 +146,13 @@ func (s *service) populateSectionEnvelope(
 	resolved *workspacepkg.ResolvedWorkspace,
 ) error {
 	if populateSimpleSectionEnvelope(envelope, cfg) {
+		if envelope.Shell != nil {
+			revision, err := s.shellScopeRevision(ctx)
+			if err != nil {
+				return err
+			}
+			envelope.Shell.ScopeRevision = revision
+		}
 		return nil
 	}
 	switch envelope.Section {

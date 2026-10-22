@@ -2,26 +2,36 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import { sessionsListOptions } from "@/systems/session";
 
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
 import {
+  resolveActiveWorkspaceId,
+  resolveActiveWorkspaceSelection,
+  settleRouteQueries,
+} from "./-route-preload";
+import {
+  agentAggregateOptions,
   agentCatalogOptions,
   type AgentCatalogStableFilter,
   agentDetailOptions,
 } from "@/systems/agent";
 import { settingsProvidersListOptions } from "@/systems/settings";
-import { workspaceDetailOptions } from "@/systems/workspace";
+import { focusedWorkspaceSelector, workspaceDetailOptions } from "@/systems/workspace";
 import { readActingProfile, readProfileScopeParams } from "@/systems/profiles";
 
 export async function preloadAgentsRoute(
   queryClient: QueryClient,
   filters: AgentCatalogStableFilter
 ): Promise<void> {
-  const workspaceId = await resolveActiveWorkspaceId(queryClient);
+  const dataScope = (await resolveActiveWorkspaceSelection(queryClient))?.dataScope ?? null;
+  if (!dataScope) return;
   const profile = readActingProfile(queryClient);
+  // All projects reads the aggregate (User + every project); otherwise the
+  // project's catalog, or User's through `@user`.
   await settleRouteQueries([
-    queryClient.ensureInfiniteQueryData(
-      agentCatalogOptions(workspaceId ?? "", { ...filters, profile })
-    ),
+    dataScope.kind === "all"
+      ? queryClient.ensureInfiniteQueryData(agentAggregateOptions([], { ...filters, profile }))
+      : queryClient.ensureInfiniteQueryData(
+          agentCatalogOptions(focusedWorkspaceSelector(dataScope), { ...filters, profile })
+        ),
   ]);
 }
 

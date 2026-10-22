@@ -4145,7 +4145,6 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		automationpkg.WithWorkspaceResolver(resolver),
 		automationpkg.WithConfig(d.cfg.Automation),
 		automationpkg.WithLogger(discardLogger()),
-		automationpkg.WithGlobalWorkspacePath(d.homePaths.HomeDir),
 	)
 	if err != nil {
 		return fmt.Errorf("new automation manager: %w", err)

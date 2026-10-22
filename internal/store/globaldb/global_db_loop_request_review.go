@@ -14,7 +14,7 @@ const reviewRejectedRouteOutputRefPrefix = "review_rejected_route:"
 func requestDecisionPayload(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	stored storedRequest,
+	stored *storedRequest,
 	decision string,
 	payload json.RawMessage,
 ) (json.RawMessage, json.RawMessage, error) {

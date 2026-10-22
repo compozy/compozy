@@ -12,6 +12,10 @@ func listAutomationRunsOperationSpec() OperationSpec {
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			queryParam("workspace_id", "Filter by source project; @user selects User", false),
+			boolQueryParam("all_workspaces", "Read every run, including unknown attribution"),
+			workspaceIDsQueryParam("Source project IDs or @user; excludes unknown attribution"),
+			queryParam("cursor", "Opaque source-filter-bound cursor", false),
 			queryParam("job_id", "Filter by automation job id", false),
 			queryParam("trigger_id", "Filter by automation trigger id", false),
 			enumQueryParam("status", "Filter by run status", automationRunStatusValues()),

@@ -72,6 +72,9 @@ func (a Authority) Validate(path string) error {
 
 // Validate reports whether caller ownership is canonical for the actor kind.
 func (s CallerScope) Validate(actor ActorIdentity) error {
+	if err := s.validateUserProfile(actor); err != nil {
+		return err
+	}
 	sessionID := strings.TrimSpace(s.SessionID)
 	workspaceID := strings.TrimSpace(s.WorkspaceID)
 	if sessionID != s.SessionID {
@@ -98,7 +101,7 @@ func (s CallerScope) Validate(actor ActorIdentity) error {
 		if sessionID != strings.TrimSpace(actor.Ref) {
 			return fmt.Errorf("%w: scope.session_id must match actor.ref", ErrValidation)
 		}
-		if workspaceID == "" {
+		if workspaceID == "" && s.UserProfileID == "" {
 			return fmt.Errorf("%w: scope.workspace_id is required for agent_session", ErrValidation)
 		}
 	case ActorKindHuman:
@@ -114,6 +117,22 @@ func (s CallerScope) Validate(actor ActorIdentity) error {
 		}
 		if sessionID != "" {
 			return fmt.Errorf("%w: scope.session_id is reserved for agent_session", ErrValidation)
+		}
+	}
+	return nil
+}
+
+func (s CallerScope) validateUserProfile(actor ActorIdentity) error {
+	if s.UserProfileID != "" {
+		if actor.Kind.Normalize() != ActorKindAgentSession || s.WorkspaceID != "" ||
+			strings.TrimSpace(s.UserProfileID) != s.UserProfileID {
+			return fmt.Errorf(
+				"%w: User actor requires an agent session, a canonical profile and no workspace",
+				ErrValidation,
+			)
+		}
+		if err := ValidateReferenceSize(s.UserProfileID, "scope.user_profile_id"); err != nil {
+			return err
 		}
 	}
 	return nil

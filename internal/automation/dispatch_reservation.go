@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
-
 	"time"
 
 	"github.com/compozy/compozy/internal/admission"
@@ -123,16 +121,19 @@ func (d *Dispatcher) reserveRun(ctx context.Context, req DispatchRequest, attemp
 
 	now := d.now()
 	run := Run{
-		ProfileID: req.profileID(),
-		Status:    RunScheduled,
-		Attempt:   attempt,
-		StartedAt: new(now),
-		Metadata:  webhookRunMetadata(req),
+		ProfileID:   req.profileID(),
+		Attribution: "recorded",
+		Status:      RunScheduled,
+		Attempt:     attempt,
+		StartedAt:   new(now),
+		Metadata:    webhookRunMetadata(req),
 	}
 	if req.Job != nil {
 		run.JobID = req.Job.ID
+		run.WorkspaceID = new(req.Job.WorkspaceID)
 	} else {
 		run.TriggerID = req.Trigger.ID
+		run.WorkspaceID = new(req.Trigger.WorkspaceID)
 	}
 
 	result, window, err := d.reserveWithinFireLimit(ctx, req, run, "", "", 0, now)

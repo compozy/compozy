@@ -16,6 +16,9 @@ func newAutomationSuggestionsCommand(deps commandDeps) *cobra.Command {
 		Short: "Review consent-first automation suggestions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if wantsAllWorkspaces(cmd) {
+				return writeAggregateCatalog(cmd, deps, "suggestions")
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -41,6 +44,7 @@ func newAutomationSuggestionsCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newAutomationSuggestionAcceptCommand(deps, &workspaceRef))
 	cmd.AddCommand(newAutomationSuggestionDismissCommand(deps, &workspaceRef))
 	configureProfileReadCommand(cmd, deps)
+	addAllWorkspacesFlag(cmd)
 	return cmd
 }
 

@@ -1,27 +1,31 @@
 import { useSelector } from "@xstate/store-react";
 import { isHydrated, rehydrateStore } from "@xstate/store/persist";
 import { activeWorkspaceSelectors, activeWorkspaceStore } from "../stores/active-workspace-store";
-import type { WorkspaceScopeMode } from "../lib/workspace-scope-mode";
+import type { BreadthMode, Focus } from "../lib/destination";
 
 export {
   activeWorkspaceStore,
   clearActiveWorkspaceSelection,
-  disableGlobalScope,
-  enableGlobalScope,
+  disableAllProjects,
+  enableAllProjects,
+  focusDestination,
+  focusUser,
   setActiveWorkspaceId,
-  toggleGlobalScope,
+  toggleAllProjects,
 } from "../stores/active-workspace-store";
 
 export function useSelectedWorkspaceId(): string | null {
   return useSelector(activeWorkspaceSelectors.selectedWorkspaceId);
 }
 
-export function useDesktopWorkspaceId(): string | null {
-  return useSelector(activeWorkspaceSelectors.desktopWorkspaceId);
+/** Stored breadth; surfaces read the resolved value through `useActiveWorkspace`. */
+export function useBreadthMode(): BreadthMode {
+  return useSelector(activeWorkspaceSelectors.breadthMode);
 }
 
-export function useWorkspaceScopeMode(): WorkspaceScopeMode {
-  return useSelector(activeWorkspaceSelectors.scope);
+/** Stored focus; surfaces read the resolved value through `useActiveWorkspace`. */
+export function useFocus(): Focus {
+  return useSelector(activeWorkspaceSelectors.focus);
 }
 
 export function isActiveWorkspaceStoreHydrated(): boolean {

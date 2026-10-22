@@ -10,6 +10,11 @@
  */
 
 import type { StateGlyphState } from "@compozy/ui";
+import {
+  unknownProjectIdentity,
+  workspaceBadgeIdentity,
+  type WorkspaceBadgeIdentity,
+} from "@/systems/workspace";
 
 import {
   automationLastRunLabel,
@@ -58,6 +63,21 @@ export interface AutomationRunView {
   link: AutomationRunLink | null;
   /** A failed run of an automation with no retries offers the fix in its drawer. */
   offerRetries: boolean;
+  /** Under All projects: the project the run is attributed to. */
+  project?: WorkspaceBadgeIdentity;
+}
+
+/**
+ * The project a run is attributed to (its source definition's project at
+ * reservation): a project, User (`""`), or Unknown project when the daemon
+ * could not establish it — never coerced to User.
+ */
+export function automationRunProject(
+  run: Pick<AutomationRun, "attribution" | "workspace_id">,
+  names: ReadonlyMap<string, string>
+): WorkspaceBadgeIdentity {
+  if (run.attribution === "unknown" || run.workspace_id == null) return unknownProjectIdentity();
+  return workspaceBadgeIdentity(run.workspace_id, names);
 }
 
 const SKIP_TEXT = {
@@ -189,8 +209,10 @@ function drawerLines(
 
 export function buildAutomationRunView(
   run: AutomationRun,
-  entity: AutomationEntity
+  entity: AutomationEntity,
+  projectOf?: (run: AutomationRun) => WorkspaceBadgeIdentity
 ): AutomationRunView {
+  const project = projectOf?.(run);
   const target = projectAutomationTarget(entity);
   const skip = automationRunSkipReason(run);
   const meta = rowMeta(run, skip);
@@ -209,5 +231,6 @@ export function buildAutomationRunView(
     drawerLines: drawerLines(run, entity, skip),
     link: runLink(run, target.kind === "loop" ? target.workspaceId : undefined),
     offerRetries: run.status === "failed" && entity.retry.strategy === "none",
+    ...(project ? { project } : {}),
   };
 }

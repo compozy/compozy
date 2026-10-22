@@ -1927,7 +1927,7 @@ func TestPromptOriginContract(t *testing.T) {
 		{"Should accept a session origin", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w", Hop: 1}, true},
 		{"Should reject another kind", PromptOriginMeta{Kind: "agent", SessionID: "a", WorkspaceID: "w", Hop: 1}, false},
 		{"Should reject an empty sender", PromptOriginMeta{Kind: "session", WorkspaceID: "w", Hop: 1}, false},
-		{"Should reject an empty workspace", PromptOriginMeta{Kind: "session", SessionID: "a", Hop: 1}, false},
+		{"Should accept a User-scope sender without a workspace", PromptOriginMeta{Kind: "session", SessionID: "a", Hop: 1}, true},
 		{"Should reject hop zero", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w"}, false},
 		{"Should reject hop nine", PromptOriginMeta{Kind: "session", SessionID: "a", WorkspaceID: "w", Hop: 9}, false},
 	} {

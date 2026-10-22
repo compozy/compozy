@@ -1,7 +1,6 @@
 import { useRef } from "react";
 import { useSelector, useStore } from "@xstate/store-react";
 
-import { partitionProjectWorkspaces } from "../lib/project-workspaces";
 import { groupWorkspaceTree, type WorktreeListingByWorkspace } from "../lib/workspace-tree";
 import { workspaceCommandSelectLogic } from "../stores/workspace-command-select-store";
 
@@ -12,7 +11,6 @@ interface WorkspaceOption {
 }
 
 interface UseWorkspaceCommandSelectStateOptions {
-  userHomeDir?: string;
   workspaces: ReadonlyArray<WorkspaceOption> | undefined;
   value: string | null;
   onChange: (id: string) => void;
@@ -23,7 +21,6 @@ interface UseWorkspaceCommandSelectStateOptions {
 }
 
 export function useWorkspaceCommandSelectState({
-  userHomeDir,
   workspaces,
   value,
   onChange,
@@ -36,10 +33,10 @@ export function useWorkspaceCommandSelectState({
   const interaction = useSelector(store, snapshot => snapshot.context);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const open = controlledOpen ?? interaction.open;
-  const { projectWorkspaces } = partitionProjectWorkspaces(workspaces, userHomeDir);
+  const projectWorkspaces = workspaces ?? [];
   const selected = projectWorkspaces.find(workspace => workspace.id === value) ?? null;
   const tree = worktreesByWorkspace
-    ? groupWorkspaceTree(projectWorkspaces, worktreesByWorkspace, userHomeDir)
+    ? groupWorkspaceTree(projectWorkspaces, worktreesByWorkspace)
     : null;
   const nodeByWorkspaceId = new Map(tree?.map(node => [node.workspace.id, node]) ?? []);
   const visibleSubmenu = open ? interaction.submenu : null;

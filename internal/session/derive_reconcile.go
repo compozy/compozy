@@ -69,7 +69,7 @@ func (m *Manager) reconcileDerivedSessionEvent(
 	if len(rows) > 0 {
 		return false, nil
 	}
-	receipt, found, err := derivations.SessionDerivationReceipt(ctx, info.WorkspaceID, key)
+	receipt, found, err := derivations.SessionDerivationReceipt(ctx, info.WorkspaceID, key, info.ProfileID)
 	if err != nil {
 		return false, fmt.Errorf("session: read derive receipt for %q: %w", info.ID, err)
 	}

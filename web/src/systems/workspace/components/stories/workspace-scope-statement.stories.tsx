@@ -37,20 +37,22 @@ export const CreateWorkspaceChip: Story = {
   },
 };
 
-/** Note used in dialog footers; Global create keeps the visibility clause. */
-export const CreateGlobalNote: Story = {
+/** Note used in dialog footers for work outside any project. */
+export const CreateUserNote: Story = {
   args: {
-    destination: "Global",
+    destination: "User",
     kind: "create",
+    scope: "user",
     variant: "note",
   },
 };
 
-/** Install landing for a Global MCP or extension. */
-export const InstallGlobalNote: Story = {
+/** Install landing for a user-layer MCP or extension. */
+export const InstallUserNote: Story = {
   args: {
-    destination: "Global",
+    destination: "User",
     kind: "install",
+    scope: "user",
     variant: "note",
   },
 };

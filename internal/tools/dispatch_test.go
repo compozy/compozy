@@ -807,7 +807,12 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		)
 		_, err := registry.Call(
 			t.Context(),
-			Scope{SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
+			Scope{
+				ProfileID:   "profile-default",
+				SessionID:   "sess-a",
+				WorkspaceID: "ws_0000000000000000",
+				AgentName:   "codex",
+			},
 			CallRequest{
 				ToolID:      descriptor.ID,
 				WorkspaceID: "target-alias",
@@ -824,8 +829,8 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 				WorkspaceID: "ws_0000000000000000",
 				AgentName:   "codex",
 			},
-			TargetWorkspaceID: "ws_0000000000000001",
-			Seam:              workspaceaccess.SeamTool,
+			Target: workspaceaccess.ScopeTarget("ws_0000000000000001", "profile-default"),
+			Seam:   workspaceaccess.SeamTool,
 		}
 		if !called || calledWorkspaceID != "ws_0000000000000001" || resolverCalls != 1 || policy.calls != 1 ||
 			policy.last != wantPolicyRequest {
@@ -844,7 +849,12 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		policy.decision = workspaceaccess.Decision{PromptEligible: true}
 		_, err = registry.Call(
 			t.Context(),
-			Scope{SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
+			Scope{
+				ProfileID:   "profile-default",
+				SessionID:   "sess-a",
+				WorkspaceID: "ws_0000000000000000",
+				AgentName:   "codex",
+			},
 			CallRequest{
 				ToolID:      descriptor.ID,
 				WorkspaceID: "ws_0000000000000001",

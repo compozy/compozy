@@ -2,7 +2,7 @@ import type { AutomationJob, AutomationTrigger } from "../types";
 
 type WorkspaceBoundAutomation = Pick<AutomationJob | AutomationTrigger, "scope" | "workspace_id">;
 
-/** Editing follows the definition's owner even when it is inspected from Global. */
+/** Editing follows the definition's owner even when it is inspected from User or All projects. */
 export function automationEditorWorkspaceId(
   item: WorkspaceBoundAutomation | undefined,
   activeWorkspaceId: string | null | undefined
@@ -14,7 +14,7 @@ export function automationMatchesActiveWorkspace(
   item: WorkspaceBoundAutomation,
   activeWorkspaceId: string | null | undefined
 ): boolean {
-  // null is the resolved Global lens; undefined is still an unresolved project.
+  // null is the resolved User or All projects lens; undefined is still an unresolved project.
   return (
     activeWorkspaceId === null ||
     item.scope === "global" ||

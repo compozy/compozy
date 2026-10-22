@@ -17,8 +17,16 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+/** The Project filter narrows the aggregate only; sorted so equal filters share a key and cursor. */
+function normalizeWorkspaceIds(filters: TaskListFilter): string[] | undefined {
+  if (!filters.all_workspaces || !filters.workspace_ids?.length) return undefined;
+  return [...new Set(filters.workspace_ids)].sort();
+}
+
 export function normalizeTaskListFilter(filters: TaskListFilter = {}): TaskListFilter {
   return {
+    all_workspaces: filters.all_workspaces || undefined,
+    workspace_ids: normalizeWorkspaceIds(filters),
     scope: filters.scope,
     workspace: normalizeOptionalText(filters.workspace),
     // Filters on the derived active-run worktree id. The daemon requires a
@@ -47,6 +55,10 @@ export function normalizeTaskListFilter(filters: TaskListFilter = {}): TaskListF
 export function taskListStableFilter(filters: TaskListFilter = {}): TaskListStableFilter {
   const normalized = normalizeTaskListFilter(filters);
   return {
+    // Breadth is part of the stable filter: an aggregate cursor never pages a
+    // single-project read, nor a differently narrowed aggregate.
+    all_workspaces: normalized.all_workspaces,
+    workspace_ids: normalized.workspace_ids,
     scope: normalized.scope,
     workspace: normalized.workspace,
     // Part of the stable filter, so it enters both the query key and the

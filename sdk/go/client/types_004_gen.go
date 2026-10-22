@@ -67,6 +67,7 @@ type CreateAgentPayload struct {
 	Tools           []string                            `json:"tools,omitempty"`
 	Toolsets        []string                            `json:"toolsets,omitempty"`
 	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
 	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
 	CategoryPath    []string                            `json:"category_path,omitempty"`
 	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
@@ -130,6 +131,7 @@ type CreateSessionFolderRequest struct {
 
 // CreateSessionRequest is a daemon API value.
 type CreateSessionRequest struct {
+	Scope           string                     `json:"scope,omitempty"`
 	AgentName       string                     `json:"agent_name,omitempty"`
 	Name            string                     `json:"name,omitempty"`
 	Workspace       string                     `json:"workspace,omitempty"`
@@ -230,6 +232,13 @@ type CreateWorktreeRequest struct {
 
 // CriterionType is a daemon API value.
 type CriterionType string
+
+// CursorPagePayload is a daemon API value.
+type CursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Limit      int    `json:"limit"`
+}
 
 // DaemonIdentityPayload is a daemon API value.
 type DaemonIdentityPayload struct {
@@ -409,6 +418,7 @@ type DuplicateAgentOverrides struct {
 	Tools           []string                            `json:"tools,omitempty"`
 	Toolsets        []string                            `json:"toolsets,omitempty"`
 	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
 	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
 	CategoryPath    []string                            `json:"category_path,omitempty"`
 	Skills          *CreateAgentSkillsConfig            `json:"skills,omitzero"`
@@ -437,10 +447,4 @@ type Effect struct {
 	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
 	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
 	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
-}
-
-// EffectResult is a daemon API value.
-type EffectResult struct {
-	EffectID string          `json:"effect_id"`
-	Payload  json.RawMessage `json:"payload,omitempty"`
 }

@@ -18,8 +18,10 @@ import { useHomeWorkingNow } from "../hooks/use-home-working-now";
 import type { HomeScope } from "../lib/home-scope";
 
 const scope = {
+  dataScope: { kind: "all" },
   workspaceParam: "",
-  taskScope: { scope: "global" },
+  taskScope: { all_workspaces: true },
+  overview: { allWorkspaces: true },
 } satisfies HomeScope;
 
 function wrapper() {
@@ -88,6 +90,74 @@ describe("useHomeWorkingNow", () => {
     expect(model.runCount).toBe(1);
     expect(model.status).toBe("ready");
     expect(model.errorMessage).toBeNull();
+  });
+
+  // S7: under All projects every live card names its project and opens bound to it; the
+  // task runs come from the all_workspaces aggregate, never `scope=global`.
+  it("Should badge each card with its project under All projects", () => {
+    useSessions.mockReturnValue({
+      data: [
+        {
+          id: "sess-1",
+          agent_name: "coder",
+          name: "Coder",
+          workspace_id: "ws-b",
+          created_at: "2026-07-24T00:00:00Z",
+          activity: undefined,
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+    useTaskDashboard.mockReturnValue({
+      data: {
+        active_runs: {
+          items: [
+            {
+              run_id: "run-user",
+              task_id: "task-1",
+              task_title: "User run",
+              run_status: "running",
+              age_ms: 1000,
+              task_owner: null,
+            },
+          ],
+          total: 1,
+        },
+      },
+      isLoading: false,
+      isError: false,
+    });
+
+    const names = new Map([["ws-b", "Beta"]]);
+    const { result } = renderHook(() => useHomeWorkingNow(scope, true, names), {
+      wrapper: wrapper(),
+    });
+
+    expect(useTaskDashboard).toHaveBeenLastCalledWith(
+      { all_workspaces: true },
+      expect.objectContaining({ enabled: true })
+    );
+    expect(result.current.cards.map(card => card.project)).toEqual([
+      { badge: expect.objectContaining({ kind: "project", name: "Beta" }), binding: "ws-b" },
+      { badge: { kind: "user", name: "User", monogram: "~" }, binding: "@user" },
+    ]);
+
+    const { result: focused } = renderHook(
+      () =>
+        useHomeWorkingNow(
+          {
+            dataScope: { kind: "project", workspaceId: "ws-b" },
+            workspaceParam: "ws-b",
+            taskScope: { scope: "workspace", workspace: "ws-b" },
+            overview: { workspace: "ws-b" },
+          },
+          true,
+          names
+        ),
+      { wrapper: wrapper() }
+    );
+    expect(focused.current.cards.every(card => card.project === undefined)).toBe(true);
   });
 
   it("Should surface an error when one source fails and no cards loaded", () => {

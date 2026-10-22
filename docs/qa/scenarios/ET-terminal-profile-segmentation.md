@@ -48,3 +48,12 @@ owner. The label changes optimistically, so it alone does not prove persistence.
 before the write is issued can restore All profiles and correctly block input resolution.
 The original profile isolation, aggregate journal ownership, and rejected input assertions and
 all timeouts are retained. The existing real browser journey passed twice after this repair.
+
+### User scope (U3 integration leg)
+
+Open with `@user` in profile A, write a command, query the journal, and reconnect the stream.
+Confirm profile B cannot read or attach to A's terminal and that A's history is under
+`workspaces/user-<A-id>/compozy.db`. Delete A and confirm the process and journal directory disappear;
+B's journal must remain. A failed deletion step must remain retryable through profile operations.
+Worker coverage: terminal manager User reconnect, real journal isolation/removal, profile lifecycle
+retry. Full transport/browser walk remains pending integrated U2/U3 delivery.

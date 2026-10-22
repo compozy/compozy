@@ -14,6 +14,7 @@ func ParseLoopRunListQuery(c *gin.Context) (LoopRunListQuery, error) {
 		return LoopRunListQuery{}, err
 	}
 	query := LoopRunListQuery{
+		Order:         strings.TrimSpace(c.Query("order")),
 		LoopName:      strings.TrimSpace(c.Query("loop")),
 		Status:        strings.TrimSpace(c.Query("status")),
 		Origin:        strings.TrimSpace(c.Query("origin")),

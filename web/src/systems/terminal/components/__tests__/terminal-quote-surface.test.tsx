@@ -7,12 +7,17 @@ import { destroyTerminalInstances, type TerminalEngine } from "@compozy/ui";
 import { buildTerminalQuote } from "../../lib/terminal-quote";
 import { terminalReplayFailedCopy } from "../../lib/terminal-copy";
 import { DEV_SERVER_TERMINAL, MAKE_GATE_TERMINAL } from "../../mocks/terminal-fixtures";
+import { SESSION_TERMINAL_MAX_ROWS } from "../../lib/session-terminal-rows";
 import { SessionTerminalBlock } from "../session-terminal-block";
 import { TerminalExpiredState } from "../terminal-empty-states";
 import type { TerminalPaneSelectionActions } from "../terminal-pane";
 import { TerminalPipeLogPane } from "../terminal-pipe-log-pane";
 import { TerminalQuoteBlock, TerminalSelectionActions } from "../terminal-quote-block";
-import { stubEngineLoader } from "./terminal-window-harness";
+import {
+  silentSocketFactory,
+  stubEngineLoader,
+  stubTerminalTicketFetch,
+} from "./terminal-window-harness";
 
 function stubThrowingEngineLoader(error: Error) {
   return async (): Promise<TerminalEngine> => {
@@ -160,24 +165,99 @@ describe("SessionTerminalBlock", () => {
     expect(grids[0].firstElementChild).not.toBe(grids[1].firstElementChild);
   });
 
-  it("Should paint a running session block as live, not succeeded", async () => {
+  it("Should size a recorded screen to its output instead of the emulator default", async () => {
+    // Invariant: a short recorded output takes as many rows as it printed (up
+    // to the inline cap) — never the emulator's default 24 with the rest empty.
+    const resizes: [number, number][] = [];
+    const sizingEngineLoader = async (): Promise<TerminalEngine> => {
+      const engine = await stubEngineLoader();
+      return {
+        ...engine,
+        createTerminal: options =>
+          Object.assign(engine.createTerminal(options), {
+            resize: (cols: number, rows: number) => {
+              resizes.push([cols, rows]);
+            },
+          }),
+      };
+    };
+    const longOutput = Array.from({ length: 40 }, (_, line) => `line ${line}`).join("\r\n");
     render(
-      <SessionTerminalBlock
-        blockId="tool-call-running"
-        engineLoader={stubEngineLoader}
-        preview="ready"
-        stillRunning
-        terminalId={DEV_SERVER_TERMINAL.id}
-        title="dev server"
-      />
+      <>
+        <SessionTerminalBlock
+          blockId="tool-call-short"
+          engineLoader={sizingEngineLoader}
+          exit={{ at: "2026-08-25T12:47:00Z", cause: "exited", code: 0 }}
+          preview={"\u001b[32mok\u001b[0m\r\nPASS\r\n"}
+          terminalId={MAKE_GATE_TERMINAL.id}
+          title="make gate"
+        />
+        <SessionTerminalBlock
+          blockId="tool-call-long"
+          engineLoader={sizingEngineLoader}
+          preview={longOutput}
+          terminalId={DEV_SERVER_TERMINAL.id}
+          title="dev server"
+        />
+      </>
     );
 
-    const block = screen.getByTestId(`session-terminal-block-${DEV_SERVER_TERMINAL.id}`);
-    await waitFor(() => {
-      expect(block.querySelector("[data-slot='state-glyph'][data-state='running']")).not.toBeNull();
+    await waitFor(() => expect(resizes).toHaveLength(2));
+    expect(resizes).toEqual(
+      expect.arrayContaining([
+        [96, 2],
+        [96, SESSION_TERMINAL_MAX_ROWS],
+      ])
+    );
+  });
+
+  it("Should keep the screen it streamed when the run ends instead of repainting the record", async () => {
+    // Invariant: once a block streamed a live terminal, the recorded preview is
+    // older than what is on screen; the exit must not wipe the final screen.
+    const restoreFetch = stubTerminalTicketFetch();
+    const writes: string[] = [];
+    const resizes: number[] = [];
+    const recordingEngineLoader = async (): Promise<TerminalEngine> => {
+      const engine = await stubEngineLoader();
+      return {
+        ...engine,
+        createTerminal: options =>
+          Object.assign(engine.createTerminal(options), {
+            write: (data: unknown, callback?: () => void) => {
+              writes.push(String(data));
+              callback?.();
+            },
+            resize: (_cols: number, rows: number) => {
+              resizes.push(rows);
+            },
+          }),
+      };
+    };
+    const props = {
+      blockId: "tool-call-live",
+      engineLoader: recordingEngineLoader,
+      preview: "stale recorded preview",
+      scope: { workspaceId: "ws-atlas", profile: "work" },
+      socketFactory: silentSocketFactory,
+      terminalId: DEV_SERVER_TERMINAL.id,
+      title: "dev server",
+    };
+    const { rerender } = render(<SessionTerminalBlock {...props} />);
+    await waitFor(() => expect(resizes).toContain(SESSION_TERMINAL_MAX_ROWS));
+
+    rerender(
+      <SessionTerminalBlock
+        {...props}
+        exit={{ at: "2026-08-25T12:52:00Z", cause: "exited", code: 0 }}
+      />
+    );
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 50));
     });
-    expect(block.querySelector("[data-tone='success']")).toBeNull();
-    expect(block).toHaveTextContent("still running — the agent continued without waiting");
+
+    expect(writes).not.toContain("stale recorded preview");
+    expect(resizes.at(-1)).toBe(SESSION_TERMINAL_MAX_ROWS);
+    restoreFetch();
   });
 
   it("Should say a terminal was cleaned up without inventing how long it waited", () => {

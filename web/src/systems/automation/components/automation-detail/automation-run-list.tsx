@@ -22,6 +22,7 @@ import type { AutomationEntity } from "../../lib/automation-entity";
 import { buildAutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRunIcon, AutomationRunView } from "../../lib/automation-run-model";
 import type { AutomationRun } from "../../types";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 import { AutomationDetailSection } from "./automation-detail-section";
 
 const RUN_ICONS = {
@@ -125,6 +126,13 @@ function RunRow({ view, open, onOpenToggle, onSetUpRetries, className, ...props 
           <span className="truncate">{view.statusLabel}</span>
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-small-body text-muted">
+          {view.project ? (
+            <WorkspaceBadge
+              className="max-w-[40%] shrink"
+              data-testid={`automation-run-project-${view.id}`}
+              identity={view.project}
+            />
+          ) : null}
           <MetaIcon aria-hidden="true" className="size-3.5 shrink-0 text-faint" />
           <span className="min-w-0 truncate" data-tone="neutral">
             {view.meta.text}
@@ -181,6 +189,8 @@ interface AutomationRunListProps {
   onRetry: () => void;
   /** Offered in a failed run's drawer when retries are off and the automation is editable. */
   onSetUpRetries?: () => void;
+  /** Under All projects: each run names the project it is attributed to. */
+  runProject?: (run: AutomationRun) => WorkspaceBadgeIdentity;
 }
 
 /** The collapsed section's gist; nothing while the list is loading or failed. */
@@ -258,6 +268,7 @@ function RunListBody({
   nextRunAt,
   onRetry,
   onSetUpRetries,
+  runProject,
 }: AutomationRunListProps) {
   if (isLoading) {
     return (
@@ -271,7 +282,7 @@ function RunListBody({
   return (
     <RunListRows
       onSetUpRetries={onSetUpRetries}
-      views={runs.map(run => buildAutomationRunView(run, entity))}
+      views={runs.map(run => buildAutomationRunView(run, entity, runProject))}
     />
   );
 }

@@ -1,49 +1,37 @@
-import { useEffect } from "react";
-
 import {
   isActiveWorkspaceStoreHydrated,
-  useDesktopWorkspaceId,
+  useBreadthMode,
+  useFocus,
   useSelectedWorkspaceId,
-  useWorkspaceScopeMode,
 } from "./use-active-workspace-store";
 import { useWorkspaces } from "./use-workspaces";
 import { resolveActiveWorkspace } from "../lib/active-workspace";
+import type { DataScope } from "../lib/destination";
 import {
-  activeWorkspaceStore,
   clearActiveWorkspaceSelection,
-  disableGlobalScope,
-  enableGlobalScope,
+  disableAllProjects,
+  enableAllProjects,
+  focusDestination,
+  focusUser,
   setActiveWorkspaceId,
-  toggleGlobalScope,
+  toggleAllProjects,
 } from "../stores/active-workspace-store";
-import { useDaemonStatus } from "@/systems/status";
+import { useUserHomeDir } from "./use-user-home-dir";
 
 export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
   const selectedWorkspaceId = useSelectedWorkspaceId();
-  const desktopWorkspaceId = useDesktopWorkspaceId();
-  const requestedScope = useWorkspaceScopeMode();
+  const requestedBreadthMode = useBreadthMode();
+  const requestedFocus = useFocus();
   const query = useWorkspaces(options);
-  const status = useDaemonStatus(options);
-  const userHomeDir = status.data?.user_home_dir ?? undefined;
+  // Display only (path contraction, session roots); resolution never reads it.
+  const userHomeDir = useUserHomeDir(options);
   const resolution = resolveActiveWorkspace({
     workspaces: query.data ?? [],
-    userHomeDir,
-    scope: requestedScope,
-    selectedWorkspaceId,
-    desktopWorkspaceId,
-    // Until both sources have data, "deleted" and "still loading" are indistinguishable.
-    pending: query.data === undefined || userHomeDir === undefined,
+    breadthMode: requestedBreadthMode,
+    focus: requestedFocus,
+    // Until the catalog has data, "deleted" and "still loading" are indistinguishable.
+    pending: query.data === undefined,
   });
-  const resolvedDesktopWorkspaceId = resolution.desktopWorkspaceId;
-  useEffect(() => {
-    if (resolvedDesktopWorkspaceId === null || resolvedDesktopWorkspaceId === desktopWorkspaceId)
-      return;
-    activeWorkspaceStore.trigger.desktopWorkspaceObserved({
-      workspaceId: resolvedDesktopWorkspaceId,
-      selectedWorkspaceId,
-      previousDesktopWorkspaceId: desktopWorkspaceId,
-    });
-  }, [desktopWorkspaceId, resolvedDesktopWorkspaceId, selectedWorkspaceId]);
 
   return {
     ...query,
@@ -52,13 +40,23 @@ export function useActiveWorkspace(options: { enabled?: boolean } = {}) {
     hasWorkspaces: resolution.projectWorkspaces.length > 0,
     hasHydrated: isActiveWorkspaceStoreHydrated(),
     selectedWorkspaceId,
-    requestedScope,
+    requestedBreadthMode,
     userHomeDir,
     setActiveWorkspaceId,
-    enableGlobalScope,
-    disableGlobalScope,
-    toggleGlobalScope: () =>
-      toggleGlobalScope({ scope: resolution.scope, canDisable: resolution.canDisableGlobal }),
+    focusUser,
+    focusDestination,
+    enableAllProjects,
+    disableAllProjects,
+    toggleAllProjects: () =>
+      toggleAllProjects({ breadthMode: resolution.breadthMode, focus: resolution.focus }),
     clearActiveWorkspaceSelection,
   };
+}
+
+/**
+ * The current data scope: what every surface lists. `null` while a stored
+ * project focus is unconfirmed; readers stay disabled until it settles.
+ */
+export function useDataScope(options: { enabled?: boolean } = {}): DataScope | null {
+  return useActiveWorkspace(options).dataScope;
 }

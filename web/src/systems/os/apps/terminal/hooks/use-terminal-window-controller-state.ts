@@ -11,6 +11,8 @@ import {
   rejectTerminalInputRequest,
   signalTerminal,
   waitTerminal,
+  terminalAggregateQuery,
+  terminalAggregateScope,
   terminalCatalogQuery,
   terminalInputRequestsQuery,
   terminalJournalQuery,
@@ -18,6 +20,7 @@ import {
   terminalRecordingQuery,
   terminalJournalFiltersFromChips,
   terminalScope,
+  useTerminalAggregateStream,
   useTerminalCatalogStream,
   useTerminalInputAnswer,
   useTerminalRecordings,
@@ -28,7 +31,13 @@ import {
   type TerminalViewerIdentity,
   useTerminalJournalUnlocked,
 } from "@/systems/terminal";
-import { useActiveWorkspace } from "@/systems/workspace";
+import {
+  focusedWorkspaceSelector,
+  useActiveWorkspace,
+  useProjectFilter,
+  useWindowDataWorkspace,
+  WINDOW_BINDING_SEARCH_KEY,
+} from "@/systems/workspace";
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
@@ -86,7 +95,24 @@ export function useTerminalWindowControllerState(windowId: string) {
   const viewerToken = useDesktop(state => state.clientAttachmentToken);
   const viewer: TerminalViewerIdentity | null =
     viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null;
-  const workspaceId = workspace.runtimeWorkspaceId ?? "";
+  // The window's scope: its binding (a project or `@user`), else its desktop. An
+  // unbound window on the All projects desktop lists every project's terminals.
+  const windowScope = useWindowDataWorkspace();
+  const workspaceId = focusedWorkspaceSelector(windowScope);
+  const aggregateMode = windowScope?.kind === "all";
+  // The listing Project filter narrows the read population on the server; the
+  // creation destination below it stays an independent choice.
+  const projectFilter = useProjectFilter(windowScope, workspace.workspaces);
+  const aggregateScope = terminalAggregateScope(
+    projectFilter.values,
+    profile.destination,
+    profile.aggregate
+  );
+  const aggregateCatalog = useQuery({
+    ...terminalAggregateQuery(aggregateScope),
+    enabled: aggregateMode,
+  });
+  useTerminalAggregateStream({ scope: aggregateScope, enabled: aggregateMode });
   const journalUnlocked = useTerminalJournalUnlocked(workspaceId);
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
@@ -147,12 +173,19 @@ export function useTerminalWindowControllerState(windowId: string) {
     ]);
   };
 
+  // A bound window keeps its binding when it moves to another terminal.
+  const binding = useDesktop(
+    state => state.windows[windowId]?.route.search[WINDOW_BINDING_SEARCH_KEY]
+  );
+  const retargetSearch: Record<string, unknown> =
+    typeof binding === "string" ? { [WINDOW_BINDING_SEARCH_KEY]: binding } : {};
   const create = useTerminalWindowCreation({
     windowId,
     workspaceId,
     catalogScope,
     destinationScope,
     coordinator,
+    retargetSearch,
   });
   const close = useMutation({
     mutationFn: (terminalId: string) =>
@@ -208,6 +241,8 @@ export function useTerminalWindowControllerState(windowId: string) {
   });
 
   return {
+    /** All projects: every project's terminals; opening one binds this window to it. */
+    aggregate: aggregateMode ? { catalog: aggregateCatalog, projectFilter } : null,
     answer,
     catalog,
     close,
@@ -240,5 +275,12 @@ export function useTerminalWindowControllerState(windowId: string) {
     viewer,
     workspace,
     workspaceId,
+    /** The terminal's project name: the window's binding, else the focused project. */
+    retargetSearch,
+    projectLabel:
+      windowScope?.kind === "project"
+        ? (workspace.registeredWorkspaces.find(item => item.id === windowScope.workspaceId)?.name ??
+          windowScope.workspaceId)
+        : undefined,
   };
 }

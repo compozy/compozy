@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -42,7 +44,8 @@ func (s CatalogScope) Validate() error {
 }
 
 func (s CatalogScope) matches(event CatalogEvent) bool {
-	workspaceMatches := s.AllWorkspaces || strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
+	workspaceMatches := (s.WorkspaceID == workspaceaccess.UserSelector && event.WorkspaceID == "") || s.AllWorkspaces ||
+		strings.TrimSpace(event.WorkspaceID) == strings.TrimSpace(s.WorkspaceID)
 	return workspaceMatches && s.ReadScope.Matches(event.ProfileID)
 }
 

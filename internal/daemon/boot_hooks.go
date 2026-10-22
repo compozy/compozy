@@ -46,6 +46,11 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	state.hookBindings = hookBindings
 	attachTerminalHookBridge(state.terminals, hooks, state.logger)
 	attachTerminalWindowBridge(state.terminals, state.windowManagers, state.logger)
+	if state.windowManagers != nil {
+		if err := state.windowManagers.ReconcileStaleBindings(ctx); err != nil {
+			return fmt.Errorf("daemon: reconcile stale window bindings: %w", err)
+		}
+	}
 	if readiness, ok := state.sessionWindowReconciler.(interface{ SetReady() }); ok {
 		readiness.SetReady()
 	}

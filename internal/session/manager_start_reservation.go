@@ -25,9 +25,6 @@ func (m *Manager) reserveStartLifecycle(
 		return nil, errors.New("session: reserve start context is required")
 	}
 	targetWorkspace := strings.TrimSpace(workspaceID)
-	if targetWorkspace == "" {
-		return nil, errors.New("session: reserve start workspace id is required")
-	}
 
 	m.lifecycleMu.Lock()
 	release := sync.OnceFunc(m.lifecycleMu.Unlock)
@@ -36,20 +33,22 @@ func (m *Manager) reserveStartLifecycle(
 		return nil, err
 	}
 
-	resolver, err := m.requireWorkspaceResolver()
-	if err != nil {
-		return fail(err)
-	}
-	resolved, err := resolver.Resolve(ctx, targetWorkspace)
-	if err != nil {
-		return fail(fmt.Errorf("session: revalidate workspace %q before start: %w", targetWorkspace, err))
-	}
-	if strings.TrimSpace(resolved.ID) != targetWorkspace {
-		return fail(fmt.Errorf(
-			"session: revalidated workspace id %q does not match %q",
-			strings.TrimSpace(resolved.ID),
-			targetWorkspace,
-		))
+	if targetWorkspace != "" {
+		resolver, err := m.requireWorkspaceResolver()
+		if err != nil {
+			return fail(err)
+		}
+		resolved, err := resolver.Resolve(ctx, targetWorkspace)
+		if err != nil {
+			return fail(fmt.Errorf("session: revalidate workspace %q before start: %w", targetWorkspace, err))
+		}
+		if strings.TrimSpace(resolved.ID) != targetWorkspace {
+			return fail(fmt.Errorf(
+				"session: revalidated workspace id %q does not match %q",
+				strings.TrimSpace(resolved.ID),
+				targetWorkspace,
+			))
+		}
 	}
 
 	m.mu.Lock()

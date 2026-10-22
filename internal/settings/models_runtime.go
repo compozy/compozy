@@ -152,7 +152,9 @@ type AttentionSection struct {
 
 // ShellSection is the operator shell-preferences read model.
 type ShellSection struct {
-	Config compozyconfig.ShellConfig
+	Warnings      []string
+	ScopeRevision uint64
+	Config        compozyconfig.ShellConfig
 }
 
 // ObservabilitySection is the observability section read model.

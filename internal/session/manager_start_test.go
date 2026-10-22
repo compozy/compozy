@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *testing.T) {
@@ -784,4 +785,59 @@ func TestCreateFallbackChain(t *testing.T) {
 				got, ledgerRows(t, db))
 		}
 	})
+}
+
+func TestSessionWorkspaceGrant(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		origin workspaceaccess.Origin
+		want   string
+	}{
+		{"Should retain the operator grant across definition edits and resume", workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman}, "unrestricted"},
+		{"Should cap an agent creation independently of lineage", workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession}, ""},
+		{"Should honor a persisted deferred ceiling", workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: "unrestricted"}, "unrestricted"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			workspace, err := h.resolver.Resolve(t.Context(), h.workspaceID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range workspace.Agents {
+				if workspace.Agents[i].Name == "coder" {
+					workspace.Agents[i].WorkspaceAccess = "unrestricted"
+				}
+			}
+			h.resolver.upsert(&workspace)
+			created, err := h.manager.CreateAccepted(
+				t.Context(),
+				CreateAcceptedOpts{
+					Session: CreateOpts{Origin: tc.origin, AgentName: "coder", Workspace: h.workspaceID},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if created.EffectiveWorkspaceAccess != tc.want {
+				t.Fatalf("grant=%q want %q", created.EffectiveWorkspaceAccess, tc.want)
+			}
+			if err := h.manager.Stop(t.Context(), created.ID); err != nil {
+				t.Fatal(err)
+			}
+			for i := range workspace.Agents {
+				workspace.Agents[i].WorkspaceAccess = ""
+			}
+			h.resolver.upsert(&workspace)
+			resumed, err := h.manager.Resume(t.Context(), created.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+			if resumed.Info().EffectiveWorkspaceAccess != tc.want {
+				t.Fatalf("resumed grant=%q want %q", resumed.Info().EffectiveWorkspaceAccess, tc.want)
+			}
+		})
+	}
 }

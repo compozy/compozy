@@ -282,6 +282,7 @@ func creationProfileFromStart(
 	resolved compozyconfig.ResolvedAgent,
 ) store.SessionCreationProfile {
 	return BuildCreationProfile(CreationProfileInput{
+		Scope:           spec.workspace.Scope,
 		AgentName:       resolved.Name,
 		Provider:        resolved.Provider,
 		Model:           resolved.Model,

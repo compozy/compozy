@@ -18,17 +18,8 @@ const SessionRenameDialog = lazy(() =>
 );
 
 /** Keep catalog actions and their confirmation dialogs available without an active session. */
-export function SessionWindowEmpty({
-  windowId,
-  workspaceId,
-}: {
-  windowId: string;
-  workspaceId: string;
-}) {
-  const sidebar = useSessionWindowSidebar({
-    windowId,
-    workspaceId,
-  });
+export function SessionWindowEmpty({ windowId }: { windowId: string }) {
+  const sidebar = useSessionWindowSidebar({ windowId });
 
   useTopbarSlot({
     crumb: <span className="text-muted">Sessions</span>,

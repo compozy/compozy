@@ -25,6 +25,7 @@ describe("automationKeys", () => {
       "",
       "",
       "",
+      "",
     ]);
     expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_beta" })).toEqual([
       "automation",
@@ -39,7 +40,19 @@ describe("automationKeys", () => {
       "",
       "",
       "",
+      "",
     ]);
+  });
+
+  it("keys All projects reads by their Project filter selection", () => {
+    const all = automationKeys.jobList({ all_workspaces: true });
+    const narrowed = automationKeys.triggerList({
+      all_workspaces: true,
+      workspace_ids: ["ws_b", "@user", "ws_b"],
+    });
+    expect(all[5]).toBe("all:");
+    expect(narrowed[5]).toBe("all:@user,ws_b");
+    expect(automationKeys.jobList({ scope: "workspace", workspace_id: "ws_a" })[5]).toBe("");
   });
 
   it("includes package, target, enabled, search and loop filters but never a cursor", () => {
@@ -56,6 +69,7 @@ describe("automationKeys", () => {
       "automation",
       "jobs",
       "list",
+      "",
       "",
       "",
       "package",

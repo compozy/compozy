@@ -2821,7 +2821,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		automationpkg.WithWorkspaceResolver(resolver),
 		automationpkg.WithConfig(cfg.Automation),
 		automationpkg.WithLogger(discardLogger()),
-		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
+
 		automationpkg.WithResourceDefinitions(jobResourceStore, triggerResourceStore, resourceActor, resourceTrigger),
 	)
 	if err != nil {

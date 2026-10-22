@@ -22,7 +22,7 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 		source.Value.Description = "Use marketplace for a registered plugin source and include the listed expected_digest."
 	}
 	if scope := schema.Properties["scope"]; scope != nil && scope.Value != nil {
-		scope.Value.Enum = []any{"global", "workspace"}
+		scope.Value.Enum = []any{specGlobalKey, specWorkspaceKey}
 		scope.Value.Description = "Overrides manifest server defaults. Mixed defaults require an explicit scope. " +
 			"A workspace default requires a workspace-bound caller or workspace_id."
 	}
@@ -41,7 +41,7 @@ func customizeExtensionInstallRequestSchema(schema *openapi3.Schema) {
 
 func customizeExtensionUpdateRequestSchema(schema *openapi3.Schema) {
 	if scope := schema.Properties["scope"]; scope != nil && scope.Value != nil {
-		scope.Value.Enum = []any{"global", "workspace"}
+		scope.Value.Enum = []any{specGlobalKey, specWorkspaceKey}
 		scope.Value.Description = "Select an existing installation; updates preserve every package attachment."
 	}
 	if profile := schema.Properties["profile"]; profile != nil && profile.Value != nil {

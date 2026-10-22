@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"testing"
 	"testing/fstest"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -29,6 +32,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		lastUpdateAt := time.Date(2026, 4, 3, 12, 4, 0, 0, time.UTC)
 		row := db.QueryRowContext(t.Context(), `
 		SELECT
+            '',
 			'sess-scan',
 			?,
 			'Demo',
@@ -284,6 +288,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 		db := openScanSessionInfoDB(t)
 		row := db.QueryRowContext(t.Context(), `
 		SELECT
+            '',
 			'sess-null',
 			?,
 			NULL,
@@ -400,6 +405,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 		db := openScanSessionInfoDB(t)
 		row := db.QueryRowContext(t.Context(), `
 		SELECT
+            '',
 			'sess-invalid-stall',
 			?,
 			'Demo',
@@ -1469,4 +1475,201 @@ func assertSessionDeleteForeignKeysCascade(t *testing.T, db *sql.DB) {
 			t.Fatalf("%s session foreign key on_delete = %q, want CASCADE", table, onDelete)
 		}
 	}
+}
+
+func TestGlobalDBUserSessionOwner(t *testing.T) {
+	t.Run("Should reject a catalog profile that differs from the immutable User witness", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		other := insertLayoutTestProfile(ctx, t, db)
+		profile := store.SessionCreationProfile{
+			Version:     store.UserSessionCreationProfileVersion,
+			AgentName:   "coder",
+			Provider:    "claude",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceaccess.UserSelector,
+			CWD:         t.TempDir(),
+			Permissions: "approve-all",
+		}
+		ref, err := db.PutSessionCreationProfile(ctx, profile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := profile.PolicySpecDigest()
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest, err := profile.CreationDigest(
+			store.SessionCreationOptions{SessionID: "sess-user-owner", SessionType: "user"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		info := sessionInfoForWorkspaceStateIndexTest(
+			"sess-user-owner",
+			"",
+			globalDBSessionStateStopped,
+			time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC),
+		)
+		info.ProfileID = other
+		if _, err := db.RegisterSessionWithCreationIdentity(
+			ctx,
+			info,
+			store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.LookupSessionOwner(
+			ctx,
+			db,
+			db,
+			info.ID,
+		); !errors.Is(
+			err,
+			store.ErrSessionWorkspaceMismatch,
+		) {
+			t.Fatalf("foreign owner error=%v", err)
+		}
+	})
+}
+
+func TestGlobalDBUserFolderMigration(t *testing.T) {
+	t.Run("Should preserve project folder placements while admitting User folders", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		raw, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00147_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		old := &GlobalDB{
+			db:   raw,
+			path: path,
+			now:  func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) },
+		}
+		old.initializeRepositories(openConfig{})
+		ctx := t.Context()
+		workspace := registerWorkspaceForGlobalTests(t, old, "preserved", t.TempDir())
+		scope := store.SessionLayoutScope{ProfileID: store.DefaultProfileID, WorkspaceID: workspace}
+		if _, err := raw.ExecContext(ctx, `INSERT INTO sessions
+(id, profile_id, name, agent_name, workspace_id, session_type, state, created_at, updated_at)
+VALUES ('sess-preserved', ?, 'Preserved', 'coder', ?, 'user', 'stopped', '2026-10-17', '2026-10-17')`, store.DefaultProfileID, workspace); err != nil {
+			t.Fatal(err)
+		}
+		folder := createLayoutFolder(ctx, t, old, scope, "folder-preserved", "Preserved")
+		if err := old.MoveSession(ctx, scope, "sess-preserved", folder.ID); err != nil {
+			t.Fatal(err)
+		}
+		if err := raw.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		var folderID string
+		if err := upgraded.db.QueryRowContext(ctx, `SELECT folder_id FROM session_placements WHERE session_id='sess-preserved'`).
+			Scan(&folderID); err != nil {
+			t.Fatal(err)
+		}
+		if folderID != folder.ID {
+			t.Fatalf("placement=%q", folderID)
+		}
+		createLayoutFolder(
+			ctx,
+			t,
+			upgraded,
+			store.SessionLayoutScope{ProfileID: store.DefaultProfileID},
+			"folder-user-new",
+			"User",
+		)
+	})
+}
+
+func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
+	t.Run("Should page selected projects and User rows with independent profile facets", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		wsA := registerWorkspaceForGlobalTests(t, db, "filter-a", filepath.Join(t.TempDir(), "a"))
+		wsB := registerWorkspaceForGlobalTests(t, db, "filter-b", filepath.Join(t.TempDir(), "b"))
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		const otherProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		if _, err := db.db.ExecContext(
+			t.Context(),
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'editorial','#8E8EB5','circle','active',?)`,
+			otherProfile,
+			formatTimestamp(now),
+		); err != nil {
+			t.Fatal(err)
+		}
+		for i, ws := range []string{wsA, wsB, "", wsA} {
+			info := sessionInfoForWorkspaceStateIndexTest(
+				fmt.Sprintf("filter-%d", i),
+				ws,
+				globalDBSessionStateActive,
+				now.Add(time.Duration(i)*time.Second),
+			)
+			if i == 3 {
+				info.ProfileID = otherProfile
+			}
+			if err := db.RegisterSession(t.Context(), info); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.db.ExecContext(
+			t.Context(),
+			`UPDATE sessions SET pending_permission_count=1 WHERE id IN ('filter-2','filter-3')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		query := store.SessionCatalogPageQuery{
+			ReadScope:    store.ReadScope{AllProfiles: true},
+			WorkspaceIDs: []string{wsA, workspaceaccess.UserSelector},
+			Sort:         "created",
+			Limit:        1,
+		}
+		for _, want := range []string{"filter-3", "filter-2", "filter-0"} {
+			page, err := db.PageSessions(t.Context(), query)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.Total != 3 || len(page.Sessions) != 1 || page.Sessions[0].ID != want {
+				t.Fatalf("page = %#v, want %s", page, want)
+			}
+			row := page.Sessions[0]
+			query.After = &store.SessionCatalogPosition{
+				ID:          row.ID,
+				CreatedAt:   row.CreatedAt,
+				PrimaryAt:   row.UpdatedAt,
+				SecondaryAt: row.UpdatedAt,
+			}
+		}
+		page, err := db.PageSessions(t.Context(), query)
+		if err != nil || len(page.Sessions) != 0 {
+			t.Fatalf("last page = %#v, error = %v", page, err)
+		}
+		query.Search = "missing text"
+		query.Badges = []string{"failed"}
+		facets, err := db.SessionCatalogFacets(t.Context(), query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if facets.Facets.All != 3 || facets.Facets.NeedsYou != 2 || len(facets.ByProfile) != 2 {
+			t.Fatalf("facets = %#v", facets)
+		}
+		for _, profile := range facets.ByProfile {
+			wantAll := 2
+			if profile.ProfileID == otherProfile {
+				wantAll = 1
+			}
+			if profile.Facets.All != wantAll || profile.Facets.NeedsYou != 1 {
+				t.Fatalf("profile facet = %#v", profile)
+			}
+		}
+	})
 }

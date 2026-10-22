@@ -4,11 +4,15 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"log/slog"
+	"sync"
 
 	burnttoml "github.com/BurntSushi/toml"
 )
 
 const configBaseURLKey = "base_url"
+
+var warnShellScopeDeprecation = sync.OnceFunc(func() { slog.Warn(ShellScopeDeprecationWarning) })
 
 // ApplyConfigOverlayFile deep-merges an optional TOML config file into dst.
 func ApplyConfigOverlayFile(path string, dst *Config) error {
@@ -89,6 +93,9 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 		return overlay, unknown
 	}
 
+	if overlay.Shell != nil && overlay.Shell.Sessions.Scope != nil {
+		warnShellScopeDeprecation()
+	}
 	return overlay, nil
 }
 

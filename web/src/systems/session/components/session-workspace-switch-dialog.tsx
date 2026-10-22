@@ -4,8 +4,8 @@ export interface SessionWorkspaceSwitchDialogProps {
   open: boolean;
   /** Name of the workspace that owns the linked session. */
   workspaceName: string;
-  /** True when the owner is the operator-home row — the link targets Global scope. */
-  isGlobal?: boolean;
+  /** True when the session has no project — confirming focuses User. */
+  isUser?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -18,7 +18,7 @@ export interface SessionWorkspaceSwitchDialogProps {
 export function SessionWorkspaceSwitchDialog({
   open,
   workspaceName,
-  isGlobal = false,
+  isUser = false,
   onConfirm,
   onCancel,
 }: SessionWorkspaceSwitchDialogProps) {
@@ -29,13 +29,13 @@ export function SessionWorkspaceSwitchDialog({
         if (!nextOpen) onCancel();
       }}
       tone="neutral"
-      title={isGlobal ? "Turn on Global scope?" : "Switch project?"}
+      title={isUser ? "Switch to User?" : "Switch project?"}
       description={
-        isGlobal
-          ? "This session runs in Global scope (~). Confirming turns Global scope on — your project selection is remembered."
+        isUser
+          ? "This session runs in User, outside any project. Switching shows User work and the windows open there."
           : `This session belongs to ${workspaceName}. Switching changes the active project and the windows open in it.`
       }
-      confirmLabel={isGlobal ? "Turn on Global scope" : "Switch project"}
+      confirmLabel={isUser ? "Switch to User" : "Switch project"}
       cancelLabel="Stay here"
       onConfirm={onConfirm}
       contentProps={{ "data-testid": "session-workspace-switch-dialog" }}

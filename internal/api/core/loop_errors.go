@@ -92,7 +92,7 @@ func StatusForLoopError(err error) int {
 		errors.Is(err, looppkg.ErrCatalogQueryInvalid),
 		errors.Is(err, looppkg.ErrCatalogCursorInvalid):
 		return http.StatusBadRequest
-	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
+	case errors.Is(err, workspacepkg.ErrWorkspaceReserved), errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing),
 		errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return StatusForWorkspaceError(err)

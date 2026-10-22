@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 var _ taskpkg.RecordStore = (*TaskRepo)(nil)
@@ -57,7 +58,7 @@ const taskRunSelectColumnsSQL = `
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
 	review_round, continuation_reason, missing_work_json, next_round_guidance`
 
-const taskRecordSelectColumnsSQL = `
+const taskRecordSelectColumnsSQL = `grant_ceiling,
 	id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,
 	priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 	owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
@@ -192,6 +193,9 @@ func (g *TaskRepo) updateTaskWithExecutor(
 	}
 
 	normalized.CreatedAt = current.CreatedAt
+	if !actor.Scope.Operator {
+		normalized.GrantCeiling = workspaceaccess.NarrowGrant(current.GrantCeiling, normalized.GrantCeiling)
+	}
 	statusChanged, err := taskStatusChangedForUpdate(current.Status, normalized.Status, actor)
 	if err != nil {
 		return err
@@ -296,6 +300,7 @@ func (g *TaskRepo) ListTasks(
 		store.StringClause("created_by_kind", string(normalized.CreatedByKind)),
 		store.StringClause("created_by_ref", normalized.CreatedByRef),
 	)
+	where, args = appendTaskWorkspaceIDs(where, args, normalized.WorkspaceIDs)
 	where, args = appendTaskSearchClause(where, args, normalized.Search)
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += taskListOrderByActivitySQL

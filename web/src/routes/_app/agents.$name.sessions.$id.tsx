@@ -12,13 +12,25 @@ export const Route = createFileRoute("/_app/agents/$name/sessions/$id")({
     topbar: { crumb: { label: "Session" } },
   }),
   validateSearch: validateSessionDeepLinkSearch,
-  loaderDeps: ({ search }) => ({ workspaceSwitch: search.workspaceSwitch }),
+  loaderDeps: ({ search }) => ({
+    workspaceSwitch: search.workspaceSwitch,
+    workspace: search.workspace,
+  }),
   loader: async ({ context, params, deps, preload }) => {
     const { prefetchAgentSessionRoute } = await import("./-agent-session-route-loader");
     const data = await prefetchAgentSessionRoute({
       queryClient: context.queryClient,
       sessionId: params.id,
     });
+    // The All projects desktop binds the window to the session's own scope.
+    if (!preload && data.status === "loaded" && data.binding && deps.workspace !== data.binding) {
+      throw redirect({
+        to: "/agents/$name/sessions/$id",
+        params,
+        search: { workspace: data.binding },
+        replace: true,
+      });
+    }
     if (preload || data.status === "loaded") {
       return data;
     }

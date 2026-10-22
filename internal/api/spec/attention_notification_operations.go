@@ -11,6 +11,7 @@ func attentionNotificationOperations() []OperationSpec {
 	parameters := withProfileScope(
 		queryParam("receipt_profile", "Profile owning acknowledgement receipts, including aggregate reads", false),
 		queryParam("workspace", "Home workspace scope; empty selects global tasks", false),
+		boolQueryParam("all_workspaces", "Every project's tasks, matching an All projects Home overview"),
 	)
 	return []OperationSpec{
 		{

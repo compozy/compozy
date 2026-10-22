@@ -59,13 +59,8 @@ func evaluateGateNode(
 	if empty {
 		return approveGateOutput(output)
 	}
-	if err := validateJudgeGateRuntimes(
-		ctx,
-		runtimeCatalog,
-		run.WorkspaceID,
-		effective.RuntimeDefaults.Judge,
-		runtimeGate.Criteria,
-	); err != nil {
+	if err := validateJudgeGateRuntimes(ctx, runtimeCatalog, run.WorkspaceID, run.ProfileID,
+		effective.RuntimeDefaults.Judge, runtimeGate.Criteria); err != nil {
 		return GenerationOutput{}, nil, err
 	}
 	humanDecisions, err := loadGateDecisions(ctx, decisions, run, generation, dsl.NodeID(runtimeGate.ID))
@@ -157,13 +152,14 @@ func validateJudgeGateRuntimes(
 	ctx context.Context,
 	factory WorkspaceRuntimeCatalog,
 	workspaceID WorkspaceID,
+	profileID string,
 	defaults RuntimeSpec,
 	criteria []dsl.GateCriterion,
 ) error {
 	if factory == nil {
 		return nil
 	}
-	catalog, err := factory.ForWorkspace(ctx, workspaceID)
+	catalog, err := factory.ForWorkspace(ctx, workspaceID, profileID)
 	if err != nil {
 		return fmt.Errorf("resolve judge runtime catalog: %w", err)
 	}
@@ -198,14 +194,14 @@ func runtimeGateInput(
 		return gate.GateInput{}, err
 	}
 	return gate.GateInput{
-		JudgeParentSessionID: provenanceSessionID(run),
-		LoopRunID:            string(run.ID),
-		Placement:            placement,
-		Contract:             &contract,
-		Revision:             max(0, revision),
-		BestScore:            cloneFloat64(run.BestScore),
-		HumanDecisions:       humanDecisions,
-		JudgeRuntime:         effective.RuntimeDefaults.Judge,
+		GrantCeiling: run.GrantCeilingSnapshot(), JudgeParentSessionID: provenanceSessionID(run),
+		LoopRunID:      string(run.ID),
+		Placement:      placement,
+		Contract:       &contract,
+		Revision:       max(0, revision),
+		BestScore:      cloneFloat64(run.BestScore),
+		HumanDecisions: humanDecisions,
+		JudgeRuntime:   effective.RuntimeDefaults.Judge,
 		ToolScope: tools.Scope{
 			ProfileID:   strings.TrimSpace(run.ProfileID),
 			WorkspaceID: string(run.WorkspaceID),

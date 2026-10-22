@@ -1,5 +1,5 @@
 import { type SessionPayload, useSessions } from "@/systems/session";
-import { useScopedWorktreeFilter } from "@/systems/workspace";
+import { dataScopeFromSelector, useScopedWorktreeFilter } from "@/systems/workspace";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 
 interface UseAgentSessionsOptions {
@@ -34,7 +34,13 @@ export function useAgentSessions(
   // This window's scope. `undefined` when the scope is the workspace root or the
   // selection fell back, which drops the filter instead of sending an empty one.
   const scopeId = useWorktreeScopeId();
-  const worktree = useScopedWorktreeFilter(workspaceId, scopeId, { enabled });
+  // Only a project narrows to a worktree; `@user` has none.
+  const scope = workspaceId === null ? null : dataScopeFromSelector(workspaceId);
+  const worktree = useScopedWorktreeFilter(
+    scope?.kind === "project" ? scope.workspaceId : null,
+    scopeId,
+    { enabled }
+  );
   const queryEnabled = enabled && worktree.resolved;
   const sessionsQuery = useSessions(workspaceId, {
     enabled: queryEnabled,

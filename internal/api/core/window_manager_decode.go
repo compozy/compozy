@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
@@ -30,6 +32,9 @@ func decodeWindowManagerJSON(c *gin.Context, target any) error {
 }
 
 func windowManagerWorkspace(c *gin.Context) windowmanager.WorkspaceID {
+	if strings.TrimSpace(c.Param("workspace_id")) == workspaceaccess.UserSelector {
+		return windowmanager.UserDesktopWorkspaceID
+	}
 	return windowmanager.WorkspaceID(strings.TrimSpace(c.Param("workspace_id")))
 }
 

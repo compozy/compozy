@@ -300,6 +300,7 @@ func (e *Executor) actionSessionBindRequest(
 	}
 	runtimeRequest := segment.resolvedRuntime.Runtime
 	return loop.ActionSessionBindRequest{
+		GrantCeiling:                   segment.input.GrantCeiling,
 		ProfileID:                      segment.input.ToolScope.ProfileID,
 		WorkspaceID:                    segment.key.WorkspaceID,
 		LoopRunID:                      segment.key.LoopRunID,

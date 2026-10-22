@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
 	"github.com/compozy/compozy/internal/store"
@@ -99,7 +101,7 @@ func spawnWorkspaceCreateRefs(parent *Info, opts SpawnOpts) (string, string) {
 	if workspaceID := strings.TrimSpace(parent.WorkspaceID); workspaceID != "" {
 		return workspaceID, ""
 	}
-	return "", strings.TrimSpace(parent.Workspace)
+	return workspaceaccess.UserSelector, ""
 }
 
 func normalizeSpawnRole(role string) string {

@@ -1643,7 +1643,6 @@ func newLoopGoalCoordinatorRuntimeFixture(
 	runtime := newLoopGoalProductionRuntime(
 		goalStore,
 		manager,
-		homePaths.HomeDir,
 		policyGate,
 		time.Now,
 		discardLogger(),
@@ -2093,7 +2092,6 @@ func newLoopGoalManagedRuntimeFixture(
 	runtime := newLoopGoalProductionRuntime(
 		goalStore,
 		runtimeSessions,
-		homePaths.HomeDir,
 		policyGate,
 		time.Now,
 		discardLogger(),

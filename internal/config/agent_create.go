@@ -23,6 +23,7 @@ var (
 
 // AgentDefinitionDraft captures the simple AGENT.md fields supported by authoring surfaces.
 type AgentDefinitionDraft struct {
+	WorkspaceAccess string
 	Name            string
 	Provider        string
 	Command         string
@@ -89,6 +90,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		Toolsets:        trimAgentDefinitionAtoms(draft.Toolsets),
 		DenyTools:       trimAgentDefinitionAtoms(draft.DenyTools),
 		Permissions:     strings.TrimSpace(draft.Permissions),
+		WorkspaceAccess: draft.WorkspaceAccess,
 		Skills:          AgentSkillsConfig{Disabled: trimAgentDefinitionAtoms(draft.Skills.Disabled)},
 		CategoryPath:    trimAgentDefinitionAtoms(draft.CategoryPath),
 		MCPServers:      cloneMCPServers(draft.MCPServers),
@@ -146,6 +148,7 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		Toolsets:        cloneStrings(canonical.Toolsets),
 		DenyTools:       cloneStrings(canonical.DenyTools),
 		Permissions:     canonical.Permissions,
+		WorkspaceAccess: canonical.WorkspaceAccess,
 		Skills:          normalizeAgentSkillsConfig(canonical.Skills),
 		CategoryPath:    cloneStrings(canonical.CategoryPath),
 		MCPServers:      cloneMCPServers(canonical.MCPServers),

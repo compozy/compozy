@@ -67,7 +67,7 @@ An operator-owned partition of work on one CompozyOS installation. Each work roo
 
 Every installation has the permanent `default` profile, structurally identical to any other, which cannot be archived, deleted, or renamed. Names match `^[a-z][a-z0-9-]{0,31}$`, are unique across active and archived profiles, and reserve `default`, `all`, and `global`. The name doubles as a repository folder name and as the binding key extensions place resources into; the stamp itself is a stable ULID, so a rename never touches work.
 
-**Organization, not access control.** Profiles carry no permission, grant, lock, or hidden-from vocabulary. Any active profile is selectable at any time; archived profiles remain visible in aggregate reads and must be unarchived before selection. Do not reintroduce the closed [Cross-workspace access](#cross-workspace-access) vocabulary. Access control for more than one operator is a separate future program.
+**Organization for the operator.** Any active profile is selectable by the operator; archived profiles remain visible in aggregate reads and must be unarchived before selection. Ordinary agents remain bound to their session profile. An operator-authored unrestricted agent grant permits explicit cross-profile targeting and aggregate reads. Access control for more than one operator is a separate future program.
 
 **Bare "Profile" names only this concept.** The pre-existing compounds keep their own meaning and are unrelated: [Task Execution Profile](#task-execution-profile), layout profile, gateway connection profile, and session creation profile. Renaming them was considered and rejected; this entry is the arbitration line for any future collision.
 
@@ -182,9 +182,11 @@ features.
 
 ### Cross-workspace access
 
-An agent session reaching a [workspace](#workspace) other than its own. It is a **boundary anchored on the session's effective `PermissionMode`**, evaluated by `internal/workspaceaccess` at the agent-identity, task, native-tool, spawn, and workspace-coordination seams: `approve-all` allows, `deny-all` denies with no prompt, `approve-reads` prompts at the native-tool seam and denies at every other seam.
+An agent session reaching a scope other than its own: another [workspace](#workspace), the [User scope](#user-scope) from a project (or a project from User), or the same workspace under another profile. Same scope means same workspace and profile, or User of the same profile. It is a **boundary anchored on the session's effective `PermissionMode`**, evaluated by `internal/workspaceaccess` at the agent-identity, task, native-tool, spawn, and workspace-coordination seams: `approve-all` allows, `deny-all` denies with no prompt, `approve-reads` prompts at the native-tool seam and denies at every other seam.
 
-**Not a grant, toggle, capability level, or trust list.** No `[workspace_access]` config section, grants table, CLI verb, native toolset, or Settings surface exists — ADR-007 removed them from the design and none was implemented. Do not reintroduce that vocabulary.
+**Operator-authored grant.** User Scope Work ADR-003 supersedes Cross-workspace access ADR-007 §1 only for the [unrestricted grant](#unrestricted-grant) (`workspace_access: unrestricted` in AGENT.md). The effective session grant precedes the permission-mode crossing rules and permits project, User, and profile aggregate access. It does not bypass tool policy or permit global/foreign-profile desktop access. No grants table, `[workspace_access]` config section, or grant-management toolset exists.
+
+The grant is immutable for a session. Creation intersects the target definition with the authenticated creator ceiling; deferred tasks, automations, and Loops persist that ceiling. Agent edits to executable definitions can only narrow it. Legacy records have an empty ceiling. Marketplace and extension definitions cannot supply the grant.
 
 Prompt answers `allow_session`/`reject_session` are **session consent**: in-memory, session-scoped, applied at every seam, cleared when the session stops, with no management surface. Policy evaluations use the best-effort audit event types `workspace.access_granted` / `workspace.access_denied`.
 
@@ -338,6 +340,22 @@ The runtime object: project root and scoped runtime context (sessions, tasks, va
 
 **UI label:** "project". The alias may NOT be `environment` — that word is reserved for process-level context. `workspace` stays canonical in code, `workspace_id`, CLI, API, and docs.
 
+### User scope
+
+The per-profile scope for work that belongs to no project: sessions, Loop runs and requests, Goals, terminals, tasks, automations, heartbeat, and soul. It is a resolution (`workspace.Resolver.ResolveUser(profile)`), never a `workspaces` row: stored as `workspace_id = ''` (or `NULL` on tasks and automation definitions) plus `profile_id`, and it runs in `[user_scope] work_dir` (default `~`) with Bundled → Marketplace → User → Profile → Agent-local configuration. It has no worktrees. The operator home and `COMPOZY_HOME` are never registrable.
+
+**Public reference:** `@user` (route paths, `workspace_id`/`workspace` selectors, `workspace_ids`, native `workspace`, CLI `--workspace`; `compozy session new --user`; `scope: "user"` on session create). An empty workspace value never means User. Emitted values `"global"` (task/automation `scope`, session `scope` column, WM `global` partition) keep their stored meaning; the rename is a follow-up.
+
+**UI label:** **User**, everywhere data has no project (switcher destination, row badges, bell `workspace_label`, CLI `PROJECT` column). Replaces "Global" and "No project" as data labels. Spec: `user-scope-work`. Configuration-layer "user" (`--scope user`) is the same word on purpose.
+
+### All projects
+
+The breadth mode toggled by the topbar globe: every registered project plus [User scope](#user-scope) rows, within the current profile lens. It never widens the profile lens (that is **All profiles**). Client state in the destination store (`breadthMode: "all" | "focused"`, focus = a project or User); it binds the profile's reserved `global` desktop partition. Public reads: `all_workspaces=true` (+ repeatable `workspace_ids`, `@user` for User) on HTTP/UDS and `--all-workspaces` on CLI lists. Aggregates are operator surfaces (`agent_scope_denied` for ordinary agents) and app-denied on new routes. Replaces "Global scope" as the mode name; the palette ID `scope.global.toggle` is unchanged. Spec: `all-projects`.
+
+### Unrestricted grant
+
+The AGENT.md field `workspace_access: unrestricted`, the only grant vocabulary in CompozyOS (see [Cross-workspace access](#cross-workspace-access)). Operator-authored only (`workspace_access_operator_only`; dropped from marketplace/extension sources). Resolved once per session into `effective_workspace_access`; agent-originated creations get `min(creator, definition)`; deferred records persist `grant_ceiling`. Allows every workspace, User, every profile, and aggregates, audited as `workspace.access_granted` with source `agent_grant`. Does not change tool-risk approvals, the `global` desktop partition, other profiles' partitions, presence, or notification receipts. UI badge: **Unrestricted**.
+
 ### Desktop
 
 One persistent virtual arrangement inside a workspace. A workspace may own multiple ordered desktops. Each desktop owns tiled groups and floating-window order; a window belongs to exactly one desktop. The active desktop and focused window are client-local projections. A desktop carries no sessions or tasks of its own.
@@ -366,7 +384,7 @@ The visual shape of the dock: the 60px column on the left edge (`--width-rail`, 
 
 ### Menubar
 
-The top bar across the full window: CompozyOS mark (whose menu holds Settings), Global scope globe, workspace trigger, app menus, then the tray — desktop pager, All desktops, the approvals bell, and the ⌘K palette. The globe sits between the mark and the chip and is the only owner of Global vs workspace destination. The chip reads the project name when scoped down, or **Global** (`~`) when Global scope is on.
+The top bar across the full window: CompozyOS mark (whose menu holds Settings), **All projects** globe, destination chip, app menus, then the tray — desktop pager, All desktops, the approvals bell, and the ⌘K palette. The globe sits between the mark and the chip and is the only owner of breadth (All projects vs the focus); the chip's switcher sets the focus: **All projects**, **User**, then projects. The chip reads the project name when a project is focused, **User** (`~`) when User is focused, or **All projects** while the globe is pressed.
 
 **Naming:** the menubar's accessible name is "System bar"; "topbar" is only a prose description of its position. `<Topbar>` in `@compozy/ui` is the **window head**, not the menubar — never use "Topbar" to mean the menubar in code or specs.
 

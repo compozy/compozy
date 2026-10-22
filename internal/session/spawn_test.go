@@ -144,8 +144,8 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 				WorkspaceID: h.workspaceID,
 				AgentName:   "coder",
 			},
-			TargetWorkspaceID: foreign.ID,
-			Seam:              workspaceaccess.SeamSpawn,
+			Target: workspaceaccess.ScopeTarget(foreign.ID, parent.ProfileID),
+			Seam:   workspaceaccess.SeamSpawn,
 		}
 		for index, req := range policy.requests {
 			if req != wantRequest {
@@ -197,7 +197,7 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 			t.Fatalf("ResolveSpawnWorkspace(allowed) = %q, %v; want %q", target, err, foreign.ID)
 		}
 		if last := policy.requests[len(policy.requests)-1]; last.Seam != workspaceaccess.SeamSpawn ||
-			last.TargetWorkspaceID != foreign.ID {
+			last.Target.WorkspaceID != foreign.ID {
 			t.Fatalf("policy request = %#v, want spawn seam for %q", last, foreign.ID)
 		}
 	})

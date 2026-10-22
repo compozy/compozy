@@ -298,7 +298,7 @@ func (h *BaseHandlers) extensionScopedActorContext(
 			return taskpkg.ActorContext{}, false
 		}
 		if requireWorkspace && strings.TrimSpace(actor.Scope.WorkspaceID) == "" {
-			h.respondExtensionError(c, http.StatusBadRequest, errors.New("a resolved workspace is required"))
+			h.respondExtensionError(c, http.StatusBadRequest, errors.New("workspace_id is required"))
 			return taskpkg.ActorContext{}, false
 		}
 		return h.extensionActorProfileScope(c, actor)
@@ -308,6 +308,10 @@ func (h *BaseHandlers) extensionScopedActorContext(
 		caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, action, "")
 		if err != nil {
 			h.respondExtensionError(c, StatusForTaskError(err), err)
+			return taskpkg.ActorContext{}, false
+		}
+		if requireWorkspace && strings.TrimSpace(caller.Actor.Scope.WorkspaceID) == "" {
+			h.respondExtensionError(c, http.StatusBadRequest, errors.New("workspace_id is required"))
 			return taskpkg.ActorContext{}, false
 		}
 		return h.extensionActorProfileScope(c, caller.Actor)

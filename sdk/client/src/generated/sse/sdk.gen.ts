@@ -57,6 +57,10 @@ import type {
   StreamTerminalCatalogErrors,
   StreamTerminalCatalogResponse,
   StreamTerminalCatalogResponses,
+  StreamTerminalsAggregateData,
+  StreamTerminalsAggregateErrors,
+  StreamTerminalsAggregateResponse,
+  StreamTerminalsAggregateResponses,
   StreamWorktreeCatalogData,
   StreamWorktreeCatalogErrors,
   StreamWorktreeCatalogResponse,
@@ -235,6 +239,23 @@ export const streamTask = <ThrowOnError extends boolean = true>(
   (options.client ?? client).sse.get<StreamTaskResponses, StreamTaskErrors, ThrowOnError, "data">({
     responseStyle: "data",
     url: "/api/tasks/{id}/stream",
+    ...options,
+  });
+
+/**
+ * Stream one profile-scoped terminal catalog
+ */
+export const streamTerminalsAggregate = <ThrowOnError extends boolean = true>(
+  options?: Options<StreamTerminalsAggregateData, ThrowOnError, StreamTerminalsAggregateResponse>
+): Promise<ServerSentEventsResult<StreamTerminalsAggregateResponses>> =>
+  (options?.client ?? client).sse.get<
+    StreamTerminalsAggregateResponses,
+    StreamTerminalsAggregateErrors,
+    ThrowOnError,
+    "data"
+  >({
+    responseStyle: "data",
+    url: "/api/terminals/catalog-stream",
     ...options,
   });
 

@@ -155,7 +155,8 @@ func loadWaitExecutedDefinition(
 ) (*looppkg.ResolvedDefinition, error) {
 	var raw string
 	err := exec.QueryRowContext(ctx, `SELECT definition_json FROM loop_definition_snapshots
-		WHERE workspace_id = ? AND definition_digest = ?`, run.WorkspaceID, run.DefinitionDigest).Scan(&raw)
+		WHERE workspace_id = ? AND profile_id = ? AND definition_digest = ?`,
+		run.WorkspaceID, loopStateProfileID(run.WorkspaceID, run.ProfileID), run.DefinitionDigest).Scan(&raw)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("%w: executed definition snapshot is missing", looppkg.ErrValidation)
 	}

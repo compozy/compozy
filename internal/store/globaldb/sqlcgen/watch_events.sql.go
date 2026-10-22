@@ -17,6 +17,7 @@ SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.in
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
+ AND lds.profile_id = CASE WHEN lr.workspace_id = '' THEN lr.profile_id ELSE '' END
  AND lds.definition_digest = lr.definition_digest
 JOIN loop_generation_outputs lgo
   ON lgo.loop_run_id = lr.id
@@ -85,6 +86,7 @@ SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.in
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
+ AND lds.profile_id = CASE WHEN lr.workspace_id = '' THEN lr.profile_id ELSE '' END
  AND lds.definition_digest = lr.definition_digest
 JOIN loop_generation_outputs lgo
   ON lgo.loop_run_id = lr.id
@@ -155,6 +157,7 @@ SELECT lr.workspace_id, lr.profile_id, lr.id, lr.loop_name, lr.generation, lr.in
 FROM loop_runs lr
 JOIN loop_definition_snapshots lds
   ON lds.workspace_id = lr.workspace_id
+ AND lds.profile_id = CASE WHEN lr.workspace_id = '' THEN lr.profile_id ELSE '' END
  AND lds.definition_digest = lr.definition_digest
 JOIN loop_generation_outputs lgo
   ON lgo.loop_run_id = lr.id

@@ -99,7 +99,7 @@ func updateLoopRunBestWithExecutor(
 	generation *int64,
 	score *float64,
 ) error {
-	if strings.TrimSpace(string(workspaceID)) == "" || strings.TrimSpace(string(runID)) == "" {
+	if strings.TrimSpace(string(runID)) == "" {
 		return fmt.Errorf("%w: workspace and loop run id are required", looppkg.ErrValidation)
 	}
 	if (generation == nil) != (score == nil) {

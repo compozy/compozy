@@ -3,23 +3,37 @@ import { Repeat2 } from "lucide-react";
 
 import { CatalogCard } from "@compozy/ui";
 
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+
 import type { LoopCatalogEntry } from "../../types";
 import { LoopStatusMark } from "../loop-status-mark";
 import { LoopCatalogFacts } from "./loop-catalog-facts";
 import { LoopRunButton } from "./loop-run-button";
 
+const UNBOUND_SEARCH: { workspace?: string } = {};
+
 interface LoopCatalogCardProps {
   entry: LoopCatalogEntry;
   onRun: (entry: LoopCatalogEntry) => void;
+  /** Keeps the card's link on its owner's binding. */
+  linkSearch?: { workspace?: string };
+  /** Under All projects: the card's project, beside its version. */
+  project?: WorkspaceBadgeIdentity;
 }
 
-export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
+export function LoopCatalogCard({
+  entry,
+  onRun,
+  linkSearch = UNBOUND_SEARCH,
+  project,
+}: LoopCatalogCardProps) {
   return (
     <CatalogCard actionable data-loop={entry.name} data-testid={`loop-catalog-card-${entry.name}`}>
       <Link
         aria-label={`Open ${entry.name}`}
         className="flex min-w-0 flex-col gap-3"
         params={{ name: entry.name }}
+        search={linkSearch}
         to="/loops/$name"
       >
         <div className="flex items-start gap-3">
@@ -29,6 +43,9 @@ export function LoopCatalogCard({ entry, onRun }: LoopCatalogCardProps) {
           <div className="flex min-w-0 flex-1 flex-col gap-1">
             <CatalogCard.Title>{entry.name}</CatalogCard.Title>
             <CatalogCard.Meta>
+              {project ? (
+                <WorkspaceBadge data-testid="loop-catalog-card-project" identity={project} />
+              ) : null}
               <span className="font-mono">{`v${entry.version}`}</span>
             </CatalogCard.Meta>
           </div>

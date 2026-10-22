@@ -8,7 +8,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { statusKeys, type StatusPayload } from "@/systems/status";
 import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 import { useActiveWorkspace } from "@/systems/workspace/hooks/use-active-workspace";
@@ -273,10 +272,6 @@ describe("useWindowManagerStream", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
-    // Scope resolution needs `$HOME` before it can partition project workspaces.
-    queryClient.setQueryData(statusKeys.current(), {
-      daemon: { user_home_dir: "/Users/operator" },
-    } as StatusPayload);
     queryClient.setQueryData(workspaceKeys.list(), [staleWorkspace]);
     setActiveWorkspaceId(staleWorkspace.id);
     vi.mocked(fetchWorkspaces).mockResolvedValue([currentWorkspace]);
@@ -285,8 +280,8 @@ describe("useWindowManagerStream", () => {
     try {
       const { result } = renderHook(
         () => {
-          // Mirrors the desktop shell: Global keeps data unbound while the
-          // window-manager stream stays on a durable project layout partition.
+          // Mirrors the desktop shell: the window-manager stream follows the
+          // destination's desktop partition.
           const { desktopWorkspaceId } = useActiveWorkspace();
           useWindowManagerStream({
             workspaceId: desktopWorkspaceId,
@@ -324,13 +319,14 @@ describe("useWindowManagerStream", () => {
         });
       });
 
-      // A pruned selection falls back to Global without adopting another data
-      // workspace, while its desktop layout binds to the first live project.
-      await waitFor(() => expect(result.current).toBe(currentWorkspace.id));
+      // A pruned project focus falls back to User — its own desktop — and never
+      // adopts another project's layout partition.
+      await waitFor(() => expect(result.current).toBe("user"));
       expect(fetchWorkspaces).toHaveBeenCalledOnce();
       expect(factory).toHaveBeenLastCalledWith(
-        "/api/workspaces/workspace%3Acurrent/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=marketing"
+        "/api/workspaces/user/window-manager/stream?after_revision=0&client_id=client%3Aweb&profile=marketing"
       );
+      expect(factory).not.toHaveBeenCalledWith(expect.stringContaining("current"));
     } finally {
       act(() => clearActiveWorkspaceSelection());
     }

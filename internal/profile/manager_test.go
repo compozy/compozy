@@ -1890,6 +1890,52 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 func TestManagerRecoveryAndReservation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retry the journal removal before completing profile deletion", func(t *testing.T) {
+		t.Parallel()
+		manager, db, _ := newTestManager(t)
+		remover := &userJournalRemovalProbe{fail: true}
+		manager.userJournal = remover
+		profile, err := manager.Create(t.Context(), CreateInput{Name: "journal-owner"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		plan, err := manager.PrepareDelete(t.Context(), profile.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Delete(t.Context(), profile.Name, plan.Revision); err == nil {
+			t.Fatal("expected journal removal failure")
+		}
+		remover.fail = false
+		var opID string
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT id FROM profile_lifecycle_ops WHERE profile_id = ? AND kind = 'delete'", profile.ID).
+			Scan(&opID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.RetryOp(t.Context(), opID); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if remover.calls != 2 || remover.profileID != profile.ID {
+			t.Fatalf("removal = %+v", remover)
+		}
+		var pending int
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM profile_lifecycle_op_steps WHERE action = 'remove_user_journal' AND status != 'done'").
+			Scan(&pending); err != nil {
+			t.Fatal(err)
+		}
+		if pending != 0 {
+			t.Fatalf("pending journal steps: %d", pending)
+		}
+	})
+
 	t.Run("Should resume a delete that still owes its desktop purge", func(t *testing.T) {
 		t.Parallel()
 
@@ -2251,4 +2297,19 @@ func insertLifecycleOperation(
 	); err != nil {
 		t.Fatalf("insert lifecycle operation %q error = %v", opID, err)
 	}
+}
+
+type userJournalRemovalProbe struct {
+	fail      bool
+	calls     int
+	profileID string
+}
+
+func (p *userJournalRemovalProbe) RemoveUserJournal(_ context.Context, profileID string) error {
+	p.calls++
+	p.profileID = profileID
+	if p.fail {
+		return errors.New("journal unavailable")
+	}
+	return nil
 }

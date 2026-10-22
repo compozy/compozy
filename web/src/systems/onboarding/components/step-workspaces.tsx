@@ -2,7 +2,7 @@ import { Folder, X } from "lucide-react";
 
 import { Alert, AlertDescription, Button, Empty, Eyebrow, KindIcon } from "@compozy/ui";
 
-import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
+import { DESTINATION_COPY } from "@/systems/workspace";
 import type { OnboardingWorkspacesApi } from "../hooks/use-onboarding-workspaces";
 import { DirectoryBrowser } from "./directory-browser";
 
@@ -125,7 +125,7 @@ export function StepWorkspaces({ workspaces, onSkip, skipDisabled = false }: Ste
               type="button"
               variant="secondary"
             >
-              {GLOBAL_SCOPE_COPY.skipOnboarding}
+              {DESTINATION_COPY.skipOnboarding}
             </Button>
           </div>
         </section>

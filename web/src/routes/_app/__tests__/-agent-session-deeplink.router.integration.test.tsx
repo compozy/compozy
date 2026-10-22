@@ -1,8 +1,11 @@
 // Suite: cross-workspace session deep-link router integration
-// Invariant: a deep link that misses in the active workspace resolves only the minimal owner
+// Invariant: a deep link that misses in the active destination resolves only the minimal owner
 // projection and asks before switching — confirm delegates the switch to the active-workspace
 // store and re-enters the deep link, while cancel and an unknown session keep today's not-found
 // outcome with the selection untouched and no foreign session payload in a workspace-scoped cache.
+// On the User desktop ownership is proven through `@user` (the request's profile), and a User
+// session linked from a project asks to switch to User, then loads there. Under All projects every
+// session opens in place, bound to its own scope, with no switch.
 // The confirmation search belongs exclusively to the session leaf: it reaches that leaf unchanged
 // because the agent layout owns no search and agent detail validates its own from an index leaf.
 // Boundary IN: TanStack Router, Link, route beforeLoad/loader, validated search, Query cache,
@@ -35,11 +38,11 @@ import {
   type SessionOwnerDialogState,
   type SessionPayload,
 } from "@/systems/session";
-import { statusKeys, type StatusPayload } from "@/systems/status";
 import {
   ACTIVE_WORKSPACE_PERSIST_KEY,
   activeWorkspaceStore,
-  enableGlobalScope,
+  enableAllProjects,
+  focusUser,
   setActiveWorkspaceId,
   workspaceKeys,
   type WorkspacePayload,
@@ -61,7 +64,8 @@ const PRIMARY_WORKSPACE_ID = "ws_06366aad69887872";
 const PRIMARY_WORKSPACE_NAME = "primary";
 const SIBLING_PROFILE_SESSION_ID = "sess-83c389e7e46274aa";
 const UNKNOWN_SESSION_ID = "sess-000000000000dead";
-const GLOBAL_SESSION_ID = "sess-retained-global";
+const USER_SESSION_ID = "sess-retained-user";
+const USER_PROOF_PATH = `/api/workspaces/${encodeURIComponent("@user")}/sessions/${USER_SESSION_ID}`;
 
 interface TestRouterContext {
   queryClient: QueryClient;
@@ -83,6 +87,8 @@ type OwnedSession = SessionPayload & { workspace_id: string };
 function makeSession(id: string, workspaceId: string, name: string): OwnedSession {
   return {
     supervision: null,
+    scope: "workspace",
+    effective_workspace_access: "",
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id,
@@ -123,10 +129,6 @@ const siblingProfileSession = {
  * cache so the pre-confirm isolation assertions cannot pass on seeded data.
  */
 function seedSessionRouteQueries(queryClient: QueryClient): void {
-  // Scope resolution requires `$HOME` to tell the home row from projects.
-  queryClient.setQueryData(statusKeys.current(), {
-    daemon: { user_home_dir: "/Users/operator" },
-  } as StatusPayload);
   queryClient.setQueryData(workspaceKeys.list(), [
     makeWorkspace(BENCH_WORKSPACE_ID, "bench-ops"),
     makeWorkspace(PRIMARY_WORKSPACE_ID, PRIMARY_WORKSPACE_NAME),
@@ -146,6 +148,40 @@ function requestPathname(request: unknown): string {
 
 function fetchedPathnames(): string[] {
   return vi.mocked(globalThis.fetch).mock.calls.map(call => requestPathname(call[0]));
+}
+
+/**
+ * Serves a User session: the `@user` workspace-path proof, the owner projection (no project),
+ * the profile-aware by-id read, and the flat transcript route.
+ */
+function stubUserSessionBackend(session: OwnedSession): void {
+  vi.mocked(globalThis.fetch).mockImplementation(request => {
+    const pathname = requestPathname(request);
+    if (pathname === USER_PROOF_PATH) {
+      return Promise.resolve(Response.json({ session }));
+    }
+    if (pathname === `/api/sessions/${USER_SESSION_ID}/owner`) {
+      return Promise.resolve(
+        Response.json({ session_id: USER_SESSION_ID, workspace_id: "", workspace_name: "" })
+      );
+    }
+    if (pathname === `/api/sessions/${USER_SESSION_ID}`) {
+      return Promise.resolve(Response.json({ session }));
+    }
+    if (pathname === `/api/sessions/${USER_SESSION_ID}/transcript`) {
+      return Promise.resolve(
+        Response.json({
+          entries: [],
+          epoch: 1,
+          generation: 1,
+          max_sequence: 0,
+          has_older: false,
+          limit: 200,
+        })
+      );
+    }
+    return Promise.resolve(new Response(null, { status: 404 }));
+  });
 }
 
 /** Serves the foreign-owner journey: active-workspace miss, owner projection, owning-workspace read. */
@@ -268,7 +304,10 @@ function buildSessionDeepLinkRouter({
     getParentRoute: () => agentRoute,
     path: "/sessions/$id",
     validateSearch: validateSessionDeepLinkSearch,
-    loaderDeps: ({ search }) => ({ workspaceSwitch: search.workspaceSwitch }),
+    loaderDeps: ({ search }) => ({
+      workspaceSwitch: search.workspaceSwitch,
+      workspace: search.workspace,
+    }),
     beforeLoad,
     loader: args => loadSessionRoute(args) as Promise<AgentSessionRouteLoaderData>,
     component: SessionRouteHarness,
@@ -315,21 +354,17 @@ function buildSessionDeepLinkRouter({
       return (
         <SessionWorkspaceSwitchDialog
           open={workspaceSwitch === "confirm"}
-          isGlobal={data.owner.workspaceId === ""}
+          isUser={data.owner.workspaceId === ""}
           workspaceName={data.owner.workspaceName}
           onConfirm={() =>
-            confirmSessionWorkspaceSwitch(
-              data.owner,
-              { isGlobal: data.owner.workspaceId === "" },
-              () => {
-                void navigate({
-                  to: "/agents/$name/sessions/$id",
-                  params,
-                  search: {},
-                  replace: true,
-                });
-              }
-            )
+            confirmSessionWorkspaceSwitch(data.owner, () => {
+              void navigate({
+                to: "/agents/$name/sessions/$id",
+                params,
+                search: {},
+                replace: true,
+              });
+            })
           }
           onCancel={() => {
             void navigate({ search: { workspaceSwitch: "declined" }, replace: true });
@@ -376,10 +411,10 @@ function buildSessionDeepLinkRouter({
     return (
       <SessionWorkspaceSwitchDialog
         open={workspaceSwitch === "confirm"}
-        isGlobal={owner.workspaceId === ""}
+        isUser={owner.workspaceId === ""}
         workspaceName={owner.workspaceName}
         onConfirm={() =>
-          confirmSessionWorkspaceSwitch(owner, { isGlobal: owner.workspaceId === "" }, () => {
+          confirmSessionWorkspaceSwitch(owner, () => {
             void navigate({ to: "/session/$id", params, search: {}, replace: true });
           })
         }
@@ -627,73 +662,95 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(fetchedPathnames()).toContain(`/api/sessions/${SIBLING_PROFILE_SESSION_ID}`);
   });
 
-  it("Should resolve a permalink against the remembered desktop workspace in Global scope", async () => {
-    enableGlobalScope();
-    const { router } = buildSessionDeepLinkRouter({
-      initialEntry: `/session/${BENCH_SESSION_ID}`,
-    });
-    renderRouter(router);
+  it.each(["/session", "/agents/general/sessions"])(
+    "Should open another project's session from %s in place under All projects",
+    async prefix => {
+      enableAllProjects();
+      stubForeignSessionBackend();
+      const { router } = buildSessionDeepLinkRouter({
+        initialEntry: `${prefix}/${PRIMARY_SESSION_ID}`,
+      });
+      renderRouter(router);
 
-    await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
-    expect(router.state.location.pathname).toBe(`/agents/general/sessions/${BENCH_SESSION_ID}`);
-    expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-  });
+      await screen.findByText(`Loaded session: ${PRIMARY_SESSION_ID}`);
+      expect(router.state.location.pathname).toBe(`/agents/general/sessions/${PRIMARY_SESSION_ID}`);
+      // The window is bound to the session's own project; the breadth never changes.
+      expect(router.state.location.search).toMatchObject({ workspace: PRIMARY_WORKSPACE_ID });
+      expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
+      expect(activeWorkspaceStore.getSnapshot().context.breadthMode).toBe("all");
+      expect(fetchedPathnames()).toContain(`/api/sessions/${PRIMARY_SESSION_ID}/owner`);
+    }
+  );
 
   it.each(["/session", "/agents/general/sessions"])(
-    "Should confirm Global history from %s without replacing the remembered project",
+    "Should confirm a User session from %s by focusing User and proving it through @user",
     async prefix => {
-      const retained = { ...makeSession(GLOBAL_SESSION_ID, "", "Global"), state: "stopped" };
-      vi.mocked(globalThis.fetch).mockImplementation(request => {
-        const pathname = requestPathname(request);
-        if (pathname === `/api/sessions/${GLOBAL_SESSION_ID}/owner`) {
-          return Promise.resolve(
-            Response.json({
-              session_id: GLOBAL_SESSION_ID,
-              workspace_id: "",
-              workspace_name: "Global",
-            })
-          );
-        }
-        if (pathname === `/api/sessions/${GLOBAL_SESSION_ID}`) {
-          return Promise.resolve(Response.json({ session: retained }));
-        }
-        if (pathname === `/api/sessions/${GLOBAL_SESSION_ID}/transcript`) {
-          return Promise.resolve(
-            Response.json({
-              entries: [],
-              epoch: 1,
-              generation: 1,
-              max_sequence: 0,
-              has_older: false,
-              limit: 200,
-            })
-          );
-        }
-        return Promise.resolve(new Response(null, { status: 404 }));
-      });
+      const retained: OwnedSession = {
+        ...makeSession(USER_SESSION_ID, "", "home"),
+        state: "stopped",
+      };
+      stubUserSessionBackend(retained);
       const { queryClient, router } = buildSessionDeepLinkRouter({
-        initialEntry: `${prefix}/${GLOBAL_SESSION_ID}`,
+        initialEntry: `${prefix}/${USER_SESSION_ID}`,
       });
       renderRouter(router);
 
       await screen.findByTestId("session-workspace-switch-dialog");
-      expect(fetchedPathnames()).not.toContain(`/api/sessions/${GLOBAL_SESSION_ID}`);
-      expect(fetchedPathnames()).not.toContain(`/api/sessions/${GLOBAL_SESSION_ID}/transcript`);
+      expect(screen.getByText("Switch to User?")).toBeInTheDocument();
+      expect(fetchedPathnames()).not.toContain(`/api/sessions/${USER_SESSION_ID}`);
+      expect(fetchedPathnames()).not.toContain(`/api/sessions/${USER_SESSION_ID}/transcript`);
       fireEvent.click(screen.getByTestId("session-workspace-switch-confirm"));
 
-      await screen.findByText(`Loaded session: ${GLOBAL_SESSION_ID}`);
+      await screen.findByText(`Loaded session: ${USER_SESSION_ID}`);
       expect(activeWorkspaceStore.getSnapshot().context).toMatchObject({
-        scope: "global",
+        breadthMode: "focused",
+        focus: { kind: "user" },
         selectedWorkspaceId: BENCH_WORKSPACE_ID,
       });
+      expect(fetchedPathnames()).toContain(USER_PROOF_PATH);
       expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
-      expect(fetchedPathnames()).toContain(`/api/sessions/${GLOBAL_SESSION_ID}/transcript`);
+      expect(fetchedPathnames()).toContain(`/api/sessions/${USER_SESSION_ID}/transcript`);
       expect(
-        queryClient.getQueryData(sessionKeys.detail(BENCH_WORKSPACE_ID, GLOBAL_SESSION_ID))
+        queryClient.getQueryData(sessionKeys.detail(BENCH_WORKSPACE_ID, USER_SESSION_ID))
       ).toBeUndefined();
     }
   );
+
+  it("Should load a User session on the User desktop without a switch, proven through @user", async () => {
+    focusUser();
+    const retained = makeSession(USER_SESSION_ID, "", "home");
+    stubUserSessionBackend(retained);
+    const { router } = buildSessionDeepLinkRouter({
+      initialEntry: `/session/${USER_SESSION_ID}`,
+    });
+    renderRouter(router);
+
+    await screen.findByText(`Loaded session: ${USER_SESSION_ID}`);
+    expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
+    expect(fetchedPathnames()[0]).toBe(USER_PROOF_PATH);
+    expect(fetchedPathnames()).not.toContain(`/api/sessions/${USER_SESSION_ID}/owner`);
+  });
+
+  it("Should ask before opening a project's session on the User desktop", async () => {
+    focusUser();
+    stubForeignSessionBackend();
+    const { router } = buildSessionDeepLinkRouter({
+      initialEntry: `/agents/general/sessions/${PRIMARY_SESSION_ID}`,
+    });
+    renderRouter(router);
+
+    await screen.findByTestId("session-workspace-switch-dialog");
+    expect(fetchedPathnames()).toContain(
+      `/api/workspaces/${encodeURIComponent("@user")}/sessions/${PRIMARY_SESSION_ID}`
+    );
+    fireEvent.click(screen.getByTestId("session-workspace-switch-confirm"));
+
+    await screen.findByText(`Loaded session: ${PRIMARY_SESSION_ID}`);
+    expect(activeWorkspaceStore.getSnapshot().context.focus).toEqual({
+      kind: "project",
+      workspaceId: PRIMARY_WORKSPACE_ID,
+    });
+  });
 
   it("Should keep an external permalink on today's not-found rendering when declined", async () => {
     stubForeignSessionBackend();
@@ -721,9 +778,9 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(error).toHaveTextContent(/Failed to fetch workspaces/);
     expect(error).not.toHaveTextContent("Session not found");
     expect(router.state.location.pathname).toBe(`/session/${BENCH_SESSION_ID}`);
-    // Status retries once on failure; only the two resolution endpoints may be hit.
+    // Resolution reads only the workspace catalog; nothing session-shaped is fetched.
     expect(fetchedPathnames()[0]).toBe("/api/workspaces");
-    expect(new Set(fetchedPathnames())).toEqual(new Set(["/api/workspaces", "/api/status"]));
+    expect(new Set(fetchedPathnames())).toEqual(new Set(["/api/workspaces"]));
   });
 
   it("Should load a session owned by the active workspace", async () => {

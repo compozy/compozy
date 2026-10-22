@@ -74,7 +74,7 @@ func (h *BaseHandlers) GetSkill(c *gin.Context) {
 	emptyExposures := []contract.SkillExposurePayload{}
 	payload.Exposures = &emptyExposures
 	resourceKind := skill.ResourceScope.Normalize().Kind
-	if resourceKind == "user" || resourceKind == workspaceScopeValue {
+	if resourceKind == userScopeValue || resourceKind == workspaceScopeValue {
 		manager, managerErr := h.newSkillExposureManager(resolved)
 		if managerErr != nil {
 			h.respondError(c, http.StatusServiceUnavailable, managerErr)

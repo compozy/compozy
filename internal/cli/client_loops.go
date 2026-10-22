@@ -12,6 +12,7 @@ import (
 )
 
 type LoopRunListQuery struct {
+	AllWorkspaces bool
 	LoopName      string
 	Status        string
 	Origin        string
@@ -36,13 +37,14 @@ type GoalTurnListQuery struct {
 }
 
 type LoopListQuery struct {
-	Search   string
-	Kind     string
-	Category string
-	Status   string
-	Sort     string
-	Cursor   string
-	Limit    int
+	AllWorkspaces bool
+	Search        string
+	Kind          string
+	Category      string
+	Status        string
+	Sort          string
+	Cursor        string
+	Limit         int
 }
 
 func (c *daemonClient) ListLoops(
@@ -52,6 +54,13 @@ func (c *daemonClient) ListLoops(
 ) (contract.LoopsResponse, error) {
 	var response contract.LoopsResponse
 	path := loopWorkspacePath(workspaceID) + "/loops"
+	if query.AllWorkspaces {
+		var batch contract.LoopCatalogBatchResponse
+		if err := c.doJSON(ctx, http.MethodGet, "/api/loops", loopListValues(query), nil, &batch); err != nil {
+			return contract.LoopsResponse{}, err
+		}
+		return contract.LoopsResponse{Aggregate: &batch}, nil
+	}
 	if err := c.doJSON(ctx, http.MethodGet, path, loopListValues(query), nil, &response); err != nil {
 		return contract.LoopsResponse{}, err
 	}
@@ -60,6 +69,9 @@ func (c *daemonClient) ListLoops(
 
 func loopListValues(query LoopListQuery) url.Values {
 	values := url.Values{}
+	if query.AllWorkspaces {
+		values.Set("all_workspaces", "true")
+	}
 	setLoopListQueryValue(values, "q", query.Search)
 	setLoopListQueryValue(values, "kind", query.Kind)
 	setLoopListQueryValue(values, "category", query.Category)
@@ -219,6 +231,9 @@ func (c *daemonClient) ListLoopRuns(
 ) (contract.LoopRunsResponse, error) {
 	var response contract.LoopRunsResponse
 	path := loopWorkspacePath(workspaceID) + "/loop-runs"
+	if query.AllWorkspaces {
+		path = "/api/loop-runs"
+	}
 	if err := c.doJSON(ctx, http.MethodGet, path, loopRunValues(query), nil, &response); err != nil {
 		return contract.LoopRunsResponse{}, err
 	}
@@ -406,6 +421,9 @@ func loopRunPath(workspaceID string, runID string) string {
 
 func loopRunValues(query LoopRunListQuery) url.Values {
 	values := url.Values{}
+	if query.AllWorkspaces {
+		values.Set("all_workspaces", "true")
+	}
 	if trimmed := strings.TrimSpace(query.LoopName); trimmed != "" {
 		values.Set("loop", trimmed)
 	}

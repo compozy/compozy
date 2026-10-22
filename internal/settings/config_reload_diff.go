@@ -36,6 +36,9 @@ func onlyGatewayClientProfileChanged(current *compozyconfig.Config, desired *com
 
 func reloadChangedPaths(current *compozyconfig.Config, desired *compozyconfig.Config) []string {
 	var changed []string
+	if current.UserScope.WorkDir != desired.UserScope.WorkDir {
+		changed = append(changed, "user_scope.work_dir")
+	}
 	changed = append(changed, diffProviderUsageSettings(current.ProviderUsage, desired.ProviderUsage)...)
 	if current.Subagents.ResultMaxChars != desired.Subagents.ResultMaxChars {
 		changed = append(changed, "subagents.result_max_chars")

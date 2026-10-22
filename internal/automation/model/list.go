@@ -52,30 +52,32 @@ type ListCursorPosition struct {
 }
 
 type jobListFingerprint struct {
-	ProfileID   string    `json:"profile_id"`
-	AllProfiles bool      `json:"all_profiles"`
-	Kind        string    `json:"kind"`
-	Scope       Scope     `json:"scope"`
-	WorkspaceID string    `json:"workspace_id"`
-	Source      JobSource `json:"source"`
-	LoopName    string    `json:"loop_name"`
-	Target      string    `json:"target,omitempty"`
-	Enabled     *bool     `json:"enabled"`
-	Search      string    `json:"q"`
+	WorkspaceIDs []string  `json:"workspace_ids,omitempty"`
+	ProfileID    string    `json:"profile_id"`
+	AllProfiles  bool      `json:"all_profiles"`
+	Kind         string    `json:"kind"`
+	Scope        Scope     `json:"scope"`
+	WorkspaceID  string    `json:"workspace_id"`
+	Source       JobSource `json:"source"`
+	LoopName     string    `json:"loop_name"`
+	Target       string    `json:"target,omitempty"`
+	Enabled      *bool     `json:"enabled"`
+	Search       string    `json:"q"`
 }
 
 type triggerListFingerprint struct {
-	ProfileID   string    `json:"profile_id"`
-	AllProfiles bool      `json:"all_profiles"`
-	Kind        string    `json:"kind"`
-	Scope       Scope     `json:"scope"`
-	WorkspaceID string    `json:"workspace_id"`
-	Event       string    `json:"event"`
-	Source      JobSource `json:"source"`
-	LoopName    string    `json:"loop_name"`
-	Target      string    `json:"target,omitempty"`
-	Enabled     *bool     `json:"enabled"`
-	Search      string    `json:"q"`
+	WorkspaceIDs []string  `json:"workspace_ids,omitempty"`
+	ProfileID    string    `json:"profile_id"`
+	AllProfiles  bool      `json:"all_profiles"`
+	Kind         string    `json:"kind"`
+	Scope        Scope     `json:"scope"`
+	WorkspaceID  string    `json:"workspace_id"`
+	Event        string    `json:"event"`
+	Source       JobSource `json:"source"`
+	LoopName     string    `json:"loop_name"`
+	Target       string    `json:"target,omitempty"`
+	Enabled      *bool     `json:"enabled"`
+	Search       string    `json:"q"`
 }
 
 // JobListQueryWithDefaultLimit normalizes a public job query and applies the default page size.
@@ -329,32 +331,34 @@ func validateListLimit(kind string, limit int) error {
 
 func jobQueryFingerprint(query JobListQuery) (string, error) {
 	return listcursor.Fingerprint(jobListFingerprint{
-		ProfileID:   query.ReadScope.ProfileID,
-		AllProfiles: query.ReadScope.AllProfiles,
-		Kind:        jobListCursorKind,
-		Scope:       query.Scope,
-		WorkspaceID: query.WorkspaceID,
-		Source:      query.Source,
-		LoopName:    query.LoopName,
-		Target:      query.Target,
-		Enabled:     query.Enabled,
-		Search:      query.Search,
+		ProfileID:    query.ReadScope.ProfileID,
+		AllProfiles:  query.ReadScope.AllProfiles,
+		Kind:         jobListCursorKind,
+		Scope:        query.Scope,
+		WorkspaceID:  query.WorkspaceID,
+		WorkspaceIDs: query.WorkspaceIDs,
+		Source:       query.Source,
+		LoopName:     query.LoopName,
+		Target:       query.Target,
+		Enabled:      query.Enabled,
+		Search:       query.Search,
 	})
 }
 
 func triggerQueryFingerprint(query TriggerListQuery) (string, error) {
 	return listcursor.Fingerprint(triggerListFingerprint{
-		ProfileID:   query.ReadScope.ProfileID,
-		AllProfiles: query.ReadScope.AllProfiles,
-		Kind:        triggerCursorKind,
-		Scope:       query.Scope,
-		WorkspaceID: query.WorkspaceID,
-		Event:       query.Event,
-		Source:      query.Source,
-		LoopName:    query.LoopName,
-		Target:      query.Target,
-		Enabled:     query.Enabled,
-		Search:      query.Search,
+		ProfileID:    query.ReadScope.ProfileID,
+		AllProfiles:  query.ReadScope.AllProfiles,
+		Kind:         triggerCursorKind,
+		Scope:        query.Scope,
+		WorkspaceID:  query.WorkspaceID,
+		WorkspaceIDs: query.WorkspaceIDs,
+		Event:        query.Event,
+		Source:       query.Source,
+		LoopName:     query.LoopName,
+		Target:       query.Target,
+		Enabled:      query.Enabled,
+		Search:       query.Search,
 	})
 }
 

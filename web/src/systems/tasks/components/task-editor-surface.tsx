@@ -95,8 +95,9 @@ export function TaskEditorSurface({
   const advanced = isNewMode && formMode === "advanced";
   const submitLabel = resolveSubmitLabel(mode, draft.saveAsDraft);
 
+  const destinationKind = draft.scope === "workspace" ? "project" : "user";
   const destination = destinationLabel(
-    draft.scope,
+    destinationKind,
     workspaces?.find(workspace => workspace.id === draft.workspaceId)?.name
   );
   const scopeStatement = (
@@ -104,7 +105,7 @@ export function TaskEditorSurface({
       profileDestination={profileDestination}
       destination={destination}
       kind={isNewMode ? "create" : "edit"}
-      scope={draft.scope}
+      scope={destinationKind}
       variant="note"
     />
   );

@@ -80,3 +80,6 @@ named); the config-get transcript.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+
+2026-10-21 backend gap follow-up: the stable command `scope.global.toggle` now displays All projects. Repeated config reads in one process emit the `shell.sessions.scope` deprecation warning once; settings writes continue returning the warning. Focused command-catalog and config subprocess tests cover these contracts; the complete palette walk remains pending integration QA.

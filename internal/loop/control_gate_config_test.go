@@ -82,7 +82,7 @@ func TestJudgeRuntimeShouldValidateWithoutTaskRules(t *testing.T) {
 
 		factory := judgeRuntimeCatalogFactoryForTest{catalog: judgeRuntimeCatalogForTest{}}
 		err := validateJudgeGateRuntimes(
-			t.Context(), factory, "ws-judge",
+			t.Context(), factory, "ws-judge", "profile-a",
 			RuntimeSpec{Provider: "codex", Model: "default-model", Reasoning: "high"},
 			[]dsl.GateCriterion{{
 				ID: "judge", Type: dsl.CriterionAgentJudge,
@@ -156,7 +156,7 @@ type judgeRuntimeCatalogFactoryForTest struct {
 	catalog RuntimeCatalog
 }
 
-func (f judgeRuntimeCatalogFactoryForTest) ForWorkspace(context.Context, WorkspaceID) (RuntimeCatalog, error) {
+func (f judgeRuntimeCatalogFactoryForTest) ForWorkspace(context.Context, WorkspaceID, string) (RuntimeCatalog, error) {
 	if f.catalog == nil {
 		return nil, errors.New("catalog unavailable")
 	}

@@ -211,6 +211,9 @@ func (r *windowManagerRegistry) liveRuntimesLocked() []*windowManagerProfileRunt
 // CountDesktopPartitions reports how many stored arrangements one profile owns
 // across every registered workspace. This is the delete preview's number.
 func (r *windowManagerRegistry) CountDesktopPartitions(ctx context.Context, profileID string) (int, error) {
+	if strings.TrimSpace(profileID) == "" {
+		return 0, errors.New("daemon: window-manager profile is required")
+	}
 	partitions, err := r.desktopPartitions(ctx, profileID)
 	if err != nil {
 		return 0, err
@@ -270,20 +273,9 @@ func (r *windowManagerRegistry) desktopPartitions(
 	profileID string,
 ) ([]windowManagerDesktopPartition, error) {
 	profileID = strings.TrimSpace(profileID)
-	if profileID == "" {
-		return nil, errors.New("daemon: window-manager profile is required")
-	}
-	workspaces, err := r.workspaces.List(ctx)
+	workspaceIDs, err := r.partitionWorkspaceIDs(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("daemon: list workspaces for desktop partitions: %w", err)
-	}
-	workspaceIDs := make([]clientstate.WorkspaceID, 0, len(workspaces)+1)
-	workspaceIDs = append(
-		workspaceIDs,
-		clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
-	)
-	for index := range workspaces {
-		workspaceIDs = append(workspaceIDs, clientstate.WorkspaceID(workspaces[index].ID))
+		return nil, err
 	}
 	partitions := make([]windowManagerDesktopPartition, 0, len(workspaceIDs))
 	for _, workspaceID := range workspaceIDs {
@@ -300,7 +292,7 @@ func (r *windowManagerRegistry) desktopPartitions(
 		}
 		for _, entry := range entries {
 			owner, partitioned := windowManagerSnapshotProfile(entry.Key)
-			if !partitioned || owner != profileID {
+			if !partitioned || (profileID != "" && owner != profileID) {
 				continue
 			}
 			partitions = append(partitions, windowManagerDesktopPartition{

@@ -9,7 +9,7 @@ import (
 
 // DefaultPolicy applies the fixed workspace-access decision chain.
 type DefaultPolicy struct {
-	modes   ModeSource
+	facts   SessionFactsSource
 	consent SessionConsentCache
 	audit   AuditEmitter
 	log     *slog.Logger
@@ -19,8 +19,8 @@ var _ Policy = (*DefaultPolicy)(nil)
 
 // New constructs the fail-closed default policy.
 func New(deps Deps) (*DefaultPolicy, error) {
-	if deps.Modes == nil {
-		return nil, errors.New("workspace access: mode source is required")
+	if deps.Facts == nil {
+		return nil, errors.New("workspace access: session facts source is required")
 	}
 	if deps.Consent == nil {
 		return nil, errors.New("workspace access: session consent cache is required")
@@ -32,7 +32,7 @@ func New(deps Deps) (*DefaultPolicy, error) {
 		return nil, errors.New("workspace access: logger is required")
 	}
 	return &DefaultPolicy{
-		modes:   deps.Modes,
+		facts:   deps.Facts,
 		consent: deps.Consent,
 		audit:   deps.Audit,
 		log:     deps.Log,
@@ -42,17 +42,20 @@ func New(deps Deps) (*DefaultPolicy, error) {
 // Authorize evaluates and audits one access request.
 func (p *DefaultPolicy) Authorize(ctx context.Context, req Request) (Decision, error) {
 	normalizedReq := normalizeRequest(req)
-	decision, mode, decisionErr := p.authorize(ctx, normalizedReq)
 	record := AccessRecord{
 		Actor:    normalizedReq.Actor,
-		TargetID: normalizedReq.TargetWorkspaceID,
-		Allowed:  decision.Allowed,
-		Source:   decision.Source,
-		Mode:     mode,
+		TargetID: normalizedReq.Target.WorkspaceID,
+		Target:   normalizedReq.Target,
 		Seam:     normalizedReq.Seam,
 	}
+	decision, mode, decisionErr := p.authorize(ctx, normalizedReq, &record)
+	record.Allowed, record.Source, record.Mode = decision.Allowed, decision.Source, mode
 	if decisionErr != nil {
 		record.Err = decisionErr.Error()
+	}
+	// Same-scope access crosses no boundary; auditing it would record every ordinary read.
+	if decision.Source == SourceSameWorkspace && decisionErr == nil {
+		return decision, nil
 	}
 	if auditErr := p.audit.EmitWorkspaceAccess(ctx, record); auditErr != nil {
 		p.warnAuditFailure(ctx, record, auditErr)
@@ -60,7 +63,7 @@ func (p *DefaultPolicy) Authorize(ctx context.Context, req Request) (Decision, e
 	return decision, decisionErr
 }
 
-func (p *DefaultPolicy) authorize(ctx context.Context, req Request) (Decision, Mode, error) {
+func (p *DefaultPolicy) authorize(ctx context.Context, req Request, record *AccessRecord) (Decision, Mode, error) {
 	if err := validateRequest(ctx, req); err != nil {
 		return deniedDecision(false), "", err
 	}
@@ -70,13 +73,31 @@ func (p *DefaultPolicy) authorize(ctx context.Context, req Request) (Decision, M
 	if req.Actor.Kind != ActorAgentSession {
 		return deniedDecision(false), "", nil
 	}
-	if req.Actor.WorkspaceID != "" && req.Actor.WorkspaceID == req.TargetWorkspaceID {
-		return Decision{Allowed: true, Source: SourceSameWorkspace}, "", nil
-	}
-
-	mode, err := p.modes.SessionPermissionMode(ctx, req.Actor.SessionID)
+	facts, err := p.facts.SessionFacts(ctx, req.Actor.SessionID)
+	mode := facts.Mode
+	record.ActorProfileID = facts.ProfileID
 	if err != nil {
-		return deniedDecision(false), mode, fmt.Errorf("workspace access: resolve session permission mode: %w", err)
+		return deniedDecision(false), mode, fmt.Errorf("workspace access: resolve session facts: %w", err)
+	}
+	if facts.ProfileID == "" {
+		return deniedDecision(false), mode, errors.New("workspace access: session profile is required")
+	}
+	if !req.Target.AllProfiles && req.Target.ProfileID == "" {
+		// Callers that only know the target workspace (task claims from a project session) act in
+		// the session's own profile; the boundary is still decided below.
+		req.Target.ProfileID = facts.ProfileID
+		record.Target.ProfileID = facts.ProfileID
+	}
+	sameProfile := !req.Target.AllProfiles && req.Target.ProfileID == facts.ProfileID
+	if sameProfile && req.Target.WorkspaceID == facts.WorkspaceID &&
+		((req.Target.Kind == TargetUser && facts.WorkspaceID == "") || req.Target.Kind == TargetWorkspace) {
+		return Decision{Allowed: true, Source: SourceSameWorkspace}, mode, nil
+	}
+	if facts.WorkspaceAccess == Unrestricted {
+		return Decision{Allowed: true, Source: SourceAgentGrant}, mode, nil
+	}
+	if !sameProfile || req.Target.Kind == TargetAggregate {
+		return deniedDecision(false), mode, nil
 	}
 	switch mode {
 	case ModeApproveAll:

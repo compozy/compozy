@@ -11,21 +11,17 @@ import {
 } from "../../mocks/worktree-fixtures";
 import { groupWorkspaceTree } from "../workspace-tree";
 
-const HOME_DIR = "/Users/ada";
-
 const workspaces = [
   { id: "ws_launch_hq", name: "launch-hq", root_dir: "/workspaces/northstar-pay/launch-hq" },
   { id: "ws_risk_ops", name: "risk-ops", root_dir: "/workspaces/northstar-pay/risk-ops" },
-  { id: "ws_home", name: "home", root_dir: HOME_DIR },
 ];
 
 describe("groupWorkspaceTree", () => {
   it("Should nest worktrees under their own parent and never as siblings", () => {
-    const tree = groupWorkspaceTree(
-      workspaces,
-      { ws_launch_hq: worktreeListingFixture, ws_risk_ops: nonGitWorktreeListingFixture },
-      HOME_DIR
-    );
+    const tree = groupWorkspaceTree(workspaces, {
+      ws_launch_hq: worktreeListingFixture,
+      ws_risk_ops: nonGitWorktreeListingFixture,
+    });
 
     const hq = tree.find(node => node.workspace.id === "ws_launch_hq");
     const risk = tree.find(node => node.workspace.id === "ws_risk_ops");
@@ -41,11 +37,7 @@ describe("groupWorkspaceTree", () => {
   });
 
   it("Should give a non-git workspace no worktree group at all", () => {
-    const tree = groupWorkspaceTree(
-      workspaces,
-      { ws_risk_ops: nonGitWorktreeListingFixture },
-      HOME_DIR
-    );
+    const tree = groupWorkspaceTree(workspaces, { ws_risk_ops: nonGitWorktreeListingFixture });
 
     const risk = tree.find(node => node.workspace.id === "ws_risk_ops");
     // Absent, never an empty-but-present affordance.
@@ -55,14 +47,14 @@ describe("groupWorkspaceTree", () => {
   });
 
   it("Should treat a workspace with no listing as having no worktree affordance", () => {
-    const tree = groupWorkspaceTree(workspaces, {}, HOME_DIR);
+    const tree = groupWorkspaceTree(workspaces, {});
 
     expect(tree.every(node => node.gitBacked === false)).toBe(true);
     expect(tree.every(node => node.worktrees.length === 0)).toBe(true);
   });
 
   it("Should expose no child slot on a worktree entry, fixing nesting depth at two", () => {
-    const tree = groupWorkspaceTree(workspaces, { ws_launch_hq: worktreeListingFixture }, HOME_DIR);
+    const tree = groupWorkspaceTree(workspaces, { ws_launch_hq: worktreeListingFixture });
     const entry = tree.find(node => node.workspace.id === "ws_launch_hq")?.worktrees[0];
 
     // The row model carries no nested collection, so no surface can render a
@@ -73,7 +65,7 @@ describe("groupWorkspaceTree", () => {
   });
 
   it("Should count adopted worktrees only, leaving discovered entries out", () => {
-    const tree = groupWorkspaceTree(workspaces, { ws_launch_hq: worktreeListingFixture }, HOME_DIR);
+    const tree = groupWorkspaceTree(workspaces, { ws_launch_hq: worktreeListingFixture });
     const hq = tree.find(node => node.workspace.id === "ws_launch_hq");
 
     expect(hq?.adoptedCount).toBe(worktreeListingFixture.worktrees.length);

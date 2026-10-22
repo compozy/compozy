@@ -2,7 +2,11 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { AutomationsRouteSearch } from "@/systems/automation";
 
-import { resolveActiveWorkspaceId, settleRouteQueries } from "./-route-preload";
+import {
+  resolveActiveWorkspaceId,
+  resolveActiveWorkspaceSelection,
+  settleRouteQueries,
+} from "./-route-preload";
 import {
   automationJobDetailOptions,
   automationJobRunsOptions,
@@ -10,12 +14,14 @@ import {
   automationListLoopFilter,
   automationRouteHasActiveFilters,
   automationMatchesActiveWorkspace,
-  automationSuggestionsListOptions,
+  automationSuggestionsSource,
+  automationSuggestionsSourceOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
   automationTriggersListOptions,
 } from "@/systems/automation";
 import { readProfileScopeParams } from "@/systems/profiles";
+import { automationBreadthParams, breadthQuery } from "@/systems/workspace";
 
 /**
  * Both lists with the shared filters minus `start`: a Start view only decides which kind
@@ -26,33 +32,34 @@ export async function preloadAutomationsRoute(
   search: AutomationsRouteSearch
 ): Promise<void> {
   const profileScope = readProfileScopeParams(queryClient);
-  const activeWorkspaceID =
-    search.scope === "global" ? null : await resolveActiveWorkspaceId(queryClient);
-  if (search.scope === "workspace" && !activeWorkspaceID) return;
+  // The destination decides breadth: a project lists only its own automations,
+  // User only those without a project, All projects every one.
+  const dataScope = (await resolveActiveWorkspaceSelection(queryClient))?.dataScope ?? null;
+  if (!dataScope) return;
   const filters = {
-    scope: search.scope,
-    workspace_id: search.scope === "workspace" ? (activeWorkspaceID ?? undefined) : undefined,
     enabled: search.enabled,
     limit: 50,
     loop: automationListLoopFilter(search),
     q: search.q,
     source: search.source,
     target: search.target,
+    ...automationBreadthParams(breadthQuery(dataScope)),
     ...profileScope,
   };
+  const suggestions = automationSuggestionsSource(dataScope, !profileScope.all_profiles);
   const jobsQuery = queryClient.ensureInfiniteQueryData(automationJobsListOptions(filters));
   const triggersQuery =
     search.target !== "task"
       ? queryClient.ensureInfiniteQueryData(automationTriggersListOptions(filters))
       : undefined;
   const suggestionsQuery =
-    activeWorkspaceID && !automationRouteHasActiveFilters(search) && triggersQuery
+    suggestions && !automationRouteHasActiveFilters(search) && triggersQuery
       ? Promise.all([jobsQuery, triggersQuery]).then(([jobs, triggers]) => {
           if (jobs.pages[0]?.page.total !== 0 || triggers.pages[0]?.page.total !== 0) {
             return undefined;
           }
           return queryClient.ensureQueryData(
-            automationSuggestionsListOptions(activeWorkspaceID, "pending")
+            automationSuggestionsSourceOptions(suggestions, "pending")
           );
         })
       : undefined;

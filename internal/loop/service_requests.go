@@ -24,7 +24,11 @@ func (s *service) ListRequests(
 		return RequestPage{}, err
 	}
 	for index := range page.Items {
-		if err := s.hydrateRequestResponderPolicy(ctx, workspaceID, &page.Items[index]); err != nil {
+		if err := s.hydrateRequestResponderPolicy(
+			ctx,
+			WorkspaceID(page.Items[index].WorkspaceID),
+			&page.Items[index],
+		); err != nil {
 			return RequestPage{}, err
 		}
 	}
@@ -86,7 +90,7 @@ func (s *service) Respond(ctx context.Context, input RespondInput) (RespondResul
 	input.NodeID = NodeID(strings.TrimSpace(string(input.NodeID)))
 	input.Decision = strings.TrimSpace(input.Decision)
 	input.Note = strings.TrimSpace(input.Note)
-	if input.WorkspaceID == "" || input.RunID == "" || input.NodeID == "" || input.ItemIndex < 0 {
+	if input.RunID == "" || input.NodeID == "" || input.ItemIndex < 0 {
 		return RespondResult{}, fmt.Errorf("%w: request response identity is incomplete", ErrValidation)
 	}
 	run, err := s.store.GetLoopRun(ctx, input.WorkspaceID, input.RunID)

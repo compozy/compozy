@@ -1233,7 +1233,6 @@ func TestGoalCompactionRestart(t *testing.T) {
 		runtime := newLoopGoalProductionRuntime(
 			reopened,
 			manager,
-			fixture.homePaths.HomeDir,
 			&loopSessionPolicyGate{
 				workspaceResolver: &harnessIntegrationWorkspaceResolver{resolved: fixture.resolvedWorkspace},
 			},

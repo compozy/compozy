@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
@@ -47,7 +49,7 @@ func resolveSessionDeriveTarget(
 	case err == nil:
 		target.WorkspaceRef = strings.TrimSpace(owner.WorkspaceID)
 		if target.WorkspaceRef == "" {
-			return SessionDeriveTarget{}, fmt.Errorf("cli: session %q has no workspace_id", sessionID)
+			target.WorkspaceRef = workspaceaccess.UserSelector
 		}
 	case isDaemonNotFound(err) || cmd.Flags().Changed("idempotency-key"):
 		resolution, resolveErr := resolveCommandWorkspace(ctx, cmd, deps, client, workspaceResolutionRequest{})

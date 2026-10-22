@@ -935,3 +935,60 @@ func TestProviderUsageHostCapability(t *testing.T) {
 		}
 	})
 }
+
+func TestGrantedAggregateProfileScope(t *testing.T) {
+	t.Parallel()
+	for _, grant := range []string{"", workspaceaccess.Unrestricted} {
+		t.Run("Should authorize aggregate profile scope with grant "+grant, func(t *testing.T) {
+			t.Parallel()
+			var aggregateCalls int
+			h := &BaseHandlers{
+				Sessions: modelCatalogSessionManagerStub{
+					info: &session.Info{
+						ID:                       "sess-agent",
+						AgentName:                "coder",
+						ProfileID:                "p1",
+						WorkspaceID:              "ws-1",
+						State:                    session.StateActive,
+						EffectiveWorkspaceAccess: grant,
+					},
+				},
+				WorkspaceAccess: modelCatalogWorkspaceAccessStub{
+					authorize: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+						if req.Target.Kind == workspaceaccess.TargetAggregate {
+							aggregateCalls++
+							if !req.Target.AllProfiles || req.Target.ProfileID != "" ||
+								req.Actor.SessionID != "sess-agent" {
+								t.Fatalf("aggregate target = %+v", req)
+							}
+						}
+						return workspaceaccess.Decision{
+							Allowed: grant != "",
+							Source:  workspaceaccess.SourceAgentGrant,
+						}, nil
+					},
+				},
+			}
+			engine := gin.New()
+			engine.GET("/aggregate", func(c *gin.Context) {
+				if h.requireAggregateSurface(c) {
+					c.Status(http.StatusNoContent)
+				}
+			})
+			response := performModelCatalogRequestWithHeaders(
+				t,
+				engine,
+				http.MethodGet,
+				"/aggregate?all_profiles=true",
+				map[string]string{agentidentity.HeaderSessionID: "sess-agent", agentidentity.HeaderAgent: "coder"},
+			)
+			if grant == "" {
+				if response.Code < 400 || aggregateCalls != 0 {
+					t.Fatalf("ordinary response = %d, calls = %d", response.Code, aggregateCalls)
+				}
+			} else if response.Code != http.StatusNoContent || aggregateCalls != 1 {
+				t.Fatalf("granted response = %d %s, calls = %d", response.Code, response.Body, aggregateCalls)
+			}
+		})
+	}
+}

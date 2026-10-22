@@ -46,3 +46,9 @@ This verifies the Loop regression; the broader non-Loop scenario above retains i
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+CI1 regression coverage (2026-10-21): task reads in the same project still consult the authenticated
+session policy when it is configured; cross-profile denial and grant remain authoritative. Same-profile
+User task fixtures preserve lease, audit, blocking, and wake invariants. Session JSON/JSONL listings
+preserve profile frames without fetching display-only workspace labels. Owning race suites pass;
+see [the CI1 report](../reports/2026-10-21-all-projects-ci1.md). The broader walkthrough remains outstanding.

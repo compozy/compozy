@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -565,6 +567,17 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		args    []string
 		request CreateSessionRequest
 	}{
+		{
+			name:    "Should select User with the shorthand",
+			args:    []string{"session", "new", "--user", "-o", "json"},
+			request: CreateSessionRequest{Workspace: workspaceaccess.UserSelector},
+		},
+		{
+			name:    "Should forward the User reference",
+			args:    []string{"session", "new", "--workspace", workspaceaccess.UserSelector, "-o", "json"},
+			request: CreateSessionRequest{Workspace: workspaceaccess.UserSelector},
+		},
+
 		{
 			name: "Should use a registered workspace",
 			args: []string{"session", "new", "--workspace", "ws_abc", "-o", "json"},
@@ -5036,6 +5049,31 @@ func TestSessionLayoutCommands(t *testing.T) {
 		}
 		if len(listed.Folders) != 1 || listed.Folders[0].SessionCount != 1 {
 			t.Fatalf("folder list output = %#v", listed)
+		}
+	})
+}
+
+func TestSessionListAllProjectsColumn(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain session columns and name project and User rows", func(t *testing.T) {
+		t.Parallel()
+		page := SessionListPage{Sessions: []SessionRecord{
+			{ID: "sess-user", WorkspaceID: ""},
+			{ID: "sess-project", WorkspaceID: "ws-1", WorkspacePath: "/project"},
+		}}
+		bundle := sessionListBundle(
+			page,
+			func() time.Time { return fixedTestNow },
+			map[string]string{"": "User", "ws-1": "Example"},
+		)
+		human, err := bundle.human()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, want := range []string{"PROJECT", "User", "Example", "sess-user", "sess-project", "/project", "Workspace"} {
+			if !strings.Contains(human, want) {
+				t.Fatalf("output %q lacks %q", human, want)
+			}
 		}
 	})
 }

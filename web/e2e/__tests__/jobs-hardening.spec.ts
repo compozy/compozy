@@ -12,7 +12,13 @@ import type { Page } from "@playwright/test";
 import { captureRouteState } from "../fixtures/browser-artifact-session";
 import { reloadDaemonServedPage } from "../fixtures/navigation";
 import { automationOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
-import { appWindow, sessionWindow, switchWorkspace, windowTitle } from "../fixtures/os-navigation";
+import {
+  appWindow,
+  focusUserScope,
+  sessionWindow,
+  switchWorkspace,
+  windowTitle,
+} from "../fixtures/os-navigation";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -367,6 +373,8 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
       })
     );
     await completeOnboardingIfPrompted(shellUI);
+    // The fixture job is User-scope (global), listed under the User destination.
+    await focusUserScope(appPage);
     await appPage.goto(runtime.url("/automations?start=schedule"), {
       waitUntil: "domcontentloaded",
     });

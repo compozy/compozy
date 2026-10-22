@@ -1,16 +1,8 @@
 /**
- * Copy for the session-list toolbar toggles. Kept apart from
- * `GLOBAL_SCOPE_COPY`: that globe owns where new work is created, these own how
- * the session list reads — how wide, and whether it shows the archive.
+ * Copy for the session-list toolbar toggles. Breadth is not here: the topbar
+ * globe owns it for every list (ADR-004); this owns whether the list shows the
+ * archive.
  */
-export const SESSION_SCOPE_COPY = {
-  controlName: "All projects",
-  tooltipOn: "Showing every project",
-  tooltipOff: "Showing this project",
-  liveOn: "Sessions from every project",
-  liveOff: "Sessions from this project",
-} as const;
-
 export const SESSION_ARCHIVED_COPY = {
   controlName: "Archived",
   tooltipOn: "Showing archived sessions",

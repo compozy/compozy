@@ -906,6 +906,8 @@ cost_reasoning_per_million = 30
 		if got, want := applier.calls, 1; got != want {
 			t.Fatalf("ApplyActiveConfig() calls = %d, want %d", got, want)
 		}
+		desired.Sessions.GroupBy = compozyconfig.ShellSessionGroupByProject
+		desired.Sessions.ScopeExplicit = true
 		if got := applier.snapshots[0].Shell; !reflect.DeepEqual(got, desired) {
 			t.Fatalf("runtime Shell = %#v, want %#v", got, desired)
 		}

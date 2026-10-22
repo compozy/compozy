@@ -16,7 +16,7 @@ var errSessionListWorkspaceResolution = errors.New("api: session list workspace 
 
 // ListSessions returns one bounded page from the shared public session catalog.
 func (h *BaseHandlers) ListSessions(c *gin.Context) {
-	if !h.requireOperatorSurface(c, "session catalog") {
+	if !h.requireOperatorOrGrantedAgent(c, "session catalog") {
 		return
 	}
 	query, includeHealth, err := h.parseSessionListQuery(c)
@@ -82,6 +82,10 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		}
 		return session.ListQuery{}, false, fmt.Errorf("%w: %w", errSessionListWorkspaceResolution, err)
 	}
+	workspaceIDs, err := h.parseSessionListWorkspaceIDs(c, allWorkspaces)
+	if err != nil {
+		return session.ListQuery{}, false, err
+	}
 	skipTotal, err := parseBoolQuery(c, "skip_total")
 	if err != nil {
 		return session.ListQuery{}, false, err
@@ -110,15 +114,9 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 	if err != nil {
 		return session.ListQuery{}, false, err
 	}
-	subagents := strings.TrimSpace(c.Query("subagents"))
-	switch subagents {
-	case "", "include", "exclude", "only":
-	default:
-		return session.ListQuery{}, false, fmt.Errorf(
-			"%w: unsupported subagents %q",
-			session.ErrListQueryInvalid,
-			subagents,
-		)
+	subagents, err := parseSessionListSubagents(c.Query("subagents"))
+	if err != nil {
+		return session.ListQuery{}, false, err
 	}
 	query := session.ListQuery{
 		Subagents:       subagents,
@@ -126,6 +124,7 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		ReadScope:       readScope,
 		WorkspaceID:     workspaceID,
 		AllWorkspaces:   allWorkspaces,
+		WorkspaceIDs:    workspaceIDs,
 		WorktreeID:      strings.TrimSpace(c.Query("worktree")),
 		State:           strings.TrimSpace(c.Query("state")),
 		SessionType:     sessionType,
@@ -143,6 +142,29 @@ func (h *BaseHandlers) parseSessionListQuery(c *gin.Context) (session.ListQuery,
 		Limit:           limit,
 	}
 	return query, includeHealth, nil
+}
+
+// parseSessionListWorkspaceIDs resolves the All projects narrowing, mapping the legacy global alias.
+func (h *BaseHandlers) parseSessionListWorkspaceIDs(c *gin.Context, allWorkspaces bool) ([]string, error) {
+	raw := c.QueryArray("workspace_ids")
+	for index, value := range raw {
+		resolved, err := resolveLegacyGlobalSelector(c, strings.TrimSpace(value), h.Workspaces)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %w", session.ErrWorkspaceSelectionReserved, err)
+		}
+		raw[index] = resolved
+	}
+	return session.NormalizeWorkspaceIDs(raw, allWorkspaces)
+}
+
+func parseSessionListSubagents(raw string) (string, error) {
+	subagents := strings.TrimSpace(raw)
+	switch subagents {
+	case "", "include", "exclude", "only":
+		return subagents, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported subagents %q", session.ErrListQueryInvalid, subagents)
+	}
 }
 
 func parseSessionListType(raw string) (session.Type, error) {

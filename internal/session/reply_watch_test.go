@@ -324,7 +324,7 @@ func TestReplyWatchRecovery(t *testing.T) {
 		for _, scope := range []struct {
 			workspace, sender string
 			count             int
-		}{{h.workspaceID, sender.ID, 1}, {"foreign", sender.ID, 0}, {h.workspaceID, target.ID, 0}} {
+		}{{h.workspaceID, sender.ID, 1}, {"foreign", sender.ID, 0}, {h.workspaceID, target.ID, 0}, {"", sender.ID, 0}} {
 			rows, err := service.ListForSender(t.Context(), scope.workspace, scope.sender)
 			if err != nil || len(rows) != scope.count {
 				t.Fatalf("list = %+v, %v", rows, err)

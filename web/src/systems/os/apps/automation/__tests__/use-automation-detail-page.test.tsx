@@ -44,14 +44,26 @@ vi.mock("@/systems/settings", () => ({
     data: { config: { timezone: "UTC" }, runtime: { available: true } },
   }),
 }));
-vi.mock("@/systems/workspace", () => ({
-  toWorkspaceCommandSelectOptions: () => [],
-  useActiveWorkspace: () => ({
-    activeWorkspaceId: state.activeWorkspaceId,
-    isLoading: false,
-    workspaces: [{ id: "ws_checkout_api", name: "checkout-api" }],
-  }),
-}));
+vi.mock("@/systems/workspace", async () => {
+  const scope = () =>
+    state.activeWorkspaceId
+      ? { kind: "project", workspaceId: state.activeWorkspaceId }
+      : { kind: "all" };
+  return {
+    ...(await import("@/systems/workspace/lib/destination")),
+    ...(await import("@/systems/workspace/lib/workspace-scope-copy")),
+    ...(await import("@/systems/workspace/lib/workspace-badge-identity")),
+    toWorkspaceCommandSelectOptions: () => [],
+    useActiveWorkspace: () => ({
+      activeWorkspaceId: state.activeWorkspaceId,
+      breadthMode: state.activeWorkspaceId ? "focused" : "all",
+      dataScope: scope(),
+      isLoading: false,
+      workspaces: [{ id: "ws_checkout_api", name: "checkout-api" }],
+    }),
+    useWindowDataWorkspace: scope,
+  };
+});
 vi.mock("@/systems/loops", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/loops")>()),
   useLoop: () => ({ error: state.loopError }),
@@ -97,6 +109,21 @@ describe("useAutomationDetailPage", () => {
       nextRunAt: "2026-10-08T09:00:00Z",
       workspaceName: "checkout-api",
     });
+  });
+
+  it("Should name each run's attributed project only under All projects", () => {
+    state.runs = [
+      makeDetailRun({ id: "run_a", attribution: "recorded", workspace_id: "ws_checkout_api" }),
+      makeDetailRun({ id: "run_unknown", attribution: "unknown", workspace_id: undefined }),
+    ];
+    const project = renderHook(() => useAutomationDetailPage("job", "morning-digest"));
+    expect(project.result.current.panel.runProject).toBeUndefined();
+
+    state.activeWorkspaceId = null;
+    const all = renderHook(() => useAutomationDetailPage("job", "morning-digest"));
+    const runProject = all.result.current.panel.runProject!;
+    expect(runProject(state.runs[0] as never).name).toBe("checkout-api");
+    expect(runProject(state.runs[1] as never).name).toBe("Unknown project");
   });
 
   it("Should map another project, a 404 and other failures to their own states (UT-080)", () => {

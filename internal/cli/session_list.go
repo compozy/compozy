@@ -123,6 +123,17 @@ func runSessionListCommand(cmd *cobra.Command, deps commandDeps, flags sessionLi
 	if err != nil {
 		return err
 	}
+	format, err := resolveInheritedOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if flags.allWorkspaces && len(page.Sessions) > 0 && format != OutputJSON && format != OutputJSONL {
+		labels, err := aggregateProjectLabels(cmd, client)
+		if err != nil {
+			return err
+		}
+		return writeCommandOutput(cmd, sessionListBundle(page, deps.now, labels))
+	}
 	return writeCommandOutput(cmd, sessionListBundle(page, deps.now))
 }
 
@@ -219,16 +230,25 @@ func sessionListHasRowFilters(flags sessionListFlags) bool {
 		strings.TrimSpace(flags.cursor) != ""
 }
 
-func sessionListBundle(page SessionListPage, now func() time.Time) outputBundle {
+func sessionListBundle(page SessionListPage, now func() time.Time, projectLabels ...map[string]string) outputBundle {
+	headers := sessionListHumanHeaders()
+	row := sessionListHumanRow(now)
+	if len(projectLabels) > 0 {
+		headers = append([]string{cliProjectHeader}, headers...)
+		baseRow := row
+		row = func(item SessionRecord) []string {
+			return append([]string{aggregateProjectName(projectLabels[0], item.WorkspaceID)}, baseRow(item)...)
+		}
+	}
 	items := page.Sessions
 	bundle := listBundle(
 		page,
 		items,
 		"Sessions",
-		sessionListHumanHeaders(),
+		headers,
 		"sessions",
 		sessionListToonFields(),
-		sessionListHumanRow(now),
+		row,
 		sessionListToonRow,
 	)
 	return decorateSessionListBundle(bundle, page)

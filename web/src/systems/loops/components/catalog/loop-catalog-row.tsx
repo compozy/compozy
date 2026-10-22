@@ -3,18 +3,32 @@ import { Repeat2 } from "lucide-react";
 
 import { ListingRow } from "@compozy/ui";
 
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+
 import { loopMonthActivity } from "../../lib/loop-catalog";
+import { loopFactsPresent } from "../../lib/loop-catalog-presentation";
 import type { LoopCatalogEntry } from "../../types";
 import { LoopStatusMark } from "../loop-status-mark";
 import { LoopCatalogFacts } from "./loop-catalog-facts";
 import { LoopRunButton } from "./loop-run-button";
 
+const UNBOUND_SEARCH: { workspace?: string } = {};
+
 interface LoopCatalogRowProps {
   entry: LoopCatalogEntry;
   onRun: (entry: LoopCatalogEntry) => void;
+  /** Keeps the row's link on its owner's binding. */
+  linkSearch?: { workspace?: string };
+  /** Under All projects: the row's project, leading the meta line. */
+  project?: WorkspaceBadgeIdentity;
 }
 
-export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
+export function LoopCatalogRow({
+  entry,
+  onRun,
+  linkSearch = UNBOUND_SEARCH,
+  project,
+}: LoopCatalogRowProps) {
   const activity = loopMonthActivity(entry.aggregate_30d.runs, entry.success_rate_30d);
   return (
     <ListingRow
@@ -24,7 +38,12 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
     >
       <ListingRow.Link
         render={
-          <Link to="/loops/$name" params={{ name: entry.name }} aria-label={`Open ${entry.name}`} />
+          <Link
+            aria-label={`Open ${entry.name}`}
+            params={{ name: entry.name }}
+            search={linkSearch}
+            to="/loops/$name"
+          />
         }
       >
         <ListingRow.Icon>
@@ -39,6 +58,12 @@ export function LoopCatalogRow({ entry, onRun }: LoopCatalogRowProps) {
             <ListingRow.Description>{entry.contract.goal}</ListingRow.Description>
           ) : null}
           <ListingRow.Meta>
+            {project ? (
+              <>
+                <WorkspaceBadge data-testid="loop-catalog-row-project" identity={project} />
+                {loopFactsPresent(entry) ? <ListingRow.MetaDot /> : null}
+              </>
+            ) : null}
             <LoopCatalogFacts entry={entry} separator="dot" />
           </ListingRow.Meta>
         </ListingRow.Main>

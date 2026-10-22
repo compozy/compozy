@@ -39,6 +39,33 @@ export async function listAutomationSuggestions(
   return requireResponseData(data, response, "Failed to fetch automation suggestions");
 }
 
+/** Every project's suggestions plus User's, narrowed by the Project filter (operator only). */
+export async function listAutomationSuggestionsAggregate(
+  workspaceIDs: readonly string[] | undefined,
+  status: AutomationSuggestionStatus,
+  signal?: AbortSignal
+): Promise<AutomationSuggestionsListResponse> {
+  const { data, error, response } = await apiClient.GET("/api/automation/suggestions", {
+    params: {
+      query: {
+        all_workspaces: true,
+        ...(workspaceIDs?.length ? { workspace_ids: [...workspaceIDs] } : {}),
+        status,
+      },
+    },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new AutomationApiError(
+      defaultApiErrorMessage("Failed to fetch automation suggestions", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to fetch automation suggestions");
+}
+
 export async function acceptAutomationSuggestion(
   workspaceID: string,
   suggestionID: string,

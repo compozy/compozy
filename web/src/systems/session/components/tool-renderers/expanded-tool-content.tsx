@@ -1,5 +1,3 @@
-import { Suspense, lazy } from "react";
-
 import type { UIMessage } from "../../types";
 import { BashContent } from "./bash-content";
 import { ReadContent } from "./read-content";
@@ -8,11 +6,7 @@ import { EditContent } from "./edit-content";
 import { SearchContent } from "./search-content";
 import { GenericContent } from "./generic-content";
 import { TodoContent } from "./todo-content";
-
-const TerminalContent = lazy(async () => {
-  const { TerminalContent: Content } = await import("./terminal-content");
-  return { default: Content };
-});
+import { TerminalContent } from "./terminal-content";
 
 /** Input and result fields the Bash view renders; anything else needs the generic view. */
 const BASH_INPUT_FIELDS = new Set(["command"]);
@@ -43,14 +37,10 @@ export function ExpandedToolContent({ message }: { message: UIMessage }) {
     // Deliberate terminal use renders as the terminal it ran in, not as generic
     // tool output — the contrast with an agent's own reported output is the
     // point (US-011 vs US-025). Pipe exec (no terminal object) stays in this
-    // dispatcher; a supervised id is intercepted earlier as its own block.
+    // dispatcher; a supervised id is intercepted earlier as its own row.
     case "compozy__terminal_exec":
     case "compozy__terminal_open":
-      return (
-        <Suspense fallback={null}>
-          <TerminalContent message={message} />
-        </Suspense>
-      );
+      return <TerminalContent message={message} />;
     case "Read":
       return <ReadContent message={message} />;
     case "Write":

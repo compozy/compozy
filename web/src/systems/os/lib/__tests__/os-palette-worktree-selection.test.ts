@@ -1,6 +1,6 @@
 // Suite: palette worktree selection
-// Invariant: a global worktree row switches the active workspace before the
-// per-window worktree scope is written; a workspace-scoped row only scopes.
+// Invariant: a worktree row outside the focused project switches the active workspace
+// before the per-window worktree scope is written; a focused project's row only scopes.
 // Owning layer: unit — the selection helper.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,9 +22,8 @@ beforeEach(() => {
 });
 
 describe("applyPaletteWorktreeSelection", () => {
-  it("Should switch workspace before scoping a global worktree row", () => {
+  it("Should switch workspace before scoping a row with no project focused", () => {
     applyPaletteWorktreeSelection({
-      scope: "global",
       worktreeScopeId: "window:1",
       activeWorkspaceId: null,
       entry: { workspaceId: "ws-b", worktree: { id: "wt-9" } },
@@ -37,9 +36,8 @@ describe("applyPaletteWorktreeSelection", () => {
     );
   });
 
-  it("Should keep the current workspace when the globe is already off", () => {
+  it("Should keep the current workspace for the focused project's row", () => {
     applyPaletteWorktreeSelection({
-      scope: "workspace",
       worktreeScopeId: "shell",
       activeWorkspaceId: "ws-a",
       entry: { worktree: { id: "wt-1" } },

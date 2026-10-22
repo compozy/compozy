@@ -34,7 +34,7 @@ func (p daemonLoopResponderPolicy) DeniesSelfOperation(
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	actorID := strings.TrimSpace(actor.Actor.Ref)
-	if p.runs == nil || p.sessions == nil || workspaceID == "" || actorID == "" ||
+	if p.runs == nil || p.sessions == nil || actorID == "" ||
 		strings.TrimSpace(actor.Scope.WorkspaceID) != workspaceID {
 		return true, nil
 	}
@@ -57,7 +57,8 @@ func (p daemonLoopResponderPolicy) DeniesSelfOperation(
 		}
 		visited[currentID] = struct{}{}
 		info, statusErr := p.sessions.Status(ctx, currentID)
-		if statusErr != nil || !validResponderSession(info, currentID, workspaceID) {
+		if statusErr != nil ||
+			(!validResponderSession(info, currentID, workspaceID) || info.ProfileID != run.ProfileID) {
 			return true, nil
 		}
 		lineage := storepkg.NormalizeSessionLineage(info.ID, info.Lineage)

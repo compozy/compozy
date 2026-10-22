@@ -17,12 +17,26 @@ function normalizeOptionalText(value?: string | null): string | undefined {
   return normalized === "" ? undefined : normalized;
 }
 
+function normalizedWorkspaceIds(values?: readonly string[]): string[] | undefined {
+  const ids = new Set<string>();
+  for (const value of values ?? []) {
+    const id = value.trim();
+    if (id !== "") ids.add(id);
+  }
+  return ids.size > 0 ? [...ids].sort() : undefined;
+}
+
 export function normalizeAutomationJobFilter(
   filters: AutomationJobStableFilter = {}
 ): AutomationJobStableFilter {
   return {
     scope: filters.scope,
     workspace_id: normalizeOptionalText(filters.workspace_id),
+    all_workspaces: filters.all_workspaces || undefined,
+    // The Project filter narrows the aggregate only; sorted so equal filters share a key.
+    workspace_ids: filters.all_workspaces
+      ? normalizedWorkspaceIds(filters.workspace_ids)
+      : undefined,
     source: filters.source,
     target: filters.target,
     enabled: filters.enabled,
@@ -41,6 +55,11 @@ export function normalizeAutomationTriggerFilter(
   return {
     scope: filters.scope,
     workspace_id: normalizeOptionalText(filters.workspace_id),
+    all_workspaces: filters.all_workspaces || undefined,
+    // The Project filter narrows the aggregate only; sorted so equal filters share a key.
+    workspace_ids: filters.all_workspaces
+      ? normalizedWorkspaceIds(filters.workspace_ids)
+      : undefined,
     source: filters.source,
     target: filters.target,
     enabled: filters.enabled,

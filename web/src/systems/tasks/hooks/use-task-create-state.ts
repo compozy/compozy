@@ -47,9 +47,12 @@ export function useTaskCreateState(
   options: { liveDataEnabled?: boolean } = {}
 ) {
   const liveDataEnabled = options.liveDataEnabled ?? true;
-  const { activeWorkspaceId, scope, workspaces } = useActiveWorkspace({
+  const { dataScope, workspaces } = useActiveWorkspace({
     enabled: liveDataEnabled,
   });
+  // A new task lands in the focused project, or unbound (User) outside one; an
+  // unconfirmed project focus is still resolving.
+  const scope = dataScope === null || dataScope.kind === "project" ? "workspace" : "global";
   const profile = useProfileReadScope();
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
@@ -57,8 +60,8 @@ export function useTaskCreateState(
   const submissionStore = useStore(taskEditorSubmissionLogic);
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
-  const activeTaskScope = taskScopeForActiveWorkspace(scope, activeWorkspaceId);
-  const isScopeResolving = scope === "workspace" && activeTaskScope === null;
+  const activeTaskScope = taskScopeForActiveWorkspace(dataScope);
+  const isScopeResolving = activeTaskScope === null;
   const createDraftWorkspaceId =
     activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
   const workspaceKey = isScopeResolving

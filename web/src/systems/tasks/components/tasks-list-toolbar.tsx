@@ -1,4 +1,5 @@
 import { ListingToolbar } from "@compozy/ui";
+import type { ProjectFilterModel } from "@/systems/workspace";
 
 import { taskQuickStatusExpresses, type TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListSortKey, TaskPriority, TaskRecordsFilter, TaskStatus } from "../types";
@@ -32,6 +33,8 @@ export interface TasksListToolbarProps {
   onSortChange: (next: TaskListSortKey) => void;
   onSearchQueryChange: (next: string) => void;
   onRecordsFilterChange: (next: TaskRecordsFilter) => void;
+  /** The shared Project filter; its field renders only under All projects. */
+  projectFilter?: Pick<ProjectFilterModel, "field" | "values" | "setValues">;
 }
 
 /** Window-local tools for the Tasks list context strip. */
@@ -50,6 +53,7 @@ export function TasksListToolbar({
   onSortChange,
   onSearchQueryChange,
   onRecordsFilterChange,
+  projectFilter,
 }: TasksListToolbarProps) {
   // The quick pills need the strip's own width (a tiled pane, not the viewport).
   // One measurement decides both whether they show and whether the Filter strip
@@ -88,7 +92,10 @@ export function TasksListToolbar({
             onStatusChange={onStatusChange}
             ownerFilter={ownerFilter}
             ownerOptions={ownerOptions}
+            onProjectChange={projectFilter?.setValues}
             priorityFilter={priorityFilter}
+            projectField={projectFilter?.field}
+            projectValues={projectFilter?.values}
             statusFilter={statusFilter}
             statusShownElsewhere={quickStatusFits && taskQuickStatusExpresses(statusFilter)}
           />

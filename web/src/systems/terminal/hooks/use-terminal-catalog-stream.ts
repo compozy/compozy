@@ -3,7 +3,7 @@
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
-import { createStreamEventSource, type StreamEventSource } from "@/lib/ticketed-event-source";
+import type { StreamEventSource } from "@/lib/ticketed-event-source";
 
 import {
   parseTerminalCatalogEvent,
@@ -14,6 +14,11 @@ import {
   TERMINAL_STREAM_EVENTS,
 } from "../lib/terminal-catalog-stream";
 import { terminalKeys } from "../lib/query-keys";
+import {
+  acquireCatalogStreamLease,
+  defaultEventSourceFactory,
+  factoryIdentity,
+} from "../lib/terminal-stream-lease";
 import {
   applyTerminalRecordingEvent,
   clearTerminalRecordingsForProfile,
@@ -36,62 +41,6 @@ export interface UseTerminalCatalogStreamOptions {
   enabled?: boolean;
   /** Test seam; the ticketed browser source is the default. */
   eventSourceFactory?: TerminalCatalogEventSourceFactory;
-}
-
-function defaultEventSourceFactory(url: string): StreamEventSource {
-  return createStreamEventSource(url);
-}
-
-const factoryIds = new WeakMap<TerminalCatalogEventSourceFactory, number>();
-let nextFactoryId = 1;
-
-function factoryIdentity(factory: TerminalCatalogEventSourceFactory): string {
-  if (factory === defaultEventSourceFactory) return "default";
-  const existing = factoryIds.get(factory);
-  if (existing !== undefined) return String(existing);
-  const id = nextFactoryId;
-  nextFactoryId += 1;
-  factoryIds.set(factory, id);
-  return String(id);
-}
-
-interface CatalogStreamLease {
-  refs: number;
-  cleanup: () => void;
-}
-
-const leasesByClient = new WeakMap<QueryClient, Map<string, CatalogStreamLease>>();
-
-/**
- * One EventSource per query client and scope, shared across subscribers.
- *
- * Session blocks and the Terminal app read the same cache. Opening a socket
- * per hook instance would fan the same frames out N times and drop the last
- * subscriber's cache on the first unmount.
- */
-function acquireCatalogStreamLease(
-  queryClient: QueryClient,
-  key: string,
-  open: () => () => void
-): () => void {
-  let byScope = leasesByClient.get(queryClient);
-  if (!byScope) {
-    byScope = new Map();
-    leasesByClient.set(queryClient, byScope);
-  }
-  let lease = byScope.get(key);
-  if (!lease) {
-    lease = { refs: 0, cleanup: open() };
-    byScope.set(key, lease);
-  }
-  lease.refs += 1;
-  return () => {
-    lease.refs -= 1;
-    if (lease.refs === 0) {
-      lease.cleanup();
-      byScope.delete(key);
-    }
-  };
 }
 
 function normalizeTerminalProfiles(profiles: readonly string[]): string[] {

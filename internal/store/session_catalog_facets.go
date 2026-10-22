@@ -19,10 +19,16 @@ type WorkspaceSessionCatalogFacets struct {
 	Facets      SessionCatalogFacets
 }
 
+type ProfileSessionCatalogFacets struct {
+	ProfileID string
+	Facets    SessionCatalogFacets
+}
+
 // SessionCatalogFacetResult aggregates durable metadata without hydrating rows.
 type SessionCatalogFacetResult struct {
 	Facets      SessionCatalogFacets
 	ByWorkspace []WorkspaceSessionCatalogFacets
+	ByProfile   []ProfileSessionCatalogFacets
 }
 
 // SessionCatalogFacetReader is the metadata-only catalog count boundary.

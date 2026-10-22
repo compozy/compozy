@@ -37,10 +37,11 @@ that created it.
 
 Profiles organize work. They do not restrict access.
 
-Any profile can be selected at any time, the aggregate view shows everything at once, and there is
-no permission, grant, lock, or hidden-from vocabulary between profiles. CompozyOS runs as a single
-operator on one machine, so a boundary between profiles would have nothing to enforce itself
-against.
+You can select any profile at any time, and the aggregate view shows everything at once. There is
+no lock or hidden-from vocabulary between profiles. CompozyOS runs as a single operator on one
+machine, so a boundary between profiles would have nothing to enforce itself against. Agent sessions
+stay in the profile they started in; only an agent you grant
+[`workspace_access: unrestricted`](/docs/user-scope/unrestricted-agents) can reach other profiles.
 
 If you need real confidentiality between two contexts, a profile is not the mechanism. Access
 control for more than one person is a separate program and is not part of this feature.

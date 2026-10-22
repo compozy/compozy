@@ -12,7 +12,7 @@ import (
 
 // ListSessionFacets returns exact population counts separately from bounded rows.
 func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
-	if !h.requireOperatorSurface(c, "session catalog facets") {
+	if !h.requireOperatorOrGrantedAgent(c, "session catalog facets") {
 		return
 	}
 	query, _, err := h.parseSessionListQuery(c)
@@ -44,6 +44,7 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 	}
 	response := contract.SessionCatalogFacetsResponse{
 		Facets:      sessionFacetPayload(facets.Facets),
+		ByProfile:   make([]contract.SessionProfileFacetsPayload, 0, len(facets.ByProfile)),
 		ByWorkspace: make([]contract.SessionWorkspaceFacetsPayload, 0, len(facets.ByWorkspace)),
 	}
 	for _, workspace := range facets.ByWorkspace {
@@ -52,6 +53,15 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 			contract.SessionWorkspaceFacetsPayload{
 				WorkspaceID: workspace.WorkspaceID,
 				Facets:      sessionFacetPayload(workspace.Facets),
+			},
+		)
+	}
+	for _, profile := range facets.ByProfile {
+		response.ByProfile = append(
+			response.ByProfile,
+			contract.SessionProfileFacetsPayload{
+				ProfileID: profile.ProfileID,
+				Facets:    sessionFacetPayload(profile.Facets),
 			},
 		)
 	}

@@ -3,7 +3,6 @@ package automation
 import (
 	"context"
 	"errors"
-
 	"strings"
 
 	"github.com/compozy/compozy/internal/resources"
@@ -175,6 +174,11 @@ func (m *Manager) nextUpdatedTriggerSpec(
 	webhookSecret *WebhookSecretWrite,
 ) (Trigger, error) {
 	next := cloneTrigger(trigger)
+	grant, err := updatedTriggerGrant(ctx, current, next)
+	if err != nil {
+		return Trigger{}, err
+	}
+	next.GrantCeiling = grant
 	next.ID = current.ID
 	next.Source = current.Source
 	next.CreatedAt = current.CreatedAt.UTC()
