@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"net/http"
@@ -653,4 +654,28 @@ func TestRequestOperatorOriginAppTokens(t *testing.T) {
 			t.Fatalf("operator effective grant = %q, want unrestricted", got)
 		}
 	})
+}
+
+func TestInheritedUserAgentWithoutProjectWork(t *testing.T) {
+	t.Parallel()
+	user := map[string]struct{}{"general": {}}
+	for _, tc := range []struct {
+		name  string
+		entry AgentCatalogEntry
+		total int
+		want  bool
+	}{
+		{name: "Should drop an inherited User agent without project sessions", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "general", SourceLayer: "user"}}, want: true},
+		{name: "Should keep an inherited User agent with project sessions", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "general", SourceLayer: "user"}}, total: 1},
+		{name: "Should keep a project override of a User agent", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "general", SourceLayer: "project"}}},
+		{name: "Should keep a project-only agent", entry: AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "reviewer", SourceLayer: "user"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			metrics := map[string]session.AgentSessionMetrics{tc.entry.Def.Name: {Total: tc.total}}
+			if got := inheritedUserAgentWithoutProjectWork(tc.entry, user, metrics); got != tc.want {
+				t.Fatalf("inheritedUserAgentWithoutProjectWork() = %t, want %t", got, tc.want)
+			}
+		})
+	}
 }

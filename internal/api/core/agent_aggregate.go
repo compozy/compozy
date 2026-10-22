@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/listcursor"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/gin-gonic/gin"
 )
 
@@ -66,19 +67,34 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		}
 	}
 	response := contract.AgentCatalogResponse{Agents: []contract.AgentCatalogItemPayload{}, SessionsAvailable: true, Page: contract.CountedCursorPagePayload{Limit: limit}, Facets: contract.AgentCatalogFacetsPayload{Categories: []string{}}}
+	userAgents, err := h.globalAgentEntries(c.Request.Context(), scope.ProfileID, profileName)
+	if err != nil {
+		h.respondError(c, statusForAgentWorkspaceError(err), err)
+		return
+	}
+	userAgentNames := make(map[string]struct{}, len(userAgents.Entries))
+	for _, entry := range userAgents.Entries {
+		userAgentNames[entry.Def.Name] = struct{}{}
+	}
 	for workspace := range allowed {
-		var resolved workspaceAgentEntries
-		if workspace == "" {
-			resolved, err = h.globalAgentEntries(c.Request.Context(), scope.ProfileID, profileName)
-		} else {
+		resolved := userAgents
+		if workspace != "" {
 			resolved, err = h.workspaceAgentEntriesWithDiagnostics(c.Request.Context(), workspace, profileName)
+			if err != nil {
+				h.respondError(c, statusForAgentWorkspaceError(err), err)
+				return
+			}
 		}
-		if err != nil {
-			h.respondError(c, statusForAgentWorkspaceError(err), err)
-			return
+		metricsWorkspace := workspace
+		if workspace == "" {
+			metricsWorkspace = "@user"
 		}
+		metrics, available := h.agentCatalogSessionMetrics(c, scope, metricsWorkspace)
 		agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
 		for _, entry := range resolved.Entries {
+			if workspace != "" && inheritedUserAgentWithoutProjectWork(entry, userAgentNames, metrics) {
+				continue
+			}
 			payload := AgentPayloadFromEntryWithConfig(entry, &resolved.Config)
 			payload.WorkspaceID = workspace
 			agents = append(agents, payload)
@@ -86,11 +102,6 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		for _, diagnostic := range resolved.Diagnostics {
 			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic, workspace))
 		}
-		metricsWorkspace := workspace
-		if workspace == "" {
-			metricsWorkspace = "@user"
-		}
-		metrics, available := h.agentCatalogSessionMetrics(c, scope, metricsWorkspace)
 		response.SessionsAvailable = response.SessionsAvailable && available
 		local := query
 		local.Limit = len(agents) + 1
@@ -133,4 +144,23 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+// inheritedUserAgentWithoutProjectWork reports a project catalog entry that only inherits a User
+// definition and has no sessions in that project. Such an agent is listed once, as its User row;
+// a project row exists only for a definition authored in the project or one with project work
+// (AP Data Models "Agent rows", same rule as loop catalog rows).
+func inheritedUserAgentWithoutProjectWork(
+	entry AgentCatalogEntry,
+	userAgentNames map[string]struct{},
+	metrics map[string]session.AgentSessionMetrics,
+) bool {
+	if _, inherited := userAgentNames[entry.Def.Name]; !inherited {
+		return false
+	}
+	switch entry.Def.SourceLayer {
+	case "project", "project_profile", "additional":
+		return false
+	}
+	return metrics[entry.Def.Name].Total == 0
 }
