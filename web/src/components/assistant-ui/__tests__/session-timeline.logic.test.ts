@@ -1773,6 +1773,45 @@ describe("session timeline subagent cards", () => {
   // parent's text part at every interleaved event, so native inner work streaming beside the
   // reply, a child event that adds no part, and an unnamed session-message part all fall between
   // deltas, mid-word or mid code span, and must still read as one Markdown block.
+  it("Should keep one prose block across a silent prompt marker and split it at a drawn marker", () => {
+    const marker = (id: string, kind: string): SessionTimelinePart => ({
+      kind: "data",
+      id,
+      name: "data-compozy-event",
+      data: {
+        type: "transcript_marker.created",
+        marker: { kind, occurred_at: "2026-07-07T12:00:00Z", summary: kind },
+      },
+      turnId: "turn-1",
+    });
+    // A prompt queued for this busy session draws nothing: the reply reads through it.
+    const queued = deriveSessionRows([
+      text("t1", "The typecheck est", "turn-1"),
+      marker("queued", "transcript_marker.prompt_queued"),
+      text("t2", "ava clean.", "turn-1"),
+    ]);
+    expect(queued.map(row => row.kind)).toEqual(["text"]);
+    expect(queued[0]).toMatchObject({ part: { text: "The typecheck estava clean." } });
+
+    // A steer draws its line, so the prose on either side stays two blocks.
+    const steered = deriveSessionRows([
+      text("t1", "Before the steer.", "turn-1"),
+      marker("steer", "transcript_marker.prompt_steered"),
+      text("t2", "After the steer.", "turn-1"),
+    ]);
+    expect(steered.map(row => row.kind)).toEqual(["text", "data", "text"]);
+
+    // A silent marker right after a card-owned call keeps that call's separation.
+    const afterCall = deriveSessionRows([
+      text("t1", "I'll pick this up when they wake me.", "turn-1"),
+      delegate(1),
+      marker("queued", "transcript_marker.prompt_queued"),
+      text("t2", "The three subagents are still running.", "turn-1"),
+      subagentPart("sub-1", "tool-call-1"),
+    ]);
+    expect(afterCall.map(row => row.kind)).toEqual(["text", "text", "subagents"]);
+  });
+
   it("Should keep one prose block when native inner work streams between its deltas", () => {
     const inner = (index: number): SessionTimelinePart[] => [
       tool(index, { parentToolCallId: "toolu", toolName: "Bash", status: "running" }),

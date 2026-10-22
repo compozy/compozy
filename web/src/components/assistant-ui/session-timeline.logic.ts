@@ -23,6 +23,7 @@ import { CLARIFY_EVENT_TYPE } from "@/systems/session/lib/clarify-event";
 import {
   isRuntimeActivityEvent,
   isSessionErrorEvent,
+  isSilentTranscriptMarker,
   isTranscriptMarkerEvent,
 } from "@/systems/session/lib/runtime-activity-notice";
 
@@ -79,6 +80,7 @@ import type {
   SessionRow,
   SessionReasoningRow,
   SessionDataRow,
+  SessionTextRow,
   SessionWorkEntry,
 } from "./session-timeline-rows";
 export interface DeriveSessionRowsOptions {
@@ -207,6 +209,9 @@ function deriveBaseRows(
   let workCluster: SessionWorkEntry[] = [];
   let markerCluster: SessionTimelineDataPart[] = [];
   let markerKey: string | null = null;
+  // Joined prose collects its deltas and builds its text once: a reply split into thousands of
+  // deltas stays linear.
+  const prose = new Map<SessionTextRow, string[]>();
 
   const flushWorkCluster = () => {
     if (workCluster.length === 0) return;
@@ -290,23 +295,26 @@ function deriveBaseRows(
       previous.turnId === part.turnId &&
       previous.part.parentToolCallId === part.parentToolCallId
     ) {
-      rows[rows.length - 1] = {
-        ...previous,
-        part: { ...previous.part, text: previous.part.text + part.text, state: part.state },
-        parts: [...previous.parts, part],
-      };
+      previous.parts.push(part);
+      const pieces = prose.get(previous) ?? [previous.part.text];
+      pieces.push(part.text);
+      prose.set(previous, pieces);
     } else {
       rows.push(rowFromPart(part));
     }
   }
   flushWorkCluster();
   flushMarkerCluster();
+  for (const [row, pieces] of prose) {
+    row.part = { ...row.part, text: pieces.join(""), state: row.parts.at(-1)?.state };
+  }
   return rows;
 }
 
 // Status events are not narrative (ADR-006): progress ticks, usage, tool-call
-// receipts, hook dispatches, system notes and the like render nothing, so they
-// never append a row — and never split a tool run into single rows. What stays
+// receipts, hook dispatches, system notes, operational prompt markers and the
+// like render nothing, so they never append a row — and never split a tool run
+// into single rows or a reply into separate prose blocks. What stays
 // is what the reader sees: markers, errors, decision asks and runtime warnings.
 // Goal metadata attributes every event in a Goal turn; it does not make an
 // otherwise hidden receipt visible. The message owns the Goal prompt header.
@@ -316,7 +324,8 @@ function isProgressTick(part: SessionTimelineDataPart): boolean {
   if (!isAgentEventPayload(data)) return false;
   if (data.type === "runtime_progress") return true;
   if (data.type === CLARIFY_EVENT_TYPE) return false;
-  if (isTranscriptMarkerEvent(data) || isSessionErrorEvent(data)) return false;
+  if (isTranscriptMarkerEvent(data)) return isSilentTranscriptMarker(data);
+  if (isSessionErrorEvent(data)) return false;
   if (isRuntimeActivityEvent(data)) return false;
   return true;
 }
