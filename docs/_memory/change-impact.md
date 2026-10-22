@@ -4185,6 +4185,6 @@ workspace isolation, and the official skill are unchanged. Web impact is covered
 terminal surface, tool-call card, and sessions modal suites; the affected QA scenarios are updated.
 Go integration fixture changes are formatter-only and preserve their existing assertions.
 
-The UDS integration runtime now injects the same real profile manager as daemon bootstrap and uses
-an isolated operator home. Its existing automation round-trip assertions remain unchanged; this
+The HTTP and UDS integration runtimes now inject the same real profile manager as daemon bootstrap
+and use isolated operator homes. Their existing automation and webhook assertions remain unchanged; this
 repairs fixture wiring for the accepted User scope contract, with no public behavior change.
