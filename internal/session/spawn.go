@@ -361,16 +361,6 @@ func (m *Manager) validateSpawnWorkspace(
 	return opts, nil
 }
 
-func spawnWorkspaceAccessDenied(targetWorkspaceID string, parentWorkspaceID string) error {
-	return fmt.Errorf(
-		"%w: child workspace %q is outside parent workspace %q: %s",
-		ErrSpawnPermissionDenied,
-		targetWorkspaceID,
-		parentWorkspaceID,
-		workspaceaccess.DenialHint,
-	)
-}
-
 func (m *Manager) spawnLineage(
 	ctx context.Context,
 	parent *Info,
