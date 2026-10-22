@@ -24,6 +24,9 @@ New in the Automations spec (task 07; US-028–US-031). Covers the shell registr
   `automation.timezone` is explicitly persisted as `America/Sao_Paulo`. A daily `30 8 * * *`
   schedule must resolve to 08:30 in that zone.
 - Repeat with an invalid host zone and confirm an explicit `UTC` fallback without startup failure.
+- On a host whose `/etc/localtime` links to an IANA zoneinfo file, repeat with `TZ=/etc/localtime`
+  and `TZ=:/etc/localtime`: both must persist that zone. A nonexistent absolute zoneinfo path
+  must fall back to UTC rather than infer a zone from its filename.
 - Open an existing config without the key, including an empty file, and repeat installation:
   its effective zone must remain UTC. Preserve an explicit pre-existing zone as well.
 - In Settings → Automation, search for `Tokyo`, select `Asia/Tokyo`, save, and reopen. Verify the

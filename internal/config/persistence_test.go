@@ -100,6 +100,11 @@ func TestHostTimezoneDetection(t *testing.T) {
 		); got != "America/Sao_Paulo" {
 			t.Fatalf("detected timezone = %q", got)
 		}
+		for _, tz := range []string{localPath, ":" + localPath} {
+			if got := detectHostTimezone(tz, true, "Local", localPath, ""); got != "America/Sao_Paulo" {
+				t.Fatalf("explicit TZ %q detected timezone = %q", tz, got)
+			}
+		}
 	})
 	t.Run("Should read the timezone file and tolerate missing host data", func(t *testing.T) {
 		t.Parallel()
@@ -118,6 +123,10 @@ func TestHostTimezoneDetection(t *testing.T) {
 		}
 		if got := detectHostTimezone("", true, "Europe/Paris", missing, zonePath); got != "UTC" {
 			t.Fatalf("empty TZ = %q, want UTC", got)
+		}
+		missingZone := filepath.Join(root, "zoneinfo", "Europe", "Paris")
+		if got := detectHostTimezone(missingZone, true, "Europe/Paris", missing, zonePath); got != "" {
+			t.Fatalf("missing explicit TZ file must not infer a zone from its path: %q", got)
 		}
 	})
 }

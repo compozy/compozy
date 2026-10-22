@@ -18,6 +18,13 @@ func detectHostTimezone(tz string, set bool, localName, localtimePath, timezoneP
 		if tz == "" {
 			return "UTC"
 		}
+		if path := strings.TrimPrefix(tz, ":"); filepath.IsAbs(path) {
+			resolved, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return ""
+			}
+			return hostIANATimezone(resolved)
+		}
 		return hostIANATimezone(tz)
 	}
 	if zone := hostIANATimezone(localName); zone != "" {

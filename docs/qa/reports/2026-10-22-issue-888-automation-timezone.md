@@ -65,6 +65,12 @@ The real app re-walk searched and selected `Etc/GMT+3`, saved it, reloaded the p
 confirmed the persisted value through the CLI. `timezone-fixed-offset-search.png` captures the
 rendered result. Web build/typecheck and the final React Doctor scan passed.
 
+CodeRabbit also identified that an explicit `TZ=/etc/localtime` was not resolved through its
+symlink. The owning config suite reproduced the failure, then passed with the race detector after
+the fix. The rebuilt CLI created fresh isolated configs with both `TZ=/etc/localtime` and
+`TZ=:/etc/localtime`, persisting `America/Sao_Paulo` in each case. A nonexistent absolute zoneinfo
+path persisted UTC instead of inferring a zone from the filename. No host configuration changed.
+
 ## Limits
 
 No local E2E suite or gate-full is run; CI owns those gates. Native Windows zone-name detection is
