@@ -19,14 +19,16 @@ func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
-		name       string
-		subscriber string
-		event      string
-		want       int
+		name         string
+		subscriber   string
+		event        string
+		eventProfile string
+		want         int
 	}{
-		{"Should not deliver User events to project subscribers", "ws-1", "", 0},
-		{"Should not deliver project events to User subscribers", "", "ws-1", 0},
-		{"Should deliver User events to User subscribers", "", "", 1},
+		{"Should not deliver User events to project subscribers", "ws-1", "", "profile-marketing", 0},
+		{"Should not deliver project events to User subscribers", "", "ws-1", "profile-marketing", 0},
+		{"Should deliver User events to User subscribers of the same profile", "", "", "profile-marketing", 1},
+		{"Should not deliver another profile's User events to User subscribers", "", "", "profile-personal", 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -37,6 +39,7 @@ func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {
 			watchStore.setParked([]looppkg.ParkedWatchEventSubscription{subscription})
 			observer := newLoopWatchEventsObserverForTest(t, watchStore, &recordingWatchEventsBackstop{}, fixedNow)
 			payload := watchEventsTaskStatusPayloadForTest(tc.event, "task-target", "blocked", fixedNow)
+			payload.ProfileID = tc.eventProfile
 			if err := observer.OnTaskStatusChanged(t.Context(), payload); err != nil {
 				t.Fatal(err)
 			}

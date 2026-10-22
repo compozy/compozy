@@ -61,6 +61,7 @@ func watchEventsTaskStatusChangedEvent(
 		Stream:      looppkg.WatchEventsTaskStream,
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		TaskID:      strings.TrimSpace(payload.TaskID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		Payload: map[string]any{
@@ -82,6 +83,7 @@ func watchEventsTaskBlockEvent(
 		Stream:      looppkg.WatchEventsTaskStream,
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		TaskID:      strings.TrimSpace(payload.TaskID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		Payload: map[string]any{
@@ -107,6 +109,7 @@ func watchEventsTaskAttentionEvent(
 		Stream:      looppkg.WatchEventsTaskStream,
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		TaskID:      strings.TrimSpace(payload.TaskID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		Payload: map[string]any{
@@ -135,6 +138,7 @@ func watchEventsTaskRunTerminalEvent(
 		Stream:      looppkg.WatchEventsTaskStream,
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		TaskID:      strings.TrimSpace(payload.TaskID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		LoopRunID:   strings.TrimSpace(payload.LoopRunID),
@@ -159,6 +163,7 @@ func watchEventsAutomationRunCompletedEvent(
 		Stream:      looppkg.WatchEventsAutomationStream,
 		At:          watchEventsHookAt(time.Time{}, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		SessionID:   strings.TrimSpace(payload.SessionID),
 		Payload: map[string]any{
@@ -182,6 +187,7 @@ func watchEventsAutomationRunFailedEvent(
 		Stream:      looppkg.WatchEventsAutomationStream,
 		At:          watchEventsHookAt(time.Time{}, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		SessionID:   strings.TrimSpace(payload.SessionID),
 		Payload: map[string]any{
@@ -208,6 +214,7 @@ func watchEventsCoordinatorLifecycleEvent(
 		Stream:      looppkg.WatchEventsObserveStream,
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		TaskID:      strings.TrimSpace(payload.TaskID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		SessionID:   coordinatorSessionID,
@@ -238,6 +245,7 @@ func watchEventsEventPostRecordEvent(
 		Stream:      looppkg.WatchEventsSessionStreamForSession(sessionID),
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		SessionID:   sessionID,
 		Payload: map[string]any{
 			watchEventsPayloadRecordTypeKey: strings.TrimSpace(payload.RecordType),
@@ -259,6 +267,7 @@ func watchEventsLoopTerminalEvent(
 		Stream:      looppkg.WatchEventsLoopStream,
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		TaskID:      strings.TrimSpace(payload.TaskID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		LoopRunID:   strings.TrimSpace(payload.LoopRunID),
@@ -284,6 +293,7 @@ func watchEventsLoopNodeTerminalEvent(
 		Stream:      looppkg.WatchEventsLoopStream,
 		At:          watchEventsHookAt(payload.Timestamp, now),
 		WorkspaceID: strings.TrimSpace(payload.WorkspaceID),
+		ProfileID:   strings.TrimSpace(payload.ProfileID),
 		TaskID:      strings.TrimSpace(payload.TaskID),
 		RunID:       strings.TrimSpace(payload.RunID),
 		LoopRunID:   strings.TrimSpace(payload.LoopRunID),

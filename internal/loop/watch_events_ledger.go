@@ -66,6 +66,7 @@ type WatchEvent struct {
 	Stream      string         `json:"stream"`
 	At          string         `json:"at"`
 	WorkspaceID string         `json:"workspace_id"`
+	ProfileID   string         `json:"profile_id,omitempty"`
 	TaskID      string         `json:"task_id,omitempty"`
 	RunID       string         `json:"run_id,omitempty"`
 	LoopRunID   string         `json:"loop_run_id,omitempty"`
