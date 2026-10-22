@@ -61,6 +61,32 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve an unnamed target profile to the agent session's own", func(t *testing.T) {
+		t.Parallel()
+		audit := &auditEmitterSpy{}
+		policy := newPolicyForTest(t, &modeSourceStub{mode: ModeApproveAll}, &consentCacheStub{}, audit, slog.Default())
+		same := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceA)
+		same.Target.ProfileID = ""
+		decision, err := policy.Authorize(testutil.Context(t), same)
+		if err != nil || !decision.Allowed || decision.Source != SourceSameWorkspace {
+			t.Fatalf("same workspace = %#v, %v; want same-workspace allow", decision, err)
+		}
+		cross := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+		cross.Target.ProfileID = ""
+		decision, err = policy.Authorize(testutil.Context(t), cross)
+		if err != nil || !decision.Allowed || decision.Source != SourcePermissionMode {
+			t.Fatalf("cross workspace = %#v, %v; want permission-mode allow", decision, err)
+		}
+		if len(audit.records) != 1 || audit.records[0].Target.ProfileID == "" {
+			t.Fatalf("audit records = %#v, want one record naming the resolved profile", audit.records)
+		}
+		operator := testRequest(ActorHuman, testWorkspaceA, testWorkspaceB)
+		operator.Target.ProfileID = ""
+		if _, err := policy.Authorize(testutil.Context(t), operator); err == nil {
+			t.Fatal("operator without target profile error = nil, want validation error")
+		}
+	})
+
 	t.Run("Should UT-007 reject an empty target during structural validation", func(t *testing.T) {
 		t.Parallel()
 		modes := &modeSourceStub{mode: ModeApproveAll}

@@ -1051,12 +1051,12 @@ test.describe("Profiles", () => {
       const rows = profilesOperatorSelectors(appPage, sessions);
       await expect(rows.ownerTags.first()).toBeVisible();
 
-      // S2: the destination is stated before the commit, as fixed text.
+      // S2: the destination is stated before the commit. Under All profiles a new session
+      // carries an inline Profile picker that starts on the remembered profile (AP ADR-003).
       await sessions.getByTestId("os-sessions-modal-new-session").click();
-      const chip = profilesOperatorSelectors(appPage).destinationChip;
-      await expect(chip).toBeVisible();
-      await expect(chip).toContainText("marketing");
-      await expect(chip.locator("button, select, input")).toHaveCount(0);
+      const profilePicker = appPage.getByTestId("session-destination-profile");
+      await expect(profilePicker).toBeVisible();
+      await expect(profilePicker).toHaveAccessibleName("Profile: marketing");
       await appPage.getByRole("button", { name: "Cancel", exact: true }).click();
       await sessions.getByRole("button", { name: "Close sessions" }).click();
 
@@ -1120,6 +1120,10 @@ test.describe("Profiles", () => {
       await ui.switcher.click();
       await ui.switcherAll.click();
       const catalog = await openSessionsCatalog(appPage);
+      // The list is flat by default; profile groups are an explicit Group by (AP ADR-004).
+      await catalog.getByTestId("os-sessions-modal-sort-trigger").click();
+      await appPage.getByTestId("os-sessions-modal-group-by-profile").click();
+      await appPage.keyboard.press("Escape");
       for (const record of records) {
         const group = catalog.getByTestId(`os-sessions-modal-profile-${record.folder.profile_id}`);
         const folder = group.getByTestId(`os-sessions-modal-folder-${record.folder.id}`);

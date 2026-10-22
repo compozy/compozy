@@ -82,6 +82,12 @@ func (p *DefaultPolicy) authorize(ctx context.Context, req Request, record *Acce
 	if facts.ProfileID == "" {
 		return deniedDecision(false), mode, errors.New("workspace access: session profile is required")
 	}
+	if !req.Target.AllProfiles && req.Target.ProfileID == "" {
+		// Callers that only know the target workspace (task claims from a project session) act in
+		// the session's own profile; the boundary is still decided below.
+		req.Target.ProfileID = facts.ProfileID
+		record.Target.ProfileID = facts.ProfileID
+	}
 	sameProfile := !req.Target.AllProfiles && req.Target.ProfileID == facts.ProfileID
 	if sameProfile && req.Target.WorkspaceID == facts.WorkspaceID &&
 		((req.Target.Kind == TargetUser && facts.WorkspaceID == "") || req.Target.Kind == TargetWorkspace) {

@@ -30,7 +30,8 @@ func validateRequest(ctx context.Context, req Request) error {
 		if !req.ReadOnly || req.Target.ProfileID != "" {
 			return invalidRequest("workspace access: all profiles requires a read without a concrete profile")
 		}
-	} else if req.Target.ProfileID == "" {
+	} else if req.Target.ProfileID == "" && (req.Actor.Kind != ActorAgentSession || req.Actor.Operator) {
+		// An agent session that names no profile acts in its own; authorize resolves it.
 		return invalidRequest("workspace access: target profile is required")
 	}
 	switch req.Target.Kind {
