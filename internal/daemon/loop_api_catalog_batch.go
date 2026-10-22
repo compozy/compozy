@@ -113,7 +113,7 @@ func (s *daemonLoopAPIService) loopCatalogBatchWorkspace(ctx context.Context, ws
 			return nil, false, err
 		}
 		payload.WorkspaceID = ws
-		entries = append(entries, contract.LoopCatalogAggregateEntryPayload{LoopCatalogEntryPayload: payload, Source: contract.LoopCatalogSourcePayload{Kind: payload.Source, Layer: string(item.Record.Scope.Kind)}})
+		entries = append(entries, contract.NewLoopCatalogAggregateEntry(payload, string(item.Record.Scope.Kind)))
 	}
 	return entries, page.HasMore, nil
 }

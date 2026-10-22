@@ -141,7 +141,7 @@ type LoopCatalogAggregateEntryPayload struct {
 	Name          string                      `json:"name"`
 	Version       int                         `json:"version"`
 	Description   string                      `json:"description,omitempty"`
-	Source        LoopSource                  `json:"source"`
+	Source        LoopCatalogSourcePayload    `json:"source"`
 	Catalog       LoopCatalogResourceSpec     `json:"catalog"`
 	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
 	Start         []LoopStartBinding          `json:"start,omitempty"`
@@ -149,7 +149,6 @@ type LoopCatalogAggregateEntryPayload struct {
 	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
 	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
 	SuccessRate30 float64                     `json:"success_rate_30d"`
-	Source        LoopCatalogSourcePayload    `json:"source"`
 }
 
 // LoopCatalogAggregatePayload is a daemon API value.
