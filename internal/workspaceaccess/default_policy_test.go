@@ -40,7 +40,8 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 	t.Run("Should UT-002 allow same workspace and profile after facts lookup", func(t *testing.T) {
 		t.Parallel()
 		modes := &modeSourceStub{mode: ModeDenyAll}
-		policy := newPolicyForTest(t, modes, &consentCacheStub{}, &auditEmitterSpy{}, slog.Default())
+		audit := &auditEmitterSpy{}
+		policy := newPolicyForTest(t, modes, &consentCacheStub{}, audit, slog.Default())
 
 		decision, err := policy.Authorize(
 			testutil.Context(t),
@@ -54,6 +55,9 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		}
 		if modes.calls != 1 {
 			t.Fatalf("facts source calls = %d, want one", modes.calls)
+		}
+		if len(audit.records) != 0 {
+			t.Fatalf("audit records = %#v, want none: same-scope access crosses no boundary", audit.records)
 		}
 	})
 

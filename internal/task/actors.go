@@ -145,6 +145,34 @@ func DeriveAutomationLinkedAgentSessionActorContext(
 	)
 }
 
+// DeriveAutomationLinkedUserSessionActorContext is the User-scope form of
+// DeriveAutomationLinkedAgentSessionActorContext: the automation-launched session runs without a
+// workspace, so it is bound to its concrete profile instead.
+func DeriveAutomationLinkedUserSessionActorContext(
+	sessionRef string,
+	profileID string,
+	originRef string,
+) (ActorContext, error) {
+	if strings.TrimSpace(profileID) == "" {
+		return ActorContext{}, fmt.Errorf("%w: User actor profile is required", ErrValidation)
+	}
+	if originRef == "" {
+		originRef = sessionRef
+	}
+	actor, err := deriveActorContext(
+		ActorKindAgentSession,
+		sessionRef,
+		OriginKindAutomation,
+		originRef,
+		CallerScope{SessionID: strings.TrimSpace(sessionRef), UserProfileID: strings.TrimSpace(profileID)},
+	)
+	if err != nil {
+		return ActorContext{}, err
+	}
+	actor.ReadScope = store.ReadScope{ProfileID: strings.TrimSpace(profileID)}
+	return actor, nil
+}
+
 // DeriveAutomationActorContext derives one trusted automation actor context.
 // If originRef is empty, the actor ref is reused as the durable origin ref.
 func DeriveAutomationActorContext(actorRef string, originRef string) (ActorContext, error) {

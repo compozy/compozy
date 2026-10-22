@@ -27,13 +27,7 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTask(
 	actor ActorContext,
 	taskRecord Task,
 ) error {
-	actor.ReadScope = store.ReadScope{ProfileID: taskRecord.ProfileID}
-	return a.AuthorizeTaskScope(
-		ctx,
-		actor,
-		taskRecord.Scope,
-		taskRecord.WorkspaceID,
-	)
+	return a.authorizeTaskTarget(ctx, actor, taskRecord.Scope, taskRecord.WorkspaceID, taskRecord.ProfileID)
 }
 
 func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
@@ -42,26 +36,68 @@ func (a scopedTaskResourceAuthorizer) AuthorizeTaskScope(
 	scope Scope,
 	workspaceID string,
 ) error {
+	return a.authorizeTaskTarget(ctx, actor, scope, workspaceID, actor.ReadScope.ProfileID)
+}
+
+// authorizeTaskTarget sends agent-session access through the workspace policy (USW BR-6). Non-session
+// actors keep their existing authority: they act for the operator-authored automation or extension.
+func (a scopedTaskResourceAuthorizer) authorizeTaskTarget(
+	ctx context.Context,
+	actor ActorContext,
+	scope Scope,
+	workspaceID string,
+	targetProfileID string,
+) error {
 	if actor.Scope.Operator || actor.Actor.Kind.Normalize() == ActorKindDaemon {
 		return nil
 	}
-	sameScope := strings.TrimSpace(actor.Scope.WorkspaceID) == strings.TrimSpace(workspaceID)
+	targetWorkspaceID := strings.TrimSpace(workspaceID)
 	if scope.Normalize() == ScopeGlobal {
-		sameScope = sameScope && actor.Actor.Kind.Normalize() != ActorKindAgentSession
-		if actor.Actor.Kind.Normalize() == ActorKindAgentSession {
-			sameScope = actor.Scope.UserProfileID != "" && actor.Scope.UserProfileID == actor.ReadScope.ProfileID
-		}
+		targetWorkspaceID = ""
 	}
-	if !sameScope || (a.workspaceAccess != nil && actor.Actor.Kind.Normalize() == ActorKindAgentSession) {
-		allowed, err := taskWorkspaceAccessAllowed(ctx, a.workspaceAccess, actor, strings.TrimSpace(workspaceID))
-		if err != nil {
-			return errors.Join(ErrPermissionDenied, err)
+	if actor.Actor.Kind.Normalize() != ActorKindAgentSession {
+		if targetWorkspaceID == "" || strings.TrimSpace(actor.Scope.WorkspaceID) == targetWorkspaceID {
+			return nil
 		}
-		if !allowed {
+		return a.requirePolicy(ctx, actor, targetWorkspaceID, targetProfileID)
+	}
+	targetProfileID = strings.TrimSpace(targetProfileID)
+	if a.workspaceAccess == nil {
+		// Without a policy (isolated task services) only the caller's own scope is reachable.
+		if strings.TrimSpace(actor.Scope.WorkspaceID) != targetWorkspaceID {
 			return ErrPermissionDenied
 		}
+		if userProfileID := strings.TrimSpace(actor.Scope.UserProfileID); targetWorkspaceID == "" &&
+			userProfileID != "" && targetProfileID != "" && userProfileID != targetProfileID {
+			return ErrPermissionDenied
+		}
+		return nil
 	}
+	// Agent sessions otherwise reach the policy: only it knows the authenticated session profile,
+	// and it answers same-scope access on its fast path without an audit record.
+	if targetProfileID == "" {
+		targetProfileID = strings.TrimSpace(actor.Scope.UserProfileID)
+	}
+	if targetProfileID == "" {
+		targetProfileID = strings.TrimSpace(actor.ReadScope.ProfileID)
+	}
+	return a.requirePolicy(ctx, actor, targetWorkspaceID, targetProfileID)
+}
 
+func (a scopedTaskResourceAuthorizer) requirePolicy(
+	ctx context.Context,
+	actor ActorContext,
+	targetWorkspaceID string,
+	targetProfileID string,
+) error {
+	actor.ReadScope = store.ReadScope{ProfileID: targetProfileID}
+	allowed, err := taskWorkspaceAccessAllowed(ctx, a.workspaceAccess, actor, targetWorkspaceID)
+	if err != nil {
+		return errors.Join(ErrPermissionDenied, err)
+	}
+	if !allowed {
+		return ErrPermissionDenied
+	}
 	return nil
 }
 

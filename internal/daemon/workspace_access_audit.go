@@ -74,7 +74,7 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), workspaceAccessAuditWriteTimeout)
 	defer cancel()
 	if err := e.store.WriteEventSummary(writeCtx, daemonEventSummary(store.EventSummary{
-		ProfileID:   record.ActorProfileID,
+		ProfileID:   workspaceAccessAuditOwner(record),
 		SessionID:   strings.TrimSpace(record.Actor.SessionID),
 		WorkspaceID: strings.TrimSpace(record.Actor.WorkspaceID),
 		Type:        eventType,
@@ -88,4 +88,17 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 		return fmt.Errorf("daemon: write workspace access audit event: %w", err)
 	}
 	return nil
+}
+
+// workspaceAccessAuditOwner picks the profile that owns the audit summary. Operator, non-session,
+// and failed decisions have no resolved actor profile; they are owned by the target profile, or
+// the default profile, so every decision stays visible while the payload keeps the honest
+// actor_profile_id.
+func workspaceAccessAuditOwner(record workspaceaccess.AccessRecord) string {
+	for _, candidate := range []string{record.ActorProfileID, record.Target.ProfileID} {
+		if owner := strings.TrimSpace(candidate); owner != "" {
+			return owner
+		}
+	}
+	return store.DefaultProfileID
 }

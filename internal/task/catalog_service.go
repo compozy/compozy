@@ -49,7 +49,16 @@ func (m *Service) ListTaskCatalog(
 			}
 			workspaceID = target
 		}
-		if actor.Actor.Kind.Normalize() == ActorKindAgentSession || workspaceID != "" {
+		switch {
+		case workspaceID == "" && (actor.Actor.Kind.Normalize() == ActorKindAgentSession || actor.Scope.UserProfileID != ""):
+			// A User-scope actor owns only its profile's User rows; an empty workspace never means
+			// every project (USW BR-6, BR-7).
+			query.Scope = CatalogScopeGlobal
+			query.WorkspaceID = ""
+			if profileID := strings.TrimSpace(actor.Scope.UserProfileID); profileID != "" {
+				query.ReadScope = store.ReadScope{ProfileID: profileID}
+			}
+		case actor.Actor.Kind.Normalize() == ActorKindAgentSession || workspaceID != "":
 			switch query.Scope.Normalize() {
 			case CatalogScopeGlobal:
 				query.WorkspaceID = ""

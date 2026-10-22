@@ -48,6 +48,10 @@ func (p *DefaultPolicy) Authorize(ctx context.Context, req Request) (Decision, e
 	if decisionErr != nil {
 		record.Err = decisionErr.Error()
 	}
+	// Same-scope access crosses no boundary; auditing it would record every ordinary read.
+	if decision.Source == SourceSameWorkspace && decisionErr == nil {
+		return decision, nil
+	}
 	if auditErr := p.audit.EmitWorkspaceAccess(ctx, record); auditErr != nil {
 		p.warnAuditFailure(ctx, record, auditErr)
 	}

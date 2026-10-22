@@ -89,6 +89,15 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 			}
 		})
 
+		assertWorkspaceAccessAuditDelta(t, ctx, db, 3, func() {
+			operator := request
+			operator.Actor = workspaceaccess.ActorRef{Kind: workspaceaccess.ActorHuman, Operator: true, WorkspaceID: workspaceAccessIntegrationHome}
+			decision, authErr := denyPolicy.Authorize(ctx, operator)
+			if authErr != nil || !decision.Allowed || decision.Source != workspaceaccess.SourceOperator {
+				t.Fatalf("Authorize(operator) = %#v, %v, want an audited operator allow", decision, authErr)
+			}
+		})
+
 		summaries := workspaceAccessIntegrationSummaries(t, ctx, db)
 		granted := 0
 		denied := 0
@@ -100,6 +109,9 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 				denied++
 			default:
 				t.Fatalf("event type = %q, want workspace access event", summary.Type)
+			}
+			if summary.ActorKind == string(workspaceaccess.ActorHuman) {
+				continue
 			}
 			if summary.WorkspaceID != workspaceAccessIntegrationHome || summary.SessionID != "sess-a" ||
 				summary.AgentName != "coder" || summary.ActorKind != string(workspaceaccess.ActorAgentSession) {
@@ -113,8 +125,8 @@ func TestWorkspaceAccessIntegration(t *testing.T) {
 				t.Fatalf("audit payload = %#v, want target, seam, and source", payload)
 			}
 		}
-		if granted != 1 || denied != 2 {
-			t.Fatalf("event counts = granted:%d denied:%d, want 1 and 2", granted, denied)
+		if granted != 2 || denied != 2 {
+			t.Fatalf("event counts = granted:%d denied:%d, want 2 and 2", granted, denied)
 		}
 
 		var logs bytes.Buffer

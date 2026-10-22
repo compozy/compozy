@@ -2274,3 +2274,25 @@ func testEnvelope(scope Scope, workspaceID string) ActivationEnvelope {
 		},
 	}
 }
+
+func TestAutomationSessionTaskActorContextBindsUserSessionsToTheirProfile(t *testing.T) {
+	t.Parallel()
+	t.Run("Should derive a User actor for a workspace-less automation session", func(t *testing.T) {
+		t.Parallel()
+		actor, err := automationSessionTaskActorContext("sess-user", "", &Run{ID: "run-1", ProfileID: "profile-a"})
+		if err != nil {
+			t.Fatalf("automationSessionTaskActorContext(User) error = %v", err)
+		}
+		if actor.Scope.UserProfileID != "profile-a" || actor.Scope.WorkspaceID != "" ||
+			actor.ReadScope.ProfileID != "profile-a" || actor.Origin.Ref != "run:run-1" {
+			t.Fatalf("actor = %#v, want a User actor bound to profile-a and run:run-1", actor)
+		}
+	})
+	t.Run("Should keep the workspace actor for a project automation session", func(t *testing.T) {
+		t.Parallel()
+		actor, err := automationSessionTaskActorContext("sess-ws", "ws-a", &Run{ID: "run-2", ProfileID: "profile-a"})
+		if err != nil || actor.Scope.WorkspaceID != "ws-a" || actor.Scope.UserProfileID != "" {
+			t.Fatalf("actor = %#v, %v, want the ws-a agent actor", actor, err)
+		}
+	})
+}

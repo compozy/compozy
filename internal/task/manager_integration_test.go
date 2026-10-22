@@ -355,7 +355,7 @@ func TestTaskManagerLeaseFencesMaterializationWithGlobalDBIntegration(t *testing
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
-	agent, err := taskpkg.DeriveAgentSessionActorContext("sess-lease-fence", "ws-test")
+	agent, err := taskpkg.DeriveUserSessionActorContextForOrigin("sess-lease-fence", store.DefaultProfileID, taskpkg.OriginKindAgentSession, "")
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 	}
@@ -593,7 +593,7 @@ func TestTaskManagerCreateTaskPersistsAgentSessionIdentity(t *testing.T) {
 	db := openTaskManagerGlobalDB(t)
 	manager := newTaskManagerIntegration(t, db)
 
-	actor, err := taskpkg.DeriveAgentSessionActorContext("sess-agent-1", "ws-test")
+	actor, err := taskpkg.DeriveUserSessionActorContextForOrigin("sess-agent-1", store.DefaultProfileID, taskpkg.OriginKindAgentSession, "")
 	if err != nil {
 		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 	}
@@ -814,9 +814,9 @@ func TestTaskManagerCreateTaskPersistsAutomationLinkedAgentOrigin(t *testing.T) 
 	db := openTaskManagerGlobalDB(t)
 	manager := newTaskManagerIntegration(t, db)
 
-	actor, err := taskpkg.DeriveAutomationLinkedAgentSessionActorContext(
+	actor, err := taskpkg.DeriveAutomationLinkedUserSessionActorContext(
 		"sess-agent-2",
-		"ws-test",
+		store.DefaultProfileID,
 		"run:run-2",
 	)
 	if err != nil {
@@ -1524,7 +1524,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 					t.Fatalf("EnqueueRun(blocker) error = %v", err)
 				}
 				if leased {
-					worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker", "ws-test")
+					worker, err := taskpkg.DeriveUserSessionActorContextForOrigin("sess-worker", store.DefaultProfileID, taskpkg.OriginKindAgentSession, "")
 					if err != nil {
 						t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 					}
@@ -1687,7 +1687,7 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 						claims = append(claims, leaseClaim{runID: run.ID, actor: actor})
 						continue
 					}
-					worker, err := taskpkg.DeriveAgentSessionActorContext(session, "ws-test")
+					worker, err := taskpkg.DeriveUserSessionActorContextForOrigin(session, store.DefaultProfileID, taskpkg.OriginKindAgentSession, "")
 					if err != nil {
 						t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", session, err)
 					}
@@ -2758,6 +2758,44 @@ func TestTaskManagerCatalogWorkspaceAccessIntegration(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should keep a User-scope agent catalog on its own profile's User rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		userDB := openTaskManagerGlobalDB(t)
+		projectID := registerTaskManagerWorkspace(t, userDB, "catalog-user-project", t.TempDir())
+		userFixture := newTaskManagerIntegration(t, userDB)
+		for _, create := range []taskpkg.CreateTask{
+			{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeGlobal, Title: "User work"},
+			{ProfileID: store.DefaultProfileID, Scope: taskpkg.ScopeWorkspace, WorkspaceID: projectID, Title: "Project work"},
+		} {
+			if _, err := userFixture.CreateTask(ctx, create, operator); err != nil {
+				t.Fatalf("CreateTask(%s) error = %v", create.Title, err)
+			}
+		}
+		manager := newTaskManagerIntegration(t, userDB, taskpkg.WithWorkspaceAccessPolicy(&workspaceAccessIntegrationPolicy{}))
+		agent, err := taskpkg.DeriveUserSessionActorContextForOrigin(
+			"sess-user-catalog", store.DefaultProfileID, taskpkg.OriginKindAgentSession, "",
+		)
+		if err != nil {
+			t.Fatalf("DeriveUserSessionActorContextForOrigin() error = %v", err)
+		}
+		for _, scope := range []taskpkg.CatalogScope{"", taskpkg.CatalogScopeAll, taskpkg.CatalogScopeWorkspace} {
+			page, err := manager.ListTaskCatalog(ctx, taskpkg.CatalogQuery{Scope: scope, IncludeDrafts: true}, agent)
+			if err != nil {
+				t.Fatalf("ListTaskCatalog(%q) error = %v", scope, err)
+			}
+			for _, item := range page.Tasks {
+				if item.WorkspaceID != "" || item.Scope != taskpkg.ScopeGlobal {
+					t.Fatalf("ListTaskCatalog(%q) leaked project task %#v; an empty workspace is the User scope", scope, item)
+				}
+			}
+			if len(page.Tasks) == 0 {
+				t.Fatalf("ListTaskCatalog(%q) = %#v, want the User task", scope, page)
+			}
+		}
+	})
 }
 
 func TestTaskManagerRunLifecyclePersistsAndReconcilesAgainstStorage(t *testing.T) {
@@ -4148,7 +4186,7 @@ func TestTaskManagerGlobalBlockReleaseUnblockClaimableCycleIntegration(t *testin
 		if err != nil {
 			t.Fatalf("DeriveHumanActorContext() error = %v", err)
 		}
-		agent, err := taskpkg.DeriveAgentSessionActorContext("sess-global-block-cycle", "ws-test")
+		agent, err := taskpkg.DeriveUserSessionActorContextForOrigin("sess-global-block-cycle", store.DefaultProfileID, taskpkg.OriginKindAgentSession, "")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
 		}
@@ -5454,7 +5492,7 @@ func TestTaskManagerObservabilityCoverageMatrixIntegration(t *testing.T) {
 		assertIntegrationPayloadHasString(t, suspectedPayload, "claim_token_hash")
 		assertIntegrationPayloadOmitsRawValue(t, suspectedEvent, suspectedClaim.ClaimToken)
 
-		creator, err := taskpkg.DeriveAgentSessionActorContext("sess-task-creator", workspaceID)
+		creator, err := taskpkg.DeriveUserSessionActorContextForOrigin("sess-task-creator", store.DefaultProfileID, taskpkg.OriginKindAgentSession, "")
 		if err != nil {
 			t.Fatalf("DeriveAgentSessionActorContext(creator) error = %v", err)
 		}
