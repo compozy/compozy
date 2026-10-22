@@ -1750,6 +1750,23 @@ describe("session timeline subagent cards", () => {
     ]);
     expect(rows.map(row => row.kind)).toEqual(["text", "text", "subagents"]);
     expect(rows[0]).toMatchObject({ part: { text: "I'll pick this up when they wake me." } });
+
+    // A part that draws nothing right after the removed call keeps the separation for the next text.
+    const unnamed: SessionTimelinePart = {
+      kind: "data",
+      id: "unnamed-send",
+      name: "data-compozy-session-message",
+      data: { tool_call_id: "" },
+      turnId: "turn-1",
+    };
+    const quiet = deriveSessionRows([
+      text("t1", "I'll pick this up when they wake me.", "turn-1"),
+      delegate(1),
+      unnamed,
+      text("t2", "The three subagents are still running.", "turn-1"),
+      subagentPart("sub-1", "tool-call-1"),
+    ]);
+    expect(quiet.map(row => row.kind)).toEqual(["text", "text", "subagents"]);
   });
 
   // #896. Invariant: the parent's prose splits only where a row is drawn. The daemon closes the

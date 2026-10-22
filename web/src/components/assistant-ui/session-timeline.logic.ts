@@ -257,6 +257,9 @@ function deriveBaseRows(
         flushWorkCluster();
         flushMarkerCluster();
         rows.push(sentMessageRow(part, sentTools));
+      } else if (!joinsProse) {
+        // It draws nothing, so a removed call's separation carries to the next drawn part.
+        separated = true;
       }
       continue;
     }
