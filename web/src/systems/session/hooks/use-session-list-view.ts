@@ -119,15 +119,7 @@ export function useSessionListView(
   const flat = groupBy === "none";
   const pair = sessionListPair(scope, profile.params);
 
-  const groupFilters: SessionListFilters = {
-    include_health: true,
-    limit: SESSION_LIST_PAGE_SIZE,
-    q: remoteSearch,
-    search_fields: "title_agent",
-    subagents: sessionListSubagentsParam(remoteSearch),
-    worktree: options.worktreeId,
-    ...(archived ? { archive: "only" as const } : {}),
-  };
+  const groupFilters = sessionListGroupFiltersFor(remoteSearch, options.worktreeId, archived);
   const catalog = useSessionCatalog(
     scope,
     { ...groupFilters, sort: sessionListSortParam(preferences.sort, pair !== null) },
@@ -147,28 +139,21 @@ export function useSessionListView(
     profile: pair?.profile ?? profile.destination,
     enabled: enabled && flat && pair !== null,
   });
-  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
   const manualBlocked = flat ? pair === null : grouping.groups.some(group => group.pair === null);
+  const flatLayout = flat && pair !== null;
 
   return {
-    layout: flat && pair !== null ? folders.layout : undefined,
-    layoutError: flat && pair !== null ? folders.loadError : undefined,
+    layout: flatLayout ? folders.layout : undefined,
+    layoutError: flatLayout ? folders.loadError : undefined,
     worktreeId: options.worktreeId,
-    catalog: flat
-      ? {
-          ...catalog,
-          paging: catalog.paging || !searchSettled,
-          next: searchSettled && catalog.next,
-          previous: searchSettled && catalog.previous,
-        }
-      : undefined,
+    catalog: flat ? settledSearchCatalog(catalog, searchSettled) : undefined,
     search,
     setSearch,
     sort: preferences.sort,
     storedGroupBy: preferences.groupBy,
     groupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
-    sortNote: preferences.sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null,
+    sortNote: manualSortNote(preferences.sort, manualBlocked),
     archived,
     saving: preferences.saving,
     setSort: preferences.setSort,
@@ -178,19 +163,56 @@ export function useSessionListView(
     groupsLoading: grouping.loading,
     groupsError: grouping.error,
     collapsedGroupKeys: collapsed,
-    toggleGroup: key =>
-      setCollapsed(current => {
-        const next = new Set(current);
-        if (!next.delete(key)) next.add(key);
-        return next;
-      }),
+    toggleGroup: key => setCollapsed(current => toggledKey(current, key)),
     groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
     ownerOf: profile.ownerOf,
-    badgeOf: breadth.allProjects
-      ? session => workspaceBadgeIdentity(session.workspace_id, names)
-      : undefined,
+    badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey: JSON.stringify([scope, profile.key, groupBy]),
   };
+}
+
+function sessionListGroupFiltersFor(
+  search: string,
+  worktreeId: string | undefined,
+  archived: boolean
+): SessionListFilters {
+  return {
+    include_health: true,
+    limit: SESSION_LIST_PAGE_SIZE,
+    q: search,
+    search_fields: "title_agent",
+    subagents: sessionListSubagentsParam(search),
+    worktree: worktreeId,
+    ...(archived ? { archive: "only" as const } : {}),
+  };
+}
+
+/** While a search is still debouncing, the page is pending and paging waits for it. */
+function settledSearchCatalog<C extends { paging: boolean; next: boolean; previous: boolean }>(
+  catalog: C,
+  searchSettled: boolean
+): C {
+  return {
+    ...catalog,
+    paging: catalog.paging || !searchSettled,
+    next: searchSettled && catalog.next,
+    previous: searchSettled && catalog.previous,
+  };
+}
+
+function manualSortNote(sort: string, manualBlocked: boolean): string | null {
+  return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
+}
+
+function toggledKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
+  const next = new Set(current);
+  if (!next.delete(key)) next.add(key);
+  return next;
+}
+
+function sessionBadgeResolver(workspaces: readonly { id: string; name: string }[]) {
+  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  return (session: SessionPayload) => workspaceBadgeIdentity(session.workspace_id, names);
 }

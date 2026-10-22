@@ -94,10 +94,9 @@ export function useSessionCreateDialogViewModel(
   const userHomeDir = useUserHomeDir();
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft } = flow;
-  const isSubmitting = flow.operation.status === "submitting";
-  const pendingAgentName = flow.operation.status === "submitting" ? flow.operation.agentName : null;
-  const pendingWorkspaceId =
-    flow.operation.status === "submitting" ? flow.operation.workspaceId : null;
+  const { isSubmitting, pendingAgentName, pendingWorkspaceId } = pendingCreateOperation(
+    flow.operation
+  );
   const { pendingSubmit } = flow;
   // Each opening starts from the prefill; under All projects the picked project
   // (or User) is the destination, otherwise the menubar destination is.
@@ -112,24 +111,7 @@ export function useSessionCreateDialogViewModel(
         }
       : { activeWorkspace, projectWorkspaceId, dataScope, userHomeDir }
   );
-  const userTarget = destination.scope === "user";
-
-  // User sessions run user-layer agents (no workspace).
-  const workspaceAgentsQuery = useAgents(
-    userTarget ? null : (destination.runtimeWorkspaceId ?? ""),
-    {
-      enabled: userTarget
-        ? flow.open
-        : destination.runtimeWorkspaceId !== null && destination.runtimeWorkspaceId.length > 0,
-      // The agent list belongs to the profile the session is created in.
-      profile: target.profile,
-    }
-  );
-  const agentList =
-    workspaceAgentsQuery.data ??
-    (destination.runtimeWorkspaceId && !target.projectAxis && !target.profileAxis
-      ? (agents ?? [])
-      : []);
+  const agentList = useSessionCreateAgents({ destination, target, open: flow.open, agents });
   const selectedAgentName = draft.agentName;
   const environment = useSessionEnvironment({
     workspaceId: destination.environmentWorkspaceId,
@@ -212,3 +194,43 @@ export function useSessionCreateDialogViewModel(
 }
 
 export type { SessionCreateDialogDraft };
+
+function pendingCreateOperation(operation: {
+  status: string;
+  agentName?: string;
+  workspaceId?: string | null;
+}) {
+  if (operation.status !== "submitting") {
+    return { isSubmitting: false, pendingAgentName: null, pendingWorkspaceId: null };
+  }
+  return {
+    isSubmitting: true,
+    pendingAgentName: operation.agentName ?? null,
+    pendingWorkspaceId: operation.workspaceId ?? null,
+  };
+}
+
+/**
+ * The agents a new session can run: user-layer agents for User, the project's otherwise, read in
+ * the picked profile. The shell's list is reused only when no picker changes the destination.
+ */
+function useSessionCreateAgents({
+  destination,
+  target,
+  open,
+  agents,
+}: {
+  destination: ReturnType<typeof resolveSessionCreateDestination>;
+  target: ReturnType<typeof useSessionCreateTarget>;
+  open: boolean;
+  agents: SessionCreateDialogContext["agents"];
+}) {
+  const userTarget = destination.scope === "user";
+  const runtimeWorkspaceId = destination.runtimeWorkspaceId;
+  const query = useAgents(userTarget ? null : (runtimeWorkspaceId ?? ""), {
+    enabled: userTarget ? open : Boolean(runtimeWorkspaceId),
+    profile: target.profile,
+  });
+  if (query.data) return query.data;
+  return runtimeWorkspaceId && !target.projectAxis && !target.profileAxis ? (agents ?? []) : [];
+}

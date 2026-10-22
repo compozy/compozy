@@ -98,7 +98,7 @@ describe("TasksKanbanBoard", () => {
       />
     );
 
-    fireEvent.click(screen.getByTestId("tasks-kanban-card-a"));
+    fireEvent.click(screen.getByTestId("tasks-kanban-card-open-a"));
     expect(onSelectTask).toHaveBeenCalledWith("a");
   });
 

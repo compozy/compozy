@@ -1,5 +1,3 @@
-import * as React from "react";
-
 import { Button, MonoId, OwnerAvatar, Pill, StateGlyph } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
@@ -35,24 +33,23 @@ export function TaskKanbanCard({
   projectBadge,
 }: TaskKanbanCardProps) {
   const retryRunId = task.status === "failed" && onRetry ? task.active_run?.id : undefined;
-  const selection = kanbanCardSelection(task.id, selected, onSelect);
+  const clickable = onSelect !== undefined;
 
   return (
     <div
-      role="button"
-      {...selection.props}
+      data-selected={selected ? "true" : undefined}
       data-status={task.status}
       data-testid={`tasks-kanban-card-${task.id}`}
       className={cn(
         // A card on the sunken column: `card` plus shadow-card (its hairline),
         // stepping to surface-2 on hover and to the selected plate when chosen.
         "relative flex w-full min-w-0 shrink-0 flex-col gap-2 overflow-hidden rounded-lg bg-card p-3 text-left shadow-card transition-colors duration-base ease-out",
-        selection.clickable && "cursor-pointer hover:bg-surface-2",
-        selection.clickable && "focus-visible:shadow-focus-ring focus-visible:outline-none",
+        clickable &&
+          "cursor-pointer hover:bg-surface-2 has-[[data-card-open]:focus-visible]:shadow-focus-ring",
         selected && "bg-selected inset-ring-1 inset-ring-line-strong"
       )}
     >
-      <TaskKanbanCardHeader task={task} />
+      <TaskKanbanCardHeader onSelect={onSelect} selected={selected} task={task} />
       <TaskKanbanCardMeta projectBadge={projectBadge} task={task} />
       <TaskKanbanCardError task={task} />
 
@@ -63,14 +60,39 @@ export function TaskKanbanCard({
   );
 }
 
-function TaskKanbanCardHeader({ task }: { task: TaskListItem }) {
+/**
+ * The title opens the task. Its hit area stretches over the whole card (the card holds its own
+ * Retry button, so the card itself cannot be a button); Retry sits above it.
+ */
+function TaskKanbanCardHeader({
+  task,
+  selected,
+  onSelect,
+}: {
+  task: TaskListItem;
+  selected: boolean;
+  onSelect?: (taskId: string) => void;
+}) {
   // Single-status columns already name the status; only the mixed Done column
   // needs to tell failed and canceled cards apart from completed ones.
   const showStatus = task.status === "failed" || task.status === "canceled";
   return (
     <div className="flex min-w-0 items-start justify-between gap-2">
       <h3 className="line-clamp-2 min-w-0 text-small-body font-medium leading-snug text-fg">
-        {task.title}
+        {onSelect ? (
+          <button
+            aria-pressed={selected}
+            className="text-left after:absolute after:inset-0 after:rounded-lg focus-visible:outline-none"
+            data-card-open=""
+            data-testid={`tasks-kanban-card-open-${task.id}`}
+            onClick={() => onSelect(task.id)}
+            type="button"
+          >
+            {task.title}
+          </button>
+        ) : (
+          task.title
+        )}
       </h3>
       {showStatus ? (
         <Pill data-testid={`tasks-kanban-card-status-${task.id}`} form="plain">
@@ -118,39 +140,6 @@ function TaskKanbanCardError({ task }: { task: TaskListItem }) {
       {failedError}
     </p>
   );
-}
-
-function kanbanCardSelection(
-  taskId: string,
-  selected: boolean,
-  onSelect: ((taskId: string) => void) | undefined
-) {
-  if (onSelect === undefined) {
-    return {
-      clickable: false,
-      props: {
-        "aria-disabled": true,
-        "data-selected": selected ? "true" : undefined,
-      },
-    } as const;
-  }
-  return {
-    clickable: true,
-    props: {
-      "aria-disabled": false,
-      tabIndex: 0,
-      "aria-pressed": selected,
-      "data-selected": selected ? "true" : undefined,
-      onClick: () => onSelect(taskId),
-      onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(taskId);
-        }
-      },
-    },
-  } as const;
 }
 
 function TaskKanbanCardFooter({
@@ -205,7 +194,7 @@ function TaskKanbanCardRetry({
   return (
     <Button
       aria-label={`Retry ${task.title}`}
-      className="self-start"
+      className="relative z-10 self-start"
       data-testid={`tasks-kanban-card-retry-${task.id}`}
       onClick={event => {
         event.stopPropagation();

@@ -57,8 +57,26 @@ export function useSessionListGroups({
     }),
     enabled: grouped,
   });
-  const profiles = useProfiles(grouped && groupBy === "profile");
-  const owners: ProfileOwner[] = (profiles.data ?? []).map(row => ({
+  const byProfile = grouped && groupBy === "profile";
+  const profiles = useProfiles(byProfile);
+  const groups =
+    !grouped || scope === null
+      ? []
+      : groupBy === "project"
+        ? projectSessionGroups(facets.data, { workspaces, lens })
+        : profileSessionGroups(profiles.data ? facets.data : undefined, {
+            profiles: profileOwners(profiles.data),
+            scope,
+          });
+  return {
+    groups,
+    loading: grouped && (facets.isLoading || (byProfile && profiles.isLoading)),
+    error: groupsFailure(grouped, facets, byProfile ? profiles : null),
+  };
+}
+
+function profileOwners(rows: ReturnType<typeof useProfiles>["data"]): ProfileOwner[] {
+  return (rows ?? []).map(row => ({
     id: row.id,
     name: row.name,
     color: row.color,
@@ -66,27 +84,19 @@ export function useSessionListGroups({
     emoji: row.emoji,
     archived: row.archived_at != null,
   }));
-  const groups =
-    !grouped || scope === null
-      ? []
-      : groupBy === "project"
-        ? projectSessionGroups(facets.data, { workspaces, lens })
-        : profileSessionGroups(profiles.data ? facets.data : undefined, {
-            profiles: owners,
-            scope,
-          });
-  const failed = facets.isError || (groupBy === "profile" && profiles.isError);
+}
+
+/** The facets read, and under profile grouping the profile list, retry together. */
+function groupsFailure(
+  grouped: boolean,
+  facets: { isError: boolean; refetch: () => unknown },
+  profiles: { isError: boolean; refetch: () => unknown } | null
+): SessionListGroupsModel["error"] {
+  if (!grouped || !(facets.isError || profiles?.isError)) return undefined;
   return {
-    groups,
-    loading: grouped && (facets.isLoading || (groupBy === "profile" && profiles.isLoading)),
-    error:
-      grouped && failed
-        ? {
-            retry: () => {
-              void facets.refetch();
-              if (groupBy === "profile") void profiles.refetch();
-            },
-          }
-        : undefined,
+    retry: () => {
+      void facets.refetch();
+      if (profiles) void profiles.refetch();
+    },
   };
 }

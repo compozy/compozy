@@ -111,19 +111,10 @@ function SessionListGroupBody({
     // One unreachable group never blanks the list: it states what happened in
     // its own place and offers the one useful action.
     return (
-      <GroupNote>
-        <Icon as={TriangleAlert} size="sm" className="text-warning" />
-        Couldn&rsquo;t load sessions
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          data-testid={`${props.testIdPrefix}-group-${group.key}-retry`}
-          onClick={catalog.retry}
-        >
-          Retry
-        </Button>
-      </GroupNote>
+      <GroupLoadFailure
+        retryTestId={`${props.testIdPrefix}-group-${group.key}-retry`}
+        onRetry={catalog.retry}
+      />
     );
   }
   if (catalog.loading) return <GroupNote>Loading sessions…</GroupNote>;
@@ -158,53 +149,16 @@ function SessionListGroupBody({
             onDelete={layout.layout.deleteFolder}
           />
         </>
-      ) : threads.length === 0 ? (
-        <GroupNote>{empty}.</GroupNote>
       ) : (
-        threads.map(thread => (
-          <SessionListThread
-            key={thread.session.id}
-            session={thread.session}
-            childSessions={thread.childSessions}
-            currentSessionId={props.currentSessionId}
-            owner={ownerOf?.(thread.session)}
-            ownerOf={ownerOf}
-            collapsed={props.collapsedThreads.has(thread.session.id)}
-            onToggleThread={props.onToggleThread}
-            onSelectSession={select}
-            sessionActions={props.sessionActions}
-            testIdPrefix={props.testIdPrefix}
-          />
-        ))
+        <GroupThreads
+          {...props}
+          threads={threads}
+          emptyMessage={`${empty}.`}
+          ownerOf={ownerOf}
+          onSelectSession={select}
+        />
       )}
-      {catalog.failed && catalog.sessions.length > 0 ? (
-        <GroupNote>
-          Couldn’t refresh sessions{" "}
-          <Button variant="ghost" size="sm" onClick={catalog.retry}>
-            Retry
-          </Button>
-        </GroupNote>
-      ) : null}
-      {catalog.paging || catalog.previous || catalog.next ? (
-        <GroupNote>
-          {catalog.paging ? <span role="status">Loading sessions…</span> : null}
-          {catalog.previous ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={catalog.paging}
-              onClick={catalog.previousPage}
-            >
-              Previous sessions
-            </Button>
-          ) : null}
-          {catalog.next ? (
-            <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.nextPage}>
-              Next sessions
-            </Button>
-          ) : null}
-        </GroupNote>
-      ) : null}
+      <GroupPager catalog={catalog} />
     </div>
   );
 }
@@ -220,19 +174,10 @@ export function SessionListGroups(props: GroupRowProps) {
   const { view, testIdPrefix } = props;
   if (view.groupsError) {
     return (
-      <GroupNote>
-        <Icon as={TriangleAlert} size="sm" className="text-warning" />
-        Couldn&rsquo;t load sessions
-        <Button
-          variant="ghost"
-          size="sm"
-          className="ml-auto"
-          data-testid={`${testIdPrefix}-groups-retry`}
-          onClick={view.groupsError.retry}
-        >
-          Retry
-        </Button>
-      </GroupNote>
+      <GroupLoadFailure
+        retryTestId={`${testIdPrefix}-groups-retry`}
+        onRetry={view.groupsError.retry}
+      />
     );
   }
   if (view.groupsLoading) return <GroupNote>Loading sessions…</GroupNote>;
@@ -279,5 +224,91 @@ export function SessionListGroups(props: GroupRowProps) {
         );
       })}
     </div>
+  );
+}
+
+function GroupLoadFailure({ retryTestId, onRetry }: { retryTestId: string; onRetry: () => void }) {
+  return (
+    <GroupNote>
+      <Icon as={TriangleAlert} size="sm" className="text-warning" />
+      Couldn&rsquo;t load sessions
+      <Button
+        variant="ghost"
+        size="sm"
+        className="ml-auto"
+        data-testid={retryTestId}
+        onClick={onRetry}
+      >
+        Retry
+      </Button>
+    </GroupNote>
+  );
+}
+
+type GroupCatalog = ReturnType<typeof useSessionCatalog>;
+
+function GroupThreads({
+  threads,
+  emptyMessage,
+  ownerOf,
+  onSelectSession,
+  ...props
+}: Omit<GroupRowProps, "onSelectSession"> & {
+  threads: ReturnType<typeof buildSessionListThreads>;
+  emptyMessage: string;
+  ownerOf: SessionListViewModel["ownerOf"] | undefined;
+  onSelectSession: (session: SessionPayload) => void;
+}) {
+  if (threads.length === 0) return <GroupNote>{emptyMessage}</GroupNote>;
+  return threads.map(thread => (
+    <SessionListThread
+      key={thread.session.id}
+      session={thread.session}
+      childSessions={thread.childSessions}
+      currentSessionId={props.currentSessionId}
+      owner={ownerOf?.(thread.session)}
+      ownerOf={ownerOf}
+      collapsed={props.collapsedThreads.has(thread.session.id)}
+      onToggleThread={props.onToggleThread}
+      onSelectSession={onSelectSession}
+      sessionActions={props.sessionActions}
+      testIdPrefix={props.testIdPrefix}
+    />
+  ));
+}
+
+/** A failed refresh over loaded rows, and the group's own previous/next paging. */
+function GroupPager({ catalog }: { catalog: GroupCatalog }) {
+  return (
+    <>
+      {catalog.failed && catalog.sessions.length > 0 ? (
+        <GroupNote>
+          Couldn’t refresh sessions{" "}
+          <Button variant="ghost" size="sm" onClick={catalog.retry}>
+            Retry
+          </Button>
+        </GroupNote>
+      ) : null}
+      {catalog.paging || catalog.previous || catalog.next ? (
+        <GroupNote>
+          {catalog.paging ? <span role="status">Loading sessions…</span> : null}
+          {catalog.previous ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={catalog.paging}
+              onClick={catalog.previousPage}
+            >
+              Previous sessions
+            </Button>
+          ) : null}
+          {catalog.next ? (
+            <Button variant="ghost" size="sm" disabled={catalog.paging} onClick={catalog.nextPage}>
+              Next sessions
+            </Button>
+          ) : null}
+        </GroupNote>
+      ) : null}
+    </>
   );
 }
