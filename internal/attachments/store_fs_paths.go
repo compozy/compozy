@@ -19,6 +19,12 @@ import (
 // (USW BR-1). Workspace ids never take this value, and retention is keyed by session.
 const userScopeAttachmentDir = "user"
 
+// ScopeDir is the attachment directory of a workspace; the User scope's empty workspace maps to
+// its reserved directory. Session deletion stages and recovers through the same name.
+func ScopeDir(workspaceID string) string {
+	return scopeWorkspaceID(workspaceID)
+}
+
 // scopeWorkspaceID maps the User scope's empty workspace to its reserved attachment directory.
 func scopeWorkspaceID(workspaceID string) string {
 	if workspaceID == "" {

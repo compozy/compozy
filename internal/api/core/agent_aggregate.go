@@ -92,7 +92,8 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		metrics, available := h.agentCatalogSessionMetrics(c, scope, metricsWorkspace)
 		agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
 		for _, entry := range resolved.Entries {
-			if workspace != "" && inheritedUserAgentWithoutProjectWork(entry, userAgentNames, metrics) {
+			// Unavailable counts never prove zero sessions, so inherited rows stay listed then.
+			if workspace != "" && available && inheritedUserAgentWithoutProjectWork(entry, userAgentNames, metrics) {
 				continue
 			}
 			payload := AgentPayloadFromEntryWithConfig(entry, &resolved.Config)
