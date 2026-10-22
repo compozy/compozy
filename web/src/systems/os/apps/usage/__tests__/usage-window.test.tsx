@@ -1,5 +1,5 @@
 // Suite: Usage app window
-// Invariant: the Usage app shows every target expanded with a header Refresh
+// Invariant: the Usage app shows every target collapsed with a header Refresh
 // and a link to the Provider usage settings; with the feature off it says so
 // and keeps the settings link (US-010.AC-2, EC-2).
 // Boundary IN: UsageWindow + the shared provider usage surface over a stubbed
@@ -70,14 +70,17 @@ afterEach(() => {
 });
 
 describe("UsageWindow", () => {
-  it("Should show every target expanded under a slim Refresh row (US-010.AC-2)", () => {
+  it("Should show every target collapsed under a slim Refresh row (US-010.AC-2)", () => {
     renderUsageWindow(usageEnvelope([codexOkTarget(NOW)], {}, NOW));
 
     // The window chrome titles the app; the panel repeats no heading.
     expect(screen.queryByRole("heading", { name: "Usage" })).toBeNull();
     expect(screen.getByRole("region", { name: "Usage" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refresh provider usage" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Codex/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: /^Codex/ })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
     expect(screen.queryByRole("button", { name: "Open Usage" })).toBeNull();
   });
 

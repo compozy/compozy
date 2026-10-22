@@ -160,14 +160,14 @@ describe("SessionCreateDialog", () => {
       destinationAxes: {
         project: {
           options: [
-            { value: "ws_alpha", label: "alpha", monogram: "AL" },
-            { value: "@user", label: "User", monogram: "~" },
+            { value: "ws_alpha", label: "alpha" },
+            { value: "@user", label: "User" },
           ],
           value: "ws_alpha",
           onChange: onProject,
         },
         profile: {
-          options: [{ value: "marketing", label: "marketing", monogram: "MA" }],
+          options: [{ value: "marketing", label: "marketing" }],
           value: "marketing",
           onChange: vi.fn(),
         },
@@ -190,7 +190,7 @@ describe("SessionCreateDialog", () => {
     renderDialog({
       destinationAxes: {
         profile: {
-          options: [{ value: "marketing", label: "marketing", monogram: "MA" }],
+          options: [{ value: "marketing", label: "marketing" }],
           value: "marketing",
           onChange: vi.fn(),
         },

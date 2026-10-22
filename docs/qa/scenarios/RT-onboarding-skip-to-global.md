@@ -4,7 +4,7 @@ area: RT
 title: First-run Skip starts focused on User
 persona: Lea
 journey: J-19
-expected: Project is step 2 of 2 ("Choose a project folder"). Continue is enabled with zero folders. A visible line under the heading (`onboarding-workspace-help`) reads "Agents can read and change files in the folders you add. You can add more later." A Skip control (`onboarding-skip-global`) reads "Skip — use my home folder". Empty selection shows "None yet" with "Folders you add appear here.", and the footer reports "None yet" under a "Projects" label. Finishing through Skip lands on the live desktop focused on User: chip "User" (`~`), globe unpressed and not locked (pressing it shows All projects), the `user` desktop, no full-page workspace gate. The skip path does not `POST /api/workspaces/resolve` for `$HOME`. Adding a folder remains valid and focuses that project after selection.
+expected: Project is step 2 of 2 ("Choose a project folder"). Continue is enabled with zero folders. A visible line under the heading (`onboarding-workspace-help`) reads "Agents can read and change files in the folders you add. You can add more later." A Skip control (`onboarding-skip-global`) reads "Skip — use my home folder". Empty selection shows "None yet" with "Folders you add appear here.", and the footer reports "None yet" under a "Projects" label. Finishing through Skip lands on the live desktop focused on User: chip "User", globe unpressed and not locked (pressing it shows All projects), the `user` desktop, no full-page workspace gate. The skip path does not `POST /api/workspaces/resolve` for `$HOME`. Adding a folder remains valid and focuses that project after selection.
 entry_points: web `/_app/` first-run; onboarding Workspaces step
 qa_status: untested
 bug_ids: BUG-20261002-onboarding-long-path-clipping
@@ -31,3 +31,6 @@ emphasis, and the model facts line shows only the price ("$3 in / $15 out per mi
 2026-10-02 completed replay: Fresh browser reload and independent API reads confirmed completed setup in Global with zero workspaces/sessions; strict lab audit passed and teardown was clean. Fix 951105e0f; affected local gate passed. See the current dated report for exact receipts and limitations.
 
 2026-10-21 qa-impact (user-scope-work, web destination model): **reset to `untested`**. Skip now focuses User instead of turning Global on, and the zero-project globe is no longer locked. Re-walk the skip path on a fresh home. Owned by the trailing QA pair.
+
+2026-10-22 qa-impact (#900 shell UI polish): the destination chip shows the name only, with no
+`~` mark. Expected text only; status stays `untested`.

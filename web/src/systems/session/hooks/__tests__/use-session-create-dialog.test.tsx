@@ -983,7 +983,6 @@ describe("useSessionCreateDialog", () => {
       expect(result.current.destinationAxes.project?.options.at(-1)).toEqual({
         value: "@user",
         label: "User",
-        monogram: "~",
       });
     });
 

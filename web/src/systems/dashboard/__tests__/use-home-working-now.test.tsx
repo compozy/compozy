@@ -140,7 +140,7 @@ describe("useHomeWorkingNow", () => {
     );
     expect(result.current.cards.map(card => card.project)).toEqual([
       { badge: expect.objectContaining({ kind: "project", name: "Beta" }), binding: "ws-b" },
-      { badge: { kind: "user", name: "User", monogram: "~" }, binding: "@user" },
+      { badge: { kind: "user", name: "User" }, binding: "@user" },
     ]);
 
     const { result: focused } = renderHook(

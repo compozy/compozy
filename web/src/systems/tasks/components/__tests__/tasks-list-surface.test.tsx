@@ -438,9 +438,7 @@ describe("TasksListSurface", () => {
         <TasksListSurface
           profile={STORY_PROFILE_SCOPE}
           projectBadgeOf={task =>
-            task.workspace_id
-              ? { kind: "project", name: "Beta", monogram: "BE" }
-              : { kind: "user", name: "User", monogram: "~" }
+            task.workspace_id ? { kind: "project", name: "Beta" } : { kind: "user", name: "User" }
           }
           searchQuery=""
           statusCounts={countTasksByStatus([projectTask, userTask])}

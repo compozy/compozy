@@ -210,8 +210,8 @@ describe("LoopCatalog", () => {
   it("Should name each All projects row's project, bind its link, and isolate failed projects", () => {
     const onRetry = vi.fn();
     const projectOf = (id: string | undefined) =>
-      id ? { kind: "project" as const, name: "beta", monogram: "BE" } : userIdentity;
-    const userIdentity = { kind: "user" as const, name: "User", monogram: "~" };
+      id ? { kind: "project" as const, name: "beta" } : userIdentity;
+    const userIdentity = { kind: "user" as const, name: "User" };
     render(
       <LoopCatalog
         aggregate={{

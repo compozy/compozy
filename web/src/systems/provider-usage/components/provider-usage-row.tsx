@@ -6,13 +6,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
   KindIcon,
-  Progress,
   providerKindIconRegistry,
+  StatusDot,
 } from "@compozy/ui";
 
-import { clampPercent, formatPercent, formatPlan, formatWindowReset } from "../lib/format";
-import { hasKnownPercent, toneForSeverity } from "../lib/severity";
-import type { ProviderUsageRowAction } from "../lib/status";
+import { formatPercent, formatPlan, formatWindowReset } from "../lib/format";
+import { hasKnownPercent } from "../lib/severity";
+import {
+  describeProviderUsageStatus,
+  type ProviderUsageRowAction,
+  type ProviderUsageStatusPresentation,
+} from "../lib/status";
 import type { ProviderUsageRowModel } from "../lib/view-model";
 
 import { ProviderUsageDetail } from "./provider-usage-detail";
@@ -23,58 +27,53 @@ export interface ProviderUsageRowProps {
   now: number;
   isMacHost: boolean;
   remoteClient?: boolean;
-  /** Start expanded (the Usage app shows every target open). */
-  defaultOpen?: boolean;
   onAction?: (providerId: string, action: ProviderUsageRowAction) => void;
   pending?: boolean;
 }
 
-function RowSummary({ row, now }: { row: ProviderUsageRowModel; now: number }) {
-  const window = row.tightest;
-  if (!window) return null;
-  const reset = formatWindowReset(window, now);
-  if (!hasKnownPercent(window)) {
-    return (
-      <span className="text-meta text-muted">
-        {[window.label, "Usage unknown", reset].filter(Boolean).join(" · ")}
-      </span>
-    );
-  }
-  const tone = toneForSeverity(row.severity ?? "neutral");
-  return (
-    <>
-      <Progress
-        aria-hidden="true"
-        value={clampPercent(window.used_percent)}
-        tone={tone}
-        className={cn("w-full", row.stale && "opacity-50")}
-      />
-      <span className="text-meta text-muted">
-        {[window.label, reset].filter(Boolean).join(" · ")}
-      </span>
-    </>
-  );
+function cueInk(row: ProviderUsageRowModel, known: boolean): string {
+  if (!known) return "text-muted";
+  if (row.severity === "exhausted") return "font-medium text-danger";
+  if (row.severity === "warning") return "text-warning";
+  return row.stale ? "text-muted" : "text-fg";
 }
 
-function RowFigure({ row }: { row: ProviderUsageRowModel }) {
+/**
+ * The collapsed row's trailing cue: the binding window's percent for measured
+ * targets, otherwise the status in a word or two. A status dot backs the
+ * words, and marks stale numbers by its ring shape.
+ */
+function RowCue({
+  row,
+  status,
+}: {
+  row: ProviderUsageRowModel;
+  status: ProviderUsageStatusPresentation | null;
+}) {
   const window = row.tightest;
-  if (!window || !hasKnownPercent(window)) return null;
+  const known = window !== null && hasKnownPercent(window);
   const exhausted = row.severity === "exhausted";
+  const text = known
+    ? exhausted
+      ? "Limit reached"
+      : `${formatPercent(window.used_percent)} used`
+    : (status?.label ?? (window ? "Usage unknown" : null));
+  if (!text) return null;
   return (
-    <span
-      className={cn(
-        "shrink-0 text-meta tabular-nums",
-        exhausted ? "font-medium text-danger" : "text-fg",
-        row.severity === "warning" && "text-warning"
-      )}
-    >
-      {exhausted ? "Limit reached" : `${formatPercent(window.used_percent)} used`}
+    <span data-slot="provider-usage-row-cue" className="flex shrink-0 items-center gap-1.5">
+      {status?.tone ? <StatusDot tone={status.tone} variant={status.dotVariant} size="sm" /> : null}
+      <span className={cn("text-meta tabular-nums", cueInk(row, known))}>{text}</span>
     </span>
   );
 }
 
 /** Inline spans join without spaces in the computed name, so the trigger names itself. */
-function rowAccessibleName(row: ProviderUsageRowModel, plan: string, now: number): string {
+function rowAccessibleName(
+  row: ProviderUsageRowModel,
+  plan: string,
+  status: ProviderUsageStatusPresentation | null,
+  now: number
+): string {
   const window = row.tightest;
   const parts = [row.target.provider_name, plan];
   if (window) {
@@ -85,27 +84,29 @@ function rowAccessibleName(row: ProviderUsageRowModel, plan: string, now: number
         : `${formatPercent(window.used_percent)} used`;
     parts.push(`${window.label} ${usage}`, formatWindowReset(window, now) ?? "");
   }
+  if (status) parts.push(status.label);
   return parts.filter(Boolean).join(", ");
 }
 
 /**
- * One target: provider mark and name, plan, the binding window as a bar with
- * its percent and reset, and the status line when the numbers are missing or
- * old. The header is the disclosure button; the status action sits outside it
- * so no button nests in another, which `Disclosure` cannot lay out — hence the
- * `Collapsible` parts it is built from.
+ * One target, collapsed to a single line by default: provider mark and name,
+ * plan, and a trailing cue (percent used, or the status in a word or two).
+ * Expanding shows the status line with its one action, then every window and
+ * fact. The header is the disclosure button; the status action sits outside
+ * it so no button nests in another, which `Disclosure` cannot lay out — hence
+ * the `Collapsible` parts it is built from.
  */
 export function ProviderUsageRow({
   row,
   now,
   isMacHost,
   remoteClient,
-  defaultOpen = false,
   onAction,
   pending,
 }: ProviderUsageRowProps) {
   const { target } = row;
   const plan = target.account?.plan ? formatPlan(target.account.plan) : "";
+  const status = describeProviderUsageStatus(target, { now, isMacHost, remoteClient });
   return (
     <Collapsible
       data-slot="provider-usage-row"
@@ -113,18 +114,17 @@ export function ProviderUsageRow({
       data-status={target.status}
       data-severity={row.severity ?? undefined}
       data-stale={row.stale || undefined}
-      defaultOpen={defaultOpen}
       className="flex min-w-0 flex-col rounded-lg"
     >
       <CollapsibleTrigger
-        aria-label={rowAccessibleName(row, plan, now)}
+        aria-label={rowAccessibleName(row, plan, status, now)}
         className={cn(
-          "group/usage-row grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 gap-y-1.5",
-          "rounded-lg px-2 py-2 text-left transition-colors duration-base hover:bg-surface-2",
+          "group/usage-row flex w-full min-w-0 items-center gap-2",
+          "rounded-lg px-2 py-1.5 text-left transition-colors duration-base hover:bg-surface-2",
           "focus-visible:shadow-focus-ring focus-visible:outline-none"
         )}
       >
-        <span className="flex items-center gap-1">
+        <span className="flex shrink-0 items-center gap-1">
           <ChevronRight
             aria-hidden="true"
             className={cn(
@@ -140,30 +140,21 @@ export function ProviderUsageRow({
             tone="muted"
           />
         </span>
-        <span className="flex min-w-0 items-baseline gap-2">
-          <span className="truncate text-small-body font-medium text-fg">
-            {target.provider_name}
-          </span>
-          {plan ? <span className="truncate text-meta text-muted">{plan}</span> : null}
-          <span className="flex-1" />
-          <RowFigure row={row} />
-        </span>
-        {row.tightest ? (
-          <span className="col-start-2 flex min-w-0 flex-col gap-1">
-            <RowSummary row={row} now={now} />
-          </span>
-        ) : null}
+        <span className="truncate text-small-body font-medium text-fg">{target.provider_name}</span>
+        {plan ? <span className="truncate text-meta text-muted">{plan}</span> : null}
+        <span className="flex-1" />
+        <RowCue row={row} status={status} />
       </CollapsibleTrigger>
-      <ProviderUsageStatusLine
-        target={target}
-        now={now}
-        isMacHost={isMacHost}
-        remoteClient={remoteClient}
-        onAction={onAction}
-        pending={pending}
-        className="pr-2 pb-1.5 pl-12"
-      />
-      <CollapsibleContent className="pt-1 pr-2 pb-2 pl-12">
+      <CollapsibleContent className="flex flex-col gap-2 pt-1 pr-2 pb-2 pl-12">
+        <ProviderUsageStatusLine
+          target={target}
+          now={now}
+          isMacHost={isMacHost}
+          remoteClient={remoteClient}
+          onAction={onAction}
+          pending={pending}
+          dot={false}
+        />
         <ProviderUsageDetail target={target} now={now} />
       </CollapsibleContent>
     </Collapsible>

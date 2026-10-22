@@ -108,7 +108,7 @@ describe("TasksKanbanBoard", () => {
       <TasksKanbanBoard
         columns={groupTasksForKanban([task])}
         onSelectTask={vi.fn()}
-        projectBadgeOf={() => ({ kind: "project", name: "Beta", monogram: "BE" })}
+        projectBadgeOf={() => ({ kind: "project", name: "Beta" })}
         selectedTaskId={null}
       />
     );

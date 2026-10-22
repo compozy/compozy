@@ -1,8 +1,6 @@
-import { Bell, ChevronDown, Command, LayoutGrid, Layers } from "lucide-react";
+import { Bell, ChevronDown, Command, LayoutGrid } from "lucide-react";
 
 import {
-  Avatar,
-  AvatarFallback,
   Icon,
   Kbd,
   Logo,
@@ -40,10 +38,7 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * the bar never advertises a scope that cannot run anything.
    */
   workspace: {
-    /** `all` draws the stacked mark in place of the monogram. */
-    kind?: "all" | "user" | "project";
     name: string;
-    monogram: string;
     worktree?: string | null;
     /** Scope problem (e.g. the worktree fell back); a warning dot marks the chip. */
     warning?: string | null;
@@ -189,15 +184,6 @@ function ControlTooltip({
 function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }) {
   return (
     <>
-      <Avatar size="sm" className="size-5.5">
-        <AvatarFallback className="bg-rail-selected text-badge font-semibold">
-          {workspace.kind === "all" ? (
-            <Icon as={Layers} aria-hidden="true" className="size-3" />
-          ) : (
-            workspace.monogram
-          )}
-        </AvatarFallback>
-      </Avatar>
       <span className="text-item-title font-medium text-fg">{workspace.name}</span>
       {workspace.worktree ? (
         <span data-slot="os-menubar-worktree" className="max-w-42.5 truncate text-body text-muted">
@@ -255,7 +241,7 @@ export function OsMenuBar({
   const workspaceControl = (
     <MenuControl
       data-slot="os-menubar-workspace"
-      className="flex h-8.5 min-w-0 items-center gap-2.25 rounded-pill pr-3 pl-1.5 text-fg"
+      className="flex h-8.5 min-w-0 items-center gap-2.25 rounded-pill pr-3 pl-3 text-fg"
       menu={workspaceMenu}
     >
       <WorkspaceChip workspace={workspace} />

@@ -87,7 +87,6 @@ function renderMenu(overrides: Partial<ComponentProps<typeof WorkspaceMenu>> = {
             workspaces={[gitAlpha, gitBeta, plainNotes]}
             breadthMode="focused"
             focus={{ kind: "project", workspaceId: gitAlpha.id }}
-            monogram={name => name.slice(0, 2).toUpperCase()}
             onSelectWorkspace={onSelectWorkspace}
             onFocusUser={onFocusUser}
             onEnableAllProjects={onEnableAllProjects}
@@ -244,7 +243,7 @@ describe("WorkspaceMenu", () => {
     expect(screen.queryByTestId(`os-worktree-create-${gitAlpha.id}`)).not.toBeInTheDocument();
   });
 
-  it("Should dot the monogram of every workspace with working sessions", () => {
+  it("Should dot every workspace with working sessions", () => {
     renderMenu({ workingSessionsByWorkspace: { [gitBeta.id]: 2, [plainNotes.id]: 1 } });
 
     expect(

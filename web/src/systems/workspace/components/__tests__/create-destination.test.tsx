@@ -63,9 +63,9 @@ describe("CreateDestinationStatement", () => {
 });
 
 const PROJECTS = [
-  { value: "ws_alpha", label: "alpha", monogram: "AL" },
-  { value: "ws_beta", label: "beta", monogram: "BE" },
-  { value: "@user", label: "User", monogram: "~" },
+  { value: "ws_alpha", label: "alpha" },
+  { value: "ws_beta", label: "beta" },
+  { value: "@user", label: "User" },
 ];
 
 describe("SessionDestinationRow", () => {
@@ -112,7 +112,7 @@ describe("SessionDestinationRow", () => {
         <SessionDestinationRow
           destination="alpha"
           profile={{
-            options: [{ value: "marketing", label: "marketing", monogram: "MA" }],
+            options: [{ value: "marketing", label: "marketing" }],
             value: "marketing",
             onChange: () => undefined,
           }}

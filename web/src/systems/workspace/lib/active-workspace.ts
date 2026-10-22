@@ -10,10 +10,9 @@ import { DESTINATION_COPY } from "./workspace-scope-copy";
 import type { WorkspacePayload } from "../types";
 
 export interface WorkspaceChipIdentity {
-  /** Which destination the chip names; `all` draws the stacked mark. */
+  /** Which destination the chip names. */
   kind: "all" | "user" | "project";
   name: string;
-  monogram: string;
 }
 
 export interface ActiveWorkspaceResolution {
@@ -50,13 +49,11 @@ export function workspaceMonogram(name: string): string {
 const ALL_PROJECTS_CHIP: WorkspaceChipIdentity = {
   kind: "all",
   name: DESTINATION_COPY.allProjects,
-  monogram: DESTINATION_COPY.allProjectsMonogram,
 };
 
 const USER_CHIP: WorkspaceChipIdentity = {
   kind: "user",
   name: DESTINATION_COPY.user,
-  monogram: DESTINATION_COPY.userMonogram,
 };
 
 function chipFor(
@@ -66,7 +63,7 @@ function chipFor(
 ): WorkspaceChipIdentity {
   if (breadthMode === "all") return ALL_PROJECTS_CHIP;
   if (focus.kind === "user" || !workspace) return USER_CHIP;
-  return { kind: "project", name: workspace.name, monogram: workspaceMonogram(workspace.name) };
+  return { kind: "project", name: workspace.name };
 }
 
 /**
@@ -104,10 +101,7 @@ export function resolveActiveWorkspace(input: {
       runtimeWorkspaceId: null,
       desktopWorkspace: undefined,
       desktopWorkspaceId: null,
-      chip:
-        input.breadthMode === "all"
-          ? ALL_PROJECTS_CHIP
-          : { kind: input.focus.kind, name: "", monogram: "" },
+      chip: input.breadthMode === "all" ? ALL_PROJECTS_CHIP : { kind: input.focus.kind, name: "" },
     };
   }
   const projectWorkspaces = registeredWorkspaces;

@@ -127,9 +127,31 @@ describe("Provider usage components", () => {
       expect(second).toHaveAccessibleName("Codex, Pro, Weekly 72% used, resets in 2d 4h");
       expect(screen.getByText("Updated 2 min ago")).toBeInTheDocument();
       expect(within(row("Claude")).getByText("88% used")).toBeInTheDocument();
+    });
+
+    it("Should collapse every row, signed-out ones included, to one line with a status cue", async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const status = statusTargets(NOW);
+      renderPanel({ viewModel: viewModelOf([codexOkTarget(NOW), status.signedOut]) });
+
+      const measured = screen.getByRole("button", { name: /^Codex/ });
+      const signedOut = screen.getByRole("button", { name: "Cursor, Signed out" });
+      for (const trigger of [measured, signedOut]) {
+        expect(trigger).toHaveAttribute("aria-expanded", "false");
+      }
+      expect(within(row("Codex")).getByText("72% used")).toBeInTheDocument();
+      expect(within(row("Cursor")).getByText("Signed out")).toBeInTheDocument();
+      expect(document.querySelector("[data-slot=provider-usage-status-line]")).toBeNull();
+      expect(document.querySelector("[data-slot=provider-usage-detail]")).toBeNull();
+      expect(screen.queryByText(/Sign in with cursor-agent/)).toBeNull();
+
+      await user.click(signedOut);
+      expect(signedOut).toHaveAttribute("aria-expanded", "true");
       expect(
-        within(row("Claude")).getByText(/Weekly · Opus · resets in 3d 2h/)
+        within(row("Cursor")).getByText("Signed out · Sign in with cursor-agent to read usage")
       ).toBeInTheDocument();
+      await user.click(measured);
+      expect(screen.getByRole("list", { name: "Codex limits" })).toBeInTheDocument();
     });
 
     it("Should fold unsupported rows into one closed trailing group, text only (UT-056)", async () => {
@@ -180,11 +202,11 @@ describe("Provider usage components", () => {
       expect(within(limits).getByText(/75% used/)).toBeInTheDocument();
     });
 
-    it("Should label every window and keep money in its units (UT-057)", () => {
-      renderPanel({
-        expandAll: true,
-        viewModel: viewModelOf([claudeOkTarget(NOW), codexOkTarget(NOW)]),
-      });
+    it("Should label every window and keep money in its units (UT-057)", async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderPanel({ viewModel: viewModelOf([claudeOkTarget(NOW), codexOkTarget(NOW)]) });
+      await user.click(screen.getByRole("button", { name: /^Claude/ }));
+      await user.click(screen.getByRole("button", { name: /^Codex/ }));
       const claudeLimits = screen.getByRole("list", { name: "Claude limits" });
       expect(within(claudeLimits).getAllByRole("progressbar")).toHaveLength(3);
       expect(
@@ -201,8 +223,10 @@ describe("Provider usage components", () => {
       expect(detail.getByText("pedro@example.com")).toBeInTheDocument();
     });
 
-    it("Should draw no bar for unknown percent and never call a missing cap unlimited (UT-058, UT-059)", () => {
-      renderPanel({ expandAll: true, viewModel: viewModelOf([edgeCaseTarget(NOW)]) });
+    it("Should draw no bar for unknown percent and never call a missing cap unlimited (UT-058, UT-059)", async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      renderPanel({ viewModel: viewModelOf([edgeCaseTarget(NOW)]) });
+      await user.click(screen.getByRole("button", { name: /^OpenRouter/ }));
       const limits = screen.getByRole("list", { name: "OpenRouter limits" });
       const daily = within(limits).getByText("Daily").closest("li");
       expect(daily).toHaveTextContent("Usage unknown · resets in 3h");
@@ -236,23 +260,27 @@ describe("Provider usage components", () => {
         ],
       });
       renderPanel({ viewModel: viewModelOf([soon]) });
-      expect(within(row("Codex")).getByText("Session · resets in 2m")).toBeInTheDocument();
+      const trigger = screen.getByRole("button", { name: /^Codex/ });
+      expect(trigger).toHaveAccessibleName("Codex, Session 10% used, resets in 2m");
       act(() => {
         vi.advanceTimersByTime(PROVIDER_USAGE_CLOCK_INTERVAL_MS);
       });
-      expect(within(row("Codex")).getByText("Session · resets in 1m")).toBeInTheDocument();
+      expect(trigger).toHaveAccessibleName("Codex, Session 10% used, resets in 1m");
       act(() => {
         vi.advanceTimersByTime(4 * PROVIDER_USAGE_CLOCK_INTERVAL_MS);
       });
-      expect(within(row("Codex")).getByText("Session · Resetting…")).toBeInTheDocument();
+      expect(trigger).toHaveAccessibleName("Codex, Session 10% used, Resetting…");
       expect(fetchSpy).not.toHaveBeenCalled();
     });
 
-    it("Should keep cached rows under a banner and withdraw actions when the daemon is gone (UT-062)", () => {
+    it("Should keep cached rows under a banner and withdraw actions when the daemon is gone (UT-062)", async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       renderPanel({
         daemonUnavailable: true,
         viewModel: viewModelOf([codexOkTarget(NOW), statusTargets(NOW).error]),
       });
+      await user.click(screen.getByRole("button", { name: /^Cursor/ }));
+      expect(within(row("Cursor")).getByText("Couldn't load usage")).toBeInTheDocument();
       expect(screen.getByRole("alert")).toHaveTextContent("Daemon unavailable");
       expect(screen.queryByRole("button", { name: /Refresh provider usage/ })).toBeNull();
       expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
@@ -265,6 +293,8 @@ describe("Provider usage components", () => {
       const { onAction, onRefresh, rerender } = renderPanel({
         viewModel: viewModelOf([status.needsConsent, status.error]),
       });
+      await user.click(screen.getByRole("button", { name: "Claude, Needs access" }));
+      await user.click(screen.getByRole("button", { name: "Cursor, Couldn't load" }));
       await user.click(within(row("Claude")).getByRole("button", { name: "Allow" }));
       expect(onAction).toHaveBeenCalledWith("claude", "allow_keychain");
       await user.click(within(row("Cursor")).getByRole("button", { name: "Retry" }));

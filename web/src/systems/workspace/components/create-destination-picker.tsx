@@ -15,7 +15,6 @@ import {
 export interface CreateDestinationOption {
   value: string;
   label: string;
-  monogram: string;
 }
 
 export interface CreateDestinationPickerProps {
@@ -97,12 +96,6 @@ export function CreateDestinationPicker({
                   setQuery("");
                 }}
               >
-                <span
-                  aria-hidden="true"
-                  className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-surface-2 font-mono text-eyebrow font-medium tracking-mono text-fg"
-                >
-                  {option.monogram}
-                </span>
                 <span className="truncate text-small-body text-fg">{option.label}</span>
               </CommandItem>
             ))}

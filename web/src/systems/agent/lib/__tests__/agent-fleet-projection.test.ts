@@ -204,7 +204,6 @@ describe("agent fleet projection", () => {
       projectOf: definition => ({
         kind: definition.workspace_id ? "project" : "user",
         name: definition.workspace_id ?? "User",
-        monogram: "RV",
       }),
     });
     expect(new Set(rows.map(row => row.key)).size).toBe(2);

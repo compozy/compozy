@@ -30,7 +30,6 @@ import { SessionMenu } from "./menubar/session-menu";
 import { WindowMenu } from "./menubar/window-menu";
 import { WorkspaceMenu } from "./menubar/workspace-menu";
 import {
-  workspaceMonogram,
   type ActiveWorktreeSelection,
   type BreadthMode,
   type Focus,
@@ -72,7 +71,7 @@ export interface DesktopMenubarProps {
   update: MenubarUpdateModel;
   /** Same worktree query the switcher reads; omitted, the menu stays flat. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
-  /** Working-session counts by workspace id for the menu's monogram dots. */
+  /** Working-session counts by workspace id for the menu's working dots. */
   workingSessionsByWorkspace?: Readonly<Record<string, number>>;
   userHomeDir?: string;
   /** Focused window's scope, resolved against the live list. */
@@ -235,7 +234,6 @@ export function DesktopMenubar({
           workspaces={workspaces}
           breadthMode={breadthMode}
           focus={focus}
-          monogram={workspaceMonogram}
           onSelectWorkspace={onSelectWorkspace}
           onFocusUser={onFocusUser}
           onEnableAllProjects={onEnableAllProjects}

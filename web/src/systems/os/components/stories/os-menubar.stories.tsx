@@ -56,13 +56,13 @@ type Story = StoryObj<typeof meta>;
 
 /** The wired bar at rest, over a live desktop. */
 export const Populated: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture />,
 };
 
-/** All projects on: the chip draws the stacked mark and the globe is pressed. */
+/** All projects on: the chip names All projects and the globe is pressed. */
 export const AllProjectsOn: Story = {
-  args: { workspace: { name: DESTINATION_COPY.allProjects, monogram: "∗" } },
+  args: { workspace: { name: DESTINATION_COPY.allProjects } },
   render: () => (
     <MenubarFixture
       breadthMode="all"
@@ -73,9 +73,9 @@ export const AllProjectsOn: Story = {
   ),
 };
 
-/** User focused: the chip reads User with the `~` mark; the globe is off. */
+/** User focused: the chip reads User; the globe is off. */
 export const UserFocused: Story = {
-  args: { workspace: { name: DESTINATION_COPY.user, monogram: "~" } },
+  args: { workspace: { name: DESTINATION_COPY.user } },
   render: () => (
     <MenubarFixture
       breadthMode="focused"
@@ -88,7 +88,7 @@ export const UserFocused: Story = {
 
 /** Zero projects: the switcher offers All projects and User; the globe is never locked. */
 export const ZeroProjects: Story = {
-  args: { workspace: { name: DESTINATION_COPY.user, monogram: "~" } },
+  args: { workspace: { name: DESTINATION_COPY.user } },
   render: () => (
     <MenubarFixture
       overlay="workspace-menu"
@@ -103,19 +103,19 @@ export const ZeroProjects: Story = {
 
 /** The system menu on the mark: identity plus the settings surfaces. */
 export const CompozyMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="compozy-menu" />,
 };
 
 /** Navigation grouped exactly like the dock strip. */
 export const GoMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="go-menu" />,
 };
 
 /** Window commands with a focused tiled window and a visible peer: all enabled. */
 export const WindowMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="window-menu" />,
 };
 
@@ -124,13 +124,13 @@ export const WindowMenuOpen: Story = {
  * rather than hidden — the shape of the menu never changes under you.
  */
 export const WindowMenuUnavailable: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="window-menu" live={false} />,
 };
 
 /** Real help: the shortcut reference, the docs, and a support path. */
 export const HelpMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture overlay="help-menu" />,
 };
 
@@ -140,7 +140,7 @@ export const HelpMenuOpen: Story = {
  * Play hovers the git-backed parent so the side submenu is capturable.
  */
 export const WorkspaceMenuOpen: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
@@ -152,7 +152,7 @@ export const WorkspaceMenuOpen: Story = {
 
 /** All projects on: the switcher checks All projects, then lists User and the projects. */
 export const WorkspaceMenuOpenWhileAllProjects: Story = {
-  args: { workspace: { name: DESTINATION_COPY.allProjects, monogram: "∗" } },
+  args: { workspace: { name: DESTINATION_COPY.allProjects } },
   render: () => (
     <MenubarFixture
       overlay="workspace-menu"
@@ -166,13 +166,13 @@ export const WorkspaceMenuOpenWhileAllProjects: Story = {
 
 /** VC-16 — the shell chip names only the workspace at its root scope. */
 export const WorkspaceOnlyChip: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => <MenubarFixture />,
 };
 
 /** VC-17 — an active worktree is part of the shell's visible scope identity. */
 export const WorkspaceAndWorktreeChip: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   render: () => (
     <MenubarFixture
       worktreeSelection={{
@@ -191,7 +191,7 @@ export const WorkspaceAndWorktreeChip: Story = {
  * capturable.
  */
 export const MissingWorktreeFallback: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" } },
+  args: { workspace: { name: "compozy" } },
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
@@ -218,7 +218,7 @@ export const MissingWorktreeFallback: Story = {
 
 /** Presentation-only — no menu owners, so the bar renders as inert chrome. */
 export const PresentationOnly: Story = {
-  args: { workspace: { name: "compozy", monogram: "CO" }, notifications: 0 },
+  args: { workspace: { name: "compozy" }, notifications: 0 },
   render: args => <DesktopShell wallpaper="carbon" deskHint topbar={<OsMenuBar {...args} />} />,
 };
 
@@ -228,7 +228,7 @@ export const PresentationOnly: Story = {
  */
 export const TrafficLightsReserved: Story = {
   args: {
-    workspace: { name: "compozy", monogram: "CO", worktree: "continue-fork" },
+    workspace: { name: "compozy", worktree: "continue-fork" },
     notifications: 3,
     trafficLights: true,
     onCommandClick: fn(),
@@ -243,7 +243,7 @@ export const TrafficLightsReserved: Story = {
  */
 export const DegradedSync: Story = {
   args: {
-    workspace: { name: "compozy", monogram: "CO" },
+    workspace: { name: "compozy" },
     status: <OsHydrationStatus hydration="degraded" />,
     notifications: 2,
     onCommandClick: fn(),
@@ -255,7 +255,7 @@ export const DegradedSync: Story = {
 /** Menubar update indicator (S2): one story per state the daemon can report. */
 function updateIndicatorStory(snapshot: SettingsUpdateStatus): Story {
   return {
-    args: { workspace: { name: "compozy", monogram: "CO" } },
+    args: { workspace: { name: "compozy" } },
     render: () => (
       <MenubarFixture
         update={{ state: settingsUpdateIndicatorState(snapshot, false), onUpdate: fn() }}
@@ -305,7 +305,7 @@ export const UpdateIndicatorFailed: Story = updateIndicatorStory(settingsUpdateR
 /** Provider usage in the tray (S1/S2): the shell's profile envelope served over MSW. */
 function usageStory(envelope: (now: number) => ProviderUsageEnvelope): Story {
   return {
-    args: { workspace: { name: "compozy", monogram: "CO" } },
+    args: { workspace: { name: "compozy" } },
     parameters: storybookMswParameters({
       "provider-usage": providerUsageHandlers(() => envelope(Date.now())),
     }),

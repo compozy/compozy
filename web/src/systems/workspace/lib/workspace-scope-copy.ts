@@ -3,13 +3,9 @@ import type { Focus } from "./destination";
 /** Destination vocabulary: All projects (the globe), User, and projects. Never "Global". */
 export const DESTINATION_COPY = {
   allProjects: "All projects",
-  /** Text mark for All projects where only a monogram fits; the chip draws a stack icon. */
-  allProjectsMonogram: "∗",
   user: "User",
-  userMonogram: "~",
   /** An automation run whose source project could not be established. */
   unknownProject: "Unknown project",
-  unknownProjectMonogram: "?",
   liveOn: "All projects on",
   liveOff: "All projects off",
   skipOnboarding: "Skip — use my home folder",
