@@ -9,10 +9,12 @@ import {
   sortWorktreeNestEntries,
   toWorktreeNestEntries,
   useScopedWorktreeFilter,
-  useWorktreeListings,
+  useWorktreeAggregate,
   useWorktrees,
   type DataScope,
+  type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
+  type WorktreesResponse,
 } from "@/systems/workspace";
 
 import { getOsAppDescriptor, osAppId } from "../lib/app-catalog";
@@ -160,9 +162,9 @@ export function useOsPaletteEntities({
   const worktreesQuery = useWorktrees(activeWorkspaceId, {
     enabled: open && queryEnabled && project && activeWorkspaceId !== null,
   });
-  const worktreeListings = useWorktreeListings(workspaces, {
-    enabled: open && queryEnabled && all,
-  });
+  // All projects: one store read for every project's worktrees, never a fan-out.
+  const worktreeAggregate = useWorktreeAggregate([], { enabled: open && queryEnabled && all });
+  const worktreeListings = groupWorktreeAggregate(worktreeAggregate.data);
   // The shell surface follows the focused window's scope, matching the chip.
   // Only a project binds a worktree, so the filter stays off elsewhere.
   const worktreeFilter = useScopedWorktreeFilter(activeWorkspaceId, worktreeScopeId, {
@@ -347,10 +349,27 @@ function projectPaletteTabs(
   return tabs;
 }
 
+/** The aggregate listing split back into per-project listings (adopted rows only). */
+export function groupWorktreeAggregate(
+  aggregate: WorktreesResponse | undefined
+): WorktreeListingByWorkspace {
+  if (!aggregate) return {};
+  const listings: Record<string, WorktreesResponse> = {};
+  for (const worktree of aggregate.worktrees) {
+    const listing = (listings[worktree.workspace_id] ??= {
+      worktrees: [],
+      discovered: [],
+      repo: aggregate.repo,
+    });
+    listing.worktrees.push(worktree);
+  }
+  return listings;
+}
+
 function projectPaletteWorktrees(
   dataScope: DataScope | null,
   workspaces: UseOsPaletteEntitiesOptions["workspaces"],
-  worktreeListings: ReturnType<typeof useWorktreeListings>,
+  worktreeListings: WorktreeListingByWorkspace,
   workspaceWorktrees: ReturnType<typeof useWorktrees>["data"]
 ): OsPaletteWorktreeResult[] {
   const worktrees: OsPaletteWorktreeResult[] = [];

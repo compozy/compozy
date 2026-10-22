@@ -15,6 +15,7 @@ export type {
   AutomationSuggestionDismissalResponse,
   AutomationSuggestionsListResponse,
   AutomationSuggestionStatus,
+  AutomationSuggestionsSource,
   AutomationSchedule,
   AutomationScheduleMode,
   AutomationSchedulerState,
@@ -54,9 +55,11 @@ export {
   acceptAutomationSuggestion,
   dismissAutomationSuggestion,
   listAutomationSuggestions,
+  listAutomationSuggestionsAggregate,
 } from "./adapters/automation-suggestions-api";
 
 // Query infrastructure
+export { automationSuggestionsSource } from "./lib/automation-suggestions-source";
 export { automationKeys } from "./lib/query-keys";
 export {
   buildAutomationJobRequest,
@@ -68,6 +71,7 @@ export {
   automationJobsListOptions,
   automationRunsListOptions,
   automationSuggestionsListOptions,
+  automationSuggestionsSourceOptions,
   automationTriggerDetailOptions,
   automationTriggerRunsOptions,
   automationTriggersListOptions,
@@ -113,10 +117,8 @@ export {
 } from "./lib/automation-list-filters";
 export {
   automationListLoopFilter,
-  automationListScope,
   automationRouteHasActiveFilters,
   parseAutomationEnabled,
-  parseAutomationScope,
   parseAutomationSource,
   automationEditorSeed,
   automationsStartView,
@@ -216,3 +218,4 @@ export {
   type AutomationSuggestionPendingAction,
 } from "./components/automation-suggestions-card";
 export { AutomationSuggestionsPanel } from "./components/automation-suggestions-panel";
+export { automationRunProject } from "./lib/automation-run-model";

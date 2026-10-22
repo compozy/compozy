@@ -11,6 +11,9 @@ export const terminalKeys = {
   all: () => ["terminal"] as const,
   catalog: (scope: TerminalScopeKey) =>
     ["terminal", "catalog", scope.workspaceId, scope.profileKey] as const,
+  /** The All projects list, per Project-filter selection and profile lens. */
+  aggregate: (selection: string, profileKey: string) =>
+    ["terminal", "aggregate", selection, profileKey] as const,
   detail: (scope: TerminalScopeKey, terminalId: string) =>
     ["terminal", "detail", scope.workspaceId, scope.profileKey, terminalId] as const,
   read: (scope: TerminalScopeKey, terminalId: string, view: string) =>

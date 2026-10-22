@@ -247,7 +247,7 @@ export function useAutomationForm({
     does,
     isWebhook,
     effectiveScope,
-    /** Project the automation lives in, or `null` for Global. */
+    /** Project the automation lives in, or `null` for User. */
     destination: automationFormDestination(effectiveScope, draft.workspace_id, workspaceName),
     sentence,
     ready,

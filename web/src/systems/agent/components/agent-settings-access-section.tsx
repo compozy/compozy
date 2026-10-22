@@ -4,6 +4,7 @@ import { FormSection } from "@compozy/ui";
 
 import { AGENT_ACCESS_COPY } from "../lib/agent-access-copy";
 import type { AgentSettingsDraft } from "../lib/agent-settings-draft";
+import { AgentSettingsWorkspaceAccessField } from "./agent-settings-workspace-access-field";
 import { TokenListField } from "./token-list-field";
 
 export interface AgentSettingsAccessSectionProps {
@@ -25,6 +26,12 @@ export function AgentSettingsAccessSection({
       icon={ShieldCheck}
       title={AGENT_ACCESS_COPY.title}
     >
+      <AgentSettingsWorkspaceAccessField
+        disabled={disabled}
+        draft={draft}
+        onPatch={onPatch}
+        readOnly={readOnly}
+      />
       <div className="grid gap-3.5 md:grid-cols-2">
         <TokenListField
           description={AGENT_ACCESS_COPY.tools.description}

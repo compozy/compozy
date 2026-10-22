@@ -53,6 +53,34 @@ export async function fetchWorktrees(
 }
 
 /**
+ * Every project's adopted worktrees from the store (cached status, no git work,
+ * no discovery), narrowed by the Project filter. Operator only.
+ */
+export async function fetchWorktreesAggregate(
+  workspaceIDs: readonly string[] = [],
+  signal?: AbortSignal
+): Promise<WorktreesResponse> {
+  const { data, error, response } = await apiClient.GET("/api/worktrees", {
+    params: {
+      query: {
+        all_workspaces: true,
+        ...(workspaceIDs.length > 0 ? { workspace_ids: [...workspaceIDs] } : {}),
+      },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new WorktreeApiError(
+      defaultApiErrorMessage("Failed to fetch worktrees", response, error),
+      response.status,
+      error
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to fetch worktrees");
+}
+
+/**
  * Returns the durable pending row. Materialization continues daemon-side after
  * the 202, so dismissing the dialog never aborts the create.
  */

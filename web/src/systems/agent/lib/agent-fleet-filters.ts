@@ -1,4 +1,4 @@
-import type { Filter, FilterFieldsConfig } from "@compozy/ui";
+import type { Filter, FilterFieldConfig, FilterFieldsConfig } from "@compozy/ui";
 
 import type { AgentFleetStatus } from "./fleet-signals";
 import type { AgentsFleetSearch } from "./agent-fleet-search";
@@ -15,10 +15,13 @@ const STATUS_OPTIONS: { value: AgentFleetStatus; label: string }[] = [
   { value: "idle", label: "Idle" },
 ];
 
+/** Category · Status, plus the shared Project filter under All projects. */
 export function buildAgentFleetFilterFields(
-  categories: readonly string[]
+  categories: readonly string[],
+  projectField?: FilterFieldConfig<string> | null
 ): FilterFieldsConfig<string> {
   return [
+    ...(projectField ? [projectField] : []),
     {
       key: "category",
       label: "Category",

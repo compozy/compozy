@@ -61,7 +61,7 @@ export function resolveWorkspaceOptions(
   return activeWorkspaceId ? [{ id: activeWorkspaceId, name: activeWorkspaceId }] : [];
 }
 
-/** The project the automation lives in, or `null` for Global. */
+/** The project the automation lives in, or `null` for User. */
 export function automationFormDestination(
   scope: AutomationFormDraft["scope"],
   workspaceId: string | undefined,

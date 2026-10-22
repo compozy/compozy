@@ -67,6 +67,7 @@ export {
   workspaceDetailOptions,
   worktreeDetailOptions,
   worktreeExitPlanOptions,
+  worktreesAggregateOptions,
   worktreesListOptions,
   workspacesListOptions,
   worktreeStatusOptions,
@@ -86,6 +87,7 @@ export {
   createWorktree,
   dismissWorktree,
   fetchWorktrees,
+  fetchWorktreesAggregate,
   removeWorktree,
   WorktreeApiError,
 } from "./adapters/worktree-api";
@@ -168,6 +170,8 @@ export {
   windowDataScope,
 } from "./lib/window-data-scope";
 export {
+  aggregateBreadthParams,
+  automationBreadthParams,
   breadthQuery,
   loopBreadthTarget,
   sessionCatalogBreadthParams,
@@ -232,6 +236,7 @@ export {
   useCreateWorktree,
   useDismissWorktree,
   useRemoveWorktree,
+  useWorktreeAggregate,
   useWorktreeListings,
   useWorktrees,
 } from "./hooks/use-worktrees";
@@ -341,7 +346,7 @@ export type { WorktreeAggregateProps } from "./components/worktree-aggregate";
 export { WorkspaceWorkingDot } from "./components/workspace-working-dot";
 export { WorkspaceBadge } from "./components/workspace-badge";
 export type { WorkspaceBadgeProps } from "./components/workspace-badge";
-export { workspaceBadgeIdentity } from "./lib/workspace-badge-identity";
+export { unknownProjectIdentity, workspaceBadgeIdentity } from "./lib/workspace-badge-identity";
 export type { WorkspaceBadgeIdentity } from "./lib/workspace-badge-identity";
 export { workspaceWorkingLabel } from "./lib/workspace-working-label";
 export type { WorkspaceWorkingDotProps } from "./components/workspace-working-dot";

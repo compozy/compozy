@@ -1,4 +1,5 @@
 import type { StateGlyphState } from "@compozy/ui";
+import { DESTINATION_COPY } from "@/systems/workspace";
 
 import type {
   AutomationCatchUpPolicy,
@@ -186,7 +187,7 @@ export function automationSourceLabel(source: AutomationJob["source"]): string {
 
 /** Scope label: `workspace` reads as "Project" per the COPY.md surface aliases. */
 export function automationScopeLabel(scope: AutomationScope): string {
-  return scope === "workspace" ? "Project" : "Global";
+  return scope === "workspace" ? "Project" : DESTINATION_COPY.user;
 }
 
 /** Run label that names a durable skip: `Skipped` / `Missed`, else the status label. */

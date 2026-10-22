@@ -78,31 +78,27 @@ function useWorktreeSection(context: OsPaletteDomainContext, catalogs: OsPalette
 }
 
 /**
- * Agents: a project's, or the user-layer agents (`workspace` omitted) — alone
- * under User, joined by every project's under All projects.
+ * Agents: a project's, the user-layer agents (`workspace` omitted) under User,
+ * or under All projects the aggregate (User agents plus every project's).
  */
 function useAgentSection(context: OsPaletteDomainContext, catalogs: OsPaletteWorkspaceCatalogs) {
   const all = context.scope.kind === "all";
   const project = context.scope.kind === "project";
   const userLayerAgents = useAgents(null, {
-    enabled: paletteDomainEnabled(context, "Agents") && !project,
+    enabled: paletteDomainEnabled(context, "Agents") && !project && !all,
   });
   const workspaceAgents = useAgents(context.scopedWorkspace, {
     enabled: paletteDomainEnabled(context, "Agents") && project,
   });
   if (context.signals === null) return EMPTY_SECTION("Agents");
-  const rows = !project
-    ? [
-        ...(userLayerAgents.data ?? []).map(agent => ({
+  const rows = all
+    ? catalogs.workspaceAgents
+    : !project
+      ? (userLayerAgents.data ?? []).map(agent => ({ agent, workspaceId: agent.workspace_id }))
+      : (workspaceAgents.data ?? []).map(agent => ({
           agent,
-          workspaceId: agent.workspace_id,
-        })),
-        ...(all ? catalogs.workspaceAgents : []),
-      ]
-    : (workspaceAgents.data ?? []).map(agent => ({
-        agent,
-        workspaceId: agent.workspace_id ?? context.workspaceId,
-      }));
+          workspaceId: agent.workspace_id ?? context.workspaceId,
+        }));
   return section(
     "Agents",
     rows.map(({ agent, workspaceId }) =>
@@ -120,15 +116,7 @@ function useAgentSection(context: OsPaletteDomainContext, catalogs: OsPaletteWor
         ...(agent.origin === "workspace" && workspaceId ? { workspaceId } : {}),
       })
     ),
-    all
-      ? {
-          isLoading: userLayerAgents.isLoading || catalogs.workspaceAgentState.isLoading,
-          isError: userLayerAgents.isError || catalogs.workspaceAgentState.isError,
-          error: userLayerAgents.error ?? catalogs.workspaceAgentState.error,
-        }
-      : project
-        ? workspaceAgents
-        : userLayerAgents,
+    all ? catalogs.workspaceAgentState : project ? workspaceAgents : userLayerAgents,
     paletteDomainEnabled(context, "Agents"),
     context.query,
     context.signals,

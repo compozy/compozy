@@ -23,7 +23,6 @@ export const Route = createFileRoute("/_app/automations")({
     enabled: search.enabled,
     loop: automationListLoopFilter(search),
     q: search.q,
-    scope: search.scope,
     source: search.source,
     start: search.start,
     target: search.target,

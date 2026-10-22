@@ -7,22 +7,39 @@ import { useListingSearchShortcut } from "@/hooks/use-listing-search-shortcut";
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import {
+  type AgentFleetRowModel,
   type AgentsFleetSearch,
   hasActiveAgentFleetFilters,
   projectAgentFleetRows,
+  useAgentAggregate,
   useAgentCatalog,
   useAgentCreateHost,
 } from "@/systems/agent";
+import { useProfileReadScope } from "@/systems/profiles";
 import { useSessionCreateActions, useSessionCreateHasActiveWorkspace } from "@/systems/session";
-import { useActiveWorkspace, USER_SCOPE_SELECTOR } from "@/systems/workspace";
+import {
+  focusedWorkspaceSelector,
+  ownerDataScope,
+  useActiveWorkspace,
+  useProjectFilter,
+  useWindowDataWorkspace,
+  workspaceBadgeIdentity,
+} from "@/systems/workspace";
+import { useOpenTarget } from "../../hooks/use-open-target";
 
 const SEARCH_DEBOUNCE_MS = 200;
 
 function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
-  const { dataScope, runtimeWorkspaceId, pending } = useActiveWorkspace();
+  const { pending, workspaces } = useActiveWorkspace();
+  const profile = useProfileReadScope();
+  const openItem = useOpenTarget();
+  // The window's scope: a project's agents, User's (`@user`), or under All
+  // projects every project's agents plus User's, one row per (project, name).
+  const dataScope = useWindowDataWorkspace();
+  const allProjects = dataScope?.kind === "all";
+  const workspaceId = focusedWorkspaceSelector(dataScope);
+  const projectFilter = useProjectFilter(dataScope, workspaces);
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  // A project's agents, User's (`@user`), or the user layer under All projects.
-  const workspaceId = dataScope?.kind === "user" ? USER_SCOPE_SELECTOR : (runtimeWorkspaceId ?? "");
   const navigate = useNavigate({ from: "/agents" });
   const { openDialog } = useAgentCreateHost();
   const { openForAgent } = useSessionCreateActions();
@@ -39,17 +56,15 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       updateSearch(current => ({ ...current, q: normalizeListingSearchValue(nextQuery) })),
   });
 
-  const agentsEnabled = liveDataEnabled && !pending;
-  const catalogQuery = useAgentCatalog(
-    workspaceId,
-    {
-      q: search.q,
-      category: search.category,
-      status: search.status,
-      limit: 50,
-    },
-    { enabled: agentsEnabled }
-  );
+  const agentsEnabled = liveDataEnabled && !pending && dataScope !== null;
+  const filters = { q: search.q, category: search.category, status: search.status, limit: 50 };
+  const projectCatalog = useAgentCatalog(workspaceId, filters, {
+    enabled: agentsEnabled && !allProjects,
+  });
+  const aggregateCatalog = useAgentAggregate(projectFilter.values, filters, {
+    enabled: agentsEnabled && allProjects,
+  });
+  const catalogQuery = allProjects ? aggregateCatalog : projectCatalog;
   const agents = catalogQuery.agents.map(item => item.agent);
   const sessionsPartial = catalogQuery.isSuccess && !catalogQuery.sessionsAvailable;
   const view: ListingViewMode = search.view ?? "rows";
@@ -67,6 +82,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
 
   const clearFilters = () => {
     queryInput.reset("");
+    projectFilter.setValues([]);
     updateSearch(current => ({
       view: current.view,
     }));
@@ -76,13 +92,24 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     openForAgent(agentName);
   };
 
+  const workspaceNames = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
   const rows = projectAgentFleetRows({
     items: catalogQuery.agents,
     sessionsAvailable: catalogQuery.sessionsAvailable,
+    ...(allProjects
+      ? { projectOf: agent => workspaceBadgeIdentity(agent.workspace_id, workspaceNames) }
+      : {}),
   });
+  // All projects: an agent opens in place, its window bound to the agent's project.
+  const openAgent = (row: AgentFleetRowModel) =>
+    openItem({
+      app: "agents",
+      binding: ownerDataScope(row.agent.workspace_id),
+      route: { pathname: `/agents/${encodeURIComponent(row.agent.name)}`, search: {} },
+    });
 
   const { isLoading, isFirstRunEmpty, isFilteredEmpty, showFacets, showViewToggle } =
-    projectFleetVisibility(catalogQuery, pending, search);
+    projectFleetVisibility(catalogQuery, pending, search, projectFilter.values.length > 0);
 
   return {
     workspaceId,
@@ -111,6 +138,12 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     loadMore: () => {
       void catalogQuery.fetchNextPage();
     },
+    openAgent: allProjects ? openAgent : undefined,
+    projectField: projectFilter.field,
+    projectFilter: projectFilter.values,
+    setProjectFilter: projectFilter.setValues,
+    /** All profiles reads definitions for the acting profile only (configuration resolves per profile). */
+    definitionsFor: profile.aggregate ? profile.destination : null,
     showFacets,
     showViewToggle,
     agentsError: catalogQuery.error,
@@ -123,9 +156,10 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
 function projectFleetVisibility(
   catalogQuery: ReturnType<typeof useAgentCatalog>,
   pending: boolean,
-  search: AgentsFleetSearch
+  search: AgentsFleetSearch,
+  projectFilterActive: boolean
 ) {
-  const filtersActive = hasActiveAgentFleetFilters(search);
+  const filtersActive = hasActiveAgentFleetFilters(search) || projectFilterActive;
   const isLoading = pending || catalogQuery.isLoading;
   const overallTotal = catalogQuery.facets?.total ?? 0;
   const isFirstRunEmpty =

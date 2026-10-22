@@ -50,6 +50,7 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
           onClearFilters={page.clearFilters}
           onCreateAgent={page.openCreate}
           onNewSession={page.openNewSession}
+          onOpenAgent={page.openAgent}
           paginationStatus={listPaginationStatus(page.isLoadingMore, page.hasMore)}
           onLoadMore={page.loadMore}
           rows={page.rows}

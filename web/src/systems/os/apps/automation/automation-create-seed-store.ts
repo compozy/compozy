@@ -20,7 +20,7 @@ type AutomationCreateSeedEvents = {
     seed: AutomationEditorSeed | null;
     workspaceResolved: boolean;
     open: (seed: AutomationEditorSeed) => void;
-    /** A Loop seed in Global: the Loop lives in a project. */
+    /** A Loop seed in User or All projects: the Loop lives in a project. */
     refuse: () => void;
     strip: () => void;
   };

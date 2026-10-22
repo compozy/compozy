@@ -1,14 +1,17 @@
 import { toast } from "sonner";
 
 import {
+  automationSuggestionsSource,
   compareAutomationViews,
   toAutomationView,
   type AutomationJob,
+  type AutomationSuggestion,
   type AutomationTrigger,
   type AutomationView,
   type AutomationsRouteSearch,
 } from "@/systems/automation";
 import { useProfileReadScope } from "@/systems/profiles";
+import { workspaceBadgeIdentity } from "@/systems/workspace";
 
 import { deriveAutomationListingState } from "./automation-listing-state";
 import { useAutomationRowActions } from "./use-automation-row-actions";
@@ -71,6 +74,7 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const profile = useProfileReadScope();
 
   const lists = useAutomationLists({
+    enabled: page.listsEnabled,
     filters: page.listFilters,
     start: page.start,
     targetFilter: page.targetFilter,
@@ -78,11 +82,16 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   const { jobsQuery, triggersQuery, showJobs, showTriggers, loadedTriggers } = lists;
 
   const workspaceNames = new Map(page.workspaces.map(option => [option.id, option.name]));
+  // All projects: every row names its project (User for automations without one).
+  const allProjects = page.dataScope?.kind === "all";
   const toView = (entity: AutomationJob | AutomationTrigger) =>
     toAutomationView(entity, {
       timeZone: page.timeZone,
       workspaceName: id => workspaceNames.get(id),
       ...(profile.aggregate ? { ownerOf: profile.ownerOf } : {}),
+      ...(allProjects
+        ? { projectOf: item => workspaceBadgeIdentity(item.workspace_id, workspaceNames) }
+        : {}),
     });
   // Footer truth ("M on · next run in X") spans both loaded lists, whatever the view.
   const loaded = mergeAutomationViews(jobsQuery.jobs, loadedTriggers, toView);
@@ -119,11 +128,11 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
   /** Window count = both totals for the current filters; unknown until both answer. */
   const total = counts.all;
 
-  // Suggestions are workspace-scoped: never in Global scope or the all-profiles aggregate.
-  const suggestionsWorkspaceId =
-    firstRun && search.scope !== "global" && !profile.aggregate && page.activeWorkspaceId
-      ? page.activeWorkspaceId
-      : null;
+  // Suggestions are per project: never under User or the all-profiles aggregate.
+  const suggestionsSource = automationSuggestionsSource(
+    page.dataScope,
+    firstRun && !profile.aggregate
+  );
 
   const findEntity = (view: AutomationView): AutomationJob | AutomationTrigger | undefined =>
     view.kind === "job"
@@ -156,7 +165,12 @@ export function useAutomationsPage(search: AutomationsRouteSearch = {}) {
     create: editor.create,
     editorDialogProps: editor.editorDialogProps,
     firstRun,
-    suggestionsWorkspaceId,
+    suggestionsSource,
+    /** All projects: the project each suggestion belongs to. */
+    suggestionProject: allProjects
+      ? (suggestion: AutomationSuggestion) =>
+          workspaceBadgeIdentity(suggestion.workspace_id, workspaceNames)
+      : undefined,
     isFetchingMore: lists.isFetchingMore,
     isLoading,
     isPaused: lists.isPaused,

@@ -26,6 +26,7 @@ import {
   type AutomationItemControls,
   type AutomationsRouteSearch,
 } from "@/systems/automation";
+import { WorkspaceBadge } from "@/systems/workspace";
 import { AutomationListFooter, AutomationPartialAlert } from "./automations-catalog-parts";
 
 export function AutomationsCatalogLocation({ search }: { search: AutomationsRouteSearch }) {
@@ -69,14 +70,15 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
                 handlers={{
                   onEnabledChange: page.setEnabledFilter,
                   onLoopChange: page.setLoopFilter,
-                  onScopeChange: page.setScopeFilter,
+                  onProjectsChange: page.setProjectFilter,
                   onSourceChange: page.setSourceFilter,
                   onTargetChange: page.setTargetFilter,
                 }}
+                projectField={page.projectFilterField}
                 state={{
                   enabled: page.enabledFilter,
                   loop: page.loopFilter,
-                  scope: page.scopeFilter,
+                  projects: page.projectFilter,
                   source: page.sourceFilter,
                   target: page.targetFilter,
                 }}
@@ -168,11 +170,20 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
           }}
           profileScope={page.profileScope}
           unfilteredEmptyPanel={
-            page.suggestionsWorkspaceId ? (
+            page.suggestionsSource ? (
               <AutomationSuggestionsPanel
-                key={page.suggestionsWorkspaceId}
+                key={
+                  page.suggestionsSource.kind === "all" ? "all" : page.suggestionsSource.workspaceID
+                }
+                projectBadge={
+                  page.suggestionProject
+                    ? suggestion => (
+                        <WorkspaceBadge identity={page.suggestionProject!(suggestion)} />
+                      )
+                    : undefined
+                }
+                source={page.suggestionsSource}
                 timeZone={page.timeZone}
-                workspaceID={page.suggestionsWorkspaceId}
               />
             ) : null
           }

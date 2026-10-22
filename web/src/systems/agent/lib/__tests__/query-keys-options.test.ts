@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { agentKeys } from "../query-keys";
 import {
+  agentAggregateOptions,
   agentCatalogOptions,
   agentDetailOptions,
   agentHeartbeatHistoryOptions,
@@ -13,6 +14,18 @@ import {
 } from "../query-options";
 
 describe("agent query keys/options", () => {
+  it("Should key the All projects catalog by Project-filter selection under the catalogs root", () => {
+    const options = agentAggregateOptions(["ws_b", "@user"], { limit: 50 });
+    expect(options.queryKey).toEqual([
+      "agents",
+      "catalog",
+      "@aggregate",
+      "@user,ws_b",
+      expect.objectContaining({ profile: "default", limit: 50 }),
+    ]);
+    expect(options.queryKey.slice(0, 2)).toEqual(agentKeys.catalogs());
+  });
+
   it("Should normalize catalog filters into a workspace-stable infinite key", () => {
     const options = agentCatalogOptions(" ws_alpha ", {
       q: "  release ",

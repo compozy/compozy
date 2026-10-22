@@ -24,7 +24,8 @@ export function WorkspaceBadge({
       data-kind={identity.kind}
       className={cn(
         "inline-flex min-w-0 items-center gap-1",
-        variant === "meta" ? "text-micro text-muted" : "text-body text-muted",
+        variant === "meta" ? "text-micro" : "text-body",
+        identity.kind === "unknown" ? "text-faint" : "text-muted",
         className
       )}
       {...props}

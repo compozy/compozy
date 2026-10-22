@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { automationSuggestionsListOptions } from "../lib/query-options";
-import type { AutomationSuggestionStatus } from "../types";
+import { automationSuggestionsSourceOptions } from "../lib/query-options";
+import type { AutomationSuggestionStatus, AutomationSuggestionsSource } from "../types";
 
 export function useAutomationSuggestions(
-  workspaceID: string,
+  source: AutomationSuggestionsSource,
   status: AutomationSuggestionStatus = "pending"
 ) {
-  return useQuery(automationSuggestionsListOptions(workspaceID, status));
+  return useQuery(automationSuggestionsSourceOptions(source, status));
 }

@@ -290,6 +290,7 @@ vi.mock("@/systems/workspace", async importOriginal => ({
   useBreadthMode: () => (paletteMocks.scope === "global" ? "all" : "focused"),
   useWorktrees: () => ({ data: undefined }),
   useWorktreeListings: () => ({}),
+  useWorktreeAggregate: () => ({ data: undefined }),
   useScopedWorktreeFilter: () => ({ worktreeId: undefined, resolved: true }),
   useActiveWorktree: () => ({ selectedWorktreeId: null, activeWorktree: null, fallback: null }),
   useActiveWorkspace: () => ({
@@ -1152,6 +1153,49 @@ describe("useOsPaletteRoot", () => {
     );
     expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
     expect(paletteMocks.setActiveWorkspaceId).not.toHaveBeenCalled();
+  });
+
+  // Agents: under All projects a project agent opens in place bound to its project; a
+  // user-layer agent (no project) opens unbound and reads the user layer.
+  it("Should open an All projects agent row in place, and a user-layer agent unbound", async () => {
+    paletteMocks.scope = "global";
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("global"),
+    };
+    const { result } = renderRoot(true);
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "agents",
+        key: "agent:workspace:alpha:reviewer",
+        label: "reviewer",
+        route: { pathname: "/agents/reviewer", search: {} },
+        workspaceId: "workspace:alpha",
+      });
+    });
+    expect(paletteMocks.openItem).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        app: "agents",
+        binding: { kind: "project", workspaceId: "workspace:alpha" },
+      }),
+      "Couldn't open reviewer. Try again."
+    );
+    expect(paletteMocks.setActiveWorkspaceId).not.toHaveBeenCalled();
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "agents",
+        key: "agent:global:general",
+        label: "general",
+        route: { pathname: "/agents/general", search: {} },
+      });
+    });
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ app: "agents", route: { pathname: "/agents/general", search: {} } })
+    );
+    expect(paletteMocks.openItem).toHaveBeenCalledTimes(1);
   });
 
   it("Should bind a User task row to the User scope", async () => {

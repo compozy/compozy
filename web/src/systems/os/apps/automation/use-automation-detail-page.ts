@@ -22,11 +22,16 @@ import {
   type AutomationEditorSection,
   type AutomationEntityKind,
   type AutomationRun,
+  automationRunProject,
   toAutomationView,
   useAutomationEditor,
 } from "@/systems/automation";
 import { useSettingsAutomation } from "@/systems/settings";
-import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+import {
+  toWorkspaceCommandSelectOptions,
+  useActiveWorkspace,
+  useWindowDataWorkspace,
+} from "@/systems/workspace";
 
 /**
  * One detail view-model for both daemon entities. The route keeps the entity
@@ -40,15 +45,23 @@ export function useAutomationDetailPage(
 ) {
   const navigate = useNavigate();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const { activeWorkspaceId, isLoading: workspaceLoading, workspaces } = useActiveWorkspace();
+  const {
+    activeWorkspaceId,
+    breadthMode,
+    isLoading: workspaceLoading,
+    workspaces,
+  } = useActiveWorkspace();
+  // The window's own scope decides readability: its binding, else its desktop.
+  const windowScope = useWindowDataWorkspace();
+  const readableWorkspaceId = windowScope?.kind === "project" ? windowScope.workspaceId : null;
   const [queuedRun, setQueuedRun] = useState<AutomationRun | null>(null);
 
   const { accessError, detailQuery, entity } = useAutomationDetailEntity(
     kind,
     id,
     liveDataEnabled,
-    activeWorkspaceId,
-    workspaceLoading
+    readableWorkspaceId,
+    workspaceLoading || windowScope === null
   );
   const runsQuery = useAutomationDetailRuns(kind, id, liveDataEnabled && Boolean(entity));
 
@@ -115,6 +128,15 @@ export function useAutomationDetailPage(
       runs,
       runsError: entity ? runsQuery.error : null,
       runsLoading: entity ? runsQuery.isLoading : false,
+      // All projects: a run keeps the project it was recorded in, even after a retarget.
+      runProject:
+        breadthMode === "all"
+          ? (run: AutomationRun) =>
+              automationRunProject(
+                run,
+                new Map(workspaces.map(workspace => [workspace.id, workspace.name]))
+              )
+          : undefined,
       state: {
         isDeleting: mutations.remove.isPending,
         isTogglePending: mutations.update.isPending,

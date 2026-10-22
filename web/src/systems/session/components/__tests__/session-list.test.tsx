@@ -161,6 +161,24 @@ function renderList(
   };
 }
 
+// USW W-08: a session running with the agent's `unrestricted` grant carries the warning-tone
+// Unrestricted badge on line 2, named for assistive tech with the grant's plain description.
+describe("SessionList unrestricted grant", () => {
+  it("W-08 shows the Unrestricted badge only on sessions with the grant", () => {
+    renderList({
+      sessions: [
+        { ...sessions[0]!, effective_workspace_access: "unrestricted" },
+        { ...sessions[1]!, effective_workspace_access: "" },
+      ],
+    });
+
+    expect(screen.getByTestId("session-row-unrestricted-running")).toHaveAccessibleName(
+      "Unrestricted: This agent can read and change every project and profile."
+    );
+    expect(screen.queryByTestId("session-row-unrestricted-stopped")).not.toBeInTheDocument();
+  });
+});
+
 describe("SessionList selection", () => {
   // Invariant: hovering a row swaps its compact time for the actions, so the row
   // target itself still reveals the full timestamp to mouse users.

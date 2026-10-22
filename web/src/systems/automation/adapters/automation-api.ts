@@ -69,6 +69,8 @@ export async function listAutomationJobs(
       query: {
         scope: filters.scope,
         workspace_id: normalizeOptionalText(filters.workspace_id),
+        all_workspaces: filters.all_workspaces,
+        workspace_ids: filters.workspace_ids,
         source: filters.source,
         target: filters.target,
         enabled: filters.enabled,
@@ -248,6 +250,8 @@ export async function listAutomationTriggers(
       query: {
         scope: filters.scope,
         workspace_id: normalizeOptionalText(filters.workspace_id),
+        all_workspaces: filters.all_workspaces,
+        workspace_ids: filters.workspace_ids,
         source: filters.source,
         target: filters.target,
         enabled: filters.enabled,

@@ -3,7 +3,8 @@ import { workspaceMonogram } from "./active-workspace";
 import { DESTINATION_COPY } from "./workspace-scope-copy";
 
 export interface WorkspaceBadgeIdentity {
-  kind: "project" | "user";
+  /** `unknown`: an item whose project could not be established (never shown as User). */
+  kind: "project" | "user" | "unknown";
   name: string;
   monogram: string;
 }
@@ -22,4 +23,13 @@ export function workspaceBadgeIdentity(
   }
   const name = names.get(scope.workspaceId) ?? scope.workspaceId;
   return { kind: "project", name, monogram: workspaceMonogram(name) };
+}
+
+/** The badge of an item whose project could not be established: muted `?`, never "User". */
+export function unknownProjectIdentity(): WorkspaceBadgeIdentity {
+  return {
+    kind: "unknown",
+    name: DESTINATION_COPY.unknownProject,
+    monogram: DESTINATION_COPY.unknownProjectMonogram,
+  };
 }

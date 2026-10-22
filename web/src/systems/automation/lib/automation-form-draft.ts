@@ -99,7 +99,7 @@ function retainValidConditions(
  * `schedule`/`task`, and the trigger's event, conditions and link identity.
  * `event` is the event start's runtime id and is never `webhook`; a link start
  * is its own Starts choice. `scope`/`workspace_id` keep the home location even
- * while a link start forces Global, so switching back restores it.
+ * while a link start forces User, so switching back restores it.
  */
 export type AutomationFormDraft = CreateAutomationJobRequest &
   TriggerOnlyFields & {
@@ -252,7 +252,7 @@ export function automationFormJobDraft(draft: AutomationFormDraft): CreateAutoma
   };
 }
 
-/** The trigger create draft; a link start is always Global and carries its identity. */
+/** The trigger create draft; a link start is always in User and carries its identity. */
 export function automationFormTriggerDraft(
   draft: AutomationFormDraft
 ): CreateAutomationTriggerRequest {

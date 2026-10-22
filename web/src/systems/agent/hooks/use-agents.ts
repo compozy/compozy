@@ -1,9 +1,18 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { createAgent, deleteAgent, duplicateAgent, updateAgent } from "../adapters/agent-api";
-import { agentCatalogOptions, agentsListOptions, agentDetailOptions } from "../lib/query-options";
+import {
+  agentAggregateOptions,
+  agentCatalogOptions,
+  agentsListOptions,
+  agentDetailOptions,
+} from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
-import { agentCatalogPage, flattenAgentCatalogPages } from "../lib/agent-catalog-query";
+import {
+  agentCatalogPage,
+  flattenAgentAggregatePages,
+  flattenAgentCatalogPages,
+} from "../lib/agent-catalog-query";
 import type {
   AgentCatalogStableFilter,
   AgentPayload,
@@ -55,6 +64,31 @@ export function useAgentCatalog(
   return {
     ...query,
     agents: flattenAgentCatalogPages(query.data),
+    facets: firstPage?.facets,
+    sessionsAvailable: firstPage?.sessions_available ?? false,
+    total: firstPage?.page.total ?? 0,
+  };
+}
+
+/**
+ * The All projects catalog: User agents plus every project's, one row per
+ * `(workspace_id, name)` for the acting profile, with the same envelope as the
+ * project catalog.
+ */
+export function useAgentAggregate(
+  workspaceIds: readonly string[],
+  filters: AgentCatalogStableFilter = {},
+  options: UseAgentsOptions = {}
+) {
+  const { destination } = useProfileReadScope();
+  const query = useInfiniteQuery({
+    ...agentAggregateOptions(workspaceIds, { ...filters, profile: destination }),
+    enabled: options.enabled ?? true,
+  });
+  const firstPage = agentCatalogPage(query.data);
+  return {
+    ...query,
+    agents: flattenAgentAggregatePages(query.data),
     facets: firstPage?.facets,
     sessionsAvailable: firstPage?.sessions_available ?? false,
     total: firstPage?.page.total ?? 0,

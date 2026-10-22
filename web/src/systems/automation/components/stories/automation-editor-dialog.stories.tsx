@@ -121,7 +121,7 @@ export const NewOnEvent: Story = {
   render: () => <AutomationEditorHarness initialDraft={readyEvent} />,
 };
 
-/** editor VC-01: a link start, always Global. */
+/** editor VC-01: a link start, always in User. */
 export const NewOnLink: Story = {
   args: {},
   render: () => <AutomationEditorHarness initialDraft={readyLink} />,

@@ -13,6 +13,7 @@ import type { OsDesktopRuntimeStore } from "../../lib/os-types";
 import { useDesktop } from "../../hooks/use-desktop";
 import { matchTerminalInstance } from "../../lib/app-catalog";
 import { useTerminalWindowControllerState } from "./hooks/use-terminal-window-controller-state";
+import { TerminalAggregateLocation } from "./terminal-aggregate-location";
 import { useTerminalWindowHostActions } from "./hooks/use-terminal-window-host-actions";
 import {
   TerminalWindowControllerContext,
@@ -54,7 +55,31 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
 }
 
 function TerminalWindowLoadBoundary({ windowId }: { windowId: string }) {
-  const { catalog, inputRequests, workspaceId } = useTerminalWindowControllerContext();
+  const {
+    aggregate,
+    catalog,
+    coordinator,
+    inputRequests,
+    pathname,
+    profile,
+    viewer,
+    workspace,
+    workspaceId,
+  } = useTerminalWindowControllerContext();
+  if (aggregate) {
+    return (
+      <TerminalAggregateLocation
+        catalog={aggregate.catalog}
+        coordinator={coordinator}
+        profile={profile.destination}
+        readOnly={profile.aggregate}
+        requestedId={matchTerminalInstance(pathname)}
+        viewer={viewer}
+        windowId={windowId}
+        workspaces={workspace.workspaces}
+      />
+    );
+  }
   if (workspaceId === "") {
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
@@ -101,7 +126,8 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     viewerId,
     viewerToken,
     viewer,
-    workspace,
+    projectLabel,
+    retargetSearch,
     workspaceId,
   } = useTerminalWindowControllerContext();
   const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
@@ -109,7 +135,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
     void coordinator.userRetarget(windowId, {
       app: "terminal",
       instanceKey: terminalId,
-      route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
+      route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: retargetSearch },
     });
   };
   const actions = useTerminalWindowHostActions({
@@ -181,7 +207,7 @@ function TerminalWindowLoaded({ windowId }: { windowId: string }) {
       recordings={recordings}
       onViewJournal={unlockJournal}
       profile={profile.destination}
-      projectLabel={workspace.runtimeWorkspace?.name}
+      projectLabel={projectLabel}
       readOnly={profile.aggregate}
       requestedTerminalId={requestedId}
       resolveReady={catalog.isFetchedAfterMount}

@@ -53,3 +53,24 @@ export function agentCatalogPage(
 ): AgentCatalogResponse | undefined {
   return data?.pages[0];
 }
+
+/** Aggregate identity: same-named agents in different projects are distinct rows. */
+export function agentCatalogItemKey(item: AgentCatalogItem): string {
+  return `${item.agent.workspace_id ?? ""}\u0000${item.agent.name}`;
+}
+
+export function flattenAgentAggregatePages(
+  data: InfiniteData<AgentCatalogResponse, unknown> | undefined
+): AgentCatalogItem[] {
+  const seen = new Set<string>();
+  return (
+    data?.pages.flatMap(page =>
+      page.agents.filter(item => {
+        const key = agentCatalogItemKey(item);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+    ) ?? []
+  );
+}

@@ -7,6 +7,9 @@ export const DESTINATION_COPY = {
   allProjectsMonogram: "∗",
   user: "User",
   userMonogram: "~",
+  /** An automation run whose source project could not be established. */
+  unknownProject: "Unknown project",
+  unknownProjectMonogram: "?",
   liveOn: "All projects on",
   liveOff: "All projects off",
   skipOnboarding: "Skip — use my home folder",

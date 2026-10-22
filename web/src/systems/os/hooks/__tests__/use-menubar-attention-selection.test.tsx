@@ -1,8 +1,8 @@
-// Suite: menubar bell row selection (task and Loop kinds of openTarget)
-// Invariant: under All projects a bell task or Loop row opens in place in the `global` desktop,
-// bound to its own scope (a project, or `@user` for an item without one), and the destination
-// never changes. With a project focused, a foreign item focuses its destination first and opens
-// only once that partition's window manager is live.
+// Suite: menubar bell row selection (task, Loop, and terminal kinds of openTarget)
+// Invariant: under All projects a bell task, Loop, or terminal row opens in place in the `global`
+// desktop, bound to its own scope (a project, or `@user` for an item without one), and the
+// destination never changes. With a project focused, a foreign item focuses its destination first
+// and opens only once that partition's window manager is live.
 // Owning layer: OS navigation hook. No prior suite owned bell row selection.
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,9 +21,14 @@ const userOpen = vi.fn(() => Promise.resolve("window-tasks"));
 
 vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
 
-// Only the Loop request route builder; the terminal barrel is not exercised by these rows.
+// Only the Loop request and terminal route builders; neither barrel's hook graph is exercised.
 vi.mock("@/systems/loops", async () => await import("@/systems/loops/lib/loop-request-location"));
-vi.mock("@/systems/terminal", () => ({ terminalAttentionLocation: vi.fn() }));
+vi.mock("@/systems/terminal", () => ({
+  terminalAttentionLocation: (terminalId: string) => ({
+    pathname: `/terminal/${terminalId}`,
+    search: {},
+  }),
+}));
 
 vi.mock("@/systems/workspace", async () => {
   // The pure destination helpers, without the barrel's hook graph.
@@ -124,6 +129,26 @@ describe("useMenubarAttentionSelection", () => {
       app: "tasks",
       route: { pathname: "/tasks/task-42", search: {} },
     });
+  });
+
+  it("Should open a terminal input request in place bound to its terminal's scope", () => {
+    const { result } = renderHook(() => useMenubarAttentionSelection(vi.fn()));
+
+    act(() =>
+      result.current({
+        kind: "terminal-input",
+        id: "req-1",
+        terminalId: "term-1",
+        workspaceId: "",
+      } as OsAttentionRow)
+    );
+
+    expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "terminal",
+      instanceKey: "term-1",
+      route: { pathname: "/terminal/term-1", search: { workspace: "@user" } },
+    });
+    expect(setActiveWorkspaceId).not.toHaveBeenCalled();
   });
 });
 

@@ -17,7 +17,7 @@ import {
 } from "../adapters/worktree-api";
 import { activeWorkspaceStore } from "../stores/active-workspace-store";
 import { workspaceKeys } from "../lib/query-keys";
-import { worktreesListOptions } from "../lib/query-options";
+import { worktreesAggregateOptions, worktreesListOptions } from "../lib/query-options";
 import { reconcileWorktreeList, removeWorktreeFromList } from "../lib/worktree-list-reconciliation";
 import type { WorktreeListingByWorkspace } from "../lib/workspace-tree";
 import { describeBranchOutcome } from "../lib/worktree-branch-outcome";
@@ -31,6 +31,14 @@ interface UseWorktreesOptions {
 
 export function useWorktrees(workspaceID: string | null, options: UseWorktreesOptions = {}) {
   return useQuery(worktreesListOptions(workspaceID ?? "", options.enabled ?? true));
+}
+
+/** Every project's worktrees in one store read (All projects), narrowed by the Project filter. */
+export function useWorktreeAggregate(
+  workspaceIDs: readonly string[] = [],
+  options: UseWorktreesOptions = {}
+) {
+  return useQuery(worktreesAggregateOptions(workspaceIDs, options.enabled ?? true));
 }
 
 /**

@@ -21,6 +21,13 @@ import type { OsAppId } from "../lib/os-types";
  */
 const OPEN_IN_PLACE_APPS: ReadonlySet<OsAppId> = new Set<OsAppId>(["tasks", "loops"]);
 
+/**
+ * Apps whose project rows open in place only under All projects. Their rows
+ * without a project (user-layer agents) keep opening unbound, and project
+ * mode keeps the switch-project path.
+ */
+const ALL_PROJECTS_IN_PLACE_APPS: ReadonlySet<OsAppId> = new Set<OsAppId>(["agents", "terminal"]);
+
 interface PendingDomainOpen {
   readonly row: OsPaletteDomainRow;
   readonly workspaceId: string;
@@ -55,8 +62,13 @@ function openDomainRoute(coordinator: RoutingCoordinator, row: OsPaletteDomainRo
  */
 export function useOsPaletteDomainOpen(onDismiss: () => void): (row: OsPaletteDomainRow) => void {
   const { coordinator } = useOsShell();
-  const { activeWorkspaceId, registeredWorkspaces, runtimeWorkspaceId, setActiveWorkspaceId } =
-    useActiveWorkspace();
+  const {
+    activeWorkspaceId,
+    dataScope,
+    registeredWorkspaces,
+    runtimeWorkspaceId,
+    setActiveWorkspaceId,
+  } = useActiveWorkspace();
   const commandAvailable = useDesktop(windowManagerCommandsAvailable);
   const commandWorkspaceId = useDesktop(state => state.snapshot?.workspaceId.trim() || null);
   const worktreeScopeId = useFocusedWorktreeScopeId();
@@ -117,6 +129,19 @@ export function useOsPaletteDomainOpen(onDismiss: () => void): (row: OsPaletteDo
     }
     if (!registeredWorkspaces.some(workspace => workspace.id === workspaceId)) {
       domainOpenError(row);
+      return;
+    }
+    if (dataScope?.kind === "all" && ALL_PROJECTS_IN_PLACE_APPS.has(row.app)) {
+      const instanceKey = resolveAppForPath(row.route.pathname)?.instanceKey;
+      openItem(
+        {
+          app: row.app,
+          binding: ownerDataScope(workspaceId),
+          route: row.route,
+          ...(instanceKey ? { instanceKey } : {}),
+        },
+        `Couldn't open ${row.label}. Try again.`
+      );
       return;
     }
     if (

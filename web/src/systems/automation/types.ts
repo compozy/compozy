@@ -27,6 +27,11 @@ export type AutomationSuggestionStatus = NonNullable<
   OperationQuery<"listAutomationSuggestions">["status"]
 >;
 
+/** Where a suggestions list reads: one project, or the All projects aggregate. */
+export type AutomationSuggestionsSource =
+  | { kind: "workspace"; workspaceID: string }
+  | { kind: "all"; workspaceIDs: readonly string[] };
+
 export type CreateAutomationJobRequest = OperationRequestBody<"createAutomationJob">;
 export type UpdateAutomationJobRequest = OperationRequestBody<"updateAutomationJob">;
 export type CreateAutomationTriggerRequest = OperationRequestBody<"createAutomationTrigger">;

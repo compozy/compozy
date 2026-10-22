@@ -64,6 +64,39 @@ export function taskBreadthParams(query: BreadthQuery): {
     : { all_workspaces: true };
 }
 
+/**
+ * Automation-list spelling (jobs, triggers): `all_workspaces` (+ `workspace_ids`)
+ * under All projects, `scope=global` for User, and only that project's
+ * definitions for a project (`scope=workspace&workspace_id`, decision 8A).
+ */
+export function automationBreadthParams(query: BreadthQuery): {
+  all_workspaces?: true;
+  workspace_ids?: string[];
+  scope?: "global" | "workspace";
+  workspace_id?: string;
+} {
+  const { scope } = query;
+  if (scope.kind === "project") return { scope: "workspace", workspace_id: scope.workspaceId };
+  if (scope.kind === "user") return { scope: "global" };
+  return query.workspaceIds
+    ? { all_workspaces: true, workspace_ids: [...query.workspaceIds] }
+    : { all_workspaces: true };
+}
+
+/**
+ * Aggregate-route spelling (worktrees, terminals, agents, suggestions):
+ * `all_workspaces` (+ `workspace_ids`). A bounded scope reads its own path
+ * route instead, so it has no aggregate params.
+ */
+export function aggregateBreadthParams(
+  query: BreadthQuery
+): { all_workspaces: true; workspace_ids?: string[] } | null {
+  if (query.scope.kind !== "all") return null;
+  return query.workspaceIds
+    ? { all_workspaces: true, workspace_ids: [...query.workspaceIds] }
+    : { all_workspaces: true };
+}
+
 /** Where a Loop list read goes: the aggregate route, or one workspace path (`@user` for User). */
 export type LoopBreadthTarget =
   | { kind: "aggregate"; params: { all_workspaces: true; workspace_ids?: string[] } }

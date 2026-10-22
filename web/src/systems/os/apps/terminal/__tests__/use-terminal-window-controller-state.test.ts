@@ -6,9 +6,10 @@
 // terminal-recording-state / use-terminal-recordings.
 // Close invariant: only confirmed running targets terminate; cancellation,
 // stale scope, or failed termination keeps the managed window retryable.
+// All projects invariant: an unbound window lists the aggregate and opens in place, bound.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "@compozy/ui";
@@ -35,6 +36,7 @@ import { windowManagerClientFixture, windowManagerStorySnapshot } from "../../..
 import { settingsWindowManagerSectionFixture } from "@/systems/settings/mocks/window-manager-fixtures";
 import { WindowManagerRuntime } from "../../../runtime/window-manager-runtime";
 import { useTerminalWindowCreation } from "../hooks/use-terminal-window-creation";
+import { TerminalAggregateLocation } from "../terminal-aggregate-location";
 
 vi.mock("@/systems/terminal/adapters/terminal-api", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/terminal/adapters/terminal-api")>();
@@ -493,5 +495,86 @@ describe("terminal window close lifecycle", () => {
     const { guard } = setup();
     await expect(guard([{ ...terminalWindow, app: "tasks" }], () => true)).resolves.toBe(true);
     expect(fetchTerminals).not.toHaveBeenCalled();
+  });
+});
+
+// Invariant (W-20): an unbound Terminal window on the All projects desktop lists every project's
+// terminals with project badges, and opening one — or a new one in the project the operator
+// picks — binds this window to that terminal's own scope in place (route `workspace`).
+describe("terminal window under All projects", () => {
+  const workspaces = [{ id: "ws-atlas", name: "atlas" }];
+  const userTerminal = { ...DEV_SERVER_TERMINAL, id: "term-user", title: "home", workspace_id: "" };
+
+  function renderAggregate(overrides: { requestedId?: string | null } = {}) {
+    const coordinator = { userRetarget: vi.fn().mockResolvedValue(undefined) };
+    render(
+      createElement(TerminalAggregateLocation, {
+        windowId: "w-terminal",
+        catalog: {
+          data: [DEV_SERVER_TERMINAL, userTerminal],
+          error: null,
+          isPending: false,
+          refetch: vi.fn(),
+        },
+        coordinator,
+        requestedId: overrides.requestedId ?? null,
+        workspaces,
+        profile: "work",
+        readOnly: false,
+        viewer: { id: "client:web", attachmentToken: "token" },
+      })
+    );
+    return coordinator;
+  }
+
+  it("Should name each terminal's project and open it bound to that scope", () => {
+    const coordinator = renderAggregate();
+    const row = screen.getByTestId(`terminal-aggregate-row-${DEV_SERVER_TERMINAL.id}`);
+    expect(row).toHaveTextContent("atlas");
+    expect(screen.getByTestId("terminal-aggregate-row-term-user")).toHaveTextContent("User");
+
+    fireEvent.click(screen.getByTestId("terminal-aggregate-row-term-user"));
+    expect(coordinator.userRetarget).toHaveBeenCalledWith("w-terminal", {
+      app: "terminal",
+      instanceKey: "term-user",
+      route: { pathname: "/terminal/term-user", search: { workspace: "@user" } },
+    });
+  });
+
+  it("Should bind a terminal opened by id once the aggregate names its project", async () => {
+    const coordinator = renderAggregate({ requestedId: DEV_SERVER_TERMINAL.id });
+    await waitFor(() =>
+      expect(coordinator.userRetarget).toHaveBeenCalledWith(
+        "w-terminal",
+        expect.objectContaining({
+          instanceKey: DEV_SERVER_TERMINAL.id,
+          route: expect.objectContaining({ search: { workspace: "ws-atlas" } }),
+        })
+      )
+    );
+  });
+
+  it("Should open a new terminal in the chosen project and bind to it", async () => {
+    vi.mocked(createTerminal).mockResolvedValue({ ...DEV_SERVER_TERMINAL, id: "term-new" });
+    const coordinator = renderAggregate();
+    fireEvent.click(screen.getByRole("button", { name: "Open" }));
+
+    await waitFor(() =>
+      expect(createTerminal).toHaveBeenCalledWith(
+        "ws-atlas",
+        {},
+        { profile: "work" },
+        { id: "client:web", attachmentToken: "token" }
+      )
+    );
+    await waitFor(() =>
+      expect(coordinator.userRetarget).toHaveBeenCalledWith(
+        "w-terminal",
+        expect.objectContaining({
+          instanceKey: "term-new",
+          route: { pathname: "/terminal/term-new", search: { workspace: "ws-atlas" } },
+        })
+      )
+    );
   });
 });

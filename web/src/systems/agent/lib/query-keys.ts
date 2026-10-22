@@ -15,6 +15,14 @@ export const agentKeys = {
   catalogByWorkspace: (workspace: string) => [...agentKeys.catalogs(), workspace.trim()] as const,
   catalog: (workspace: string, filters: AgentCatalogStableFilter = {}) =>
     [...agentKeys.catalogByWorkspace(workspace), normalizeAgentCatalogFilter(filters)] as const,
+  /** The All projects catalog, per Project-filter selection; lives under `catalogs()`. */
+  aggregate: (workspaceIds: readonly string[], filters: AgentCatalogStableFilter = {}) =>
+    [
+      ...agentKeys.catalogs(),
+      "@aggregate",
+      [...workspaceIds].sort().join(","),
+      normalizeAgentCatalogFilter(filters),
+    ] as const,
   lists: () => [...agentKeys.all, "list"] as const,
   list: (workspace?: string | null, profile = "default") =>
     [...agentKeys.lists(), workspace ?? null, profile] as const,

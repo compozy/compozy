@@ -29,3 +29,20 @@ export const AGENT_ACCESS_COPY = {
     placeholder: "Add a skill",
   },
 } as const;
+
+/** USW `_uiux.md` S6: the per-agent workspace grant, in plain words. */
+export const AGENT_WORKSPACE_ACCESS_COPY = {
+  label: "Access",
+  default: {
+    title: "Default",
+    description: "Follows the permission mode for other projects",
+  },
+  unrestricted: {
+    title: "Unrestricted",
+    description:
+      "Reads and changes every project and profile without asking. Tool approvals still apply.",
+  },
+  warning:
+    "This agent will read and change every project and profile, including other profiles' work. Only grant it to agents you trust.",
+  readOnlyNote: "Access comes from where this agent was installed and can't be changed here.",
+} as const;

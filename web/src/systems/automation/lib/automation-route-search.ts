@@ -1,5 +1,4 @@
 import { normalizeListingSearchValue } from "@/lib/listing-search";
-import type { DataScope } from "@/systems/workspace";
 import type { AutomationScope, AutomationSource } from "../types";
 import type { AutomationEditorSection } from "./automation-form-draft";
 import type { AutomationDoes, AutomationStart } from "./automation-sentence";
@@ -11,6 +10,11 @@ export interface AutomationsRouteSearch {
   start?: AutomationsStartParam;
   q?: string;
   enabled?: boolean;
+  /**
+   * Retired Location facet, still parsed so URLs keep the daemon's retired-route
+   * rewrite shape (`retired_app_routes.json`). The listing ignores it: breadth
+   * comes from the destination and, under All projects, the Project filter.
+   */
   scope?: AutomationScope;
   source?: AutomationSource;
   target?: AutomationDoes;
@@ -52,17 +56,6 @@ export function automationsStartView(
   return search.start === "schedule" || search.start === "event" ? search.start : undefined;
 }
 
-/**
- * List scope for the destination: User lists only automations without a
- * project (`scope=global`); a project or All projects keeps the facet.
- */
-export function automationListScope(
-  dataScope: DataScope | null,
-  facet: AutomationScope | undefined
-): AutomationScope | undefined {
-  return dataScope?.kind === "user" ? "global" : facet;
-}
-
 /** `loop` filters the list unless it is the one-shot `create=loop` seed. */
 export function automationListLoopFilter(search: AutomationsRouteSearch): string | undefined {
   return search.create === "loop" ? undefined : search.loop;
@@ -73,7 +66,6 @@ export function automationRouteHasActiveFilters(search: AutomationsRouteSearch):
   return (
     (search.q?.trim() ?? "") !== "" ||
     automationListLoopFilter(search) !== undefined ||
-    search.scope !== undefined ||
     search.source !== undefined ||
     search.enabled !== undefined ||
     search.target !== undefined ||

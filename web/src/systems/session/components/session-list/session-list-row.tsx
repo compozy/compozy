@@ -18,6 +18,8 @@ import { SessionRowContextMenu, type SessionRowLayoutMenu } from "../session-row
 import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SessionListRowWho } from "./session-list-row-meta";
+import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
+import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
 import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
 import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
 import { SessionListSubagentChip } from "./session-list-subagent-chip";
@@ -261,6 +263,9 @@ function SessionRowMetaLine({
         {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
         {mark}
         <SessionListRowWho session={session} meta={meta} />
+        {sessionIsUnrestricted(session) ? (
+          <SessionUnrestrictedBadge data-testid={`session-row-unrestricted-${session.id}`} />
+        ) : null}
       </span>
       {trailing}
     </span>

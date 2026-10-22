@@ -68,6 +68,7 @@ function openWorktreeCatalogStream(
     for (const workspaceId of authorizedWorkspaceIds) {
       void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktrees(workspaceId) });
     }
+    void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktreeAggregates() });
   };
   const handleStreamError: EventListener = () => onStatusChange("stale");
   const handleCatalogChange: EventListener = event => {
@@ -84,6 +85,8 @@ function openWorktreeCatalogStream(
     void queryClient.invalidateQueries({
       queryKey: workspaceKeys.worktrees(payload.workspace_id),
     });
+    // The All projects listing holds this workspace's rows too.
+    void queryClient.invalidateQueries({ queryKey: workspaceKeys.worktreeAggregates() });
     void queryClient.invalidateQueries({
       queryKey: workspaceKeys.worktreeDetail(payload.workspace_id, payload.worktree_id),
       exact: true,

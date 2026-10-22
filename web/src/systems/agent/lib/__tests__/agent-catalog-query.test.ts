@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { agentCatalogRequest, normalizeAgentCatalogFilter } from "../agent-catalog-query";
+import {
+  agentCatalogRequest,
+  flattenAgentAggregatePages,
+  normalizeAgentCatalogFilter,
+} from "../agent-catalog-query";
 import { agentKeys } from "../query-keys";
 
 describe("agent-catalog-query", () => {
@@ -46,4 +50,27 @@ describe("agent-catalog-query", () => {
       ]);
     }
   );
+
+  // T-33 (web): the aggregate's identity is (workspace_id, name), so a page boundary
+  // between same-named agents of two projects never collapses them.
+  it("Should flatten aggregate pages by project and name", () => {
+    const item = (name: string, workspaceId?: string) => ({
+      agent: { name, workspace_id: workspaceId } as never,
+    });
+    const page = (agents: ReturnType<typeof item>[]) => ({
+      agents,
+      facets: { active: 0, categories: [], idle: 0, total: 3 },
+      page: { has_more: false, limit: 1, total: 3 },
+      sessions_available: true,
+    });
+    const flattened = flattenAgentAggregatePages({
+      pages: [
+        page([item("reviewer")]),
+        page([item("reviewer", "ws_a")]),
+        page([item("reviewer", "ws_a")]),
+      ],
+      pageParams: [undefined, "c1", "c2"],
+    } as never);
+    expect(flattened.map(entry => entry.agent.workspace_id ?? "")).toEqual(["", "ws_a"]);
+  });
 });

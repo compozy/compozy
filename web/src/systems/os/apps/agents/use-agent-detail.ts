@@ -21,7 +21,8 @@ import {
   useSessionCreateIsCreating,
   useSessionCreatePendingAgentName,
 } from "@/systems/session";
-import { useActiveWorkspace, USER_SCOPE_SELECTOR } from "@/systems/workspace";
+import { useAgentWindowScope } from "@/systems/agent";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useSessionListLifecycleActions } from "../../hooks/use-session-list-lifecycle-actions";
 
@@ -72,9 +73,14 @@ export interface UseAgentDetailResult {
 /** Combines agent details and session catalogs with lifecycle actions scoped to each row. */
 export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseAgentDetailResult {
   const navigate = useNavigate();
-  const { dataScope, runtimeWorkspaceId, pending } = useActiveWorkspace();
-  // Agent reads follow the destination: a project, User (`@user`), or none under All projects.
-  const agentWorkspace = dataScope?.kind === "user" ? USER_SCOPE_SELECTOR : runtimeWorkspaceId;
+  const { pending } = useActiveWorkspace();
+  // Agent reads follow the window: its binding (opened in place from All
+  // projects), else its desktop — a project, User (`@user`), or the user layer.
+  const {
+    workspace: agentWorkspace,
+    projectId: runtimeWorkspaceId,
+    bindingSearch,
+  } = useAgentWindowScope();
   const { openForAgent } = useSessionCreateActions();
   const hasRuntimeWorkspace = runtimeWorkspaceId !== null;
   const isCreating = useSessionCreateIsCreating();
@@ -112,7 +118,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     void navigate({
       to: "/agents/$name",
       params: { name },
-      search: { tab, file: search.file, filter: search.filter },
+      search: { tab, file: search.file, filter: search.filter, ...bindingSearch },
       replace: true,
     });
   };
@@ -121,7 +127,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     void navigate({
       to: "/agents/$name",
       params: { name },
-      search: { tab: "instructions", file, filter: search.filter },
+      search: { tab: "instructions", file, filter: search.filter, ...bindingSearch },
       replace: true,
     });
   };
@@ -130,7 +136,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     void navigate({
       to: "/agents/$name",
       params: { name },
-      search: { tab: "sessions", file: search.file, filter },
+      search: { tab: "sessions", file: search.file, filter, ...bindingSearch },
       replace: true,
     });
   };
@@ -143,7 +149,7 @@ export function useAgentDetail(name: string, rawSearch: AgentDetailSearch): UseA
     void navigate({
       to: "/agents/$name/settings",
       params: { name },
-      search: section ? { section } : {},
+      search: section ? { section, ...bindingSearch } : bindingSearch,
     });
   };
 

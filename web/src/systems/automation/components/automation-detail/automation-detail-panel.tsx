@@ -24,6 +24,7 @@ import { AutomationLockbar } from "./automation-lockbar";
 import { AutomationRail } from "./automation-rail";
 import { AutomationRuleCard } from "./automation-rule-card";
 import { AutomationRunList } from "./automation-run-list";
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 export type AutomationDetailStatus = "loading" | "ready" | AutomationDetailUnavailableReason;
 
@@ -50,6 +51,8 @@ export interface AutomationDetailPanelProps {
   runs: AutomationRun[];
   runsError: Error | null;
   runsLoading: boolean;
+  /** Under All projects: the project each run is attributed to. */
+  runProject?: (run: AutomationRun) => WorkspaceBadgeIdentity;
   state: AutomationDetailState;
   onBack: () => void;
   onDelete: () => void | Promise<void>;
@@ -137,6 +140,7 @@ function AutomationDetailLoaded({
   runs,
   runsError,
   runsLoading,
+  runProject,
   state,
   deleteOpen,
   inspectOpen,
@@ -224,6 +228,7 @@ function AutomationDetailLoaded({
               nextRunAt={view.enabled ? view.nextRunAt : undefined}
               onRetry={onRetryRuns}
               onSetUpRetries={view.canEdit ? onSetUpRetries : undefined}
+              runProject={runProject}
               runs={runs}
             />
           </main>

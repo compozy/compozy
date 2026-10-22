@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { fetchWorkspace, fetchWorkspaces } from "../adapters/workspace-api";
-import { fetchWorktrees } from "../adapters/worktree-api";
+import { fetchWorktrees, fetchWorktreesAggregate } from "../adapters/worktree-api";
 import {
   fetchWorktreeExitPlan,
   fetchWorktreeStatus,
@@ -40,6 +40,20 @@ export function worktreesListOptions(workspaceID: string, enabled = true) {
     queryKey: workspaceKeys.worktrees(workspaceID),
     queryFn: ({ signal }) => fetchWorktrees(workspaceID, {}, signal),
     enabled: enabled && workspaceID !== "",
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Every project's worktrees in one store read (All projects): adopted records
+ * with cached status, no discovery and no git work. Catalog frames invalidate
+ * it beside the frame's own workspace.
+ */
+export function worktreesAggregateOptions(workspaceIDs: readonly string[] = [], enabled = true) {
+  return queryOptions({
+    queryKey: workspaceKeys.worktreeAggregate(workspaceIDs),
+    queryFn: ({ signal }) => fetchWorktreesAggregate(workspaceIDs, signal),
+    enabled,
     staleTime: 60_000,
   });
 }

@@ -1,8 +1,5 @@
-import { useEffect, useRef } from "react";
-import { ownerDataScope, useActiveWorkspace } from "@/systems/workspace";
+import { ownerDataScope } from "@/systems/workspace";
 import { notifyUser } from "@/lib/user-feedback";
-import { useDesktop } from "./use-desktop";
-import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import type { OsOpenTarget } from "../lib/os-types";
 import { loopRequestLocation } from "@/systems/loops";
 import { terminalAttentionLocation } from "@/systems/terminal";
@@ -21,42 +18,14 @@ export function useMenubarAttentionSelection(
   const { coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
   const openItem = useOpenTarget();
-  const { runtimeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
-  const commandWorkspaceId = useDesktop(state =>
-    windowManagerCommandsAvailable(state) ? state.snapshot?.workspaceId : null
-  );
-  const pending = useRef<{ workspaceId: string; target: OsOpenTarget } | null>(null);
   const open = (target: OsOpenTarget) => {
     void coordinator
       .userOpen(target)
-      .catch(() =>
-        notifyUser({ message: "Couldn't open this notification. Try again.", tone: "error" })
-      );
-  };
-  useEffect(() => {
-    const next = pending.current;
-    if (!next || next.workspaceId !== runtimeWorkspaceId || next.workspaceId !== commandWorkspaceId)
-      return;
-    pending.current = null;
-    void coordinator
-      .userOpen(next.target)
-      .catch(() =>
-        notifyUser({ message: "Couldn't open this notification. Try again.", tone: "error" })
-      );
-  }, [commandWorkspaceId, coordinator, runtimeWorkspaceId]);
-  const openInWorkspace = (workspaceId: string | undefined, target: OsOpenTarget) => {
-    pending.current = null;
-    if (workspaceId && (workspaceId !== runtimeWorkspaceId || workspaceId !== commandWorkspaceId)) {
-      pending.current = { workspaceId, target };
-      if (workspaceId !== runtimeWorkspaceId) setActiveWorkspaceId(workspaceId);
-      return;
-    }
-    open(target);
+      .catch(() => notifyUser({ message: NOTIFICATION_OPEN_FAILURE, tone: "error" }));
   };
 
   return (row: OsAttentionRow) => {
     onOverlayOpenChange("bell", false);
-    pending.current = null;
     switch (row.kind) {
       case "session":
         jumpToSession({
@@ -92,11 +61,16 @@ export function useMenubarAttentionSelection(
         );
         return;
       case "terminal-input":
-        openInWorkspace(row.workspaceId, {
-          app: "terminal",
-          instanceKey: row.terminalId,
-          route: terminalAttentionLocation(row.terminalId),
-        });
+        // Opens in place under All projects, bound to the terminal's own scope.
+        openItem(
+          {
+            app: "terminal",
+            instanceKey: row.terminalId,
+            binding: ownerDataScope(row.workspaceId),
+            route: terminalAttentionLocation(row.terminalId),
+          },
+          "Couldn't open this notification. Try again."
+        );
         return;
       case "task":
         openItem(

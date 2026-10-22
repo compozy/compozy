@@ -1,6 +1,6 @@
 import { ListFilter } from "lucide-react";
 
-import { Button, FiltersWithSearch, type Filter } from "@compozy/ui";
+import { Button, FiltersWithSearch, type Filter, type FilterFieldConfig } from "@compozy/ui";
 
 import {
   applyAutomationFilterChips,
@@ -13,15 +13,17 @@ import {
 export interface AutomationListFiltersProps {
   state: AutomationFilterState;
   handlers: AutomationFilterHandlers;
+  /** The shared Project filter field, offered only under All projects. */
+  projectField?: FilterFieldConfig<string> | null;
 }
 
 /** Automations filter chip bar for composition inside ListingToolbar.Filters. */
-function AutomationListFilters({ state, handlers }: AutomationListFiltersProps) {
+function AutomationListFilters({ state, handlers, projectField }: AutomationListFiltersProps) {
   return (
     <FiltersWithSearch<string>
       allowMultiple={false}
       data-testid="automation-list-filters"
-      fields={buildAutomationFilterFields()}
+      fields={buildAutomationFilterFields(projectField)}
       filters={automationFiltersToChips(state)}
       onChange={(next: Filter<string>[]) => applyAutomationFilterChips(next, handlers)}
       size="sm"

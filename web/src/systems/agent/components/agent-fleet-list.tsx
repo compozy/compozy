@@ -25,6 +25,8 @@ export interface AgentFleetListProps {
   onClearFilters: () => void;
   onCreateAgent: () => void;
   onNewSession: (agentName: string) => void;
+  /** All projects: rows open in place, bound to their project. */
+  onOpenAgent?: (row: AgentFleetRowModel) => void;
   onLoadMore: () => void;
 }
 
@@ -38,6 +40,7 @@ function AgentFleetList({
   onClearFilters,
   onCreateAgent,
   onNewSession,
+  onOpenAgent,
   onLoadMore,
 }: AgentFleetListProps) {
   if (status === "loading") {
@@ -160,9 +163,10 @@ function AgentFleetList({
         >
           {rows.map(row => (
             <AgentFleetCard
-              key={row.agent.name}
+              key={row.key}
               newSessionDisabled={newSessionStatus === "disabled"}
               onNewSession={onNewSession}
+              onOpen={onOpenAgent}
               row={row}
             />
           ))}
@@ -174,9 +178,10 @@ function AgentFleetList({
         >
           {rows.map(row => (
             <AgentFleetRow
-              key={row.agent.name}
+              key={row.key}
               newSessionDisabled={newSessionStatus === "disabled"}
               onNewSession={onNewSession}
+              onOpen={onOpenAgent}
               row={row}
             />
           ))}

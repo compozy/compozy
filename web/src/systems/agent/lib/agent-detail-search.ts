@@ -16,6 +16,8 @@ export interface AgentDetailSearch {
   tab?: AgentDetailTab;
   file?: AgentInstructionFile;
   filter?: AgentSessionFilter;
+  /** The window's data binding (a project id or `@user`), kept across in-window navigation. */
+  workspace?: string;
 }
 
 export interface ResolvedAgentDetailSearch {
@@ -35,7 +37,13 @@ export function validateAgentDetailSearch(search: Record<string, unknown>): Agen
     tab: parseEnum(search.tab, AGENT_DETAIL_TABS, "overview"),
     file: parseEnum(search.file, AGENT_INSTRUCTION_FILES, "agent"),
     filter: parseEnum(search.filter, AGENT_SESSION_FILTERS, "all"),
+    ...windowBinding(search.workspace),
   };
+}
+
+/** A non-empty `workspace` binding survives validation; anything else drops. */
+export function windowBinding(value: unknown): { workspace?: string } {
+  return typeof value === "string" && value.trim() !== "" ? { workspace: value.trim() } : {};
 }
 
 export function resolveAgentDetailSearch(search: AgentDetailSearch): ResolvedAgentDetailSearch {

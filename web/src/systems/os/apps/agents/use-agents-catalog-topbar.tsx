@@ -27,10 +27,14 @@ export function useAgentsCatalogTopbar(page: AgentsFleetPage) {
     toolbar: (
       <AgentFleetToolbar
         categoryOptions={page.categoryOptions}
+        definitionsFor={page.definitionsFor}
         draftQuery={page.draftQuery}
         onDraftQueryChange={page.setDraftQuery}
         onFiltersChange={page.setFilters}
+        onProjectsChange={page.setProjectFilter}
         onViewChange={page.setView}
+        projectField={page.projectField}
+        projects={page.projectFilter}
         search={page.search}
         searchInputRef={page.searchInputRef}
         showFacets={page.showFacets}
