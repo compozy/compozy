@@ -8,6 +8,7 @@ import {
   seedBrowserAutomationOperatorFlow,
 } from "../fixtures/runtime";
 import {
+  focusUserScope,
   appWindow,
   focusWindowThroughPalette,
   openAppWindow,
@@ -136,6 +137,8 @@ test("operator manages workspace suggestions and inspects a real automation run 
 
     await ensureProjectWorkspace(appPage, runtime);
     await completeOnboardingIfPrompted(automationUI);
+    // The seeded job is User-scope (global), listed under the User destination.
+    await focusUserScope(appPage);
 
     await expect(automationUI.osDesktop).toBeVisible();
     await appPage.goto(runtime.url("/automations?start=schedule"), {

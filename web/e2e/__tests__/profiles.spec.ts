@@ -1125,7 +1125,9 @@ test.describe("Profiles", () => {
       await appPage.getByTestId("os-sessions-modal-group-by-profile").click();
       await appPage.keyboard.press("Escape");
       for (const record of records) {
-        const group = catalog.getByTestId(`os-sessions-modal-profile-${record.folder.profile_id}`);
+        const group = catalog.locator("section", {
+          has: appPage.getByTestId(`os-sessions-modal-group-profile:${record.folder.profile_id}`),
+        });
         const folder = group.getByTestId(`os-sessions-modal-folder-${record.folder.id}`);
         await expect(
           folder.getByTestId(`os-sessions-modal-session-${record.session.id}`)

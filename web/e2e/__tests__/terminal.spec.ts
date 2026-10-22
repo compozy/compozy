@@ -12,12 +12,7 @@ import { promisify, stripVTControlCharacters } from "node:util";
 import type { Locator, Page } from "@playwright/test";
 
 import { reloadDaemonServedPage } from "../fixtures/navigation";
-import {
-  focusWindowThroughPalette,
-  openAppWindow,
-  setGlobalScope,
-  windowFrame,
-} from "../fixtures/os-navigation";
+import { focusWindowThroughPalette, openAppWindow, windowFrame } from "../fixtures/os-navigation";
 import { type BrowserRuntime, type RuntimePaths } from "../fixtures/runtime";
 import {
   closeTerminalWatchers,
@@ -590,8 +585,7 @@ test("E2E-002: browser restores terminal tabs and confirms group termination", a
   // exactly these two terminals before the daemon removes their windows.
   const restored = focusedTerminalWindow(appPage);
   await focusWindowThroughPalette(appPage, restored);
-  // Global retains this project's desktop; close must still use its owner.
-  await setGlobalScope(appPage, true);
+  // All projects is its own desktop (AP), so the close runs on the project's desktop.
   await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
   const confirmation = appPage.getByTestId("terminal-close-dialog");
   await expect(confirmation).toBeVisible();
@@ -702,7 +696,6 @@ test("E2E-020: terminal window close preserves Stop and retries after disconnect
     )
     .toBe("exited");
   await expect(restored).toBeVisible();
-  await setGlobalScope(appPage, true);
   await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
   await expect(restored).toBeHidden();
   await expect(confirmation).not.toBeVisible();

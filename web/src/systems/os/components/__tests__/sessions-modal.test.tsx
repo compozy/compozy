@@ -12,6 +12,7 @@ import {
   SessionDeriveContext,
   SessionForkContext,
   type SessionLifecycleActionHandlers,
+  type SessionListGroupSpec,
   type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
@@ -133,6 +134,30 @@ describe("OsSessionsModal", () => {
   afterEach(() => {
     jumpToSession.mockClear();
     for (const manager of managers.splice(0)) manager.destroy();
+  });
+
+  it("Should count every grouped session in the header while the flat list is empty", () => {
+    const group = (key: string, total: number, workspaceId: string): SessionListGroupSpec => ({
+      key,
+      kind: "project",
+      badge: workspaceBadgeIdentity(workspaceId, new Map([["ws-a", "Alpha"]])),
+      total,
+      working: 0,
+      needsYou: 0,
+      scope: workspaceId ? { kind: "project", workspaceId } : { kind: "user" },
+      lens: { profile: "default" },
+      pair: null,
+    });
+    const groups = [group("project:ws-a", 2, "ws-a"), group("user", 1, "")];
+    const view = listView({
+      groupBy: "project",
+      groupByOptions: ["none", "project"],
+      groups,
+      collapsedGroupKeys: new Set(groups.map(entry => entry.key)),
+    });
+    renderModal(createShell(), true, view, vi.fn(), []);
+    const close = screen.getByRole("button", { name: "Close sessions" });
+    expect(close.parentElement).toHaveTextContent(/^Sessions\s*3$/);
   });
 
   it("Should keep the modal open when selecting and use Escape to finish selection first", async () => {
