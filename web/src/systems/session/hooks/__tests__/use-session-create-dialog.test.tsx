@@ -99,7 +99,7 @@ vi.mock("@/systems/workspace/hooks/use-worktree-materialization", () => ({
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
 
 vi.mock("@/systems/agent/hooks/use-agents", () => ({
-  useAgents: (workspaceId: string, options?: { enabled?: boolean }) =>
+  useAgents: (workspaceId: string, options?: { enabled?: boolean; profile?: string }) =>
     mockUseAgents(workspaceId, options),
 }));
 
@@ -939,6 +939,7 @@ describe("useSessionCreateDialog", () => {
         { name: "marketing", archived_at: null },
         { name: "old", archived_at: "2026-01-01T00:00:00Z" },
       ];
+      mockUseAgents.mockReturnValue({ data: agents });
       const { wrapper } = createWrapper();
       const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
         wrapper,
@@ -952,6 +953,10 @@ describe("useSessionCreateDialog", () => {
         "marketing",
       ]);
       act(() => result.current.destinationAxes.profile?.onChange("marketing"));
+      expect(mockUseAgents).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ profile: "marketing" })
+      );
       await act(async () => result.current.submit());
 
       expect(mockMutateAsync).toHaveBeenCalledWith({

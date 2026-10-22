@@ -121,11 +121,15 @@ export function useSessionCreateDialogViewModel(
       enabled: userTarget
         ? flow.open
         : destination.runtimeWorkspaceId !== null && destination.runtimeWorkspaceId.length > 0,
+      // The agent list belongs to the profile the session is created in.
+      profile: target.profile,
     }
   );
   const agentList =
     workspaceAgentsQuery.data ??
-    (destination.runtimeWorkspaceId && !target.projectAxis ? (agents ?? []) : []);
+    (destination.runtimeWorkspaceId && !target.projectAxis && !target.profileAxis
+      ? (agents ?? [])
+      : []);
   const selectedAgentName = draft.agentName;
   const environment = useSessionEnvironment({
     workspaceId: destination.environmentWorkspaceId,

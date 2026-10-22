@@ -26,6 +26,8 @@ import { useProfileReadScope } from "@/systems/profiles";
 
 interface UseAgentsOptions {
   enabled?: boolean;
+  /** Reads another profile's definitions, e.g. the New session Profile picker's choice. */
+  profile?: string;
 }
 
 function invalidateAgentCollectionQueries(
@@ -45,7 +47,7 @@ function invalidateAgentCollectionQueries(
 export function useAgents(workspace?: string | null, options: UseAgentsOptions = {}) {
   const { destination } = useProfileReadScope();
   return useQuery({
-    ...agentsListOptions(workspace, destination),
+    ...agentsListOptions(workspace, options.profile ?? destination),
     enabled: options.enabled ?? true,
   });
 }
