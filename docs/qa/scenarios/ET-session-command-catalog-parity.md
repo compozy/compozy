@@ -40,3 +40,11 @@ QA execution 2026-08-26: CLI, HTTP, and UDS retained the distinct canonical coll
 production Web picker initially collapsed both visible labels to the authored display name; after
 `BUG-20260826-namespaced-skill-label-collapses`, E2E-010 verified one `commit-hygiene` row and one
 `agents:commit-hygiene` row with the correct `agents` origin.
+
+QA impact 2026-10-22 (GitHub #891): source-qualified `compozy__skill_view` now returns
+`skill.source` as the same string a name read returns and carries the exact command source identity in
+`skill.command_source{kind, id, key, scope, origin}`, so MCP clients that validate structured content
+accept the result. QA verdict 2026-10-22: passed in an isolated lab. A real Claude Code session read
+the `spec-cycle` `cy-create-spec` command id with `references/spec-template.md` and the bundled
+`compozy` command id through hosted MCP without an output-schema error; the results reported
+`source: "bundled"` and `command_source.kind` values `extension` and `bundled`.

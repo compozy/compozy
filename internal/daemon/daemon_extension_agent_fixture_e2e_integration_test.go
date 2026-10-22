@@ -33,8 +33,9 @@ type extensionAgentFixtureConfig struct {
 }
 
 type hostedSourceQualifiedSkillViewPayload struct {
-	Name   string            `json:"name"`
-	Source commandpkg.Source `json:"source"`
+	Name          string            `json:"name"`
+	Source        string            `json:"source"`
+	CommandSource commandpkg.Source `json:"command_source"`
 }
 
 var (
@@ -237,8 +238,14 @@ func assertExtensionHostedMCPTools(
 			Key:   command.Source.Key,
 			Scope: command.Source.Scope,
 		}
-		if viewed.Skill.Source != wantSource {
-			t.Fatalf("extension hosted skill_view(%q) source = %+v, want %+v", name, viewed.Skill.Source, wantSource)
+		if viewed.Skill.CommandSource != wantSource {
+			t.Fatalf(
+				"extension hosted skill_view(%q) command_source = %+v, want %+v",
+				name, viewed.Skill.CommandSource, wantSource,
+			)
+		}
+		if strings.TrimSpace(viewed.Skill.Source) == "" {
+			t.Fatalf("extension hosted skill_view(%q) source is empty, want skill source name", name)
 		}
 		if strings.TrimSpace(viewed.Content) == "" {
 			t.Fatalf("extension hosted skill_view(%q) content is empty", name)
@@ -394,7 +401,7 @@ func assertHostedSkillViewCatalog(
 	extensionNames := make([]string, 0, len(skills))
 	for _, skill := range skills {
 		names = append(names, skill.Name)
-		if skill.Source.Kind == "extension" && skill.Source.ID == speccycle.Name {
+		if skill.CommandSource.Kind == "extension" && skill.CommandSource.ID == speccycle.Name {
 			extensionNames = append(extensionNames, skill.Name)
 		}
 	}
