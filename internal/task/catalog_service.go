@@ -55,7 +55,10 @@ func (m *Service) ListTaskCatalog(
 			// every project (USW BR-6, BR-7).
 			query.Scope = CatalogScopeGlobal
 			query.WorkspaceID = ""
-			if profileID := strings.TrimSpace(actor.Scope.UserProfileID); profileID != "" {
+			// Keep the authorized read lens (a granted session may read another profile); fall back
+			// to the actor's own User profile only when no profile was selected.
+			if profileID := strings.TrimSpace(actor.Scope.UserProfileID); profileID != "" &&
+				query.ReadScope == (store.ReadScope{}) {
 				query.ReadScope = store.ReadScope{ProfileID: profileID}
 			}
 		case actor.Actor.Kind.Normalize() == ActorKindAgentSession || workspaceID != "":
