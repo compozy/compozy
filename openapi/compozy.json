@@ -25814,6 +25814,9 @@
           "available": {
             "type": "boolean"
           },
+          "host_timezone": {
+            "type": "string"
+          },
           "job_enabled": {
             "type": "integer"
           },

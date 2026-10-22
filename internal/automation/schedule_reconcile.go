@@ -18,7 +18,7 @@ func (s *Scheduler) reconcileSchedulerState(
 	if err != nil {
 		return SchedulerState{}, err
 	}
-	state := initialSchedulerState(job, plan, now, defaultPolicy)
+	state := s.initialSchedulerState(job, plan, now, defaultPolicy)
 	if s.store == nil {
 		return schedulerStateWithoutStore(state, plan.register, now), nil
 	}
@@ -32,7 +32,13 @@ func (s *Scheduler) reconcileSchedulerState(
 		)
 	}
 	if loadErr == nil {
-		state = mergeSchedulerState(existing, job, plan, now, defaultPolicy)
+		state = s.mergeSchedulerState(existing, job, plan, now, defaultPolicy)
+		if state.ScheduleHash != existing.ScheduleHash {
+			state, err = s.store.SaveSchedulerState(ctx, state)
+			if err != nil {
+				return SchedulerState{}, err
+			}
+		}
 	}
 
 	if state.DeferredUntil != nil {
@@ -56,7 +62,7 @@ func (s *Scheduler) reconcileSchedulerState(
 	return s.store.SaveSchedulerState(ctx, state)
 }
 
-func initialSchedulerState(
+func (s *Scheduler) initialSchedulerState(
 	job Job,
 	plan schedulePlan,
 	now time.Time,
@@ -65,7 +71,7 @@ func initialSchedulerState(
 	return SchedulerState{
 		JobID:               job.ID,
 		NextRunAt:           new(plan.nextRun),
-		ScheduleHash:        scheduleHash(job.Schedule),
+		ScheduleHash:        s.scheduleHash(job.Schedule),
 		CatchUpPolicy:       scheduleCatchUpPolicy(job.Schedule, defaultPolicy),
 		MisfireGraceSeconds: scheduleMisfireGraceSeconds(job.Schedule),
 		UpdatedAt:           now,
@@ -82,17 +88,22 @@ func schedulerStateWithoutStore(state SchedulerState, register bool, now time.Ti
 	return state
 }
 
-func mergeSchedulerState(
+func (s *Scheduler) mergeSchedulerState(
 	state SchedulerState,
 	job Job,
 	plan schedulePlan,
 	now time.Time,
 	defaultPolicy SchedulerCatchUpPolicy,
 ) SchedulerState {
-	desiredScheduleHash := scheduleHash(job.Schedule)
-	scheduleChanged := strings.TrimSpace(state.ScheduleHash) != desiredScheduleHash
+	desiredScheduleHash := s.scheduleHash(job.Schedule)
+	currentHash := strings.TrimSpace(state.ScheduleHash)
+	definitionHash := scheduleHash(job.Schedule)
+	// Legacy hashes lack a zone. Adopt the current zone without losing a queued fire or catch-up.
+	legacy := currentHash == definitionHash
+	scheduleChanged := !legacy && currentHash != desiredScheduleHash
+	zoneChanged := scheduleChanged && strings.HasPrefix(currentHash, definitionHash+":")
 	policyFallback := schedulerCatchUpPolicyOrDefault(state.CatchUpPolicy, defaultPolicy)
-	if scheduleChanged {
+	if scheduleChanged && !zoneChanged {
 		policyFallback = defaultPolicy
 		state.MisfireGraceSeconds = scheduleMisfireGraceSeconds(job.Schedule)
 	}
@@ -103,10 +114,12 @@ func mergeSchedulerState(
 	state.UpdatedAt = now
 	if scheduleChanged {
 		state.NextRunAt = new(plan.nextRun)
-		state.ScheduleHash = desiredScheduleHash
-		state.DeferredUntil = nil
-		state.ConsecutiveResumeFailures = 0
+		if !zoneChanged {
+			state.DeferredUntil = nil
+			state.ConsecutiveResumeFailures = 0
+		}
 	}
+	state.ScheduleHash = desiredScheduleHash
 	return state
 }
 

@@ -1,11 +1,12 @@
 // Suite: Settings › Automation route composition.
 // Invariant: the Manage group links to the one Automations window with combined counts, and
 // the engine/limit fields keep their config keys under the plain automation labels.
+// The timezone picker searches IANA choices, preserves unmatched input, and uses the daemon host zone.
 // Owning layer: Settings Automation route page. Boundary OUT: the settings page model (owned
 // by use-settings-automation-page.test.tsx) and the router.
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { AnchorHTMLAttributes, PropsWithChildren } from "react";
+import { useState, type AnchorHTMLAttributes, type PropsWithChildren } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { SettingsAutomationSection } from "@/systems/settings";
@@ -21,6 +22,7 @@ const envelope: SettingsAutomationSection = {
     default_fire_limit: { max: 5, window: "1m" },
   },
   runtime: {
+    host_timezone: "America/Sao_Paulo",
     available: false,
     running: false,
     scheduler_running: false,
@@ -41,22 +43,25 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/systems/settings/hooks/use-settings-automation-page", () => ({
-  useSettingsAutomationPage: () => ({
-    envelope,
-    draft: envelope.config,
-    setDraft: vi.fn(),
-    restart: { isVisible: false },
-    isLoading: false,
-    error: null,
-    isDirty: false,
-    isSaving: false,
-    saveError: null,
-    warnings: [],
-    lastAppliedLabel: null,
-    handleSave: vi.fn(),
-    handleReset: vi.fn(),
-    handleRetry: vi.fn(),
-  }),
+  useSettingsAutomationPage: () => {
+    const [draft, setDraft] = useState(envelope.config);
+    return {
+      envelope,
+      draft,
+      setDraft,
+      restart: { isVisible: false },
+      isLoading: false,
+      error: null,
+      isDirty: false,
+      isSaving: false,
+      saveError: null,
+      warnings: [],
+      lastAppliedLabel: null,
+      handleSave: vi.fn(),
+      handleReset: vi.fn(),
+      handleRetry: vi.fn(),
+    };
+  },
 }));
 
 vi.mock("@/systems/settings", async importOriginal => ({
@@ -70,6 +75,37 @@ vi.mock("@/systems/settings", async importOriginal => ({
 import { AutomationSettingsPage } from "../-automation-settings-page";
 
 describe("AutomationSettingsPage", () => {
+  it("Should search IANA zones and explain a mismatch with the daemon host", async () => {
+    const user = userEvent.setup();
+    render(<AutomationSettingsPage />);
+    expect(
+      screen.getByText("Schedules use UTC. The machine running CompozyOS uses America/Sao_Paulo.")
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Schedule time zone" }));
+    await user.type(screen.getByRole("combobox", { name: "Search time zones" }), "Tokyo");
+    await user.click(await screen.findByRole("option", { name: "Asia/Tokyo" }));
+    expect(screen.getByRole("button", { name: "Schedule time zone" })).toHaveTextContent(
+      "Asia/Tokyo"
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Use this machine’s time zone (America/Sao_Paulo)" })
+    );
+    expect(screen.getByRole("button", { name: "Schedule time zone" })).toHaveTextContent(
+      "America/Sao_Paulo"
+    );
+    expect(screen.queryByText(/Schedules use/)).not.toBeInTheDocument();
+  });
+
+  it("Should leave the selected zone unchanged when the search has no matches", async () => {
+    const user = userEvent.setup();
+    render(<AutomationSettingsPage />);
+    await user.click(screen.getByRole("button", { name: "Schedule time zone" }));
+    await user.type(screen.getByRole("combobox", { name: "Search time zones" }), "Invalid/Zone");
+    expect(await screen.findByText("No time zones found.")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("button", { name: "Schedule time zone" })).toHaveTextContent("UTC");
+  });
+
   it("Should link one Automations row with combined counts and plain labels [UT-113]", async () => {
     const user = userEvent.setup();
     render(<AutomationSettingsPage />);

@@ -116,6 +116,7 @@ func (s *service) buildAutomationSection(
 		runtime = status
 	}
 
+	runtime.HostTimezone = compozyconfig.HostTimezone()
 	return AutomationSection{
 		Config: AutomationSettings{
 			Enabled:           cfg.Automation.Enabled,

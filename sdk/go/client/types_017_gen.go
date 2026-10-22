@@ -356,6 +356,7 @@ type SettingsAutomationResponse struct {
 
 // SettingsAutomationRuntimePayload is a daemon API value.
 type SettingsAutomationRuntimePayload struct {
+	HostTimezone     string     `json:"host_timezone,omitempty"`
 	Available        bool       `json:"available"`
 	Running          bool       `json:"running"`
 	SchedulerRunning bool       `json:"scheduler_running"`

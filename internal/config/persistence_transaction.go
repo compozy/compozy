@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"sync"
@@ -38,6 +39,12 @@ func EditConfigOverlayAndApply(
 	editor, err := newOverlayEditor(target.path, contents)
 	if err != nil {
 		return Config{}, err
+	}
+	// Existing overlays retain the UTC loader default so scheduled jobs never shift on upgrade.
+	if !existed && target.kind == WriteTargetGlobalConfig {
+		if err := editor.SetValue([]string{"automation", "timezone"}, cmp.Or(HostTimezone(), "UTC")); err != nil {
+			return Config{}, err
+		}
 	}
 	if err := mutate(editor); err != nil {
 		return Config{}, err

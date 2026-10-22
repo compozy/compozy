@@ -13937,6 +13937,7 @@ export interface components {
     };
     SettingsAutomationRuntimePayload: {
       available: boolean;
+      host_timezone?: string;
       job_enabled: number;
       job_total: number;
       /** Format: date-time */

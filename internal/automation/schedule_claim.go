@@ -35,7 +35,7 @@ func (s *Scheduler) claimScheduledJob(
 		ScheduledAt:         scheduledAt,
 		NextRunAt:           cloneTimePointer(nextRun),
 		ClaimedAt:           claimedAt,
-		ScheduleHash:        scheduleHash(job.Schedule),
+		ScheduleHash:        registration.state.ScheduleHash,
 		CatchUpPolicy:       registration.state.CatchUpPolicy,
 		MisfireGraceSeconds: registration.state.MisfireGraceSeconds,
 		CatchUp:             scheduledFireIsCatchUp(scheduledAt, claimedAt, registration.state),

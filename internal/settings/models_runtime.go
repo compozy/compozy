@@ -197,6 +197,7 @@ type DaemonRuntimeStatus struct {
 
 // AutomationRuntimeStatus summarizes automation runtime state.
 type AutomationRuntimeStatus struct {
+	HostTimezone     string
 	Available        bool
 	Running          bool
 	SchedulerRunning bool

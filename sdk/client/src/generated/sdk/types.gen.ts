@@ -7037,6 +7037,7 @@ export type SettingsAutomationResponse = {
 
 export type SettingsAutomationRuntimePayload = {
   available: boolean;
+  host_timezone?: string;
   job_enabled: number;
   job_total: number;
   last_synced_at?: string | null;

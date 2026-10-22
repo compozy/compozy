@@ -3,6 +3,7 @@ import { useState, type Dispatch, type SetStateAction } from "react";
 import { Link } from "@tanstack/react-router";
 
 import { useSettingsAutomationPage } from "@/systems/settings/hooks/use-settings-automation-page";
+import { AutomationTimezonePicker } from "@/systems/settings/components/automation-timezone-picker";
 import {
   SettingLinkRow,
   SettingsAdvancedFold,
@@ -78,7 +79,7 @@ export function AutomationSettingsPage() {
     >
       {!runtime.available ? <AutomationRuntimeUnavailable runtime={runtime} /> : null}
       <AutomationHero runtime={runtime} />
-      <EngineSection draft={draft} setDraft={setDraft} />
+      <EngineSection draft={draft} setDraft={setDraft} hostTimezone={runtime.host_timezone} />
       <ManageSection runtime={runtime} />
       <SettingsAdvancedFold
         data-testid="settings-page-automation-advanced"
@@ -184,7 +185,11 @@ interface DraftSectionProps {
   setDraft: Dispatch<SetStateAction<AutomationConfig | null>>;
 }
 
-function EngineSection({ draft, setDraft }: DraftSectionProps) {
+function EngineSection({
+  draft,
+  setDraft,
+  hostTimezone,
+}: DraftSectionProps & { hostTimezone?: string }) {
   return (
     <SettingsGroup title="Engine">
       <SettingsFieldRow
@@ -207,16 +212,20 @@ function EngineSection({ draft, setDraft }: DraftSectionProps) {
         data-testid="settings-page-automation-timezone"
         label="Schedule time zone"
         help="Scheduled automations use this time zone"
+        description={
+          hostTimezone && draft.timezone !== hostTimezone
+            ? `Schedules use ${draft.timezone}. The machine running CompozyOS uses ${hostTimezone}.`
+            : undefined
+        }
+        className="flex-wrap"
         control={
-          <Input
-            className="w-56 font-mono"
-            data-testid="settings-page-automation-timezone-input"
-            value={draft.timezone ?? ""}
-            placeholder="UTC"
-            onChange={event =>
+          <AutomationTimezonePicker
+            value={draft.timezone}
+            hostTimezone={hostTimezone}
+            onChange={timezone =>
               setDraft(prev => {
                 const current = prev ?? draft;
-                return { ...current, timezone: event.target.value };
+                return { ...current, timezone };
               })
             }
           />
