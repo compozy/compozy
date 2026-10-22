@@ -11,7 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-// Bind consumes a launch nonce after validating the Unix peer and expected binary.
+// Bind consumes an armed launch window after validating the nonce, Unix peer and expected binary.
 func (s *HostedService) Bind(
 	ctx context.Context,
 	req HostedBindRequest,
@@ -211,7 +211,9 @@ func (s *HostedService) ReleaseRun(sessionID, runID string, generation int64) {
 	}
 }
 
-// ReleaseBind removes one active bind record.
+// ReleaseBind removes one active bind record. Releasing the launch's current
+// bind also clears its established state and re-arms the nonce for one
+// replacement proxy within bindNonceTTL.
 func (s *HostedService) ReleaseBind(bindID string) {
 	if s == nil {
 		return
@@ -221,7 +223,16 @@ func (s *HostedService) ReleaseBind(bindID string) {
 		return
 	}
 	s.mu.Lock()
+	record := s.binds[bindID]
 	delete(s.binds, bindID)
+	if record != nil {
+		if launch := s.launches[record.sessionID]; launch != nil && launch.bindID == bindID {
+			// Providers may replace their stdio proxy while retaining the same ACP session.
+			launch.established = false
+			launch.bindID = ""
+			launch.expiresAt = s.now().UTC().Add(s.bindNonceTTL)
+		}
+	}
 	s.mu.Unlock()
 	s.releaseProjectionCaches([]string{bindID})
 }
@@ -232,9 +243,6 @@ func (s *HostedService) ReleaseBindForPeer(ctx context.Context, bindID string, p
 	if err != nil {
 		return err
 	}
-	s.mu.Lock()
-	delete(s.binds, strings.TrimSpace(record.bindID))
-	s.mu.Unlock()
-	s.releaseProjectionCaches([]string{strings.TrimSpace(record.bindID)})
+	s.ReleaseBind(record.bindID)
 	return nil
 }

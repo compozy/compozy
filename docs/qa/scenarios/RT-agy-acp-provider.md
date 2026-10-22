@@ -12,8 +12,8 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: internal/daemon/agy_acp_entry_integration_test.go
-last_report: docs/qa/reports/2026-10-16-agy-acp.md
-overlaps: MS-web-provider-auth-gate; RT-provider-full-access-mode
+last_report: docs/qa/reports/2026-10-19-agy-reasoning-selector.md
+overlaps: MS-web-provider-auth-gate; RT-provider-full-access-mode; ET-048
 ---
 
 story: As an operator with a Google Antigravity account I sign in once explicitly, verify readiness remotely, and run ordinary sessions without surrendering secrets or re-consenting.
@@ -48,12 +48,14 @@ pins the successful-resolution path. This is not a new live-provider walkthrough
 
 ## Model discovery and exact selection
 
-1. Run `compozy provider models list agy --refresh --all -o json`: the result contains exactly the IDs the effective server/account advertises (verified 1.4.0 shape: the 2 bare IDs `gemini-4-argon`, `gemini-3.8-flash` plus a `thinking_level` option; the superseded 1.3.0 suffixed IDs such as `gemini-3.8-flash-high` are no longer advertised and prompt as `model_unavailable`), published under `provider_live:agy` with unobserved pricing, context, reasoning, and speed unknown. No Gemini CLI/API model is substituted.
+1. Run `compozy provider models list agy --refresh --all -o json`: the result contains exactly the IDs the effective server/account advertises (verified 1.4.0 shape: the 2 bare IDs `gemini-4-argon`, `gemini-3.8-flash` plus a `thinking_level` option; the superseded 1.3.0 suffixed IDs such as `gemini-3.8-flash-high` are no longer advertised and prompt as `model_unavailable`), published under `provider_live:agy` with `reasoning_apply: acp_option`, the advertised `reasoning_efforts`, and their `default_reasoning_effort`. Unobserved pricing, context, and speed stay unknown. No Gemini CLI/API model is substituted.
 2. Run the same list with the provider logged out: the source reports `auth_required`, keeps only that context's prior rows as stale, and never opens a browser. A different workspace, profile, or home cannot reuse those rows.
 3. Run `compozy provider models list agy` with `models.discovery.enabled = false`: no peer call is made and no synthetic rows are published.
 4. Prompt with one currently advertised exact ID and confirm the persisted runtime/event model matches exactly; prompt with an unavailable ID and confirm `model_unavailable` instead of a silent default.
+5. In the session model picker, select an Agy model and choose Low on the reasoning slider. Submit a prompt; its runtime snapshot and effective runtime both retain `reasoning_effort: low`, and the acknowledged ACP `thinking_level` reads `low`. Choosing another supported level keeps the same exact model ID. An explicit `providers.agy.models.reasoning.apply = "none"` still disables adjustable effort.
+6. With hosted MCP connected, switch Flash → Argon → Flash through subsequent prompts and invoke a read-only native tool after each switch. All three calls succeed under the same logical and ACP session IDs; a replaced proxy must not fail with `hosted_mcp_nonce_invalid`. A concurrent bind or a reconnect outside the configured post-release window remains rejected.
 
-The discovery and selection walk above passed against the real 1.4.0 server in the consented 2026-10-17 run (see the 1.4.0 consented note); the 1.4.0 shape is 2 bare IDs plus `thinking_level`. Unit source coverage (`internal/modelcatalog/live_sources_test.go`) and daemon context coverage (`internal/daemon/model_catalog_test.go`) continue to pin the exact-ID, stale/context-isolation, disabled-discovery, and no-forbidden-message boundaries with the external ACP peer faked.
+The exact-ID, stale/context-isolation, disabled-discovery, and unavailable-ID checks above passed against the real 1.4.0 server in the consented 2026-10-17 run (see the 1.4.0 consented note); the `acp_option` projection and steps 5–6 were verified separately on 2026-10-19 as described below. The 1.4.0 shape is 2 bare IDs plus `thinking_level`. Unit source coverage (`internal/modelcatalog/live_sources_test.go`) and daemon context coverage (`internal/daemon/model_catalog_test.go`) continue to pin the exact-ID, stale/context-isolation, disabled-discovery, and no-forbidden-message boundaries with the external ACP peer faked.
 
 ## Browser management and selection (E2E-003, deterministic peer)
 
@@ -189,3 +191,28 @@ the consent timeout expires before the subsequent status probe. The probe uses
 the caller context; the timeout still bounds the consent phase. Verify the built-in
 server executable as `agy_acp_server.exe` on Windows and `agy_acp_server.par` on
 Unix, including CLI missing-command guidance, provider inventory, and Settings.
+
+## Reasoning selector regression — 2026-10-19
+
+The live catalog exposed both bare model IDs and their `thinking_level` values, but reported
+`reasoning_apply: none` and omitted `reasoning_efforts`, preventing the session slider from selecting
+them. The built-in now enables `acp_option`; explicit `none` overrides remain authoritative.
+`TestDaemonModelCatalogWiring/Should publish exact Agy models with context isolation` reproduced the
+failure before the fix and passes with model-specific Low/Medium/High, the live High default, and
+the opt-out preserved. The complete configuration/model-catalog packages and daemon catalog wiring
+suite pass with `-race`. The daemon-served browser case passes after selecting Low and checking the
+submitted and effective runtime with a deterministic peer. A separate isolated daemon running the
+rebuilt binary also preserves the real server's Low/Medium/High and High default in matching CLI and
+HTTP catalog projections. No account-backed prompt was submitted; the previous consented
+Google-account walkthrough remains historical, not evidence of a new live-account effort switch.
+
+## Hosted MCP model-switch regression — 2026-10-19
+
+Agy 1.4.1 rebuilds its agent and stdio MCP proxy at the next turn after a model change. The consumed
+launch nonce previously rejected that legitimate replacement. The authenticated current proxy's
+release now opens one bounded reconnect window; concurrent binds, stale releases, invalid peers,
+expired windows and credentials from a replaced/stopped launch remain refused. An isolated
+account-backed CLI/API walk completes Flash → Argon → Flash with `compozy__workspace_info` after
+each bind and the same ACP session ID. See `docs/qa/reports/2026-10-19-hosted-mcp-reconnect.md`.
+This closes only the reconnect slice, not every historical scenario leg. The original operator
+session is left untouched at the operator's request.
