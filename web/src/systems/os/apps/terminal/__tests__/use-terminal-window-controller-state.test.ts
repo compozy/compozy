@@ -505,18 +505,29 @@ describe("terminal window under All projects", () => {
   const workspaces = [{ id: "ws-atlas", name: "atlas" }];
   const userTerminal = { ...DEV_SERVER_TERMINAL, id: "term-user", title: "home", workspace_id: "" };
 
-  function renderAggregate(overrides: { requestedId?: string | null } = {}) {
+  function renderAggregate(
+    overrides: {
+      requestedId?: string | null;
+      terminals?: (typeof DEV_SERVER_TERMINAL)[];
+      projectFilterValues?: string[];
+    } = {}
+  ) {
     const coordinator = { userRetarget: vi.fn().mockResolvedValue(undefined) };
     render(
       createElement(TerminalAggregateLocation, {
         windowId: "w-terminal",
         catalog: {
-          data: [DEV_SERVER_TERMINAL, userTerminal],
+          data: overrides.terminals ?? [DEV_SERVER_TERMINAL, userTerminal],
           error: null,
           isPending: false,
           refetch: vi.fn(),
         },
         coordinator,
+        projectFilter: {
+          field: null,
+          values: overrides.projectFilterValues ?? [],
+          setValues: vi.fn(),
+        },
         requestedId: overrides.requestedId ?? null,
         workspaces,
         profile: "work",
@@ -539,6 +550,13 @@ describe("terminal window under All projects", () => {
       instanceKey: "term-user",
       route: { pathname: "/terminal/term-user", search: { workspace: "@user" } },
     });
+  });
+
+  it("Should report a narrowed empty list as no match, not as no terminals", () => {
+    renderAggregate({ terminals: [], projectFilterValues: ["ws-atlas"] });
+    expect(screen.getByTestId("terminal-aggregate-empty")).toHaveTextContent(
+      "No matching terminals"
+    );
   });
 
   it("Should bind a terminal opened by id once the aggregate names its project", async () => {

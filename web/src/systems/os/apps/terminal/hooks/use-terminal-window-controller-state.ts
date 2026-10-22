@@ -34,6 +34,7 @@ import {
 import {
   focusedWorkspaceSelector,
   useActiveWorkspace,
+  useProjectFilter,
   useWindowDataWorkspace,
   WINDOW_BINDING_SEARCH_KEY,
 } from "@/systems/workspace";
@@ -99,7 +100,14 @@ export function useTerminalWindowControllerState(windowId: string) {
   const windowScope = useWindowDataWorkspace();
   const workspaceId = focusedWorkspaceSelector(windowScope);
   const aggregateMode = windowScope?.kind === "all";
-  const aggregateScope = terminalAggregateScope([], profile.destination, profile.aggregate);
+  // The listing Project filter narrows the read population on the server; the
+  // creation destination below it stays an independent choice.
+  const projectFilter = useProjectFilter(windowScope, workspace.workspaces);
+  const aggregateScope = terminalAggregateScope(
+    projectFilter.values,
+    profile.destination,
+    profile.aggregate
+  );
   const aggregateCatalog = useQuery({
     ...terminalAggregateQuery(aggregateScope),
     enabled: aggregateMode,
@@ -234,7 +242,7 @@ export function useTerminalWindowControllerState(windowId: string) {
 
   return {
     /** All projects: every project's terminals; opening one binds this window to it. */
-    aggregate: aggregateMode ? { catalog: aggregateCatalog } : null,
+    aggregate: aggregateMode ? { catalog: aggregateCatalog, projectFilter } : null,
     answer,
     catalog,
     close,

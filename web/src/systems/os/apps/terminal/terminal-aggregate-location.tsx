@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, TerminalSquare } from "lucide-react";
+import { AlertCircle, ListFilter, TerminalSquare } from "lucide-react";
 
 import {
   BlockLoading,
   Button,
   Empty,
+  FiltersWithSearch,
   Item,
   ItemActions,
   ItemContent,
@@ -21,6 +22,8 @@ import {
   CreateDestinationPicker,
   DESTINATION_COPY,
   ownerDataScope,
+  projectFilterChip,
+  projectFilterValuesFromChips,
   USER_SCOPE_SELECTOR,
   WINDOW_BINDING_SEARCH_KEY,
   WorkspaceBadge,
@@ -28,6 +31,7 @@ import {
   workspaceMonogram,
   windowBindingValue,
   type CreateDestinationOption,
+  type ProjectFilterModel,
 } from "@/systems/workspace";
 
 import type { RoutingCoordinator } from "../../lib/routing-coordinator";
@@ -41,6 +45,8 @@ export interface TerminalAggregateLocationProps {
     refetch: () => unknown;
   };
   coordinator: Pick<RoutingCoordinator, "userRetarget">;
+  /** The listing Project filter: which projects (and User) the list reads. */
+  projectFilter: Pick<ProjectFilterModel, "field" | "values" | "setValues">;
   /** The terminal this window was asked to show before it knew the terminal's project. */
   requestedId: string | null;
   workspaces: readonly { id: string; name: string }[];
@@ -68,6 +74,32 @@ function destinationOptions(
   ];
 }
 
+function TerminalAggregateProjectFilter({
+  projectFilter,
+}: {
+  projectFilter: TerminalAggregateLocationProps["projectFilter"];
+}) {
+  if (!projectFilter.field) return null;
+  const chip = projectFilterChip(projectFilter.values);
+  return (
+    <div data-testid="terminal-aggregate-filters">
+      <FiltersWithSearch<string>
+        allowMultiple={false}
+        fields={[projectFilter.field]}
+        filters={chip ? [chip] : []}
+        onChange={next => projectFilter.setValues(projectFilterValuesFromChips(next))}
+        size="sm"
+        trigger={
+          <Button aria-label="Filter terminals" size="sm" type="button" variant="ghost">
+            <ListFilter aria-hidden="true" data-icon="inline-start" />
+            Filter
+          </Button>
+        }
+      />
+    </div>
+  );
+}
+
 /**
  * The Terminal app on the All projects desktop before it shows one terminal:
  * every project's terminals, each named by its project. Opening one (or a
@@ -78,6 +110,7 @@ export function TerminalAggregateLocation({
   windowId,
   catalog,
   coordinator,
+  projectFilter,
   requestedId,
   workspaces,
   profile,
@@ -172,22 +205,31 @@ export function TerminalAggregateLocation({
     </div>
   );
 
+  const filtered = projectFilter.values.length > 0;
   if (terminals.length === 0) {
     return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-        <Empty
-          action={newTerminal}
-          data-testid="terminal-aggregate-empty"
-          description="A terminal runs commands on this computer. Agents can open one too."
-          icon={TerminalSquare}
-          title="No terminals yet"
-        />
+      <div className="flex min-h-0 flex-1 flex-col px-5 py-4">
+        <TerminalAggregateProjectFilter projectFilter={projectFilter} />
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+          <Empty
+            action={newTerminal}
+            data-testid="terminal-aggregate-empty"
+            description={
+              filtered
+                ? "No terminal runs in the selected projects."
+                : "A terminal runs commands on this computer. Agents can open one too."
+            }
+            icon={TerminalSquare}
+            title={filtered ? "No matching terminals" : "No terminals yet"}
+          />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-5 py-4">
+      <TerminalAggregateProjectFilter projectFilter={projectFilter} />
       {catalog.error ? (
         <p className="text-small-body text-danger" role="alert">
           Couldn&apos;t refresh terminals.{" "}
