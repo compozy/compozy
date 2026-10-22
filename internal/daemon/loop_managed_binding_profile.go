@@ -209,6 +209,8 @@ func createOptionsFromProfile(
 		Type:                 session.SessionTypeSystem,
 		AllowedToolsOverride: append([]string(nil), profile.AllowedTools...),
 		DeniedToolsOverride:  mergeLoopActionDeniedTools(profile.DeniedTools, loopActionTerminalTools()),
+		// A pinned recreation keeps the loop run's persisted grant ceiling (USW BR-9).
+		Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.GrantCeiling},
 	}
 	if profile.WorkspaceID == "@user" {
 		opts.Scope = "user"

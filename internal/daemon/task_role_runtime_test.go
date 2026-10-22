@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"slices"
 	"strings"
 	"sync"
@@ -504,6 +505,7 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 
 		taskRecord := taskRoleRuntimeTask("task-starved", "frontend-engineer-agent")
 		taskRecord.ProfileID = "profile-editorial"
+		taskRecord.GrantCeiling = workspaceaccess.Unrestricted
 		run := taskRoleRuntimeRun("run-starved", taskRecord.ID)
 		store := newTaskRoleRuntimeStore(taskRecord, run)
 		sessions := &taskRoleRuntimeSessions{}
@@ -532,6 +534,9 @@ func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
 		}
 		if got, want := call.Type, session.SessionTypeSystem; got != want {
 			t.Fatalf("CreateOpts.Type = %q, want %q", got, want)
+		}
+		if got := call.Origin.Ceiling; got != workspaceaccess.Unrestricted {
+			t.Fatalf("CreateOpts.Origin.Ceiling = %q, want the task's persisted ceiling (USW BR-9)", got)
 		}
 		if call.Lineage == nil {
 			t.Fatal("CreateOpts.Lineage = nil, want TTL + spawn budget")

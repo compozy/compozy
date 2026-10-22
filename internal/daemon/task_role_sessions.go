@@ -202,6 +202,8 @@ func (r *taskRoleRuntime) starvationActivation(
 		Scope:       taskRecord.Scope.Normalize(),
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
 		AgentName:   agentName,
+		// The starvation worker keeps the task's persisted grant ceiling (USW BR-9).
+		GrantCeiling: taskRecord.GrantCeiling,
 
 		Title: strings.TrimSpace(taskRecord.Title),
 		Worktree: taskpkg.WorktreePolicy{
