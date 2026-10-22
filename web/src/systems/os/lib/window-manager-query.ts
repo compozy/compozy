@@ -1,5 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
+import { isReservedDesktopPartition } from "@/systems/workspace";
+
 import { fetchWindowManagerSnapshot } from "../adapters/window-manager-api";
 import { fetchWindowManagerSettings } from "../adapters/window-manager-settings-api";
 import type { WindowManagerSnapshot } from "./window-manager-types";
@@ -12,7 +14,11 @@ export const WINDOW_MANAGER_GLOBAL_SCOPE = "global";
 
 export function windowManagerScopeKey(workspaceId: string | null): string {
   const normalized = workspaceId?.trim() ?? "";
-  return normalized === "" ? WINDOW_MANAGER_GLOBAL_SCOPE : normalized;
+  // Reserved desktop partitions (`global`, `user`) have no workspace overlay, so
+  // they read the same user-scope keymap entry the shell fetched.
+  return normalized === "" || isReservedDesktopPartition(normalized)
+    ? WINDOW_MANAGER_GLOBAL_SCOPE
+    : normalized;
 }
 
 export const windowManagerKeys = {
