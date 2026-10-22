@@ -28,7 +28,10 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		health.rows["sess-user"] = eligibleWakeHealth("sess-user", "", "coder", base)
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
-		decision, err := service.Wake(t.Context(), WakeRequest{WorkspaceID: "", AgentName: "coder", SessionID: "sess-user", Source: WakeSourceScheduler})
+		decision, err := service.Wake(
+			t.Context(),
+			WakeRequest{WorkspaceID: "", AgentName: "coder", SessionID: "sess-user", Source: WakeSourceScheduler},
+		)
 		if err != nil || decision.Result != WakeResultSent {
 			t.Fatalf("User wake = %+v, %v", decision, err)
 		}

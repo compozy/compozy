@@ -43,7 +43,10 @@ func (h *BaseHandlers) windowManagerProfile(
 			return "", false
 		}
 		if string(workspaceID) == "global" || scope.ProfileID != caller.Session.ProfileID {
-			c.JSON(http.StatusForbidden, contract.ErrorPayload{Error: "desktop partition is operator-only", Code: operatorScopeDeniedCode})
+			c.JSON(
+				http.StatusForbidden,
+				contract.ErrorPayload{Error: "desktop partition is operator-only", Code: operatorScopeDeniedCode},
+			)
 			return "", false
 		}
 	}

@@ -6,9 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -90,7 +93,7 @@ func (s *daemonLoopAPIService) ListLoopRuns(
 
 func prepareLoopRunListRequest(workspaceID string, query core.LoopRunListQuery) (loopRunListRequest, error) {
 	if query.AllWorkspaces {
-		workspaceID = "@user"
+		workspaceID = workspaceaccess.UserSelector
 	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
@@ -158,9 +161,7 @@ func (s *daemonLoopAPIService) loopRunListSummaries(
 			if err != nil {
 				return nil, err
 			}
-			for id, summary := range summaries {
-				all[id] = summary
-			}
+			maps.Copy(all, summaries)
 		}
 		return all, nil
 	}
@@ -220,7 +221,10 @@ func encodeLoopRunListCursor(
 ) (string, error) {
 	raw, err := json.Marshal(loopRunListCursor{
 		WorkspaceID:   strings.TrimSpace(workspaceID),
-		AllWorkspaces: query.AllWorkspaces, WorkspaceIDs: query.WorkspaceIDs, ReadScope: query.ReadScope, Order: query.Order,
+		AllWorkspaces: query.AllWorkspaces,
+		WorkspaceIDs:  query.WorkspaceIDs,
+		ReadScope:     query.ReadScope,
+		Order:         query.Order,
 		LoopName:      strings.TrimSpace(query.LoopName),
 		Status:        strings.TrimSpace(query.Status),
 		Origin:        strings.TrimSpace(query.Origin),
@@ -253,7 +257,10 @@ func decodeLoopRunListCursor(value string) (*loopRunListCursor, error) {
 }
 
 func (c loopRunListCursor) matches(workspaceID string, query core.LoopRunListQuery) bool {
-	return c.AllWorkspaces == query.AllWorkspaces && slices.Equal(c.WorkspaceIDs, query.WorkspaceIDs) && c.ReadScope == query.ReadScope && c.Order == query.Order && c.WorkspaceID == strings.TrimSpace(workspaceID) &&
+	return c.AllWorkspaces == query.AllWorkspaces && slices.Equal(c.WorkspaceIDs, query.WorkspaceIDs) &&
+		c.ReadScope == query.ReadScope &&
+		c.Order == query.Order &&
+		c.WorkspaceID == strings.TrimSpace(workspaceID) &&
 		c.LoopName == strings.TrimSpace(query.LoopName) &&
 		c.Status == strings.TrimSpace(query.Status) &&
 		c.Origin == strings.TrimSpace(query.Origin) &&

@@ -807,7 +807,12 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		)
 		_, err := registry.Call(
 			t.Context(),
-			Scope{ProfileID: "profile-default", SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
+			Scope{
+				ProfileID:   "profile-default",
+				SessionID:   "sess-a",
+				WorkspaceID: "ws_0000000000000000",
+				AgentName:   "codex",
+			},
 			CallRequest{
 				ToolID:      descriptor.ID,
 				WorkspaceID: "target-alias",
@@ -844,7 +849,12 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		policy.decision = workspaceaccess.Decision{PromptEligible: true}
 		_, err = registry.Call(
 			t.Context(),
-			Scope{ProfileID: "profile-default", SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex"},
+			Scope{
+				ProfileID:   "profile-default",
+				SessionID:   "sess-a",
+				WorkspaceID: "ws_0000000000000000",
+				AgentName:   "codex",
+			},
 			CallRequest{
 				ToolID:      descriptor.ID,
 				WorkspaceID: "ws_0000000000000001",

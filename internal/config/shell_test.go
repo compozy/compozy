@@ -133,7 +133,10 @@ func TestShellGroupingCompatibility(t *testing.T) {
 func TestShellScopeDeprecationLoggedOnce(t *testing.T) {
 	if os.Getenv("COMPOZY_TEST_SCOPE_WARNING") == "1" {
 		for range 5 {
-			if _, err := loadConfigOverlayBytes([]byte("[shell.sessions]\nscope = 'all-workspaces'\n"), "user.toml"); err != nil {
+			if _, err := loadConfigOverlayBytes(
+				[]byte("[shell.sessions]\nscope = 'all-workspaces'\n"),
+				"user.toml",
+			); err != nil {
 				t.Fatal(err)
 			}
 		}

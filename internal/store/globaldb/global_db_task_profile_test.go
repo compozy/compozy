@@ -238,10 +238,16 @@ func TestTaskExecutionProfileGrantCeiling(t *testing.T) {
 			t.Fatal(err)
 		}
 		for index, ceiling := range []string{"", workspaceaccess.Unrestricted} {
-			ctx := workspaceaccess.WithOrigin(t.Context(), workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: ceiling})
+			ctx := workspaceaccess.WithOrigin(
+				t.Context(),
+				workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: ceiling},
+			)
 			profile := taskpkg.DefaultExecutionProfile(record.ID)
 			event := taskEventForTest(fmt.Sprintf("event-grant-%d", index), record.ID, "")
-			if _, err := db.SetTaskExecutionProfile(ctx, &taskpkg.ExecutionProfileMutation{Profile: profile, Event: event}); err != nil {
+			if _, err := db.SetTaskExecutionProfile(
+				ctx,
+				&taskpkg.ExecutionProfileMutation{Profile: profile, Event: event},
+			); err != nil {
 				t.Fatal(err)
 			}
 			stored, err := db.GetTask(t.Context(), record.ID)

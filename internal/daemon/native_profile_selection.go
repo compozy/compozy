@@ -12,7 +12,12 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-func (n *daemonNativeTools) nativeProfileSelection(ctx context.Context, scope toolspkg.Scope, req toolspkg.CallRequest, descriptor toolspkg.Descriptor) (toolspkg.Scope, toolspkg.CallRequest, error) {
+func (n *daemonNativeTools) nativeProfileSelection(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+	descriptor toolspkg.Descriptor,
+) (toolspkg.Scope, toolspkg.CallRequest, error) {
 	// Extension lifecycle handlers own installation profile selection.
 	if slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDExtensions) {
 		return scope, req, nil
@@ -87,8 +92,15 @@ func (n *daemonNativeTools) nativeProfileSelection(ctx context.Context, scope to
 			target.AllProfiles = true
 		}
 		decision, err := n.deps.WorkspaceAccess.Authorize(ctx, workspaceaccess.Request{
-			Actor:  workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: scope.SessionID, WorkspaceID: scope.WorkspaceID, AgentName: scope.AgentName},
-			Target: target, ReadOnly: descriptor.ReadOnly, Seam: workspaceaccess.SeamTool,
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   scope.SessionID,
+				WorkspaceID: scope.WorkspaceID,
+				AgentName:   scope.AgentName,
+			},
+			Target:   target,
+			ReadOnly: descriptor.ReadOnly,
+			Seam:     workspaceaccess.SeamTool,
 		})
 		if err != nil {
 			return scope, req, err

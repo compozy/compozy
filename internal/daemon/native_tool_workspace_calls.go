@@ -159,8 +159,8 @@ func (n *daemonNativeTools) listLogs(
 		return toolspkg.ToolResult{}, err
 	}
 	query.WorkspaceID = workspaceID
-	if input.WorkspaceID == "@user" {
-		query.WorkspaceID = "@user"
+	if input.WorkspaceID == workspaceaccess.UserSelector {
+		query.WorkspaceID = workspaceaccess.UserSelector
 	}
 	events, err := n.deps.Observer.QueryEvents(ctx, query)
 	if err != nil {
@@ -206,8 +206,8 @@ func (n *daemonNativeTools) observeSearch(
 		return toolspkg.ToolResult{}, err
 	}
 	query.WorkspaceID = workspaceID
-	if input.WorkspaceID == "@user" {
-		query.WorkspaceID = "@user"
+	if input.WorkspaceID == workspaceaccess.UserSelector {
+		query.WorkspaceID = workspaceaccess.UserSelector
 	}
 	query.Limit = 0
 	events, err := n.deps.Observer.QueryEvents(ctx, query)

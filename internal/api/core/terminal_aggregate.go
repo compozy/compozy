@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
@@ -14,7 +16,11 @@ type terminalAggregateReader interface {
 	ListAggregate(context.Context, store.ReadScope) ([]terminalpkg.Info, error)
 }
 
-func (h *BaseHandlers) aggregateTerminalItems(c *gin.Context, breadth WorkspaceBreadth, scope store.ReadScope) ([]terminalInfoPayload, error) {
+func (h *BaseHandlers) aggregateTerminalItems(
+	c *gin.Context,
+	breadth WorkspaceBreadth,
+	scope store.ReadScope,
+) ([]terminalInfoPayload, error) {
 	reader, ok := h.Terminal.(terminalAggregateReader)
 	if !ok {
 		return nil, fmt.Errorf("terminal aggregate unavailable")
@@ -51,7 +57,7 @@ func (h *BaseHandlers) aggregateWorkspaceSet(c *gin.Context, breadth WorkspaceBr
 	if len(breadth.WorkspaceIDs) > 0 {
 		selected := make(map[string]bool)
 		for _, id := range breadth.WorkspaceIDs {
-			if id == "@user" {
+			if id == workspaceaccess.UserSelector {
 				id = ""
 			}
 			if allowed[id] {
@@ -78,5 +84,5 @@ func (h *BaseHandlers) ListTerminalAggregate(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"terminals": items})
+	c.JSON(http.StatusOK, gin.H{terminalsKey: items})
 }

@@ -118,7 +118,8 @@ func (h *BaseHandlers) resolveAgentCallerForWorkspace(
 	if err != nil {
 		return agentidentity.Caller{}, err
 	}
-	if expectedWorkspaceRef == "" || (expectedWorkspaceID != "@user" && expectedWorkspaceID == caller.Session.WorkspaceID) {
+	if expectedWorkspaceRef == "" ||
+		(expectedWorkspaceID != workspaceaccess.UserSelector && expectedWorkspaceID == caller.Session.WorkspaceID) {
 		return caller, nil
 	}
 	if err := agentidentity.ValidateWorkspaceAccess(ctx, h.WorkspaceAccess, workspaceAccessRequestForCaller(
@@ -148,7 +149,7 @@ func workspaceAccessRequestForCaller(
 
 func (h *BaseHandlers) resolveExpectedWorkspaceID(ctx context.Context, ref string) (string, error) {
 	target := strings.TrimSpace(ref)
-	if target == "@user" {
+	if target == workspaceaccess.UserSelector {
 		return target, nil
 	}
 	if target == "" {

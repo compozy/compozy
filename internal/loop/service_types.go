@@ -201,7 +201,6 @@ type LoopDefaults struct {
 
 // Run is the durable loop_run aggregate returned by the service.
 type Run struct {
-	GrantCeiling          string `json:"grant_ceiling"`
 	ID                    RunID
 	ProfileID             string
 	WorkspaceID           WorkspaceID
@@ -320,7 +319,12 @@ type Store interface {
 	CreateLoopRunForStart(ctx context.Context, run Run, policy dsl.ConcurrencyPolicy) (Run, error)
 	GetLoopRun(ctx context.Context, ws WorkspaceID, runID RunID) (Run, error)
 	GetLoopRunByID(ctx context.Context, runID RunID) (Run, error)
-	GetLoopDefinitionSnapshot(ctx context.Context, ws WorkspaceID, profileID string, digest string) (DefinitionSnapshot, error)
+	GetLoopDefinitionSnapshot(
+		ctx context.Context,
+		ws WorkspaceID,
+		profileID string,
+		digest string,
+	) (DefinitionSnapshot, error)
 	FindActiveLoopRun(ctx context.Context, ws WorkspaceID, profileID string, loopName string) (*Run, error)
 	CompareAndSwapLoopRunStatus(
 		ctx context.Context,

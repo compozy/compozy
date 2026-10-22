@@ -32,7 +32,7 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 	if err != nil {
 		return err
 	}
-	labels := map[string]string{"": "User"}
+	labels := map[string]string{"": cliUserScopeLabel}
 	for _, ws := range workspaces {
 		labels[ws.ID] = ws.Name
 	}
@@ -45,7 +45,7 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 	values := url.Values{}
 	var bundle outputBundle
 	rows := [][]string{}
-	headers := []string{"PROJECT", "NAME", "STATE"}
+	headers := []string{cliProjectHeader, "NAME", cliStateHeader}
 	switch kind {
 	case "terminals":
 		var response contract.TerminalListResponse
@@ -69,7 +69,12 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 		var items []AgentRecord
 		for {
 			var response contract.AgentCatalogResponse
-			if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/agents/aggregate", values, &response); err != nil {
+			if err := reader.ReadAggregateCatalog(
+				cmd.Context(),
+				"/api/agents/aggregate",
+				values,
+				&response,
+			); err != nil {
 				return err
 			}
 			for _, item := range response.Agents {
@@ -90,7 +95,12 @@ func writeAggregateCatalog(cmd *cobra.Command, deps commandDeps, kind string) er
 		}
 		values.Set("status", status)
 		var response contract.AutomationSuggestionsResponse
-		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/automation/suggestions", values, &response); err != nil {
+		if err := reader.ReadAggregateCatalog(
+			cmd.Context(),
+			"/api/automation/suggestions",
+			values,
+			&response,
+		); err != nil {
 			return err
 		}
 		bundle = automationSuggestionListBundle(response)
@@ -117,7 +127,7 @@ func wantsAllWorkspaces(cmd *cobra.Command) bool {
 func aggregateProjectLabels(cmd *cobra.Command, client interface {
 	ListWorkspaces(context.Context) ([]WorkspaceRecord, error)
 }) (map[string]string, error) {
-	labels := map[string]string{"": "User"}
+	labels := map[string]string{"": cliUserScopeLabel}
 	items, err := client.ListWorkspaces(cmd.Context())
 	if err != nil {
 		return nil, err

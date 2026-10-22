@@ -85,6 +85,9 @@ type TargetRef struct {
 	Surface     string
 }
 
+// UserSelector is the reserved workspace selector naming the User scope.
+const UserSelector = "@user"
+
 // ScopeTarget translates an internal owner or an explicit User selector into a policy target.
 func ScopeTarget(workspaceID, profileID string) TargetRef {
 	if workspaceID == "" || workspaceID == "@user" {

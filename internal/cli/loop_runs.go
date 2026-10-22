@@ -55,14 +55,18 @@ func newLoopRunsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			response, err := client.ListLoopRuns(cmd.Context(), workspaceID, LoopRunListQuery{AllWorkspaces: allWorkspaces,
-				LoopName:      strings.TrimSpace(loopName),
-				Status:        strings.TrimSpace(status),
-				Origin:        strings.TrimSpace(origin),
-				OriginSession: strings.TrimSpace(originSession),
-				Cursor:        strings.TrimSpace(cursor),
-				Limit:         limit,
-			})
+			response, err := client.ListLoopRuns(
+				cmd.Context(),
+				workspaceID,
+				LoopRunListQuery{AllWorkspaces: allWorkspaces,
+					LoopName:      strings.TrimSpace(loopName),
+					Status:        strings.TrimSpace(status),
+					Origin:        strings.TrimSpace(origin),
+					OriginSession: strings.TrimSpace(originSession),
+					Cursor:        strings.TrimSpace(cursor),
+					Limit:         limit,
+				},
+			)
 			if err != nil {
 				return err
 			}

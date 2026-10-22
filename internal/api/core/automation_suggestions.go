@@ -60,7 +60,11 @@ func (h *BaseHandlers) ListAutomationSuggestions(c *gin.Context) {
 			}
 		}
 	} else {
-		if _, parseErr := parseWorkspaceBreadth(c, c.Param("workspace_id"), breadthEncoding{Selector: "workspace_id"}); parseErr != nil {
+		if _, parseErr := parseWorkspaceBreadth(
+			c,
+			c.Param("workspace_id"),
+			breadthEncoding{Selector: workspaceIDKey},
+		); parseErr != nil {
 			h.respondAggregateBreadthError(c, parseErr)
 			return
 		}

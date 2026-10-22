@@ -346,12 +346,28 @@ func TestDaemonLoopCatalogAggregate(t *testing.T) {
 		dir := t.TempDir()
 		for index := range 201 {
 			name := fmt.Sprintf("loop-%03d", index)
-			records = append(records, resources.Record[looppkg.ResourceSpec]{ID: name, Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: loopCatalogSpecWithFile(t, dir, name, looppkg.SourceUser)})
+			records = append(
+				records,
+				resources.Record[looppkg.ResourceSpec]{
+					ID:    name,
+					Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+					Spec:  loopCatalogSpecWithFile(t, dir, name, looppkg.SourceUser),
+				},
+			)
 		}
 		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
 		catalog.Replace(1, records)
-		service := &daemonLoopAPIService{catalog: catalog, catalogRuns: &loopCatalogRunReaderStub{}, workspaceResolver: resolver, now: func() time.Time { return time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC) }}
-		response, err := service.ListLoops(t.Context(), "", looppkg.CatalogQuery{AllWorkspaces: true, ProfileID: store.DefaultProfileID})
+		service := &daemonLoopAPIService{
+			catalog:           catalog,
+			catalogRuns:       &loopCatalogRunReaderStub{},
+			workspaceResolver: resolver,
+			now:               func() time.Time { return time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC) },
+		}
+		response, err := service.ListLoops(
+			t.Context(),
+			"",
+			looppkg.CatalogQuery{AllWorkspaces: true, ProfileID: store.DefaultProfileID},
+		)
 		if err != nil || response.Aggregate == nil {
 			t.Fatalf("batch = %+v, %v", response, err)
 		}
@@ -370,7 +386,10 @@ func TestDaemonLoopCatalogAggregate(t *testing.T) {
 		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 		db := openDaemonTestGlobalDB(t)
 		for _, id := range []string{"ws-a", "ws-b", "ws-broken"} {
-			if err := db.InsertWorkspace(t.Context(), workspacepkg.Workspace{ID: id, Name: id, RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now}); err != nil {
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{ID: id, Name: id, RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now},
+			); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -387,16 +406,33 @@ func TestDaemonLoopCatalogAggregate(t *testing.T) {
 		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
 		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
 			{ID: "user", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: user},
-			{ID: "override", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-a"}, Spec: override},
-			{ID: "broken", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-broken"}, Spec: broken},
+			{
+				ID:    "override",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-a"},
+				Spec:  override,
+			},
+			{
+				ID:    "broken",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-broken"},
+				Spec:  broken,
+			},
 		})
 		reader := &loopCatalogRunReaderStub{byWorkspace: map[string]map[string]looppkg.CatalogRunSummary{
 			"":     {"triage": {LoopName: "triage", Aggregate30d: looppkg.CatalogRunAggregate{Runs: 1}}},
 			"ws-a": {"triage": {LoopName: "triage", Aggregate30d: looppkg.CatalogRunAggregate{Runs: 2}}},
 			"ws-b": {"triage": {LoopName: "triage", Aggregate30d: looppkg.CatalogRunAggregate{Runs: 3}}},
 		}}
-		service := &daemonLoopAPIService{catalog: catalog, catalogRuns: reader, workspaceResolver: resolver, now: func() time.Time { return now }}
-		response, err := service.ListLoops(t.Context(), "", looppkg.CatalogQuery{AllWorkspaces: true, ProfileID: store.DefaultProfileID})
+		service := &daemonLoopAPIService{
+			catalog:           catalog,
+			catalogRuns:       reader,
+			workspaceResolver: resolver,
+			now:               func() time.Time { return now },
+		}
+		response, err := service.ListLoops(
+			t.Context(),
+			"",
+			looppkg.CatalogQuery{AllWorkspaces: true, ProfileID: store.DefaultProfileID},
+		)
 		if err != nil || response.Aggregate == nil {
 			t.Fatalf("batch = %+v, %v", response, err)
 		}

@@ -8,7 +8,11 @@ import (
 )
 
 // ListSuggestionsAggregate reads existing suggestions without seeding workspace defaults.
-func (m *Manager) ListSuggestionsAggregate(ctx context.Context, scope store.ReadScope, status SuggestionStatus) ([]Suggestion, error) {
+func (m *Manager) ListSuggestionsAggregate(
+	ctx context.Context,
+	scope store.ReadScope,
+	status SuggestionStatus,
+) ([]Suggestion, error) {
 	if err := scope.Validate(); err != nil {
 		return nil, err
 	}

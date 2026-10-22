@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -2848,7 +2850,7 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			for _, tc := range []struct {
 				ids  []string
 				want int
-			}{{ids: []string{"@user"}, want: 2}, {ids: []string{"ws-unrelated"}, want: 0}} {
+			}{{ids: []string{workspaceaccess.UserSelector}, want: 2}, {ids: []string{"ws-unrelated"}, want: 0}} {
 				narrowed, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
 					ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
 					WorkspaceIDs: tc.ids, ExcludeCreatedBy: excluded, Limit: 10,
@@ -6069,7 +6071,7 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 		query := taskpkg.CatalogQuery{
 			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
 			AllWorkspaces: true,
-			WorkspaceIDs:  []string{a, "@user"},
+			WorkspaceIDs:  []string{a, workspaceaccess.UserSelector},
 			Limit:         1,
 		}
 		page, err := db.ListTaskCatalog(ctx, query)
@@ -6080,7 +6082,7 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 			t.Fatalf("page = %#v", page)
 		}
 		query.Cursor = page.NextCursor
-		query.WorkspaceIDs = []string{"@user", a, a}
+		query.WorkspaceIDs = []string{workspaceaccess.UserSelector, a, a}
 		next, err := db.ListTaskCatalog(ctx, query)
 		if err != nil {
 			t.Fatal(err)
@@ -6092,7 +6094,7 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 		if _, err := db.ListTaskCatalog(ctx, query); !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
 			t.Fatalf("changed filter error = %v", err)
 		}
-		query.WorkspaceIDs = []string{a, "@user"}
+		query.WorkspaceIDs = []string{a, workspaceaccess.UserSelector}
 		query.ReadScope = store.ReadScope{AllProfiles: true}
 		if _, err := db.ListTaskCatalog(ctx, query); !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
 			t.Fatalf("changed profile error = %v", err)
@@ -6102,7 +6104,7 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 			taskpkg.CatalogQuery{
 				ReadScope:     store.ReadScope{AllProfiles: true},
 				AllWorkspaces: true,
-				WorkspaceIDs:  []string{"@user"},
+				WorkspaceIDs:  []string{workspaceaccess.UserSelector},
 			},
 		)
 		if err != nil {
@@ -6113,7 +6115,10 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 		}
 		summaries, err := db.ListTasks(
 			ctx,
-			taskpkg.Query{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceIDs: []string{"@user", a}},
+			taskpkg.Query{
+				ReadScope:    store.ReadScope{AllProfiles: true},
+				WorkspaceIDs: []string{workspaceaccess.UserSelector, a},
+			},
 		)
 		if err != nil {
 			t.Fatal(err)

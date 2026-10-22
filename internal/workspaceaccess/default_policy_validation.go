@@ -36,7 +36,9 @@ func validateRequest(ctx context.Context, req Request) error {
 	switch req.Target.Kind {
 	case TargetWorkspace:
 		if !workspaceIDPattern.MatchString(req.Target.WorkspaceID) {
-			return invalidRequest(fmt.Sprintf("workspace access: target workspace id %q is not canonical", req.Target.WorkspaceID))
+			return invalidRequest(
+				fmt.Sprintf("workspace access: target workspace id %q is not canonical", req.Target.WorkspaceID),
+			)
 		}
 	case TargetUser, TargetAggregate:
 		if req.Target.WorkspaceID != "" {

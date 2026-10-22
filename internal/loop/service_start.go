@@ -158,7 +158,14 @@ func (s *service) prepareResolvedStart(
 	if err := origin.Validate(); err != nil {
 		return Run{}, err
 	}
-	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, inputs.ProfileID, loopName, resolved.Definition, inputs.Values)
+	resolvedInputs, err := s.resolveEffectiveInputs(
+		ctx,
+		ws,
+		inputs.ProfileID,
+		loopName,
+		resolved.Definition,
+		inputs.Values,
+	)
 	if err != nil {
 		return Run{}, err
 	}
@@ -242,8 +249,7 @@ func (s *service) startResolved(
 	}
 	now := s.now().UTC()
 	run := Run{
-		GrantCeiling: workspaceaccess.AuthoringCeiling(ctx, actor.Scope.Operator),
-		ID:           runID, ProfileID: inputs.ProfileID, WorkspaceID: ws,
+		ID: runID, ProfileID: inputs.ProfileID, WorkspaceID: ws,
 		LoopName: loopName, Status: StatusRunning, Generation: 0,
 		ReattemptStrategy: effective.ReattemptStrategy, CreatedAt: now, StartedAt: now, LastProgressAt: now,
 		StartedBy: actor.Actor, StartedOrigin: actor.Origin,
@@ -255,6 +261,7 @@ func (s *service) startResolved(
 		Origin: &origin, Inputs: resolvedInputs,
 	}
 	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
+	run.SetGrantCeiling(workspaceaccess.AuthoringCeiling(ctx, actor.Scope.Operator))
 	if inputs.Admission != nil {
 		admission := *inputs.Admission
 		if admission.Horizon <= 0 && effective.Lifecycle.AdmissionHorizon != nil {

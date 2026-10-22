@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -65,7 +67,7 @@ func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, erro
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = activation.WorkspaceID
 	case taskpkg.ScopeGlobal:
-		opts.Scope = "user"
+		opts.Scope = workspacepkg.ScopeUser
 	default:
 		return session.CreateOpts{}, fmt.Errorf(
 			"%w: unsupported task scope %q for role session start",

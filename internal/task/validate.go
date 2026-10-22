@@ -3,6 +3,8 @@ package task
 import (
 	"fmt"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"strings"
 )
 
@@ -11,7 +13,7 @@ const maxCapabilityIDLength = 128
 // Normalize returns the normalized representation of the scope.
 func (s Scope) Normalize() Scope {
 	value := Scope(strings.ToLower(strings.TrimSpace(string(s))))
-	if value == "user" || value == "@user" {
+	if value == "user" || value == workspaceaccess.UserSelector {
 		return ScopeGlobal
 	}
 	return value

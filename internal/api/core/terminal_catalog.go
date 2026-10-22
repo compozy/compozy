@@ -87,7 +87,10 @@ func (c *terminalCatalog) read(
 	})
 }
 
-func (c *terminalCatalog) readSelection(after uint64, matches func(terminalpkg.Event) bool) ([]terminalCatalogEvent, bool, uint64, <-chan struct{}) {
+func (c *terminalCatalog) readSelection(
+	after uint64,
+	matches func(terminalpkg.Event) bool,
+) ([]terminalCatalogEvent, bool, uint64, <-chan struct{}) {
 	for {
 		signal := c.signal.Load()
 		c.mu.Lock()
@@ -133,7 +136,10 @@ func (c *terminalCatalog) replayLocked(
 	})
 }
 
-func (c *terminalCatalog) replaySelectionLocked(after uint64, matches func(terminalpkg.Event) bool) ([]terminalCatalogEvent, bool, uint64) {
+func (c *terminalCatalog) replaySelectionLocked(
+	after uint64,
+	matches func(terminalpkg.Event) bool,
+) ([]terminalCatalogEvent, bool, uint64) {
 	reset := after == 0
 	fence := c.next.Load()
 	if after > 0 && fence-after > terminalCatalogRetention {

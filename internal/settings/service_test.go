@@ -5596,7 +5596,10 @@ func TestShellScopeWriteRevision(t *testing.T) {
 		svc := testService(t, home, Dependencies{ShellScopeRevisions: revisions})
 		update := func(config compozyconfig.ShellSessionsConfig) {
 			t.Helper()
-			result, err := svc.UpdateSection(t.Context(), SectionUpdateRequest{Section: SectionShell, Shell: &compozyconfig.ShellConfig{Sessions: config}})
+			result, err := svc.UpdateSection(
+				t.Context(),
+				SectionUpdateRequest{Section: SectionShell, Shell: &compozyconfig.ShellConfig{Sessions: config}},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -5613,7 +5616,8 @@ func TestShellScopeWriteRevision(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if envelope.Shell.ScopeRevision != 3 || !envelope.Shell.Config.Sessions.ScopeExplicit || envelope.Shell.Config.Sessions.GroupBy != compozyconfig.ShellSessionGroupByProfile {
+		if envelope.Shell.ScopeRevision != 3 || !envelope.Shell.Config.Sessions.ScopeExplicit ||
+			envelope.Shell.Config.Sessions.GroupBy != compozyconfig.ShellSessionGroupByProfile {
 			t.Fatalf("section = %#v", envelope.Shell)
 		}
 	})

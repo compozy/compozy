@@ -144,7 +144,10 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 ) (session.CreateOpts, error) {
 	contractOverlay := looppkg.RenderContractBlock(req.Contract)
 	opts := session.CreateOpts{
-		Origin:                    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			Ceiling: req.GrantCeiling,
+		},
 		ProvenanceParentSessionID: strings.TrimSpace(req.ParentSessionID),
 		ProfileID:                 strings.TrimSpace(req.ProfileID),
 		AgentName:                 agent,
@@ -163,7 +166,7 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 		opts.Workspace = workspaceID
 		return opts, nil
 	}
-	opts.Scope = "user"
+	opts.Scope = workspacepkg.ScopeUser
 	return opts, nil
 }
 

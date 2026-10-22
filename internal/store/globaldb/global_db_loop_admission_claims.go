@@ -97,11 +97,20 @@ func claimLoopAdmission(
 	if err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, err
 	}
-	if _, err := exec.ExecContext(ctx, `UPDATE loop_admission_claims SET
+	if _, err := exec.ExecContext(
+		ctx,
+		`UPDATE loop_admission_claims SET
 		suppressed_count = suppressed_count + 1, last_suppressed_at = ?
 		WHERE workspace_id = ? AND profile_id = ? AND loop_name = ? AND source_key = ? AND event_key = ?`,
-		storepkg.FormatTimestamp(now), run.WorkspaceID, loopStateProfileID(run.WorkspaceID, run.ProfileID), run.LoopName,
-		admissionIdentity.SourceKey, admissionIdentity.EventKey); err != nil {
+		storepkg.FormatTimestamp(
+			now,
+		),
+		run.WorkspaceID,
+		loopStateProfileID(run.WorkspaceID, run.ProfileID),
+		run.LoopName,
+		admissionIdentity.SourceKey,
+		admissionIdentity.EventKey,
+	); err != nil {
 		return false, looppkg.Run{}, looppkg.AdmissionClaim{}, fmt.Errorf(
 			"store: count suppressed Loop admission: %w",
 			err,

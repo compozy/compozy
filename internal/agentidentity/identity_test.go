@@ -664,14 +664,28 @@ func TestTypedWorkspaceAccess(t *testing.T) {
 		t.Run("Should send the target to policy "+string(target.Kind)+" "+target.ProfileID, func(t *testing.T) {
 			t.Parallel()
 			calls := 0
-			policy := workspaceAccessPolicyFunc(func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
-				calls++
-				if req.Target != target {
-					t.Fatalf("target = %#v, want %#v", req.Target, target)
-				}
-				return workspaceaccess.Decision{}, nil
-			})
-			err := ValidateWorkspaceAccess(t.Context(), policy, workspaceaccess.Request{Actor: workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "sess-a", WorkspaceID: "ws-home"}, Target: target, Seam: workspaceaccess.SeamIdentity})
+			policy := workspaceAccessPolicyFunc(
+				func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+					calls++
+					if req.Target != target {
+						t.Fatalf("target = %#v, want %#v", req.Target, target)
+					}
+					return workspaceaccess.Decision{}, nil
+				},
+			)
+			err := ValidateWorkspaceAccess(
+				t.Context(),
+				policy,
+				workspaceaccess.Request{
+					Actor: workspaceaccess.ActorRef{
+						Kind:        workspaceaccess.ActorAgentSession,
+						SessionID:   "sess-a",
+						WorkspaceID: "ws-home",
+					},
+					Target: target,
+					Seam:   workspaceaccess.SeamIdentity,
+				},
+			)
 			if calls != 1 || !errors.Is(err, ErrIdentityUnauthorized) {
 				t.Fatalf("calls/error = %d/%v", calls, err)
 			}
@@ -683,9 +697,20 @@ func TestResolveUserActor(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve a validated User session without a workspace registration", func(t *testing.T) {
 		t.Parallel()
-		caller, err := Resolve(t.Context(), ResolveOptions{Credentials: Credentials{SessionID: "sess-user", AgentName: "general"}, Lookup: func(context.Context, string) (SessionSnapshot, error) {
-			return SessionSnapshot{ID: "sess-user", AgentName: "general", ProfileID: store.DefaultProfileID, State: session.StateActive}, nil
-		}})
+		caller, err := Resolve(
+			t.Context(),
+			ResolveOptions{
+				Credentials: Credentials{SessionID: "sess-user", AgentName: "general"},
+				Lookup: func(context.Context, string) (SessionSnapshot, error) {
+					return SessionSnapshot{
+						ID:        "sess-user",
+						AgentName: "general",
+						ProfileID: store.DefaultProfileID,
+						State:     session.StateActive,
+					}, nil
+				},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

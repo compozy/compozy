@@ -164,10 +164,16 @@ func automationJobUpdateParams(job automation.Job) (sqlcgen.UpdateAutomationJobP
 func automationJobFromGenerated(row sqlcgen.AutomationJob) (automation.Job, error) {
 	job := automation.Job{
 		GrantCeiling: row.GrantCeiling,
-		ID:           row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
-		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
-		Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
-		TargetKind: automation.TargetKind(strings.TrimSpace(row.TargetKind)),
+		ID:           row.ID,
+		ProfileID:    row.ProfileID,
+		Scope:        automation.Scope(strings.TrimSpace(row.Scope)),
+		Name:         row.Name,
+		AgentName:    row.AgentName,
+		WorkspaceID:  automationNullStringValue(row.WorkspaceID),
+		Prompt:       row.Prompt,
+		Enabled:      row.Enabled,
+		Source:       automation.JobSource(strings.TrimSpace(row.Source)),
+		TargetKind:   automation.TargetKind(strings.TrimSpace(row.TargetKind)),
 	}
 	if err := decodeAutomationSchedule(row.Schedule, &job.Schedule); err != nil {
 		return automation.Job{}, err
@@ -273,11 +279,19 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 
 func automationTriggerFromGenerated(row sqlcgen.AutomationTrigger) (automation.Trigger, error) {
 	trigger := automation.Trigger{
-		GrantCeiling: row.GrantCeiling,
-		ID:           row.ID, ProfileID: row.ProfileID, Scope: automation.Scope(strings.TrimSpace(row.Scope)), Name: row.Name,
-		AgentName: row.AgentName, WorkspaceID: automationNullStringValue(row.WorkspaceID), Prompt: row.Prompt,
-		Event: row.Event, Enabled: row.Enabled, Source: automation.JobSource(strings.TrimSpace(row.Source)),
-		WebhookID: automationNullStringValue(row.WebhookID), EndpointSlug: automationNullStringValue(row.EndpointSlug),
+		GrantCeiling:     row.GrantCeiling,
+		ID:               row.ID,
+		ProfileID:        row.ProfileID,
+		Scope:            automation.Scope(strings.TrimSpace(row.Scope)),
+		Name:             row.Name,
+		AgentName:        row.AgentName,
+		WorkspaceID:      automationNullStringValue(row.WorkspaceID),
+		Prompt:           row.Prompt,
+		Event:            row.Event,
+		Enabled:          row.Enabled,
+		Source:           automation.JobSource(strings.TrimSpace(row.Source)),
+		WebhookID:        automationNullStringValue(row.WebhookID),
+		EndpointSlug:     automationNullStringValue(row.EndpointSlug),
 		WebhookSecretRef: automationNullStringValue(row.WebhookSecretRef),
 		TargetKind:       automation.TargetKind(strings.TrimSpace(row.TargetKind)),
 	}

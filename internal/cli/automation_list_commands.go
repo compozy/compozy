@@ -61,7 +61,8 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationJobListBundle(page, deps.now))
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
+	cmd.Flags().
+		StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().
@@ -147,7 +148,8 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerListBundle(page, deps.now))
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
+	cmd.Flags().
+		StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Filter by activation event")

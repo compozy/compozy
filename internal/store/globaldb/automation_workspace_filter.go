@@ -1,6 +1,10 @@
 package globaldb
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
+)
 
 func appendAutomationWorkspaceClauses(where []string, args []any, column string, ids []string) ([]string, []any) {
 	if len(ids) == 0 {
@@ -8,7 +12,7 @@ func appendAutomationWorkspaceClauses(where []string, args []any, column string,
 	}
 	placeholders := make([]string, len(ids))
 	for i, id := range ids {
-		if id == "@user" {
+		if id == workspaceaccess.UserSelector {
 			id = ""
 		}
 		placeholders[i] = "?"

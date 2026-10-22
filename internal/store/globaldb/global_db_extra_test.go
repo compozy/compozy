@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -554,7 +556,8 @@ func TestUserEventSummarySelection(t *testing.T) {
 		ctx := t.Context()
 		at := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
-		if _, err := db.DB().ExecContext(ctx, `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'user-events-foreign','#5FBF85','circle','active',?)`, foreign, store.FormatTimestamp(at)); err != nil {
+		if _, err := db.DB().
+			ExecContext(ctx, `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'user-events-foreign','#5FBF85','circle','active',?)`, foreign, store.FormatTimestamp(at)); err != nil {
 			t.Fatal(err)
 		}
 		workspace := registerWorkspaceForGlobalTests(t, db, "event-project", t.TempDir())
@@ -567,15 +570,27 @@ func TestUserEventSummarySelection(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		rows, err := db.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "@user"})
+		rows, err := db.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceaccess.UserSelector,
+			},
+		)
 		if err != nil || len(rows) != 1 || rows[0].ID != "user-default" {
 			t.Fatalf("User events = %#v, %v", rows, err)
 		}
-		rows, err = db.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "@user"})
+		rows, err = db.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceaccess.UserSelector},
+		)
 		if err != nil || len(rows) != 2 {
 			t.Fatalf("all-profile User events = %#v, %v", rows, err)
 		}
-		rows, err = db.ListEventSummaries(ctx, EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}})
+		rows, err = db.ListEventSummaries(
+			ctx,
+			EventSummaryQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
+		)
 		if err != nil || len(rows) != 2 {
 			t.Fatalf("unfiltered events = %#v, %v", rows, err)
 		}

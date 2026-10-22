@@ -322,7 +322,11 @@ func (m *ingressManager) authorize(
 	}
 	target := workspaceaccess.ScopeTarget(subject.WorkspaceID, subject.ProfileID)
 	if subject.Scope == IngressScopeGlobal {
-		target = workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, ProfileID: subject.ProfileID, Surface: "gateway-ingress"}
+		target = workspaceaccess.TargetRef{
+			Kind:      workspaceaccess.TargetAggregate,
+			ProfileID: subject.ProfileID,
+			Surface:   "gateway-ingress",
+		}
 	}
 	decision, err := m.access.Authorize(ctx, workspaceaccess.Request{
 		Actor: workspaceaccess.ActorRef{

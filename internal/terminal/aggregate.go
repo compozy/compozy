@@ -28,7 +28,10 @@ func (m *Service) ListAggregate(ctx context.Context, scope store.ReadScope) ([]I
 	for _, item := range sessions {
 		items = append(items, item.Info())
 	}
-	slices.SortFunc(items, func(a, b Info) int { return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID)) })
+	slices.SortFunc(
+		items,
+		func(a, b Info) int { return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID)) },
+	)
 	return items, nil
 }
 

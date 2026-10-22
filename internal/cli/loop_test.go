@@ -1753,7 +1753,12 @@ func TestLoopAllWorkspacesCommands(t *testing.T) {
 					t.Fatalf("scope %s %+v", ws, q)
 				}
 				calls++
-				return contract.LoopsResponse{Aggregate: &contract.LoopCatalogBatchResponse{Entries: []contract.LoopCatalogAggregateEntryPayload{}, Errors: []contract.LoopCatalogWorkspaceError{}}}, nil
+				return contract.LoopsResponse{
+					Aggregate: &contract.LoopCatalogBatchResponse{
+						Entries: []contract.LoopCatalogAggregateEntryPayload{},
+						Errors:  []contract.LoopCatalogWorkspaceError{},
+					},
+				}, nil
 			},
 			listLoopRunsFn: func(_ context.Context, ws string, q LoopRunListQuery) (contract.LoopRunsResponse, error) {
 				if ws != "" || !q.AllWorkspaces {
@@ -1774,7 +1779,15 @@ func TestLoopAllWorkspacesCommands(t *testing.T) {
 			if _, _, err := executeRootCommand(t, deps, "loop", verb, "--all-workspaces", "-o", "json"); err != nil {
 				t.Fatal(err)
 			}
-			if _, _, err := executeRootCommand(t, deps, "loop", verb, "--all-workspaces", "--workspace", "alpha"); err == nil {
+			if _, _, err := executeRootCommand(
+				t,
+				deps,
+				"loop",
+				verb,
+				"--all-workspaces",
+				"--workspace",
+				"alpha",
+			); err == nil {
 				t.Fatal("accepted contradictory flags")
 			}
 		}

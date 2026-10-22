@@ -109,22 +109,28 @@ func (d *Dispatcher) dispatchLoopBackedAttempt(
 	if err != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, err)
 	}
-	result, err := d.loopStarter.StartLoop(workspaceaccess.WithOrigin(ctx, workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.grantCeiling()}), LoopStartRequest{
-		ProfileID:       req.profileID(),
-		WorkspaceID:     strings.TrimSpace(target.WorkspaceID),
-		LoopName:        strings.TrimSpace(target.LoopName),
-		Kind:            req.loopStartKind(),
-		Inputs:          cloneJSONMap(target.Inputs),
-		InputMapping:    cloneStringMap(target.InputMapping),
-		TriggerPayload:  cloneJSONMap(req.envelopeData()),
-		Actor:           actor,
-		AutomationRunID: strings.TrimSpace(scheduledRun.ID),
-		ScheduledAt:     cloneTimePointer(req.ScheduledAt),
-		CatchUp:         req.CatchUp,
-		CatchUpPolicy:   req.CatchUpPolicy,
-		SourceKey:       req.definitionID(),
-		EventKey:        loopAdmissionEventKey(req.Envelope),
-	})
+	result, err := d.loopStarter.StartLoop(
+		workspaceaccess.WithOrigin(
+			ctx,
+			workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.grantCeiling()},
+		),
+		LoopStartRequest{
+			ProfileID:       req.profileID(),
+			WorkspaceID:     strings.TrimSpace(target.WorkspaceID),
+			LoopName:        strings.TrimSpace(target.LoopName),
+			Kind:            req.loopStartKind(),
+			Inputs:          cloneJSONMap(target.Inputs),
+			InputMapping:    cloneStringMap(target.InputMapping),
+			TriggerPayload:  cloneJSONMap(req.envelopeData()),
+			Actor:           actor,
+			AutomationRunID: strings.TrimSpace(scheduledRun.ID),
+			ScheduledAt:     cloneTimePointer(req.ScheduledAt),
+			CatchUp:         req.CatchUp,
+			CatchUpPolicy:   req.CatchUpPolicy,
+			SourceKey:       req.definitionID(),
+			EventKey:        loopAdmissionEventKey(req.Envelope),
+		},
+	)
 	if err != nil {
 		if req.CatchUp && errors.Is(err, ErrLoopConcurrencyConflict) {
 			scheduledRun.Metadata = loopCatchUpFailureMetadata(req, "loop_concurrency_conflict")

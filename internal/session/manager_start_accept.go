@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type acceptedSessionStart struct {
@@ -115,7 +117,7 @@ func (m *Manager) resolveAcceptedStartRuntime(
 			return sessionStartRuntime{}, err
 		}
 	}
-	if spec.creationIdentityPinned || spec.workspace.Scope == "user" {
+	if spec.creationIdentityPinned || spec.workspace.Scope == workspacepkg.ScopeUser {
 		if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
 			return sessionStartRuntime{}, fmt.Errorf(
 				"session: prepare creation identity for %q: %w",

@@ -71,7 +71,10 @@ func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
 			return resolvedProfileReadScope{}, resolveErr
 		}
 		sessionProfileID = strings.TrimSpace(caller.Session.ProfileID)
-		origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: caller.Session.EffectiveWorkspaceAccess}
+		origin = workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAgentSession,
+			Ceiling: caller.Session.EffectiveWorkspaceAccess,
+		}
 		grantCaller = caller
 		granted = caller.Session.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
 	}
@@ -192,14 +195,26 @@ func (h *BaseHandlers) profileOwnerIdentities(ctx context.Context) (map[string]p
 	return result, nil
 }
 
-func (h *BaseHandlers) authorizeGrantedProfile(c *gin.Context, caller agentidentity.Caller, workspaceID, profileID string, all bool) error {
+func (h *BaseHandlers) authorizeGrantedProfile(
+	c *gin.Context,
+	caller agentidentity.Caller,
+	workspaceID, profileID string,
+	all bool,
+) error {
 	if workspaceID == "" {
 		workspaceID = caller.Session.WorkspaceID
 	}
 	target := workspaceaccess.ScopeTarget(workspaceID, profileID)
 	target.AllProfiles = all
 	return agentidentity.ValidateWorkspaceAccess(c.Request.Context(), h.WorkspaceAccess, workspaceaccess.Request{
-		Actor:  workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: caller.Session.ID, WorkspaceID: caller.Session.WorkspaceID, AgentName: caller.Session.AgentName},
-		Target: target, ReadOnly: c.Request.Method == "GET", Seam: workspaceaccess.SeamIdentity,
+		Actor: workspaceaccess.ActorRef{
+			Kind:        workspaceaccess.ActorAgentSession,
+			SessionID:   caller.Session.ID,
+			WorkspaceID: caller.Session.WorkspaceID,
+			AgentName:   caller.Session.AgentName,
+		},
+		Target:   target,
+		ReadOnly: c.Request.Method == "GET",
+		Seam:     workspaceaccess.SeamIdentity,
 	})
 }

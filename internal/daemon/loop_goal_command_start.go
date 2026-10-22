@@ -35,7 +35,14 @@ func (s *daemonLoopAPIService) startSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
-	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, prepared.profileID, runtime, prepared.originProvider, prepared.originModel)
+	runtime, err = s.resolveGoalRuntime(
+		ctx,
+		workspaceID,
+		prepared.profileID,
+		runtime,
+		prepared.originProvider,
+		prepared.originModel,
+	)
 	if err != nil {
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}
@@ -84,7 +91,14 @@ func (s *daemonLoopAPIService) replaceSessionGoal(
 	if err != nil || decision.Result != nil {
 		return decision, err
 	}
-	runtime, err = s.resolveGoalRuntime(ctx, workspaceID, prepared.profileID, runtime, prepared.originProvider, prepared.originModel)
+	runtime, err = s.resolveGoalRuntime(
+		ctx,
+		workspaceID,
+		prepared.profileID,
+		runtime,
+		prepared.originProvider,
+		prepared.originModel,
+	)
 	if err != nil {
 		return s.commandErrorDecision(ctx, workspaceID, sessionID, err)
 	}

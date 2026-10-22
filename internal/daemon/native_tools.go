@@ -90,7 +90,10 @@ func newDaemonNativeProvider(deps *daemonNativeToolsDeps) (toolspkg.Provider, er
 					if err != nil {
 						return toolspkg.ToolResult{}, err
 					}
-					origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: info.EffectiveWorkspaceAccess}
+					origin = workspaceaccess.Origin{
+						Kind:    workspaceaccess.ActorAgentSession,
+						Ceiling: info.EffectiveWorkspaceAccess,
+					}
 				}
 				effectiveScope, req, err = adapter.nativeProfileSelection(ctx, effectiveScope, req, descriptor)
 				if err != nil {

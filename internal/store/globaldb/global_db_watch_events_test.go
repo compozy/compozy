@@ -1348,10 +1348,15 @@ func TestGlobalDBWatchEventsCursorMigration(t *testing.T) {
 		watcher.WorkspaceID = looppkg.WorkspaceID(workspaceID)
 		pinLoopRunDefinitionForTest(t, &watcher, definition)
 		insertPrefixRow(t, prefixDB, "loop_definition_snapshots", map[string]any{
-			"workspace_id": string(watcher.WorkspaceID), "definition_digest": watcher.DefinitionDigest,
-			"definition_version": int64(watcher.DefinitionVersion), "definition_json": string(watcher.DefinitionSnapshot),
-			"byte_size": int64(len(watcher.DefinitionSnapshot)), "created_at": store.FormatTimestamp(now),
-			"last_used_at": store.FormatTimestamp(now),
+			"workspace_id":      string(watcher.WorkspaceID),
+			"definition_digest": watcher.DefinitionDigest,
+			"definition_version": int64(
+				watcher.DefinitionVersion,
+			),
+			"definition_json": string(watcher.DefinitionSnapshot),
+			"byte_size":       int64(len(watcher.DefinitionSnapshot)),
+			"created_at":      store.FormatTimestamp(now),
+			"last_used_at":    store.FormatTimestamp(now),
 		})
 		target := testLoopRun("watch-cursor-target", now.Add(time.Minute), looppkg.StatusRunning)
 		target.WorkspaceID = looppkg.WorkspaceID(workspaceID)

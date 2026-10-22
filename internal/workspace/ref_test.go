@@ -1,6 +1,10 @@
 package workspace
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
+)
 
 func TestParseWorkspaceRef(t *testing.T) {
 	t.Parallel()
@@ -8,7 +12,7 @@ func TestParseWorkspaceRef(t *testing.T) {
 		name, raw string
 		want      WorkspaceRef
 	}{
-		{"Should select User explicitly", "@user", WorkspaceRef{Kind: RefUser}},
+		{"Should select User explicitly", workspaceaccess.UserSelector, WorkspaceRef{Kind: RefUser}},
 		{"Should preserve legacy user name", "user", WorkspaceRef{Kind: RefWorkspace, Value: "user"}},
 		{"Should preserve workspace id", "ws_1", WorkspaceRef{Kind: RefWorkspace, Value: "ws_1"}},
 		{"Should preserve workspace path", "~/x", WorkspaceRef{Kind: RefWorkspace, Value: "~/x"}},

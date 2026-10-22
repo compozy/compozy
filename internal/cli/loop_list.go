@@ -56,7 +56,6 @@ func newLoopListCommand(deps commandDeps) *cobra.Command {
 }
 
 func loopListBundle(response contract.LoopsResponse) outputBundle {
-
 	bundle := listBundle(
 		response,
 		response.Loops,

@@ -2607,17 +2607,18 @@ func TestAutomationTargetQueryValidation(t *testing.T) {
 
 func TestAutomationUserScopeAliases(t *testing.T) {
 	t.Parallel()
-	for _, raw := range []string{"user", "@user", "global"} {
+	for _, raw := range []string{"user", workspaceaccess.UserSelector, "global"} {
 		t.Run("Should normalize "+raw+" at create and list boundaries", func(t *testing.T) {
 			t.Parallel()
 			scope := automationpkg.Scope(raw)
 			job := AutomationJobFromCreateRequest(contract.CreateJobRequest{Scope: scope})
 			trigger := AutomationTriggerFromCreateRequest(contract.CreateTriggerRequest{Scope: scope})
-			if job.Scope != automationpkg.AutomationScopeGlobal || trigger.Scope != automationpkg.AutomationScopeGlobal {
+			if job.Scope != automationpkg.AutomationScopeGlobal ||
+				trigger.Scope != automationpkg.AutomationScopeGlobal {
 				t.Fatalf("scopes = %q, %q", job.Scope, trigger.Scope)
 			}
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
-			c.Request = httptest.NewRequest(http.MethodGet, "/?scope="+raw, nil)
+			c.Request = httptest.NewRequest(http.MethodGet, "/?scope="+raw, http.NoBody)
 			jobs, err := ParseAutomationJobListQuery(c, store.ReadScope{ProfileID: store.DefaultProfileID})
 			if err != nil || jobs.Scope != automationpkg.AutomationScopeGlobal {
 				t.Fatalf("jobs = %#v, %v", jobs, err)

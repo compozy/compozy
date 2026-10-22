@@ -112,18 +112,24 @@ func TestObserveOverviewAllWorkspaces(t *testing.T) {
 	t.Run("Should select every task only with explicit all workspaces", func(t *testing.T) {
 		t.Parallel()
 		var captured observe.OverviewQuery
-		observer := testutil.StubObserver{QueryObserveOverviewFn: func(_ context.Context, q observe.OverviewQuery) (observe.OverviewView, error) {
-			captured = q
-			return observe.OverviewView{}, nil
-		}}
+		observer := testutil.StubObserver{
+			QueryObserveOverviewFn: func(_ context.Context, q observe.OverviewQuery) (observe.OverviewView, error) {
+				captured = q
+				return observe.OverviewView{}, nil
+			},
+		}
 		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
 		for _, tc := range []struct {
 			suffix string
 			want   taskpkg.CatalogScope
 		}{{"", taskpkg.CatalogScopeGlobal}, {"?all_workspaces=false", taskpkg.CatalogScopeGlobal}, {"?all_workspaces=true", taskpkg.CatalogScopeAll}} {
 			response := httptest.NewRecorder()
-			fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), "GET", "/observe/overview"+tc.suffix, nil))
-			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "overview") || captured.TaskScope != tc.want {
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(t.Context(), "GET", "/observe/overview"+tc.suffix, nil),
+			)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "overview") ||
+				captured.TaskScope != tc.want {
 				t.Fatalf("response=%d %s query=%+v", response.Code, response.Body.String(), captured)
 			}
 		}

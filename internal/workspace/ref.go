@@ -3,6 +3,8 @@ package workspace
 import (
 	"errors"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type RefKind string
@@ -26,7 +28,7 @@ type WorkspaceRef struct {
 
 func ParseWorkspaceRef(raw string) WorkspaceRef {
 	value := strings.TrimSpace(raw)
-	if value == "@user" {
+	if value == workspaceaccess.UserSelector {
 		return WorkspaceRef{Kind: RefUser}
 	}
 	return WorkspaceRef{Kind: RefWorkspace, Value: value}

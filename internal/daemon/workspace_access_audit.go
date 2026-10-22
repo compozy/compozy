@@ -62,11 +62,14 @@ func (e *workspaceAccessAuditEmitter) EmitWorkspaceAccess(
 	}
 	content, err := json.Marshal(workspaceAccessAuditPayload{
 		TargetWorkspaceID: strings.TrimSpace(record.TargetID),
-		ActorProfileID:    record.ActorProfileID, TargetProfileID: record.Target.ProfileID, TargetKind: record.Target.Kind, AllProfiles: record.Target.AllProfiles,
-		Seam:   record.Seam,
-		Source: record.Source,
-		Mode:   record.Mode,
-		Error:  strings.TrimSpace(record.Err),
+		ActorProfileID:    record.ActorProfileID,
+		TargetProfileID:   record.Target.ProfileID,
+		TargetKind:        record.Target.Kind,
+		AllProfiles:       record.Target.AllProfiles,
+		Seam:              record.Seam,
+		Source:            record.Source,
+		Mode:              record.Mode,
+		Error:             strings.TrimSpace(record.Err),
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: encode workspace access audit payload: %w", err)

@@ -12,6 +12,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	automationpkg "github.com/compozy/compozy/internal/automation"
@@ -454,14 +456,30 @@ func nativeAutomationResultResourceID(t *testing.T, result toolspkg.ToolResult, 
 
 func TestNativeAutomationUserAliasesIntegration(t *testing.T) {
 	t.Parallel()
-	for _, alias := range []string{"user", "@user"} {
+	for _, alias := range []string{"user", workspaceaccess.UserSelector} {
 		t.Run("Should persist canonical User jobs and triggers from "+alias, func(t *testing.T) {
 			t.Parallel()
 			ctx := t.Context()
 			manager := newNativeAutomationIntegrationManager(t, ctx)
-			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{Automation: manager}, nativeApproveAllPolicyInputs())
+			registry := newDaemonNativeRegistry(
+				t,
+				&daemonNativeToolsDeps{Automation: manager},
+				nativeApproveAllPolicyInputs(),
+			)
 			scope := toolspkg.Scope{Operator: true}
-			result, err := registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationJobsCreate, Input: json.RawMessage(fmt.Sprintf(`{"scope":%q,"name":"personal-job","agent_name":"codex","prompt":"review","schedule":{"mode":"every","interval":"1h"}}`, alias))})
+			result, err := registry.Call(
+				ctx,
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationJobsCreate,
+					Input: json.RawMessage(
+						fmt.Sprintf(
+							`{"scope":%q,"name":"personal-job","agent_name":"codex","prompt":"review","schedule":{"mode":"every","interval":"1h"}}`,
+							alias,
+						),
+					),
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -469,7 +487,19 @@ func TestNativeAutomationUserAliasesIntegration(t *testing.T) {
 			if err != nil || job.Scope != automationpkg.AutomationScopeGlobal || job.WorkspaceID != "" {
 				t.Fatalf("job = %#v, %v", job, err)
 			}
-			result, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAutomationTriggersCreate, Input: json.RawMessage(fmt.Sprintf(`{"scope":%q,"name":"personal-trigger","agent_name":"codex","prompt":"review","event":"session.stopped"}`, alias))})
+			result, err = registry.Call(
+				ctx,
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationTriggersCreate,
+					Input: json.RawMessage(
+						fmt.Sprintf(
+							`{"scope":%q,"name":"personal-trigger","agent_name":"codex","prompt":"review","event":"session.stopped"}`,
+							alias,
+						),
+					),
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -478,7 +508,11 @@ func TestNativeAutomationUserAliasesIntegration(t *testing.T) {
 				t.Fatalf("trigger = %#v, %v", trigger, err)
 			}
 			for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAutomationJobsList, toolspkg.ToolIDAutomationTriggersList} {
-				if _, err := registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(fmt.Sprintf(`{"scope":%q}`, alias))}); err != nil {
+				if _, err := registry.Call(
+					ctx,
+					scope,
+					toolspkg.CallRequest{ToolID: id, Input: json.RawMessage(fmt.Sprintf(`{"scope":%q}`, alias))},
+				); err != nil {
 					t.Fatal(err)
 				}
 			}

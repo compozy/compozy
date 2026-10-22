@@ -14,7 +14,7 @@ func listAutomationRunsOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			queryParam("workspace_id", "Filter by source project; @user selects User", false),
 			boolQueryParam("all_workspaces", "Read every run, including unknown attribution"),
-			{Name: "workspace_ids", In: "query", Kind: "array", Description: "Source project IDs or @user; excludes unknown attribution"},
+			workspaceIDsQueryParam("Source project IDs or @user; excludes unknown attribution"),
 			queryParam("cursor", "Opaque source-filter-bound cursor", false),
 			queryParam("job_id", "Filter by automation job id", false),
 			queryParam("trigger_id", "Filter by automation trigger id", false),

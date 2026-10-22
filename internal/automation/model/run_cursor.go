@@ -27,7 +27,13 @@ func DecodeRunCursor(query RunQuery) (RunCursorPosition, error) {
 	if err != nil {
 		return RunCursorPosition{}, err
 	}
-	position, err := listcursor.Decode[RunCursorPosition](query.Cursor, 1, "automation_runs", fingerprint, listcursor.DefaultMaxEncodedSize)
+	position, err := listcursor.Decode[RunCursorPosition](
+		query.Cursor,
+		1,
+		"automation_runs",
+		fingerprint,
+		listcursor.DefaultMaxEncodedSize,
+	)
 	if err != nil {
 		return RunCursorPosition{}, fmt.Errorf("%w: %w", ErrListCursorInvalid, err)
 	}

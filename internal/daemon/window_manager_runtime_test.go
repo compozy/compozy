@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -823,7 +826,7 @@ func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
 				for _, partition := range partitions {
 					bindingTarget := fixture.workspace.ID
 					if retirement == "session" {
-						bindingTarget = "@user"
+						bindingTarget = workspaceaccess.UserSelector
 					}
 					binding, err := json.Marshal(bindingTarget)
 					if err != nil {
@@ -923,7 +926,10 @@ func TestUserScopeLayoutMigration(t *testing.T) {
 		}
 		if err := reconcileUserScopeMigrations(ctx, fixture.database, fixture.engine,
 			fixture.homePaths.HomeDir, discardLogger()); err != nil {
-			t.Fatalf("reconcileUserScopeMigrations() error = %v, want a logged retention instead of a boot failure", err)
+			t.Fatalf(
+				"reconcileUserScopeMigrations() error = %v, want a logged retention instead of a boot failure",
+				err,
+			)
 		}
 		var registered int
 		var journalState string
@@ -933,7 +939,11 @@ func TestUserScopeLayoutMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		if registered != 1 || journalState != "pending" {
-			t.Fatalf("registration=%d journal_state=%q, want the registration kept and the journal pending", registered, journalState)
+			t.Fatalf(
+				"registration=%d journal_state=%q, want the registration kept and the journal pending",
+				registered,
+				journalState,
+			)
 		}
 	})
 
@@ -968,7 +978,7 @@ func TestUserScopeLayoutMigration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if first.Rev != second.Rev || string(first.Value) != string(second.Value) {
+		if first.Rev != second.Rev || !bytes.Equal(first.Value, second.Value) {
 			t.Fatal("migration overwrote existing destination")
 		}
 		if _, err := fixture.engine.Get(
@@ -1011,7 +1021,7 @@ func TestUserScopeLayoutMigration(t *testing.T) {
 		}
 		retained, err := fixture.engine.Get(ctx, clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID),
 			windowManagerStateDomain, key)
-		if err != nil || retained.Rev != first.Rev || string(retained.Value) != string(first.Value) {
+		if err != nil || retained.Rev != first.Rev || !bytes.Equal(retained.Value, first.Value) {
 			t.Fatalf("reconciliation changed User layout: %v", err)
 		}
 	})

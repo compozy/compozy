@@ -49,7 +49,13 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 			}
 		}
 		if !profileFound {
-			result.ByProfile = append(result.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: profileID, Facets: store.SessionCatalogFacets{TerminalApprovals: count}})
+			result.ByProfile = append(
+				result.ByProfile,
+				store.ProfileSessionCatalogFacets{
+					ProfileID: profileID,
+					Facets:    store.SessionCatalogFacets{TerminalApprovals: count},
+				},
+			)
 		}
 		found := false
 		for index := range result.ByWorkspace {
@@ -75,7 +81,10 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 	slices.SortFunc(result.ByWorkspace, func(left, right store.WorkspaceSessionCatalogFacets) int {
 		return strings.Compare(left.WorkspaceID, right.WorkspaceID)
 	})
-	slices.SortFunc(result.ByProfile, func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) })
+	slices.SortFunc(
+		result.ByProfile,
+		func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) },
+	)
 	return nil
 }
 

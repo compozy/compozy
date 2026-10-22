@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -15,7 +17,7 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 		t.Parallel()
 		profile := validSessionCreationProfile(t)
 		profile.Version = UserSessionCreationProfileVersion
-		profile.WorkspaceID = "@user"
+		profile.WorkspaceID = workspaceaccess.UserSelector
 		ref, err := profile.Ref()
 		if err != nil {
 			t.Fatal(err)

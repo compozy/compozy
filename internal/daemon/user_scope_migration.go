@@ -1,15 +1,24 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
 	"log/slog"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	"github.com/compozy/compozy/internal/windowmanager"
+)
+
+// Terminal states of a User-scope migration journal or layout leg.
+const (
+	userScopeMigrationVerified = "verified"
+	userScopeMigrationSkipped  = "skipped"
 )
 
 func reconcileUserScopeMigrations(
@@ -28,7 +37,7 @@ func reconcileUserScopeMigrations(
 		// A defect in legacy journal or layout data keeps that store pending and the registration in
 		// place; it is logged for diagnosis and never prevents the daemon from booting (USW BR-15,
 		// SD-013). The next boot retries the pending store.
-		if migration.JournalState != "verified" && migration.JournalState != "skipped" {
+		if migration.JournalState != userScopeMigrationVerified && migration.JournalState != userScopeMigrationSkipped {
 			if err := workspacedb.ImportLegacyJournal(ctx, homeDir, id, migration.ProfileIDs); err != nil {
 				logger.WarnContext(ctx, "user_scope.migration.journal_retained", "workspace_id", id, "error", err)
 				continue
@@ -38,7 +47,7 @@ func reconcileUserScopeMigrations(
 			}
 			logger.InfoContext(ctx, "user_scope.migration.journal_verified", "workspace_id", id)
 		}
-		if migration.LayoutState != "verified" && migration.LayoutState != "skipped" {
+		if migration.LayoutState != userScopeMigrationVerified && migration.LayoutState != userScopeMigrationSkipped {
 			if err := migrateUserScopeLayouts(ctx, engine, id, logger); err != nil {
 				logger.WarnContext(ctx, "user_scope.migration.layout_retained", "workspace_id", id, "error", err)
 				continue
@@ -99,7 +108,7 @@ func migrateUserScopeLayouts(
 		}
 		snapshot.WorkspaceID = windowmanager.UserDesktopWorkspaceID
 		// The bound work moves to the User scope with the layout (USW BR-15).
-		windowmanager.RebindWorkspace(&snapshot, sourceID, "@user")
+		windowmanager.RebindWorkspace(&snapshot, sourceID, workspaceaccess.UserSelector)
 		encoded, err := json.Marshal(snapshot)
 		if err != nil {
 			return err
@@ -117,7 +126,7 @@ func migrateUserScopeLayouts(
 		if err != nil {
 			return err
 		}
-		if string(saved.Value) != string(encoded) {
+		if !bytes.Equal(saved.Value, encoded) {
 			return errors.New("User layout verification failed")
 		}
 	}

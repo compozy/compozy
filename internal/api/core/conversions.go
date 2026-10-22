@@ -23,9 +23,9 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 }
 
 func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.SessionPayload {
-	scope := "workspace"
+	scope := workspaceScopeValue
 	if info != nil && info.WorkspaceID == "" {
-		scope = "user"
+		scope = userScopeValue
 	}
 	payload := contract.SessionPayload{
 		Scope: scope}

@@ -75,7 +75,7 @@ func enrichOperationError(payload *contract.ErrorPayload, err error) {
 	case errors.Is(err, workspace.ErrWorkspaceReserved), errors.Is(err, session.ErrWorkspaceSelectionReserved):
 		payload.Code = "workspace_reserved"
 	case errors.Is(err, session.ErrWorkspaceSelectionInvalid):
-		payload.Code = "workspace_breadth_invalid"
+		payload.Code = workspaceBreadthInvalidCode
 	case errors.Is(err, session.ErrListQueryInvalid):
 		payload.Code = cmdPaletteInvalidRequestError
 	case errors.Is(err, session.ErrSubagentArchiveFollows):

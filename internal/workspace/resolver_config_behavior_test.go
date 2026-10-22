@@ -760,16 +760,31 @@ func TestResolveUser(t *testing.T) {
 		t.Parallel()
 		home := newTestHomePaths(t)
 		root := t.TempDir()
-		writeFile(t, filepath.Join(home.ProfilesDir, "personal", "config.toml"), "[user_scope]\nwork_dir = "+strconv.Quote(root)+"\n")
+		writeFile(
+			t,
+			filepath.Join(home.ProfilesDir, "personal", "config.toml"),
+			"[user_scope]\nwork_dir = "+strconv.Quote(root)+"\n",
+		)
 		writeFile(t, filepath.Join(root, ".compozy", "config.toml"), "[user_scope]\nwork_dir = 'invalid'\n")
 		writeAgentDef(t, filepath.Join(home.AgentsDir, "personal-agent", "AGENT.md"), "personal-agent", "user-model")
-		writeAgentDef(t, filepath.Join(root, ".compozy", "agents", "project-agent", "AGENT.md"), "project-agent", "project-model")
-		resolver := newTestResolver(t, newMockWorkspaceStore(), WithHomePaths(home), WithProfileAvailabilityChecker(userProfileSource{}))
+		writeAgentDef(
+			t,
+			filepath.Join(root, ".compozy", "agents", "project-agent", "AGENT.md"),
+			"project-agent",
+			"project-model",
+		)
+		resolver := newTestResolver(
+			t,
+			newMockWorkspaceStore(),
+			WithHomePaths(home),
+			WithProfileAvailabilityChecker(userProfileSource{}),
+		)
 		got, err := resolver.ResolveUser(t.Context(), "profile-personal")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got.Scope != ScopeUser || got.ID != "" || got.WorkspaceID != "" || got.RootDir != root || got.ProfileID != "profile-personal" {
+		if got.Scope != ScopeUser || got.ID != "" || got.WorkspaceID != "" || got.RootDir != root ||
+			got.ProfileID != "profile-personal" {
 			t.Fatalf("User resolution = %#v", got)
 		}
 		found := false
@@ -789,14 +804,26 @@ func TestResolveUser(t *testing.T) {
 		t.Parallel()
 		home := newTestHomePaths(t)
 		operatorHome := t.TempDir()
-		resolver := newTestResolver(t, newMockWorkspaceStore(), WithHomePaths(home), WithOperatorHomeDir(operatorHome), WithProfileAvailabilityChecker(userProfileSource{}))
+		resolver := newTestResolver(
+			t,
+			newMockWorkspaceStore(),
+			WithHomePaths(home),
+			WithOperatorHomeDir(operatorHome),
+			WithProfileAvailabilityChecker(userProfileSource{}),
+		)
 		got, err := resolver.ResolveUser(t.Context(), "profile-personal")
 		if err != nil || got.RootDir != operatorHome {
 			t.Fatalf("default User root = %q, %v", got.RootDir, err)
 		}
 		for _, value := range []string{"", "relative", filepath.Join(t.TempDir(), "missing")} {
 			writeFile(t, home.ConfigFile, "[user_scope]\nwork_dir = "+strconv.Quote(value)+"\n")
-			if _, err := resolver.ResolveUser(t.Context(), "profile-personal"); !errors.Is(err, ErrUserScopeWorkDirInvalid) {
+			if _, err := resolver.ResolveUser(
+				t.Context(),
+				"profile-personal",
+			); !errors.Is(
+				err,
+				ErrUserScopeWorkDirInvalid,
+			) {
 				t.Fatalf("ResolveUser(%q) error = %v", value, err)
 			}
 		}

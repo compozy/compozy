@@ -70,9 +70,14 @@ func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bo
 				h.respondError(c, http.StatusBadRequest, errors.New("User session routes require one profile"))
 				return workspaceScope{}, false
 			}
-			return workspaceScope{Resolved: workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser}, AllUserProfiles: true}, true
+			return workspaceScope{
+				Resolved:        workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser},
+				AllUserProfiles: true,
+			}, true
 		}
-		return workspaceScope{Resolved: workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser, ProfileID: profile.ProfileID}}, true
+		return workspaceScope{
+			Resolved: workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser, ProfileID: profile.ProfileID},
+		}, true
 	}
 	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceRef)
 	if err != nil {

@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -384,12 +386,23 @@ func TestSessionLayoutUserScope(t *testing.T) {
 		if err := db.MoveSession(ctx, scope, "sess-user", folder.ID); err != nil {
 			t.Fatal(err)
 		}
-		foreign := sessionInfoForWorkspaceStateIndexTest("sess-user-other", "", globalDBSessionStateStopped, time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC))
+		foreign := sessionInfoForWorkspaceStateIndexTest(
+			"sess-user-other",
+			"",
+			globalDBSessionStateStopped,
+			time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC),
+		)
 		foreign.ProfileID = other
 		if err := db.RegisterSession(ctx, foreign); err != nil {
 			t.Fatal(err)
 		}
-		sessions, err := db.ListSessions(ctx, store.SessionListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "@user"})
+		sessions, err := db.ListSessions(
+			ctx,
+			store.SessionListQuery{
+				ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+				WorkspaceID: workspaceaccess.UserSelector,
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -400,7 +413,13 @@ func TestSessionLayoutUserScope(t *testing.T) {
 		if err != nil || len(folders) != 0 {
 			t.Fatalf("foreign folders=%+v err=%v", folders, err)
 		}
-		all, err := db.ListSessions(ctx, store.SessionListQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: "@user"})
+		all, err := db.ListSessions(
+			ctx,
+			store.SessionListQuery{
+				ReadScope:   store.ReadScope{AllProfiles: true},
+				WorkspaceID: workspaceaccess.UserSelector,
+			},
+		)
 		if err != nil || len(all) != 2 {
 			t.Fatalf("all profiles=%+v err=%v", all, err)
 		}

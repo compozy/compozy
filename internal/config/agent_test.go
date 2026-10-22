@@ -1870,7 +1870,9 @@ func TestAgentWorkspaceAccess(t *testing.T) {
 	t.Parallel()
 	t.Run("Should round trip only the explicit unrestricted grant", func(t *testing.T) {
 		t.Parallel()
-		contents, agent, err := RenderAgentDefinition(AgentDefinitionDraft{Name: "grant-test", Prompt: "Assist.", WorkspaceAccess: "unrestricted"})
+		contents, agent, err := RenderAgentDefinition(
+			AgentDefinitionDraft{Name: "grant-test", Prompt: "Assist.", WorkspaceAccess: "unrestricted"},
+		)
 		if err != nil || agent.WorkspaceAccess != "unrestricted" {
 			t.Fatalf("render = %#v, %v", agent, err)
 		}
@@ -1878,7 +1880,9 @@ func TestAgentWorkspaceAccess(t *testing.T) {
 		if err != nil || CloneAgentDef(decoded).WorkspaceAccess != "unrestricted" {
 			t.Fatalf("parse = %#v, %v", decoded, err)
 		}
-		_, _, err = RenderAgentDefinition(AgentDefinitionDraft{Name: "grant-test", Prompt: "Assist.", WorkspaceAccess: "all"})
+		_, _, err = RenderAgentDefinition(
+			AgentDefinitionDraft{Name: "grant-test", Prompt: "Assist.", WorkspaceAccess: "all"},
+		)
 		if err == nil {
 			t.Fatal("invalid workspace_access accepted")
 		}

@@ -40,7 +40,11 @@ func (r *CoordinatorRunner) configureActionExecutionInput(
 		input.RuntimeSelection = &ActionRuntimeSelection{}
 	}
 	if r.runtimeCatalog != nil {
-		input.RuntimeSelection.Catalog, err = r.runtimeCatalog.ForWorkspace(ctx, actionCtx.loopRun.WorkspaceID, actionCtx.loopRun.ProfileID)
+		input.RuntimeSelection.Catalog, err = r.runtimeCatalog.ForWorkspace(
+			ctx,
+			actionCtx.loopRun.WorkspaceID,
+			actionCtx.loopRun.ProfileID,
+		)
 		if err != nil {
 			return err
 		}

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/session"
@@ -148,7 +150,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 	if workspaceID := strings.TrimSpace(string(req.WorkspaceID)); workspaceID != "" {
 		opts.Workspace = workspaceID
 	} else {
-		opts.Scope = "user"
+		opts.Scope = workspacepkg.ScopeUser
 	}
 	return opts
 }
@@ -212,8 +214,8 @@ func createOptionsFromProfile(
 		// A pinned recreation keeps the loop run's persisted grant ceiling (USW BR-9).
 		Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.GrantCeiling},
 	}
-	if profile.WorkspaceID == "@user" {
-		opts.Scope = "user"
+	if profile.WorkspaceID == workspaceaccess.UserSelector {
+		opts.Scope = workspacepkg.ScopeUser
 		opts.Workspace = ""
 	}
 	return opts

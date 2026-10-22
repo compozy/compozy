@@ -200,7 +200,7 @@ func runtimeGateInput(
 		return gate.GateInput{}, err
 	}
 	return gate.GateInput{
-		GrantCeiling: run.GrantCeiling, JudgeParentSessionID: provenanceSessionID(run),
+		GrantCeiling: run.GrantCeilingSnapshot(), JudgeParentSessionID: provenanceSessionID(run),
 		LoopRunID:      string(run.ID),
 		Placement:      placement,
 		Contract:       &contract,

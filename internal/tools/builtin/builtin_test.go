@@ -1798,7 +1798,12 @@ func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"name", "profile", "session_id", "workspace"})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"name", "profile", "session_id", "workspace"},
+	)
 	if !slices.Equal(input.Required, []string{"session_id", "name"}) {
 		t.Fatalf("%s input required = %#v, want [session_id name]", descriptor.ID, input.Required)
 	}
@@ -1818,7 +1823,27 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"attachments", "expected_turn_id", "idempotency_key", "in_reply_to", "message", "message_id", "mode", "notify_on_complete", "profile", "runtime", "session_id", "supersede", "wait", "workspace"})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{
+			"attachments",
+			"expected_turn_id",
+			"idempotency_key",
+			"in_reply_to",
+			"message",
+			"message_id",
+			"mode",
+			"notify_on_complete",
+			"profile",
+			"runtime",
+			"session_id",
+			"supersede",
+			"wait",
+			"workspace",
+		},
+	)
 	if !slices.Equal(input.Required, []string{
 		"session_id", "message_id", "idempotency_key",
 	}) {
@@ -2145,7 +2170,12 @@ func assertSessionInputsListSchema(t *testing.T, descriptor toolspkg.Descriptor)
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"all_profiles", "profile", "session_id", "workspace"})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"all_profiles", "profile", "session_id", "workspace"},
+	)
 	if !slices.Equal(input.Required, []string{"session_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
 	}
@@ -2182,7 +2212,12 @@ func assertSessionInputCancelSchema(t *testing.T, descriptor toolspkg.Descriptor
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"profile", "queue_entry_id", "session_id", "workspace"})
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"profile", "queue_entry_id", "session_id", "workspace"},
+	)
 	if !slices.Equal(input.Required, []string{"session_id", "queue_entry_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id queue_entry_id]", descriptor.ID, input.Required)
 	}
@@ -2192,7 +2227,14 @@ func assertSessionInputCancelSchema(t *testing.T, descriptor toolspkg.Descriptor
 func assertSessionInputPromoteSchema(t *testing.T, descriptor toolspkg.Descriptor) {
 	t.Helper()
 	assertSessionInputMutationSchema(t, descriptor, []string{
-		"expected_turn_id", "idempotency_key", "message_id", "profile", "queue_entry_id", "session_id", "text", "workspace",
+		"expected_turn_id",
+		"idempotency_key",
+		"message_id",
+		"profile",
+		"queue_entry_id",
+		"session_id",
+		"text",
+		"workspace",
 	}, []string{
 		"session_id", "queue_entry_id", "text", "message_id", "idempotency_key",
 	}, true)

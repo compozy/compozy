@@ -19,7 +19,11 @@ func settingsShellSectionResponse(envelope settingspkg.SectionEnvelope) (any, er
 		SettingsUserSectionResponseMetaPayload: settingsUserSectionMetaPayload(envelope),
 		Config:                                 settingsShellPayload(envelope.Shell.Config),
 		Warnings:                               envelope.Shell.Warnings,
-		LegacyScope:                            contract.SettingsShellLegacyScopePayload{Value: contract.SettingsShellSessionScope(envelope.Shell.Config.Sessions.Scope), Explicit: envelope.Shell.Config.Sessions.ScopeExplicit, Revision: envelope.Shell.ScopeRevision},
+		LegacyScope: contract.SettingsShellLegacyScopePayload{
+			Value:    contract.SettingsShellSessionScope(envelope.Shell.Config.Sessions.Scope),
+			Explicit: envelope.Shell.Config.Sessions.ScopeExplicit,
+			Revision: envelope.Shell.ScopeRevision,
+		},
 	}, nil
 }
 
@@ -69,6 +73,10 @@ func (h *BaseHandlers) updateSettingsShellSection(c *gin.Context, req settingspk
 	c.JSON(http.StatusOK, contract.SettingsShellMutationResponse{
 		SettingsApplyResponse: SettingsApplyResponseFromResult(result),
 		Config:                settingsShellPayload(envelope.Shell.Config),
-		LegacyScope:           contract.SettingsShellLegacyScopePayload{Value: contract.SettingsShellSessionScope(envelope.Shell.Config.Sessions.Scope), Explicit: envelope.Shell.Config.Sessions.ScopeExplicit, Revision: envelope.Shell.ScopeRevision},
+		LegacyScope: contract.SettingsShellLegacyScopePayload{
+			Value:    contract.SettingsShellSessionScope(envelope.Shell.Config.Sessions.Scope),
+			Explicit: envelope.Shell.Config.Sessions.ScopeExplicit,
+			Revision: envelope.Shell.ScopeRevision,
+		},
 	})
 }

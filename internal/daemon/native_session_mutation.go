@@ -80,7 +80,7 @@ func (n *daemonNativeTools) sessionCreate(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: durable session acceptance is required")
 	}
-	if resolved.Scope == "user" && (input.Worktree != "" || input.NewWorktree != nil) {
+	if resolved.Scope == workspacepkg.ScopeUser && (input.Worktree != "" || input.NewWorktree != nil) {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, workspacepkg.ErrUserScopeWorktreeUnsupported)
 	}
 	worktreeTarget, err := n.resolveNativeSessionWorktree(ctx, workspaceID, scope.ProfileID, input)
@@ -113,7 +113,10 @@ func (n *daemonNativeTools) sessionCreate(
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
-		opts.Origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: creator.EffectiveWorkspaceAccess}
+		opts.Origin = workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAgentSession,
+			Ceiling: creator.EffectiveWorkspaceAccess,
+		}
 	}
 	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: opts})
 	if err != nil {

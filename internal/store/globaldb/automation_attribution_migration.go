@@ -21,7 +21,8 @@ func applyGlobalMigrations(ctx context.Context, db *sql.DB) error {
 		return nil
 	}
 	var derived, unknown int
-	if err := db.QueryRowContext(ctx, `SELECT COUNT(CASE WHEN attribution = 'derived' THEN 1 END), COUNT(CASE WHEN attribution = 'unknown' THEN 1 END) FROM automation_runs`).Scan(&derived, &unknown); err != nil {
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(CASE WHEN attribution = 'derived' THEN 1 END), COUNT(CASE WHEN attribution = 'unknown' THEN 1 END) FROM automation_runs`).
+		Scan(&derived, &unknown); err != nil {
 		return fmt.Errorf("globaldb: count automation run attribution backfill: %w", err)
 	}
 	slog.InfoContext(ctx, "automation run attribution backfill", "derived", derived, "unknown", unknown)

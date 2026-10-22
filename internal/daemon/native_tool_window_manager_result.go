@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -156,7 +158,7 @@ func (n *daemonNativeTools) windowManagerWorkspaceID(
 	if err != nil {
 		return "", windowManagerToolError(id, err)
 	}
-	if resolved.Scope == "user" {
+	if resolved.Scope == workspacepkg.ScopeUser {
 		return windowmanager.UserDesktopWorkspaceID, nil
 	}
 	return windowmanager.WorkspaceID(workspaceID), nil

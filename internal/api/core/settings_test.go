@@ -4547,20 +4547,45 @@ func TestSettingsShellGrouping(t *testing.T) {
 		cfg.Sessions.ResolveGroupBy()
 		service := &stubSettingsService{
 			ApplySectionFn: func(_ context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error) {
-				if req.Shell == nil || req.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces || req.Shell.Sessions.GroupBy != "" || req.Shell.Sessions.Sort != "" {
+				if req.Shell == nil || req.Shell.Sessions.Scope != compozyconfig.ShellSessionScopeAllWorkspaces ||
+					req.Shell.Sessions.GroupBy != "" ||
+					req.Shell.Sessions.Sort != "" {
 					t.Fatalf("partial request = %#v", req.Shell)
 				}
-				return settingspkg.ApplyResult{Section: settingspkg.SectionShell, Scope: settingspkg.ScopeUser, Applied: true, Warnings: []string{compozyconfig.ShellScopeDeprecationWarning}}, nil
+				return settingspkg.ApplyResult{
+					Section:  settingspkg.SectionShell,
+					Scope:    settingspkg.ScopeUser,
+					Applied:  true,
+					Warnings: []string{compozyconfig.ShellScopeDeprecationWarning},
+				}, nil
 			},
 			GetSectionFn: func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
-				return settingspkg.SectionEnvelope{Section: settingspkg.SectionShell, Scope: settingspkg.ScopeUser, Shell: &settingspkg.ShellSection{Config: cfg, ScopeRevision: 2, Warnings: []string{compozyconfig.ShellScopeDeprecationWarning}}}, nil
+				return settingspkg.SectionEnvelope{
+					Section: settingspkg.SectionShell,
+					Scope:   settingspkg.ScopeUser,
+					Shell: &settingspkg.ShellSection{
+						Config:        cfg,
+						ScopeRevision: 2,
+						Warnings:      []string{compozyconfig.ShellScopeDeprecationWarning},
+					},
+				}, nil
 			},
 		}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/shell", []byte(`{"config":{"sessions":{"scope":"all-workspaces"}}}`))
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{"scope":"all-workspaces"}}}`),
+		)
 		var payload contract.SettingsShellMutationResponse
 		decodeJSON(t, response.Body.Bytes(), &payload)
-		if response.Code != http.StatusOK || !payload.Applied || payload.Config.Sessions.GroupBy != contract.SettingsShellSessionGroupByProject || payload.LegacyScope.Revision != 2 || !payload.LegacyScope.Explicit || !slices.Contains(payload.Warnings, compozyconfig.ShellScopeDeprecationWarning) {
+		if response.Code != http.StatusOK || !payload.Applied ||
+			payload.Config.Sessions.GroupBy != contract.SettingsShellSessionGroupByProject ||
+			payload.LegacyScope.Revision != 2 ||
+			!payload.LegacyScope.Explicit ||
+			!slices.Contains(payload.Warnings, compozyconfig.ShellScopeDeprecationWarning) {
 			t.Fatalf("response=%d %#v", response.Code, payload)
 		}
 		response = performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/shell", nil)
@@ -4574,8 +4599,16 @@ func TestSettingsShellGrouping(t *testing.T) {
 		t.Parallel()
 		service := &stubSettingsService{}
 		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-		response := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/shell", []byte(`{"config":{"sessions":{"group_by":"folders"}}}`))
-		if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "shell_config_invalid") || service.ApplySectionCalls != 0 {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/shell",
+			[]byte(`{"config":{"sessions":{"group_by":"folders"}}}`),
+		)
+		if response.Code != http.StatusBadRequest ||
+			!strings.Contains(response.Body.String(), "shell_config_invalid") ||
+			service.ApplySectionCalls != 0 {
 			t.Fatalf("response=%d %s", response.Code, response.Body.String())
 		}
 	})

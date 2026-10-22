@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 var (
@@ -17,16 +19,28 @@ func NormalizeWorkspaceIDs(values []string, all bool) ([]string, error) {
 		return nil, nil
 	}
 	if !all {
-		return nil, fmt.Errorf("%w: %w: workspace_ids requires all_workspaces", ErrListQueryInvalid, ErrWorkspaceSelectionInvalid)
+		return nil, fmt.Errorf(
+			"%w: %w: workspace_ids requires all_workspaces",
+			ErrListQueryInvalid,
+			ErrWorkspaceSelectionInvalid,
+		)
 	}
 	normalized := make([]string, 0, len(values))
 	for _, value := range values {
 		value = strings.TrimSpace(value)
 		if value == "global" {
-			return nil, fmt.Errorf("%w: %w: global is not a data workspace", ErrListQueryInvalid, ErrWorkspaceSelectionReserved)
+			return nil, fmt.Errorf(
+				"%w: %w: global is not a data workspace",
+				ErrListQueryInvalid,
+				ErrWorkspaceSelectionReserved,
+			)
 		}
 		if value == "" {
-			return nil, fmt.Errorf("%w: invalid workspace_ids value %q; use @user for User", errors.Join(ErrListQueryInvalid, ErrWorkspaceSelectionInvalid), value)
+			return nil, fmt.Errorf(
+				"%w: invalid workspace_ids value %q; use @user for User",
+				errors.Join(ErrListQueryInvalid, ErrWorkspaceSelectionInvalid),
+				value,
+			)
 		}
 		normalized = append(normalized, value)
 	}
@@ -39,7 +53,7 @@ func sessionMatchesWorkspaceIDs(id string, values []string) bool {
 		return true
 	}
 	if id == "" {
-		id = "@user"
+		id = workspaceaccess.UserSelector
 	}
 	return slices.Contains(values, id)
 }

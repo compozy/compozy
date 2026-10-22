@@ -904,9 +904,16 @@ func TestSubagentWorktreePersistence(t *testing.T) {
 		old.initializeRepositories(openConfig{})
 		ws := registerWorkspaceForGlobalTests(t, old, "isolation-upgrade", t.TempDir())
 		insertPrefixRow(t, prefix, "sessions", map[string]any{
-			"id": "parent", "profile_id": store.DefaultProfileID, "agent_name": "coder", "provider": "claude",
-			"workspace_id": ws, "runtime_status": string(store.SessionRuntimeUnbound), "session_type": defaultSessionType,
-			"state": "stopped", "created_at": store.FormatTimestamp(now), "updated_at": store.FormatTimestamp(now),
+			"id":             "parent",
+			"profile_id":     store.DefaultProfileID,
+			"agent_name":     "coder",
+			"provider":       "claude",
+			"workspace_id":   ws,
+			"runtime_status": string(store.SessionRuntimeUnbound),
+			"session_type":   defaultSessionType,
+			"state":          "stopped",
+			"created_at":     store.FormatTimestamp(now),
+			"updated_at":     store.FormatTimestamp(now),
 		})
 		_, err = prefix.ExecContext(
 			t.Context(),

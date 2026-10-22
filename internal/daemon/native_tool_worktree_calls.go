@@ -10,6 +10,8 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
+const worktreeKey = "worktree"
+
 type nativeWorktreeListInput struct {
 	Workspace string `json:"workspace"`
 	Refresh   bool   `json:"refresh"`
@@ -103,7 +105,7 @@ func (n *daemonNativeTools) worktreeCreate(
 	payload := core.WorktreePayloadFromInspection(worktree.Inspection{
 		Worktree: *item, AgentActivity: worktree.AgentActivityIdle,
 	})
-	return structuredResult(map[string]any{"worktree": payload}, item.ID)
+	return structuredResult(map[string]any{worktreeKey: payload}, item.ID)
 }
 
 func (n *daemonNativeTools) worktreeRemove(

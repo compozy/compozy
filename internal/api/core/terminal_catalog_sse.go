@@ -12,7 +12,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const terminalCatalogWorkspaceIDKey = "workspace_id"
+const (
+	workspaceIDKey              = "workspace_id"
+	profileIDKey                = "profile_id"
+	terminalsKey                = "terminals"
+	workspaceQueryKey           = "workspace"
+	workspaceBreadthInvalidCode = "workspace_breadth_invalid"
+)
 
 func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 	if h == nil || h.terminalCatalog == nil {
@@ -30,7 +36,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	workspaceID := strings.TrimSpace(c.Param(terminalCatalogWorkspaceIDKey))
+	workspaceID := strings.TrimSpace(c.Param(workspaceIDKey))
 	replay, reset, fence, changed := h.terminalCatalog.read(workspaceID, profileID, after)
 	stop, done, accepting := h.terminalStreams.begin()
 	if !accepting {
@@ -134,7 +140,7 @@ func (h *BaseHandlers) writeTerminalCatalogSnapshot(
 		return err
 	}
 	return WriteSSE(writer, SSEMessage{
-		ID: strconv.FormatUint(fence, 10), Name: "terminal.snapshot", Data: gin.H{"terminals": items},
+		ID: strconv.FormatUint(fence, 10), Name: "terminal.snapshot", Data: gin.H{terminalsKey: items},
 	})
 }
 
@@ -239,7 +245,11 @@ func terminalCatalogPayload(event terminalpkg.Event) (string, any, error) {
 			terminalPayloadKey: terminalInfoFromDomain(*event.Info, event.ProfileName),
 		}, nil
 	case terminalpkg.EventKindDeleted:
-		return "terminal.deleted", gin.H{terminalIDPayloadKey: event.TerminalID, "workspace_id": event.WorkspaceID, "profile_id": event.ProfileID}, nil
+		return "terminal.deleted", gin.H{
+			terminalIDPayloadKey: event.TerminalID,
+			workspaceIDKey:       event.WorkspaceID,
+			profileIDKey:         event.ProfileID,
+		}, nil
 	case terminalpkg.EventKindClosed:
 		exit := event.Exit
 		if exit == nil && event.Info != nil {
@@ -248,7 +258,7 @@ func terminalCatalogPayload(event terminalpkg.Event) (string, any, error) {
 		return "terminal.closed", gin.H{
 			terminalIDPayloadKey: event.TerminalID,
 			"exit":               terminalExitFromDomain(exit),
-			"workspace_id":       event.WorkspaceID, "profile_id": event.ProfileID,
+			workspaceIDKey:       event.WorkspaceID, profileIDKey: event.ProfileID,
 		}, nil
 	case terminalpkg.EventKindTitleChanged:
 		return "terminal.title_changed", gin.H{terminalIDPayloadKey: event.TerminalID, "title": event.Detail.Title}, nil
@@ -275,10 +285,10 @@ func terminalCatalogRecordingPayload(
 	at time.Time,
 ) gin.H {
 	return gin.H{
-		terminalCatalogWorkspaceIDKey: workspaceID,
-		"profile_id":                  profileID,
-		terminalIDPayloadKey:          terminalID,
-		"recording_id":                recordingID,
-		"at":                          at,
+		workspaceIDKey:       workspaceID,
+		profileIDKey:         profileID,
+		terminalIDPayloadKey: terminalID,
+		"recording_id":       recordingID,
+		"at":                 at,
 	}
 }

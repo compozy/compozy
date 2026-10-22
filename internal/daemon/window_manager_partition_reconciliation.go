@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
@@ -21,14 +23,20 @@ func (r *windowManagerRegistry) partitionWorkspaceIDs(ctx context.Context) ([]cl
 	if err != nil {
 		return nil, err
 	}
-	ids := []clientstate.WorkspaceID{clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID), clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID)}
+	ids := []clientstate.WorkspaceID{
+		clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
+		clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID),
+	}
 	for _, workspace := range workspaces {
 		ids = append(ids, clientstate.WorkspaceID(workspace.ID))
 	}
 	return ids, nil
 }
 
-func (r *windowManagerRegistry) reconcilePartitions(ctx context.Context, reconcile func(*windowmanager.Manager, windowmanager.WorkspaceID) error) error {
+func (r *windowManagerRegistry) reconcilePartitions(
+	ctx context.Context,
+	reconcile func(*windowmanager.Manager, windowmanager.WorkspaceID) error,
+) error {
 	partitions, err := r.desktopPartitions(ctx, "")
 	if err != nil {
 		return err
@@ -41,8 +49,17 @@ func (r *windowManagerRegistry) reconcilePartitions(ctx context.Context, reconci
 		if err != nil {
 			return err
 		}
-		if err := reconcile(manager, windowmanager.WorkspaceID(partition.workspaceID)); err != nil && !errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
-			return fmt.Errorf("daemon: reconcile profile %q partition %q: %w", partition.profileID, partition.workspaceID, err)
+		if err := reconcile(
+			manager,
+			windowmanager.WorkspaceID(partition.workspaceID),
+		); err != nil &&
+			!errors.Is(err, windowmanager.ErrWorkspaceNotFound) {
+			return fmt.Errorf(
+				"daemon: reconcile profile %q partition %q: %w",
+				partition.profileID,
+				partition.workspaceID,
+				err,
+			)
 		}
 	}
 	return nil
@@ -65,7 +82,8 @@ func (r *windowManagerRegistry) ReconcileStaleBindings(ctx context.Context) erro
 			routes := append([]windowmanager.RouteIntent{window.Route}, window.NavStack...)
 			for _, route := range routes {
 				var binding string
-				if json.Unmarshal(route.Search["workspace"], &binding) == nil && binding != "" && binding != "@user" {
+				if json.Unmarshal(route.Search["workspace"], &binding) == nil && binding != "" &&
+					binding != workspaceaccess.UserSelector {
 					bindings[binding] = struct{}{}
 				}
 			}

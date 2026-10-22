@@ -33,7 +33,7 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 	targets := make(map[string]struct{})
 	collectNativeWorkspaceTargets(schema, payload, targets)
 	if nativeInputHasGlobalScope(payload) {
-		targets["@user"] = struct{}{}
+		targets[workspaceaccess.UserSelector] = struct{}{}
 	}
 	if len(targets) == 0 {
 		return nil
@@ -70,7 +70,7 @@ func (b *nativeWorkspaceInputBinder) authorizeWorkspaceTarget(
 	actor workspaceaccess.ActorRef,
 	targetWorkspaceID string,
 ) error {
-	if targetWorkspaceID != "@user" && targetWorkspaceID == actor.WorkspaceID {
+	if targetWorkspaceID != workspaceaccess.UserSelector && targetWorkspaceID == actor.WorkspaceID {
 		return nil
 	}
 	if b == nil || b.workspaceAccess == nil {
@@ -153,8 +153,11 @@ func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 			info.State,
 		)
 	}
-	if strings.TrimSpace(scope.ProfileID) != "" && strings.TrimSpace(info.ProfileID) != strings.TrimSpace(scope.ProfileID) {
-		return workspaceaccess.ActorRef{}, errors.New("daemon: native workspace access profile differs from the session profile")
+	if strings.TrimSpace(scope.ProfileID) != "" &&
+		strings.TrimSpace(info.ProfileID) != strings.TrimSpace(scope.ProfileID) {
+		return workspaceaccess.ActorRef{}, errors.New(
+			"daemon: native workspace access profile differs from the session profile",
+		)
 	}
 	workspaceID := strings.TrimSpace(info.WorkspaceID)
 

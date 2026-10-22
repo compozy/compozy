@@ -45,7 +45,7 @@ func prepareUserScopeAutomationNames(ctx context.Context, tx *sql.Tx) error {
 		}
 		taken := map[string]bool{}
 		for _, r := range records {
-			if r.scope == "global" {
+			if r.scope == legacyGlobalName {
 				taken[r.name] = true
 			}
 		}

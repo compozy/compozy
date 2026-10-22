@@ -29,19 +29,21 @@ func ParseAutomationRunQuery(c *gin.Context) (automationpkg.RunQuery, error) {
 		return automationpkg.RunQuery{}, err
 	}
 
-	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace_id", OmissionIsAll: true})
+	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true})
 	if err != nil {
 		return automationpkg.RunQuery{}, err
 	}
 	allWorkspaces, _ := ParseOptionalBool(c.Query("all_workspaces"))
 	query := automationpkg.RunQuery{
 		AllWorkspaces: allWorkspaces,
-		WorkspaceID:   breadth.WorkspaceID, WorkspaceIDs: breadth.WorkspaceIDs, Cursor: strings.TrimSpace(c.Query("cursor")),
-		JobID:     strings.TrimSpace(c.Query("job_id")),
-		TriggerID: strings.TrimSpace(c.Query("trigger_id")),
-		Since:     since,
-		Until:     until,
-		Limit:     limit,
+		WorkspaceID:   breadth.WorkspaceID,
+		WorkspaceIDs:  breadth.WorkspaceIDs,
+		Cursor:        strings.TrimSpace(c.Query("cursor")),
+		JobID:         strings.TrimSpace(c.Query("job_id")),
+		TriggerID:     strings.TrimSpace(c.Query("trigger_id")),
+		Since:         since,
+		Until:         until,
+		Limit:         limit,
 	}
 	if rawStatus := strings.TrimSpace(c.Query("status")); rawStatus != "" {
 		query.Status = automationpkg.RunStatus(rawStatus)

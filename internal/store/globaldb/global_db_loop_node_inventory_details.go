@@ -25,7 +25,14 @@ func hydrateNodeInventoryItems(
 		indexesByRun[items[index].LoopRunID] = append(indexesByRun[items[index].LoopRunID], index)
 	}
 	for runID, indexes := range indexesByRun {
-		if err := hydrateNodeInventoryRun(ctx, queries, looppkg.WorkspaceID(items[indexes[0]].WorkspaceID), runID, indexes, items); err != nil {
+		if err := hydrateNodeInventoryRun(
+			ctx,
+			queries,
+			looppkg.WorkspaceID(items[indexes[0]].WorkspaceID),
+			runID,
+			indexes,
+			items,
+		); err != nil {
 			return nil, err
 		}
 	}

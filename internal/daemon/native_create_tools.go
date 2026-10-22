@@ -47,7 +47,13 @@ func (n *daemonNativeTools) agentCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	if input.WorkspaceAccess != "" && scope.SessionID != "" {
-		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeDenied, req.ToolID, "only the operator may set workspace_access", toolspkg.ErrToolDenied, toolspkg.ReasonCode("workspace_access_operator_only"))
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			req.ToolID,
+			"only the operator may set workspace_access",
+			toolspkg.ErrToolDenied,
+			toolspkg.ReasonCode("workspace_access_operator_only"),
+		)
 	}
 	createReq, err := n.agentCreateRequest(req.ToolID, scope, input)
 	if err != nil {

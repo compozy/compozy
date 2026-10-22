@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -2742,7 +2744,9 @@ func TestLoopAggregateHandlers(t *testing.T) {
 		t.Parallel()
 		service := happyLoopService(t)
 		service.listLoopRunsFn = func(_ context.Context, ws string, query core.LoopRunListQuery) (contract.LoopRunsResponse, error) {
-			if ws != "" || !query.AllWorkspaces || query.ReadScope.ProfileID != store.DefaultProfileID || len(query.WorkspaceIDs) != 2 || query.WorkspaceIDs[0] != "@user" {
+			if ws != "" || !query.AllWorkspaces || query.ReadScope.ProfileID != store.DefaultProfileID ||
+				len(query.WorkspaceIDs) != 2 ||
+				query.WorkspaceIDs[0] != workspaceaccess.UserSelector {
 				t.Fatalf("aggregate scope %q %+v", ws, query)
 			}
 			return contract.LoopRunsResponse{Runs: []contract.LoopRunPayload{}}, nil
@@ -2754,7 +2758,13 @@ func TestLoopAggregateHandlers(t *testing.T) {
 				t.Fatalf("%s: %d %s", path, response.Code, response.Body.String())
 			}
 		}
-		response := performRequest(t, engine, http.MethodGet, "/loop-runs?all_workspaces=true&workspace_ids=ws-b&workspace_ids=@user&workspace_ids=ws-b", nil)
+		response := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/loop-runs?all_workspaces=true&workspace_ids=ws-b&workspace_ids=@user&workspace_ids=ws-b",
+			nil,
+		)
 		if response.Code != 200 || !strings.Contains(response.Body.String(), "runs") {
 			t.Fatalf("aggregate: %d %s", response.Code, response.Body.String())
 		}

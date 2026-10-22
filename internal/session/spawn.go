@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -116,7 +118,10 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	}
 
 	child, err := m.Create(ctx, CreateOpts{
-		Origin:              workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: parent.EffectiveWorkspaceAccess},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAgentSession,
+			Ceiling: parent.EffectiveWorkspaceAccess,
+		},
 		DesiredSessionID:    desiredID,
 		ProfileID:           strings.TrimSpace(parent.ProfileID),
 		AgentName:           normalized.AgentName,
@@ -307,7 +312,7 @@ func (m *Manager) validateSpawnWorkspace(
 			)
 		}
 		resolvedID := strings.TrimSpace(resolved.ID)
-		if resolvedID == "" && resolved.Scope != "user" {
+		if resolvedID == "" && resolved.Scope != workspacepkg.ScopeUser {
 			return SpawnOpts{}, fmt.Errorf("%w: child workspace %q has no id", ErrSpawnValidation, ref)
 		}
 		if index > 0 && targetWorkspaceID != resolvedID {
@@ -346,7 +351,7 @@ func (m *Manager) validateSpawnWorkspace(
 	}
 	opts.Workspace = targetWorkspaceID
 	if targetWorkspaceID == "" {
-		opts.Workspace = "@user"
+		opts.Workspace = workspaceaccess.UserSelector
 		if opts.IsolatedWorktreeID != "" {
 			return SpawnOpts{}, spawnValidation("User scope does not support worktrees")
 		}
@@ -394,9 +399,10 @@ func (m *Manager) spawnLineage(
 		)
 	}
 	targetWorkspaceID := strings.TrimSpace(opts.Workspace)
-	if targetWorkspaceID == "@user" {
+	switch targetWorkspaceID {
+	case workspaceaccess.UserSelector:
 		targetWorkspaceID = ""
-	} else if targetWorkspaceID == "" {
+	case "":
 		targetWorkspaceID = strings.TrimSpace(parent.WorkspaceID)
 	}
 	if err := m.validateSpawnCaps(ctx, parent, governance, budget, targetWorkspaceID); err != nil {

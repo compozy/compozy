@@ -646,7 +646,12 @@ func TestUnrestrictedGrant(t *testing.T) {
 			t.Parallel()
 			audit := &auditEmitterSpy{}
 			facts := factsSourceFunc(func(context.Context, string) (SessionFacts, error) {
-				return SessionFacts{Mode: ModeDenyAll, WorkspaceAccess: Unrestricted, WorkspaceID: testWorkspaceA, ProfileID: "p1"}, nil
+				return SessionFacts{
+					Mode:            ModeDenyAll,
+					WorkspaceAccess: Unrestricted,
+					WorkspaceID:     testWorkspaceA,
+					ProfileID:       "p1",
+				}, nil
 			})
 			policy := newPolicyForTest(t, facts, &consentCacheStub{}, audit, slog.Default())
 			req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)

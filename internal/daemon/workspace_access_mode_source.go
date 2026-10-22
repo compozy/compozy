@@ -40,17 +40,32 @@ func (s *workspaceAccessModeSource) SessionFacts(
 	}
 	info, err := s.sessions.Status(ctx, sessionID)
 	if err != nil {
-		return workspaceaccess.SessionFacts{}, fmt.Errorf("daemon: read workspace access session %q: %w", sessionID, err)
+		return workspaceaccess.SessionFacts{}, fmt.Errorf(
+			"daemon: read workspace access session %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	if info == nil {
-		return workspaceaccess.SessionFacts{}, fmt.Errorf("daemon: workspace access session %q returned no status", sessionID)
+		return workspaceaccess.SessionFacts{}, fmt.Errorf(
+			"daemon: workspace access session %q returned no status",
+			sessionID,
+		)
 	}
 	if info.State == session.StateStopped {
 		return workspaceaccess.SessionFacts{}, fmt.Errorf("daemon: workspace access session %q is stopped", sessionID)
 	}
 	mode := workspaceaccess.Mode(strings.TrimSpace(info.EffectivePermissions))
 	if mode == "" {
-		return workspaceaccess.SessionFacts{}, fmt.Errorf("daemon: workspace access session %q has no effective permission mode", sessionID)
+		return workspaceaccess.SessionFacts{}, fmt.Errorf(
+			"daemon: workspace access session %q has no effective permission mode",
+			sessionID,
+		)
 	}
-	return workspaceaccess.SessionFacts{Mode: mode, WorkspaceAccess: info.EffectiveWorkspaceAccess, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID}, nil
+	return workspaceaccess.SessionFacts{
+		Mode:            mode,
+		WorkspaceAccess: info.EffectiveWorkspaceAccess,
+		ProfileID:       info.ProfileID,
+		WorkspaceID:     info.WorkspaceID,
+	}, nil
 }

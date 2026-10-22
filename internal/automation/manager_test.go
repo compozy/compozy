@@ -2668,7 +2668,15 @@ func TestAutomationGrantCeiling(t *testing.T) {
 	t.Run("Should persist the author ceiling and narrow executable edits", func(t *testing.T) {
 		t.Parallel()
 		h := newManagerHarness(t)
-		manager := h.newManager(t, compozyconfig.AutomationConfig{Enabled: true, Timezone: DefaultTimezone, MaxConcurrentJobs: DefaultMaxConcurrentJobs, DefaultFireLimit: DefaultFireLimitConfig()})
+		manager := h.newManager(
+			t,
+			compozyconfig.AutomationConfig{
+				Enabled:           true,
+				Timezone:          DefaultTimezone,
+				MaxConcurrentJobs: DefaultMaxConcurrentJobs,
+				DefaultFireLimit:  DefaultFireLimitConfig(),
+			},
+		)
 		operator := workspaceaccess.WithOrigin(h.ctx, workspaceaccess.Origin{Kind: workspaceaccess.ActorHuman})
 		agent := workspaceaccess.WithOrigin(h.ctx, workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession})
 		job := testJob(AutomationScopeWorkspace, "grant-ceiling", h.workspace.ID)

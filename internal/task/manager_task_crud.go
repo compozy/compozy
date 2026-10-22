@@ -265,7 +265,8 @@ func (m *Service) UpdateTask(
 	}
 
 	updated, changedFields := applyTaskPatch(current, normalizedPatch)
-	if len(changedFields) > 0 && (actor.Scope.Operator || normalizedPatch.Title != nil || normalizedPatch.Description != nil || normalizedPatch.Owner != nil || normalizedPatch.ClearOwner || normalizedPatch.Metadata != nil) {
+	if len(changedFields) > 0 &&
+		(actor.Scope.Operator || normalizedPatch.Title != nil || normalizedPatch.Description != nil || normalizedPatch.Owner != nil || normalizedPatch.ClearOwner || normalizedPatch.Metadata != nil) {
 		ceiling := workspaceaccess.AuthoringCeiling(ctx, actor.Scope.Operator)
 		if actor.Scope.Operator {
 			updated.GrantCeiling = ceiling

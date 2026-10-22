@@ -294,7 +294,12 @@ func TestContinueSession(t *testing.T) {
 			}
 			waitForDeriveConsumption(t, h, child.ID)
 
-			receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), h.workspaceID, "idem_continue_1", store.DefaultProfileID)
+			receipt, found, err := h.db.SessionDerivationReceipt(
+				testutil.Context(t),
+				h.workspaceID,
+				"idem_continue_1",
+				store.DefaultProfileID,
+			)
 			if err != nil || !found || receipt.ChildSessionID != child.ID ||
 				receipt.Outcome.ReplayBytes != result.ReplayBytes {
 				t.Fatalf("receipt = %+v found=%t err=%v, want the child's outcome", receipt, found, err)
@@ -1584,7 +1589,12 @@ func TestDeriveReceiptScope(t *testing.T) {
 			t.Fatalf("secondary derive = %+v, want an independent child in %s", second, secondaryID)
 		}
 		for workspaceID, childID := range map[string]string{h.workspaceID: first.Child.ID, secondaryID: second.Child.ID} {
-			receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), workspaceID, "idem_shared", store.DefaultProfileID)
+			receipt, found, err := h.db.SessionDerivationReceipt(
+				testutil.Context(t),
+				workspaceID,
+				"idem_shared",
+				store.DefaultProfileID,
+			)
 			if err != nil || !found || receipt.ChildSessionID != childID {
 				t.Fatalf("receipt(%s) = %+v found=%t err=%v, want child %s", workspaceID, receipt, found, err, childID)
 			}
@@ -1963,7 +1973,12 @@ func TestForkSession(t *testing.T) {
 		if _, err := h.manager.ForkSession(testutil.Context(t), h.forkOpts(source, "idem_fork_nofence")); err != nil {
 			t.Fatalf("ForkSession(no fences) error = %v", err)
 		}
-		receipt, found, err := h.db.SessionDerivationReceipt(testutil.Context(t), h.workspaceID, "idem_fork_nofence", store.DefaultProfileID)
+		receipt, found, err := h.db.SessionDerivationReceipt(
+			testutil.Context(t),
+			h.workspaceID,
+			"idem_fork_nofence",
+			store.DefaultProfileID,
+		)
 		if err != nil || !found || receipt.Outcome.SourceMaxSequence != preview.MaxSequence ||
 			receipt.Outcome.SourceGeneration != preview.Generation || receipt.Kind != store.LineageKindFork {
 			t.Fatalf("receipt = %+v found=%t err=%v, want the snapshot fences", receipt, found, err)

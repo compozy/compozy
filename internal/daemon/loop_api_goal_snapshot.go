@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
@@ -54,7 +56,7 @@ func (s *daemonLoopAPIService) visibleSessionGoalProjection(
 	}
 	ref := workspaceID
 	if strings.TrimSpace(ref) == "" {
-		ref = "@user"
+		ref = workspaceaccess.UserSelector
 	}
 	ws, err := normalizeLoopWorkspaceID(ref)
 	if err != nil {
@@ -98,7 +100,12 @@ func (s *daemonLoopAPIService) goalDefinitionProjection(
 	if err != nil {
 		return dsl.GoalParams{}, "", "", err
 	}
-	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(ctx, workspaceID, run.ProfileID, projection.DefinitionDigest)
+	snapshot, err := s.persistence.GetLoopDefinitionSnapshot(
+		ctx,
+		workspaceID,
+		run.ProfileID,
+		projection.DefinitionDigest,
+	)
 	if err != nil {
 		return dsl.GoalParams{}, "", "", fmt.Errorf(
 			"daemon: load Goal definition snapshot %q: %w",

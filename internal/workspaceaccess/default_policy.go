@@ -42,7 +42,12 @@ func New(deps Deps) (*DefaultPolicy, error) {
 // Authorize evaluates and audits one access request.
 func (p *DefaultPolicy) Authorize(ctx context.Context, req Request) (Decision, error) {
 	normalizedReq := normalizeRequest(req)
-	record := AccessRecord{Actor: normalizedReq.Actor, TargetID: normalizedReq.Target.WorkspaceID, Target: normalizedReq.Target, Seam: normalizedReq.Seam}
+	record := AccessRecord{
+		Actor:    normalizedReq.Actor,
+		TargetID: normalizedReq.Target.WorkspaceID,
+		Target:   normalizedReq.Target,
+		Seam:     normalizedReq.Seam,
+	}
 	decision, mode, decisionErr := p.authorize(ctx, normalizedReq, &record)
 	record.Allowed, record.Source, record.Mode = decision.Allowed, decision.Source, mode
 	if decisionErr != nil {
@@ -78,7 +83,8 @@ func (p *DefaultPolicy) authorize(ctx context.Context, req Request, record *Acce
 		return deniedDecision(false), mode, errors.New("workspace access: session profile is required")
 	}
 	sameProfile := !req.Target.AllProfiles && req.Target.ProfileID == facts.ProfileID
-	if sameProfile && req.Target.WorkspaceID == facts.WorkspaceID && ((req.Target.Kind == TargetUser && facts.WorkspaceID == "") || req.Target.Kind == TargetWorkspace) {
+	if sameProfile && req.Target.WorkspaceID == facts.WorkspaceID &&
+		((req.Target.Kind == TargetUser && facts.WorkspaceID == "") || req.Target.Kind == TargetWorkspace) {
 		return Decision{Allowed: true, Source: SourceSameWorkspace}, mode, nil
 	}
 	if facts.WorkspaceAccess == Unrestricted {

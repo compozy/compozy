@@ -2,7 +2,10 @@ package settings
 
 import compozyconfig "github.com/compozy/compozy/internal/config"
 
-const shellConfigRoot = "shell"
+const (
+	shellConfigRoot  = "shell"
+	shellSessionsKey = "sessions"
+)
 
 func buildShellSection(cfg *compozyconfig.Config) ShellSection {
 	warnings := []string{}
@@ -14,7 +17,8 @@ func buildShellSection(cfg *compozyconfig.Config) ShellSection {
 
 func diffShellSettings(current compozyconfig.ShellConfig, desired compozyconfig.ShellConfig) []string {
 	changed := make([]string, 0, 3)
-	if current.Sessions.GroupBy != desired.Sessions.GroupBy || current.Sessions.GroupByExplicit != desired.Sessions.GroupByExplicit {
+	if current.Sessions.GroupBy != desired.Sessions.GroupBy ||
+		current.Sessions.GroupByExplicit != desired.Sessions.GroupByExplicit {
 		changed = append(changed, "shell.sessions.group_by")
 	}
 	if current.Sessions.Sort != desired.Sessions.Sort {
@@ -27,16 +31,22 @@ func diffShellSettings(current compozyconfig.ShellConfig, desired compozyconfig.
 }
 
 func applyShellSettings(editor *compozyconfig.OverlayEditor, settings compozyconfig.ShellConfig) error {
-	if err := editor.SetValue([]string{shellConfigRoot, "sessions", "sort"}, string(settings.Sessions.Sort)); err != nil {
+	if err := editor.SetValue(
+		[]string{shellConfigRoot, shellSessionsKey, "sort"},
+		string(settings.Sessions.Sort),
+	); err != nil {
 		return err
 	}
 	if settings.Sessions.GroupByExplicit {
-		if err := editor.SetValue([]string{shellConfigRoot, "sessions", "group_by"}, string(settings.Sessions.GroupBy)); err != nil {
+		if err := editor.SetValue(
+			[]string{shellConfigRoot, shellSessionsKey, "group_by"},
+			string(settings.Sessions.GroupBy),
+		); err != nil {
 			return err
 		}
 	}
 	if settings.Sessions.ScopeExplicit {
-		return editor.SetValue([]string{shellConfigRoot, "sessions", "scope"}, string(settings.Sessions.Scope))
+		return editor.SetValue([]string{shellConfigRoot, shellSessionsKey, "scope"}, string(settings.Sessions.Scope))
 	}
 	return nil
 }

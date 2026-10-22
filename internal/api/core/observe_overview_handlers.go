@@ -76,7 +76,7 @@ func (h *BaseHandlers) resolveOverviewWorkspace(c *gin.Context, query *observe.O
 	breadth, err := parseWorkspaceBreadth(
 		c,
 		c.Param("workspace_id"),
-		breadthEncoding{Selector: "workspace", OmissionIsAll: true},
+		breadthEncoding{Selector: workspaceQueryKey, OmissionIsAll: true},
 		h.Workspaces,
 	)
 	if err != nil {

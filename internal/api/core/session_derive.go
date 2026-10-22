@@ -154,7 +154,7 @@ func (h *BaseHandlers) PreviewSessionDerive(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if scope.Resolved.Scope == "user" {
+	if scope.Resolved.Scope == userScopeValue {
 		info, err := h.requireSessionInWorkspace(c.Request.Context(), "", sessionID)
 		if err != nil || info.ProfileID != scope.Resolved.ProfileID {
 			h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)

@@ -103,7 +103,8 @@ func (g *LoopRepo) ListRequests(
 	}
 	where, args := loopRequestWhere(workspaceID, query)
 	where = append(where, "request.state = 'pending'")
-	if err := g.db.QueryRowContext(ctx, store.AppendWhere("SELECT count(*) FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id", where), args...).Scan(&page.Pending); err != nil {
+	if err := g.db.QueryRowContext(ctx, store.AppendWhere("SELECT count(*) FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id", where), args...).
+		Scan(&page.Pending); err != nil {
 		return looppkg.RequestPage{}, fmt.Errorf("store: count pending Loop requests: %w", err)
 	}
 
@@ -238,12 +239,35 @@ func scanStoredRequest(scanner rowScanner) (storedRequest, error) {
 	var answeredDecision, answeredRef, answeredNote sql.NullString
 	var actorKind, actorID sql.NullString
 	var resolvedAt, expiresAt sql.NullTime
-	err := scanner.Scan(&stored.rowID, &stored.request.WorkspaceID, &stored.request.LoopRunID, &stored.request.LoopName, &stored.request.ProfileID,
-		&stored.request.Generation, &stored.request.NodeID, &stored.request.ItemIndex,
-		&stored.request.Kind, &stored.request.State, &stored.request.Prompt, &contextPreview,
-		&contextRef, &answerSchema, &editSchema, &respondSchema, &decisions, &proposedRef,
-		&proposedPreview, &answeredDecision, &answeredRef, &answeredNote,
-		&actorKind, &actorID, &stored.request.OpenedAt, &resolvedAt, &expiresAt)
+	err := scanner.Scan(
+		&stored.rowID,
+		&stored.request.WorkspaceID,
+		&stored.request.LoopRunID,
+		&stored.request.LoopName,
+		&stored.request.ProfileID,
+		&stored.request.Generation,
+		&stored.request.NodeID,
+		&stored.request.ItemIndex,
+		&stored.request.Kind,
+		&stored.request.State,
+		&stored.request.Prompt,
+		&contextPreview,
+		&contextRef,
+		&answerSchema,
+		&editSchema,
+		&respondSchema,
+		&decisions,
+		&proposedRef,
+		&proposedPreview,
+		&answeredDecision,
+		&answeredRef,
+		&answeredNote,
+		&actorKind,
+		&actorID,
+		&stored.request.OpenedAt,
+		&resolvedAt,
+		&expiresAt,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return storedRequest{}, err

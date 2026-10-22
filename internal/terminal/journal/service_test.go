@@ -23,6 +23,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -45,7 +47,12 @@ func TestService(t *testing.T) {
 			}
 		}
 		for _, profileID := range []string{"profile-a", "profile-b"} {
-			page, err := service.Query(ctx, "@user", store.ReadScope{ProfileID: profileID}, terminalpkg.Query{})
+			page, err := service.Query(
+				ctx,
+				workspaceaccess.UserSelector,
+				store.ReadScope{ProfileID: profileID},
+				terminalpkg.Query{},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -53,14 +60,27 @@ func TestService(t *testing.T) {
 				t.Fatalf("journal crossed profiles: %+v", page)
 			}
 		}
-		spill, err := service.WriteArtifact(ctx, "", "profile-a", "cmd-shared", nil, []byte("user output"), now.Add(time.Hour))
+		spill, err := service.WriteArtifact(
+			ctx,
+			"",
+			"profile-a",
+			"cmd-shared",
+			nil,
+			[]byte("user output"),
+			now.Add(time.Hour),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !strings.Contains(spill.Path, filepath.Join("workspaces", "user-profile-a")) {
 			t.Fatalf("unexpected User artifact path: %s", spill.Path)
 		}
-		reader, err := service.Artifact(ctx, "@user", store.ReadScope{ProfileID: "profile-a"}, spill.ArtifactID)
+		reader, err := service.Artifact(
+			ctx,
+			workspaceaccess.UserSelector,
+			store.ReadScope{ProfileID: "profile-a"},
+			spill.ArtifactID,
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -72,7 +92,12 @@ func TestService(t *testing.T) {
 		if string(data) != "user output" {
 			t.Fatalf("artifact = %q", data)
 		}
-		if reader, err := service.Artifact(ctx, "@user", store.ReadScope{ProfileID: "profile-b"}, spill.ArtifactID); err == nil {
+		if reader, err := service.Artifact(
+			ctx,
+			workspaceaccess.UserSelector,
+			store.ReadScope{ProfileID: "profile-b"},
+			spill.ArtifactID,
+		); err == nil {
 			if closeErr := reader.Close(); closeErr != nil {
 				t.Error(closeErr)
 			}
@@ -84,7 +109,12 @@ func TestService(t *testing.T) {
 		if _, err := os.Stat(spill.Path); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("removed artifact: %v", err)
 		}
-		page, err := service.Query(ctx, "@user", store.ReadScope{ProfileID: "profile-b"}, terminalpkg.Query{})
+		page, err := service.Query(
+			ctx,
+			workspaceaccess.UserSelector,
+			store.ReadScope{ProfileID: "profile-b"},
+			terminalpkg.Query{},
+		)
 		if err != nil || len(page.Entries) != 1 {
 			t.Fatalf("other profile affected by removal: %+v, %v", page, err)
 		}

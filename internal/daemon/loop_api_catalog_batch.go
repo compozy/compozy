@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/resources"
@@ -14,9 +16,15 @@ import (
 
 const maxLoopCatalogBatchEntries = 2000
 
-func (s *daemonLoopAPIService) listLoopCatalogBatch(ctx context.Context, query looppkg.CatalogQuery) (contract.LoopsResponse, error) {
+func (s *daemonLoopAPIService) listLoopCatalogBatch(
+	ctx context.Context,
+	query looppkg.CatalogQuery,
+) (contract.LoopsResponse, error) {
 	if query.Cursor != "" {
-		return contract.LoopsResponse{}, fmt.Errorf("%w: aggregate definitions do not support cursors", looppkg.ErrCatalogQueryInvalid)
+		return contract.LoopsResponse{}, fmt.Errorf(
+			"%w: aggregate definitions do not support cursors",
+			looppkg.ErrCatalogQueryInvalid,
+		)
 	}
 	if s.catalog == nil || s.catalogRuns == nil {
 		return contract.LoopsResponse{}, looppkg.ErrCatalogUnavailable
@@ -44,7 +52,10 @@ func (s *daemonLoopAPIService) listLoopCatalogBatch(ctx context.Context, query l
 	if err != nil {
 		return contract.LoopsResponse{}, err
 	}
-	batch := contract.LoopCatalogBatchResponse{Entries: []contract.LoopCatalogAggregateEntryPayload{}, Errors: []contract.LoopCatalogWorkspaceError{}}
+	batch := contract.LoopCatalogBatchResponse{
+		Entries: []contract.LoopCatalogAggregateEntryPayload{},
+		Errors:  []contract.LoopCatalogWorkspaceError{},
+	}
 	snapshot := s.catalog.Snapshot()
 	ids := []string{""}
 	for _, workspace := range workspaces {
@@ -53,7 +64,7 @@ func (s *daemonLoopAPIService) listLoopCatalogBatch(ctx context.Context, query l
 	for _, ws := range ids {
 		selector := ws
 		if selector == "" {
-			selector = "@user"
+			selector = workspaceaccess.UserSelector
 		}
 		if len(query.WorkspaceIDs) > 0 && !slices.Contains(query.WorkspaceIDs, selector) {
 			continue
@@ -64,7 +75,10 @@ func (s *daemonLoopAPIService) listLoopCatalogBatch(ctx context.Context, query l
 		}
 		rows, truncated, err := s.loopCatalogBatchWorkspace(ctx, ws, snapshot, workspaceQuery)
 		if err != nil {
-			batch.Errors = append(batch.Errors, contract.LoopCatalogWorkspaceError{WorkspaceID: ws, Code: "loop_config_invalid", Message: err.Error()})
+			batch.Errors = append(
+				batch.Errors,
+				contract.LoopCatalogWorkspaceError{WorkspaceID: ws, Code: "loop_config_invalid", Message: err.Error()},
+			)
 			continue
 		}
 		available := maxLoopCatalogBatchEntries - len(batch.Entries)
@@ -77,22 +91,39 @@ func (s *daemonLoopAPIService) listLoopCatalogBatch(ctx context.Context, query l
 	return contract.LoopsResponse{Aggregate: &batch}, nil
 }
 
-func (s *daemonLoopAPIService) loopCatalogBatchWorkspace(ctx context.Context, ws string, snapshot []resources.Record[looppkg.ResourceSpec], query looppkg.CatalogQuery) ([]contract.LoopCatalogAggregateEntryPayload, bool, error) {
+func (s *daemonLoopAPIService) loopCatalogBatchWorkspace(
+	ctx context.Context,
+	ws string,
+	snapshot []resources.Record[looppkg.ResourceSpec],
+	query looppkg.CatalogQuery,
+) ([]contract.LoopCatalogAggregateEntryPayload, bool, error) {
 	if err := s.validateLoopCatalogWorkspace(ctx, looppkg.WorkspaceID(ws)); err != nil {
 		return nil, false, err
 	}
-	records := looppkg.ResolveEffectiveResources(snapshot, looppkg.ResourceLens{WorkspaceID: ws, ProfileID: query.ProfileID, ProfileName: query.ProfileName})
+	records := looppkg.ResolveEffectiveResources(
+		snapshot,
+		looppkg.ResourceLens{WorkspaceID: ws, ProfileID: query.ProfileID, ProfileName: query.ProfileName},
+	)
 	names := make([]string, 0, len(records))
 	for _, record := range records {
 		names = append(names, record.Spec.Name)
 	}
-	summaries, err := s.catalogRuns.ListLoopCatalogRunSummaries(ctx, looppkg.CatalogRunQuery{WorkspaceID: looppkg.WorkspaceID(ws), ProfileID: query.ProfileID, LoopNames: names, AggregateAfter: s.now().Add(-loopCatalogAggregateWindow)})
+	summaries, err := s.catalogRuns.ListLoopCatalogRunSummaries(
+		ctx,
+		looppkg.CatalogRunQuery{
+			WorkspaceID:    looppkg.WorkspaceID(ws),
+			ProfileID:      query.ProfileID,
+			LoopNames:      names,
+			AggregateAfter: s.now().Add(-loopCatalogAggregateWindow),
+		},
+	)
 	if err != nil {
 		return nil, false, err
 	}
 	eligible := make([]resources.Record[looppkg.ResourceSpec], 0, len(records))
 	for _, record := range records {
-		project := record.Scope.Kind == resources.ResourceScopeKindWorkspace || record.Scope.Kind == resources.ResourceScopeKindWorkspaceProfile
+		project := record.Scope.Kind == resources.ResourceScopeKindWorkspace ||
+			record.Scope.Kind == resources.ResourceScopeKindWorkspaceProfile
 		if ws == "" || project || summaries[record.Spec.Name].Aggregate30d.Runs > 0 {
 			eligible = append(eligible, record)
 		}

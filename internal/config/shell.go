@@ -35,8 +35,8 @@ type ShellConfig struct {
 // ShellSessionsConfig persists session-list preferences across shell restarts.
 type ShellSessionsConfig struct {
 	GroupBy         ShellSessionGroupBy `toml:"group_by"`
-	GroupByExplicit bool                `toml:"-" json:"-"`
-	ScopeExplicit   bool                `toml:"-" json:"-"`
+	GroupByExplicit bool                `toml:"-"        json:"-"`
+	ScopeExplicit   bool                `toml:"-"        json:"-"`
 	Sort            ShellSessionSort    `toml:"sort"`
 	Scope           ShellSessionScope   `toml:"scope"`
 }

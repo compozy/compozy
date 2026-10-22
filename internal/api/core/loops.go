@@ -96,8 +96,15 @@ func (h *BaseHandlers) ListLoopRuns(c *gin.Context) {
 		return
 	}
 	query.AllWorkspaces, query.WorkspaceIDs = breadth.AllWorkspaces, breadth.WorkspaceIDs
-	if query.Order != "" && query.Order != "recency" && query.Order != "operational" || breadth.AllWorkspaces && query.Order == "operational" {
-		c.JSON(http.StatusBadRequest, contract.ErrorPayload{Code: "workspace_breadth_invalid", Error: "order=operational is workspace-only; aggregate runs use order=recency"})
+	if query.Order != "" && query.Order != "recency" && query.Order != "operational" ||
+		breadth.AllWorkspaces && query.Order == "operational" {
+		c.JSON(
+			http.StatusBadRequest,
+			contract.ErrorPayload{
+				Code:  workspaceBreadthInvalidCode,
+				Error: "order=operational is workspace-only; aggregate runs use order=recency",
+			},
+		)
 		return
 	}
 	query.ReadScope, err = h.resolveProfileReadScope(c)

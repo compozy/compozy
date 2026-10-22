@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -1037,115 +1039,147 @@ func TestManagerIntegrationPreStopRequiredHookErrorPreventsCleanStop(t *testing.
 
 func TestManagerIntegrationUserLifecycle(t *testing.T) {
 	for _, accepted := range []bool{false, true} {
-		t.Run(fmt.Sprintf("Should create prompt reopen and resume User without a registered project accepted=%t", accepted), func(t *testing.T) {
-			t.Parallel()
-			h := newHarness(t)
-			ctx := testutil.Context(t)
-			db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() {
-				if err := db.Close(testutil.Context(t)); err != nil {
-					t.Error(err)
-				}
-			})
-			resolved, err := h.resolver.Resolve(ctx, h.workspaceID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			resolved.RootDir, err = filepath.EvalSymlinks(resolved.RootDir)
-			if err != nil {
-				t.Fatal(err)
-			}
-			resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
-			userResolver := userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
-			h.manager = newManagerWithHarness(t, h, WithWorkspaceResolver(userResolver), WithSessionCatalog(db))
-			cleanupTestManager(t, h.manager)
-			opts := CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"}
-			var created *Session
-			if accepted {
-				info, createErr := h.manager.CreateAccepted(ctx, CreateAcceptedOpts{Session: opts})
-				if createErr != nil {
-					t.Fatal(createErr)
-				}
-				created, _ = h.manager.Get(info.ID)
-			} else {
-				created, err = h.manager.Create(ctx, opts)
+		t.Run(
+			fmt.Sprintf(
+				"Should create prompt reopen and resume User without a registered project accepted=%t",
+				accepted,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				ctx := testutil.Context(t)
+				db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
 				if err != nil {
 					t.Fatal(err)
 				}
-			}
-			if created.Info().WorkspaceID != "" {
-				t.Fatalf("workspace = %q", created.Info().WorkspaceID)
-			}
-			meta := created.Meta()
-			if meta.CreationProfile.Version != store.UserSessionCreationProfileVersion || meta.CreationProfile.WorkspaceID != "@user" || meta.CreationProfile.ProfileID != store.DefaultProfileID {
-				t.Fatalf("profile = %+v", meta.CreationProfile)
-			}
-			events, err := h.manager.Prompt(ctx, created.ID, "first")
-			if err != nil {
-				t.Fatal(err)
-			}
-			collectEvents(t, events)
-			if err := h.manager.Stop(ctx, created.ID); err != nil {
-				t.Fatal(err)
-			}
-			h.manager = newManagerWithHarness(t, h, WithWorkspaceResolver(userResolver), WithSessionCatalog(db), WithSessionPromptAdmissionStore(db), WithSessionIDGenerator(sequentialIDGenerator("resumed")))
-			cleanupTestManager(t, h.manager)
-			resumed, err := h.manager.Resume(ctx, created.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if resumed.Info().WorkspaceID != "" {
-				t.Fatal("resume registered a workspace")
-			}
-			events, err = h.manager.Prompt(ctx, created.ID, "second")
-			if err != nil {
-				t.Fatal(err)
-			}
-			collectEvents(t, events)
-			page, err := h.manager.ListPage(ctx, ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "@user", Limit: 10})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if len(page.Sessions) != 1 || page.Sessions[0].ID != created.ID {
-				t.Fatalf("page = %+v", page)
-			}
-
-			fork, err := h.manager.ForkSession(ctx, ForkSessionOpts{SourceSessionID: created.ID, ProfileID: store.DefaultProfileID, IdempotencyKey: "user-fork"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if fork.Child == nil || fork.Child.WorkspaceID != "" {
-				t.Fatalf("fork=%+v", fork)
-			}
-			child, err := h.manager.Spawn(ctx, SpawnOpts{ParentSessionID: created.ID, AgentName: "coder", TTL: time.Minute})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if child.Info().WorkspaceID != "" {
-				t.Fatal("spawn left User scope")
-			}
-			if len(h.resolver.resolveOrRegisterCalls) != 0 {
-				t.Fatal("User auto-registered a project")
-			}
-			workspaces, err := db.ListWorkspaces(ctx)
-			if err != nil || len(workspaces) != 0 {
-				t.Fatalf("workspaces=%+v err=%v", workspaces, err)
-			}
-			for _, start := range h.driver.startCalls {
-				if start.Cwd != resolved.RootDir {
-					t.Fatalf("User cwd=%q want=%q", start.Cwd, resolved.RootDir)
+				t.Cleanup(func() {
+					if err := db.Close(testutil.Context(t)); err != nil {
+						t.Error(err)
+					}
+				})
+				resolved, err := h.resolver.Resolve(ctx, h.workspaceID)
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-			admitted, err := h.manager.SendPrompt(ctx, created.ID, SendPromptOpts{
-				Message: "third", MessageID: "msg-user-admitted", IdempotencyKey: "idem-user-admitted",
-			})
-			if err != nil || admitted.TargetWorkspaceID != "" {
-				t.Fatalf("admitted User prompt = %+v, %v", admitted, err)
-			}
-		})
+				resolved.RootDir, err = filepath.EvalSymlinks(resolved.RootDir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				resolved.ID, resolved.WorkspaceID, resolved.Scope = "", "", workspacepkg.ScopeUser
+				userResolver := userLifecycleResolver{WorkspaceResolver: h.resolver, resolved: resolved}
+				h.manager = newManagerWithHarness(t, h, WithWorkspaceResolver(userResolver), WithSessionCatalog(db))
+				cleanupTestManager(t, h.manager)
+				opts := CreateOpts{Scope: workspacepkg.ScopeUser, AgentName: "coder"}
+				var created *Session
+				if accepted {
+					info, createErr := h.manager.CreateAccepted(ctx, CreateAcceptedOpts{Session: opts})
+					if createErr != nil {
+						t.Fatal(createErr)
+					}
+					created, _ = h.manager.Get(info.ID)
+				} else {
+					created, err = h.manager.Create(ctx, opts)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				if created.Info().WorkspaceID != "" {
+					t.Fatalf("workspace = %q", created.Info().WorkspaceID)
+				}
+				meta := created.Meta()
+				if meta.CreationProfile.Version != store.UserSessionCreationProfileVersion ||
+					meta.CreationProfile.WorkspaceID != workspaceaccess.UserSelector ||
+					meta.CreationProfile.ProfileID != store.DefaultProfileID {
+					t.Fatalf("profile = %+v", meta.CreationProfile)
+				}
+				events, err := h.manager.Prompt(ctx, created.ID, "first")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+				if err := h.manager.Stop(ctx, created.ID); err != nil {
+					t.Fatal(err)
+				}
+				h.manager = newManagerWithHarness(
+					t,
+					h,
+					WithWorkspaceResolver(userResolver),
+					WithSessionCatalog(db),
+					WithSessionPromptAdmissionStore(db),
+					WithSessionIDGenerator(sequentialIDGenerator("resumed")),
+				)
+				cleanupTestManager(t, h.manager)
+				resumed, err := h.manager.Resume(ctx, created.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if resumed.Info().WorkspaceID != "" {
+					t.Fatal("resume registered a workspace")
+				}
+				events, err = h.manager.Prompt(ctx, created.ID, "second")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+				page, err := h.manager.ListPage(
+					ctx,
+					ListQuery{
+						ReadScope:   store.ReadScope{ProfileID: store.DefaultProfileID},
+						WorkspaceID: workspaceaccess.UserSelector,
+						Limit:       10,
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(page.Sessions) != 1 || page.Sessions[0].ID != created.ID {
+					t.Fatalf("page = %+v", page)
+				}
+
+				fork, err := h.manager.ForkSession(
+					ctx,
+					ForkSessionOpts{
+						SourceSessionID: created.ID,
+						ProfileID:       store.DefaultProfileID,
+						IdempotencyKey:  "user-fork",
+					},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if fork.Child == nil || fork.Child.WorkspaceID != "" {
+					t.Fatalf("fork=%+v", fork)
+				}
+				child, err := h.manager.Spawn(
+					ctx,
+					SpawnOpts{ParentSessionID: created.ID, AgentName: "coder", TTL: time.Minute},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if child.Info().WorkspaceID != "" {
+					t.Fatal("spawn left User scope")
+				}
+				if len(h.resolver.resolveOrRegisterCalls) != 0 {
+					t.Fatal("User auto-registered a project")
+				}
+				workspaces, err := db.ListWorkspaces(ctx)
+				if err != nil || len(workspaces) != 0 {
+					t.Fatalf("workspaces=%+v err=%v", workspaces, err)
+				}
+				for _, start := range h.driver.startCalls {
+					if start.Cwd != resolved.RootDir {
+						t.Fatalf("User cwd=%q want=%q", start.Cwd, resolved.RootDir)
+					}
+				}
+				admitted, err := h.manager.SendPrompt(ctx, created.ID, SendPromptOpts{
+					Message: "third", MessageID: "msg-user-admitted", IdempotencyKey: "idem-user-admitted",
+				})
+				if err != nil || admitted.TargetWorkspaceID != "" {
+					t.Fatalf("admitted User prompt = %+v, %v", admitted, err)
+				}
+			},
+		)
 	}
 }
 
@@ -1156,7 +1190,10 @@ type userLifecycleResolver struct {
 
 var _ workspacepkg.UserRuntimeResolver = userLifecycleResolver{}
 
-func (r userLifecycleResolver) ResolveUser(_ context.Context, profileID string) (workspacepkg.ResolvedWorkspace, error) {
+func (r userLifecycleResolver) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
 	resolved := r.resolved
 	resolved.ProfileID = profileID
 	resolved.ProfileName = "default"

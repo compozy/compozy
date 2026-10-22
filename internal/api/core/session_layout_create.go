@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -32,8 +34,8 @@ func (h *BaseHandlers) requireCreateSessionFolder(
 		return false
 	}
 	ref := strings.TrimSpace(req.Workspace)
-	if req.Scope == "user" {
-		ref = "@user"
+	if req.Scope == userScopeValue {
+		ref = workspaceaccess.UserSelector
 	}
 	if ref == "" {
 		ref = strings.TrimSpace(req.WorkspacePath)
@@ -46,7 +48,7 @@ func (h *BaseHandlers) requireCreateSessionFolder(
 	}
 	var workspaceID string
 	var err error
-	if ref != "@user" {
+	if ref != workspaceaccess.UserSelector {
 		workspaceID, err = h.lookupWorkspaceID(c.Request.Context(), ref)
 	}
 	if err != nil {

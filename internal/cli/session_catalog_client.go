@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 )
@@ -88,7 +90,7 @@ func (c *daemonClient) sessionWorkspaceRef(ctx context.Context, sessionID string
 	workspaceID := strings.TrimSpace(record.WorkspaceID)
 	if workspaceID == "" {
 		// A session without a project belongs to the User scope.
-		return "@user", nil
+		return workspaceaccess.UserSelector, nil
 	}
 	return workspaceID, nil
 }

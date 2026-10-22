@@ -5,9 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
-func (m *Manager) validateCommandBindings(ctx context.Context, snapshot Snapshot, command Command, changes ChangeSet) error {
+func (m *Manager) validateCommandBindings(
+	ctx context.Context,
+	snapshot Snapshot,
+	command Command,
+	changes ChangeSet,
+) error {
 	if snapshot.WorkspaceID != GlobalDesktopWorkspaceID {
 		return nil
 	}
@@ -42,7 +49,7 @@ func (m *Manager) validateCommandBindings(ctx context.Context, snapshot Snapshot
 			}
 		}
 		binding = strings.TrimSpace(binding)
-		if binding == "" || binding == "@user" {
+		if binding == "" || binding == workspaceaccess.UserSelector {
 			continue
 		}
 		if binding == string(GlobalDesktopWorkspaceID) || binding == "user" {

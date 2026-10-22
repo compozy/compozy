@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -160,8 +162,8 @@ func (h *BaseHandlers) parseSessionCatalogWorkspace(c *gin.Context) (bool, strin
 	if allWorkspaces {
 		return true, "", nil
 	}
-	if workspaceRef == "@user" {
-		return false, "@user", nil
+	if workspaceRef == workspaceaccess.UserSelector {
+		return false, workspaceaccess.UserSelector, nil
 	}
 	workspaceID, err := h.lookupWorkspaceID(c.Request.Context(), workspaceRef)
 	if err != nil {

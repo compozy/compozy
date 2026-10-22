@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -19,7 +21,7 @@ type Scope string
 // Normalize translates public User aliases into the persisted scope.
 func (s Scope) Normalize() Scope {
 	value := Scope(strings.TrimSpace(string(s)))
-	if value == "user" || value == "@user" {
+	if value == "user" || value == workspaceaccess.UserSelector {
 		return AutomationScopeGlobal
 	}
 	return value

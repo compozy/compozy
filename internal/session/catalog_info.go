@@ -1,9 +1,10 @@
 package session
 
 import (
+	"strings"
+
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
-	"strings"
 )
 
 func sessionInfoFromCatalog(info *store.SessionInfo) *Info {

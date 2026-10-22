@@ -58,7 +58,7 @@ func ParseTaskDashboardQuery(c *gin.Context, workspaces ...WorkspaceGetter) (con
 	breadth, err := parseWorkspaceBreadth(
 		c,
 		c.Param("workspace_id"),
-		breadthEncoding{Selector: "workspace", OmissionIsAll: true},
+		breadthEncoding{Selector: workspaceQueryKey, OmissionIsAll: true},
 		workspaces...)
 	if err != nil {
 		return contract.TaskDashboardQuery{}, err

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
@@ -31,7 +33,7 @@ func (s *Service) Query(
 	if err := scope.Validate(); err != nil {
 		return nil, fmt.Errorf("terminal journal: validate query scope: %w", err)
 	}
-	if (workspaceID == "" || workspaceID == "@user") && scope.AllProfiles {
+	if (workspaceID == "" || workspaceID == workspaceaccess.UserSelector) && scope.AllProfiles {
 		return nil, errors.New("terminal journal: User journal reads require one profile")
 	}
 	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, scope.ProfileID)

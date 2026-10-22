@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // SortJobsForList orders jobs by source precedence, name, and id.
@@ -232,7 +234,7 @@ func WorkspaceMatches(ids []string, workspaceID string) bool {
 		return true
 	}
 	if workspaceID == "" {
-		workspaceID = "@user"
+		workspaceID = workspaceaccess.UserSelector
 	}
 	return slices.Contains(ids, workspaceID)
 }

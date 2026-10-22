@@ -55,21 +55,21 @@ type CreateOpts struct {
 	DeniedToolsOverride []string
 	CreationProfile     *store.SessionCreationProfile
 	CreationIdentity    *store.SessionCreationIdentity
-	// DiscardStartFailure prevents internal retry attempts from leaving durable
-	// session artifacts when provider startup fails before Create returns.
-	DiscardStartFailure bool
 	// Command is an explicit launch command for this attempt (a fallback route's
 	// account). Empty keeps the provider-aware resolution and spawn inheritance.
 	Command    string
 	SessionEnv compozyconfig.SessionEnv
-	// ChainOwner declares who owns the fallback chain for this launch; role-owned
-	// launches pass ChainOwnerCaller so the session layer performs exactly one route.
-	ChainOwner ChainOwner
 	// Derivation and ImportedContext are set only by the continue/fork derive path.
 	Derivation      *store.SessionDerivation
 	ImportedContext *store.SessionImportedContext
 	// deriveReceipt commits the child together with its derive receipt.
 	deriveReceipt *store.SessionDerivationReceipt
+	// ChainOwner declares who owns the fallback chain for this launch; role-owned
+	// launches pass ChainOwnerCaller so the session layer performs exactly one route.
+	ChainOwner ChainOwner
+	// DiscardStartFailure prevents internal retry attempts from leaving durable
+	// session artifacts when provider startup fails before Create returns.
+	DiscardStartFailure bool
 	// deriveSelectsRuntime records the explicit runtime fields as the child's selected runtime.
 	deriveSelectsRuntime bool
 }

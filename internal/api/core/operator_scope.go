@@ -49,15 +49,32 @@ func (h *BaseHandlers) requireOperatorOrGrantedAgent(c *gin.Context, surface str
 	}
 	if h.WorkspaceAccess != nil {
 		decision, err := h.WorkspaceAccess.Authorize(c.Request.Context(), workspaceaccess.Request{
-			Actor:    workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: caller.Session.ID, WorkspaceID: caller.Session.WorkspaceID, AgentName: caller.Session.AgentName},
-			Target:   workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, Surface: surface, ProfileID: scope.ProfileID, AllProfiles: scope.AllProfiles},
-			ReadOnly: true, Seam: workspaceaccess.SeamCatalog,
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   caller.Session.ID,
+				WorkspaceID: caller.Session.WorkspaceID,
+				AgentName:   caller.Session.AgentName,
+			},
+			Target: workspaceaccess.TargetRef{
+				Kind:        workspaceaccess.TargetAggregate,
+				Surface:     surface,
+				ProfileID:   scope.ProfileID,
+				AllProfiles: scope.AllProfiles,
+			},
+			ReadOnly: true,
+			Seam:     workspaceaccess.SeamCatalog,
 		})
 		if err == nil && decision.Allowed && decision.Source == workspaceaccess.SourceAgentGrant {
 			return true
 		}
 	}
-	c.JSON(http.StatusForbidden, contract.ErrorPayload{Error: surface + " requires an operator or unrestricted agent", Code: operatorScopeDeniedCode})
+	c.JSON(
+		http.StatusForbidden,
+		contract.ErrorPayload{
+			Error: surface + " requires an operator or unrestricted agent",
+			Code:  operatorScopeDeniedCode,
+		},
+	)
 	return false
 }
 
@@ -65,6 +82,12 @@ func (h *BaseHandlers) allowWorkspaceAccessWrite(c *gin.Context, value string) b
 	if value == "" || !hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
 		return true
 	}
-	c.JSON(http.StatusForbidden, contract.ErrorPayload{Error: "only the operator may set workspace_access", Code: "workspace_access_operator_only"})
+	c.JSON(
+		http.StatusForbidden,
+		contract.ErrorPayload{
+			Error: "only the operator may set workspace_access",
+			Code:  "workspace_access_operator_only",
+		},
+	)
 	return false
 }

@@ -1,6 +1,9 @@
 package spec
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/workspaceaccess"
+)
 
 const taskExecutionProfileConflictDescription = "Task execution profile conflict"
 
@@ -40,9 +43,16 @@ func listTasksOperationSpec() OperationSpec {
 		Tags:        []string{specTasksKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			boolQueryParam("all_workspaces", "Read every project and User within the profile lens; conflicts with workspace"),
-			ParameterSpec{Name: "workspace_ids", In: specParameterInQuery, Kind: "array", Description: "Repeatable project IDs; @user selects User; requires all_workspaces=true"},
-			enumQueryParam(specScopeKey, "Filter by catalog visibility", append(taskCatalogScopeValues(), "user", "@user")),
+			boolQueryParam(
+				"all_workspaces",
+				"Read every project and User within the profile lens; conflicts with workspace",
+			),
+			workspaceIDsQueryParam("Repeatable project IDs; @user selects User; requires all_workspaces=true"),
+			enumQueryParam(
+				specScopeKey,
+				"Filter by catalog visibility",
+				append(taskCatalogScopeValues(), "user", workspaceaccess.UserSelector),
+			),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			enumQueryParam("status", "Filter by task status", taskStatusValues()),
 			enumQueryParam("priority", "Filter by task priority", taskPriorityValues()),
@@ -60,7 +70,7 @@ func listTasksOperationSpec() OperationSpec {
 			intQueryParam("limit", "Page size from 1 to 200 (default 50)"),
 		),
 		Responses: []ResponseSpec{
-			{Status: 403, Description: "Agent aggregate access denied", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specAggregateDeniedText, Body: contract.ErrorPayload{}},
 			{Status: 200, Description: "OK", Body: contract.TasksResponse{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 400, Description: "Invalid task filter or cursor", Body: contract.TaskQueryErrorPayload{}},

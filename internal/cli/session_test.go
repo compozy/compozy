@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -565,8 +567,16 @@ func TestSessionNewWorkspaceOptions(t *testing.T) {
 		args    []string
 		request CreateSessionRequest
 	}{
-		{name: "Should select User with the shorthand", args: []string{"session", "new", "--user", "-o", "json"}, request: CreateSessionRequest{Workspace: "@user"}},
-		{name: "Should forward the User reference", args: []string{"session", "new", "--workspace", "@user", "-o", "json"}, request: CreateSessionRequest{Workspace: "@user"}},
+		{
+			name:    "Should select User with the shorthand",
+			args:    []string{"session", "new", "--user", "-o", "json"},
+			request: CreateSessionRequest{Workspace: workspaceaccess.UserSelector},
+		},
+		{
+			name:    "Should forward the User reference",
+			args:    []string{"session", "new", "--workspace", workspaceaccess.UserSelector, "-o", "json"},
+			request: CreateSessionRequest{Workspace: workspaceaccess.UserSelector},
+		},
 
 		{
 			name: "Should use a registered workspace",
@@ -5051,7 +5061,11 @@ func TestSessionListAllProjectsColumn(t *testing.T) {
 			{ID: "sess-user", WorkspaceID: ""},
 			{ID: "sess-project", WorkspaceID: "ws-1", WorkspacePath: "/project"},
 		}}
-		bundle := sessionListBundle(page, func() time.Time { return fixedTestNow }, map[string]string{"": "User", "ws-1": "Example"})
+		bundle := sessionListBundle(
+			page,
+			func() time.Time { return fixedTestNow },
+			map[string]string{"": "User", "ws-1": "Example"},
+		)
 		human, err := bundle.human()
 		if err != nil {
 			t.Fatal(err)

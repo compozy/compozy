@@ -41,7 +41,13 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 				return flagErr
 			}
 			if !query.AllWorkspaces {
-				if resolution, ok, resolveErr := resolveWorkspaceOverrideOnly(cmd.Context(), cmd, deps, client, workspaceRef); resolveErr != nil {
+				if resolution, ok, resolveErr := resolveWorkspaceOverrideOnly(
+					cmd.Context(),
+					cmd,
+					deps,
+					client,
+					workspaceRef,
+				); resolveErr != nil {
 					return resolveErr
 				} else if ok {
 					query.WorkspaceID = resolution.ID
@@ -67,9 +73,16 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 						if run.WorkspaceID != nil {
 							project = aggregateProjectName(labels, *run.WorkspaceID)
 						}
-						rows = append(rows, []string{project, run.ID, string(run.Status), formatOptionalTime(run.StartedAt)})
+						rows = append(
+							rows,
+							[]string{project, run.ID, string(run.Status), formatOptionalTime(run.StartedAt)},
+						)
 					}
-					return renderHumanTable("Automation Runs", []string{"PROJECT", "ID", "STATUS", "STARTED"}, rows), nil
+					return renderHumanTable(
+						"Automation Runs",
+						[]string{cliProjectHeader, "ID", "STATUS", cliStartedHeader},
+						rows,
+					), nil
 				}
 			}
 			return writeCommandOutput(cmd, bundle)

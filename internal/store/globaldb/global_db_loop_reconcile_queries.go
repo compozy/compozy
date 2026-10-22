@@ -26,7 +26,11 @@ func oldestQueuedLoopRunReadyForPromotion(
 	}
 	row, err := sqlcgen.New(exec).OldestQueuedLoopRunReadyForPromotion(
 		ctx,
-		sqlcgen.OldestQueuedLoopRunReadyForPromotionParams{WorkspaceID: workspaceID, ProfileID: profileID, LoopName: loopName},
+		sqlcgen.OldestQueuedLoopRunReadyForPromotionParams{
+			WorkspaceID: workspaceID,
+			ProfileID:   profileID,
+			LoopName:    loopName,
+		},
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

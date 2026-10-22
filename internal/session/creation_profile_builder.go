@@ -5,6 +5,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // CreationProfileInput is the resolved, secret-free creation policy material.
@@ -34,7 +35,7 @@ type CreationProfileInput struct {
 func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfile {
 	version := store.SessionCreationProfileVersion
 	if input.Scope == workspacepkg.ScopeUser {
-		input.WorkspaceID = "@user"
+		input.WorkspaceID = workspaceaccess.UserSelector
 		version = store.UserSessionCreationProfileVersion
 	}
 	return store.NormalizeSessionCreationProfile(store.SessionCreationProfile{

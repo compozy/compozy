@@ -1,6 +1,10 @@
 package globaldb
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
+)
 
 func appendTaskWorkspaceIDs(where []string, args []any, ids []string) ([]string, []any) {
 	if len(ids) == 0 {
@@ -9,7 +13,7 @@ func appendTaskWorkspaceIDs(where []string, args []any, ids []string) ([]string,
 	branches := make([]string, 0, 2)
 	projects := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if id == "@user" {
+		if id == workspaceaccess.UserSelector {
 			branches = append(branches, "(scope = 'global' AND workspace_id IS NULL)")
 		} else {
 			projects = append(projects, id)

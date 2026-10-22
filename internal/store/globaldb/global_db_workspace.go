@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -209,7 +211,7 @@ func (g *WorkspaceRepo) GetWorkspaceByName(
 	}
 
 	row, err := g.queries.GetWorkspaceByName(ctx, trimmedName)
-	if errors.Is(err, sql.ErrNoRows) && trimmedName != "@user" {
+	if errors.Is(err, sql.ErrNoRows) && trimmedName != workspaceaccess.UserSelector {
 		row, err = g.queries.GetWorkspaceByLegacyName(ctx, trimmedName)
 		if err == nil {
 			slog.WarnContext(
@@ -224,7 +226,7 @@ func (g *WorkspaceRepo) GetWorkspaceByName(
 			)
 		}
 	}
-	if errors.Is(err, sql.ErrNoRows) && trimmedName == "global" {
+	if errors.Is(err, sql.ErrNoRows) && trimmedName == legacyGlobalName {
 		return compozyworkspace.Workspace{}, compozyworkspace.ErrWorkspaceReserved
 	}
 	return workspaceFromGenerated(row, err)

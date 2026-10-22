@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"math"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/compozy/compozy/internal/acp"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -991,10 +992,17 @@ func (r loopPolicyUserResolver) ResolveOrRegister(context.Context, string) (work
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
-func (r loopPolicyUserResolver) ResolveUser(_ context.Context, profileID string) (workspacepkg.ResolvedWorkspace, error) {
+func (r loopPolicyUserResolver) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
 	return workspacepkg.ResolvedWorkspace{
-		Scope: workspacepkg.ScopeUser, ProfileID: profileID, RootDir: r.root,
-		Agents: []compozyconfig.AgentDef{{Name: "judge", Provider: "claude", Model: "sonnet", Prompt: "Judge the work."}},
+		Scope:     workspacepkg.ScopeUser,
+		ProfileID: profileID,
+		RootDir:   r.root,
+		Agents: []compozyconfig.AgentDef{
+			{Name: "judge", Provider: "claude", Model: "sonnet", Prompt: "Judge the work."},
+		},
 	}, nil
 }
 

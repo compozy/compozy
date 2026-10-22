@@ -10,6 +10,12 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// Workspace names the User-scope migration renames: they collide with the reserved selectors.
+const (
+	reservedUserName = "user"
+	legacyGlobalName = "global"
+)
+
 const userScopeMigrationVersion int64 = 152
 
 func prepareUserScopeMigrationContext(ctx context.Context, db *sql.DB, homeDir, operatorHome string) (resultErr error) {
@@ -91,11 +97,11 @@ func prepareUserScopeMigrationContext(ctx context.Context, db *sql.DB, homeDir, 
 				return err
 			}
 		}
-		if r.name != "user" && r.name != "global" && !strings.HasPrefix(r.name, "@") {
+		if r.name != reservedUserName && r.name != legacyGlobalName && !strings.HasPrefix(r.name, "@") {
 			continue
 		}
 		base := strings.TrimLeft(r.name, "@")
-		if base == "" || base == "user" || base == "global" {
+		if base == "" || base == reservedUserName || base == legacyGlobalName {
 			base += "-project"
 		}
 		name := base

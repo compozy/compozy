@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
@@ -3577,12 +3579,16 @@ func TestManagerUnreadableMetadataWarnings(t *testing.T) {
 func TestSessionWorkspaceFilter(t *testing.T) {
 	t.Run("Should normalize selection and bind cursor identity to the full workspace set", func(t *testing.T) {
 		t.Parallel()
-		query := ListQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, WorkspaceIDs: []string{" ws-a ", "@user", "ws-a"}}
+		query := ListQuery{
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			AllWorkspaces: true,
+			WorkspaceIDs:  []string{" ws-a ", workspaceaccess.UserSelector, "ws-a"},
+		}
 		normalized, err := normalizeListQuery(query)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !slices.Equal(normalized.WorkspaceIDs, []string{"@user", "ws-a"}) {
+		if !slices.Equal(normalized.WorkspaceIDs, []string{workspaceaccess.UserSelector, "ws-a"}) {
 			t.Fatalf("selection = %v", normalized.WorkspaceIDs)
 		}
 		fingerprint, err := sessionListFingerprintForQuery(normalized)
@@ -3598,11 +3604,11 @@ func TestSessionWorkspaceFilter(t *testing.T) {
 			t.Fatal("different selections share cursor identity")
 		}
 		for _, id := range []string{"", "ws-a"} {
-			if !sessionMatchesWorkspaceIDs(id, []string{"@user", "ws-a"}) {
+			if !sessionMatchesWorkspaceIDs(id, []string{workspaceaccess.UserSelector, "ws-a"}) {
 				t.Fatalf("excluded %q", id)
 			}
 		}
-		if sessionMatchesWorkspaceIDs("ws-b", []string{"@user", "ws-a"}) {
+		if sessionMatchesWorkspaceIDs("ws-b", []string{workspaceaccess.UserSelector, "ws-a"}) {
 			t.Fatal("included another project")
 		}
 	})
@@ -3630,7 +3636,10 @@ func TestSessionInfoFromCatalogKeepsEffectiveWorkspaceAccess(t *testing.T) {
 		t.Parallel()
 		info := sessionInfoFromCatalog(&store.SessionInfo{ID: "sess-granted", EffectiveWorkspaceAccess: "unrestricted"})
 		if info.EffectiveWorkspaceAccess != "unrestricted" {
-			t.Fatalf("EffectiveWorkspaceAccess = %q, want the persisted unrestricted grant (USW BR-13)", info.EffectiveWorkspaceAccess)
+			t.Fatalf(
+				"EffectiveWorkspaceAccess = %q, want the persisted unrestricted grant (USW BR-13)",
+				info.EffectiveWorkspaceAccess,
+			)
 		}
 	})
 }

@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -138,7 +140,7 @@ func (b *taskSessionBridge) StartTaskSession(
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = strings.TrimSpace(spec.Task.WorkspaceID)
 	case taskpkg.ScopeGlobal:
-		opts.Scope = "user"
+		opts.Scope = workspacepkg.ScopeUser
 	default:
 		return nil, fmt.Errorf(
 			"%w: unsupported task scope %q for task session start",

@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestLayoutDocumentContract(t *testing.T) {
@@ -1346,7 +1348,7 @@ func TestMemoryAdapters(t *testing.T) {
 }
 
 func TestWindowBindingValidation(t *testing.T) {
-	for _, binding := range []string{"ws-missing", "@user", "workspace-a"} {
+	for _, binding := range []string{"ws-missing", workspaceaccess.UserSelector, "workspace-a"} {
 		t.Run("Should validate global command binding "+binding, func(t *testing.T) {
 			t.Parallel()
 			env := newTestEnvironment(t, floatingConfig(), GlobalDesktopWorkspaceID, "workspace-a")
@@ -1354,7 +1356,17 @@ func TestWindowBindingValidation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			request := CommandRequest{WorkspaceID: GlobalDesktopWorkspaceID, Payload: OpenWindowCommand{Window: WindowSpec{ID: "bound", App: "session", DesktopID: "desktop-default", Route: RouteIntent{Pathname: "/sessions", Search: RouteSearch{"workspace": raw}}}}}
+			request := CommandRequest{
+				WorkspaceID: GlobalDesktopWorkspaceID,
+				Payload: OpenWindowCommand{
+					Window: WindowSpec{
+						ID:        "bound",
+						App:       "session",
+						DesktopID: "desktop-default",
+						Route:     RouteIntent{Pathname: "/sessions", Search: RouteSearch{"workspace": raw}},
+					},
+				},
+			}
 			_, previewErr := env.manager.Preview(t.Context(), request)
 			_, executeErr := env.manager.Execute(t.Context(), request)
 			if binding == "ws-missing" {
@@ -1372,8 +1384,19 @@ func TestWindowBindingLifecycleValidation(t *testing.T) {
 	t.Run("Should load stale bindings but reject restoring navigating or importing them in global", func(t *testing.T) {
 		t.Parallel()
 		env := newTestEnvironment(t, floatingConfig(), GlobalDesktopWorkspaceID, "workspace-a")
-		route := RouteIntent{Pathname: "/loops/run-one", Search: RouteSearch{"workspace": json.RawMessage(`"workspace-a"`)}}
-		executeTestCommand(t, env.manager, GlobalDesktopWorkspaceID, nil, OpenWindowCommand{Window: WindowSpec{ID: "bound", App: "loops", DesktopID: "desktop-default", Route: route}})
+		route := RouteIntent{
+			Pathname: "/loops/run-one",
+			Search:   RouteSearch{"workspace": json.RawMessage(`"workspace-a"`)},
+		}
+		executeTestCommand(
+			t,
+			env.manager,
+			GlobalDesktopWorkspaceID,
+			nil,
+			OpenWindowCommand{
+				Window: WindowSpec{ID: "bound", App: "loops", DesktopID: "desktop-default", Route: route},
+			},
+		)
 		document, err := env.manager.ExportLayout(t.Context(), GlobalDesktopWorkspaceID)
 		if err != nil {
 			t.Fatal(err)
@@ -1384,9 +1407,16 @@ func TestWindowBindingLifecycleValidation(t *testing.T) {
 		if !routeBindsWorkspace(snapshot.Windows["bound"].Route, "workspace-a") {
 			t.Fatal("snapshot load rewrote the stale binding")
 		}
-		commands := []Command{NavigateWindowCommand{WindowID: "bound", Route: route}, ReplaceLayoutCommand{Document: document}}
+		commands := []Command{
+			NavigateWindowCommand{WindowID: "bound", Route: route},
+			ReplaceLayoutCommand{Document: document},
+		}
 		for _, command := range commands {
-			request := CommandRequest{WorkspaceID: GlobalDesktopWorkspaceID, ExpectedRevision: snapshot.Revision, Payload: command}
+			request := CommandRequest{
+				WorkspaceID:      GlobalDesktopWorkspaceID,
+				ExpectedRevision: snapshot.Revision,
+				Payload:          command,
+			}
 			if _, err := env.manager.Preview(t.Context(), request); !errors.Is(err, ErrWindowBindingInvalid) {
 				t.Fatalf("preview %T: %v", command, err)
 			}
@@ -1394,8 +1424,18 @@ func TestWindowBindingLifecycleValidation(t *testing.T) {
 				t.Fatalf("execute %T: %v", command, err)
 			}
 		}
-		closed := executeTestCommand(t, env.manager, GlobalDesktopWorkspaceID, nil, CloseWindowCommand{WindowID: "bound"})
-		request := CommandRequest{WorkspaceID: GlobalDesktopWorkspaceID, ExpectedRevision: closed.Snapshot.Revision, Payload: ReopenCommand{}}
+		closed := executeTestCommand(
+			t,
+			env.manager,
+			GlobalDesktopWorkspaceID,
+			nil,
+			CloseWindowCommand{WindowID: "bound"},
+		)
+		request := CommandRequest{
+			WorkspaceID:      GlobalDesktopWorkspaceID,
+			ExpectedRevision: closed.Snapshot.Revision,
+			Payload:          ReopenCommand{},
+		}
 		if _, err := env.manager.Execute(t.Context(), request); !errors.Is(err, ErrWindowBindingInvalid) {
 			t.Fatalf("reopen = %v", err)
 		}
@@ -1403,6 +1443,22 @@ func TestWindowBindingLifecycleValidation(t *testing.T) {
 	t.Run("Should accept foreign bindings in a project partition", func(t *testing.T) {
 		t.Parallel()
 		env := newTestEnvironment(t, floatingConfig(), "workspace-a")
-		executeTestCommand(t, env.manager, "workspace-a", nil, OpenWindowCommand{Window: WindowSpec{ID: "bound", App: "loops", DesktopID: "desktop-default", Route: RouteIntent{Pathname: "/loops", Search: RouteSearch{"workspace": json.RawMessage(`"workspace-missing"`)}}}})
+		executeTestCommand(
+			t,
+			env.manager,
+			"workspace-a",
+			nil,
+			OpenWindowCommand{
+				Window: WindowSpec{
+					ID:        "bound",
+					App:       "loops",
+					DesktopID: "desktop-default",
+					Route: RouteIntent{
+						Pathname: "/loops",
+						Search:   RouteSearch{"workspace": json.RawMessage(`"workspace-missing"`)},
+					},
+				},
+			},
+		)
 	})
 }

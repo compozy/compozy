@@ -47,7 +47,10 @@ func (r *windowManagerSessionReconciler) ReconcileDeletedSession(
 	if !r.ready.Load() {
 		return errWindowManagerSessionReconcilerNotReady
 	}
-	return r.registry.reconcilePartitions(ctx, func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
-		return manager.ReconcileDeletedSession(ctx, partition, sessionID)
-	})
+	return r.registry.reconcilePartitions(
+		ctx,
+		func(manager *windowmanager.Manager, partition windowmanager.WorkspaceID) error {
+			return manager.ReconcileDeletedSession(ctx, partition, sessionID)
+		},
+	)
 }

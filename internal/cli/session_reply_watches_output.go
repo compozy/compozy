@@ -17,7 +17,11 @@ func sessionReplyWatchesHuman(watches []contract.ReplyWatchPayload) string {
 			[]string{w.ID, w.TargetSessionID, w.MessageID, w.State, w.CreatedAt.UTC().Format("15:04:05")},
 		)
 	}
-	return renderHumanTable("Waiting for replies", []string{"WATCH", "TARGET", "MESSAGE", "STATE", "SINCE"}, rows)
+	return renderHumanTable(
+		"Waiting for replies",
+		[]string{"WATCH", "TARGET", "MESSAGE", cliStateHeader, "SINCE"},
+		rows,
+	)
 }
 
 func sessionReplyWatchesToon(watches []contract.ReplyWatchPayload) string {

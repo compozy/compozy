@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -167,7 +169,7 @@ func sessionCatalogPageFilters(
 	if len(query.WorkspaceIDs) > 0 {
 		ids := append([]string(nil), query.WorkspaceIDs...)
 		for i, id := range ids {
-			if id == "@user" {
+			if id == workspaceaccess.UserSelector {
 				ids[i] = ""
 			}
 		}

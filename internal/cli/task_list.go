@@ -51,10 +51,10 @@ func (o *taskListOptions) run(cmd *cobra.Command, deps commandDeps) error {
 		if cmd.Flags().Changed("workspace") {
 			return errors.New("cli: --all-workspaces and --workspace are mutually exclusive")
 		}
-		if cmd.Flags().Changed("scope") && strings.TrimSpace(o.scopeRaw) != "all" {
+		if cmd.Flags().Changed("scope") && strings.TrimSpace(o.scopeRaw) != cliAllValue {
 			return errors.New("cli: --all-workspaces conflicts with --scope")
 		}
-		o.scopeRaw = "all"
+		o.scopeRaw = cliAllValue
 	}
 	client, err := clientFromDeps(deps)
 	if err != nil {
@@ -107,7 +107,8 @@ func (o *taskListOptions) run(cmd *cobra.Command, deps commandDeps) error {
 
 func addTaskListFlags(cmd *cobra.Command, opts *taskListOptions) {
 	cmd.Flags().BoolVar(&opts.allWorkspaces, "all-workspaces", false, "List tasks across every project and User")
-	cmd.Flags().StringVar(&opts.scopeRaw, taskScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
+	cmd.Flags().
+		StringVar(&opts.scopeRaw, taskScopeKey, "", "Filter by scope: user (aliases: @user, global) or workspace")
 	cmd.Flags().
 		StringVar(&opts.workspaceRef, "workspace", "", "Override workspace filter (ID, name, or path)")
 	cmd.Flags().StringVar(&opts.statusRaw, taskStatusKey, "", "Filter by task status")
@@ -235,14 +236,14 @@ func taskSummaryListBundle(page TaskListRecord) outputBundle {
 func taskSummaryListBundleWithProjects(page TaskListRecord, names map[string]string) outputBundle {
 	workspaceHeader := strings.ToUpper(taskWorkspaceValue)
 	if names != nil {
-		workspaceHeader = "PROJECT"
+		workspaceHeader = cliProjectHeader
 	}
 	projectLabel := func(id string) string {
 		if names == nil {
 			return stringOrDash(id)
 		}
 		if id == "" {
-			return "User"
+			return cliUserScopeLabel
 		}
 		return cmp.Or(names[id], id)
 	}

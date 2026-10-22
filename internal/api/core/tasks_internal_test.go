@@ -6,15 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/gateway"
-	"github.com/compozy/compozy/internal/workspaceaccess"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/gateway"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -607,7 +608,12 @@ func TestResolveTaskCatalogWorkspaceUserReference(t *testing.T) {
 		h := &BaseHandlers{}
 		scope := taskpkg.CatalogScopeWorkspace
 		workspaceID := "stale"
-		if err := h.resolveTaskCatalogWorkspace(t.Context(), "@user", &scope, &workspaceID); err != nil {
+		if err := h.resolveTaskCatalogWorkspace(
+			t.Context(),
+			workspaceaccess.UserSelector,
+			&scope,
+			&workspaceID,
+		); err != nil {
 			t.Fatalf("resolveTaskCatalogWorkspace(@user) error = %v", err)
 		}
 		if scope != taskpkg.CatalogScopeGlobal || workspaceID != "" {
@@ -643,14 +649,20 @@ func TestRequestOperatorOriginAppTokens(t *testing.T) {
 		c.Request = c.Request.WithContext(ContextWithAppToken(c.Request.Context(), gateway.AppToken{}))
 		origin := requestOperatorOrigin(c)
 		if origin.Kind != workspaceaccess.ActorApp || origin.Effective(workspaceaccess.Unrestricted) != "" {
-			t.Fatalf("app token origin = %#v, effective = %q, want no grant", origin, origin.Effective(workspaceaccess.Unrestricted))
+			t.Fatalf(
+				"app token origin = %#v, effective = %q, want no grant",
+				origin,
+				origin.Effective(workspaceaccess.Unrestricted),
+			)
 		}
 	})
 	t.Run("Should keep the operator origin without an app token", func(t *testing.T) {
 		t.Parallel()
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/sessions", nil)
-		if got := requestOperatorOrigin(c).Effective(workspaceaccess.Unrestricted); got != workspaceaccess.Unrestricted {
+		if got := requestOperatorOrigin(
+			c,
+		).Effective(workspaceaccess.Unrestricted); got != workspaceaccess.Unrestricted {
 			t.Fatalf("operator effective grant = %q, want unrestricted", got)
 		}
 	})

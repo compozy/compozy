@@ -94,7 +94,7 @@ func globalSessionHistoryOperation(operation OperationSpec) OperationSpec {
 	operation.Summary += " for a Global session"
 	parameters := make([]ParameterSpec, 0, len(operation.Parameters))
 	for _, parameter := range operation.Parameters {
-		if parameter.In != "path" || parameter.Name != "workspace_id" {
+		if parameter.In != "path" || parameter.Name != specWorkspaceIDKey {
 			parameters = append(parameters, parameter)
 		}
 	}

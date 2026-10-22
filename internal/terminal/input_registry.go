@@ -337,7 +337,11 @@ func (r *inputRegistry) list(workspaceID string, scope store.ReadScope, terminal
 	return r.listSelection(scope, terminalID, func(id string) bool { return id == workspaceID })
 }
 
-func (r *inputRegistry) listSelection(scope store.ReadScope, terminalID ID, matches func(string) bool) []PendingInputRequest {
+func (r *inputRegistry) listSelection(
+	scope store.ReadScope,
+	terminalID ID,
+	matches func(string) bool,
+) []PendingInputRequest {
 	r.mu.Lock()
 	items := make([]PendingInputRequest, 0)
 	for _, pending := range r.pending {

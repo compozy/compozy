@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/listcursor"
 	"github.com/compozy/compozy/internal/session"
@@ -60,13 +62,24 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 	}
 	var after aggregateAgentPosition
 	if cursor != "" {
-		after, err = listcursor.Decode[aggregateAgentPosition](cursor, 1, "agents_aggregate", fingerprint, listcursor.DefaultMaxEncodedSize)
+		after, err = listcursor.Decode[aggregateAgentPosition](
+			cursor,
+			1,
+			"agents_aggregate",
+			fingerprint,
+			listcursor.DefaultMaxEncodedSize,
+		)
 		if err != nil {
 			h.respondError(c, http.StatusBadRequest, err)
 			return
 		}
 	}
-	response := contract.AgentCatalogResponse{Agents: []contract.AgentCatalogItemPayload{}, SessionsAvailable: true, Page: contract.CountedCursorPagePayload{Limit: limit}, Facets: contract.AgentCatalogFacetsPayload{Categories: []string{}}}
+	response := contract.AgentCatalogResponse{
+		Agents:            []contract.AgentCatalogItemPayload{},
+		SessionsAvailable: true,
+		Page:              contract.CountedCursorPagePayload{Limit: limit},
+		Facets:            contract.AgentCatalogFacetsPayload{Categories: []string{}},
+	}
 	userAgents, err := h.globalAgentEntries(c.Request.Context(), scope.ProfileID, profileName)
 	if err != nil {
 		h.respondError(c, statusForAgentWorkspaceError(err), err)
@@ -87,7 +100,7 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 		}
 		metricsWorkspace := workspace
 		if workspace == "" {
-			metricsWorkspace = "@user"
+			metricsWorkspace = workspaceaccess.UserSelector
 		}
 		metrics, available := h.agentCatalogSessionMetrics(c, scope, metricsWorkspace)
 		agents := make([]contract.AgentPayload, 0, len(resolved.Entries)+len(resolved.Diagnostics))
@@ -120,14 +133,20 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 	slices.Sort(response.Facets.Categories)
 	response.Facets.Categories = slices.Compact(response.Facets.Categories)
 	slices.SortFunc(response.Agents, func(a, b contract.AgentCatalogItemPayload) int {
-		return cmp.Or(compareAgentCatalogNames(a.Agent.Name, b.Agent.Name), cmp.Compare(a.Agent.WorkspaceID, b.Agent.WorkspaceID))
+		return cmp.Or(
+			compareAgentCatalogNames(a.Agent.Name, b.Agent.Name),
+			cmp.Compare(a.Agent.WorkspaceID, b.Agent.WorkspaceID),
+		)
 	})
 	response.Page.Total = len(response.Agents)
 	start := 0
 	if cursor != "" {
 		start = len(response.Agents)
 		for i, item := range response.Agents {
-			if cmp.Or(compareAgentCatalogNames(item.Agent.Name, after.Name), cmp.Compare(item.Agent.WorkspaceID, after.WorkspaceID)) > 0 {
+			if cmp.Or(
+				compareAgentCatalogNames(item.Agent.Name, after.Name),
+				cmp.Compare(item.Agent.WorkspaceID, after.WorkspaceID),
+			) > 0 {
 				start = i
 				break
 			}
@@ -138,7 +157,12 @@ func (h *BaseHandlers) ListAgentAggregate(c *gin.Context) {
 	response.Agents = response.Agents[start:end]
 	if response.Page.HasMore {
 		last := response.Agents[len(response.Agents)-1].Agent
-		response.Page.NextCursor, err = listcursor.Encode(1, "agents_aggregate", fingerprint, aggregateAgentPosition{last.Name, last.WorkspaceID})
+		response.Page.NextCursor, err = listcursor.Encode(
+			1,
+			"agents_aggregate",
+			fingerprint,
+			aggregateAgentPosition{last.Name, last.WorkspaceID},
+		)
 		if err != nil {
 			h.respondError(c, http.StatusInternalServerError, err)
 			return

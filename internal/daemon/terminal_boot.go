@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -118,7 +120,7 @@ func terminalSettingsProvider(state *bootState) terminalpkg.SettingsProvider {
 		if state == nil || state.workspaceResolver == nil || state.profiles == nil {
 			return terminalpkg.Settings{}, errors.New("daemon: terminal settings dependencies are unavailable")
 		}
-		if workspaceID == "" || workspaceID == "@user" {
+		if workspaceID == "" || workspaceID == workspaceaccess.UserSelector {
 			resolved, err := state.workspaceResolver.ResolveUser(ctx, profileID)
 			if err != nil {
 				return terminalpkg.Settings{}, err

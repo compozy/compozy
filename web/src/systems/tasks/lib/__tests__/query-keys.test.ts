@@ -165,6 +165,7 @@ describe("tasksKeys", () => {
       "inbox",
       "workspace",
       "ws_alpha",
+      "",
       "wt_alpha",
       "",
       "",
@@ -176,6 +177,10 @@ describe("tasksKeys", () => {
       "20",
       "",
     ]);
+    // The All projects Project filter partitions the inbox cache like the catalog.
+    expect(tasksKeys.inbox({ all_workspaces: true, workspace_ids: ["ws_alpha"] })).not.toEqual(
+      tasksKeys.inbox({ all_workspaces: true, workspace_ids: ["@user"] })
+    );
     expect(tasksKeys.inbox({ lane: "approvals", cursor: "first" })).toEqual(
       tasksKeys.inbox({ lane: "approvals", cursor: "second" })
     );

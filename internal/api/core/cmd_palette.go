@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -114,7 +116,7 @@ func (h *BaseHandlers) resolveCmdPaletteWorkspace(
 		})
 		return "", false
 	}
-	if workspaceRef == "@user" {
+	if workspaceRef == workspaceaccess.UserSelector {
 		return cmdpalette.WorkspaceID(windowmanager.UserDesktopWorkspaceID), true
 	}
 	if windowmanager.IsReservedDesktopPartition(windowmanager.WorkspaceID(workspaceRef)) {

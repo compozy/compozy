@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -91,7 +93,8 @@ func (p SessionCreationProfile) Validate() error {
 	if p.Version < 3 || p.Version > UserSessionCreationProfileVersion {
 		return fmt.Errorf("store: unsupported session creation profile version %d", p.Version)
 	}
-	if p.Version == UserSessionCreationProfileVersion && (p.WorkspaceID != "@user" || p.WorktreeRef != "") {
+	if p.Version == UserSessionCreationProfileVersion &&
+		(p.WorkspaceID != workspaceaccess.UserSelector || p.WorktreeRef != "") {
 		return fmt.Errorf("store: User creation profile requires @user without a worktree")
 	}
 	if p.Version < SessionCreationProfileVersion {

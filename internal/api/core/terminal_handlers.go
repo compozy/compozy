@@ -70,7 +70,7 @@ func (h *BaseHandlers) ListTerminals(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"terminals": payloads})
+	c.JSON(http.StatusOK, gin.H{terminalsKey: payloads})
 }
 
 func (h *BaseHandlers) GetTerminal(c *gin.Context) {

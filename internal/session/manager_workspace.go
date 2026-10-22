@@ -328,7 +328,11 @@ func builtinSessionAgentDef(agentName string, sessionType Type) (compozyconfig.A
 	return def, true
 }
 
-func resolveUserWorkspace(ctx context.Context, resolver workspacepkg.RuntimeResolver, profileID string) (workspacepkg.ResolvedWorkspace, error) {
+func resolveUserWorkspace(
+	ctx context.Context,
+	resolver workspacepkg.RuntimeResolver,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
 	userResolver, ok := resolver.(workspacepkg.UserRuntimeResolver)
 	if !ok {
 		return workspacepkg.ResolvedWorkspace{}, errors.New("session: workspace resolver does not support User scope")

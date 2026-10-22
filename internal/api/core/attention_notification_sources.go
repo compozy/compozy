@@ -176,7 +176,12 @@ func (h *BaseHandlers) loopNotificationItems(
 ) ([]contract.AttentionNotificationPayload, error) {
 	items := make([]contract.AttentionNotificationPayload, 0)
 	requests := make(map[string]bool)
-	query := LoopRequestListQuery{AllWorkspaces: true, ReadScope: store.ReadScope{AllProfiles: true}, State: "pending", Limit: 200}
+	query := LoopRequestListQuery{
+		AllWorkspaces: true,
+		ReadScope:     store.ReadScope{AllProfiles: true},
+		State:         "pending",
+		Limit:         200,
+	}
 	for {
 		page, err := h.Loops.ListLoopRequests(ctx, workspace, query)
 		if err != nil {
@@ -274,14 +279,25 @@ func (h *BaseHandlers) loopNodeNotificationItems(
 	items := make([]contract.AttentionNotificationPayload, 0)
 
 	for _, state := range []string{"waiting", "attention"} {
-		query := LoopNodeListQuery{AllWorkspaces: true, ReadScope: store.ReadScope{AllProfiles: true}, State: state, Limit: 200}
+		query := LoopNodeListQuery{
+			AllWorkspaces: true,
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			State:         state,
+			Limit:         200,
+		}
 		for {
 			page, err := h.Loops.ListLoopNodes(ctx, workspace, query)
 			if err != nil {
 				return nil, err
 			}
 			for _, node := range page.Items {
-				key := loopNotificationKey(node.WorkspaceID, node.LoopRunID, node.NodeID, node.Generation, node.ItemIndex)
+				key := loopNotificationKey(
+					node.WorkspaceID,
+					node.LoopRunID,
+					node.NodeID,
+					node.Generation,
+					node.ItemIndex,
+				)
 				if requests[key] {
 					continue
 				}

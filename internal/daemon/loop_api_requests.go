@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -18,15 +20,20 @@ func (s *daemonLoopAPIService) ListLoopRequests(
 	query core.LoopRequestListQuery,
 ) (contract.LoopRequestsResponse, error) {
 	if query.AllWorkspaces {
-		workspaceID = "@user"
+		workspaceID = workspaceaccess.UserSelector
 	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {
 		return contract.LoopRequestsResponse{}, err
 	}
 	page, err := s.aggregate.ListRequests(ctx, ws, looppkg.RequestQuery{
-		AllWorkspaces: query.AllWorkspaces, WorkspaceIDs: query.WorkspaceIDs, ReadScope: query.ReadScope, RunID: looppkg.RunID(strings.TrimSpace(query.RunID)), State: strings.TrimSpace(query.State),
-		Cursor: strings.TrimSpace(query.Cursor), Limit: query.Limit,
+		AllWorkspaces: query.AllWorkspaces,
+		WorkspaceIDs:  query.WorkspaceIDs,
+		ReadScope:     query.ReadScope,
+		RunID:         looppkg.RunID(strings.TrimSpace(query.RunID)),
+		State:         strings.TrimSpace(query.State),
+		Cursor:        strings.TrimSpace(query.Cursor),
+		Limit:         query.Limit,
 	})
 	if err != nil {
 		return contract.LoopRequestsResponse{}, err

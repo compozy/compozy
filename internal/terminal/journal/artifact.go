@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/redact"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/workspacedb"
@@ -88,7 +90,7 @@ func (s *Service) Artifact(
 	scope store.ReadScope,
 	id string,
 ) (io.ReadCloser, error) {
-	if (workspaceID == "" || workspaceID == "@user") && scope.AllProfiles {
+	if (workspaceID == "" || workspaceID == workspaceaccess.UserSelector) && scope.AllProfiles {
 		return nil, os.ErrNotExist
 	}
 	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, scope.ProfileID)
@@ -116,7 +118,7 @@ func (s *Service) Recording(
 	scope store.ReadScope,
 	id string,
 ) (*terminalpkg.RecordingRef, io.ReadCloser, error) {
-	if (workspaceID == "" || workspaceID == "@user") && scope.AllProfiles {
+	if (workspaceID == "" || workspaceID == workspaceaccess.UserSelector) && scope.AllProfiles {
 		return nil, nil, os.ErrNotExist
 	}
 	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, scope.ProfileID)

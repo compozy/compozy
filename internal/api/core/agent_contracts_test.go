@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
@@ -294,30 +296,53 @@ func TestAgentAggregateOwnershipAndPagination(t *testing.T) {
 	t.Parallel()
 	t.Run("Should page same-named agents with metrics belonging to each workspace", func(t *testing.T) {
 		t.Parallel()
-		totals := map[string]int{"@user": 1, "ws-a": 2, "ws-b": 3}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{MetricsByAgentFn: func(_ context.Context, _ store.ReadScope, workspace string) (map[string]session.AgentSessionMetrics, error) {
-			return map[string]session.AgentSessionMetrics{"same": {Total: totals[workspace]}}, nil
-		}}, testutil.StubObserver{}, testutil.StubWorkspaceService{
-			ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
-				return []workspacepkg.Workspace{{ID: "ws-a", Name: "A"}, {ID: "ws-b", Name: "B"}}, nil
+		totals := map[string]int{workspaceaccess.UserSelector: 1, "ws-a": 2, "ws-b": 3}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{
+				MetricsByAgentFn: func(_ context.Context, _ store.ReadScope, workspace string) (map[string]session.AgentSessionMetrics, error) {
+					return map[string]session.AgentSessionMetrics{"same": {Total: totals[workspace]}}, nil
+				},
 			},
-			ResolveFn: func(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
-				return workspacepkg.ResolvedWorkspace{ID: id, WorkspaceID: id, Agents: []compozyconfig.AgentDef{{Name: "same", Provider: "codex"}}}, nil
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+					return []workspacepkg.Workspace{{ID: "ws-a", Name: "A"}, {ID: "ws-b", Name: "B"}}, nil
+				},
+				ResolveFn: func(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{
+						ID:          id,
+						WorkspaceID: id,
+						Agents:      []compozyconfig.AgentDef{{Name: "same", Provider: "codex"}},
+					}, nil
+				},
 			},
-		})
+		)
 		path := filepath.Join(fixture.HomePaths.AgentsDir, "same", compozyconfig.AgentDefinitionFileName)
-		if _, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{Name: "same", Provider: "codex", Prompt: "test"}, false); err != nil {
+		if _, err := compozyconfig.CreateAgentDefFile(
+			path,
+			compozyconfig.AgentDefinitionDraft{Name: "same", Provider: "codex", Prompt: "test"},
+			false,
+		); err != nil {
 			t.Fatal(err)
 		}
 		cursor := ""
 		for i, workspace := range []string{"", "ws-a", "ws-b"} {
-			response := performRequest(t, fixture.Engine, http.MethodGet, "/agents/aggregate?all_workspaces=true&name=same&limit=1&cursor="+cursor, nil)
+			response := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/agents/aggregate?all_workspaces=true&name=same&limit=1&cursor="+cursor,
+				nil,
+			)
 			if response.Code != http.StatusOK {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}
 			var page contract.AgentCatalogResponse
 			decodeJSON(t, response.Body.Bytes(), &page)
-			if len(page.Agents) != 1 || page.Agents[0].Agent.WorkspaceID != workspace || page.Agents[0].Sessions == nil || page.Agents[0].Sessions.Total != i+1 {
+			if len(page.Agents) != 1 || page.Agents[0].Agent.WorkspaceID != workspace ||
+				page.Agents[0].Sessions == nil ||
+				page.Agents[0].Sessions.Total != i+1 {
 				t.Fatalf("page %d = %#v", i, page)
 			}
 			if page.Page.HasMore != (i < 2) {

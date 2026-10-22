@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // SessionCatalogAttentionRank is the stable attention-class component of a catalog cursor.
@@ -138,7 +140,7 @@ type SessionCatalogPager interface {
 
 // SessionWorkspaceClause keeps an explicit User selection distinct from an unfiltered catalog.
 func SessionWorkspaceClause(value string) Clause {
-	if strings.TrimSpace(value) == "@user" {
+	if strings.TrimSpace(value) == workspaceaccess.UserSelector {
 		return Clause{sql: "workspace_id = ?", arg: "", ok: true, hasArg: true}
 	}
 	return StringClause("workspace_id", value)

@@ -27,7 +27,10 @@ func (r managerSubagentRuntime) Resolve(
 	if err != nil {
 		return SubagentTarget{}, err
 	}
-	workspace, err := r.m.resolveResumeWorkspace(ctx, &store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID})
+	workspace, err := r.m.resolveResumeWorkspace(
+		ctx,
+		&store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID},
+	)
 	if err != nil {
 		return SubagentTarget{}, err
 	}
@@ -96,7 +99,10 @@ func (r managerSubagentRuntime) Capabilities(
 	if err != nil {
 		return nil, nil, err
 	}
-	workspace, err := r.m.resolveResumeWorkspace(ctx, &store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID})
+	workspace, err := r.m.resolveResumeWorkspace(
+		ctx,
+		&store.SessionMeta{WorkspaceID: parent.WorkspaceID, ProfileID: parent.ProfileID},
+	)
 	if err != nil {
 		return nil, nil, err
 	}

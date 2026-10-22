@@ -99,8 +99,16 @@ func (m *Service) removeWithTombstone(key terminalKey, expected *session, expire
 		delete(m.tombstones, oldest)
 	}
 	m.mu.Unlock()
-	m.events.Notify(context.Background(), Event{Kind: EventKindDeleted, WorkspaceID: key.workspaceID, ProfileID: key.profileID, TerminalID: key.id, At: m.now()})
-
+	m.events.Notify(
+		context.Background(),
+		Event{
+			Kind:        EventKindDeleted,
+			WorkspaceID: key.workspaceID,
+			ProfileID:   key.profileID,
+			TerminalID:  key.id,
+			At:          m.now(),
+		},
+	)
 }
 
 func (m *Service) sweepTombstones(now time.Time) {

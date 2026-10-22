@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -141,7 +143,7 @@ func (s *daemonLoopAPIService) ListLoopNodes(
 	query core.LoopNodeListQuery,
 ) (contract.LoopNodeInventoryResponse, error) {
 	if query.AllWorkspaces {
-		workspaceID = "@user"
+		workspaceID = workspaceaccess.UserSelector
 	}
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
 	if err != nil {

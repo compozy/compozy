@@ -42,7 +42,7 @@ func (m *Manager) ReconcileUnregisteredWorkspace(
 		_, err = m.Execute(ctx, CommandRequest{
 			WorkspaceID:      workspaceID,
 			ExpectedRevision: snapshot.Revision,
-			Actor:            Actor{Kind: "system", ID: "workspace.unregister"},
+			Actor:            Actor{Kind: systemActorKind, ID: "workspace.unregister"},
 			Origin:           "workspace.unregister",
 			Payload:          workspaceUnregisteredCommand{binding: target},
 		})

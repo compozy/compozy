@@ -89,9 +89,21 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 
 	t.Run("Should start and project a Goal in User scope", func(t *testing.T) {
 		t.Parallel()
-		fixture := newGoalCommandHandlerFixtureWithRuntime(t, "cursor", goalCommandCursorModel, goalCommandActiveCursorModel, true)
+		fixture := newGoalCommandHandlerFixtureWithRuntime(
+			t,
+			"cursor",
+			goalCommandCursorModel,
+			goalCommandActiveCursorModel,
+			true,
+		)
 		objective := "Ship User work\nverify: make verify"
-		result, err := fixture.service.Handle(t.Context(), "", fixture.sessionID, session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}, session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: objective})
+		result, err := fixture.service.Handle(
+			t.Context(),
+			"",
+			fixture.sessionID,
+			session.PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+			session.GoalCommand{Verb: session.GoalCommandVerbSet, Objective: objective},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1047,7 +1059,11 @@ context_nudge_ratio = 0.0
 	var apiResolver loopAPIWorkspaceResolver
 	if len(userScope) > 0 && userScope[0] {
 		workspaceID = ""
-		userResolver, err = workspacepkg.NewResolver(db, workspacepkg.WithHomePaths(homePaths), workspacepkg.WithProfileAvailabilityChecker(profiles))
+		userResolver, err = workspacepkg.NewResolver(
+			db,
+			workspacepkg.WithHomePaths(homePaths),
+			workspacepkg.WithProfileAvailabilityChecker(profiles),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -160,7 +160,8 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 		if sessionProfileID == "" {
 			return "", "", "", errors.New("daemon: session has no bound profile")
 		}
-		if requestedProfileID != "" && requestedProfileID != store.DefaultProfileID && info.EffectiveWorkspaceAccess != workspaceaccess.Unrestricted &&
+		if requestedProfileID != "" && requestedProfileID != store.DefaultProfileID &&
+			info.EffectiveWorkspaceAccess != workspaceaccess.Unrestricted &&
 			requestedProfileID != sessionProfileID {
 			return "", "", "", &profilepkg.Error{
 				Code: "profile_session_conflict", Message: "session is bound to another profile",

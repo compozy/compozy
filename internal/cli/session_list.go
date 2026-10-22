@@ -234,7 +234,7 @@ func sessionListBundle(page SessionListPage, now func() time.Time, projectLabels
 	headers := sessionListHumanHeaders()
 	row := sessionListHumanRow(now)
 	if len(projectLabels) > 0 {
-		headers = append([]string{"PROJECT"}, headers...)
+		headers = append([]string{cliProjectHeader}, headers...)
 		baseRow := row
 		row = func(item SessionRecord) []string {
 			return append([]string{aggregateProjectName(projectLabels[0], item.WorkspaceID)}, baseRow(item)...)

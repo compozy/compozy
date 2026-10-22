@@ -694,7 +694,10 @@ func TestFilesystemAttachmentStoreUserScope(t *testing.T) {
 		t.Parallel()
 		root := filepath.Join(t.TempDir(), "session-attachments")
 		store := openTestAttachmentStore(t, root, testAttachmentRetention())
-		ref, err := store.Put(t.Context(), PutRequest{SessionID: "sess_user", Name: "notes.txt", Data: []byte("plain notes")})
+		ref, err := store.Put(
+			t.Context(),
+			PutRequest{SessionID: "sess_user", Name: "notes.txt", Data: []byte("plain notes")},
+		)
 		if err != nil {
 			t.Fatalf("Put(User) error = %v", err)
 		}

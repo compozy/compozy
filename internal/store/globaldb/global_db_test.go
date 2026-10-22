@@ -20,6 +20,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/extensionenv"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -6618,7 +6620,7 @@ func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for i, name := range []string{"user-project", "user", "global", "@x", "@user"} {
+			for i, name := range []string{"user-project", "user", "global", "@x", workspaceaccess.UserSelector} {
 				if _, err := db.ExecContext(
 					t.Context(),
 					`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES (?,?,?,?,?)`,
@@ -6659,7 +6661,7 @@ func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
 			}
 			if _, err := repo.GetWorkspaceByName(
 				t.Context(),
-				"@user",
+				workspaceaccess.UserSelector,
 			); !errors.Is(
 				err,
 				compozyworkspace.ErrWorkspaceNotFound,

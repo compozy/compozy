@@ -392,7 +392,13 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 	t.Run("Should deny agent identity on every operator-only catalog surface", func(t *testing.T) {
 		t.Parallel()
 
-		fixture := newHandlerFixtureWithTasks(t, attentionRouteSessionManager(), testutil.StubObserver{}, &testutil.StubTaskManager{}, testutil.StubWorkspaceService{})
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			attentionRouteSessionManager(),
+			testutil.StubObserver{},
+			&testutil.StubTaskManager{},
+			testutil.StubWorkspaceService{},
+		)
 		fixture.Engine.GET("/loop-runs", fixture.Handlers.ListLoopRuns)
 		fixture.Engine.GET("/loop-requests", fixture.Handlers.ListLoopRequests)
 		fixture.Engine.GET("/loops", fixture.Handlers.ListLoops)
@@ -546,7 +552,10 @@ func (notificationRouteObserver) TaskAttentionItems(
 
 type notificationRouteTerminal struct{ terminalpkg.Manager }
 
-func (notificationRouteTerminal) InputRequestsAggregate(context.Context, store.ReadScope) ([]terminalpkg.PendingInputRequest, error) {
+func (notificationRouteTerminal) InputRequestsAggregate(
+	context.Context,
+	store.ReadScope,
+) ([]terminalpkg.PendingInputRequest, error) {
 	return nil, nil
 }
 

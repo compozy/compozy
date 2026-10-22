@@ -104,7 +104,10 @@ curl -s "http://localhost:2123/api/tasks?all_workspaces=true&workspace_ids=ws_a&
 combined with a single-project selector:
 
 ```json
-{ "error": "all_workspaces conflicts with a workspace selector", "code": "workspace_breadth_invalid" }
+{
+  "error": "all_workspaces conflicts with a workspace selector",
+  "code": "workspace_breadth_invalid"
+}
 ```
 
 `global` is not a project name on data routes:

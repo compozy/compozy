@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/store"
@@ -375,7 +377,13 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		if err != nil {
 			t.Fatalf("taskInboxDomainQuery() error = %v", err)
 		}
-		if got, want := domain.WorkspaceIDs, []string{"ws-alpha", "@user"}; !slices.Equal(got, want) {
+		if got, want := domain.WorkspaceIDs, []string{
+			"ws-alpha",
+			workspaceaccess.UserSelector,
+		}; !slices.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf("domain WorkspaceIDs = %#v, want %#v", got, want)
 		}
 		for _, path := range []string{
@@ -516,7 +524,7 @@ func TestTaskBreadthQuerySemantics(t *testing.T) {
 			if err != nil || dashboard.AllWorkspaces != tc.all {
 				t.Fatalf("dashboard=%+v err=%v", dashboard, err)
 			}
-			if strings.Contains(tc.query, "@user") &&
+			if strings.Contains(tc.query, workspaceaccess.UserSelector) &&
 				(len(list.WorkspaceIDs) != 1 || len(dashboard.WorkspaceIDs) != 1) {
 				t.Fatal("User filter lost")
 			}

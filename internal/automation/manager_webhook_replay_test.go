@@ -86,11 +86,15 @@ func TestManagerContractWebhookReplay(t *testing.T) {
 			t.Fatalf("first manager Shutdown() error = %v", err)
 		}
 
-		runs, err := firstManager.ListRuns(h.ctx, RunQuery{ReadScope: store.ReadScope{ProfileID: trigger.ProfileID}, TriggerID: trigger.ID})
+		runs, err := firstManager.ListRuns(
+			h.ctx,
+			RunQuery{ReadScope: store.ReadScope{ProfileID: trigger.ProfileID}, TriggerID: trigger.ID},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(runs) != 1 || runs[0].WorkspaceID == nil || *runs[0].WorkspaceID != trigger.WorkspaceID || runs[0].Attribution != "recorded" {
+		if len(runs) != 1 || runs[0].WorkspaceID == nil || *runs[0].WorkspaceID != trigger.WorkspaceID ||
+			runs[0].Attribution != "recorded" {
 			t.Fatalf("webhook attribution = %#v", runs)
 		}
 

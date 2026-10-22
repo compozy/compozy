@@ -15,11 +15,11 @@ func (h *BaseHandlers) loopListBreadth(c *gin.Context) (WorkspaceBreadth, bool) 
 	breadth, err := parseWorkspaceBreadth(
 		c,
 		c.Param("workspace_id"),
-		breadthEncoding{Selector: "workspace_id"},
+		breadthEncoding{Selector: workspaceIDKey},
 		h.Workspaces,
 	)
 	if err != nil {
-		code := "workspace_breadth_invalid"
+		code := workspaceBreadthInvalidCode
 		if typed, ok := err.(*workspaceBreadthError); ok {
 			code = typed.code
 		}
@@ -30,7 +30,7 @@ func (h *BaseHandlers) loopListBreadth(c *gin.Context) (WorkspaceBreadth, bool) 
 		c.JSON(
 			http.StatusBadRequest,
 			contract.ErrorPayload{
-				Code:  "workspace_breadth_invalid",
+				Code:  workspaceBreadthInvalidCode,
 				Error: "aggregate loop routes require all_workspaces=true; use the workspace path for one project",
 			},
 		)

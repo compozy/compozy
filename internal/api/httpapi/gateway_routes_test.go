@@ -1520,9 +1520,16 @@ func TestAppTokenTaskBreadthAdmission(t *testing.T) {
 	for _, query := range []string{"", "?workspace=ws-a", "?all_workspaces=true", "?all_workspaces=true&workspace_ids=@user"} {
 		t.Run("Should preserve app access for task selector "+query, func(t *testing.T) {
 			t.Parallel()
-			auth := appTokenHTTPAuthenticatorStub{origin: func(string) bool { return true }, authenticate: func(context.Context, string) (gateway.AppToken, error) {
-				return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_breadth"}, Origins: []string{"http://a.test"}}, nil
-			}, touch: func(context.Context, string, uint64) error { return nil }}
+			auth := appTokenHTTPAuthenticatorStub{
+				origin: func(string) bool { return true },
+				authenticate: func(context.Context, string) (gateway.AppToken, error) {
+					return gateway.AppToken{
+						Session: gateway.DeviceSession{ID: "apt_breadth"},
+						Origins: []string{"http://a.test"},
+					}, nil
+				},
+				touch: func(context.Context, string, uint64) error { return nil },
+			}
 			router := newAppTokenTestRouter(t, auth, func(method, path string) bool {
 				for _, op := range apispec.Operations() {
 					if op.Method == method && op.Path == path {
@@ -1539,9 +1546,15 @@ func TestAppTokenTaskBreadthAdmission(t *testing.T) {
 				}
 				c.JSON(http.StatusOK, query)
 			})
-			router.GET("/api/observe/overview", func(c *gin.Context) { t.Error("app reached denied overview"); c.Status(http.StatusOK) })
+			router.GET(
+				"/api/observe/overview",
+				func(c *gin.Context) { t.Error("app reached denied overview"); c.Status(http.StatusOK) },
+			)
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, appTokenTestRequest(t, http.MethodGet, "/api/tasks"+query, "http://a.test", "cpz_app_valid"))
+			router.ServeHTTP(
+				response,
+				appTokenTestRequest(t, http.MethodGet, "/api/tasks"+query, "http://a.test", "cpz_app_valid"),
+			)
 			if response.Code != http.StatusOK {
 				t.Fatalf("tasks = %d %s", response.Code, response.Body.String())
 			}
@@ -1553,7 +1566,16 @@ func TestAppTokenTaskBreadthAdmission(t *testing.T) {
 				t.Fatalf("query = %+v", got)
 			}
 			response = httptest.NewRecorder()
-			router.ServeHTTP(response, appTokenTestRequest(t, http.MethodGet, "/api/observe/overview?all_workspaces=true", "http://a.test", "cpz_app_valid"))
+			router.ServeHTTP(
+				response,
+				appTokenTestRequest(
+					t,
+					http.MethodGet,
+					"/api/observe/overview?all_workspaces=true",
+					"http://a.test",
+					"cpz_app_valid",
+				),
+			)
 			assertAppTokenHTTPResponse(t, response, http.StatusForbidden, "app_token_route_forbidden")
 		})
 	}
@@ -1564,9 +1586,16 @@ func TestAppTokenLoopAggregateAdmission(t *testing.T) {
 	for _, path := range []string{"/api/loops", "/api/loop-runs", "/api/loop-requests"} {
 		t.Run("Should deny app tokens on "+path, func(t *testing.T) {
 			t.Parallel()
-			auth := appTokenHTTPAuthenticatorStub{origin: func(string) bool { return true }, authenticate: func(context.Context, string) (gateway.AppToken, error) {
-				return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_loops"}, Origins: []string{"http://a.test"}}, nil
-			}, touch: func(context.Context, string, uint64) error { return nil }}
+			auth := appTokenHTTPAuthenticatorStub{
+				origin: func(string) bool { return true },
+				authenticate: func(context.Context, string) (gateway.AppToken, error) {
+					return gateway.AppToken{
+						Session: gateway.DeviceSession{ID: "apt_loops"},
+						Origins: []string{"http://a.test"},
+					}, nil
+				},
+				touch: func(context.Context, string, uint64) error { return nil },
+			}
 			router := newAppTokenTestRouter(t, auth, func(method, path string) bool {
 				for _, op := range apispec.Operations() {
 					if op.Method == method && op.Path == path {
@@ -1577,7 +1606,10 @@ func TestAppTokenLoopAggregateAdmission(t *testing.T) {
 			}, nil)
 			router.GET(path, func(c *gin.Context) { t.Error("app reached aggregate handler"); c.Status(http.StatusOK) })
 			response := httptest.NewRecorder()
-			router.ServeHTTP(response, appTokenTestRequest(t, http.MethodGet, path+"?all_workspaces=true", "http://a.test", "cpz_app_valid"))
+			router.ServeHTTP(
+				response,
+				appTokenTestRequest(t, http.MethodGet, path+"?all_workspaces=true", "http://a.test", "cpz_app_valid"),
+			)
 			assertAppTokenHTTPResponse(t, response, http.StatusForbidden, "app_token_route_forbidden")
 		})
 	}

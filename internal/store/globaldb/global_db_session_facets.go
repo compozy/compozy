@@ -74,7 +74,10 @@ func (g *SessionRepo) SessionCatalogFacets(
 	for id, facets := range profiles {
 		result.ByProfile = append(result.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
 	}
-	slices.SortFunc(result.ByProfile, func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) })
+	slices.SortFunc(
+		result.ByProfile,
+		func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) },
+	)
 	if err := g.addTerminalApprovalFacets(ctx, query, &result); err != nil {
 		return result, err
 	}

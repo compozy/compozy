@@ -23,14 +23,21 @@ func newLoopRequestsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			response, err := client.ListLoopRequests(cmd.Context(), workspaceID, LoopRequestListQuery{AllWorkspaces: allWorkspaces,
-				RunID: strings.TrimSpace(runID), State: strings.TrimSpace(state),
-				Cursor: strings.TrimSpace(cursor), Limit: limit,
-			})
+			response, err := client.ListLoopRequests(
+				cmd.Context(),
+				workspaceID,
+				LoopRequestListQuery{AllWorkspaces: allWorkspaces,
+					RunID: strings.TrimSpace(runID), State: strings.TrimSpace(state),
+					Cursor: strings.TrimSpace(cursor), Limit: limit,
+				},
+			)
 			if err != nil {
 				return err
 			}
-			bundle := loopOutputBundle(response, fmt.Sprintf("%d requests · %d pending", len(response.Items), response.Aggregates.Pending))
+			bundle := loopOutputBundle(
+				response,
+				fmt.Sprintf("%d requests · %d pending", len(response.Items), response.Aggregates.Pending),
+			)
 			if allWorkspaces {
 				ids := make([]string, 0, len(response.Items))
 				for _, item := range response.Items {
@@ -45,7 +52,11 @@ func newLoopRequestsCommand(deps commandDeps) *cobra.Command {
 					for _, item := range response.Items {
 						rows = append(rows, []string{labels[item.WorkspaceID], item.LoopName, item.NodeID, item.State})
 					}
-					return renderHumanTable("Requests", []string{"PROJECT", "LOOP", "NODE", "STATE"}, rows), nil
+					return renderHumanTable(
+						"Requests",
+						[]string{cliProjectHeader, "LOOP", "NODE", cliStateHeader},
+						rows,
+					), nil
 				}
 			}
 			return writeCommandOutput(cmd, bundle)

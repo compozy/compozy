@@ -32,7 +32,14 @@ func (h *BaseHandlers) ListLoopRequests(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	query := LoopRequestListQuery{AllWorkspaces: breadth.AllWorkspaces, WorkspaceIDs: breadth.WorkspaceIDs, ReadScope: scope, RunID: c.Query("run_id"), State: c.Query("state"), Cursor: c.Query("cursor")}
+	query := LoopRequestListQuery{
+		AllWorkspaces: breadth.AllWorkspaces,
+		WorkspaceIDs:  breadth.WorkspaceIDs,
+		ReadScope:     scope,
+		RunID:         c.Query("run_id"),
+		State:         c.Query("state"),
+		Cursor:        c.Query("cursor"),
+	}
 	if raw := c.Query("limit"); raw != "" {
 		limit, err := strconv.Atoi(raw)
 		if err != nil {

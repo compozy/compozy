@@ -3,6 +3,8 @@ package spec
 import (
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 )
 
@@ -311,7 +313,11 @@ func getSchedulerBacklogOperationSpec() OperationSpec {
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			intQueryParam("limit", "Maximum number of queued runs to return"),
-			enumQueryParam(specScopeKey, "Filter by catalog visibility", append(taskCatalogScopeValues(), "user", "@user")),
+			enumQueryParam(
+				specScopeKey,
+				"Filter by catalog visibility",
+				append(taskCatalogScopeValues(), "user", workspaceaccess.UserSelector),
+			),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			boolQueryParam("include_paused", "Include runs blocked by task pause state"),
 		},

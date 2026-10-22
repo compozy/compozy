@@ -404,7 +404,7 @@ func (h *BaseHandlers) logAgentMutation(
 		handlersOperationKey, "agent." + operation,
 		"agent_name", entry.Def.Name,
 		"origin", entry.Origin,
-		"workspace_id", entry.WorkspaceID,
+		workspaceIDKey, entry.WorkspaceID,
 		"duration_ms", time.Since(startedAt).Milliseconds(),
 		"sync_duration_ms", syncDuration.Milliseconds(),
 		"outcome", "success",

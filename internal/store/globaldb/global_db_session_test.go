@@ -13,6 +13,8 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
@@ -1481,7 +1483,15 @@ func TestGlobalDBUserSessionOwner(t *testing.T) {
 		db := openTestGlobalDB(t)
 		ctx := t.Context()
 		other := insertLayoutTestProfile(ctx, t, db)
-		profile := store.SessionCreationProfile{Version: store.UserSessionCreationProfileVersion, AgentName: "coder", Provider: "claude", ProfileID: store.DefaultProfileID, WorkspaceID: "@user", CWD: t.TempDir(), Permissions: "approve-all"}
+		profile := store.SessionCreationProfile{
+			Version:     store.UserSessionCreationProfileVersion,
+			AgentName:   "coder",
+			Provider:    "claude",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceaccess.UserSelector,
+			CWD:         t.TempDir(),
+			Permissions: "approve-all",
+		}
 		ref, err := db.PutSessionCreationProfile(ctx, profile)
 		if err != nil {
 			t.Fatal(err)
@@ -1490,16 +1500,35 @@ func TestGlobalDBUserSessionOwner(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		digest, err := profile.CreationDigest(store.SessionCreationOptions{SessionID: "sess-user-owner", SessionType: "user"})
+		digest, err := profile.CreationDigest(
+			store.SessionCreationOptions{SessionID: "sess-user-owner", SessionType: "user"},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		info := sessionInfoForWorkspaceStateIndexTest("sess-user-owner", "", globalDBSessionStateStopped, time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC))
+		info := sessionInfoForWorkspaceStateIndexTest(
+			"sess-user-owner",
+			"",
+			globalDBSessionStateStopped,
+			time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC),
+		)
 		info.ProfileID = other
-		if _, err := db.RegisterSessionWithCreationIdentity(ctx, info, store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest}); err != nil {
+		if _, err := db.RegisterSessionWithCreationIdentity(
+			ctx,
+			info,
+			store.SessionCreationIdentity{CreationProfileRef: ref, PolicySpecDigest: policy, CreationDigest: digest},
+		); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.LookupSessionOwner(ctx, db, db, info.ID); !errors.Is(err, store.ErrSessionWorkspaceMismatch) {
+		if _, err := store.LookupSessionOwner(
+			ctx,
+			db,
+			db,
+			info.ID,
+		); !errors.Is(
+			err,
+			store.ErrSessionWorkspaceMismatch,
+		) {
 			t.Fatalf("foreign owner error=%v", err)
 		}
 	})
@@ -1513,7 +1542,11 @@ func TestGlobalDBUserFolderMigration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		old := &GlobalDB{db: raw, path: path, now: func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) }}
+		old := &GlobalDB{
+			db:   raw,
+			path: path,
+			now:  func() time.Time { return time.Date(2026, 10, 17, 12, 0, 0, 0, time.UTC) },
+		}
 		old.initializeRepositories(openConfig{})
 		ctx := t.Context()
 		workspace := registerWorkspaceForGlobalTests(t, old, "preserved", t.TempDir())
@@ -1540,13 +1573,21 @@ VALUES ('sess-preserved', ?, 'Preserved', 'coder', ?, 'user', 'stopped', '2026-1
 			}
 		})
 		var folderID string
-		if err := upgraded.db.QueryRowContext(ctx, `SELECT folder_id FROM session_placements WHERE session_id='sess-preserved'`).Scan(&folderID); err != nil {
+		if err := upgraded.db.QueryRowContext(ctx, `SELECT folder_id FROM session_placements WHERE session_id='sess-preserved'`).
+			Scan(&folderID); err != nil {
 			t.Fatal(err)
 		}
 		if folderID != folder.ID {
 			t.Fatalf("placement=%q", folderID)
 		}
-		createLayoutFolder(ctx, t, upgraded, store.SessionLayoutScope{ProfileID: store.DefaultProfileID}, "folder-user-new", "User")
+		createLayoutFolder(
+			ctx,
+			t,
+			upgraded,
+			store.SessionLayoutScope{ProfileID: store.DefaultProfileID},
+			"folder-user-new",
+			"User",
+		)
 	})
 }
 
@@ -1558,11 +1599,21 @@ func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 		wsB := registerWorkspaceForGlobalTests(t, db, "filter-b", filepath.Join(t.TempDir(), "b"))
 		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 		const otherProfile = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
-		if _, err := db.db.ExecContext(t.Context(), `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'editorial','#8E8EB5','circle','active',?)`, otherProfile, formatTimestamp(now)); err != nil {
+		if _, err := db.db.ExecContext(
+			t.Context(),
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'editorial','#8E8EB5','circle','active',?)`,
+			otherProfile,
+			formatTimestamp(now),
+		); err != nil {
 			t.Fatal(err)
 		}
 		for i, ws := range []string{wsA, wsB, "", wsA} {
-			info := sessionInfoForWorkspaceStateIndexTest(fmt.Sprintf("filter-%d", i), ws, globalDBSessionStateActive, now.Add(time.Duration(i)*time.Second))
+			info := sessionInfoForWorkspaceStateIndexTest(
+				fmt.Sprintf("filter-%d", i),
+				ws,
+				globalDBSessionStateActive,
+				now.Add(time.Duration(i)*time.Second),
+			)
 			if i == 3 {
 				info.ProfileID = otherProfile
 			}
@@ -1570,10 +1621,18 @@ func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if _, err := db.db.ExecContext(t.Context(), `UPDATE sessions SET pending_permission_count=1 WHERE id IN ('filter-2','filter-3')`); err != nil {
+		if _, err := db.db.ExecContext(
+			t.Context(),
+			`UPDATE sessions SET pending_permission_count=1 WHERE id IN ('filter-2','filter-3')`,
+		); err != nil {
 			t.Fatal(err)
 		}
-		query := store.SessionCatalogPageQuery{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceIDs: []string{wsA, "@user"}, Sort: "created", Limit: 1}
+		query := store.SessionCatalogPageQuery{
+			ReadScope:    store.ReadScope{AllProfiles: true},
+			WorkspaceIDs: []string{wsA, workspaceaccess.UserSelector},
+			Sort:         "created",
+			Limit:        1,
+		}
 		for _, want := range []string{"filter-3", "filter-2", "filter-0"} {
 			page, err := db.PageSessions(t.Context(), query)
 			if err != nil {
@@ -1583,7 +1642,12 @@ func TestGlobalDBSessionWorkspaceSelection(t *testing.T) {
 				t.Fatalf("page = %#v, want %s", page, want)
 			}
 			row := page.Sessions[0]
-			query.After = &store.SessionCatalogPosition{ID: row.ID, CreatedAt: row.CreatedAt, PrimaryAt: row.UpdatedAt, SecondaryAt: row.UpdatedAt}
+			query.After = &store.SessionCatalogPosition{
+				ID:          row.ID,
+				CreatedAt:   row.CreatedAt,
+				PrimaryAt:   row.UpdatedAt,
+				SecondaryAt: row.UpdatedAt,
+			}
 		}
 		page, err := db.PageSessions(t.Context(), query)
 		if err != nil || len(page.Sessions) != 0 {

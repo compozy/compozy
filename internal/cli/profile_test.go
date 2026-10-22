@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
@@ -663,8 +665,14 @@ func TestUserWorkspaceReference(t *testing.T) {
 			return WorkspaceDetailRecord{}, nil
 		}}
 		command := &cobra.Command{Use: "list"}
-		got, err := resolveWorkspaceCandidate(t.Context(), command, client, "@user", workspaceResolutionFlag)
-		if err != nil || got.ID != "@user" || got.Source != workspaceResolutionFlag {
+		got, err := resolveWorkspaceCandidate(
+			t.Context(),
+			command,
+			client,
+			workspaceaccess.UserSelector,
+			workspaceResolutionFlag,
+		)
+		if err != nil || got.ID != workspaceaccess.UserSelector || got.Source != workspaceResolutionFlag {
 			t.Fatalf("User reference = %#v, %v", got, err)
 		}
 	})

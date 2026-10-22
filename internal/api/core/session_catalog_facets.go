@@ -57,7 +57,13 @@ func (h *BaseHandlers) ListSessionFacets(c *gin.Context) {
 		)
 	}
 	for _, profile := range facets.ByProfile {
-		response.ByProfile = append(response.ByProfile, contract.SessionProfileFacetsPayload{ProfileID: profile.ProfileID, Facets: sessionFacetPayload(profile.Facets)})
+		response.ByProfile = append(
+			response.ByProfile,
+			contract.SessionProfileFacetsPayload{
+				ProfileID: profile.ProfileID,
+				Facets:    sessionFacetPayload(profile.Facets),
+			},
+		)
 	}
 	c.JSON(http.StatusOK, response)
 }

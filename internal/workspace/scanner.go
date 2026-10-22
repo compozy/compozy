@@ -130,7 +130,10 @@ func (r *Resolver) scanWorkspaceDependencies(
 	if ws.RootDir == "" {
 		if profileName != "" {
 			for _, name := range []string{compozyconfig.ConfigName, compozyconfig.MCPJSONName} {
-				if err := addSnapshotIfExists(filepath.Join(r.homePaths.ProfilesDir, profileName, name), snapshots); err != nil {
+				if err := addSnapshotIfExists(
+					filepath.Join(r.homePaths.ProfilesDir, profileName, name),
+					snapshots,
+				); err != nil {
 					return nil, err
 				}
 			}

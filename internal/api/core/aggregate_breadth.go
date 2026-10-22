@@ -15,7 +15,7 @@ func (h *BaseHandlers) aggregateBreadth(c *gin.Context) (WorkspaceBreadth, bool)
 	if !h.requireAggregateSurface(c) {
 		return WorkspaceBreadth{}, false
 	}
-	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace_id"})
+	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: workspaceIDKey})
 	if err == nil && !breadth.AllWorkspaces {
 		err = invalidWorkspaceBreadth("aggregate routes require all_workspaces=true")
 	}
@@ -27,7 +27,7 @@ func (h *BaseHandlers) aggregateBreadth(c *gin.Context) (WorkspaceBreadth, bool)
 }
 
 func (h *BaseHandlers) respondAggregateBreadthError(c *gin.Context, err error) {
-	code := "workspace_breadth_invalid"
+	code := workspaceBreadthInvalidCode
 	if typed, ok := err.(*workspaceBreadthError); ok {
 		code = typed.code
 	}

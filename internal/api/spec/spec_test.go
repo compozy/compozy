@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	collisionfixture "github.com/compozy/compozy/internal/api/spec/testdata/componentnames/collision/session"
@@ -1305,7 +1307,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				createJobSchema := jsonRequestSchema(t, createJob)
 				assertRequired(t, createJobSchema, "scope", "name", "agent_name", "prompt", "schedule")
 				assertNotRequired(t, createJobSchema, "workspace_id", "enabled", "retry", "fire_limit")
-				assertEnumValues(t, propertySchema(t, createJobSchema, "scope"), "global", "workspace", "user", "@user")
+				assertEnumValues(
+					t,
+					propertySchema(t, createJobSchema, "scope"),
+					"global",
+					"workspace",
+					"user",
+					workspaceaccess.UserSelector,
+				)
 
 				scheduleSchema := propertySchema(t, createJobSchema, "schedule")
 				assertRequired(t, scheduleSchema, "mode")
@@ -1342,7 +1351,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"global",
 					"workspace",
 					"user",
-					"@user",
+					workspaceaccess.UserSelector,
 				)
 
 				healthOperation := operationFor(t, doc, "/api/status", "GET")
@@ -1994,7 +2003,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"global",
 					"workspace",
 					"user",
-					"@user",
+					workspaceaccess.UserSelector,
 				)
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "priority"), "low", "medium", "high", "urgent")
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "approval_policy"), "none", "manual")
@@ -2080,7 +2089,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertEnumValues(
 					t,
 					parameterSchema(t, listTasks, "scope", openapi3.ParameterInQuery),
-					"all", "global", "workspace", "user", "@user",
+					"all", "global", "workspace", "user", workspaceaccess.UserSelector,
 				)
 				listTasksSchema := jsonResponseSchema(t, listTasks, 200)
 				assertRequired(t, listTasksSchema, "tasks", "page", "facets")

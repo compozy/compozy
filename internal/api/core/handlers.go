@@ -110,7 +110,11 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 	}
 	opts.Origin = requestOperatorOrigin(c)
 	if hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
-		caller, err := h.resolveAgentCaller(c.Request.Context(), agentCallerCredentialsFromRequest(c), agentActionSessionCreate)
+		caller, err := h.resolveAgentCaller(
+			c.Request.Context(),
+			agentCallerCredentialsFromRequest(c),
+			agentActionSessionCreate,
+		)
 		if err != nil {
 			h.respondError(c, StatusForAgentIdentityError(err), err)
 			return
@@ -120,7 +124,10 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 			h.respondError(c, StatusForSessionError(err), err)
 			return
 		}
-		opts.Origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: creator.EffectiveWorkspaceAccess}
+		opts.Origin = workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAgentSession,
+			Ceiling: creator.EffectiveWorkspaceAccess,
+		}
 	}
 	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
 	if err != nil {

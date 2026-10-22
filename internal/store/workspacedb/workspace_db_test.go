@@ -1,6 +1,7 @@
 package workspacedb
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
@@ -813,7 +814,7 @@ func TestLegacyJournalImport(t *testing.T) {
 					t.Fatal("blob not contained", path)
 				}
 				data, err := os.ReadFile(path)
-				if err != nil || string(data) != string(contents) {
+				if err != nil || !bytes.Equal(data, contents) {
 					t.Fatalf("blob=%q err=%v", data, err)
 				}
 				if profile == "p1" {

@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/automation"
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/events"
@@ -3517,7 +3519,10 @@ func TestGlobalDBAutomationRunAttributionAndCursor(t *testing.T) {
 		db := openTestGlobalDB(t)
 		ctx := t.Context()
 		workspace := registerWorkspaceForGlobalTests(t, db, "attribution", t.TempDir())
-		job, err := db.CreateJob(ctx, automationJobForTest(automation.AutomationScopeWorkspace, "source", workspace, automation.JobSourceDynamic))
+		job, err := db.CreateJob(
+			ctx,
+			automationJobForTest(automation.AutomationScopeWorkspace, "source", workspace, automation.JobSourceDynamic),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3551,7 +3556,7 @@ func TestGlobalDBAutomationRunAttributionAndCursor(t *testing.T) {
 		if !reflect.DeepEqual(ids, []string{"a", "c", "b"}) {
 			t.Fatalf("page ids = %v", ids)
 		}
-		query.WorkspaceIDs = []string{"@user"}
+		query.WorkspaceIDs = []string{workspaceaccess.UserSelector}
 		if _, err := db.ListRuns(ctx, query); !errors.Is(err, automationmodel.ErrListCursorInvalid) {
 			t.Fatalf("foreign cursor error = %v", err)
 		}

@@ -101,7 +101,14 @@ func (s *service) DryRun(
 	if err != nil {
 		return nil, err
 	}
-	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, inputs.ProfileID, loopName, resolved.Definition, inputs.Values)
+	resolvedInputs, err := s.resolveEffectiveInputs(
+		ctx,
+		ws,
+		inputs.ProfileID,
+		loopName,
+		resolved.Definition,
+		inputs.Values,
+	)
 	if err != nil {
 		return nil, err
 	}

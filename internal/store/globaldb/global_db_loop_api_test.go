@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -1387,18 +1389,31 @@ func TestGlobalDBLoopAggregateBreadth(t *testing.T) {
 		ctx := t.Context()
 		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
-		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'aggregate-foreign','#E8572A','circle','active',?)`, foreign, store.FormatTimestamp(now)); err != nil {
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'aggregate-foreign','#E8572A','circle','active',?)`,
+			foreign,
+			store.FormatTimestamp(now),
+		); err != nil {
 			t.Fatal(err)
 		}
 		for index, ws := range []string{"ws-a", "ws-b", "", "ws-b", "retired"} {
-			run := testLoopRun(fmt.Sprintf("aggregate-%d", index), now.Add(time.Duration(index)*time.Minute), looppkg.StatusDone)
+			run := testLoopRun(
+				fmt.Sprintf("aggregate-%d", index),
+				now.Add(time.Duration(index)*time.Minute),
+				looppkg.StatusDone,
+			)
 			run.WorkspaceID = looppkg.WorkspaceID(ws)
 			if index == 3 {
 				run.ProfileID = foreign
 			}
 			insertLoopCatalogRunForTest(t, db, run)
 		}
-		query := looppkg.RunListQuery{AllWorkspaces: true, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 2}
+		query := looppkg.RunListQuery{
+			AllWorkspaces: true,
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			Limit:         2,
+		}
 		first, err := db.ListLoopRuns(ctx, query)
 		if err != nil || len(first) != 2 || first[0].ID != "aggregate-2" || first[1].ID != "aggregate-1" {
 			t.Fatalf("first page = %+v, %v", first, err)
@@ -1426,7 +1441,12 @@ func TestGlobalDBLoopAggregateBreadth(t *testing.T) {
 		ctx := t.Context()
 		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
-		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'requests-foreign','#E8572A','circle','active',?)`, foreign, store.FormatTimestamp(now)); err != nil {
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO profiles (id,name,color,icon,state,created_at) VALUES (?, 'requests-foreign','#E8572A','circle','active',?)`,
+			foreign,
+			store.FormatTimestamp(now),
+		); err != nil {
 			t.Fatal(err)
 		}
 		for index, ws := range []string{"ws-a", "ws-b", "", "ws-b"} {
@@ -1437,17 +1457,30 @@ func TestGlobalDBLoopAggregateBreadth(t *testing.T) {
 			}
 			insertLoopCatalogRunForTest(t, db, run)
 			for generation := 1; generation <= 2; generation++ {
-				if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_requests (workspace_id,loop_run_id,generation,node_id,item_index,kind,state,prompt,decisions_json,opened_at,expires_at) VALUES (?,?,?,'ask',?,'ask','pending','Approve?','["approve"]',?,?)`, ws, run.ID, generation, generation, now, func() any {
-					if generation == 1 {
-						return now.Add(time.Hour)
-					}
-					return nil
-				}()); err != nil {
+				if _, err := db.db.ExecContext(
+					ctx,
+					`INSERT INTO loop_requests (workspace_id,loop_run_id,generation,node_id,item_index,kind,state,prompt,decisions_json,opened_at,expires_at) VALUES (?,?,?,'ask',?,'ask','pending','Approve?','["approve"]',?,?)`,
+					ws,
+					run.ID,
+					generation,
+					generation,
+					now,
+					func() any {
+						if generation == 1 {
+							return now.Add(time.Hour)
+						}
+						return nil
+					}(),
+				); err != nil {
 					t.Fatal(err)
 				}
 			}
 		}
-		query := looppkg.RequestQuery{AllWorkspaces: true, ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 1}
+		query := looppkg.RequestQuery{
+			AllWorkspaces: true,
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			Limit:         1,
+		}
 		seen := map[string]bool{}
 		for {
 			page, err := db.ListRequests(ctx, "", query)
@@ -1482,7 +1515,15 @@ func TestGlobalDBLoopAggregateBreadth(t *testing.T) {
 		if len(seen) != 6 {
 			t.Fatalf("seen = %v", seen)
 		}
-		page, err := db.ListRequests(ctx, "", looppkg.RequestQuery{AllWorkspaces: true, WorkspaceIDs: []string{"@user"}, ReadScope: query.ReadScope})
+		page, err := db.ListRequests(
+			ctx,
+			"",
+			looppkg.RequestQuery{
+				AllWorkspaces: true,
+				WorkspaceIDs:  []string{workspaceaccess.UserSelector},
+				ReadScope:     query.ReadScope,
+			},
+		)
 		if err != nil || page.Pending != 2 || len(page.Items) != 2 || page.Items[0].WorkspaceID != "" {
 			t.Fatalf("User page = %+v, %v", page, err)
 		}

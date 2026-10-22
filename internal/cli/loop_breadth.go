@@ -7,7 +7,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func loopListClientAndWorkspace(cmd *cobra.Command, deps commandDeps, workspace string, all bool) (loopCommandClient, string, error) {
+func loopListClientAndWorkspace(
+	cmd *cobra.Command,
+	deps commandDeps,
+	workspace string,
+	all bool,
+) (loopCommandClient, string, error) {
 	if all {
 		client, err := loopClientFromDeps(deps)
 		return client, "", err
@@ -22,7 +27,7 @@ func loopCatalogBatchBundle(batch contract.LoopCatalogBatchResponse, labels map[
 		for _, entry := range batch.Entries {
 			rows = append(rows, []string{labels[entry.WorkspaceID], entry.Name, entry.Source.Layer})
 		}
-		blocks := []string{renderHumanTable("Loops", []string{"PROJECT", "NAME", "LAYER"}, rows)}
+		blocks := []string{renderHumanTable("Loops", []string{cliProjectHeader, "NAME", "LAYER"}, rows)}
 		for _, failure := range batch.Errors {
 			blocks = append(blocks, loopProjectLabel(failure.WorkspaceID)+": "+failure.Code+": "+failure.Message)
 		}
@@ -36,13 +41,13 @@ func loopCatalogBatchBundle(batch contract.LoopCatalogBatchResponse, labels map[
 
 func loopProjectLabel(workspace string) string {
 	if workspace == "" {
-		return "User"
+		return cliUserScopeLabel
 	}
 	return workspace
 }
 
 func loopProjectNames(ctx context.Context, client loopCommandClient, ids []string) (map[string]string, error) {
-	labels := map[string]string{"": "User"}
+	labels := map[string]string{"": cliUserScopeLabel}
 	if len(ids) == 0 {
 		return labels, nil
 	}

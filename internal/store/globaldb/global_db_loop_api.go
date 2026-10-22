@@ -61,7 +61,14 @@ func (g *LoopRepo) ListLoopRuns(
 		store.TimeClause("created_at", ">=", normalized.CreatedAfter),
 	}
 	where, args := store.BuildClauses(clauses...)
-	where, args = appendLoopWorkspaceFilter(where, args, "workspace_id", string(normalized.WorkspaceID), normalized.AllWorkspaces, normalized.WorkspaceIDs)
+	where, args = appendLoopWorkspaceFilter(
+		where,
+		args,
+		"workspace_id",
+		string(normalized.WorkspaceID),
+		normalized.AllWorkspaces,
+		normalized.WorkspaceIDs,
+	)
 	if normalized.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*normalized.Live))
 	}
@@ -127,7 +134,14 @@ func (g *LoopRepo) validateLoopRunListPosition(
 		store.StringClause("id", string(query.After.ID)),
 	}
 	where, args := store.BuildClauses(clauses...)
-	where, args = appendLoopWorkspaceFilter(where, args, "workspace_id", string(query.WorkspaceID), query.AllWorkspaces, query.WorkspaceIDs)
+	where, args = appendLoopWorkspaceFilter(
+		where,
+		args,
+		"workspace_id",
+		string(query.WorkspaceID),
+		query.AllWorkspaces,
+		query.WorkspaceIDs,
+	)
 	if query.Live != nil {
 		where = append(where, loopRunLiveFilterSQL(*query.Live))
 	}

@@ -57,7 +57,8 @@ func (p daemonLoopResponderPolicy) DeniesSelfOperation(
 		}
 		visited[currentID] = struct{}{}
 		info, statusErr := p.sessions.Status(ctx, currentID)
-		if statusErr != nil || (!validResponderSession(info, currentID, workspaceID) || info.ProfileID != run.ProfileID) {
+		if statusErr != nil ||
+			(!validResponderSession(info, currentID, workspaceID) || info.ProfileID != run.ProfileID) {
 			return true, nil
 		}
 		lineage := storepkg.NormalizeSessionLineage(info.ID, info.Lineage)

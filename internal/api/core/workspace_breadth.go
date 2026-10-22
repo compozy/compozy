@@ -31,7 +31,7 @@ type workspaceBreadthError struct {
 func (e *workspaceBreadthError) Error() string { return e.message }
 
 func invalidWorkspaceBreadth(message string) error {
-	return &workspaceBreadthError{code: "workspace_breadth_invalid", message: message}
+	return &workspaceBreadthError{code: workspaceBreadthInvalidCode, message: message}
 }
 
 func parseWorkspaceBreadth(

@@ -243,7 +243,7 @@ func terminalListScopeLabels(cmd *cobra.Command) (string, string) {
 	profile := configDefaultKey
 	if selection, ok := commandProfileReadSelection(cmd); ok {
 		if selection.AllProfiles {
-			profile = "all"
+			profile = cliAllValue
 		} else if strings.TrimSpace(selection.Profile) != "" {
 			profile = strings.TrimSpace(selection.Profile)
 		}

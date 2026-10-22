@@ -64,7 +64,10 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 			if readErr != nil {
 				return readErr
 			}
-			if writeErr := WriteSSE(writer, SSEMessage{ID: id(fence), Name: "terminal.snapshot", Data: gin.H{"terminals": items, "reset": true}}); writeErr != nil {
+			if writeErr := WriteSSE(
+				writer,
+				SSEMessage{ID: id(fence), Name: "terminal.snapshot", Data: gin.H{terminalsKey: items, "reset": true}},
+			); writeErr != nil {
 				return writeErr
 			}
 			after = fence
@@ -75,7 +78,10 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 			if payloadErr != nil {
 				return payloadErr
 			}
-			if writeErr := WriteSSE(writer, SSEMessage{ID: id(event.Sequence), Name: name, Data: payload}); writeErr != nil {
+			if writeErr := WriteSSE(
+				writer,
+				SSEMessage{ID: id(event.Sequence), Name: name, Data: payload},
+			); writeErr != nil {
 				return writeErr
 			}
 			after = event.Sequence

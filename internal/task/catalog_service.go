@@ -27,8 +27,19 @@ func (m *Service) ListTaskCatalog(
 			return CatalogPage{}, ErrPermissionDenied
 		}
 		decision, err := m.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
-			Actor:  workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: actor.Scope.SessionID, WorkspaceID: actor.Scope.WorkspaceID},
-			Target: workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, Surface: "tasks", ProfileID: query.ReadScope.ProfileID, AllProfiles: query.ReadScope.AllProfiles}, ReadOnly: true, Seam: workspaceaccess.SeamCatalog,
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   actor.Scope.SessionID,
+				WorkspaceID: actor.Scope.WorkspaceID,
+			},
+			Target: workspaceaccess.TargetRef{
+				Kind:        workspaceaccess.TargetAggregate,
+				Surface:     "tasks",
+				ProfileID:   query.ReadScope.ProfileID,
+				AllProfiles: query.ReadScope.AllProfiles,
+			},
+			ReadOnly: true,
+			Seam:     workspaceaccess.SeamCatalog,
 		})
 		if err != nil {
 			return CatalogPage{}, err

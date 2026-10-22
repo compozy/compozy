@@ -261,7 +261,8 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}
 	meta := &snapshot.meta
-	if strings.TrimSpace(meta.WorkspaceID) != spec.workspaceID || (spec.workspaceID == "" && meta.ProfileID != spec.profileID) {
+	if strings.TrimSpace(meta.WorkspaceID) != spec.workspaceID ||
+		(spec.workspaceID == "" && meta.ProfileID != spec.profileID) {
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}
 	lineage := store.NormalizeSessionLineage(meta.ID, meta.Lineage)

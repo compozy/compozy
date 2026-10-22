@@ -811,7 +811,12 @@ func TestSessionWorkspaceGrant(t *testing.T) {
 				}
 			}
 			h.resolver.upsert(&workspace)
-			created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{Session: CreateOpts{Origin: tc.origin, AgentName: "coder", Workspace: h.workspaceID}})
+			created, err := h.manager.CreateAccepted(
+				t.Context(),
+				CreateAcceptedOpts{
+					Session: CreateOpts{Origin: tc.origin, AgentName: "coder", Workspace: h.workspaceID},
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}

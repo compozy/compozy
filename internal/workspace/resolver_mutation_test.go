@@ -1094,7 +1094,13 @@ func TestReservedWorkspaceRegistration(t *testing.T) {
 			if err := os.MkdirAll(root, 0o700); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := resolver.Register(t.Context(), RegisterOptions{RootDir: root}); !errors.Is(err, ErrWorkspaceNameReserved) {
+			if _, err := resolver.Register(
+				t.Context(),
+				RegisterOptions{RootDir: root},
+			); !errors.Is(
+				err,
+				ErrWorkspaceNameReserved,
+			) {
 				t.Fatalf("register %q: %v", name, err)
 			}
 		}
@@ -1102,7 +1108,14 @@ func TestReservedWorkspaceRegistration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := resolver.Update(t.Context(), registered.ID, UpdateOptions{Name: new("user")}); !errors.Is(err, ErrWorkspaceNameReserved) {
+		if err := resolver.Update(
+			t.Context(),
+			registered.ID,
+			UpdateOptions{Name: new("user")},
+		); !errors.Is(
+			err,
+			ErrWorkspaceNameReserved,
+		) {
 			t.Fatalf("rename: %v", err)
 		}
 	})
@@ -1112,7 +1125,13 @@ func TestReservedWorkspaceRegistration(t *testing.T) {
 		store := newMockWorkspaceStore()
 		resolver := newTestResolver(t, store, WithHomePaths(home))
 		for _, root := range []string{home.HomeDir, symlinkWorkspaceRootForTest(t, home.HomeDir)} {
-			if _, err := resolver.Register(t.Context(), RegisterOptions{RootDir: root}); !errors.Is(err, ErrOperatorHomeWorkspace) {
+			if _, err := resolver.Register(
+				t.Context(),
+				RegisterOptions{RootDir: root},
+			); !errors.Is(
+				err,
+				ErrOperatorHomeWorkspace,
+			) {
 				t.Fatalf("register home: %v", err)
 			}
 		}

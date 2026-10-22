@@ -71,7 +71,10 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	for id, facets := range profiles {
 		durable.ByProfile = append(durable.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
 	}
-	slices.SortFunc(durable.ByProfile, func(a, b store.ProfileSessionCatalogFacets) int { return cmp.Compare(a.ProfileID, b.ProfileID) })
+	slices.SortFunc(
+		durable.ByProfile,
+		func(a, b store.ProfileSessionCatalogFacets) int { return cmp.Compare(a.ProfileID, b.ProfileID) },
+	)
 	return durable, nil
 }
 

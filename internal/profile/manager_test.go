@@ -1908,7 +1908,9 @@ func TestManagerRecoveryAndReservation(t *testing.T) {
 		}
 		remover.fail = false
 		var opID string
-		if err := db.DB().QueryRowContext(t.Context(), "SELECT id FROM profile_lifecycle_ops WHERE profile_id = ? AND kind = 'delete'", profile.ID).Scan(&opID); err != nil {
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT id FROM profile_lifecycle_ops WHERE profile_id = ? AND kind = 'delete'", profile.ID).
+			Scan(&opID); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := manager.RetryOp(t.Context(), opID); err != nil {
@@ -1924,7 +1926,9 @@ func TestManagerRecoveryAndReservation(t *testing.T) {
 			t.Fatalf("removal = %+v", remover)
 		}
 		var pending int
-		if err := db.DB().QueryRowContext(t.Context(), "SELECT count(*) FROM profile_lifecycle_op_steps WHERE action = 'remove_user_journal' AND status != 'done'").Scan(&pending); err != nil {
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM profile_lifecycle_op_steps WHERE action = 'remove_user_journal' AND status != 'done'").
+			Scan(&pending); err != nil {
 			t.Fatal(err)
 		}
 		if pending != 0 {

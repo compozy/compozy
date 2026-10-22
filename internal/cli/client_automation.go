@@ -165,7 +165,14 @@ func (c *daemonClient) ListAutomationRuns(ctx context.Context, query AutomationR
 			request.Limit = 200
 		}
 		var response contract.RunsResponse
-		if err := c.doJSON(ctx, http.MethodGet, "/api/automation/runs", automationRunValues(request), nil, &response); err != nil {
+		if err := c.doJSON(
+			ctx,
+			http.MethodGet,
+			"/api/automation/runs",
+			automationRunValues(request),
+			nil,
+			&response,
+		); err != nil {
 			return nil, err
 		}
 		runs = append(runs, response.Runs...)
@@ -181,7 +188,6 @@ func (c *daemonClient) ListAutomationRuns(ctx context.Context, query AutomationR
 		}
 		query.Cursor = response.Page.NextCursor
 	}
-
 }
 
 func (c *daemonClient) GetAutomationRun(ctx context.Context, id string) (RunRecord, error) {

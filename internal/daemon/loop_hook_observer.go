@@ -389,7 +389,14 @@ func (o *loopNativeHookObserver) promoteQueuedLoop(
 	if loopName == "" {
 		return false, nil
 	}
-	_, added, err := o.store.PromoteOldestQueuedLoopRun(ctx, workspaceID, payload.ProfileID, loopName, o.actor.Origin, o.now().UTC())
+	_, added, err := o.store.PromoteOldestQueuedLoopRun(
+		ctx,
+		workspaceID,
+		payload.ProfileID,
+		loopName,
+		o.actor.Origin,
+		o.now().UTC(),
+	)
 	if err := normalizeLoopWakeError(err); err != nil {
 		return false, err
 	}

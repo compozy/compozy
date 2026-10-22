@@ -3,6 +3,8 @@ package daemon
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"errors"
 	"fmt"
 
@@ -98,7 +100,7 @@ func nativeCallerWorkspaceInput(
 		return current
 	}
 	if trusted == "" && scope.SessionID != "" {
-		return "@user"
+		return workspaceaccess.UserSelector
 	}
 	return trusted
 }

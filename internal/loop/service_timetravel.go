@@ -241,8 +241,11 @@ func (s *service) forkChildRun(
 	}
 	now := s.now().UTC()
 	child := source
-	child.GrantCeiling = workspaceaccess.NarrowGrant(source.GrantCeiling, workspaceaccess.AuthoringCeiling(ctx, input.Actor.Scope.Operator))
 	child.RunStartState = nil
+	child.SetGrantCeiling(workspaceaccess.NarrowGrant(
+		source.GrantCeilingSnapshot(),
+		workspaceaccess.AuthoringCeiling(ctx, input.Actor.Scope.Operator),
+	))
 	child.ID = runID
 	child.Status = StatusRunning
 	child.SetCompletionState(CompletionComplete)

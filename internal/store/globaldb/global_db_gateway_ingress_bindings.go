@@ -134,7 +134,8 @@ func resolveExpectedIngressSubject(
 	if err != nil {
 		return gateway.IngressSubject{}, err
 	}
-	if actual.Scope != expected.Scope || actual.WorkspaceID != expected.WorkspaceID || actual.ProfileID != expected.ProfileID {
+	if actual.Scope != expected.Scope || actual.WorkspaceID != expected.WorkspaceID ||
+		actual.ProfileID != expected.ProfileID {
 		return gateway.IngressSubject{}, gateway.ErrIngressForbidden
 	}
 	return actual, nil

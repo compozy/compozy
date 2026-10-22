@@ -99,7 +99,7 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 	}
 	defer r.discardTargetProbe(output.TaskRunID)
 	targetInput := ActionExecutionInput{
-		GrantCeiling: run.GrantCeiling,
+		GrantCeiling: run.GrantCeilingSnapshot(),
 		WorkspaceID:  run.WorkspaceID,
 		ToolScope:    tools.Scope{ProfileID: strings.TrimSpace(run.ProfileID)},
 	}

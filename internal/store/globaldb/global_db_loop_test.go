@@ -7979,7 +7979,9 @@ func TestGlobalDBLoopUserScope(t *testing.T) {
 			run := testLoopRun(fmt.Sprintf("user-run-%d", index), now, looppkg.StatusRunning)
 			run.WorkspaceID = ""
 			run.ProfileID = profileID
-			run.SetAdmission(looppkg.AdmissionIdentity{SourceKey: "same-source", EventKey: "same-event", Horizon: time.Hour})
+			run.SetAdmission(
+				looppkg.AdmissionIdentity{SourceKey: "same-source", EventKey: "same-event", Horizon: time.Hour},
+			)
 			created, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyForbid)
 			if err != nil {
 				t.Fatal(err)
@@ -8002,7 +8004,13 @@ func TestGlobalDBLoopUserScope(t *testing.T) {
 				t.Fatalf("status = %s", got.Status)
 			}
 			cap := index + 3
-			if err := db.UpsertLoopConfig(ctx, "", profileID, "delivery", looppkg.LoopConfig{IterationCap: &cap}); err != nil {
+			if err := db.UpsertLoopConfig(
+				ctx,
+				"",
+				profileID,
+				"delivery",
+				looppkg.LoopConfig{IterationCap: &cap},
+			); err != nil {
 				t.Fatal(err)
 			}
 			annotations := []looppkg.UIAnnotation{{NodeID: "finish", X: float64(index), Y: 4}}
@@ -8045,18 +8053,34 @@ func TestGlobalDBLoopUserScope(t *testing.T) {
 		if _, err := db.CreateLoopRunForStart(ctx, project, dsl.ConcurrencyAllow); err != nil {
 			t.Fatal(err)
 		}
-		runs, err := db.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: "", ReadScope: storepkg.ReadScope{AllProfiles: true}})
+		runs, err := db.ListLoopRuns(
+			ctx,
+			looppkg.RunListQuery{WorkspaceID: "", ReadScope: storepkg.ReadScope{AllProfiles: true}},
+		)
 		if err != nil || len(runs) != 4 {
 			t.Fatalf("User aggregate leaked project: %d, %v", len(runs), err)
 		}
-		runs, err = db.ListLoopRuns(ctx, looppkg.RunListQuery{WorkspaceID: "", ReadScope: storepkg.ReadScope{ProfileID: foreign}})
+		runs, err = db.ListLoopRuns(
+			ctx,
+			looppkg.RunListQuery{WorkspaceID: "", ReadScope: storepkg.ReadScope{ProfileID: foreign}},
+		)
 		if err != nil || len(runs) != 2 {
 			t.Fatalf("profile list: %d, %v", len(runs), err)
 		}
-		if _, err := db.db.ExecContext(ctx, "UPDATE loop_runs SET status = 'done' WHERE id = 'user-run-0'"); err != nil {
+		if _, err := db.db.ExecContext(
+			ctx,
+			"UPDATE loop_runs SET status = 'done' WHERE id = 'user-run-0'",
+		); err != nil {
 			t.Fatal(err)
 		}
-		_, added, err := db.PromoteOldestQueuedLoopRun(ctx, "", storepkg.DefaultProfileID, project.LoopName, taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "test"}, now.Add(time.Minute))
+		_, added, err := db.PromoteOldestQueuedLoopRun(
+			ctx,
+			"",
+			storepkg.DefaultProfileID,
+			project.LoopName,
+			taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "test"},
+			now.Add(time.Minute),
+		)
 		if err != nil || !added {
 			t.Fatalf("User queue promotion = %v, %v", added, err)
 		}
@@ -8064,6 +8088,5 @@ func TestGlobalDBLoopUserScope(t *testing.T) {
 		if err != nil || foreignQueued.Status != looppkg.StatusQueued {
 			t.Fatalf("foreign queue was changed: %+v, %v", foreignQueued, err)
 		}
-
 	})
 }

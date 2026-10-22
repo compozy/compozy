@@ -361,7 +361,7 @@ func actionExecutionInput(
 		return ActionExecutionInput{}, err
 	}
 	input := ActionExecutionInput{
-		GrantCeiling:     loopRun.GrantCeiling,
+		GrantCeiling:     loopRun.GrantCeilingSnapshot(),
 		WorkspaceID:      loopRun.WorkspaceID,
 		LoopRunID:        loopRun.ID,
 		Generation:       meta.Generation,

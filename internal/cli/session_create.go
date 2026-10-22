@@ -4,6 +4,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
@@ -51,7 +53,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if userScope {
-				workspaceRef = "@user"
+				workspaceRef = workspaceaccess.UserSelector
 			}
 			workspace, workspacePath, err := resolveSessionCreateWorkspace(cmd, deps, client, workspaceRef, cwd)
 			if err != nil {

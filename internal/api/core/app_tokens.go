@@ -3,9 +3,10 @@ package core
 import (
 	"context"
 	"errors"
-	"github.com/compozy/compozy/internal/workspaceaccess"
 	"log/slog"
 	"net/http"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/gateway"

@@ -42,13 +42,19 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 				}},
 			},
 			{
-				name: "closed", event: terminalpkg.Event{
+				name: "closed",
+				event: terminalpkg.Event{
 					Kind: terminalpkg.EventKindClosed, TerminalID: "term-a", Exit: exit,
 				},
 				wantName: "terminal.closed",
-				wantPayload: gin.H{"workspace_id": "", "profile_id": "", "terminal_id": terminalpkg.ID("term-a"), "exit": &terminalExitPayload{
-					Cause: "exit", Code: &exitCode,
-				}},
+				wantPayload: gin.H{
+					"workspace_id": "",
+					"profile_id":   "",
+					"terminal_id":  terminalpkg.ID("term-a"),
+					"exit": &terminalExitPayload{
+						Cause: "exit", Code: &exitCode,
+					},
+				},
 			},
 			{
 				name: "title", event: terminalpkg.Event{
@@ -268,14 +274,20 @@ func TestTerminalCatalogAggregateSelection(t *testing.T) {
 		} {
 			catalog.observe(t.Context(), event)
 		}
-		replay, reset, fence, _ := catalog.readSelection(1, func(event terminalpkg.Event) bool { return event.WorkspaceID == "a" && event.ProfileID == "p1" })
+		replay, reset, fence, _ := catalog.readSelection(
+			1,
+			func(event terminalpkg.Event) bool { return event.WorkspaceID == "a" && event.ProfileID == "p1" },
+		)
 		if reset || fence != 3 || len(replay) != 1 || replay[0].Event.TerminalID != "three" {
 			t.Fatalf("replay=%v reset=%v fence=%d", replay, reset, fence)
 		}
 		for range terminalCatalogRetention + 1 {
 			catalog.observe(t.Context(), terminalpkg.Event{Kind: terminalpkg.EventKindClosed})
 		}
-		expiredReplay, expiredReset, expiredFence, changed := catalog.readSelection(1, func(terminalpkg.Event) bool { return true })
+		expiredReplay, expiredReset, expiredFence, changed := catalog.readSelection(
+			1,
+			func(terminalpkg.Event) bool { return true },
+		)
 		if len(expiredReplay) != 0 || expiredFence <= fence || changed == nil {
 			t.Fatalf("invalid reset fence %d replay %v", expiredFence, expiredReplay)
 		}

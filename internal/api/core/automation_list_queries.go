@@ -3,6 +3,8 @@ package core
 import (
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
@@ -19,7 +21,7 @@ func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (aut
 		return automationpkg.JobListQuery{}, err
 	}
 
-	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace_id", OmissionIsAll: true})
+	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true})
 	if err != nil {
 		return automationpkg.JobListQuery{}, err
 	}
@@ -34,9 +36,9 @@ func ParseAutomationJobListQuery(c *gin.Context, readScope store.ReadScope) (aut
 		Cursor:       strings.TrimSpace(c.Query("cursor")),
 		Limit:        limit,
 	}
-	if query.WorkspaceID == "@user" {
+	if query.WorkspaceID == workspaceaccess.UserSelector {
 		query.WorkspaceID = ""
-		query.WorkspaceIDs = []string{"@user"}
+		query.WorkspaceIDs = []string{workspaceaccess.UserSelector}
 		query.Scope = automationpkg.AutomationScopeGlobal
 	}
 	if query.Limit == 0 {
@@ -74,7 +76,7 @@ func ParseAutomationTriggerListQuery(
 		return automationpkg.TriggerListQuery{}, err
 	}
 
-	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: "workspace_id", OmissionIsAll: true})
+	breadth, err := parseWorkspaceBreadth(c, "", breadthEncoding{Selector: workspaceIDKey, OmissionIsAll: true})
 	if err != nil {
 		return automationpkg.TriggerListQuery{}, err
 	}
@@ -90,9 +92,9 @@ func ParseAutomationTriggerListQuery(
 		Cursor:       strings.TrimSpace(c.Query("cursor")),
 		Limit:        limit,
 	}
-	if query.WorkspaceID == "@user" {
+	if query.WorkspaceID == workspaceaccess.UserSelector {
 		query.WorkspaceID = ""
-		query.WorkspaceIDs = []string{"@user"}
+		query.WorkspaceIDs = []string{workspaceaccess.UserSelector}
 		query.Scope = automationpkg.AutomationScopeGlobal
 	}
 	if query.Limit == 0 {

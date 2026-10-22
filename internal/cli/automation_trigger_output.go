@@ -78,11 +78,15 @@ func automationTriggerToonValues(item TriggerRecord) []string {
 	}
 }
 
-func automationTriggerListBundle(page AutomationTriggerListRecord, now func() time.Time, projectLabels ...map[string]string) outputBundle {
+func automationTriggerListBundle(
+	page AutomationTriggerListRecord,
+	now func() time.Time,
+	projectLabels ...map[string]string,
+) outputBundle {
 	projectHeader := automationWorkspaceValue
 	projectName := func(id string) string { return stringOrDash(id) }
 	if len(projectLabels) > 0 {
-		projectHeader = "PROJECT"
+		projectHeader = cliProjectHeader
 		projectName = func(id string) string { return aggregateProjectName(projectLabels[0], id) }
 	}
 	items := page.Triggers

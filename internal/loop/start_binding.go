@@ -51,7 +51,12 @@ func StartFromBinding(
 ) (*Run, error) {
 	actor, err := DeriveStartActor(req.Kind, string(req.WorkspaceID), req.ActorRef, req.OriginRef)
 	if req.WorkspaceID == "" && req.Kind == dsl.StartNativeTool {
-		actor, err = task.DeriveUserSessionActorContextForOrigin(req.ActorRef, req.Inputs.ProfileID, task.OriginKindAgentSession, req.OriginRef)
+		actor, err = task.DeriveUserSessionActorContextForOrigin(
+			req.ActorRef,
+			req.Inputs.ProfileID,
+			task.OriginKindAgentSession,
+			req.OriginRef,
+		)
 	}
 	if err != nil {
 		return nil, err
