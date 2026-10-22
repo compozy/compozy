@@ -3,7 +3,9 @@
 // loaded page — so an off-page group still shows; each group carries its own scope, lens, and
 // (only for one workspace × profile pair) the pair that owns folders and manual order. The view
 // model renders an inapplicable stored grouping as none and serves a stored `manual` sort as
-// `last_activity` outside one pair, without rewriting either preference. Workspace working marks
+// `last_activity` outside one pair, without rewriting either preference. A collapsed group stays
+// collapsed when the list remounts (selecting a session remounts the window's content) and opens
+// only on the operator's toggle. Workspace working marks
 // read the same all-workspaces aggregate instead of one catalog read per workspace.
 // Owning layer: session-list query hooks; session catalog I/O is the mocked boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -358,6 +360,27 @@ describe("useSessionListView", () => {
         expect.any(AbortSignal)
       )
     );
+    expect(settingsWrites()).toEqual([]);
+  });
+  // Issue #903: selecting a session retargets the window, which remounts its content and the
+  // list view with it; the collapse is rail state, so the remounted list keeps it.
+  it("W-13: Should keep a collapsed group collapsed when the list remounts", async () => {
+    shell.group_by = "project";
+    act(() => enableAllProjects());
+    const first = renderHook(() => useSessionListView(), { wrapper });
+    await waitFor(() => expect(first.result.current.groups).toHaveLength(1));
+    const key = first.result.current.groups[0]!.key;
+
+    act(() => first.result.current.toggleGroup(key));
+    expect(first.result.current.collapsedGroupKeys.has(key)).toBe(true);
+    first.unmount();
+
+    const remounted = renderHook(() => useSessionListView(), { wrapper });
+    await waitFor(() => expect(remounted.result.current.groups).toHaveLength(1));
+    expect(remounted.result.current.collapsedGroupKeys.has(key)).toBe(true);
+
+    act(() => remounted.result.current.toggleGroup(key));
+    expect(remounted.result.current.collapsedGroupKeys.has(key)).toBe(false);
     expect(settingsWrites()).toEqual([]);
   });
 });

@@ -1,7 +1,8 @@
-// Suite: session-window sessions rail state (open/closed, width, folder and thread collapse)
+// Suite: session-window sessions rail state (open/closed, width, folder, thread, and group collapse)
 // Invariant: rail state is owned per window scope — two session windows never
-// share a toggle or width; a window without its own entry starts from the
-// last-used (shell) state; a persisted entry survives a reload; a width stays
+// share a toggle, a fold (thread, folder, or group-by group), or a width; a
+// window without its own entry starts from the last-used (shell) state; a
+// persisted entry survives a reload; a width stays
 // within bounds and a reset follows the default again; closed windows' entries
 // are pruned only by the workspace/profile snapshot that listed them, so a
 // switch away and back keeps them; every older global blob (including one
@@ -77,7 +78,7 @@ describe("useSessionSidebarState", () => {
     expect(renderInScope(reloaded, WINDOW_ONE).current.open).toBe(false);
   });
 
-  it("Should keep each window's rail, folders, and threads independent", async () => {
+  it("Should keep each window's rail, folders, threads, and groups independent", async () => {
     const sidebar = await loadFreshSidebarState();
     const one = renderInScope(sidebar, WINDOW_ONE);
     const two = renderInScope(sidebar, WINDOW_TWO);
@@ -86,17 +87,20 @@ describe("useSessionSidebarState", () => {
       one.current.toggle();
       one.current.toggleFolder("sfold-a");
       one.current.toggleThread("sess_root");
+      one.current.toggleGroup("project:ws_a");
     });
 
     expect(one.current).toMatchObject({
       open: false,
       collapsedFolderIds: ["sfold-a"],
       collapsedThreadIds: ["sess_root"],
+      collapsedGroupIds: ["project:ws_a"],
     });
     expect(two.current).toMatchObject({
       open: true,
       collapsedFolderIds: [],
       collapsedThreadIds: [],
+      collapsedGroupIds: [],
     });
 
     act(() => {
@@ -109,6 +113,7 @@ describe("useSessionSidebarState", () => {
     expect(renderInScope(reloaded, WINDOW_ONE).current).toMatchObject({
       open: false,
       collapsedFolderIds: ["sfold-a"],
+      collapsedGroupIds: ["project:ws_a"],
     });
     expect(renderInScope(reloaded, WINDOW_TWO).current).toMatchObject({
       open: true,

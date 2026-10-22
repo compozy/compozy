@@ -26,6 +26,7 @@ import { useSessionCatalog } from "./use-session-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import { useSessionListGroups } from "./use-session-list-groups";
 import { useSessionListPreferences } from "./use-session-list-preferences";
+import { useSessionSidebarState } from "./use-session-sidebar-state";
 
 /** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
 export const SESSION_LIST_MANUAL_SORT_NOTE = "Manual order applies inside one project";
@@ -89,9 +90,16 @@ export interface SessionListViewModel {
  *
  * Folders and manual order apply only where a query is exactly one
  * (workspace, profile) pair (BR-11): the flat list of a focused project or User
- * under one profile, or a group whose own query is one pair. Group collapse and
- * the archive are deliberately transient — ways of looking at the list right
- * now, not preferences worth round-tripping through config.
+ * under one profile, or a group whose own query is one pair.
+ *
+ * Group collapse is rail state, like thread and folder collapse: it lives in
+ * the window's persisted sessions-rail entry (a new window starts from the
+ * last-used one), keyed per list lens (scope, profile, grouping). Selecting a
+ * session remounts the window's content, so state held here would reset; held
+ * in the rail, a selection, a focus change, or a reload never reopens a group
+ * the operator closed. Only the operator's toggle opens or closes one.
+ * The archive stays deliberately transient — a way of looking at the list
+ * right now, not a preference worth keeping.
  */
 export function useSessionListView(
   options: {
@@ -104,7 +112,7 @@ export function useSessionListView(
   const preferences = useSessionListPreferences();
   const { registeredWorkspaces: workspaces, dataScope } = useActiveWorkspace();
   const profile = useProfileReadScope();
-  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const sidebar = useSessionSidebarState();
   const {
     draftValue: search,
     committedValue: remoteSearch,
@@ -139,6 +147,9 @@ export function useSessionListView(
     profile: pair?.profile ?? profile.destination,
     enabled: enabled && flat && pair !== null,
   });
+  const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
+  const groupId = (key: string) => sessionListGroupCollapseId(selectionKey, key);
+  const collapsedGroupIds = new Set(sidebar.collapsedGroupIds);
   const manualBlocked = flat ? pair === null : grouping.groups.some(group => group.pair === null);
   const flatLayout = flat && pair !== null;
 
@@ -162,14 +173,18 @@ export function useSessionListView(
     groups: grouping.groups,
     groupsLoading: grouping.loading,
     groupsError: grouping.error,
-    collapsedGroupKeys: collapsed,
-    toggleGroup: key => setCollapsed(current => toggledKey(current, key)),
+    collapsedGroupKeys: new Set(
+      grouping.groups.flatMap(group =>
+        collapsedGroupIds.has(groupId(group.key)) ? [group.key] : []
+      )
+    ),
+    toggleGroup: key => sidebar.toggleGroup(groupId(key)),
     groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
     ownerOf: profile.ownerOf,
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
-    selectionKey: JSON.stringify([scope, profile.key, groupBy]),
+    selectionKey,
   };
 }
 
@@ -206,10 +221,9 @@ function manualSortNote(sort: string, manualBlocked: boolean): string | null {
   return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
 }
 
-function toggledKey(current: ReadonlySet<string>, key: string): ReadonlySet<string> {
-  const next = new Set(current);
-  if (!next.delete(key)) next.add(key);
-  return next;
+/** A group's collapse id: its key qualified by the list lens it renders under. */
+function sessionListGroupCollapseId(selectionKey: string, groupKey: string): string {
+  return `${selectionKey}\u0000${groupKey}`;
 }
 
 function sessionBadgeResolver(workspaces: readonly { id: string; name: string }[]) {
