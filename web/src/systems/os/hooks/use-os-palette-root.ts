@@ -193,7 +193,7 @@ export function useOsPaletteRoot({
     destinationWindowId,
     entities,
     registeredWorkspaces,
-    runtimeWorkspaceId,
+    dataScope,
   });
   const fallbackSession = useSessionPromptFallback({
     onCreated: session => {

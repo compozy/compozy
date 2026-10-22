@@ -20,15 +20,21 @@ export interface SessionRouteOwnership {
   proofSelector: string | null;
   /** True when a session reporting `workspaceId` opens here without a switch. */
   accepts: (workspaceId: string) => boolean;
+  /**
+   * The All projects desktop opens every session in place, bound to its own
+   * scope (route search `workspace`); other desktops need no binding.
+   */
+  bindsInPlace: boolean;
 }
 
 /**
  * The User desktop proves ownership through `@user` (the request's profile) and
- * owns sessions with no project. A project desktop owns its project; under All
- * projects it also keeps today's acceptance of User sessions.
+ * owns sessions with no project. A project desktop owns its project. The All
+ * projects desktop (`global`) owns no data scope: every session opens there in
+ * place, bound to its own scope, resolved by the owner projection.
  */
 export function sessionRouteOwnership(
-  selection: Pick<ActiveWorkspaceResolution, "breadthMode" | "desktopWorkspaceId">
+  selection: Pick<ActiveWorkspaceResolution, "desktopWorkspaceId">
 ): SessionRouteOwnership | null {
   const partition = selection.desktopWorkspaceId;
   if (!partition) return null;
@@ -37,12 +43,21 @@ export function sessionRouteOwnership(
       ownerWorkspaceId: "",
       proofSelector: USER_SCOPE_SELECTOR,
       accepts: workspaceId => workspaceId === "",
+      bindsInPlace: false,
     };
   }
-  const acceptsUser = selection.breadthMode === "all";
+  if (partition === GLOBAL_DESKTOP_WORKSPACE_ID) {
+    return {
+      ownerWorkspaceId: partition,
+      proofSelector: null,
+      accepts: () => true,
+      bindsInPlace: true,
+    };
+  }
   return {
     ownerWorkspaceId: partition,
-    proofSelector: partition === GLOBAL_DESKTOP_WORKSPACE_ID ? null : partition,
-    accepts: workspaceId => workspaceId === partition || (acceptsUser && workspaceId === ""),
+    proofSelector: partition,
+    accepts: workspaceId => workspaceId === partition,
+    bindsInPlace: false,
   };
 }

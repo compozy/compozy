@@ -1,8 +1,15 @@
 import { notifyUser } from "@/lib/user-feedback";
 import { consumeChooseSessionTerminalQuote } from "@/systems/session";
-import type { WorkspacePayload } from "@/systems/workspace";
+import {
+  DESTINATION_COPY,
+  ownerDataScope,
+  sameDataScope,
+  type DataScope,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 import { workspaceSwitchFeedback } from "../lib/cmd-palette-feedback";
+import { boundRoute } from "../lib/open-target";
 import type { OsAppId, OsWindowRoute } from "../lib/os-types";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { useAttentionJump } from "./use-attention-jump";
@@ -18,7 +25,8 @@ interface UseOsPaletteLandingActionsOptions {
   destinationWindowId: string | null;
   entities: OsPaletteEntities;
   registeredWorkspaces: readonly WorkspacePayload[];
-  runtimeWorkspaceId: string | null;
+  /** The menubar destination; a session elsewhere switches it, except under All projects. */
+  dataScope: DataScope | null;
 }
 
 export function useOsPaletteLandingActions({
@@ -26,7 +34,7 @@ export function useOsPaletteLandingActions({
   destinationWindowId,
   entities,
   registeredWorkspaces,
-  runtimeWorkspaceId,
+  dataScope,
 }: UseOsPaletteLandingActionsOptions) {
   const { manager, coordinator } = useOsShell();
   const jumpToSession = useAttentionJump();
@@ -46,11 +54,15 @@ export function useOsPaletteLandingActions({
   const landSession = (session: OsPaletteSessionResult) => {
     if (session.busy) return;
     consumeChooseSessionTerminalQuote(session.sessionId);
-    if (session.workspaceId !== "" && session.workspaceId !== runtimeWorkspaceId) {
+    const binding = ownerDataScope(session.workspaceId);
+    // Under All projects the session opens in place; only a focused destination switches.
+    if (dataScope !== null && dataScope.kind !== "all" && !sameDataScope(dataScope, binding)) {
       const name =
-        registeredWorkspaces.find(workspace => workspace.id === session.workspaceId)?.name ??
-        session.workspaceLabel ??
-        session.workspaceId;
+        binding.kind === "user"
+          ? DESTINATION_COPY.user
+          : (registeredWorkspaces.find(workspace => workspace.id === binding.workspaceId)?.name ??
+            session.workspaceLabel ??
+            binding.workspaceId);
       notifyUser(workspaceSwitchFeedback(name, session.title));
     }
     jumpToSession({
@@ -72,7 +84,15 @@ export function useOsPaletteLandingActions({
       if (destinationWindowId !== null) {
         consumeChooseSessionTerminalQuote(session.sessionId);
         close();
-        pickDestination({ app: "session", instanceKey: session.sessionId, route: session.route });
+        pickDestination({
+          app: "session",
+          instanceKey: session.sessionId,
+          // The All projects desktop binds the window to the session's own scope.
+          route:
+            dataScope?.kind === "all"
+              ? boundRoute({ binding: ownerDataScope(session.workspaceId), route: session.route })
+              : session.route,
+        });
         return;
       }
       landSession(session);

@@ -1,28 +1,45 @@
 // Suite: session-window sidebar selection
-// Invariant: same-workspace selection retargets the current window; a foreign
-// session goes through the workspace-ready jump coordinator. The rail lists the
-// window's own scope — a User session window lists User sessions (never the
-// aggregate, never a worktree filter) — and an unknown scope stays idle.
+// Invariant: the rail follows the topbar breadth — the aggregate under All projects, the
+// focused project or User otherwise (never a worktree filter outside a project) — and an
+// unsettled destination stays idle. A selection in the window's own scope retargets the window;
+// under All projects every selection retargets in place, rebinding the window to the session's
+// scope; otherwise a foreign session goes through the jump coordinator.
 // Owning layer: session-window sidebar hook. No prior suite owned this branch.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 
-const { jumpToSession, userRetarget, transport, useSessionListView, useScopedWorktreeFilter } =
-  vi.hoisted(() => ({
-    transport: { degradedAt: null as number | null },
-    jumpToSession: vi.fn(),
-    userRetarget: vi.fn(),
-    useSessionListView: vi.fn(() => ({ sort: "last_activity", scope: "workspace" })),
-    useScopedWorktreeFilter: vi.fn((_workspaceId: string | null, _scopeId: string) => ({
-      resolved: true,
-      worktreeId: undefined,
-    })),
-  }));
+const {
+  jumpToSession,
+  userRetarget,
+  transport,
+  useSessionListView,
+  useScopedWorktreeFilter,
+  scopes,
+} = vi.hoisted(() => ({
+  scopes: {
+    destination: { kind: "project", workspaceId: "workspace-1" } as unknown,
+    window: { kind: "project", workspaceId: "workspace-1" } as unknown,
+  },
+  transport: { degradedAt: null as number | null },
+  jumpToSession: vi.fn(),
+  userRetarget: vi.fn(),
+  useSessionListView: vi.fn(() => ({ sort: "last_activity", scope: "workspace" })),
+  useScopedWorktreeFilter: vi.fn((_workspaceId: string | null, _scopeId: string) => ({
+    resolved: true,
+    worktreeId: undefined,
+  })),
+}));
 
 vi.mock("@/hooks/use-window-scope", () => ({ useWorktreeScopeId: () => "window:one" }));
-vi.mock("@/systems/workspace", () => ({ useScopedWorktreeFilter }));
+vi.mock("@/systems/workspace", async () => ({
+  ...(await import("@/systems/workspace/lib/destination")),
+  ...(await import("@/systems/workspace/lib/window-data-scope")),
+  useScopedWorktreeFilter,
+  useDataScope: () => scopes.destination,
+  useWindowDataWorkspace: () => scopes.window,
+}));
 vi.mock("../../../hooks/use-attention-jump", () => ({
   useAttentionJump: () => jumpToSession,
 }));
@@ -58,6 +75,8 @@ function session(workspaceId: string): SessionPayload {
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
+    scope: "workspace",
+    effective_workspace_access: "",
     id: `session-${workspaceId}`,
     agent_name: "claude",
     runtime: { status: "ready", transition: "initial_bind", selection_revision: 0 },
@@ -78,6 +97,8 @@ describe("useSessionWindowSidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     transport.degradedAt = null;
+    scopes.destination = { kind: "project", workspaceId: "workspace-1" };
+    scopes.window = { kind: "project", workspaceId: "workspace-1" };
   });
   afterEach(() => vi.useRealTimers());
 
@@ -90,8 +111,6 @@ describe("useSessionWindowSidebar", () => {
     const { result, rerender, unmount } = renderHook(() =>
       useSessionWindowSidebar({
         windowId: "window-session",
-        workspaceId: "workspace-1",
-        scope: { kind: "project", workspaceId: "workspace-1" },
         transportDisconnected: disconnected,
       })
     );
@@ -122,8 +141,6 @@ describe("useSessionWindowSidebar", () => {
     const { result } = renderHook(() =>
       useSessionWindowSidebar({
         windowId: "window-session",
-        workspaceId: "workspace-1",
-        scope: { kind: "project", workspaceId: "workspace-1" },
         sessionId: "session-current",
       })
     );
@@ -141,14 +158,11 @@ describe("useSessionWindowSidebar", () => {
     expect(userRetarget).toHaveBeenCalledTimes(1);
   });
 
-  it("Should list User sessions in a User session window without a worktree filter", () => {
+  it("Should list User sessions under User focus without a worktree filter", () => {
+    scopes.destination = { kind: "user" };
+    scopes.window = { kind: "user" };
     renderHook(() =>
-      useSessionWindowSidebar({
-        windowId: "window-session",
-        workspaceId: "",
-        scope: { kind: "user" },
-        sessionId: "session-user",
-      })
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-user" })
     );
 
     expect(useScopedWorktreeFilter.mock.calls.at(-1)?.[0]).toBeNull();
@@ -157,10 +171,31 @@ describe("useSessionWindowSidebar", () => {
     );
   });
 
-  it("Should keep the rail idle while the window's scope is unknown", () => {
-    renderHook(() =>
-      useSessionWindowSidebar({ windowId: "window-session", workspaceId: "", scope: null })
+  it("Should list every project under All projects and retarget in place with the new binding", () => {
+    scopes.destination = { kind: "all" };
+    scopes.window = { kind: "project", workspaceId: "workspace-1" };
+    const { result } = renderHook(() =>
+      useSessionWindowSidebar({ windowId: "window-session", sessionId: "session-current" })
     );
+
+    expect(useSessionListView).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: { kind: "all" }, enabled: true })
+    );
+    act(() => result.current.onSelectSession(session("workspace-2")));
+    expect(jumpToSession).not.toHaveBeenCalled();
+    expect(userRetarget).toHaveBeenCalledExactlyOnceWith("window-session", {
+      app: "session",
+      instanceKey: "session-workspace-2",
+      route: {
+        pathname: "/agents/claude/sessions/session-workspace-2",
+        search: { workspace: "workspace-2" },
+      },
+    });
+  });
+
+  it("Should keep the rail idle while the destination is unsettled", () => {
+    scopes.destination = null;
+    renderHook(() => useSessionWindowSidebar({ windowId: "window-session" }));
 
     expect(useSessionListView).toHaveBeenLastCalledWith(
       expect.objectContaining({ scope: null, enabled: false })

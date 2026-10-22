@@ -4,7 +4,8 @@
 // store and re-enters the deep link, while cancel and an unknown session keep today's not-found
 // outcome with the selection untouched and no foreign session payload in a workspace-scoped cache.
 // On the User desktop ownership is proven through `@user` (the request's profile), and a User
-// session linked from a project asks to switch to User, then loads there.
+// session linked from a project asks to switch to User, then loads there. Under All projects every
+// session opens in place, bound to its own scope, with no switch.
 // The confirmation search belongs exclusively to the session leaf: it reaches that leaf unchanged
 // because the agent layout owns no search and agent detail validates its own from an index leaf.
 // Boundary IN: TanStack Router, Link, route beforeLoad/loader, validated search, Query cache,
@@ -86,6 +87,8 @@ type OwnedSession = SessionPayload & { workspace_id: string };
 function makeSession(id: string, workspaceId: string, name: string): OwnedSession {
   return {
     supervision: null,
+    scope: "workspace",
+    effective_workspace_access: "",
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     id,
@@ -301,7 +304,10 @@ function buildSessionDeepLinkRouter({
     getParentRoute: () => agentRoute,
     path: "/sessions/$id",
     validateSearch: validateSessionDeepLinkSearch,
-    loaderDeps: ({ search }) => ({ workspaceSwitch: search.workspaceSwitch }),
+    loaderDeps: ({ search }) => ({
+      workspaceSwitch: search.workspaceSwitch,
+      workspace: search.workspace,
+    }),
     beforeLoad,
     loader: args => loadSessionRoute(args) as Promise<AgentSessionRouteLoaderData>,
     component: SessionRouteHarness,
@@ -656,18 +662,25 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(fetchedPathnames()).toContain(`/api/sessions/${SIBLING_PROFILE_SESSION_ID}`);
   });
 
-  it("Should resolve a permalink against the focused project's desktop under All projects", async () => {
-    enableAllProjects();
-    const { router } = buildSessionDeepLinkRouter({
-      initialEntry: `/session/${BENCH_SESSION_ID}`,
-    });
-    renderRouter(router);
+  it.each(["/session", "/agents/general/sessions"])(
+    "Should open another project's session from %s in place under All projects",
+    async prefix => {
+      enableAllProjects();
+      stubForeignSessionBackend();
+      const { router } = buildSessionDeepLinkRouter({
+        initialEntry: `${prefix}/${PRIMARY_SESSION_ID}`,
+      });
+      renderRouter(router);
 
-    await screen.findByText(`Loaded session: ${BENCH_SESSION_ID}`);
-    expect(router.state.location.pathname).toBe(`/agents/general/sessions/${BENCH_SESSION_ID}`);
-    expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-  });
+      await screen.findByText(`Loaded session: ${PRIMARY_SESSION_ID}`);
+      expect(router.state.location.pathname).toBe(`/agents/general/sessions/${PRIMARY_SESSION_ID}`);
+      // The window is bound to the session's own project; the breadth never changes.
+      expect(router.state.location.search).toMatchObject({ workspace: PRIMARY_WORKSPACE_ID });
+      expect(screen.queryByTestId("session-workspace-switch-dialog")).not.toBeInTheDocument();
+      expect(activeWorkspaceStore.getSnapshot().context.breadthMode).toBe("all");
+      expect(fetchedPathnames()).toContain(`/api/sessions/${PRIMARY_SESSION_ID}/owner`);
+    }
+  );
 
   it.each(["/session", "/agents/general/sessions"])(
     "Should confirm a User session from %s by focusing User and proving it through @user",

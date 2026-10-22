@@ -17,7 +17,6 @@ import { useAttentionJump } from "./use-attention-jump";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
 import { useSessionLaunchCatalog } from "./use-session-launch-catalog";
-import { DESTINATION_COPY } from "@/systems/workspace";
 
 export interface DesktopDockModel {
   entries: OsDockItemData[];
@@ -31,11 +30,6 @@ export interface DesktopDockModel {
 
 export interface UseDesktopDockOptions {
   onNewSession: () => void;
-  /**
-   * Global scope with no sessions: there is no project to start one in, so the
-   * Sessions launcher hands the choice to the workspace switcher instead.
-   */
-  onPickProject?: () => void;
   /**
    * Catalog truth for the Terminal launcher. When omitted, Terminal follows
    * the same open-window rule as every other app (isolated dock tests).
@@ -51,7 +45,7 @@ export interface UseDesktopDockOptions {
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
-  { onNewSession, onPickProject, terminalLive }: UseDesktopDockOptions
+  { onNewSession, terminalLive }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
   const launchCatalog = useSessionLaunchCatalog();
@@ -71,12 +65,6 @@ export function useDesktopDock(
 
   const sessionApp = OS_APP_DESCRIPTORS.session;
   const sessionState = windowStates[sessionApp.id];
-  // Global with no sessions: nothing to jump to and no project to start one in.
-  const needsProject =
-    onPickProject !== undefined &&
-    launchCatalog.ready &&
-    launchCatalog.workspaceId === null &&
-    launchCatalog.sessions.length === 0;
   // The rail keeps catalog order without group seams (shell-rail v2).
   const entries: OsDockItemData[] = [
     {
@@ -87,7 +75,6 @@ export function useDesktopDock(
       active: sessionState === "focused",
       minimized: sessionState === "minimized",
       badge: dockBadgeFor(sessionApp, badges),
-      hint: needsProject ? DESTINATION_COPY.newSessionNeedsProject : undefined,
     },
     ...dockAppDescriptors()
       .flat()
@@ -112,13 +99,7 @@ export function useDesktopDock(
   // one home (plain click jumps there), so a new placement starts from the list.
   const handleLaunch = (id: string, placement: LaunchPlacement) => {
     if (!commandsAvailable) return;
-    if (id === sessionApp.id) {
-      if (!launchCatalog.ready) return;
-      if (needsProject) {
-        onPickProject();
-        return;
-      }
-    }
+    if (id === sessionApp.id && !launchCatalog.ready) return;
     void launchInPlacement({ manager, coordinator }, { app: id as OsAppId }, placement);
   };
 
@@ -133,10 +114,6 @@ export function useDesktopDock(
     const state = manager.getState();
     if (appId === "session") {
       if (!launchCatalog.ready) return;
-      if (needsProject) {
-        onPickProject();
-        return;
-      }
       // A catalog wake may still be coalesced when another client creates a
       // session. Resolve this explicit action before deciding to create one.
       void launchCatalog
@@ -146,12 +123,11 @@ export function useDesktopDock(
             onNewSession();
             return;
           }
-          const workspaceId = latest.workspace_id?.trim() || launchCatalog.workspaceId;
-          if (!workspaceId) return;
+          // A User session omits `workspace_id`; the jump binds it to User.
           jumpToSession({
             sessionId: latest.id,
             agentName: latest.agent_name,
-            workspaceId,
+            workspaceId: latest.workspace_id?.trim() ?? "",
           });
         })
         .catch(() => notifyUser({ message: "Couldn't load sessions. Try again.", tone: "error" }));

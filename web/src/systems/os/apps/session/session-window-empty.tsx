@@ -5,7 +5,6 @@ import { Button, Empty, useTopbarSlot } from "@compozy/ui";
 
 import { useSessionWindowSidebar } from "./use-session-window-sidebar";
 import { SessionPanelToggle, SessionSidebar, SessionSidebarLayout } from "@/systems/session";
-import type { DataScope } from "@/systems/workspace";
 
 const SessionDeleteDialog = lazy(() =>
   import("@/systems/session/components/session-delete-dialog").then(module => ({
@@ -19,21 +18,8 @@ const SessionRenameDialog = lazy(() =>
 );
 
 /** Keep catalog actions and their confirmation dialogs available without an active session. */
-export function SessionWindowEmpty({
-  windowId,
-  workspaceId,
-  scope,
-}: {
-  windowId: string;
-  workspaceId: string;
-  /** The sessions the rail lists; `null` keeps it idle. */
-  scope: DataScope | null;
-}) {
-  const sidebar = useSessionWindowSidebar({
-    windowId,
-    workspaceId,
-    scope,
-  });
+export function SessionWindowEmpty({ windowId }: { windowId: string }) {
+  const sidebar = useSessionWindowSidebar({ windowId });
 
   useTopbarSlot({
     crumb: <span className="text-muted">Sessions</span>,

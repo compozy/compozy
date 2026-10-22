@@ -148,16 +148,57 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
       "Runs in alpha — /workspace/alpha"
     );
-    // The destination chip rides the same statement and appears only under the
-    // aggregate; a scoped draft already shows whose session it will be.
+    // A bounded destination is a statement, never a picker.
+    expect(screen.queryByTestId("session-destination-row")).not.toBeInTheDocument();
     expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
   });
 
-  it("Should show the aggregate destination profile in the launch statement", () => {
-    renderDialog({ mode: "advanced", profileDestination: "marketing" });
+  it("Should ask for the project and profile inline only for the aggregated axes", () => {
+    const onProject = vi.fn();
+    renderDialog({
+      destinationAxes: {
+        project: {
+          options: [
+            { value: "ws_alpha", label: "alpha", monogram: "AL" },
+            { value: "@user", label: "User", monogram: "~" },
+          ],
+          value: "ws_alpha",
+          onChange: onProject,
+        },
+        profile: {
+          options: [{ value: "marketing", label: "marketing", monogram: "MA" }],
+          value: "marketing",
+          onChange: vi.fn(),
+        },
+      },
+    });
 
-    expect(screen.getByTestId("profile-destination-chip")).toHaveTextContent("marketing");
+    const row = screen.getByTestId("session-destination-row");
+    expect(row).toHaveTextContent("In");
+    expect(screen.getByTestId("session-destination-project")).toHaveAccessibleName(
+      "Project: alpha"
+    );
+    expect(screen.getByTestId("session-destination-profile")).toHaveAccessibleName(
+      "Profile: marketing"
+    );
+    // The session surface replaces the read-only profile chip with the picker (ADR-003).
+    expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();
+  });
+
+  it("Should show only the profile picker when only profiles are aggregated", () => {
+    renderDialog({
+      destinationAxes: {
+        profile: {
+          options: [{ value: "marketing", label: "marketing", monogram: "MA" }],
+          value: "marketing",
+          onChange: vi.fn(),
+        },
+      },
+    });
+
+    expect(screen.queryByTestId("session-destination-project")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-destination-row")).toHaveTextContent("In alpha");
   });
 
   it("Should route Cancel to the environment while one is being created", async () => {

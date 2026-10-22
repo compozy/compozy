@@ -1,28 +1,24 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useProfileReadScope } from "@/systems/profiles";
-import { workspaceSelectorForScope, type DataScope } from "@/systems/workspace";
+import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
+import type { DataScope } from "@/systems/workspace";
 import { sessionCatalogOptions, sessionFacetsOptions } from "../lib/session-catalog-options";
+import { sessionCatalogScopedFilters } from "../lib/session-catalog-scope";
 import type { SessionListFilters } from "../types";
 
 /**
  * One session catalog page for a data scope: a project, User (`@user`), or
  * every project. `null` — an unsettled scope — reads nothing; it never
- * widens to the aggregate.
+ * widens to the aggregate. `lens` overrides the read profile lens (a
+ * Group-by profile group reads exactly one profile).
  */
 export function useSessionCatalog(
   scope: DataScope | null,
   filters: SessionListFilters = {},
   enabled = true,
-  options: { facets?: boolean } = {}
+  options: { facets?: boolean; lens?: ProfileScopeParams } = {}
 ) {
   const { params } = useProfileReadScope();
-  const scoped = {
-    ...filters,
-    ...(scope === null || scope.kind === "all"
-      ? { all_workspaces: true }
-      : { workspace_id: workspaceSelectorForScope(scope) }),
-    ...params,
-  };
+  const scoped = sessionCatalogScopedFilters(scope, filters, options.lens ?? params);
   const active = enabled && scope !== null;
   const pageOptions = sessionCatalogOptions(scoped);
   const { q: _search, ...population } = pageOptions.queryKey[4];

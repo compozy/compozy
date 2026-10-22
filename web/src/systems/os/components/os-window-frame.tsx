@@ -108,6 +108,8 @@ function OsWindowBody({
 export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section">, "title"> {
   title: React.ReactNode;
   glyph?: React.ReactNode;
+  /** Host context before the identity: the item's project in the All projects desktop. */
+  leading?: React.ReactNode;
   focused?: boolean;
   /** Deck frames omit head controls — the deck row owns the window controls. */
   controls?: "head" | "deck";
@@ -128,6 +130,7 @@ export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section
 export function OsWindowSurface({
   title,
   glyph,
+  leading,
   focused = true,
   controls = "head",
   onTrafficLight,
@@ -166,6 +169,7 @@ export function OsWindowSurface({
           }
           title={title}
           glyph={glyph}
+          leading={leading}
           className={cn(
             scrolled && "border-line-strong",
             !focused &&

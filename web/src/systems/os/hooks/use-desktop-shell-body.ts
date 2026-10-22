@@ -5,8 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { notifyUser } from "@/lib/user-feedback";
 import {
   useSessionSidebarState,
-  visibleSessionOrder,
-  sessionCatalogOptions,
+  sessionListVisibleOrder,
   useWorkspaceWorkingSessions,
   type SessionListViewModel,
   type SessionPayload,
@@ -273,28 +272,12 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     },
     cycleSession: direction => {
       const state = manager.getState();
-      const visibleSessions = visibleSessionOrder(
-        options.sessionListView.catalog?.sessions ?? attention.sessions,
-        {
-          scope: options.sessionListView.scope,
-          collapsedThreadIds: new Set(collapsedThreadIds),
-          collapsedWorkspaceIds: options.sessionListView.collapsedWorkspaceIds,
-          folders: options.sessionListView.layout?.folders,
-          profileFolderGroups: options.sessionListView.profileFolderGroups,
-          collapsedFolderIds: new Set(collapsedFolderIds),
-          archived: options.sessionListView.archived,
-          filtering: (options.sessionListView.search ?? "").trim() !== "",
-          workspaceGroups: options.sessionListView.workspaceGroups.map(group => ({
-            ...group,
-            // Expanded groups own these exact pages. Read their current cursor at
-            // invocation rather than loading another catalog for keyboard navigation.
-            sessions: group.catalogFilters
-              ? (queryClient.getQueryData(sessionCatalogOptions(group.catalogFilters).queryKey)
-                  ?.pages[0]?.sessions ?? [])
-              : group.sessions,
-          })),
-        }
-      );
+      const visibleSessions = sessionListVisibleOrder(options.sessionListView, {
+        queryClient,
+        sessions: options.sessionListView.catalog?.sessions ?? attention.sessions,
+        collapsedThreadIds: new Set(collapsedThreadIds),
+        collapsedFolderIds: new Set(collapsedFolderIds),
+      });
       const target = adjacentShortcutItem<SessionPayload>(
         visibleSessions,
         focusedSessionId(state),
@@ -304,7 +287,7 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
         jumpToSession({
           sessionId: target.id,
           agentName: target.agent_name,
-          workspaceId: target.workspace_id ?? model.runtimeWorkspaceId ?? "",
+          workspaceId: target.workspace_id ?? "",
         });
       } else {
         notifyUser({ message: "No other visible session.", tone: "info" });

@@ -4,16 +4,23 @@ import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Icon,
 } from "@compozy/ui";
 
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
-import { SESSION_LIST_SORTS, type SessionListSort } from "../../lib/session-list-preferences";
-import { SessionArchivedToggle, SessionScopeToggle } from "./session-toolbar-toggles";
+import {
+  SESSION_LIST_SORTS,
+  type SessionListGroupBy,
+  type SessionListSort,
+} from "../../lib/session-list-preferences";
+import { SessionArchivedToggle } from "./session-toolbar-toggles";
 
 const SORT_LABELS: Record<SessionListSort, string> = {
   created: "Created",
@@ -23,14 +30,23 @@ const SORT_LABELS: Record<SessionListSort, string> = {
   manual: "Manual",
 };
 
+const GROUP_BY_LABELS: Record<SessionListGroupBy, string> = {
+  none: "None",
+  project: "Project",
+  profile: "Profile",
+};
+
 export interface SessionListToolbarProps {
-  allWorkspaces: boolean;
   archived: boolean;
   sort: SessionListSort;
+  /** The grouping that renders (an inapplicable stored value renders as `none`). */
+  groupBy: SessionListGroupBy;
+  /** Groupings available now; with only `none` the Group by section is hidden. */
+  groupByOptions: readonly SessionListGroupBy[];
   disabled?: boolean;
-  onAllWorkspacesChange: (allWorkspaces: boolean) => void;
   onArchivedChange: (archived: boolean) => void;
   onSortChange: (sort: SessionListSort) => void;
+  onGroupByChange: (groupBy: SessionListGroupBy) => void;
   onNewSession: () => void;
   /** Present only where folders apply; turns (+) into a New session / New folder menu. */
   onNewFolder?: () => void;
@@ -38,9 +54,10 @@ export interface SessionListToolbarProps {
 }
 
 /**
- * Breadth, contents, order, and the create action for a session list.
+ * Contents, order, grouping, and the create action for a session list. Breadth
+ * is the topbar globe's (ADR-004); this toolbar has no breadth control.
  *
- * Breadth and order persist per operator through the daemon, so the choice made
+ * Order and grouping persist per operator through the daemon, so the choice made
  * here is the same choice the CLI reports; the archive is a way of looking right
  * now, so it resets when the list is reopened.
  *
@@ -48,25 +65,20 @@ export interface SessionListToolbarProps {
  * remain explicit choices.
  */
 export function SessionListToolbar({
-  allWorkspaces,
   archived,
   sort,
+  groupBy,
+  groupByOptions,
   disabled = false,
-  onAllWorkspacesChange,
   onArchivedChange,
   onSortChange,
+  onGroupByChange,
   onNewSession,
   onNewFolder,
   testIdPrefix,
 }: SessionListToolbarProps) {
   return (
     <div className={SESSION_LIST_BAR_CLASS}>
-      <SessionScopeToggle
-        allWorkspaces={allWorkspaces}
-        busy={disabled}
-        onAllWorkspacesChange={onAllWorkspacesChange}
-        testId={`${testIdPrefix}-scope`}
-      />
       <SessionArchivedToggle
         archived={archived}
         onArchivedChange={onArchivedChange}
@@ -103,6 +115,28 @@ export function SessionListToolbar({
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
+          {groupByOptions.length > 1 ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Group by</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={groupBy}
+                  onValueChange={value => onGroupByChange(value as SessionListGroupBy)}
+                >
+                  {groupByOptions.map(value => (
+                    <DropdownMenuRadioItem
+                      key={value}
+                      value={value}
+                      data-testid={`${testIdPrefix}-group-by-${value}`}
+                    >
+                      {GROUP_BY_LABELS[value]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuGroup>
+            </>
+          ) : null}
         </DropdownMenuContent>
       </DropdownMenu>
       <SessionListCreateMenu

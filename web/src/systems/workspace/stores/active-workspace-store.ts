@@ -39,6 +39,12 @@ export interface ActiveWorkspaceContext {
    * has claimed yet is never pruned.
    */
   worktreePartitionByScope: Record<string, string>;
+  /**
+   * The last `shell.sessions.scope` revision this browser observed (ADR-004).
+   * The deprecated key still carries breadth intent from old clients; only an
+   * explicit write newer than this applies, once.
+   */
+  legacySessionsScopeApplied: number | null;
 }
 
 export const ACTIVE_WORKSPACE_PERSIST_KEY = "compozy:active-workspace:v4";
@@ -49,6 +55,7 @@ const initialActiveWorkspaceContext: ActiveWorkspaceContext = {
   selectedWorkspaceId: null,
   worktreeByScope: {},
   worktreePartitionByScope: {},
+  legacySessionsScopeApplied: null,
 };
 
 function withScope(
@@ -123,7 +130,27 @@ export const activeWorkspaceStore = createStore({
       ...context,
       breadthMode: "focused" as const,
     }),
-    workspaceSelectionCleared: () => initialActiveWorkspaceContext,
+    workspaceSelectionCleared: context => ({
+      ...initialActiveWorkspaceContext,
+      legacySessionsScopeApplied: context.legacySessionsScopeApplied,
+    }),
+    /**
+     * ADR-004: an old client's `shell.sessions.scope` write applies breadth once.
+     * The first observation in a browser applies only `all-workspaces` (a
+     * migrated All projects state survives a default `workspace`); afterwards
+     * each newer explicit revision applies. Defaults never apply.
+     */
+    legacySessionsScopeObserved: (
+      context,
+      event: { revision: number; value: "workspace" | "all-workspaces"; explicit: boolean }
+    ) => {
+      const last = context.legacySessionsScopeApplied;
+      if (last !== null && event.revision <= last) return;
+      const recorded = { ...context, legacySessionsScopeApplied: event.revision };
+      if (!event.explicit) return recorded;
+      if (event.value === "all-workspaces") return { ...recorded, breadthMode: "all" as const };
+      return last === null ? recorded : { ...recorded, breadthMode: "focused" as const };
+    },
     /** Workspace and worktree move together so the pair is never inconsistent. */
     worktreeSelected: (
       context,
@@ -171,6 +198,7 @@ export const activeWorkspaceStore = createStore({
       selectedWorkspaceId: context.selectedWorkspaceId,
       worktreeByScope: context.worktreeByScope,
       worktreePartitionByScope: context.worktreePartitionByScope,
+      legacySessionsScopeApplied: context.legacySessionsScopeApplied,
     }),
   })
 );
@@ -205,6 +233,15 @@ export function focusDestination(focus: Focus, options: { scopeId?: string } = {
     return;
   }
   setActiveWorkspaceId(focus.workspaceId, options);
+}
+
+/** Applies an old client's `shell.sessions.scope` breadth intent once per revision (ADR-004). */
+export function observeLegacySessionsScope(legacy: {
+  revision: number;
+  value: "workspace" | "all-workspaces";
+  explicit: boolean;
+}): void {
+  activeWorkspaceStore.trigger.legacySessionsScopeObserved(legacy);
 }
 
 export function enableAllProjects(): void {

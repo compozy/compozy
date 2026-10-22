@@ -14,14 +14,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
 import { allModelsListOptions, type ProviderModelPayload } from "@/systems/model-catalog";
+import { workspaceBadgeIdentity, type DataScope } from "@/systems/workspace";
 import { providerListOptions, type ProviderSummary } from "@/systems/providers";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
 import { agentsListOptions } from "@/systems/agent";
-import { sessionFoldersOptions } from "../../lib/session-catalog-options";
 
 import { primarySessionFixture } from "../../testing";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import { profileSessionGroups, projectSessionGroups } from "../../lib/session-list-groups";
+import {
+  sessionListCatalogFixture,
+  sessionListViewFixture,
+} from "../../mocks/session-list-view-fixtures";
 import type { SessionPayload } from "../../types";
 import { sessionInspectorFocusStore } from "../../hooks/use-session-inspector-focus";
 import { sessionInspectorStore } from "../../hooks/use-session-inspector-state";
@@ -55,21 +60,12 @@ const sessions = [
     state: "stopped" as const,
   },
 ];
-const view: SessionListViewModel = {
-  scope: "workspace",
+const view: SessionListViewModel = sessionListViewFixture({
   sort: "last_activity",
-  archived: false,
-  saving: false,
-  setScope: vi.fn(),
   setSort: vi.fn(),
   setArchived: vi.fn(),
-  workspaceGroups: [],
-  collapsedWorkspaceIds: new Set(),
-  toggleWorkspace: vi.fn(),
-  aggregate: false,
-  scopeLabel: "default",
   ownerOf: () => ({ id: "default", name: "default", archived: false }),
-};
+});
 function catalogProvider(name: string, displayName: string): ProviderSummary {
   return {
     name,
@@ -339,29 +335,12 @@ describe("SessionList selection", () => {
     expect(screen.queryByRole("toolbar", { name: "Selected sessions" })).not.toBeInTheDocument();
   });
 
-  it("clears selection on scope change and offers no selection in workspace groups", () => {
+  it("clears selection when the list's identity changes", () => {
     const { update } = renderList();
     fireEvent.click(screen.getByTestId("session-sidebar-session-running"), { metaKey: true });
-    update(sessions, {
-      ...view,
-      scope: "all-workspaces",
-      workspaceGroups: [
-        {
-          workspaceId: "foreign",
-          workspaceName: "Foreign",
-          sessions,
-          total: 3,
-          loading: false,
-          failed: false,
-          retry: vi.fn(),
-        },
-      ],
-    });
-    const row = screen.getByTestId("session-sidebar-session-running");
-    fireEvent.keyDown(row, { key: "a", metaKey: true });
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("1 selected");
+    update(sessions, { ...view, selectionKey: "another-breadth" });
     expect(screen.queryByRole("toolbar", { name: "Selected sessions" })).not.toBeInTheDocument();
-    update(sessions);
     expect(screen.getByTestId("session-sidebar-session-running")).not.toHaveAttribute(
       "aria-pressed"
     );
@@ -1035,60 +1014,22 @@ describe("SessionList folders and manual order", () => {
     return { layout, onNewSession };
   }
 
-  it("Should keep folders and moves inside their owning profile in the aggregate", async () => {
-    const groups = [
-      {
-        owner: { id: "default", name: "default", archived: false },
-        workspaceId: "ws",
-        folders: [folderA],
-        canCreateSession: true,
-      },
-      {
-        owner: { id: "other", name: "other", archived: false },
-        workspaceId: "ws",
-        folders: [{ ...folderB, profile_id: "other" }],
-        canCreateSession: false,
-      },
+  // BR-11: folders and manual order live in one (workspace, profile) pair; a list
+  // spanning pairs has no layout, so filed sessions render as plain rows.
+  it("Should render filed sessions as plain rows where no single pair owns the list", () => {
+    const rows = [
+      { ...layoutRows[0]!, profile_id: "default" },
+      { ...layoutRows[1]!, profile_id: "other", profile_name: "other" },
     ];
-    const { queryClient } = renderList({
-      sessions: [
-        { ...layoutRows[1]!, profile_id: "default", profile_name: "default" },
-        {
-          ...layoutRows[0]!,
-          id: "foreign",
-          folder_id: "fb",
-          profile_id: "other",
-          profile_name: "other",
-        },
-      ],
-      view: {
-        ...view,
-        aggregate: true,
-        profileFolderGroups: groups,
-        ownerOf: session => groups.find(group => group.owner.id === session.profile_id)!.owner,
-      },
-    });
-    act(() => {
-      for (const group of groups)
-        queryClient.setQueryData(
-          sessionFoldersOptions({ workspaceId: "ws", profile: group.owner.name }).queryKey,
-          group.folders
-        );
-    });
-    const alpha = await screen.findByTestId("session-sidebar-folder-fa");
-    const beta = await screen.findByTestId("session-sidebar-folder-fb");
-    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
-    expect(within(beta).getByTestId("session-sidebar-session-foreign")).toBeInTheDocument();
-    expect(screen.getByTestId("session-sidebar-folder-fb-new-session")).toBeDisabled();
-    const source = screen.getByTestId("session-sidebar-session-f1");
-    fireEvent.dragStart(source, { dataTransfer: { setData: vi.fn() } });
-    fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
-    expect(within(alpha).getByTestId("session-sidebar-session-f1")).toBeInTheDocument();
-    fireEvent.dragEnd(source);
+    renderList({ sessions: rows, view: { ...view, aggregate: true, scopeLabel: null } });
+    expect(screen.queryByTestId("session-sidebar-folder-fa")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-sidebar-root")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-f1"));
+    expect(screen.queryByRole("menuitem", { name: "Move to folder" })).not.toBeInTheDocument();
   });
 
-  // Invariants: stale aggregate rows cannot navigate; empty owners expose failed folder reads.
-  // Owner: SessionList composition; canonical suite: SessionList folders and manual order.
+  // Invariant: stale aggregate rows cannot navigate while a page change is in flight.
   it.each([true, false])("Should gate aggregate selection while paging is %s", async paging => {
     const rows = [{ ...layoutRows[0]!, profile_id: "default", profile_name: "default" }];
     const { onSelect } = renderList({
@@ -1096,129 +1037,37 @@ describe("SessionList folders and manual order", () => {
       view: {
         ...view,
         aggregate: true,
-        profileFolderGroups: [
-          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
-        ],
-        catalog: {
-          sessions: rows,
-          facets: undefined,
-          total: undefined,
-          loading: false,
-          placeholder: false,
-          failed: false,
-          next: false,
-          previous: false,
-          paging,
-          nextPage: vi.fn(),
-          previousPage: vi.fn(),
-          retry: vi.fn(),
-        },
+        catalog: sessionListCatalogFixture({ sessions: rows, paging }),
       },
     });
-    await userEvent.setup().click(screen.getByTestId("session-sidebar-session-r1"));
+    const row = screen.getByTestId("session-sidebar-session-r1");
+    await userEvent.setup().click(row);
     expect(onSelect).toHaveBeenCalledTimes(paging ? 0 : 1);
-    const container = screen.getByTestId("session-sidebar-profile-default").parentElement;
-    if (paging) expect(container).toHaveAttribute("aria-busy", "true");
-    else expect(container).not.toHaveAttribute("aria-busy");
+    if (paging) expect(row.closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    else expect(row.closest("[aria-busy]")).toBeNull();
   });
 
-  it("Should retry a failed aggregate folder read for an owner with no sessions", async () => {
-    const fetcher = vi
-      .spyOn(globalThis, "fetch")
-      .mockRejectedValue(new Error("folder read failed"));
-    try {
-      renderList({
-        sessions: [],
-        view: {
-          ...view,
-          aggregate: true,
-          profileFolderGroups: [
-            { owner: view.ownerOf(sessions[0]!), workspaceId: "ws", canCreateSession: true },
-          ],
-        },
-      });
-      expect(await screen.findByText("Couldn’t load folders.")).toBeVisible();
-      const calls = fetcher.mock.calls.length;
-      fetcher.mockResolvedValue(
-        new Response(JSON.stringify({ folders: [folderA] }), {
-          headers: { "content-type": "application/json" },
-        })
-      );
-      await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
-      expect(await screen.findByTestId("session-sidebar-folder-fa")).toBeVisible();
-      expect(fetcher.mock.calls.length).toBeGreaterThan(calls);
-      expect(screen.queryByText("Couldn’t load folders.")).not.toBeInTheDocument();
-    } finally {
-      fetcher.mockRestore();
-    }
-  });
-
-  it("Should expose aggregate profile loading and retry while preserving catalog rows", async () => {
-    const retry = vi.fn();
-    const aggregate = { ...view, aggregate: true, scopeLabel: null };
-    const { update } = renderList({ view: { ...aggregate, profileFoldersLoading: true } });
-    expect(screen.getByRole("status")).toHaveTextContent("Loading profiles");
-    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
-    update(sessions, { ...aggregate, profileFoldersError: { retry } });
-    expect(screen.getByText("Couldn’t load profiles.")).toBeVisible();
-    await userEvent.setup().click(screen.getByRole("button", { name: "Retry" }));
-    expect(retry).toHaveBeenCalledOnce();
-    update(sessions, aggregate);
-    expect(screen.queryByText("Couldn’t load profiles.")).not.toBeInTheDocument();
-    expect(screen.getByTestId("session-sidebar-session-running")).toBeVisible();
-  });
-
-  it("Should retain unmatched profile rows and bulk selection until the profile catalog catches up", async () => {
+  it("Should select mixed-profile rows together in the aggregate", async () => {
     const rows = [
       { ...layoutRows[0]!, profile_id: "default" },
       { ...layoutRows[1]!, profile_id: "new-profile" },
     ];
-    renderList({
-      sessions: rows,
-      view: {
-        ...view,
-        aggregate: true,
-        profileFolderGroups: [
-          { owner: view.ownerOf(rows[0]!), workspaceId: "ws", canCreateSession: true },
-        ],
-      },
-    });
-    expect(screen.getByTestId("session-sidebar-session-r1")).toBeVisible();
-    expect(screen.getByTestId("session-sidebar-session-f1")).toBeVisible();
+    renderList({ sessions: rows, view: { ...view, aggregate: true } });
     const user = userEvent.setup();
     await user.click(screen.getByRole("checkbox", { name: "Select Root one" }));
     await user.click(screen.getByTestId("session-sidebar-session-f1"));
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
   });
 
-  it.each([{ folders: [] }, { folders: [folderA] }])(
-    "Should explain aggregate empty search with folder data %j",
-    async ({ folders }) => {
-      const rows = [{ ...layoutRows[0]!, profile_id: "default" }];
-      const { queryClient } = renderList({
-        sessions: rows,
-        view: {
-          ...view,
-          aggregate: true,
-          scopeLabel: null,
-          profileFolderGroups: [
-            { owner: view.ownerOf(rows[0]!), workspaceId: "ws", folders, canCreateSession: true },
-          ],
-        },
-      });
-      act(() =>
-        queryClient.setQueryData(
-          sessionFoldersOptions({ workspaceId: "ws", profile: "default" }).queryKey,
-          folders
-        )
-      );
-      await userEvent
-        .setup()
-        .type(screen.getByRole("searchbox", { name: "Filter sessions" }), "unmatched query");
-      expect(screen.getByText(/No matching sessions/)).toBeVisible();
-      expect(screen.queryByTestId("session-sidebar-session-r1")).not.toBeInTheDocument();
-    }
-  );
+  it("Should explain an aggregate empty search", async () => {
+    const rows = [{ ...layoutRows[0]!, profile_id: "default" }];
+    renderList({ sessions: rows, view: { ...view, aggregate: true, scopeLabel: null } });
+    await userEvent
+      .setup()
+      .type(screen.getByRole("searchbox", { name: "Filter sessions" }), "unmatched query");
+    expect(screen.getByText(/No matching sessions/)).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-session-r1")).not.toBeInTheDocument();
+  });
 
   it("Should turn (+) into a New session / New folder menu and create a named folder", async () => {
     const user = userEvent.setup();
@@ -1615,57 +1464,6 @@ describe("SessionList folders and manual order", () => {
     await waitFor(() => expect(layout.moveSessions).toHaveBeenCalledWith(["f1"], null));
   });
 
-  it.each([
-    ["one profile", ["f1"], "Alpha"],
-    ["two profiles", ["f1", "foreign"], "Select sessions from one profile to move them."],
-  ])(
-    "Should scope an aggregate selection's moves to its profile (%s)",
-    async (_case, ids, item) => {
-      const groups = [
-        {
-          owner: { id: "default", name: "default", archived: false },
-          workspaceId: "ws",
-          folders: [folderA],
-          canCreateSession: true,
-        },
-        {
-          owner: { id: "other", name: "other", archived: false },
-          workspaceId: "ws",
-          folders: [{ ...folderB, profile_id: "other" }],
-          canCreateSession: false,
-        },
-      ];
-      const { queryClient } = renderList({
-        sessions: [
-          { ...layoutRows[1]!, profile_id: "default", profile_name: "default" },
-          { ...layoutRows[0]!, id: "foreign", profile_id: "other", profile_name: "other" },
-        ],
-        view: {
-          ...view,
-          aggregate: true,
-          profileFolderGroups: groups,
-          ownerOf: session => groups.find(group => group.owner.id === session.profile_id)!.owner,
-        },
-      });
-      act(() => {
-        for (const group of groups)
-          queryClient.setQueryData(
-            sessionFoldersOptions({ workspaceId: "ws", profile: group.owner.name }).queryKey,
-            group.folders
-          );
-      });
-      await screen.findByTestId("session-sidebar-folder-fa");
-      const user = await selectRows(...ids);
-      await openMoveMenu(user);
-      expect(await screen.findByRole("menuitem", { name: item })).toBeInTheDocument();
-      expect(screen.queryByRole("menuitem", { name: "Beta" })).not.toBeInTheDocument();
-
-      fireEvent.dragStart(rowContainer("f1"));
-      if (ids.length > 1) expect(rowContainer("f1")).not.toHaveAttribute("data-dragging");
-      else expect(rowContainer("f1")).toHaveAttribute("data-dragging", "true");
-    }
-  );
-
   it("Should reorder folders by dragging one header onto another", () => {
     const { layout } = renderLayout("created");
     fireEvent.dragStart(screen.getByTestId("session-sidebar-folder-fa-header"));
@@ -1677,4 +1475,239 @@ describe("SessionList folders and manual order", () => {
     fireEvent.drop(screen.getByTestId("session-sidebar-folder-fb-header"));
     expect(layout.reorderFolders).toHaveBeenCalledWith(["fb", "fa"]);
   });
+});
+
+// Invariants (ADR-004): under All projects one flat query lists every row with its project
+// (W-08); Group by renders facets-driven groups that read and page their own rows, read-only,
+// and a collapsed header still signals needs-you (W-09); one failed group retries in place while
+// a failed flat list states one list-level Retry (W-24); manual order is served only to a group
+// whose own query is one pair (W-12). Session catalog I/O is the mocked boundary.
+describe("SessionList breadth and Group by", () => {
+  const NAMES = new Map([
+    ["ws-alpha", "Alpha"],
+    ["ws-beta", "Beta"],
+  ]);
+  const WORKSPACES = [
+    { id: "ws-alpha", name: "Alpha" },
+    { id: "ws-beta", name: "Beta" },
+  ];
+  const lineage = (parent: string) => ({
+    parent_session_id: parent,
+    root_session_id: parent,
+    spawn_depth: 1,
+    auto_stop_on_parent: false,
+    notify_creator: false,
+    spawn_budget: { max_children: 0, max_depth: 0, ttl_seconds: 0 },
+    permission_policy: { tools: [], skills: [], mcp_servers: [], workspace_paths: [] },
+  });
+  const row = (id: string, workspaceId: string, patch: Partial<SessionPayload> = {}) =>
+    ({
+      ...primarySessionFixture,
+      id,
+      name: `Session ${id}`,
+      archived_at: null,
+      state: "active",
+      badge: "running",
+      workspace_id: workspaceId,
+      ...patch,
+    }) as SessionPayload;
+  const facet = (all: number, needsYou = 0) => ({
+    terminal_approvals: 0,
+    all,
+    working: 0,
+    needs_you: needsYou,
+    finished: 0,
+    idle: all - needsYou,
+  });
+  const ROWS = [row("a1", "ws-alpha"), row("b1", "ws-beta"), row("u1", "")];
+  const badgeOf = (session: SessionPayload) => workspaceBadgeIdentity(session.workspace_id, NAMES);
+  const projectGroups = () =>
+    projectSessionGroups(
+      {
+        by_workspace: [
+          { workspace_id: "ws-alpha", facets: facet(1) },
+          { workspace_id: "ws-beta", facets: facet(4, 2) },
+          { workspace_id: "", facets: facet(1) },
+        ],
+      },
+      { workspaces: WORKSPACES, lens: { profile: "default" } }
+    );
+  const grouped = (overrides: Partial<SessionListViewModel> = {}) =>
+    sessionListViewFixture({
+      ...view,
+      storedGroupBy: "project",
+      groupBy: "project",
+      groupByOptions: ["none", "project"],
+      groupFilters: { limit: 100 },
+      badgeOf,
+      groups: projectGroups(),
+      ...overrides,
+    });
+
+  const failing = new Set<string>();
+  let fetcher: ReturnType<typeof vi.spyOn<typeof globalThis, "fetch">>;
+  beforeEach(() => {
+    failing.clear();
+    fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async input => {
+      const url = new URL((input as Request).url);
+      const json = (body: unknown, status = 200) =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { "content-type": "application/json" },
+        });
+      if (url.pathname.endsWith("/session-folders")) return json({ folders: [] });
+      if (url.pathname !== "/api/sessions") return json({ error: "not found" }, 404);
+      const selector = url.searchParams.get("workspace_id");
+      if (selector && failing.has(selector)) return json({ error: "unreachable" }, 503);
+      const listed = ROWS.filter(
+        session => !selector || session.workspace_id === (selector === "@user" ? "" : selector)
+      );
+      return json({ sessions: listed, page: { has_more: false, limit: 100 } });
+    });
+  });
+  afterEach(() => fetcher.mockRestore());
+
+  function catalogReads() {
+    return fetcher.mock.calls
+      .map(([input]) => new URL((input as Request).url))
+      .filter(url => url.pathname === "/api/sessions");
+  }
+
+  it("W-08: Should list All projects flat, naming each row's project before its agent", () => {
+    const child = row("a1-child", "ws-alpha", { lineage: lineage("a1") });
+    const { update } = renderList({
+      sessions: [ROWS[0]!, child, ROWS[2]!],
+      view: { ...view, badgeOf },
+    });
+
+    const alpha = screen.getByTestId("session-row-project-a1");
+    expect(alpha).toHaveTextContent("Alpha");
+    expect(screen.getByTestId("session-row-project-u1")).toHaveTextContent("User");
+    expect(
+      alpha.compareDocumentPosition(screen.getByTestId("session-provider-mark-a1")) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // A child in its root's project repeats nothing.
+    expect(screen.queryByTestId("session-row-project-a1-child")).not.toBeInTheDocument();
+    expect(catalogReads()).toEqual([]);
+
+    // A focused project names no project on its rows.
+    update([ROWS[0]!, child, ROWS[2]!], view);
+    expect(screen.queryByTestId("session-row-project-a1")).not.toBeInTheDocument();
+  });
+
+  it("Should offer Group by in the sort menu only where a grouping applies", async () => {
+    const user = userEvent.setup();
+    const setGroupBy = vi.fn();
+    renderList({ view: { ...view, groupByOptions: ["none", "project"], setGroupBy } });
+    await user.click(screen.getByRole("button", { name: "Sort sessions" }));
+    expect(await screen.findByText("Group by")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-group-by-none")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.queryByTestId("session-sidebar-group-by-profile")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("session-sidebar-group-by-project"));
+    expect(setGroupBy).toHaveBeenCalledWith("project");
+  });
+
+  it("W-09: Should group by project from facets, each open group reading its own rows read-only", async () => {
+    const user = userEvent.setup();
+    const toggleGroup = vi.fn();
+    renderList({
+      sessions: [],
+      view: grouped({ collapsedGroupKeys: new Set(["project:ws-beta"]), toggleGroup }),
+    });
+
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+    expect(await screen.findByTestId("session-sidebar-session-u1")).toBeVisible();
+    const headers = [
+      ...document.querySelectorAll<HTMLElement>(
+        "[data-testid^='session-sidebar-group-'][aria-expanded]"
+      ),
+    ];
+    expect(headers.map(header => header.dataset.testid)).toEqual([
+      "session-sidebar-group-project:ws-alpha",
+      "session-sidebar-group-project:ws-beta",
+      "session-sidebar-group-user",
+    ]);
+    const beta = screen.getByTestId("session-sidebar-group-project:ws-beta");
+    expect(beta).toHaveAttribute("aria-expanded", "false");
+    expect(beta).toHaveTextContent("4");
+    expect(within(beta).getByRole("img", { name: "2 need you" })).toBeInTheDocument();
+    // A collapsed group reads nothing; rows inside a project group repeat no project.
+    expect(
+      catalogReads()
+        .map(url => url.searchParams.get("workspace_id"))
+        .sort()
+    ).toEqual(["@user", "ws-alpha"]);
+    expect(screen.queryByTestId("session-row-project-a1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+
+    await user.click(beta);
+    expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
+  });
+
+  it("W-24: Should retry one failed group in place while the other groups render", async () => {
+    failing.add("ws-alpha");
+    renderList({ sessions: [], view: grouped() });
+
+    const retry = await screen.findByTestId("session-sidebar-group-project:ws-alpha-retry");
+    expect(await screen.findByTestId("session-sidebar-session-b1")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-session-u1")).toBeVisible();
+    expect(screen.getAllByRole("button", { name: /Retry/ })).toHaveLength(1);
+
+    failing.delete("ws-alpha");
+    await userEvent.setup().click(retry);
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+    expect(screen.queryByTestId("session-sidebar-group-project:ws-alpha-retry")).toBeNull();
+  });
+
+  it("W-24: Should state one list-level error with one Retry when the flat list fails", async () => {
+    const retry = vi.fn();
+    renderList({
+      sessions: [],
+      view: { ...view, badgeOf, catalog: sessionListCatalogFixture({ failed: true, retry }) },
+    });
+    expect(screen.getByText("Couldn’t load sessions.")).toBeVisible();
+    const buttons = screen.getAllByRole("button", { name: /Retry/ });
+    expect(buttons).toHaveLength(1);
+    await userEvent.setup().click(buttons[0]!);
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["one project", { kind: "project", workspaceId: "ws-alpha" }, "manual"],
+    ["All projects", { kind: "all" }, "last_activity"],
+  ] as const)(
+    "W-12: Should read a profile group in %s in %s order under a stored manual sort",
+    async (_case, scope: DataScope, served) => {
+      const owner = { id: "default", name: "default", archived: false };
+      const groups = profileSessionGroups(
+        { by_profile: [{ profile_id: "default", facets: facet(1) }] },
+        { profiles: [owner], scope }
+      );
+      renderList({
+        sessions: [],
+        view: grouped({
+          sort: "manual",
+          sortNote: served === "manual" ? null : "Manual order applies inside one project",
+          aggregate: true,
+          scopeLabel: null,
+          storedGroupBy: "profile",
+          groupBy: "profile",
+          groups,
+        }),
+      });
+      await waitFor(() => expect(catalogReads()).toHaveLength(1));
+      expect(catalogReads()[0]!.searchParams.get("sort")).toBe(served);
+      if (served === "manual") {
+        expect(screen.queryByTestId("session-sidebar-sort-note")).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByTestId("session-sidebar-sort-note")).toHaveTextContent(
+          "Manual order applies inside one project"
+        );
+      }
+    }
+  );
 });

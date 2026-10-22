@@ -157,6 +157,8 @@ function waitingSession(id: string): SessionPayload {
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
+    scope: "workspace",
+    effective_workspace_access: "",
     id,
     agent_name: "atlas",
     runtime: {
@@ -507,6 +509,7 @@ describe("useOsAttention", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 1 },
       by_workspace: [],
+      by_profile: [],
     });
     let status: SessionCatalogStreamStatus = "live";
     const { result, rerender, unmount } = renderHook(
@@ -525,6 +528,7 @@ describe("useOsAttention", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 2 },
       by_workspace: [],
+      by_profile: [],
     });
     await act(async () => {
       await client.invalidateQueries({
@@ -579,6 +583,7 @@ describe("useOsAttention", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 3 },
       by_workspace: [],
+      by_profile: [],
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(29_000);

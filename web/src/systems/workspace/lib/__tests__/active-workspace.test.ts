@@ -1,8 +1,8 @@
 // Suite: active-workspace resolver
 // Invariant: the destination model resolves one desktop partition and one DataScope per
 // (breadth, focus): a project → its partition and {project}; User → partition `user`,
-// {user}, and no runtime workspace; All projects → {all} on the focused project's partition
-// (or `global` with User focused). A missing project resolves to User, never to another
+// {user}, and no runtime workspace; All projects → {all} on the reserved `global` partition,
+// remembering the focus. A missing project resolves to User, never to another
 // project; zero projects never lock the globe; every registered workspace is a project row.
 // Surfaces encode a focused scope as the project id or `@user` (sessions, Loops, terminals)
 // and read an item with no workspace as User.
@@ -55,18 +55,35 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.chip).toEqual({ kind: "user", name: "User", monogram: "~" });
   });
 
-  it("Should keep the focused project's desktop under All projects", () => {
+  it("Should bind the global desktop under All projects and remember the focused project", () => {
     const resolved = resolveActiveWorkspace({
       workspaces: [beta, alpha],
       breadthMode: "all",
       focus: { kind: "project", workspaceId: "ws_alpha" },
     });
     expect(resolved.dataScope).toEqual({ kind: "all" });
-    expect(resolved.desktopWorkspaceId).toBe("ws_alpha");
+    expect(resolved.desktopWorkspaceId).toBe("global");
+    expect(resolved.desktopWorkspace).toBeUndefined();
     expect(resolved.runtimeWorkspaceId).toBeNull();
     expect(resolved.rememberedWorkspace?.id).toBe("ws_alpha");
     expect(resolved.chip.kind).toBe("all");
     expect(resolved.chip.name).toBe("All projects");
+  });
+
+  it("Should return to the focused project's desktop when All projects turns off", () => {
+    const on = resolveActiveWorkspace({
+      workspaces: [alpha],
+      breadthMode: "all",
+      focus: { kind: "project", workspaceId: "ws_alpha" },
+    });
+    const off = resolveActiveWorkspace({
+      workspaces: [alpha],
+      breadthMode: "focused",
+      focus: on.focus,
+    });
+    expect(on.desktopWorkspaceId).toBe("global");
+    expect(off.desktopWorkspaceId).toBe("ws_alpha");
+    expect(off.dataScope).toEqual({ kind: "project", workspaceId: "ws_alpha" });
   });
 
   it("Should bind the global partition under All projects with User focused", () => {

@@ -1,3 +1,5 @@
+import { useContext } from "react";
+
 import { Checkbox, Time, formatAbsoluteTime } from "@compozy/ui";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
 
@@ -20,6 +22,8 @@ import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
 import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
 import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 
 export interface SessionListRowProps {
   session: SessionPayload;
@@ -29,6 +33,8 @@ export interface SessionListRowProps {
    * child in its root's profile repeats it (US-011.AC-1).
    */
   owner?: ProfileOwner;
+  /** A child in its root's project repeats nothing: the project badge is omitted. */
+  inheritsProject?: boolean;
   current?: boolean;
   onSelect: () => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -89,6 +95,7 @@ export function SessionListRow(props: SessionListRowProps) {
 function SessionListRowBody({
   session,
   owner,
+  inheritsProject = false,
   current = false,
   onSelect,
   sessionActions,
@@ -106,6 +113,8 @@ function SessionListRowBody({
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
   const actionsVisible = showActions && !selection?.mode;
   const meta = rowMeta({ session, runtime, signal, orphanedSubagent });
+  const badgeOf = useContext(SessionListBadgeContext);
+  const badge = inheritsProject ? undefined : badgeOf?.(session);
   const hasTrailing = subagentCounts !== null || trailing !== undefined;
   return (
     <>
@@ -133,6 +142,7 @@ function SessionListRowBody({
       {meta.visible || hasTrailing ? (
         <SessionRowMetaLine
           session={session}
+          badge={badge}
           owner={owner}
           meta={meta}
           mark={
@@ -219,15 +229,20 @@ function SessionRowTarget({
   );
 }
 
-/** Line 2: who runs the row (owner, provider, agent), its words, and the trailing cluster. */
+/**
+ * Line 2: where and who (project badge, owner, provider, agent), its words, and
+ * the trailing cluster. The project name gives way before the agent.
+ */
 function SessionRowMetaLine({
   session,
+  badge,
   owner,
   meta,
   mark,
   trailing,
 }: {
   session: SessionPayload;
+  badge: WorkspaceBadgeIdentity | undefined;
   owner: ProfileOwner | undefined;
   meta: RowMeta;
   mark: React.ReactNode;
@@ -236,6 +251,13 @@ function SessionRowMetaLine({
   return (
     <span className="col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-2">
       <span className="flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle">
+        {badge ? (
+          <WorkspaceBadge
+            identity={badge}
+            className="max-w-40 shrink-[1000]"
+            data-testid={`session-row-project-${session.id}`}
+          />
+        ) : null}
         {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
         {mark}
         <SessionListRowWho session={session} meta={meta} />

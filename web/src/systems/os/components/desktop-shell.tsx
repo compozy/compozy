@@ -7,6 +7,7 @@ import { OsShellContext } from "../contexts/os-shell-context";
 import { useCmdPaletteRegistry } from "../hooks/use-cmd-palette-registry";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
 import { useDesktopChromeController } from "../hooks/use-desktop-chrome-controller";
+import { useDesktop } from "../hooks/use-desktop";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
 import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
@@ -110,6 +111,11 @@ interface DesktopShellBodyProps {
 }
 
 function DesktopChromeContent(props: DesktopShellBodyProps) {
+  // The focused window's data binding: first in the New session project prefill.
+  const focusedBinding = useDesktop(state => {
+    const binding = state.focusedId ? state.windows[state.focusedId]?.route.search.workspace : null;
+    return typeof binding === "string" ? binding : null;
+  });
   // This projection reads the desktop topology, so it must mount below the
   // shell context that owns the window-manager store.
   const paletteRegistry = useCmdPaletteRegistry({
@@ -133,6 +139,7 @@ function DesktopChromeContent(props: DesktopShellBodyProps) {
             agents={props.model.workspaceAgents}
             projectWorkspaceId={props.model.activeWorkspaceId}
             dataScope={props.model.dataScope}
+            focusedBinding={focusedBinding}
             store={props.model.sessionCreate.store}
           />
         </AgentCreateHostProvider>
@@ -284,7 +291,6 @@ function DesktopShellScopedBody({
       <ShellDesktopDock
         dormant={firstRun}
         onNewSession={openNewSession}
-        onPickProject={() => overlays.setOverlayOpen("workspace-menu", true)}
         badges={attention.badges}
         contextMenusEnabled={overlays.activeOverlay === null}
         profileSwitcher={
@@ -319,8 +325,7 @@ function DesktopShellScopedBody({
           model={winLayer}
           showEmptyDesktop={showEmptyDesktop}
           paletteShortcutLabel={shortcutLabels.palette}
-          hasProject={model.runtimeWorkspaceId !== null}
-          onPickProject={() => overlays.setOverlayOpen("workspace-menu", true)}
+          canStart={model.dataScope !== null}
           reducedMotion={reducedMotion}
           transition={transition}
           onTransitionComplete={onTransitionComplete}

@@ -1,60 +1,66 @@
-import { useQueries } from "@tanstack/react-query";
-
 import { useState } from "react";
 
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
+import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "@/systems/profiles";
 import {
-  useProfileReadScope,
-  useProfiles,
-  type ProfileOwner,
-  type ProfileOwnerLabel,
-} from "@/systems/profiles";
-import { useActiveWorkspace, workspaceSelectorOrAll, type DataScope } from "@/systems/workspace";
+  useActiveWorkspace,
+  workspaceBadgeIdentity,
+  type DataScope,
+  type WorkspaceBadgeIdentity,
+} from "@/systems/workspace";
 
-import { sessionFoldersOptions } from "../lib/session-catalog-options";
-import type { SessionFolderPayload } from "../types";
-
-import { useSessionListPreferences } from "./use-session-list-preferences";
+import type { SessionListGroupSpec } from "../lib/session-list-groups";
+import { sessionListPair } from "../lib/session-list-groups";
 import {
-  useWorkspaceSessionGroups,
-  type WorkspaceSessionGroup,
-} from "./use-workspace-session-groups";
-import { useSessionCatalog } from "./use-session-catalog";
-import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
-import {
+  availableSessionListGroupBys,
+  effectiveSessionListGroupBy,
   sessionListSortParam,
   sessionListSubagentsParam,
-  type SessionListScope,
+  type SessionListGroupBy,
   type SessionListSort,
 } from "../lib/session-list-preferences";
+import type { SessionListFilters, SessionPayload } from "../types";
 
-export interface SessionProfileFolderGroup {
-  owner: ProfileOwner;
-  workspaceId: string;
-  folders?: SessionFolderPayload[];
-  canCreateSession: boolean;
-}
+import { useSessionCatalog } from "./use-session-catalog";
+import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
+import { useSessionListGroups } from "./use-session-list-groups";
+import { useSessionListPreferences } from "./use-session-list-preferences";
+
+/** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
+export const SESSION_LIST_MANUAL_SORT_NOTE = "Manual order applies inside one project";
+
+const SESSION_LIST_PAGE_SIZE = 100;
 
 export interface SessionListViewModel {
-  profileFolderGroups?: SessionProfileFolderGroup[];
-  profileFoldersLoading?: boolean;
-  profileFoldersError?: { retry: () => void };
+  /** The flat catalog; absent while the list is grouped (each group owns its page). */
   catalog?: ReturnType<typeof useSessionCatalog>;
   search?: string;
   setSearch?: (search: string) => void;
-  scope: SessionListScope;
+  /** The stored sort, kept even where `manual` cannot apply. */
   sort: SessionListSort;
+  /** The stored grouping; `groupBy` below is what renders. */
+  storedGroupBy: SessionListGroupBy;
+  /** The grouping that renders: an inapplicable stored value renders as `none`. */
+  groupBy: SessionListGroupBy;
+  /** Group-by options available in the current breadth and profile lens. */
+  groupByOptions: readonly SessionListGroupBy[];
+  /** Muted toolbar note while `manual` falls back to `last_activity`. */
+  sortNote: string | null;
   /** True while the list shows the archive instead of the active catalog. */
   archived: boolean;
   saving: boolean;
-  setScope: (scope: SessionListScope) => void;
   setSort: (sort: SessionListSort) => void;
+  setGroupBy: (groupBy: SessionListGroupBy) => void;
   setArchived: (archived: boolean) => void;
-  /** Populated only in the all-workspaces scope. */
-  workspaceGroups: WorkspaceSessionGroup[];
-  collapsedWorkspaceIds: ReadonlySet<string>;
-  toggleWorkspace: (workspaceId: string) => void;
+  /** Group-by groups from server facets; empty while flat. */
+  groups: SessionListGroupSpec[];
+  groupsLoading: boolean;
+  groupsError?: { retry: () => void };
+  collapsedGroupKeys: ReadonlySet<string>;
+  toggleGroup: (key: string) => void;
+  /** Filters every group query shares; each group adds its scope, lens, and order. */
+  groupFilters: SessionListFilters;
   /** The aggregate is on — rows name their owner (US-011.AC-1). */
   aggregate: boolean;
   /**
@@ -64,25 +70,28 @@ export interface SessionListViewModel {
   scopeLabel: string | null;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
-  /**
-   * Folders and manual order of this workspace for the acting profile. Absent in
-   * the widest scope; the profile aggregate carries one layout group per owner.
-   */
+  /** Resolves a row's project badge; present only under All projects (BR-10). */
+  badgeOf?: (session: SessionPayload) => WorkspaceBadgeIdentity;
+  /** Folders and manual order of the one (workspace, profile) pair the flat list reads. */
   layout?: SessionListLayout;
   /** The worktree the catalog is narrowed to; other worktrees' sessions are hidden. */
   worktreeId?: string;
   /** The folder list failed to load; rows stay flat and unorderable until a retry loads it. */
   layoutError?: { retry: () => void };
+  /** Identity of the list's bulk selection; grouped lists are read-only. */
+  selectionKey: string;
 }
 
 /**
- * View model behind every session list: the operator's persisted scope and
- * order, plus the per-workspace groups the widest scope needs.
+ * View model behind every session list: the topbar breadth and profile lens,
+ * the operator's persisted order and grouping, and either one flat catalog or
+ * facets-driven groups (ADR-004).
  *
- * The widened queries only run in the scope that shows them, so staying in this
- * workspace costs nothing extra. Group collapse and the archive are deliberately
- * transient — they are ways of looking at the list right now, not preferences
- * worth round-tripping through config.
+ * Folders and manual order apply only where a query is exactly one
+ * (workspace, profile) pair (BR-11): the flat list of a focused project or User
+ * under one profile, or a group whose own query is one pair. Group collapse and
+ * the archive are deliberately transient — ways of looking at the list right
+ * now, not preferences worth round-tripping through config.
  */
 export function useSessionListView(
   options: {
@@ -103,111 +112,85 @@ export function useSessionListView(
   } = useDebouncedInput({ externalValue: "", onCommit: () => undefined });
   const [archived, setArchived] = useState(false);
   const enabled = options.enabled ?? true;
-  const workspaceScoped = enabled && preferences.scope === "workspace";
   const searchSettled = search === remoteSearch;
-  const workspaceGroups = useWorkspaceSessionGroups({
-    workspaces,
-    sort: preferences.sort,
-    archived,
-    enabled: enabled && preferences.scope === "all-workspaces",
-    search: remoteSearch,
-  });
-
   const scope = options.scope === undefined ? dataScope : options.scope;
-  // Folders and manual order belong to one project or to User; the aggregate has none.
-  const workspaceId = scope === null ? null : workspaceSelectorOrAll(scope);
+  const breadth = { allProjects: scope?.kind === "all", allProfiles: profile.aggregate };
+  const groupBy = effectiveSessionListGroupBy(preferences.groupBy, breadth);
+  const flat = groupBy === "none";
+  const pair = sessionListPair(scope, profile.params);
+
+  const groupFilters: SessionListFilters = {
+    include_health: true,
+    limit: SESSION_LIST_PAGE_SIZE,
+    q: remoteSearch,
+    search_fields: "title_agent",
+    subagents: sessionListSubagentsParam(remoteSearch),
+    worktree: options.worktreeId,
+    ...(archived ? { archive: "only" as const } : {}),
+  };
   const catalog = useSessionCatalog(
     scope,
-    {
-      include_health: true,
-      limit: 100,
-      sort: sessionListSortParam(preferences.sort),
-      q: remoteSearch,
-      search_fields: "title_agent",
-      subagents: sessionListSubagentsParam(remoteSearch),
-      worktree: options.worktreeId,
-      ...(archived ? { archive: "only" as const } : {}),
-    },
-    workspaceScoped
+    { ...groupFilters, sort: sessionListSortParam(preferences.sort, pair !== null) },
+    enabled && flat
   );
-
-  const profileFolders = useProfileFolderGroups(
-    workspaceId,
-    profile.destination,
-    workspaceScoped && profile.aggregate
-  );
-
-  const folders = useSessionFolders({
-    workspaceId,
-    profile: profile.destination,
-    enabled: workspaceScoped && !profile.aggregate,
+  const grouping = useSessionListGroups({
+    groupBy,
+    scope,
+    lens: profile.params,
+    workspaces,
+    archived,
+    search: remoteSearch,
+    enabled,
   });
+  const folders = useSessionFolders({
+    workspaceId: pair?.workspaceId ?? null,
+    profile: pair?.profile ?? profile.destination,
+    enabled: enabled && flat && pair !== null,
+  });
+  const names = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
+  const manualBlocked = flat ? pair === null : grouping.groups.some(group => group.pair === null);
 
   return {
-    ...profileFolders,
-    layout: folders.layout,
-    layoutError: folders.loadError,
+    layout: flat && pair !== null ? folders.layout : undefined,
+    layoutError: flat && pair !== null ? folders.loadError : undefined,
     worktreeId: options.worktreeId,
-    catalog: {
-      ...catalog,
-      paging: catalog.paging || !searchSettled,
-      next: searchSettled && catalog.next,
-      previous: searchSettled && catalog.previous,
-    },
+    catalog: flat
+      ? {
+          ...catalog,
+          paging: catalog.paging || !searchSettled,
+          next: searchSettled && catalog.next,
+          previous: searchSettled && catalog.previous,
+        }
+      : undefined,
     search,
     setSearch,
-    scope: preferences.scope,
     sort: preferences.sort,
+    storedGroupBy: preferences.groupBy,
+    groupBy,
+    groupByOptions: availableSessionListGroupBys(breadth),
+    sortNote: preferences.sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null,
     archived,
     saving: preferences.saving,
-    setScope: preferences.setScope,
     setSort: preferences.setSort,
+    setGroupBy: preferences.setGroupBy,
     setArchived,
-    workspaceGroups: preferences.scope === "all-workspaces" ? workspaceGroups : [],
+    groups: grouping.groups,
+    groupsLoading: grouping.loading,
+    groupsError: grouping.error,
+    collapsedGroupKeys: collapsed,
+    toggleGroup: key =>
+      setCollapsed(current => {
+        const next = new Set(current);
+        if (!next.delete(key)) next.add(key);
+        return next;
+      }),
+    groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
     ownerOf: profile.ownerOf,
-    collapsedWorkspaceIds: collapsed,
-    toggleWorkspace: workspaceId =>
-      setCollapsed(current => {
-        const next = new Set(current);
-        if (!next.delete(workspaceId)) next.add(workspaceId);
-        return next;
-      }),
-  };
-}
-
-function useProfileFolderGroups(
-  workspaceId: string | null,
-  destination: string,
-  enabled: boolean
-): Pick<
-  SessionListViewModel,
-  "profileFolderGroups" | "profileFoldersLoading" | "profileFoldersError"
-> {
-  const active = enabled && workspaceId !== null;
-  const profiles = useProfiles(active);
-  const owners = enabled && workspaceId ? (profiles.data ?? []) : [];
-  const folderQueries = useQueries({
-    queries: owners.map(owner =>
-      sessionFoldersOptions({ workspaceId: workspaceId ?? "", profile: owner.name })
-    ),
-  });
-  return {
-    profileFoldersLoading: active && profiles.isPending,
-    profileFoldersError:
-      active && profiles.isError
-        ? {
-            retry: () => {
-              void profiles.refetch();
-            },
-          }
-        : undefined,
-    profileFolderGroups: owners.map((owner, index) => ({
-      owner: { ...owner, archived: owner.archived_at != null },
-      workspaceId: workspaceId ?? "",
-      folders: folderQueries[index]?.data,
-      canCreateSession: owner.name === destination,
-    })),
+    badgeOf: breadth.allProjects
+      ? session => workspaceBadgeIdentity(session.workspace_id, names)
+      : undefined,
+    selectionKey: JSON.stringify([scope, profile.key, groupBy]),
   };
 }

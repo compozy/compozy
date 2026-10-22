@@ -162,6 +162,7 @@ export const deployWebhookTrigger = makeDetailTrigger({
 
 const runBase: AutomationRun = {
   ...PROFILE,
+  attribution: "recorded",
   id: "run_001",
   status: "completed",
   attempt: 1,

@@ -4,7 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { notifyUser } from "@/lib/user-feedback";
 import { useAgents, type AgentPayload } from "@/systems/agent";
-import { useSessionCreateStore, useSessionPromptFallback } from "@/systems/session";
+import {
+  useSessionCreateActions,
+  useSessionCreateStore,
+  useSessionPromptFallback,
+} from "@/systems/session";
 import { useActiveWorkspace, useScopedWorktreeFilter } from "@/systems/workspace";
 
 import { useAttentionJump } from "./use-attention-jump";
@@ -14,8 +18,13 @@ import { useOsShell } from "./use-os-shell";
 export type ReleasePrompt = () => void;
 
 export interface EmptyDesktopSession {
-  /** The project a prompt starts in; `null` in Global scope. */
+  /** The project a prompt starts in; `null` outside a project. */
   workspaceId: string | null;
+  /**
+   * No project is focused but All projects is on: a sent prompt opens New
+   * session, which asks for the project (and profile) inline (ADR-003).
+   */
+  asksTarget: boolean;
   /** A session is being created — from here or any other launcher sharing the create flow. */
   pending: boolean;
   agents: AgentPayload[];
@@ -45,6 +54,8 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
   const scopedWorktree = useScopedWorktreeFilter(runtimeWorkspaceId, scopeId);
   const agents = useAgents(runtimeWorkspaceId ?? "", { enabled: runtimeWorkspaceId !== null });
   const createStore = useSessionCreateStore();
+  const { canStart, openWithPrompt } = useSessionCreateActions();
+  const asksTarget = runtimeWorkspaceId === null && canStart;
   const jumpToSession = useAttentionJump();
   const { manager } = useOsShell();
   // The desktop the prompt was sent from: the session lands there even if the
@@ -88,6 +99,7 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
 
   return {
     workspaceId: runtimeWorkspaceId,
+    asksTarget,
     pending: fallback.pending,
     agents: catalog,
     agentsLoading: agents.isLoading,
@@ -96,6 +108,12 @@ export function useEmptyDesktopSession(): EmptyDesktopSession {
     selectAgent: agentName =>
       setChoice(agentName ? { workspaceId: runtimeWorkspaceId, agentName } : null),
     start: async (prompt, release, options) => {
+      if (asksTarget) {
+        // The prompt waits in New session until the operator picks where it runs.
+        openWithPrompt(prompt);
+        setHeldPrompt({ release });
+        return;
+      }
       if (!scopedWorktree.resolved) {
         notifyUser({ message: "Worktrees are not available yet. Try again.", tone: "error" });
         return;

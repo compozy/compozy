@@ -17,7 +17,7 @@ const meta: Meta<typeof OsEmptyDesktopView> = {
     docs: {
       description: {
         component:
-          "An empty desktop is a place to start: the question, the session composer with its agent control, and the ⌘K hint. No card and no modal — the desk panel is the surface. Global scope keeps the composer closed and offers Pick a project.",
+          "An empty desktop is a place to start: the question, the session composer with its agent control, and the ⌘K hint. No card and no modal — the desk panel is the surface. Under All projects the composer drops the agent control: New session asks for the project and agent.",
       },
     },
   },
@@ -44,11 +44,11 @@ export const Starting: Story = {
   ),
 };
 
-/** Global scope has no project to start in: the composer rests and leads to picking one. */
-export const GlobalScope: Story = {
+/** All projects: the prompt still starts a session; New session asks for the project and agent. */
+export const AllProjects: Story = {
   render: () => (
-    <DesktopShell workspace={{ name: "Global", monogram: "~" }}>
-      <EmptyDesktopPreview hasProject={false} />
+    <DesktopShell workspace={{ name: "All projects", monogram: "∗" }}>
+      <EmptyDesktopPreview asksTarget />
     </DesktopShell>
   ),
 };

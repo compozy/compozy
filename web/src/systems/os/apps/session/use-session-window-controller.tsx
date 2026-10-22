@@ -24,7 +24,7 @@ import {
   useSessionContext,
   useSessionUsageTurns,
 } from "@/systems/session";
-import { ownerDataScope, type WorktreePayload } from "@/systems/workspace";
+import type { WorktreePayload } from "@/systems/workspace";
 
 function toInspectorUsage(
   usage: ReturnType<typeof useSessionContext>["usage"]
@@ -107,8 +107,6 @@ export function useSessionWindowController(input: {
     transportDisconnected:
       transport.phase === "failed" || isSessionTransportDisconnected(transport),
     windowId,
-    workspaceId,
-    scope: ownerDataScope(session.workspace_id),
   });
   // Secondary goal reader for the head action — the goal strip inside the
   // thread owns the loop-stream reconciliation, so this instance reads cache only.

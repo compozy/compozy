@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 import type { OperationQuery, OperationResponse } from "@/lib/api-contract";
 
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export type SubagentListQuery = Omit<
   OperationQuery<"listSessionSubagents">,
@@ -24,7 +25,7 @@ export async function fetchSessionSubagents(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: sessionId },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId },
         query: { all_profiles: true, ...query },
       },
       signal,
@@ -46,7 +47,10 @@ export async function cancelSubagent(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/subagents/{subagent_id}/cancel",
     {
-      params: { path: { workspace_id: workspaceId, subagent_id: subagentId }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), subagent_id: subagentId },
+        query: { profile },
+      },
       body: { reason },
     }
   );

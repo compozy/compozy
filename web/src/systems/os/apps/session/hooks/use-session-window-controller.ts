@@ -3,7 +3,7 @@ import { toast } from "sonner";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useSessionDeletionPending, useSessionPresence } from "@/systems/session";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useWindowDataWorkspace } from "@/systems/workspace";
 
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
@@ -13,8 +13,10 @@ import { useSessionWindowRuntime } from "./use-session-window-runtime";
 export function useSessionWindowController(windowId: string) {
   const { coordinator } = useOsShell();
   const { aggregate } = useProfileReadScope();
-  const { dataScope } = useActiveWorkspace();
-  const focusedScope = dataScope === null || dataScope.kind === "all" ? null : dataScope;
+  // The window's own scope (its binding, else its partition): a session of
+  // another scope is hidden here; a catalog window on All projects hides none.
+  const windowScope = useWindowDataWorkspace();
+  const focusedScope = windowScope === null || windowScope.kind === "all" ? null : windowScope;
   const { liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const deletionPending = useSessionDeletionPending(sessionId);

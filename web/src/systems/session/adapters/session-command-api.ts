@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import type { SessionCommandsResponse } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 /** Reads the daemon-owned command projection for one workspace-fenced session. */
 export async function fetchSessionCommands(
@@ -14,7 +15,7 @@ export async function fetchSessionCommands(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/commands",
     {
-      params: { path: { workspace_id: workspace, session_id: session } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspace), session_id: session } },
       signal,
     }
   );

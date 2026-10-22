@@ -369,6 +369,7 @@ describe("useActiveWorkspace", () => {
       selectedWorkspaceId: "ws_beta",
       worktreeByScope: { shell: "wt_saved" },
       worktreePartitionByScope: {},
+      legacySessionsScopeApplied: null,
     });
     vi.mocked(fetchWorkspaces).mockResolvedValue([
       makeWorkspace({ id: "ws_alpha", name: "alpha" }),

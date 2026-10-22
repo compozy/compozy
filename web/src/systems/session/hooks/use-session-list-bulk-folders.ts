@@ -9,9 +9,8 @@ import {
   sessionFolderId,
 } from "../lib/session-folders";
 import type { SessionFolderPayload, SessionPayload } from "../types";
-import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
+import type { SessionListLayout } from "./use-session-folders";
 import type { SessionSelectionDrag } from "./use-session-list-dnd";
-import type { SessionProfileFolderGroup } from "./use-session-list-view";
 
 /** The selection bar's Move to folder submenu. */
 export interface SessionBulkFolderMenu {
@@ -35,10 +34,9 @@ export interface SessionBulkFolderDialog {
   onCreate: (name: string) => Promise<void>;
 }
 
-/** Where the list's folders live: one layout, or one layout per owning profile. */
+/** Where the list's folders live: the one (workspace, profile) pair's layout, when the list is one. */
 export interface SessionBulkFolderSource {
   layout?: SessionListLayout;
-  groups?: readonly SessionProfileFolderGroup[];
 }
 
 /**
@@ -61,23 +59,12 @@ export function useSessionListBulkFolders(options: {
 }) {
   const { source } = options;
   const move = sessionBulkMove(options.sessions, options.selectedIds, options.visibleOrder);
-  const owner =
-    source.groups && move.profileIds.length === 1
-      ? source.groups.find(group => group.owner.id === move.profileIds[0])
-      : undefined;
-  const ownerFolders = useSessionFolders({
-    workspaceId: owner?.workspaceId ?? null,
-    profile: owner?.owner.name ?? "",
-    enabled: owner !== undefined,
-  });
   const [pending, setPending] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [preview, setPreview] = useState<HTMLElement | null>(null);
-  if (!source.layout && !source.groups?.length) return null;
-
-  const layout = source.groups?.length ? ownerFolders.layout : source.layout;
-  const blockedReason =
-    sessionBulkMoveBlockedReason(move) ?? (layout ? null : "Folders are still loading.");
+  const layout = source.layout;
+  if (!layout) return null;
+  const blockedReason = sessionBulkMoveBlockedReason(move);
   const folderIds = move.sessions.map(sessionFolderId);
   /** Writes the move of every selected root not already in `folderId`; resolves once settled. */
   const run = (target: SessionListLayout, folderId: string | null, name?: string) => {
@@ -98,13 +85,13 @@ export function useSessionListBulkFolders(options: {
   };
   /** The menu and drop entry point: moves the selection unless it is blocked or busy. */
   const moveTo = (folderId: string | null) => {
-    if (!layout || blockedReason !== null || pending || options.busy) return;
+    if (blockedReason !== null || pending || options.busy) return;
     const name = layout.folders.find(folder => folder.id === folderId)?.name;
     void run(layout, folderId, name);
   };
 
   const menu: SessionBulkFolderMenu = {
-    folders: layout?.folders ?? [],
+    folders: layout.folders,
     blockedReason,
     sharedFolderId: folderIds.every(id => id === folderIds[0]) ? folderIds[0] : undefined,
     canUnfile: folderIds.some(id => id !== null),
@@ -122,21 +109,19 @@ export function useSessionListBulkFolders(options: {
     preview,
     move: moveTo,
   };
-  const dialog: SessionBulkFolderDialog | null = layout
-    ? {
-        open: dialogOpen,
-        count: move.sessions.length,
-        layout,
-        onClose: () => setDialogOpen(false),
-        // A refused create keeps the dialog open with the daemon's reason. Once
-        // the folder exists the dialog closes; a refused move then reads like
-        // any other and keeps the selection for a retry into the new folder.
-        onCreate: async name => {
-          const folder = await layout.createFolder(name);
-          await run(layout, folder.id, folder.name);
-        },
-      }
-    : null;
+  const dialog: SessionBulkFolderDialog = {
+    open: dialogOpen,
+    count: move.sessions.length,
+    layout,
+    onClose: () => setDialogOpen(false),
+    // A refused create keeps the dialog open with the daemon's reason. Once
+    // the folder exists the dialog closes; a refused move then reads like
+    // any other and keeps the selection for a retry into the new folder.
+    onCreate: async name => {
+      const folder = await layout.createFolder(name);
+      await run(layout, folder.id, folder.name);
+    },
+  };
   return { menu, drag, dialog, pending, previewCount: move.sessions.length, setPreview };
 }
 

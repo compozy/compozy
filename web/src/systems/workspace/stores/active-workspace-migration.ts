@@ -7,6 +7,8 @@ export interface PersistedActiveWorkspace {
   selectedWorkspaceId: string | null;
   worktreeByScope: Record<string, string | null>;
   worktreePartitionByScope: Record<string, string>;
+  /** Last `shell.sessions.scope` revision this browser observed (ADR-004); `null` before any. */
+  legacySessionsScopeApplied: number | null;
 }
 
 export const ACTIVE_WORKSPACE_SCHEMA_VERSION = 2;
@@ -52,5 +54,6 @@ export function migrateActiveWorkspace(persisted: unknown): PersistedActiveWorks
     selectedWorkspaceId,
     worktreeByScope: stringRecord(context.worktreeByScope, isWorktreeEntry),
     worktreePartitionByScope: {},
+    legacySessionsScopeApplied: null,
   };
 }

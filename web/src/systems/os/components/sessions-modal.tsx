@@ -31,7 +31,6 @@ export interface OsSessionsModalProps {
   disconnected: boolean;
   /** Breadth, order, and widened workspace groups — owned by the shell, not fetched here. */
   view: SessionListViewModel;
-  currentWorkspaceId?: string | null;
   onNewSession: (options?: { folderId?: string }) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
@@ -47,8 +46,10 @@ export function OsSessionsDialogHost({
   lifecycle,
 }: Pick<
   OsSessionsModalProps,
-  "open" | "onOpenChange" | "disconnected" | "view" | "currentWorkspaceId" | "onNewSession"
+  "open" | "onOpenChange" | "disconnected" | "view" | "onNewSession"
 > & {
+  /** The derive host's fallback workspace for a child without its own. */
+  currentWorkspaceId?: string | null;
   lifecycle: ReturnType<typeof useSessionLifecycleActions>;
 }) {
   return (
@@ -67,7 +68,6 @@ export function OsSessionsDialogHost({
             sessions={view.catalog?.sessions ?? []}
             disconnected={disconnected}
             view={view}
-            currentWorkspaceId={currentWorkspaceId}
             onNewSession={onNewSession}
             sessionActions={lifecycle.actions}
           />
@@ -110,7 +110,6 @@ export function OsSessionsModal({
   sessions,
   disconnected,
   view,
-  currentWorkspaceId,
   onNewSession,
   sessionActions,
 }: OsSessionsModalProps) {
@@ -127,7 +126,7 @@ export function OsSessionsModal({
     jumpToSession({
       sessionId: session.id,
       agentName: session.agent_name,
-      workspaceId: session.workspace_id ?? currentWorkspaceId ?? "",
+      workspaceId: session.workspace_id ?? "",
     });
   };
   return (

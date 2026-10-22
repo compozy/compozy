@@ -69,6 +69,8 @@ function createWrapper() {
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
     supervision: null,
+    scope: "workspace",
+    effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",
     id: "sess-001",
@@ -296,6 +298,8 @@ describe("useSession", () => {
       supervision: null,
       profile_id: "00000000000000000000000000",
       profile_name: "default",
+      scope: "workspace",
+      effective_workspace_access: "",
       id: "sess-001",
       agent_name: "claude-agent",
       runtime: {
@@ -606,6 +610,7 @@ describe("bounded session catalog", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { terminal_approvals: 0, all: 201, needs_you: 1, working: 0, finished: 0, idle: 200 },
       by_workspace: [],
+      by_profile: [],
     });
     vi.mocked(fetchSessionCatalogPage).mockResolvedValue({
       sessions: [],
@@ -664,6 +669,7 @@ describe("bounded session catalog", () => {
     vi.mocked(fetchSessionFacets).mockResolvedValue({
       facets: { terminal_approvals: 0, all: 201, needs_you: 0, working: 0, finished: 0, idle: 201 },
       by_workspace: [],
+      by_profile: [],
     });
     vi.mocked(fetchSessionCatalogPage).mockImplementation(async query => ({
       sessions: [makeSession({ id: query?.cursor ? "sess-old" : "sess-new" })],

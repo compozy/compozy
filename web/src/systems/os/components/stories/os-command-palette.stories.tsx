@@ -76,27 +76,25 @@ const AGGREGATE_PALETTE_SESSIONS: SessionFixture[] = sessionFixtures
   });
 
 type SessionFixture = (typeof sessionFixtures)[number];
-type SessionListScope = "workspace" | "all-workspaces";
-
-function shellSettings(scope: SessionListScope) {
+function shellSettings() {
   return {
     available_scopes: ["user" as const],
-    config: { sessions: { scope, sort: "last_activity" as const } },
+    config: { sessions: { sort: "last_activity" as const } },
+    legacy_scope: { explicit: false, revision: 0, value: "workspace" as const },
     scope: "user" as const,
     section: "shell" as const,
+    warnings: [],
   };
 }
 
-function paletteHandlers(sessions: SessionFixture[], scope: SessionListScope = "workspace") {
+function paletteHandlers(sessions: SessionFixture[]) {
   return storybookMswParameters({
     workspace: [
       compozyApiMock.get("/api/workspaces", () =>
         HttpResponse.json({ workspaces: workspaceFixtures })
       ),
     ],
-    settings: [
-      compozyApiMock.get("/api/settings/shell", () => HttpResponse.json(shellSettings(scope))),
-    ],
+    settings: [compozyApiMock.get("/api/settings/shell", () => HttpResponse.json(shellSettings()))],
     session: [
       compozyApiMock.get("/api/sessions", ({ request }) => {
         const workspace = new URL(request.url).searchParams.get("workspace_id")?.trim();
@@ -311,11 +309,17 @@ export const SessionsViewZeroMatch: Story = {
   },
 };
 
-/** Show all: the operator's persisted scope widened to every workspace. */
+/** Under the topbar's All projects, the view lists every project's sessions. */
 export const SessionsViewAllWorkspaces: Story = {
   args: OPEN_ARGS,
-  parameters: paletteHandlers(sessionFixtures, "all-workspaces"),
-  loaders: [paletteViewLoader([{ viewId: "sessions" }])],
+  parameters: paletteHandlers(sessionFixtures),
+  loaders: [
+    async () => {
+      enableAllProjects();
+      return {};
+    },
+    paletteViewLoader([{ viewId: "sessions" }]),
+  ],
   render: renderPalette,
 };
 
@@ -388,7 +392,7 @@ export const ProfileLifecycleHandoff: Story = {
 /** All projects and All profiles compose in the real Sessions palette view with owner-labeled rows. */
 export const AllProfilesGlobal: Story = {
   args: OPEN_ARGS,
-  parameters: paletteHandlers(AGGREGATE_PALETTE_SESSIONS, "all-workspaces"),
+  parameters: paletteHandlers(AGGREGATE_PALETTE_SESSIONS),
   loaders: [
     async () => {
       enableAllProjects();

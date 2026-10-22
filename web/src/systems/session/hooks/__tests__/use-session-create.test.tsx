@@ -28,6 +28,7 @@ const workspace = vi.hoisted(() => ({
     { id: "ws_other", default_agent: "operator" },
   ],
   scope: "global" as "global" | "workspace",
+  dataScope: { kind: "all" } as { kind: "all" } | null,
 }));
 const agents = vi.hoisted(() => ({
   data: [{ name: "general" }] as Array<{ name: string }>,
@@ -70,6 +71,7 @@ describe("session create workspace binding", () => {
       { id: "ws_other", default_agent: "operator" },
     ];
     workspace.scope = "global";
+    workspace.dataScope = { kind: "all" };
     agents.data = [{ name: "general" }];
     agents.isSuccess = true;
     scopedWorktree.id = undefined;
@@ -242,8 +244,9 @@ describe("session create workspace binding", () => {
     expect(toastError).toHaveBeenCalledWith("Worktrees are not available yet. Try again.");
   });
 
-  it("Should reject opening only when no runtime workspace exists", () => {
+  it("Should reject opening only while the destination is unsettled", () => {
     workspace.runtimeWorkspaceId = null;
+    workspace.dataScope = null;
     const store = createSessionCreateStore();
     const wrapper = ({ children }: { children: ReactNode }) => (
       <SessionCreateProvider store={store}>{children}</SessionCreateProvider>

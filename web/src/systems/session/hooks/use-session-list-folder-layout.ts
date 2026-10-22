@@ -2,7 +2,6 @@ import { useState } from "react";
 
 import {
   buildSessionListSections,
-  canGroupSessionThreads,
   sectionsVisibleThreads,
   type SessionListSections,
 } from "../lib/session-folders";
@@ -19,17 +18,24 @@ export type SessionFolderDialogState =
   | { kind: "delete"; folder: NonNullable<SessionListViewModel["layout"]>["folders"][number] }
   | null;
 
+/** What one folder-capable query contributes: its layout (if one pair), order, and page. */
+export type SessionListFolderSource = Pick<
+  SessionListViewModel,
+  "layout" | "sort" | "archived" | "worktreeId" | "catalog"
+>;
+
 /**
- * Folder presentation for one session list: the sections built from the served
- * threads, persisted folder collapse, drag wiring, and the open folder dialog.
- * The widest scope keeps rows flat, so it carries no layout.
+ * Folder presentation for one session query: the sections built from the
+ * served threads, persisted folder collapse, drag wiring, and the open folder
+ * dialog. Only a query that resolves to one (workspace, profile) pair carries
+ * a layout; any other query keeps rows flat (BR-11).
  */
 export function useSessionListFolderLayout(
-  view: SessionListViewModel,
+  view: SessionListFolderSource,
   threads: readonly SessionThreadModel[],
   filtering: boolean
 ) {
-  const layout = view.scope === "all-workspaces" ? undefined : view.layout;
+  const layout = view.layout;
   const { collapsedFolderIds, toggleFolder } = useSessionSidebarState();
   const collapsedFolders = new Set(collapsedFolderIds);
   const sections: SessionListSections | null = layout
@@ -51,9 +57,6 @@ export function useSessionListFolderLayout(
     manual: view.sort === "manual",
     reorderable: orderable,
   });
-  const groups = canGroupSessionThreads(threads, view.profileFolderGroups)
-    ? view.profileFolderGroups
-    : undefined;
   const [dialog, setDialog] = useState<SessionFolderDialogState>(null);
   return {
     layout,
@@ -65,21 +68,7 @@ export function useSessionListFolderLayout(
     /** Threads on screen in order; bulk selection and range picks follow it. */
     visibleThreads: sections
       ? sectionsVisibleThreads(sections, collapsedFolders, filtering)
-      : groups?.length
-        ? groups.flatMap(group => {
-            const owned = threads.filter(thread => thread.session.profile_id === group.owner.id);
-            return group.folders
-              ? sectionsVisibleThreads(
-                  buildSessionListSections(owned, group.folders, {
-                    filtering,
-                    archived: view.archived,
-                  }),
-                  collapsedFolders,
-                  filtering
-                )
-              : owned;
-          })
-        : threads,
+      : threads,
     dnd,
     dialog,
     setDialog,

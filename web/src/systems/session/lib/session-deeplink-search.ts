@@ -11,6 +11,12 @@ export type SessionWorkspaceSwitchState = (typeof SESSION_WORKSPACE_SWITCH_STATE
  */
 export interface SessionDeepLinkSearch {
   workspaceSwitch?: SessionWorkspaceSwitchState;
+  /**
+   * The window's data binding (`"<id>"` or `"@user"`), set by open-in-place under
+   * All projects. It only says which scope the window reads; ownership is still
+   * proven by the loader, never taken from the URL.
+   */
+  workspace?: string;
 }
 
 export function validateSessionDeepLinkSearch(
@@ -23,8 +29,12 @@ export function validateSessionDeepLinkSearch(
   search: Record<string, unknown> | SessionDeepLinkSearch
 ): SessionDeepLinkSearch {
   const workspaceSwitch = search.workspaceSwitch;
-  return typeof workspaceSwitch === "string" &&
+  const workspace = typeof search.workspace === "string" ? search.workspace.trim() : "";
+  return {
+    ...(typeof workspaceSwitch === "string" &&
     (SESSION_WORKSPACE_SWITCH_STATES as readonly string[]).includes(workspaceSwitch)
-    ? { workspaceSwitch: workspaceSwitch as SessionWorkspaceSwitchState }
-    : {};
+      ? { workspaceSwitch: workspaceSwitch as SessionWorkspaceSwitchState }
+      : {}),
+    ...(workspace !== "" ? { workspace } : {}),
+  };
 }

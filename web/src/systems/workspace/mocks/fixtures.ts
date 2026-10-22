@@ -239,6 +239,8 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
     {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
+      scope: "workspace",
+      effective_workspace_access: "",
       id: storySessionIds.product,
       name: "Launch room command brief",
       agent_name: storyAgentNames.product,
@@ -257,6 +259,8 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
     {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
+      scope: "workspace",
+      effective_workspace_access: "",
       id: storySessionIds.frontend,
       name: "Landing page launch QA",
       agent_name: storyAgentNames.frontend,
@@ -275,6 +279,8 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
     {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
+      scope: "workspace",
+      effective_workspace_access: "",
       id: storySessionIds.cto,
       name: "Executive launch review",
       agent_name: storyAgentNames.cto,
@@ -293,6 +299,8 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
     {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
+      scope: "workspace",
+      effective_workspace_access: "",
       id: storySessionIds.cfo,
       name: "Launch revenue watch",
       agent_name: storyAgentNames.cfo,
@@ -311,6 +319,8 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
     {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
+      scope: "workspace",
+      effective_workspace_access: "",
       id: storySessionIds.marketing,
       name: "CRM launch timing",
       agent_name: storyAgentNames.marketing,
@@ -329,6 +339,8 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
     {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
+      scope: "workspace",
+      effective_workspace_access: "",
       id: storySessionIds.copywriter,
       name: "Headline claim polish",
       agent_name: storyAgentNames.copywriter,
@@ -347,6 +359,8 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
     {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
+      scope: "workspace",
+      effective_workspace_access: "",
       id: storySessionIds.release,
       name: "Release control canary",
       agent_name: storyAgentNames.release,

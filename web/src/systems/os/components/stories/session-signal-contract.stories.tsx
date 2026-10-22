@@ -25,6 +25,8 @@ function session(
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
+    scope: "workspace",
+    effective_workspace_access: "",
     id,
     name: "Checkout launch review",
     agent_name: "codex",

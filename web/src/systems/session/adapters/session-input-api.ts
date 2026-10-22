@@ -9,6 +9,7 @@ import type {
   SessionPromptPayload,
 } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export async function cancelQueuedSessionPrompt(
   workspaceId: string,
@@ -21,7 +22,7 @@ export async function cancelQueuedSessionPrompt(
     {
       params: {
         path: {
-          workspace_id: workspaceId,
+          workspace_id: sessionWorkspacePath(workspaceId),
           session_id: id,
           queue_entry_id: queueEntryId,
         },
@@ -58,7 +59,7 @@ export async function clearSessionInputs(
   const { data, error, response } = await apiClient.DELETE(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       signal,
     }
   );
@@ -76,7 +77,7 @@ export async function fetchSessionInputs(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       signal,
     }
   );
@@ -102,7 +103,11 @@ export async function replaceSessionInput(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id, queue_entry_id: queueEntryId },
+        path: {
+          workspace_id: sessionWorkspacePath(workspaceId),
+          session_id: id,
+          queue_entry_id: queueEntryId,
+        },
       },
       body: params,
       signal,
@@ -134,7 +139,11 @@ export async function promoteSessionInputToSteer(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id, queue_entry_id: queueEntryId },
+        path: {
+          workspace_id: sessionWorkspacePath(workspaceId),
+          session_id: id,
+          queue_entry_id: queueEntryId,
+        },
       },
       body: params,
       signal,

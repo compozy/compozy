@@ -19,6 +19,7 @@ import {
   sessionTranscriptOptions,
 } from "@/systems/session";
 import { readProfileScopeParams } from "@/systems/profiles";
+import { ownerDataScope, windowBindingValue } from "@/systems/workspace";
 
 export interface SessionPermalinkRouteContext {
   topbar: TopbarRouteContext;
@@ -28,7 +29,12 @@ export interface SessionPermalinkRouteContext {
 }
 
 export type SessionPermalinkResolution =
-  | { status: "resolved"; session: SessionPayload }
+  | {
+      status: "resolved";
+      session: SessionPayload;
+      /** Window binding when the All projects desktop opens the session in place. */
+      binding?: string;
+    }
   | { status: "foreign"; owner: SessionOwnerDialogState };
 
 export async function redirectSessionPermalinkRoute({
@@ -78,6 +84,7 @@ export async function redirectSessionPermalinkRoute({
   throw redirect({
     to: "/agents/$name/sessions/$id",
     params: { name: resolution.session.agent_name, id: resolution.session.id },
+    search: resolution.binding ? { workspace: resolution.binding } : {},
     replace: true,
   });
 }
@@ -89,8 +96,8 @@ export async function resolveSessionPermalink({
   queryClient: QueryClient;
   sessionId: string;
 }): Promise<SessionPermalinkResolution> {
-  // Session windows belong to the mounted desktop's partition, not to the
-  // catalog lens of the data scope (All projects keeps a project's desktop).
+  // Session windows belong to the mounted desktop's partition; the All
+  // projects desktop opens any session in place, bound to its own scope.
   const ownership = sessionRouteOwnership(await resolveActiveWorkspaceSelection(queryClient));
   if (!ownership) {
     throw new SessionNotFoundError(sessionId);
@@ -150,7 +157,13 @@ async function resolveForeignPermalink(
     await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
-    return { status: "resolved", session };
+    return {
+      status: "resolved",
+      session,
+      ...(ownership.bindsInPlace
+        ? { binding: windowBindingValue(ownerDataScope(owner.workspaceId)) }
+        : {}),
+    };
   }
   return { status: "foreign", owner };
 }

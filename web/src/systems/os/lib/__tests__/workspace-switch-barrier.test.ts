@@ -60,13 +60,24 @@ describe("subscribeWorkspaceSwitchBarrier", () => {
     unsubscribe();
   });
 
-  it("Should keep routing live when All projects keeps the focused project's desktop", () => {
+  it("Should enter the barrier when All projects moves to the global desktop", () => {
     setActiveWorkspaceId("workspace:one");
     const beginWorkspaceSwitch = vi.fn();
     const unsubscribe = subscribeWorkspaceSwitchBarrier(
       { beginWorkspaceSwitch },
       () => "workspace:one"
     );
+
+    enableAllProjects();
+
+    expect(beginWorkspaceSwitch).toHaveBeenCalledOnce();
+    unsubscribe();
+  });
+
+  it("Should keep routing live when the global desktop is already bound", () => {
+    setActiveWorkspaceId("workspace:one");
+    const beginWorkspaceSwitch = vi.fn();
+    const unsubscribe = subscribeWorkspaceSwitchBarrier({ beginWorkspaceSwitch }, () => "global");
 
     enableAllProjects();
 

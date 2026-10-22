@@ -38,12 +38,12 @@ export function isReservedDesktopPartition(workspaceId: string | null | undefine
 
 /**
  * The desktop partition a destination mounts: the focused project's, `user`
- * for User, and — until All projects gets its own desktop — the focused
- * project's under All projects, or `global` when User is focused.
+ * for User, and the reserved `global` desktop under All projects, so opening
+ * an item there never lands in a project's layout.
  */
 export function desktopPartitionFor(breadthMode: BreadthMode, focus: Focus): string {
-  if (focus.kind === "project") return focus.workspaceId;
-  return breadthMode === "focused" ? USER_DESKTOP_WORKSPACE_ID : GLOBAL_DESKTOP_WORKSPACE_ID;
+  if (breadthMode === "all") return GLOBAL_DESKTOP_WORKSPACE_ID;
+  return focus.kind === "project" ? focus.workspaceId : USER_DESKTOP_WORKSPACE_ID;
 }
 
 export function dataScopeForFocus(focus: Focus): FocusedDataScope {

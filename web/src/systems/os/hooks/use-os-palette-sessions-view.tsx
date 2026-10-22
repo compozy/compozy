@@ -2,12 +2,8 @@ import { useState } from "react";
 
 import { useDebouncedValue } from "@/hooks/use-debounced-input";
 
-import {
-  useSessionListPreferences,
-  useSessionCatalog,
-  type SessionPayload,
-} from "@/systems/session";
-import { ALL_DATA_SCOPE, DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
+import { useSessionCatalog, type SessionPayload } from "@/systems/session";
+import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
 
 import { OsPaletteSessionChips } from "../components/os-palette-session-chips";
 import { OsPaletteSessionRow } from "../components/os-palette-session-row";
@@ -28,9 +24,8 @@ import { useProfileReadScope } from "@/systems/profiles";
  * Order, tone and landing all come from the surfaces that already own them:
  * The daemon orders each page, the badge dictionary draws every row, and
  * `useAttentionJump` performs the switch-then-focus that
- * the bell and the sidebar perform. Breadth is the operator's persisted
- * session-list scope, so widening here is the same choice — and the same stored
- * value — as widening the sidebar.
+ * the bell and the sidebar perform. Breadth is the topbar globe, the same one
+ * every session list follows.
  */
 export function useOsPaletteSessionsView({
   query,
@@ -43,14 +38,12 @@ export function useOsPaletteSessionsView({
   // not a preference worth round-tripping through config.
   const [archived, setArchived] = useState(false);
   const profile = useProfileReadScope();
-  const preferences = useSessionListPreferences();
   const { registeredWorkspaces, dataScope } = useActiveWorkspace();
   const jumpToSession = useAttentionJump();
-  const allWorkspaces = preferences.scope === "all-workspaces";
-  // The persisted widening reads every project; otherwise the destination — a
-  // project, User (`@user`), or All projects — bounds the list.
+  // Breadth is the topbar globe's: a project, User (`@user`), or All projects.
+  const allWorkspaces = dataScope?.kind === "all";
   const catalog = useSessionCatalog(
-    allWorkspaces ? ALL_DATA_SCOPE : dataScope,
+    dataScope,
     {
       include_health: true,
       limit: 100,
@@ -73,7 +66,7 @@ export function useOsPaletteSessionsView({
   return {
     rows: [
       ...projectPaletteSessionRows(visible, profile, {
-        allWorkspaces: allWorkspaces || dataScope?.kind === "all",
+        allWorkspaces,
         workspaceNames,
         onDismiss,
         jumpToSession,
@@ -85,11 +78,8 @@ export function useOsPaletteSessionsView({
       <OsPaletteSessionChips
         filterId={filterId}
         counts={counts}
-        allWorkspaces={allWorkspaces}
         archived={archived}
-        scopeBusy={preferences.saving}
         onFilterChange={setFilterId}
-        onAllWorkspacesChange={next => preferences.setScope(next ? "all-workspaces" : "workspace")}
         onArchivedChange={setArchived}
       />
     ),

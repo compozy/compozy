@@ -10,7 +10,6 @@ export interface CreateDestination {
   workspaceId: string | null;
   workspaceName: string | null;
   destinationLabel: string;
-  userHomeDir: string | undefined;
   runtimeWorkspaceId: string | null;
   /** Session root, or the operator home outside a project, for `kind="session"` statements. */
   sessionRoot: string;
@@ -34,7 +33,6 @@ export function useCreateDestination(): CreateDestination {
     workspaceId: project ? active.activeWorkspaceId : null,
     workspaceName: project ? workspaceName || null : null,
     destinationLabel: labelFor(active.dataScope, workspaceName),
-    userHomeDir: active.userHomeDir,
     runtimeWorkspaceId: active.runtimeWorkspaceId,
     sessionRoot: project ? (active.activeWorkspace?.root_dir ?? "") : (active.userHomeDir ?? "~"),
   };

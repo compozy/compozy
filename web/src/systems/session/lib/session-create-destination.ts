@@ -28,7 +28,6 @@ export function resolveSessionCreateDestination({
   const binding = sessionCreateBinding({
     scope,
     projectWorkspaceId: projectScoped ? (projectWorkspaceId ?? runtimeWorkspaceId) : null,
-    userHomeDir,
   });
   return {
     binding,

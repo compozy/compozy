@@ -234,6 +234,7 @@ export const automationTriggerDetailFixtures: AutomationTrigger[] = [
 export const automationRunFixtures: AutomationRun[] = [
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_launch_command_digest_001",
     status: "completed",
     attempt: 1,
@@ -246,6 +247,7 @@ export const automationRunFixtures: AutomationRun[] = [
   },
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_support_sla_breach_002",
     status: "running",
     attempt: 1,
@@ -259,6 +261,7 @@ export const automationRunFixtures: AutomationRun[] = [
 export const automationRunSkipFixtures: AutomationRun[] = [
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_launch_command_digest_003",
     status: "canceled",
     attempt: 1,
@@ -269,6 +272,7 @@ export const automationRunSkipFixtures: AutomationRun[] = [
   },
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_launch_command_digest_004",
     status: "canceled",
     attempt: 1,
@@ -330,6 +334,7 @@ export const automationSuggestionFixtures: AutomationSuggestion[] = [
 export const automationTriggerDetailRunFixtures: AutomationRun[] = [
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_summarize_failures_001",
     status: "completed",
     attempt: 1,
@@ -340,6 +345,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
   },
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_summarize_failures_002",
     status: "failed",
     attempt: 2,
@@ -350,6 +356,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
   },
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_rerun_delivery_001",
     status: "delegated",
     attempt: 1,
@@ -359,6 +366,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
   },
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_deploy_webhook_002",
     status: "running",
     attempt: 1,
@@ -368,6 +376,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
   },
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_deploy_webhook_001",
     status: "completed",
     attempt: 1,
@@ -379,6 +388,7 @@ export const automationTriggerDetailRunFixtures: AutomationRun[] = [
   },
   {
     ...defaultProfileOwner,
+    attribution: "recorded",
     id: "run_deploy_webhook_003",
     status: "scheduled",
     attempt: 1,

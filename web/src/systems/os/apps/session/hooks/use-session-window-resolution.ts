@@ -8,19 +8,12 @@ import {
   type ForeignProfileSessionState,
   type SessionPayload,
 } from "@/systems/session";
-import {
-  ownerDataScope,
-  sameDataScope,
-  type DataScope,
-  type FocusedDataScope,
-} from "@/systems/workspace";
+import { ownerDataScope, sameDataScope, type FocusedDataScope } from "@/systems/workspace";
 
 export interface SessionWindowResolution {
   session: SessionPayload | undefined;
   /** The session's own workspace id (`""` for User), or the focused one before it resolves. */
   workspaceId: string | null;
-  /** What the window's session list shows: the session's scope, else the focused one. */
-  listScope: DataScope | null;
   isLoading: boolean;
   error: Error | null;
   /** The scoped read answered "not in this profile" — not yet "nowhere". */
@@ -44,7 +37,7 @@ export function useSessionWindowResolution({
   liveTailEnabled,
 }: {
   sessionId: string | null;
-  /** The focused destination (a project or User); `null` under All projects or unsettled. */
+  /** The window's data scope when bounded (a project or User); `null` for the aggregate or unsettled. */
   focusedScope: FocusedDataScope | null;
   liveTailEnabled: boolean;
 }): SessionWindowResolution {
@@ -66,7 +59,6 @@ export function useSessionWindowResolution({
   return {
     session: query.data,
     workspaceId: sessionWorkspaceId ?? focusedWorkspaceId,
-    listScope: sessionScope ?? focusedScope,
     isLoading: query.isLoading,
     error: query.error,
     scopedMiss,

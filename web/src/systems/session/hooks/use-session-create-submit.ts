@@ -4,10 +4,11 @@ import { useSelector } from "@xstate/store-react";
 import type { AgentPayload } from "@/systems/agent";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
 import type { TerminalQuote } from "@/systems/terminal/parts";
-import type { DestinationKind } from "@/systems/workspace";
+import { ownerDataScope, windowBindingValue, type DestinationKind } from "@/systems/workspace";
 
 import { sessionCreateBinding } from "../lib/session-create-binding";
 import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
+import { writeLastSessionProject } from "../lib/session-create-target";
 import {
   claimPendingTerminalQuoteForCreate,
   restorePendingTerminalQuoteAfterFailedCreate,
@@ -18,6 +19,7 @@ import type { SessionCreateStore } from "../stores/session-create-store";
 import type { CreateSessionParams, SessionPayload } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import type { SessionEnvironmentModel } from "./use-session-environment";
+import type { SessionCreateTarget } from "./use-session-create-target";
 
 interface UseSessionCreateSubmitOptions {
   agents: readonly AgentPayload[];
@@ -27,6 +29,16 @@ interface UseSessionCreateSubmitOptions {
   runtimeWorkspaceId: string | null;
   scope: DestinationKind;
   store: SessionCreateStore;
+  /** The inline picks: the profile that owns the session and the All-projects target. */
+  target: Pick<SessionCreateTarget, "projectAxis" | "projectValue" | "profileAxis" | "profile">;
+}
+
+/** How a created session lands: in place under All projects, else today's switch. */
+interface SessionLanding {
+  scope: DestinationKind;
+  currentWorkspaceId: string | null;
+  /** The All-projects picker value to remember; `null` outside All projects. */
+  allProjectsTarget: string | null;
 }
 
 type SessionCreateFlow = ReturnType<SessionCreateStore["getSnapshot"]>["context"];
@@ -48,6 +60,7 @@ export function useSessionCreateSubmit({
   runtimeWorkspaceId,
   scope,
   store,
+  target,
 }: UseSessionCreateSubmitOptions): () => void {
   const navigate = useNavigate();
   const shell = use(OsShellContext);
@@ -56,6 +69,8 @@ export function useSessionCreateSubmit({
   const pendingSubmit = flow.pendingSubmit;
   const worktreeId = environment.worktreeId;
   const createSessionAsync = createSession.mutateAsync;
+  const profile = target.profileAxis ? target.profile : undefined;
+  const allProjectsTarget = target.projectAxis ? target.projectValue : null;
 
   useEffect(() => {
     if (!pendingSubmit) return;
@@ -71,17 +86,29 @@ export function useSessionCreateSubmit({
       workspaceId,
       execute: () =>
         executeCreatedSession(
-          createSessionAsync({ ...request, worktree: worktreeId }),
+          createSessionAsync({
+            ...request,
+            worktree: worktreeId,
+            ...(profile ? { profile } : {}),
+          }),
           pendingPrompt,
           terminalQuote
         ),
-      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate, shell),
+      navigate: session =>
+        openCreatedSession(
+          session,
+          { scope, currentWorkspaceId: runtimeWorkspaceId, allProjectsTarget },
+          navigate,
+          shell
+        ),
     });
   }, [
+    allProjectsTarget,
     createSessionAsync,
     environment.status,
     navigate,
     pendingSubmit,
+    profile,
     runtimeWorkspaceId,
     scope,
     shell,
@@ -127,11 +154,18 @@ export function useSessionCreateSubmit({
           createSessionAsync({
             ...validated.request,
             ...(scope === "project" && worktreeId ? { worktree: worktreeId } : {}),
+            ...(profile ? { profile } : {}),
           }),
           validated.pendingPrompt,
           terminalQuote
         ),
-      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate, shell),
+      navigate: session =>
+        openCreatedSession(
+          session,
+          { scope, currentWorkspaceId: runtimeWorkspaceId, allProjectsTarget },
+          navigate,
+          shell
+        ),
     });
   };
 }
@@ -163,15 +197,26 @@ function validateSessionCreate(
 
 async function openCreatedSession(
   session: SessionPayload,
-  currentWorkspaceId: string | null,
-  scope: DestinationKind,
+  landing: SessionLanding,
   navigate: ReturnType<typeof useNavigate>,
   shell: OsShellHandle | null
 ): Promise<void> {
   // Named before the workspace switch: the route reconciliation that lands it — after the
   // target workspace hydrates — prefers the operator's existing Session window (#825).
   shell?.coordinator.noteCreatedSession(session.id);
-  activateCreatedSessionWorkspace(session, currentWorkspaceId, { skip: scope === "user" });
+  if (landing.allProjectsTarget !== null) {
+    // All projects stays on: the session opens in place, bound to its own scope.
+    writeLastSessionProject(landing.allProjectsTarget);
+    await navigate({
+      to: "/agents/$name/sessions/$id",
+      params: { name: session.agent_name, id: session.id },
+      search: { workspace: windowBindingValue(ownerDataScope(session.workspace_id)) },
+    });
+    return;
+  }
+  activateCreatedSessionWorkspace(session, landing.currentWorkspaceId, {
+    skip: landing.scope === "user",
+  });
   await navigate({
     to: "/agents/$name/sessions/$id",
     params: { name: session.agent_name, id: session.id },

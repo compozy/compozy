@@ -6,6 +6,7 @@ import type {
   SessionTranscriptSearchResponse,
 } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 /*
  * Navigation reads over the target session's materialized transcript (task_08):
@@ -34,7 +35,10 @@ export async function searchSessionTranscript(
       : await apiClient.GET(
           "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search",
           {
-            params: { path: { workspace_id: workspaceId, session_id: id }, query },
+            params: {
+              path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+              query,
+            },
             signal,
           }
         );
@@ -58,7 +62,7 @@ export async function fetchSessionTranscriptOutline(
       : await apiClient.GET(
           "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline",
           {
-            params: { path: { workspace_id: workspaceId, session_id: id } },
+            params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
             signal,
           }
         );

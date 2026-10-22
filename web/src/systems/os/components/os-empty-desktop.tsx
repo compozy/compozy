@@ -1,9 +1,8 @@
 import type { ReactNode } from "react";
 import { SessionDraftRuntimeProvider, SessionPromptRuntimeSelector } from "@/systems/session";
-import { Button, Spinner } from "@compozy/ui";
+import { Spinner } from "@compozy/ui";
 
 import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
-import { DESTINATION_COPY } from "@/systems/workspace";
 
 import { emptyDesktopDraftId } from "../hooks/use-empty-desktop-prompt-runtime";
 import { useEmptyDesktopSession } from "../hooks/use-empty-desktop-session";
@@ -20,8 +19,10 @@ export interface OsEmptyDesktopViewProps {
   desktopName: string;
   /** Live palette chord ("⌘K"); omitted until the keymap is known. */
   paletteShortcutLabel: string | null;
-  /** Global scope has no project to start a session in. */
-  hasProject: boolean;
+  /** A session can start here: the destination has settled (a project, User, or All projects asking inline). */
+  canStart: boolean;
+  /** The agent is chosen in New session with the project (All projects): no agent control here. */
+  asksTarget?: boolean;
   /** A session is starting; the composer rests and the status says so. */
   starting: boolean;
   /** This project's unsent-prompt slot ({@link emptyDesktopDraftId}). */
@@ -35,8 +36,6 @@ export interface OsEmptyDesktopViewProps {
   onAgentChange: (agentName: string | null) => void;
   agentsLoading?: boolean;
   agentsError?: string | null;
-  /** Opens the project picker — the way forward from Global scope. */
-  onPickProject?: () => void;
 }
 
 /**
@@ -47,7 +46,7 @@ export interface OsEmptyDesktopViewProps {
 export function OsEmptyDesktopView({
   desktopName,
   paletteShortcutLabel,
-  hasProject,
+  canStart,
   starting,
   draftId,
   onSubmit,
@@ -56,26 +55,23 @@ export function OsEmptyDesktopView({
   onAgentChange,
   agentsLoading = false,
   agentsError = null,
-  onPickProject,
   runtimeControl,
+  asksTarget = false,
 }: OsEmptyDesktopViewProps) {
-  const control = hasProject ? (
-    <AgentCommandSelect
-      agents={agents}
-      value={agentName}
-      onChange={onAgentChange}
-      disabled={starting}
-      loading={agentsLoading}
-      error={agentsError}
-      placeholder="Choose an agent"
-      triggerTestId="os-desk-agent-select"
-      variant="composer"
-    />
-  ) : onPickProject ? (
-    <Button type="button" variant="secondary" onClick={onPickProject}>
-      Pick a project
-    </Button>
-  ) : null;
+  const control =
+    asksTarget || !canStart ? null : (
+      <AgentCommandSelect
+        agents={agents}
+        value={agentName}
+        onChange={onAgentChange}
+        disabled={starting}
+        loading={agentsLoading}
+        error={agentsError}
+        placeholder="Choose an agent"
+        triggerTestId="os-desk-agent-select"
+        variant="composer"
+      />
+    );
 
   return (
     <section
@@ -91,11 +87,9 @@ export function OsEmptyDesktopView({
           key={draftId}
           draftId={draftId}
           onSubmit={onSubmit}
-          canPrompt={hasProject && !starting}
+          canPrompt={canStart && !starting}
           placeholder={PROMPT_PLACEHOLDER}
-          inactivePlaceholder={
-            hasProject ? STARTING_LABEL : DESTINATION_COPY.newSessionNeedsProject
-          }
+          inactivePlaceholder={canStart ? STARTING_LABEL : PROMPT_PLACEHOLDER}
           control={
             <div className="flex min-w-0 flex-wrap items-center gap-1">
               {control}
@@ -129,10 +123,8 @@ export interface OsEmptyDesktopProps {
   desktopName: string;
   /** Live palette chord ("⌘K"); omitted until the keymap is known. */
   paletteShortcutLabel: string | null;
-  /** Global scope has no project to start a session in. */
-  hasProject: boolean;
-  /** Opens the project picker — the way forward from Global scope. */
-  onPickProject?: () => void;
+  /** A session can start here: the destination has settled (a project, User, or All projects asking inline). */
+  canStart: boolean;
 }
 
 /**
@@ -142,8 +134,7 @@ export interface OsEmptyDesktopProps {
 export function OsEmptyDesktop({
   desktopName,
   paletteShortcutLabel,
-  hasProject,
-  onPickProject,
+  canStart,
 }: OsEmptyDesktopProps) {
   const session = useEmptyDesktopSession();
   return (
@@ -151,24 +142,26 @@ export function OsEmptyDesktop({
       draftId={emptyDesktopDraftId(session.workspaceId)}
       workspaceId={session.workspaceId ?? ""}
       agentName={session.agentName ?? ""}
-      canPrompt={hasProject && !session.pending}
+      canPrompt={canStart && !session.pending}
     >
       <OsEmptyDesktopView
         desktopName={desktopName}
         paletteShortcutLabel={paletteShortcutLabel}
-        hasProject={hasProject}
+        canStart={canStart}
+        asksTarget={session.asksTarget}
         starting={session.pending}
         draftId={emptyDesktopDraftId(session.workspaceId)}
         onSubmit={session.start}
         runtimeControl={
-          hasProject ? <SessionPromptRuntimeSelector canPrompt={!session.pending} /> : undefined
+          canStart && !session.asksTarget ? (
+            <SessionPromptRuntimeSelector canPrompt={!session.pending} />
+          ) : undefined
         }
         agents={session.agents}
         agentName={session.agentName}
         onAgentChange={session.selectAgent}
         agentsLoading={session.agentsLoading}
         agentsError={session.agentsError}
-        onPickProject={onPickProject}
       />
     </SessionDraftRuntimeProvider>
   );

@@ -139,8 +139,6 @@ const paletteMocks = vi.hoisted(() => {
     paletteIntent: null as { kind: "destination"; windowId: string } | null,
     paletteIntentCleared: vi.fn(),
     paletteIntentRequested: vi.fn(),
-    sessionListScope: "workspace" as "workspace" | "all-workspaces",
-    sessionListSaving: false,
     sessions: [] as PaletteSessionFixture[],
     sessionsLoading: false,
     sessionsWorkspaceId: vi.fn(),
@@ -148,8 +146,6 @@ const paletteMocks = vi.hoisted(() => {
     sessionsEnabled: vi.fn(),
     nextCatalogPage: vi.fn(),
     previousCatalogPage: vi.fn(),
-    sessionGroupWorkspaces: vi.fn(),
-    setSessionListScope: vi.fn(),
     windowCommands: {
       arrangeCommands: [],
       commandsAvailable: true,
@@ -269,16 +265,12 @@ vi.mock("@/systems/session", async importOriginal => ({
   },
   useSessionListPreferences: () => ({
     sort: "last_activity" as const,
-    scope: paletteMocks.sessionListScope,
+    groupBy: "none" as const,
     setSort: vi.fn(),
-    setScope: paletteMocks.setSessionListScope,
+    setGroupBy: vi.fn(),
     loading: false,
-    saving: paletteMocks.sessionListSaving,
+    saving: false,
   }),
-  useWorkspaceSessionGroups: (input: { workspaces: ReadonlyArray<{ id: string }> }) => {
-    paletteMocks.sessionGroupWorkspaces(input.workspaces);
-    return paletteMocks.workspaceGroups;
-  },
 }));
 
 function mockDataScope() {
@@ -752,10 +744,6 @@ function resetPaletteHarness() {
   paletteMocks.sessionsLoading = false;
   paletteMocks.sessionsWorkspaceId.mockClear();
   paletteMocks.sessionsFilters.mockClear();
-  paletteMocks.sessionGroupWorkspaces.mockClear();
-  paletteMocks.sessionListScope = "workspace";
-  paletteMocks.sessionListSaving = false;
-  paletteMocks.setSessionListScope.mockClear();
   paletteMocks.jumpToSession.mockClear();
   paletteMocks.notifyUser.mockClear();
   paletteMocks.workspaceGroups = [];
@@ -1578,54 +1566,31 @@ describe("palette nested views", () => {
     expect(screen.getByTestId("os-palette-breadcrumb")).toBeInTheDocument();
   });
 
-  it("Should widen through the operator's persisted session-list scope [UT-099]", async () => {
+  it("Should follow the topbar breadth across projects [UT-099]", async () => {
     const user = userEvent.setup();
-    paletteMocks.sessions = [paletteSession({ id: "s-alpha", name: "Refactor session store" })];
+    paletteMocks.scope = "global";
+    paletteMocks.sessions = [
+      paletteSession({ id: "s-alpha", name: "Refactor session store" }),
+      paletteSession({
+        id: "s-beta",
+        name: "Chargeback flow",
+        workspace_id: "workspace:beta",
+        badge: "waiting-for-input",
+      }),
+    ];
     const rendered = renderPalette();
     await pushSessionsView(user);
 
-    const scope = screen.getByTestId("os-palette-session-scope");
-    expect(scope).toHaveAccessibleName("All projects");
-    expect(scope).toHaveAttribute("aria-pressed", "false");
-    await user.click(scope);
-    expect(paletteMocks.setSessionListScope).toHaveBeenCalledWith("all-workspaces");
-
-    paletteMocks.sessionListScope = "all-workspaces";
-    paletteMocks.workspaceGroups = [
-      workspaceGroup("workspace:alpha", "Alpha", [
-        paletteSession({ id: "s-alpha", name: "Refactor session store" }),
-      ]),
-      workspaceGroup("workspace:beta", "Beta", [
-        paletteSession({
-          id: "s-beta",
-          name: "Chargeback flow",
-          workspace_id: "workspace:beta",
-          badge: "waiting-for-input",
-        }),
-      ]),
-      workspaceGroup("workspace:gamma", "Gamma", [], { failed: true }),
-    ];
-    rendered.rerender(
-      <PaletteHarness>
-        <OsCommandPalette open dispatch={paletteDispatch} onOpenChange={vi.fn()} />
-      </PaletteHarness>
-    );
-
-    expect(screen.getByTestId("os-palette-session-scope")).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
     expect(paletteMocks.sessionsWorkspaceId).toHaveBeenLastCalledWith(null);
+    expect(screen.getByTestId("os-palette-session-view-s-beta")).toHaveTextContent("Beta");
     // Attention-first survives the union: the needs-you row from the foreign
-    // workspace outranks the idle row from this one.
+    // project outranks the idle row from this one.
     const rows = screen.getAllByTestId(/^os-palette-session-view-/);
     expect(rows.map(row => row.dataset.testid)).toEqual([
       "os-palette-session-view-s-beta",
       "os-palette-session-view-s-alpha",
     ]);
 
-    await user.click(screen.getByTestId("os-palette-session-scope"));
-    expect(paletteMocks.setSessionListScope).toHaveBeenLastCalledWith("workspace");
-
-    paletteMocks.workspaceGroups = [];
     paletteMocks.sessions = [];
     rendered.rerender(
       <PaletteHarness>
@@ -1657,8 +1622,6 @@ describe("palette nested views", () => {
     expect(paletteMocks.sessionsFilters).toHaveBeenLastCalledWith(
       expect.objectContaining({ archive: "only" })
     );
-    // The archive is its own axis: flipping it never writes the persisted breadth.
-    expect(paletteMocks.setSessionListScope).not.toHaveBeenCalled();
   });
 
   it("Should land on a session through the shared attention jump [UT-060]", async () => {
@@ -2469,6 +2432,29 @@ describe("palette execution surfaces", () => {
       tone: "info",
       retryable: false,
     });
+    expect(paletteMocks.jumpToSession).toHaveBeenCalledWith({
+      sessionId: "session:foreign",
+      agentName: "claude",
+      workspaceId: "workspace:beta",
+    });
+  });
+
+  it("Should open another project's session in place under All projects without a switch", async () => {
+    const user = userEvent.setup();
+    paletteMocks.scope = "global";
+    paletteMocks.sessions = [
+      paletteSession({
+        id: "session:foreign",
+        name: "Fix payment retries",
+        workspace_id: "workspace:beta",
+      }),
+    ];
+    renderExecutionPalette();
+
+    await user.click(screen.getByTestId("os-palette-session-session:foreign"));
+    expect(paletteMocks.notifyUser).not.toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining("Switched to") })
+    );
     expect(paletteMocks.jumpToSession).toHaveBeenCalledWith({
       sessionId: "session:foreign",
       agentName: "claude",

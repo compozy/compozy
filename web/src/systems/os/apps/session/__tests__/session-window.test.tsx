@@ -2,8 +2,8 @@
 // Invariant: every visible session window on the active desktop owns a live tail, while operator
 // presence additionally requires the shell window and browser document to hold focus; and the
 // window resolves a session through the profile-enforced read before deciding it is gone.
-// A document's focused destination (a project, or User) hides another destination's history
-// without retiring the shared window; All projects hides none.
+// A window's data scope (its binding, else its partition: a project, or User) hides another
+// scope's history without retiring the shared window; an All projects catalog window hides none.
 // Owning layer: the OS session-window controller.
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -90,6 +90,11 @@ vi.mock("../session-profile-owner-notice", () => ({
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1", ...workspace }),
+}));
+
+vi.mock("@/systems/workspace/hooks/use-window-data-workspace", () => ({
+  // The window's own data scope: its binding, else its partition.
+  useWindowDataWorkspace: () => workspace.dataScope,
 }));
 
 vi.mock("@/hooks/use-document-active", () => ({

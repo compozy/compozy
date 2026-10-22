@@ -87,6 +87,7 @@ describe("automation mutation hooks", () => {
     vi.mocked(triggerAutomationJob).mockResolvedValue({
       profile_id: "00000000000000000000000000",
       profile_name: "default",
+      attribution: "recorded",
       id: "run_queued",
       attempt: 1,
       status: "running",

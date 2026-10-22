@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 import type { OperationQuery, OperationResponse } from "@/lib/api-contract";
 
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export type SessionFilesResponse = OperationResponse<"searchSessionFiles", 200>;
 export type SessionFileEntry = SessionFilesResponse["entries"][number];
@@ -27,7 +28,7 @@ export async function searchSessionFiles(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/files",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: sessionId },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId },
         query: { ...query, all_profiles: true },
       },
       signal,

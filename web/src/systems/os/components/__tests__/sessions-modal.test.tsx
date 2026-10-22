@@ -15,6 +15,8 @@ import {
   type SessionListViewModel,
   type SessionPayload,
 } from "@/systems/session";
+import { sessionListViewFixture } from "@/systems/session/mocks";
+import { workspaceBadgeIdentity } from "@/systems/workspace";
 
 import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-context";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
@@ -29,6 +31,8 @@ vi.mock("../../hooks/use-attention-jump", () => ({
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
     supervision: null,
+    scope: "workspace",
+    effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",
     id: "session-1",
@@ -71,22 +75,13 @@ const SESSION_ACTIONS: SessionLifecycleActionHandlers = {
 };
 
 function listView(overrides: Partial<SessionListViewModel> = {}): SessionListViewModel {
-  return {
-    scope: "workspace",
+  return sessionListViewFixture({
     sort: "last_activity",
-    archived: false,
-    saving: false,
-    setScope: vi.fn(),
     setSort: vi.fn(),
     setArchived: vi.fn(),
-    workspaceGroups: [],
-    aggregate: false,
-    scopeLabel: "default",
     ownerOf: () => ({ id: "00000000000000000000000000", name: "default", archived: false }),
-    collapsedWorkspaceIds: new Set<string>(),
-    toggleWorkspace: vi.fn(),
     ...overrides,
-  };
+  });
 }
 
 /** The app root provides a QueryClient to every SessionList host; the test host does too. */
@@ -169,7 +164,7 @@ describe("OsSessionsModal", () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 
-  it("Should coordinate a foreign workspace row without exposing mis-scoped actions", async () => {
+  it("Should coordinate a foreign project row through the jump and name its project", async () => {
     const user = userEvent.setup();
     const foreign = session({
       id: "session-foreign",
@@ -181,19 +176,11 @@ describe("OsSessionsModal", () => {
       createShell(),
       true,
       listView({
-        scope: "all-workspaces",
-        workspaceGroups: [
-          {
-            workspaceId: "workspace-2",
-            workspaceName: "Other",
-            sessions: [foreign],
-            total: 1,
-            loading: false,
-            failed: false,
-            retry: vi.fn(),
-          },
-        ],
-      })
+        badgeOf: row =>
+          workspaceBadgeIdentity(row.workspace_id, new Map([["workspace-2", "Other"]])),
+      }),
+      vi.fn(),
+      [foreign]
     );
 
     await user.click(screen.getByTestId("os-sessions-modal-session-session-foreign"));
@@ -203,8 +190,7 @@ describe("OsSessionsModal", () => {
       agentName: "claude",
       workspaceId: "workspace-2",
     });
-    expect(screen.queryByTestId("session-row-actions-session-foreign")).toBeNull();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-row-project-session-foreign")).toHaveTextContent("Other");
   });
 
   it("Should nest provenance children under their parent thread and fold them behind the toggle", async () => {
@@ -364,42 +350,6 @@ describe("OsSessionsModal", () => {
     expect(screen.getByText("No archived sessions in marketing yet.")).toBeInTheDocument();
   });
 
-  it("Should write the widest breadth through the globe toggle (UT-068)", async () => {
-    const user = userEvent.setup();
-    const shell = createShell();
-    // Breadth is an operator preference the shell owns, so it arrives as a prop
-    // and the toggle only reports the next value.
-    const narrow = listView();
-    const first = renderModal(shell, true, narrow);
-
-    const toggle = screen.getByTestId("os-sessions-modal-scope");
-    expect(toggle).toHaveAccessibleName("All projects");
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-    await user.click(toggle);
-    expect(narrow.setScope).toHaveBeenCalledWith("all-workspaces");
-
-    first.unmount();
-    const wide = listView({
-      scope: "all-workspaces",
-      workspaceGroups: [
-        {
-          workspaceId: "workspace-2",
-          workspaceName: "Other",
-          sessions: [SESSIONS[0]!],
-          total: 1,
-          loading: false,
-          failed: false,
-          retry: vi.fn(),
-        },
-      ],
-    });
-    renderModal(shell, true, wide);
-    const pressed = screen.getByTestId("os-sessions-modal-scope");
-    expect(pressed).toHaveAttribute("aria-pressed", "true");
-    await user.click(pressed);
-    expect(wide.setScope).toHaveBeenCalledWith("workspace");
-  });
-
   it("Should dismiss the Dialog and restore focus to the opener (UT-084)", async () => {
     const user = userEvent.setup();
     const shell = createShell();
@@ -438,14 +388,12 @@ describe("OsSessionsModal", () => {
   it("Should switch the list to the archive and keep unarchive reachable", async () => {
     const user = userEvent.setup();
     const shell = createShell();
-    // Breadth and the archive are two independent controls in the same row.
     const active = listView();
     const first = renderModal(shell, true, active);
 
     const archivedToggle = screen.getByTestId("os-sessions-modal-archived");
     expect(archivedToggle).toHaveAccessibleName("Archived");
     expect(archivedToggle).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByTestId("os-sessions-modal-scope")).toHaveAttribute("aria-pressed", "false");
     await user.click(archivedToggle);
     expect(active.setArchived).toHaveBeenCalledWith(true);
 

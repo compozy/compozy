@@ -12,6 +12,7 @@ import { Rnd } from "react-rnd";
 import { cn } from "@/lib/utils";
 
 import { WindowScopeContext } from "@/hooks/use-window-scope";
+import { WindowDataBindingContext, WorkspaceBadge } from "@/systems/workspace";
 
 import { WindowLiveDataContext } from "../contexts/window-live-data-context";
 import {
@@ -20,9 +21,8 @@ import {
   useOsWindow,
 } from "../hooks/use-os-window";
 import { useDesktop } from "../hooks/use-desktop";
-import { useOsShell } from "../hooks/use-os-shell";
 import { useWindowManagerGestureDragging } from "../hooks/use-window-manager-store";
-import { useWindowLiveDataEnabled } from "../hooks/use-window-live-data-enabled";
+import { useOsWindowMember } from "../hooks/use-os-window-member";
 import { useWindowMergeTarget } from "../hooks/use-window-merge-target";
 import { osAppId } from "../lib/app-catalog";
 import { getOsApp, getOsAppMinimum } from "../lib/app-registry";
@@ -233,9 +233,7 @@ function OsWindowMember({
   zoomed: boolean;
   onTrafficLight: Parameters<typeof OsWindowSurface>[0]["onTrafficLight"];
 }) {
-  const { coordinator } = useOsShell();
-  const win = useDesktop(state => state.windows[windowId]);
-  const liveDataEnabled = useWindowLiveDataEnabled(windowId);
+  const { coordinator, win, liveDataEnabled, windowBinding } = useOsWindowMember(windowId);
   const [overlayHost, setOverlayHost] = useState<HTMLDivElement | null>(null);
   // Mount layout-heavy bodies after the restored window frames commit.
   const contentHost = useDeferredValue(overlayHost);
@@ -269,6 +267,15 @@ function OsWindowMember({
       // Root heads show the app in the identity well until the surface
       // publishes its own glyph (or a drill-in trail replaces it).
       glyph={<AppIcon />}
+      leading={
+        windowBinding.badge ? (
+          <WorkspaceBadge
+            identity={windowBinding.badge}
+            variant="chrome"
+            data-testid={`os-window-project-${windowId}`}
+          />
+        ) : undefined
+      }
       focused={focused}
       controls={controls}
       onTrafficLight={controls === "head" ? onTrafficLight : undefined}
@@ -309,7 +316,9 @@ function OsWindowMember({
                 {/* Scopes per-window selection (e.g. active worktree) without
                     threading windowId through every descendant hook. */}
                 <WindowScopeContext value={windowId}>
-                  <Controller windowId={windowId} />
+                  <WindowDataBindingContext value={windowBinding.data}>
+                    <Controller windowId={windowId} />
+                  </WindowDataBindingContext>
                 </WindowScopeContext>
               </WindowLiveDataContext>
             </Suspense>

@@ -16,7 +16,10 @@ import {
 import { sessionSelectionCounts, useSessionSelection } from "./use-session-selection";
 
 interface SessionListBulkSelectionInput {
-  scope: string;
+  /** The list's identity: a new breadth, lens, or grouping is a new selection. */
+  selectionKey: string;
+  /** Grouped lists select nothing: each group pages on its own. */
+  readOnly: boolean;
   archived: boolean;
   sessions: readonly SessionPayload[];
   threads: readonly SessionThreadModel[];
@@ -36,11 +39,12 @@ function bindToSelection(handler: ManyHandler, selected: readonly SessionPayload
 /**
  * The list's bulk selection: the visible row order, the per-row selection
  * contract, the selection bar's counts and verbs, folder moves by menu and
- * drag, and the list keyboard shortcuts. `All workspaces` is read-only, so it
+ * drag, and the list keyboard shortcuts. A grouped list is read-only, so it
  * selects nothing.
  */
 export function useSessionListBulkSelection({
-  scope,
+  selectionKey,
+  readOnly,
   archived,
   sessions,
   threads,
@@ -48,10 +52,9 @@ export function useSessionListBulkSelection({
   sessionActions,
   folders,
 }: SessionListBulkSelectionInput) {
-  const allWorkspaces = scope === "all-workspaces";
-  const selection = useSessionSelection(scope, archived, sessions);
-  const catalog = allWorkspaces ? [] : sessions;
-  const visibleOrder = allWorkspaces ? [] : threadVisibleOrder(threads, collapsedThreads);
+  const selection = useSessionSelection(selectionKey, archived, sessions);
+  const catalog = readOnly ? [] : sessions;
+  const visibleOrder = readOnly ? [] : threadVisibleOrder(threads, collapsedThreads);
   const sessionsById = new Map(catalog.map(session => [session.id, session]));
   const selectedSessions = selection.selectedIds.flatMap(id => {
     const session = sessionsById.get(id);
@@ -60,7 +63,7 @@ export function useSessionListBulkSelection({
   const selectedIdSet = new Set(selection.selectedIds);
   const lifecyclePending = sessionActions.pendingAction !== null;
   const folderMove = useSessionListBulkFolders({
-    source: allWorkspaces ? {} : folders,
+    source: readOnly ? {} : folders,
     sessions: catalog,
     selectedIds: selectedIdSet,
     visibleOrder,
@@ -83,7 +86,7 @@ export function useSessionListBulkSelection({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (allWorkspaces || event.defaultPrevented || isEditableTarget(event.target)) return;
+    if (readOnly || event.defaultPrevented || isEditableTarget(event.target)) return;
     if (!event.currentTarget.contains(event.target as Node)) return;
     const shortcut = sessionListShortcut(event, selection.mode, actionPending);
     if (shortcut === null) return;
@@ -94,7 +97,7 @@ export function useSessionListBulkSelection({
 
   return {
     /** The selection bar replaces the toolbar while rows are selected. */
-    active: !allWorkspaces && selection.mode,
+    active: !readOnly && selection.mode,
     rowSelection: {
       ...selection,
       selectedIds: selectedIdSet,

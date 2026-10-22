@@ -10,10 +10,6 @@ export const DESTINATION_COPY = {
   liveOn: "All projects on",
   liveOff: "All projects off",
   skipOnboarding: "Skip — use my home folder",
-  /** New session needs a project until User sessions ship: the reason on every control it disables. */
-  newSessionNeedsProject: "Pick a project to start a session",
-  /** Accessible name of a disabled New session control outside a project. */
-  newSessionNeedsProjectName: "New session — pick a project to start a session",
 } as const;
 
 /** Globe tooltip while All projects is on: where turning it off returns. */

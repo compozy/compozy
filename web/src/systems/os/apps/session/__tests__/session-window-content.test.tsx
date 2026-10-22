@@ -123,6 +123,8 @@ import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-
 const deadSession: SessionPayload = {
   profile_id: "00000000000000000000000000",
   profile_name: "default",
+  scope: "workspace",
+  effective_workspace_access: "",
   agent_name: "codex-agent",
   archived_at: null,
   attachable: false,

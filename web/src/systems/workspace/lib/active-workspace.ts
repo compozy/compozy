@@ -37,7 +37,7 @@ export interface ActiveWorkspaceResolution {
   /** Project-only data binding: `null` under User and under All projects. */
   runtimeWorkspace: WorkspacePayload | undefined;
   runtimeWorkspaceId: string | null;
-  /** Layout binding: the focused partition (`user` for User). */
+  /** Layout binding: the focused partition (`user` for User, `global` for All projects). */
   desktopWorkspace: WorkspacePayload | undefined;
   desktopWorkspaceId: string | null;
   chip: WorkspaceChipIdentity;
@@ -71,9 +71,8 @@ function chipFor(
 
 /**
  * The destination model: the globe picks breadth, the switcher picks focus.
- * The desktop follows the focus (`user` for User); under All projects it stays
- * on the focused project's partition, or `global` when User is focused, until
- * All projects gets its own desktop.
+ * The desktop follows the destination: the focused project's partition,
+ * `user` for User, and the reserved `global` desktop under All projects.
  */
 export function resolveActiveWorkspace(input: {
   workspaces: readonly WorkspacePayload[];
@@ -137,7 +136,7 @@ export function resolveActiveWorkspace(input: {
     activeWorkspaceId: activeWorkspace?.id ?? null,
     runtimeWorkspace: activeWorkspace,
     runtimeWorkspaceId: activeWorkspace?.id ?? null,
-    desktopWorkspace: rememberedWorkspace,
+    desktopWorkspace: focused ? rememberedWorkspace : undefined,
     desktopWorkspaceId,
     chip: chipFor(breadthMode, focus, activeWorkspace),
   };

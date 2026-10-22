@@ -13,6 +13,7 @@ import {
   sessionTranscriptOptions,
 } from "@/systems/session";
 import { readProfileScopeParams } from "@/systems/profiles";
+import { ownerDataScope, windowBindingValue } from "@/systems/workspace";
 
 /**
  * A deep link either loads under the active workspace, belongs to another workspace (the operator
@@ -25,7 +26,12 @@ import { readProfileScopeParams } from "@/systems/profiles";
  * apart.
  */
 export type AgentSessionRouteLoaderData =
-  | { status: "loaded"; workspaceId: string }
+  | {
+      status: "loaded";
+      workspaceId: string;
+      /** Window binding when the All projects desktop opens the session in place. */
+      binding?: string;
+    }
   | { status: "foreign"; owner: SessionOwnerDialogState }
   | { status: "not-found" };
 
@@ -95,7 +101,13 @@ async function resolveForeignSession(
     await settleRouteQueries([
       queryClient.ensureInfiniteQueryData(sessionTranscriptOptions(owner.workspaceId, sessionId)),
     ]);
-    return { status: "loaded", workspaceId: owner.workspaceId };
+    return {
+      status: "loaded",
+      workspaceId: owner.workspaceId,
+      ...(ownership.bindsInPlace
+        ? { binding: windowBindingValue(ownerDataScope(owner.workspaceId)) }
+        : {}),
+    };
   }
   return { status: "foreign", owner };
 }

@@ -1,7 +1,8 @@
-// Suite: attention jump coordination
-// Invariant: a cross-destination attention activation focuses the session's destination
-// first — its project, or User for a session without one — and opens the session only after
-// that partition's window manager is live. A User session resolves through `@user`.
+// Suite: attention jump coordination (session kind of openTarget)
+// Invariant: under All projects a session opens in place in the `global` desktop, bound to its
+// own scope, and the destination never changes. With a project or User focused, a foreign
+// session focuses its destination first — its project, or User for a session without one — and
+// opens only after that partition's window manager is live. A User session resolves via `@user`.
 // Owning layer: OS navigation hook. No prior suite owned this coordination.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -36,7 +37,15 @@ vi.mock("@/systems/workspace", async importOriginal => {
   return {
     ...actual,
     focusDestination,
-    useDataScope: () => dataScope,
+    useActiveWorkspace: () => ({
+      dataScope,
+      desktopWorkspaceId:
+        dataScope.kind === "all"
+          ? "global"
+          : dataScope.kind === "user"
+            ? "user"
+            : dataScope.workspaceId,
+    }),
   };
 });
 
@@ -138,6 +147,46 @@ describe("useAttentionJump", () => {
     expect(ensureQueryData).toHaveBeenCalledWith({
       queryKey: ["sessions", "workspace", "@user", "detail", "sess-user"],
     });
+    expect(focusDestination).not.toHaveBeenCalled();
+  });
+
+  it("Should open a foreign session in place under All projects without changing destination", async () => {
+    dataScope = { kind: "all" };
+    commandWorkspaceId = "global";
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-beta", agentName: "claude", workspaceId: "ws-beta" });
+    });
+
+    await waitFor(() => {
+      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "session",
+        instanceKey: "sess-beta",
+        route: {
+          pathname: "/agents/claude/sessions/sess-beta",
+          search: { workspace: "ws-beta" },
+        },
+      });
+    });
+    expect(focusDestination).not.toHaveBeenCalled();
+  });
+
+  it("Should bind a User session opened under All projects to @user", async () => {
+    dataScope = { kind: "all" };
+    commandWorkspaceId = "global";
+    const { result } = renderHook(() => useAttentionJump());
+
+    act(() => {
+      result.current({ sessionId: "sess-user", agentName: "claude", workspaceId: "" });
+    });
+
+    await waitFor(() => expect(userOpen).toHaveBeenCalledOnce());
+    expect(userOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        route: { pathname: "/agents/claude/sessions/sess-user", search: { workspace: "@user" } },
+      })
+    );
     expect(focusDestination).not.toHaveBeenCalled();
   });
 

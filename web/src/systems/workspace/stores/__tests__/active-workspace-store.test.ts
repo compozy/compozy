@@ -78,6 +78,7 @@ describe("activeWorkspaceStore", () => {
       selectedWorkspaceId: "ws_alpha",
       worktreeByScope: {},
       worktreePartitionByScope: {},
+      legacySessionsScopeApplied: null,
     });
   });
 
@@ -121,7 +122,26 @@ describe("activeWorkspaceStore", () => {
       selectedWorkspaceId: null,
       worktreeByScope: {},
       worktreePartitionByScope: {},
+      legacySessionsScopeApplied: null,
     });
+  });
+
+  // ADR-004: clearing the selection must not let an already-applied legacy
+  // revision apply again on the next settings read.
+  it("Should keep the observed legacy breadth revision when the selection is cleared", () => {
+    activeWorkspaceStore.trigger.legacySessionsScopeObserved({
+      revision: 9,
+      value: "all-workspaces",
+      explicit: true,
+    });
+    clearActiveWorkspaceSelection();
+    disableAllProjects();
+    activeWorkspaceStore.trigger.legacySessionsScopeObserved({
+      revision: 9,
+      value: "all-workspaces",
+      explicit: true,
+    });
+    expect(context()).toMatchObject({ breadthMode: "focused", legacySessionsScopeApplied: 9 });
   });
 
   it("Should toggle relative to the resolved destination, not the stored one", () => {
@@ -385,6 +405,7 @@ describe("persisted destination migration (v1 → v2)", () => {
       selectedWorkspaceId: "ws_alpha",
       worktreeByScope: { [WINDOW_ONE]: "wt_saved", [SHELL_WORKTREE_SCOPE]: "wt_saved" },
       worktreePartitionByScope: {},
+      legacySessionsScopeApplied: null,
     });
   });
 
@@ -418,6 +439,7 @@ describe("persisted destination migration (v1 → v2)", () => {
       selectedWorkspaceId: "ws_beta",
       worktreeByScope: { [WINDOW_TWO]: null },
       worktreePartitionByScope: {},
+      legacySessionsScopeApplied: null,
     });
   });
 
