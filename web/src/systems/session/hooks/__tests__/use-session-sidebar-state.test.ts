@@ -119,6 +119,14 @@ describe("useSessionSidebarState", () => {
       open: true,
       collapsedFolderIds: ["sfold-b"],
     });
+
+    // Reopening a group drops its entry instead of storing `false`: only folds persist.
+    const afterReload = renderInScope(reloaded, WINDOW_ONE);
+    act(() => {
+      afterReload.current.toggleGroup("project:ws_a");
+    });
+    expect(afterReload.current.collapsedGroupIds).toEqual([]);
+    expect(persistedContext().byScope[WINDOW_ONE].collapsedGroups).toEqual({});
   });
 
   it("Should open a new window with the last-used rail state, then let it diverge", async () => {

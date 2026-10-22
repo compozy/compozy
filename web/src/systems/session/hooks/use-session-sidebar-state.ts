@@ -139,6 +139,17 @@ function toggledFlag(flags: Record<string, boolean>, id: string): Record<string,
 }
 
 /**
+ * Group ids carry their whole lens, so every scope, profile, and grouping the
+ * operator ever toggled would pile up if an expand kept a `false` flag. Groups
+ * start expanded, so an expand just drops the entry: only folds are stored.
+ */
+function toggledGroup(flags: Record<string, boolean>, id: string): Record<string, boolean> {
+  if (!flags[id]) return { ...flags, [id]: true };
+  const { [id]: _expanded, ...rest } = flags;
+  return rest;
+}
+
+/**
  * Live scopes are claimed for the snapshot's partition; a closed scope is
  * dropped only when that same partition claimed it. `undefined` = no change.
  */
@@ -216,7 +227,7 @@ export const sessionSidebarLogic = createStoreLogic({
       }
       return withScopeState(context, event.scopeId, state => ({
         ...state,
-        collapsedGroups: toggledFlag(state.collapsedGroups, event.groupId),
+        collapsedGroups: toggledGroup(state.collapsedGroups, event.groupId),
       }));
     },
     /**

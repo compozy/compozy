@@ -148,7 +148,8 @@ export function useSessionListView(
     enabled: enabled && flat && pair !== null,
   });
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
-  const groupId = (key: string) => sessionListGroupCollapseId(selectionKey, key);
+  const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
+  const groupId = (key: string) => sessionListGroupCollapseId(foldLens, key);
   const collapsedGroupIds = new Set(sidebar.collapsedGroupIds);
   const manualBlocked = flat ? pair === null : grouping.groups.some(group => group.pair === null);
   const flatLayout = flat && pair !== null;
@@ -221,9 +222,24 @@ function manualSortNote(sort: string, manualBlocked: boolean): string | null {
   return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
 }
 
+/**
+ * The profile half of a persisted fold's lens. Folds outlive the page, so they
+ * name the profile by its immutable id: a rename keeps them, and a later
+ * profile that reuses the old name does not inherit them. Until the profile
+ * list resolves the id, the name stands in.
+ */
+function profileFoldIdentity(profile: {
+  aggregate: boolean;
+  key: string;
+  destinationOwner: { id: string } | null;
+}): string {
+  if (profile.aggregate) return profile.key;
+  return profile.destinationOwner?.id ?? `name:${profile.key}`;
+}
+
 /** A group's collapse id: its key qualified by the list lens it renders under. */
-function sessionListGroupCollapseId(selectionKey: string, groupKey: string): string {
-  return `${selectionKey}\u0000${groupKey}`;
+function sessionListGroupCollapseId(lens: string, groupKey: string): string {
+  return `${lens}\u0000${groupKey}`;
 }
 
 function sessionBadgeResolver(workspaces: readonly { id: string; name: string }[]) {
