@@ -27,5 +27,5 @@ projects, in User, and in a second profile. Verify each occurrence appears once,
 owner binding, and an empty workspace is labeled `User`. Request-backed waits must not duplicate
 request notifications. Terminal input inventory still uses the existing project fan-out until A4.
 
-Backend evidence: `docs/qa/reports/2026-10-21-all-projects-a3.md`. The integrated browser re-walk
+Backend evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`. The integrated browser re-walk
 is pending UW/A4; the previous report above is historical evidence, not a verdict for this change.

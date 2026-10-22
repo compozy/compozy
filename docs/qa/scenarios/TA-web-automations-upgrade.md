@@ -28,4 +28,4 @@ remains untested until the controller runs the integration QA slice.
 
 
 All-projects A4 backend coverage (2026-10-21): Upgrade a database with live project and global sources plus deleted sources. Verify runs retain their IDs and status; source-backed history has `derived` attribution and deleted-source history stays `unknown` even if an execution target survives. New scheduled, webhook, and manually dispatched runs use `recorded`; deleting or retargeting the source does not change them.
-Targeted evidence: `docs/qa/reports/2026-10-21-all-projects-a4.md`. The integrated Web walk remains owned by the orchestration QA slice.
+Targeted evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`. The integrated Web walk remains owned by the orchestration QA slice.

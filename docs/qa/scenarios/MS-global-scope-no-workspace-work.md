@@ -61,3 +61,9 @@ must remain registered. Add an unknown referencing table and confirm the pre-del
 the registration. Check renamed `global` selectors through CLI/HTTP/native and reserved WM behavior.
 The U4 worker verifies SQLite, blob/restart, layout and dispatch fixtures; the full interface walk
 remains pending integration QA.
+
+2026-10-21 qa-impact (docs slice lab run, `docs/qa/reports/2026-10-21-all-projects-user-scope.md`):
+the CLI leg `compozy session new --user` → `session prompt` → daemon restart → `session prompt`
+failed on the integrated branch (reply-watch sender scope; CLI route without `workspace_id`; prompt
+admission without workspace) and was fixed with regression coverage. Re-walk that CLI leg and the
+HTTP `POST /api/workspaces/@user/sessions/<id>/prompt` leg in the trailing QA pair.

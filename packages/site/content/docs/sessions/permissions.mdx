@@ -81,10 +81,12 @@ If the final path escapes the workspace root, CompozyOS rejects it with a path-o
 
 ## Cross-workspace access
 
-A session belongs to one workspace. When an agent asks for a different one — a native tool call that
-names another `workspace`, an agent identity lookup, a task claim, a spawn, or a workspace
-coordination command — the daemon sends that request through a single policy, and the session's own
-permission mode decides it:
+A session belongs to one scope: a workspace, or the [User scope](/docs/user-scope) of its profile.
+When an agent asks for a different one — a native tool call that names another `workspace` (or
+`@user` from a project), an agent identity lookup, a task claim, a spawn, or a workspace
+coordination command — the daemon sends that request through a single policy. The same workspace
+under another profile counts as a different scope too. Unless the agent holds the
+[unrestricted grant](#the-unrestricted-grant), the session's own permission mode decides it:
 
 | Session mode    | Cross-workspace outcome                                                                        |
 | --------------- | ---------------------------------------------------------------------------------------------- |
@@ -143,11 +145,21 @@ every boundary for the rest of that session and disappear when the session stops
 restarts. Nothing is written to disk, and there is no list or revoke surface: stopping the session is
 how you clear the answer. Persisted audit events show how later policy evaluations were decided.
 
+### The unrestricted grant
+
+An agent definition with `workspace_access: unrestricted` skips this table: its sessions reach every
+workspace, the User scope, and every profile without a prompt, and can read
+[All projects](/docs/all-projects) aggregates. Only you can set the field, and it does not loosen tool
+approvals — the permission mode still decides risky tools. Each allowed crossing is audited with
+decision source `agent_grant`. See
+[Give an agent access to everything](/docs/user-scope/unrestricted-agents).
+
 ### Audit
 
 Each policy evaluation attempts a best-effort audit append — `workspace.access_granted` for an allow
 or `workspace.access_denied` for a deny, including a prompt-eligible deny — scoped to the actor's own
-workspace. The payload carries the target workspace, boundary, decision source, and resolved mode.
+workspace. The payload carries the actor and target profiles, the target kind (`workspace`, `user`,
+or `aggregate`), the target workspace, boundary, decision source, and resolved mode.
 An audit write failure is logged and does not change the access decision. Read persisted events with
 `compozy logs --type <event-type>` or `GET /api/logs`.
 

@@ -38,4 +38,4 @@ Agent-credentialed definition writes setting the grant return
 creator. Resume preserves the effective grant; deferred execution uses its persisted
 ceiling, including after an agent edits executable fields and the daemon restarts.
 Extension-provided grants are discarded. U5 targeted evidence is recorded in
-`docs/qa/reports/2026-10-21-unrestricted-grant-u5.md`; the integrated browser walk remains pending.
+`docs/qa/reports/2026-10-21-all-projects-user-scope.md`; the integrated browser walk remains pending.

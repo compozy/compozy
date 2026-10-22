@@ -37,5 +37,5 @@ Overview omission still selects global tasks; `all_workspaces=true` selects ever
 retain task catalog/dashboard access and remain denied on overview. Ordinary agent identities cannot
 request the explicit aggregate. The unrestricted-agent exception belongs to the prerequisite grant slice.
 
-Backend evidence: [2026-10-21 All projects task slice](../reports/2026-10-21-all-projects-tasks-backend.md).
+Backend evidence: [2026-10-21 All projects task slice](../reports/2026-10-21-all-projects-user-scope.md).
 The Web All projects journey remains an integration check for the owning frontend slice.

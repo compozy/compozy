@@ -1,0 +1,100 @@
+---
+title: User scope
+description: Run sessions, Loops, terminals, tasks, and automations that belong to no project — in your home folder, without registering it as a project.
+---
+
+Not every piece of work belongs to a repository. Planning your week, triaging an inbox, asking an
+agent to compare two projects, or running an always-on assistant: none of that has a project folder.
+
+The **User scope** is where that work lives. Each profile has one. Work in it runs in your home folder
+(configurable), loads your personal configuration, and never registers a project. It shows up under
+**User** in the workspace switcher and is labeled **User** wherever lists mix projects.
+
+New here? [Start your first User session](/docs/user-scope/quickstart). It takes about five minutes.
+
+## What runs in User
+
+| Works in User                                                     | Not available in User                         |
+| ----------------------------------------------------------------- | --------------------------------------------- |
+| Sessions: create, prompt, resume, fork, child sessions, and Goals | Worktrees                                     |
+| Loop runs and requests                                            | Workspace settings and workspace removal      |
+| Terminals and their journal                                       | Workspace and workspace-profile config layers |
+| Tasks and automations that target no project                      |                                               |
+| Heartbeat and soul of User sessions                               |                                               |
+
+User work reads configuration from the bundled, marketplace, user, profile, and agent-local layers.
+Project overlays never apply, even when the work directory contains a project.
+
+## Where User work runs
+
+```toml
+[user_scope]
+work_dir = "~"
+```
+
+The work directory defaults to your home folder. A profile overlay can give each profile its own. The
+value must be an existing absolute folder after `~` is expanded; otherwise new User work fails with
+`user_scope_work_dir_invalid`, while existing User work stays listed. Changes apply to the next start.
+See [`[user_scope]`](/docs/configuration/config-toml#userscope).
+
+<OperatorNote>
+  The work directory is a starting point, not a sandbox. The provider's own file tools can read and
+  write anywhere your OS user can. Reaching a registered project through CompozyOS surfaces, however,
+  still goes through the session's [permission mode](/docs/sessions/permissions#cross-workspace-access).
+</OperatorNote>
+
+## Addressing User: `@user`
+
+`@user` is the explicit name of the User scope. Use it anywhere a workspace is accepted.
+
+| Surface        | Form                                                 |
+| -------------- | ---------------------------------------------------- |
+| CLI            | `--workspace @user`, or `compozy session new --user` |
+| HTTP/UDS paths | `/api/workspaces/@user/...`                          |
+| HTTP/UDS query | `workspace_id=@user` or `workspace=@user`            |
+| Native tools   | `"workspace": "@user"`                               |
+| Session create | `{"scope": "user"}` on `POST /api/sessions`          |
+
+`@user` always means the User scope of the profile you are acting as. An empty workspace value never
+means User. In responses, User items have an empty or absent `workspace_id`; sessions also carry
+`"scope": "user"`. Task and automation rows keep reporting `"scope": "global"` for the same thing.
+
+## Who can reach User
+
+User is a scope of its own. A User session's own scope is User of its profile; every registered
+project is foreign to it, including folders inside the work directory. A project session that lists
+User sessions, spawns into User, or opens a User terminal is crossing too. Both directions follow the
+session's [permission mode](/docs/sessions/permissions#cross-workspace-access), unless the agent holds
+the [unrestricted grant](/docs/user-scope/unrestricted-agents). You, the operator, reach everything.
+
+## Errors
+
+| Code                              | When                                                                         |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| `session_create_scope_conflict`   | `scope: "user"` was sent together with a workspace, path, or worktree field. |
+| `user_scope_worktree_unsupported` | A worktree route or worktree parameter was addressed with `@user`.           |
+| `user_scope_unsupported`          | `@user` was sent to a route that only makes sense for a project.             |
+| `user_scope_work_dir_invalid`     | `[user_scope] work_dir` is missing, relative, or not a folder.               |
+| `workspace_home_forbidden`        | You tried to register your home folder or `COMPOZY_HOME` as a project.       |
+| `workspace_name_reserved`         | A new project name is `user`, `global`, or starts with `@`.                  |
+
+## Upgrading from v0.3
+
+Earlier releases ran personal work inside a hidden project at `COMPOZY_HOME` (usually `~/.compozy`).
+The first v0.4.0 start moves that work into the User scope of each profile that owns it, copies its
+terminal history and desktop layouts, and then removes the hidden project. Nothing is deleted:
+anything that cannot move is kept in an archive table. If the hidden project had worktrees, or a
+Loop-targeting automation points at it, it stays an ordinary project instead. Projects named `user`,
+`global`, or starting with `@` are renamed, and the old name keeps working with a warning until
+v0.5.0. The [migration guide](/docs/migration#user-scope-and-all-projects) has the details.
+
+## In this section
+
+- [Start your first User session](/docs/user-scope/quickstart) — Web and CLI walkthrough with expected output.
+- [Give an agent access to everything](/docs/user-scope/unrestricted-agents) — the `workspace_access: unrestricted` grant.
+
+## Related pages
+
+- [All projects](/docs/all-projects) — see User work next to every project.
+- [Permissions](/docs/sessions/permissions) — how sessions cross scopes.
+- [Profiles](/docs/profiles) — each profile has its own User scope.

@@ -182,9 +182,9 @@ features.
 
 ### Cross-workspace access
 
-An agent session reaching a [workspace](#workspace) other than its own. It is a **boundary anchored on the session's effective `PermissionMode`**, evaluated by `internal/workspaceaccess` at the agent-identity, task, native-tool, spawn, and workspace-coordination seams: `approve-all` allows, `deny-all` denies with no prompt, `approve-reads` prompts at the native-tool seam and denies at every other seam.
+An agent session reaching a scope other than its own: another [workspace](#workspace), the [User scope](#user-scope) from a project (or a project from User), or the same workspace under another profile. Same scope means same workspace and profile, or User of the same profile. It is a **boundary anchored on the session's effective `PermissionMode`**, evaluated by `internal/workspaceaccess` at the agent-identity, task, native-tool, spawn, and workspace-coordination seams: `approve-all` allows, `deny-all` denies with no prompt, `approve-reads` prompts at the native-tool seam and denies at every other seam.
 
-**Operator-authored grant.** User Scope Work ADR-003 supersedes Cross-workspace access ADR-007 §1 only for the `workspace_access: unrestricted` AGENT.md field. The effective session grant precedes the permission-mode crossing rules and permits project, User, and profile aggregate access. It does not bypass tool policy or permit global/foreign-profile desktop access. No grants table, `[workspace_access]` config section, or grant-management toolset exists.
+**Operator-authored grant.** User Scope Work ADR-003 supersedes Cross-workspace access ADR-007 §1 only for the [unrestricted grant](#unrestricted-grant) (`workspace_access: unrestricted` in AGENT.md). The effective session grant precedes the permission-mode crossing rules and permits project, User, and profile aggregate access. It does not bypass tool policy or permit global/foreign-profile desktop access. No grants table, `[workspace_access]` config section, or grant-management toolset exists.
 
 The grant is immutable for a session. Creation intersects the target definition with the authenticated creator ceiling; deferred tasks, automations, and Loops persist that ceiling. Agent edits to executable definitions can only narrow it. Legacy records have an empty ceiling. Marketplace and extension definitions cannot supply the grant.
 
@@ -339,6 +339,22 @@ The web UI presents as a desktop environment: a menubar, persistent virtual desk
 The runtime object: project root and scoped runtime context (sessions, tasks, vault, config). A workspace owns window-manager topology, but remains the unit of runtime scope. The Workspaces surface switches this runtime context.
 
 **UI label:** "project". The alias may NOT be `environment` — that word is reserved for process-level context. `workspace` stays canonical in code, `workspace_id`, CLI, API, and docs.
+
+### User scope
+
+The per-profile scope for work that belongs to no project: sessions, Loop runs and requests, Goals, terminals, tasks, automations, heartbeat, and soul. It is a resolution (`workspace.Resolver.ResolveUser(profile)`), never a `workspaces` row: stored as `workspace_id = ''` (or `NULL` on tasks and automation definitions) plus `profile_id`, and it runs in `[user_scope] work_dir` (default `~`) with Bundled → Marketplace → User → Profile → Agent-local configuration. It has no worktrees. The operator home and `COMPOZY_HOME` are never registrable.
+
+**Public reference:** `@user` (route paths, `workspace_id`/`workspace` selectors, `workspace_ids`, native `workspace`, CLI `--workspace`; `compozy session new --user`; `scope: "user"` on session create). An empty workspace value never means User. Emitted values `"global"` (task/automation `scope`, session `scope` column, WM `global` partition) keep their stored meaning; the rename is a follow-up.
+
+**UI label:** **User**, everywhere data has no project (switcher destination, row badges, bell `workspace_label`, CLI `PROJECT` column). Replaces "Global" and "No project" as data labels. Spec: `user-scope-work`. Configuration-layer "user" (`--scope user`) is the same word on purpose.
+
+### All projects
+
+The breadth mode toggled by the topbar globe: every registered project plus [User scope](#user-scope) rows, within the current profile lens. It never widens the profile lens (that is **All profiles**). Client state in the destination store (`breadthMode: "all" | "focused"`, focus = a project or User); it binds the profile's reserved `global` desktop partition. Public reads: `all_workspaces=true` (+ repeatable `workspace_ids`, `@user` for User) on HTTP/UDS and `--all-workspaces` on CLI lists. Aggregates are operator surfaces (`agent_scope_denied` for ordinary agents) and app-denied on new routes. Replaces "Global scope" as the mode name; the palette ID `scope.global.toggle` is unchanged. Spec: `all-projects`.
+
+### Unrestricted grant
+
+The AGENT.md field `workspace_access: unrestricted`, the only grant vocabulary in CompozyOS (see [Cross-workspace access](#cross-workspace-access)). Operator-authored only (`workspace_access_operator_only`; dropped from marketplace/extension sources). Resolved once per session into `effective_workspace_access`; agent-originated creations get `min(creator, definition)`; deferred records persist `grant_ceiling`. Allows every workspace, User, every profile, and aggregates, audited as `workspace.access_granted` with source `agent_grant`. Does not change tool-risk approvals, the `global` desktop partition, other profiles' partitions, presence, or notification receipts. UI badge: **Unrestricted**.
 
 ### Desktop
 

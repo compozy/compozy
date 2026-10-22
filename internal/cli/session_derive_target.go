@@ -47,7 +47,7 @@ func resolveSessionDeriveTarget(
 	case err == nil:
 		target.WorkspaceRef = strings.TrimSpace(owner.WorkspaceID)
 		if target.WorkspaceRef == "" {
-			return SessionDeriveTarget{}, fmt.Errorf("cli: session %q has no workspace_id", sessionID)
+			target.WorkspaceRef = "@user"
 		}
 	case isDaemonNotFound(err) || cmd.Flags().Changed("idempotency-key"):
 		resolution, resolveErr := resolveCommandWorkspace(ctx, cmd, deps, client, workspaceResolutionRequest{})

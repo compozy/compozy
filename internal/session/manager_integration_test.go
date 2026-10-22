@@ -1091,7 +1091,7 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 			if err := h.manager.Stop(ctx, created.ID); err != nil {
 				t.Fatal(err)
 			}
-			h.manager = newManagerWithHarness(t, h, WithWorkspaceResolver(userResolver), WithSessionCatalog(db), WithSessionIDGenerator(sequentialIDGenerator("resumed")))
+			h.manager = newManagerWithHarness(t, h, WithWorkspaceResolver(userResolver), WithSessionCatalog(db), WithSessionPromptAdmissionStore(db), WithSessionIDGenerator(sequentialIDGenerator("resumed")))
 			cleanupTestManager(t, h.manager)
 			resumed, err := h.manager.Resume(ctx, created.ID)
 			if err != nil {
@@ -1138,6 +1138,12 @@ func TestManagerIntegrationUserLifecycle(t *testing.T) {
 				if start.Cwd != resolved.RootDir {
 					t.Fatalf("User cwd=%q want=%q", start.Cwd, resolved.RootDir)
 				}
+			}
+			admitted, err := h.manager.SendPrompt(ctx, created.ID, SendPromptOpts{
+				Message: "third", MessageID: "msg-user-admitted", IdempotencyKey: "idem-user-admitted",
+			})
+			if err != nil || admitted.TargetWorkspaceID != "" {
+				t.Fatalf("admitted User prompt = %+v, %v", admitted, err)
 			}
 		})
 	}

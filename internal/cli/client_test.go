@@ -3347,6 +3347,27 @@ func TestSessionWorkspaceRefUsesDirectLookup(t *testing.T) {
 			t.Fatalf("sessionWorkspaceRef() paths = %#v, want one by-id request and no catalog scan", paths)
 		}
 	})
+
+	t.Run("Should address a session without a project through the User reference", func(t *testing.T) {
+		t.Parallel()
+
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-user","scope":"user","state":"active","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:00:00Z"}}`,
+				), nil
+			})},
+		}
+		path, err := client.sessionScopedPath(t.Context(), "sess-user", "/prompt")
+		if err != nil {
+			t.Fatalf("sessionScopedPath() error = %v", err)
+		}
+		if path != "/api/workspaces/@user/sessions/sess-user/prompt" {
+			t.Fatalf("sessionScopedPath() = %q, want the @user workspace route", path)
+		}
+	})
 }
 
 func TestUnixSocketClientRepairSession(t *testing.T) {

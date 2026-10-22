@@ -9,6 +9,7 @@
 - HTTP, UDS, and stream
 - Raw layout recovery
 - Configuration and hooks
+- Reserved partitions
 
 CompozyOS manages persistent virtual desktops, tiled groups, tab stacks, floating windows, and layout
 history as one daemon-authoritative workspace topology. Never edit internal client-state keys or
@@ -414,17 +415,37 @@ Stable public errors include `window_manager_revision_conflict`,
 (`close --scope tab` on a pinned window — unpin it or use `--scope group`). Preserve structured
 diagnostics and entity conflicts when reporting failures.
 
-## All-projects bindings
+## Reserved Partitions
 
-Operator calls to window, desktop, and layout tools may select `workspace: "global"`, the acting
-profile's All-projects partition. Every agent identity is denied on this partition, including agents
-with unrestricted workspace access. Other native tools do not accept this reserved partition.
+Each profile has two reserved desktop partitions besides its per-project partitions:
 
-Inside `global`, `route.search.workspace` is absent for a catalog, `"@user"` for User data, or a registered
-workspace ID for project data. Open, navigate, reopen, and layout replacement reject unresolved bindings
-with HTTP 400 `window_binding_invalid`. Project partitions preserve existing binding behavior.
-Snapshot validation remains registry-free, so saved layouts can always be loaded before reconciliation.
+- `global` is the **All projects** desktop. The Web binds it while the topbar globe is on. It is
+  operator UX state: every agent identity, including agents with the unrestricted grant, is denied.
+  Window, desktop, and layout tools accept `workspace: "global"` for operator calls only, before
+  registry normalization; other native tools reject `global`. HTTP/UDS reach it at
+  `/api/workspaces/global/window-manager`; CLI `--workspace global` is a data selector and fails with
+  `workspace_reserved`.
+- `user` is the **User** desktop, bound when the User destination is focused. Public WM paths and
+  native tools accept `workspace: "@user"` and map it to the acting profile's `user` partition.
+  Granted agents may use their own profile's `user` partition and project partitions; another
+  profile's partitions stay operator-only.
 
-Session deletion retires references across every persisted profile partition. Workspace unregistration
-retires bound windows to their application catalog and removes retained references from navigation,
-closed entries, and undo/redo. Reconciliation publishes the partition's normal window-manager event.
+Window data binding lives in `route.search.workspace`. A serialized binding always wins in every
+partition: a registered workspace ID reads that project, `"@user"` reads User. An unbound window
+reads its partition: `global` reads the aggregate (catalog windows), a project partition reads that
+project, `user` reads User. In `global`, open, navigate, reopen, and layout replacement reject a
+non-empty binding that is neither `@user` nor a registered workspace with HTTP 400
+`window_binding_invalid`. Project partitions are not validated, so existing layouts stay valid.
+Snapshot validation is registry-free: a saved layout always loads, and stale bindings are handled by
+reconciliation.
+
+Session deletion reconciles every live and persisted partition of every profile (project, `global`,
+`user`): windows on the deleted session move to the empty sessions view, and closed entries,
+navigation history, and undo/redo for it are dropped. Workspace unregistration retires windows
+bound to that workspace onto their app's catalog route in every partition and removes the binding
+from closed entries, navigation, and undo/redo; nothing brings it back, and a re-registered folder is
+a new workspace ID. Each reconciliation publishes the partition's normal window-manager event.
+
+Layouts of the former `COMPOZY_HOME` pseudo-project are copied to the profile's `user` partition
+during the v0.4.0 upgrade when the target is absent; an existing User layout wins and the source
+snapshot is kept under its original key.

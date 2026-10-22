@@ -1,0 +1,84 @@
+---
+title: Work across all projects
+description: Turn on All projects, find a session from any project, open it without switching, start a new session in another project, and return to where you were.
+---
+
+By the end of this page you will follow work from two projects in one list, open one of their
+sessions without leaving the list, and start a new session in another project from the same place.
+Turning the globe off brings you back to the project you started in.
+
+Expect about ten minutes. Nothing here changes or moves existing work.
+
+## Before you start
+
+- The daemon and Web app are v0.4.0 or later.
+- Two projects are registered and each has at least one session. The examples use `checkout-api`
+  and `marketing-site`.
+- You are focused on `checkout-api` (its name is on the topbar chip).
+
+## Step 1: Turn on All projects
+
+Click the globe in the topbar, or press ⇧⌘G. You can also choose **All projects** at the top of the
+workspace switcher, or run the palette command `scope.global.toggle` from ⌘K.
+
+The globe stays pressed and the chip reads **All projects**. The shell switches to the All projects
+desktop; your `checkout-api` desktop is kept as it was.
+
+## Step 2: Find a session from any project
+
+Open **Sessions**. The list now holds every project's sessions, newest first. The second line of each
+row starts with a project badge (its monogram and name). User sessions carry a **User** badge.
+
+To see them by project, open the sort menu and choose **Group by → Project**. Each group shows its
+count and a dot when one of its sessions is working or needs you, even while collapsed. Choose
+**Group by → None** to go back to the flat list.
+
+<OperatorNote>
+  Folders and manual order belong to one project and profile, so they appear only inside a group whose
+  list is exactly one project. In the flat list, folder members show as plain rows and the manual sort
+  shows as Last activity. Your stored folders and order are not changed.
+</OperatorNote>
+
+## Step 3: Narrow to some projects
+
+Click **Project** in the toolbar and pick `marketing-site`. Only its sessions remain. Add **User** to
+include User sessions too. The filter clears when you turn All projects off.
+
+## Step 4: Open a session in place
+
+Click a `marketing-site` session. It opens in a window on the All projects desktop, with the project
+badge in the window title. The globe stays on: you did not switch projects.
+
+The same works from Tasks, Loops, Automations, Terminal, Agents, Home, the needs-you bell, and the
+palette.
+
+## Step 5: Start a session in another project
+
+Click **New session**. The composer shows a destination row:
+
+> In **checkout-api ▾**
+
+The Project picker is prefilled from the focused window, then the last project you used here, then
+the first project. Pick `marketing-site`, type a message, and send. The confirmation names the
+project and profile. **User** is always the last option and creates a User-scope session.
+
+Under All profiles the row also shows **as default ▾**, a Profile picker prefilled with your
+current profile.
+
+## Step 6: Go back
+
+Click the globe again. You are back on `checkout-api` with its desktop, selection, and worktree as you
+left them. Choosing a project or worktree in the switcher also turns All projects off.
+
+## What you did
+
+- Read every project's sessions from one list, flat or grouped by project.
+- Narrowed with the Project filter.
+- Opened and created sessions in other projects without switching.
+- Returned to your project exactly as it was.
+
+## Next steps
+
+- Keep grouping on by default: `compozy config set shell.sessions.group_by project`.
+- Read the same lists from scripts: [Read every project from the CLI and HTTP](/docs/all-projects/scripts).
+- Work that belongs to no project: [User scope](/docs/user-scope).

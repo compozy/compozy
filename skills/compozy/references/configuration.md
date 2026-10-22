@@ -24,6 +24,7 @@
 - Terminal
 - Shell session preferences
 - Provider usage
+- User-scope execution directory
 
 ## Desired State And Apply Lifecycle
 
@@ -526,7 +527,13 @@ Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy b
 globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.
 The response's `legacy_scope` reports `value`, whether the user overlay is `explicit`, and a durable
 `revision` that advances even for same-value writes. Default-only scope is never a breadth instruction.
-Removal is scheduled for v0.5.0; existing clients may continue writing the legacy key in v0.4.0.
+Existing clients may continue writing the legacy key in v0.4.0. In v0.5.0 the loader materializes
+`group_by = "project"` from `scope = "all-workspaces"` when grouping is unset, drops the key with a
+logged notice, and the next apply deletes it from the overlay; it never fails as an unknown key.
+`group_by = "project"` takes effect only under All projects and `profile` only under All profiles;
+an inapplicable value renders as `none` without being rewritten. Unknown values fail with
+`shell_config_invalid`. Breadth (All projects versus one project or User) is browser state owned by
+the topbar globe, not a config key.
 
 ## Provider Usage
 

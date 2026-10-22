@@ -87,7 +87,8 @@ func (c *daemonClient) sessionWorkspaceRef(ctx context.Context, sessionID string
 	}
 	workspaceID := strings.TrimSpace(record.WorkspaceID)
 	if workspaceID == "" {
-		return "", fmt.Errorf("cli: session %q has no workspace_id", sessionID)
+		// A session without a project belongs to the User scope.
+		return "@user", nil
 	}
 	return workspaceID, nil
 }
