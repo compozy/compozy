@@ -281,9 +281,7 @@ test("operator manages workspace suggestions and inspects a real automation run 
     await expect
       .poll(() => new URL(appPage.url()).pathname)
       .toBe(automationSessionPath(uiTriggeredRun.session_id));
-    const workspaceSwitchDialog = appPage.getByRole("dialog", { name: "Switch project?" });
-    await expect(workspaceSwitchDialog).toBeVisible();
-    await workspaceSwitchDialog.getByRole("button", { name: "Switch project" }).click();
+    // The run's User session belongs to the focused User destination: it opens in place.
     const sessionUI = sessionWindowSelectors(sessionWindow(appPage, uiTriggeredRun.session_id));
     await expect(sessionUI.chatView).toBeVisible();
     await expect(sessionUI.chatView).toContainText(
