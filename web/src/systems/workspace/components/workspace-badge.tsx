@@ -30,8 +30,17 @@ export function WorkspaceBadge({
       )}
       {...props}
     >
-      <Avatar size="sm" className={cn("shrink-0", variant === "meta" ? "size-3.5" : "size-4.5")}>
-        <AvatarFallback className="text-badge font-semibold">{identity.monogram}</AvatarFallback>
+      {/* The Avatar's own `sm` step (24px) outranks a size class, so the badge sizes the default
+          Avatar to sit on the meta line beside the 14px profile glyph and provider mark. */}
+      <Avatar className={cn("shrink-0", variant === "meta" ? "size-4" : "size-5")}>
+        <AvatarFallback
+          className={cn(
+            "font-semibold",
+            variant === "meta" ? "text-pill-group-badge" : "text-badge"
+          )}
+        >
+          {identity.monogram}
+        </AvatarFallback>
       </Avatar>
       <span className="min-w-0 truncate">{identity.name}</span>
     </span>
