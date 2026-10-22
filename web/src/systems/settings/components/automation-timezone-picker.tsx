@@ -22,18 +22,25 @@ export function AutomationTimezonePicker({
   onChange,
 }: AutomationTimezonePickerProps) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const [supportedZones] = useState(() => Intl.supportedValuesOf("timeZone"));
+  const searchedZone = resolveSearchTimezone(search);
   const zones = [
     ...new Set(
-      ["UTC", ...supportedZones, value, hostTimezone].filter((zone): zone is string =>
+      ["UTC", ...supportedZones, value, hostTimezone, searchedZone].filter((zone): zone is string =>
         Boolean(zone)
       )
     ),
   ].sort();
 
+  function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
+    setSearch("");
+  }
+
   return (
     <div className="flex min-w-0 flex-col items-start gap-2">
-      <CommandSelect open={open} onOpenChange={setOpen}>
+      <CommandSelect open={open} onOpenChange={handleOpenChange}>
         <CommandSelectTrigger
           aria-label="Schedule time zone"
           className="w-56 max-w-full font-mono"
@@ -43,6 +50,7 @@ export function AutomationTimezonePicker({
         />
         <CommandSelectShell
           inputPlaceholder="Search time zones…"
+          inputProps={{ value: search, onValueChange: setSearch }}
           commandProps={{ label: "Search time zones" }}
         >
           <CommandList>
@@ -51,9 +59,10 @@ export function AutomationTimezonePicker({
               <CommandItem
                 key={zone}
                 value={zone}
+                keywords={zone === searchedZone ? [search] : undefined}
                 onSelect={() => {
                   onChange(zone);
-                  setOpen(false);
+                  handleOpenChange(false);
                 }}
               >
                 {zone}
@@ -75,4 +84,16 @@ export function AutomationTimezonePicker({
       ) : null}
     </div>
   );
+}
+
+function resolveSearchTimezone(search: string): string | undefined {
+  if (!search.trim()) return undefined;
+  try {
+    const zone = new Intl.DateTimeFormat("en", { timeZone: search.trim() }).resolvedOptions()
+      .timeZone;
+    // Intl also accepts numeric offsets, which are not IANA names accepted by the daemon.
+    return /^[+-]/.test(zone) ? undefined : zone;
+  } catch {
+    return undefined;
+  }
 }

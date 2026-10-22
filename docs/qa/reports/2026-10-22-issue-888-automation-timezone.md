@@ -39,7 +39,7 @@ execution or unrelated dock/palette/Loop flows.
   SQLite integration regression failed before the fix. It now passes for zone changes, unchanged
   zones, legacy future/catch-up cursors, interval/timestamp invariance, and deferred reservations.
   A legacy unstarted reservation is also retained during identity upgrade.
-- Targeted Web route tests pass (3 tests); Web typecheck/build pass through root Turborepo. React
+- Targeted Web route tests pass (including the fixed-offset regression); Web typecheck/build pass through root Turborepo. React
   Doctor found no issues in the final changed-file scan. Config, Settings, API conversions and existing DST scheduler checks pass
   with the race detector. The additive OpenAPI semantics check passes with only `host_timezone`
   added to the approved historical contract.
@@ -53,6 +53,17 @@ without changing the zone preserved `11:30Z`. The Automations sentence remained 
 and both cron rows agreed on their next run. The affected `make gate` passed all lanes, including 687 Web test files / 7,264 tests.
 The isolated lab teardown returned `clean=true`, including its daemon, browser, launcher, and
 named browser automation process.
+
+## Review remediation
+
+Greptile identified that the browser's standard time zone list omits valid IANA choices such as
+`Etc/GMT+3`. The existing route suite reproduced the failure before the production fix. Search now
+resolves valid typed IANA names into selectable choices, while invalid names and bare numeric offsets
+leave the current selection unchanged. The daemon retains final validation when saving.
+
+The real app re-walk searched and selected `Etc/GMT+3`, saved it, reloaded the page, and independently
+confirmed the persisted value through the CLI. `timezone-fixed-offset-search.png` captures the
+rendered result. Web build/typecheck and the final React Doctor scan passed.
 
 ## Limits
 

@@ -28,6 +28,8 @@ New in the Automations spec (task 07; US-028–US-031). Covers the shell registr
   its effective zone must remain UTC. Preserve an explicit pre-existing zone as well.
 - In Settings → Automation, search for `Tokyo`, select `Asia/Tokyo`, save, and reopen. Verify the
   config read and automation sentence/preview use the saved zone.
+- Search the full IANA name `Etc/GMT+3`, which browsers omit from their standard zone list;
+  select, save, and reload it. Invalid names and bare numeric offsets must not change the selection.
 - With a configured zone different from the daemon host, verify the inline mismatch notice and
   use the machine-zone shortcut. Save and confirm the notice disappears. The daemon host zone,
   not the browser zone, owns this shortcut over remote connections.

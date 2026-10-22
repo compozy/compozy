@@ -96,14 +96,28 @@ describe("AutomationSettingsPage", () => {
     expect(screen.queryByText(/Schedules use/)).not.toBeInTheDocument();
   });
 
-  it("Should leave the selected zone unchanged when the search has no matches", async () => {
+  it.each(["Invalid/Zone", "+03:00"])(
+    "Should preserve the zone for non-IANA search %s",
+    async search => {
+      const user = userEvent.setup();
+      render(<AutomationSettingsPage />);
+      await user.click(screen.getByRole("button", { name: "Schedule time zone" }));
+      await user.type(screen.getByRole("combobox", { name: "Search time zones" }), search);
+      expect(await screen.findByText("No time zones found.")).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      expect(screen.getByRole("button", { name: "Schedule time zone" })).toHaveTextContent("UTC");
+    }
+  );
+
+  it("Should select a valid fixed-offset IANA zone missing from the browser list", async () => {
     const user = userEvent.setup();
     render(<AutomationSettingsPage />);
     await user.click(screen.getByRole("button", { name: "Schedule time zone" }));
-    await user.type(screen.getByRole("combobox", { name: "Search time zones" }), "Invalid/Zone");
-    expect(await screen.findByText("No time zones found.")).toBeInTheDocument();
-    await user.keyboard("{Escape}");
-    expect(screen.getByRole("button", { name: "Schedule time zone" })).toHaveTextContent("UTC");
+    await user.type(screen.getByRole("combobox", { name: "Search time zones" }), "Etc/GMT+3");
+    await user.click(await screen.findByRole("option", { name: "Etc/GMT+3" }));
+    expect(screen.getByRole("button", { name: "Schedule time zone" })).toHaveTextContent(
+      "Etc/GMT+3"
+    );
   });
 
   it("Should link one Automations row with combined counts and plain labels [UT-113]", async () => {
