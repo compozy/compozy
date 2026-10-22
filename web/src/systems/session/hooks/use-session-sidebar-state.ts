@@ -145,8 +145,7 @@ function toggledFlag(flags: Record<string, boolean>, id: string): Record<string,
  */
 function toggledGroup(flags: Record<string, boolean>, id: string): Record<string, boolean> {
   if (!flags[id]) return { ...flags, [id]: true };
-  const { [id]: _expanded, ...rest } = flags;
-  return rest;
+  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
 }
 
 /**
