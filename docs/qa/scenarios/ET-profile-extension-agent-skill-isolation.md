@@ -87,6 +87,8 @@ From each session, read `compozy__profile_current`, `compozy__agent_list`, and
 `compozy__subagent_capabilities`. Run `compozy agent list -o json` with the session
 identity and no `COMPOZY_PROFILE` or `--profile` override. Every catalog must include
 the Profile-placed extension Agent only for its owning Profile.
+An omitted workspace must retain the session workspace and its Agents; an explicit
+`workspace: "@user"` must exclude workspace-only Agents.
 
 Delegate to that Agent using `compozy__subagent_delegate`: the owning session must
 complete a child turn, while the other session must receive `agent_not_found`.

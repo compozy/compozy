@@ -101,6 +101,7 @@ func (s unavailableProfileService) RetryOp(context.Context, string) (profilepkg.
 
 var _ ProfileService = unavailableProfileService{}
 
+// ListIdentities preserves the configured service-unavailable error for owner projections.
 func (s unavailableProfileService) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
 	return nil, s.unavailable()
 }

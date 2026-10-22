@@ -114,6 +114,7 @@ func (m *Manager) ListIdentities(ctx context.Context) (profiles []Profile, err e
 	return profiles, nil
 }
 
+// List returns profile identities together with owned-work counts and credential requirements.
 func (m *Manager) List(ctx context.Context) ([]WithCounts, error) {
 	profilesByID, err := m.ListIdentities(ctx)
 	if err != nil {

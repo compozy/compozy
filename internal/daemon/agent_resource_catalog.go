@@ -127,6 +127,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 
 var _ session.AgentCatalogResolver = (*resourceAgentCatalog)(nil)
 
+// ListAgentDefinitions enumerates scoped agents with the same catalog precedence as target resolution.
 func (c *resourceAgentCatalog) ListAgentDefinitions(
 	resolved *workspacepkg.ResolvedWorkspace,
 ) []compozyconfig.AgentDef {

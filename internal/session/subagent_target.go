@@ -91,6 +91,7 @@ func (r managerSubagentRuntime) Resolve(
 	return target, nil
 }
 
+// Capabilities describes provider and agent targets available in the parent session's profile.
 func (r managerSubagentRuntime) Capabilities(
 	ctx context.Context,
 	parent *Info,

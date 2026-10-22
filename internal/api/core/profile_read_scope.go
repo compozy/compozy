@@ -209,6 +209,7 @@ func (h *BaseHandlers) respondProfileReadScopeError(c *gin.Context, err error) {
 	h.respondError(c, StatusForAgentIdentityError(err), err)
 }
 
+// profileOwnerIdentities loads current owner labels through the configured profile service.
 func (h *BaseHandlers) profileOwnerIdentities(ctx context.Context) (map[string]profileOwnerIdentity, error) {
 	if h == nil {
 		return profileOwnerIdentities(ctx, nil)
@@ -216,6 +217,7 @@ func (h *BaseHandlers) profileOwnerIdentities(ctx context.Context) (map[string]p
 	return profileOwnerIdentities(ctx, h.Profiles)
 }
 
+// profileOwnerIdentities indexes metadata by stable ID, retaining the default owner when no service is configured.
 func profileOwnerIdentities(ctx context.Context, profiles ProfileOwnerReader) (map[string]profileOwnerIdentity, error) {
 	if profiles == nil {
 		return map[string]profileOwnerIdentity{

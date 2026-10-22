@@ -32,6 +32,7 @@ type sessionListInput struct {
 	Limit         int    `json:"limit,omitzero"`
 }
 
+// sessionList returns the authorized session page with current profile labels and placements.
 func (n *daemonNativeTools) sessionList(
 	ctx context.Context,
 	scope toolspkg.Scope,

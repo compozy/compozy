@@ -2971,6 +2971,11 @@ func TestDaemonNativeTools(t *testing.T) {
 				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "design"},
 				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-design"},
 				Spec:  compozyconfig.AgentDef{Name: "designer", Prompt: "Design"},
+			}, {
+				ID:    "design:workspace-designer",
+				Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "design"},
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-design"},
+				Spec:  compozyconfig.AgentDef{Name: "workspace-designer", Prompt: "Design locally"},
 			}})
 			resolver := nativeTestWorkspaceService(t)
 			resolver.ResolveForProfileFn = func(_ context.Context, ref, name string) (workspacepkg.ResolvedWorkspace, error) {
@@ -2979,25 +2984,44 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 				return workspacepkg.ResolvedWorkspace{ID: ref, ProfileID: profile.id, ProfileName: name}, nil
 			}
-			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-				HomePaths:  apitest.NewTestHomePaths(t),
-				Workspaces: resolver, WorkspaceResolver: resolver,
-				Sessions: nativeTestSessionManager("ws-design", profile.id),
-				Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
-					{ID: store.DefaultProfileID, Name: "default"}, {ID: "profile-design", Name: "design"},
-				}},
-				AgentCatalog: agentCatalogDependency(catalog),
-			}, nativeApproveAllPolicyInputs())
-			result, err := registry.Call(t.Context(), toolspkg.Scope{
-				SessionID: "sess-design", AgentName: "coder", WorkspaceID: "ws-design",
-			}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentList, Input: json.RawMessage(`{}`)})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if profile.name == "design" {
-				requireNativeStructuredContains(t, result, []byte(`"name":"designer"`))
-			} else {
-				requireNativeStructuredExcludes(t, result, []byte(`"name":"designer"`))
+
+			for _, selection := range []struct {
+				name, workspace, input string
+				wantWorkspace          bool
+			}{
+				{"Should use caller workspace", "ws-design", `{}`, true},
+				{"Should recover session workspace", "", `{}`, true},
+				{"Should preserve explicit user scope", "", `{"workspace":"@user"}`, false},
+			} {
+				t.Run(selection.name, func(t *testing.T) {
+					t.Parallel()
+					registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+						HomePaths:  apitest.NewTestHomePaths(t),
+						Workspaces: resolver, WorkspaceResolver: resolver,
+						Sessions: nativeTestSessionManager("ws-design", profile.id),
+						Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
+							{ID: store.DefaultProfileID, Name: "default"}, {ID: "profile-design", Name: "design"},
+						}},
+						AgentCatalog: agentCatalogDependency(catalog),
+					}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+						&recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}})
+					result, err := registry.Call(t.Context(), toolspkg.Scope{
+						SessionID: "sess-design", AgentName: "coder", WorkspaceID: selection.workspace,
+					}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentList, Input: json.RawMessage(selection.input)})
+					if err != nil {
+						t.Fatal(err)
+					}
+					if profile.name == "design" {
+						requireNativeStructuredContains(t, result, []byte(`"name":"designer"`))
+					} else {
+						requireNativeStructuredExcludes(t, result, []byte(`"name":"designer"`))
+					}
+					if selection.wantWorkspace {
+						requireNativeStructuredContains(t, result, []byte(`"name":"workspace-designer"`))
+					} else {
+						requireNativeStructuredExcludes(t, result, []byte(`"name":"workspace-designer"`))
+					}
+				})
 			}
 		})
 	}

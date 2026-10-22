@@ -12,6 +12,7 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
+// sessionStatus projects one authorized session with health and current profile-owner metadata.
 func (n *daemonNativeTools) sessionStatus(
 	ctx context.Context,
 	scope toolspkg.Scope,

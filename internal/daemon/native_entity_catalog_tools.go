@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -18,6 +19,7 @@ type vaultListInput struct {
 	Prefix string `json:"prefix,omitempty"`
 }
 
+// agentList lists agents from the caller's bound profile and workspace layers.
 func (n *daemonNativeTools) agentList(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -28,9 +30,12 @@ func (n *daemonNativeTools) agentList(
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.Workspace, scope)
-	profileID, _, _, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	profileID, _, sessionWorkspaceID, err := n.nativeCurrentProfileIdentity(ctx, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if strings.TrimSpace(input.Workspace) == "" && strings.TrimSpace(scope.WorkspaceID) == "" {
+		workspaceID = sessionWorkspaceID
 	}
 	resolved, err := n.nativeSkillWorkspace(ctx, profileID, workspaceID)
 	if err != nil {

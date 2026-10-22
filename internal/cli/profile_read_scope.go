@@ -63,8 +63,7 @@ func configureProfileMutationCommand(cmd *cobra.Command, deps commandDeps) {
 	configureSingleProfileCommand(cmd, deps)
 }
 
-// configureSingleProfileReadCommand resolves exactly one selected profile for
-// reads that do not define an aggregate form.
+// configureSingleProfileReadCommand keeps explicit selectors ahead of session profile defaults.
 func configureSingleProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
 	if cmd == nil || cmd.RunE == nil {
 		return
@@ -281,6 +280,7 @@ func prepareAgentProfileSelection(
 	return true, nil
 }
 
+// agentCommandUsesProfileScopedSessionSurface identifies commands whose default profile follows their agent session.
 func agentCommandUsesProfileScopedSessionSurface(cmd *cobra.Command) bool {
 	if cmd == nil {
 		return false

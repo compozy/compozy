@@ -8,6 +8,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 )
 
+// decorateSessionOwners applies the same owner projection used by native session reads.
 func (h *BaseHandlers) decorateSessionOwners(
 	ctx context.Context,
 	payloads []contract.SessionPayload,
@@ -18,10 +19,12 @@ func (h *BaseHandlers) decorateSessionOwners(
 	return SessionPayloadsWithProfileOwners(ctx, payloads, h.Profiles)
 }
 
+// ProfileOwnerReader supplies labels without ownership counts or credential details.
 type ProfileOwnerReader interface {
 	ListIdentities(context.Context) ([]profilepkg.Profile, error)
 }
 
+// SessionPayloadsWithProfileOwners requires current owner labels rather than emitting misleading empty names.
 func SessionPayloadsWithProfileOwners(
 	ctx context.Context,
 	payloads []contract.SessionPayload,

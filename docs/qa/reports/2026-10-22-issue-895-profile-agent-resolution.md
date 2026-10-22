@@ -44,3 +44,12 @@ The unchanged suite and full `make gate` passed with `TMPDIR=/private/tmp`: zero
 lint issues in normal/integration configurations and all affected Go suites passed
 with the race detector. Gate records and the strict audit report are retained with
 the lab evidence.
+
+## Review follow-up
+
+The native catalog suite passed with the race detector after extending its existing
+profile matrix to cover a caller workspace, recovery from session identity alone,
+and an explicitly authorized User selector. Workspace-only agents stay visible
+for the session workspace and are excluded from explicit User reads.
+The follow-up daemon/SQLite/ACP integration and `make gate` passed with the race
+detector and zero lint issues. This does not claim a new CLI/HTTP walk.
