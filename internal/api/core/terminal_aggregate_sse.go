@@ -80,6 +80,10 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 			}
 		case <-stop:
 			return
+		// Server shutdown waits for open SSE requests before it closes stop, so the stream
+		// also ends on the shared stream-done signal like every other SSE stream.
+		case <-h.StreamDoneChannel():
+			return
 		case <-c.Request.Context().Done():
 			return
 		}

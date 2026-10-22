@@ -316,3 +316,73 @@ func TestTerminalAggregateCursorSelection(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: server shutdown waits for open SSE requests before it closes the terminal stream
+// lifecycle, so every terminal stream must also end on the shared stream-done signal; otherwise a
+// runtime restart stalls until the shutdown deadline.
+func TestTerminalStreamsEndOnStreamDone(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name  string
+		route string
+		path  string
+		mount func(*BaseHandlers) gin.HandlerFunc
+	}{
+		{
+			name:  "workspace catalog stream",
+			route: "/api/workspaces/:workspace_id/terminals/stream",
+			path:  "/api/workspaces/workspace-a/terminals/stream?profile=default",
+			mount: func(h *BaseHandlers) gin.HandlerFunc { return h.StreamTerminalCatalog },
+		},
+		{
+			name:  "All projects aggregate stream",
+			route: "/api/terminals/catalog-stream",
+			path:  "/api/terminals/catalog-stream?all_workspaces=true&profile=default",
+			mount: func(h *BaseHandlers) gin.HandlerFunc { return h.StreamTerminalAggregate },
+		},
+	} {
+		t.Run("Should end the "+testCase.name, func(t *testing.T) {
+			t.Parallel()
+			streamDone := make(chan struct{})
+			provider := terminalAggregateProviderStub{&terminalProviderStub{Manager: terminalManagerStub{}}}
+			handlers := NewBaseHandlers(&BaseHandlerConfig{
+				TransportName: "udsapi",
+				Terminal:      provider,
+				Workspaces:    workspaceServiceStub{},
+				StreamDone:    streamDone,
+			})
+			router := gin.New()
+			router.GET(testCase.route, testCase.mount(handlers))
+			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, testCase.path, http.NoBody)
+			response := httptest.NewRecorder()
+			served := make(chan struct{})
+			go func() {
+				defer close(served)
+				router.ServeHTTP(response, request)
+			}()
+			// The stream is live until the server starts shutting down.
+			select {
+			case <-served:
+				t.Fatalf("stream ended before shutdown: %d/%q", response.Code, response.Body.String())
+			case <-time.After(200 * time.Millisecond):
+			}
+			close(streamDone)
+			select {
+			case <-served:
+			case <-time.After(5 * time.Second):
+				t.Fatal("terminal stream stayed open after the stream-done signal")
+			}
+			if response.Code != http.StatusOK {
+				t.Fatalf("stream status/body = %d/%q, want an opened stream", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+// terminalAggregateProviderStub adds the empty machine-wide terminal read the aggregate stream lists.
+type terminalAggregateProviderStub struct{ *terminalProviderStub }
+
+func (terminalAggregateProviderStub) ListAggregate(context.Context, store.ReadScope) ([]terminalpkg.Info, error) {
+	return nil, nil
+}
