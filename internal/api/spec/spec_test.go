@@ -1336,7 +1336,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"endpoint_slug",
 					"webhook_secret_value",
 				)
-				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace", "user", "@user")
+				assertEnumValues(
+					t,
+					propertySchema(t, createTriggerSchema, "scope"),
+					"global",
+					"workspace",
+					"user",
+					"@user",
+				)
 
 				healthOperation := operationFor(t, doc, "/api/status", "GET")
 				healthSchema := jsonResponseSchema(t, healthOperation, 200)
@@ -1981,7 +1988,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"wake_creator",
 					"metadata",
 				)
-				assertEnumValues(t, propertySchema(t, createTaskSchema, "scope"), "global", "workspace", "user", "@user")
+				assertEnumValues(
+					t,
+					propertySchema(t, createTaskSchema, "scope"),
+					"global",
+					"workspace",
+					"user",
+					"@user",
+				)
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "priority"), "low", "medium", "high", "urgent")
 				assertEnumValues(t, propertySchema(t, createTaskSchema, "approval_policy"), "none", "manual")
 
@@ -3544,6 +3558,41 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			parameters[last],
 		)
 	}
+
+	// All projects (AP BR-12): optional breadth parameters inserted right after the
+	// existing workspace selector; existing parameters keep their meaning.
+	workspaceIDs := map[string]any{
+		"in": "query", "name": "workspace_ids",
+		"schema": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+	}
+	for _, change := range []struct {
+		path, method string
+		added        []any
+	}{
+		{"/api/notifications/attention", "get", []any{boolQuery("all_workspaces")}},
+		{"/api/notifications/attention/acknowledge", "post", []any{boolQuery("all_workspaces")}},
+		{"/api/observe/tasks/inbox", "get", []any{boolQuery("all_workspaces"), workspaceIDs}},
+	} {
+		operation := paths[change.path].(map[string]any)[change.method].(map[string]any)
+		parameters := operation["parameters"].([]any)
+		at := slices.IndexFunc(parameters, func(parameter any) bool {
+			return parameter.(map[string]any)["name"] == "workspace"
+		})
+		if at < 0 {
+			t.Fatalf("approved All projects addition: %s %s has no workspace parameter", change.method, change.path)
+		}
+		operation["parameters"] = slices.Concat(parameters[:at+1], change.added, parameters[at+1:])
+	}
+	// All projects: the owning workspace of each Home attention item (empty for User rows).
+	attentionItem := paths["/api/observe/overview"].(map[string]any)
+	for _, key := range []string{
+		"get", "responses", "200", "content", "application/json", "schema", "properties", "overview",
+		"properties", "attention", "properties", "items", "items",
+	} {
+		attentionItem = attentionItem[key].(map[string]any)
+	}
+	attentionItem["properties"].(map[string]any)["workspace_id"] = map[string]any{"type": "string"}
+	attentionItem["required"] = append(attentionItem["required"].([]any), "workspace_id")
 }
 
 // Match historical generic error fields, including payloads that embed them.

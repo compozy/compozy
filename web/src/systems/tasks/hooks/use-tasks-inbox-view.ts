@@ -1,4 +1,10 @@
 import {
+  projectFilterChip,
+  projectFilterValuesFromChips,
+  type ProjectFilterModel,
+} from "@/systems/workspace";
+
+import {
   type InboxLaneCount,
   applyInboxFilterChips,
   buildInboxFilterFields,
@@ -32,6 +38,8 @@ interface UseTasksInboxViewArgs {
   onStatusChange: (next: TaskStatus | null) => void;
   priorityFilter: TaskPriority | null;
   onPriorityChange: (next: TaskPriority | null) => void;
+  /** The shared Project filter; its field is present only under All projects. */
+  projectFilter?: Pick<ProjectFilterModel, "field" | "values" | "setValues">;
 }
 
 function flattenItems(inbox: TaskInboxView | null): TaskInboxItem[] {
@@ -88,13 +96,24 @@ export function useTasksInboxView({
   onStatusChange,
   priorityFilter,
   onPriorityChange,
+  projectFilter,
 }: UseTasksInboxViewArgs) {
   const allItems = flattenItems(inbox);
   const laneCounts = computeLaneCounts(inbox?.groups);
-  const filterFields = buildInboxFilterFields(laneCounts);
-  const filterChips = inboxFiltersToChips({ laneFilter, statusFilter, priorityFilter });
+  const projectField = projectFilter?.field ?? null;
+  // Project leads: it decides which projects the other filters search.
+  const filterFields = [
+    ...(projectField ? [projectField] : []),
+    ...buildInboxFilterFields(laneCounts),
+  ];
+  const projectChip = projectField ? projectFilterChip(projectFilter?.values ?? []) : null;
+  const filterChips = [
+    ...(projectChip ? [projectChip] : []),
+    ...inboxFiltersToChips({ laneFilter, statusFilter, priorityFilter }),
+  ];
   const handleFiltersChange = (chips: Parameters<typeof applyInboxFilterChips>[0]) => {
     applyInboxFilterChips(chips, { onLaneChange, onStatusChange, onPriorityChange });
+    if (projectField) projectFilter?.setValues(projectFilterValuesFromChips(chips));
   };
   const groups = partitionByGroup(allItems);
   const groupTotals = countByDisplayGroup(inbox?.groups);

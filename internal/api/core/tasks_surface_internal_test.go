@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -352,6 +353,41 @@ func TestExpandedTaskQueryValidationErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should narrow the All projects inbox by workspace_ids", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newExpandedTaskHandlers(nil)
+		parse := func(path string) (contract.TaskInboxQuery, error) {
+			ginCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ginCtx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, path, http.NoBody)
+			return ParseTaskInboxQuery(ginCtx)
+		}
+
+		query, err := parse("/observe/tasks/inbox?all_workspaces=true&workspace_ids=ws-alpha&workspace_ids=@user")
+		if err != nil {
+			t.Fatalf("ParseTaskInboxQuery() error = %v", err)
+		}
+		domain, err := handlers.taskInboxDomainQuery(
+			t.Context(),
+			store.ReadScope{ProfileID: store.DefaultProfileID},
+			query,
+		)
+		if err != nil {
+			t.Fatalf("taskInboxDomainQuery() error = %v", err)
+		}
+		if got, want := domain.WorkspaceIDs, []string{"ws-alpha", "@user"}; !slices.Equal(got, want) {
+			t.Fatalf("domain WorkspaceIDs = %#v, want %#v", got, want)
+		}
+		for _, path := range []string{
+			"/observe/tasks/inbox?workspace_ids=ws-alpha",
+			"/observe/tasks/inbox?all_workspaces=true&scope=workspace&workspace=alpha",
+		} {
+			if _, err := parse(path); err == nil {
+				t.Fatalf("parse %q error = nil, want non-nil", path)
+			}
+		}
+	})
+
 	t.Run("Should reject an invalid inbox lane", func(t *testing.T) {
 		t.Parallel()
 
@@ -480,7 +516,8 @@ func TestTaskBreadthQuerySemantics(t *testing.T) {
 			if err != nil || dashboard.AllWorkspaces != tc.all {
 				t.Fatalf("dashboard=%+v err=%v", dashboard, err)
 			}
-			if strings.Contains(tc.query, "@user") && (len(list.WorkspaceIDs) != 1 || len(dashboard.WorkspaceIDs) != 1) {
+			if strings.Contains(tc.query, "@user") &&
+				(len(list.WorkspaceIDs) != 1 || len(dashboard.WorkspaceIDs) != 1) {
 				t.Fatal("User filter lost")
 			}
 		})

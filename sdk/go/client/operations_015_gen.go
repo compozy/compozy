@@ -9,6 +9,55 @@ import (
 	"strings"
 )
 
+// ListAttentionNotificationsParams carries the path, query, and header parameters.
+type ListAttentionNotificationsParams struct {
+	ReceiptProfile *string `url:"receipt_profile"`
+	Workspace      *string `url:"workspace"`
+	AllWorkspaces  *bool   `url:"all_workspaces"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
+// ListAttentionNotifications List unread operator notifications across all workspaces and source profiles
+func (c *Client) ListAttentionNotifications(ctx context.Context, params ListAttentionNotificationsParams) (*AttentionNotificationsResponse, error) {
+	path := "/api/notifications/attention"
+	query := url.Values{}
+	if params.ReceiptProfile != nil {
+		query.Set("receipt_profile", *params.ReceiptProfile)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AttentionNotificationsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListAutomationJobRunsParams carries the path, query, and header parameters.
+type ListAutomationJobRunsParams struct {
+	ID          string  `url:"id"`
+	Status      *string `url:"status"`
+	Since       *string `url:"since"`
+	Until       *string `url:"until"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // ListAutomationJobRuns List run history for one automation job
 func (c *Client) ListAutomationJobRuns(ctx context.Context, params ListAutomationJobRunsParams) (*RunsResponse, error) {
 	path := "/api/automation/jobs/{id}/runs"
@@ -384,62 +433,4 @@ type ListCmdPaletteCommandsParams struct {
 	Client      *string `url:"client"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListCmdPaletteCommands List command palette commands
-func (c *Client) ListCmdPaletteCommands(ctx context.Context, params ListCmdPaletteCommandsParams) (*CmdPaletteCommandsResponse, error) {
-	path := "/api/cmd-palette/commands"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Client != nil {
-		query.Set("client", *params.Client)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteCommandsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListExtensionCommandsParams carries the path, query, and header parameters.
-type ListExtensionCommandsParams struct {
-	Extension   *string `url:"extension"`
-	Workspace   *string `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListExtensionCommands List active extension-contributed commands
-func (c *Client) ListExtensionCommands(ctx context.Context, params ListExtensionCommandsParams) (*ExtensionCommandsResponse, error) {
-	path := "/api/extensions/commands"
-	query := url.Values{}
-	if params.Extension != nil {
-		query.Set("extension", *params.Extension)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionCommandsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

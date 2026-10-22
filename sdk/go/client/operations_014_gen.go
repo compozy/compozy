@@ -11,6 +11,60 @@ import (
 	"strings"
 )
 
+// InspectRun Inspect one task run with diagnostics
+func (c *Client) InspectRun(ctx context.Context, params InspectRunParams) (*TaskInspectResponse, error) {
+	path := "/api/runs/{id}/inspect"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskInspectResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectSessionParams carries the path, query, and header parameters.
+type InspectSessionParams struct {
+	WorkspaceID             string `url:"workspace_id"`
+	SessionID               string `url:"session_id"`
+	IncludeRecentWakeEvents *bool  `url:"include_recent_wake_events"`
+}
+
+// InspectSession Inspect session health, wake audit, and policy correlation metadata
+func (c *Client) InspectSession(ctx context.Context, params InspectSessionParams) (*SessionInspectResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.IncludeRecentWakeEvents != nil {
+		query.Set("include_recent_wake_events", strconv.FormatBool(*params.IncludeRecentWakeEvents))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionInspectResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectTaskParams carries the path, query, and header parameters.
+type InspectTaskParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // InspectTask Inspect one task with diagnostics
 func (c *Client) InspectTask(ctx context.Context, params InspectTaskParams) (*TaskInspectResponse, error) {
 	path := "/api/tasks/{id}/inspect"
@@ -389,53 +443,4 @@ func (c *Client) ListAppTokens(ctx context.Context, params ListAppTokensParams) 
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListAttentionNotificationsParams carries the path, query, and header parameters.
-type ListAttentionNotificationsParams struct {
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	AllWorkspaces  *bool   `url:"all_workspaces"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
-}
-
-// ListAttentionNotifications List unread operator notifications across all workspaces and source profiles
-func (c *Client) ListAttentionNotifications(ctx context.Context, params ListAttentionNotificationsParams) (*AttentionNotificationsResponse, error) {
-	path := "/api/notifications/attention"
-	query := url.Values{}
-	if params.ReceiptProfile != nil {
-		query.Set("receipt_profile", *params.ReceiptProfile)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AttentionNotificationsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAutomationJobRunsParams carries the path, query, and header parameters.
-type ListAutomationJobRunsParams struct {
-	ID          string  `url:"id"`
-	Status      *string `url:"status"`
-	Since       *string `url:"since"`
-	Until       *string `url:"until"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

@@ -3,8 +3,9 @@ package core
 import (
 	"context"
 	"fmt"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"strings"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/gin-gonic/gin"
 
@@ -83,24 +84,54 @@ func ParseTaskInboxQuery(c *gin.Context) (contract.TaskInboxQuery, error) {
 	if err != nil {
 		return contract.TaskInboxQuery{}, NewTaskValidationError(err)
 	}
+	workspaceIDs, err := parseTaskInboxWorkspaceIDs(c)
+	if err != nil {
+		return contract.TaskInboxQuery{}, err
+	}
 	query := contract.TaskInboxQuery{
-		Scope:     taskpkg.CatalogScope(c.Query("scope")).Normalize(),
-		Workspace: strings.TrimSpace(c.Query("workspace")),
-		Worktree:  strings.TrimSpace(c.Query("worktree")),
-		OwnerKind: taskpkg.OwnerKind(c.Query("owner_kind")).Normalize(),
-		OwnerRef:  strings.TrimSpace(c.Query("owner_ref")),
-		Lane:      contract.TaskInboxLane(strings.ToLower(strings.TrimSpace(c.Query("lane")))),
-		Status:    taskpkg.Status(c.Query("status")).Normalize(),
-		Priority:  taskpkg.Priority(c.Query("priority")).Normalize(),
-		Unread:    unread,
-		Query:     strings.TrimSpace(c.Query("query")),
-		Cursor:    strings.TrimSpace(c.Query("cursor")),
-		Limit:     limit,
+		WorkspaceIDs: workspaceIDs,
+		Scope:        taskpkg.CatalogScope(c.Query("scope")).Normalize(),
+		Workspace:    strings.TrimSpace(c.Query("workspace")),
+		Worktree:     strings.TrimSpace(c.Query("worktree")),
+		OwnerKind:    taskpkg.OwnerKind(c.Query("owner_kind")).Normalize(),
+		OwnerRef:     strings.TrimSpace(c.Query("owner_ref")),
+		Lane:         contract.TaskInboxLane(strings.ToLower(strings.TrimSpace(c.Query("lane")))),
+		Status:       taskpkg.Status(c.Query("status")).Normalize(),
+		Priority:     taskpkg.Priority(c.Query("priority")).Normalize(),
+		Unread:       unread,
+		Query:        strings.TrimSpace(c.Query("query")),
+		Cursor:       strings.TrimSpace(c.Query("cursor")),
+		Limit:        limit,
 	}
 	if err := contract.ValidateTaskInboxQuery(query, "task_inbox_query"); err != nil {
 		return contract.TaskInboxQuery{}, NewTaskValidationError(err)
 	}
 	return query, nil
+}
+
+// parseTaskInboxWorkspaceIDs reads the All projects narrowing. The inbox's omission already
+// reads every task, so all_workspaces only gates workspace_ids (AP BR-12).
+func parseTaskInboxWorkspaceIDs(c *gin.Context) ([]string, error) {
+	all, err := ParseOptionalBool(c.Query("all_workspaces"))
+	if err != nil {
+		return nil, invalidWorkspaceBreadth("all_workspaces must be a boolean")
+	}
+	ids, hasIDs := c.Request.URL.Query()["workspace_ids"]
+	if hasIDs && !all {
+		return nil, invalidWorkspaceBreadth("workspace_ids requires all_workspaces=true")
+	}
+	if all && (strings.TrimSpace(c.Query("workspace")) != "" || strings.TrimSpace(c.Query("scope")) != "") {
+		return nil, invalidWorkspaceBreadth("all_workspaces conflicts with scope or workspace")
+	}
+	normalized := make([]string, 0, len(ids))
+	for _, raw := range ids {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			return nil, invalidWorkspaceBreadth("workspace_ids must not be empty; use @user")
+		}
+		normalized = append(normalized, id)
+	}
+	return normalized, nil
 }
 
 func (h *BaseHandlers) taskListDomainQuery(
@@ -146,6 +177,7 @@ func (h *BaseHandlers) taskInboxDomainQuery(
 	domainQuery := observe.TaskInboxQuery{
 		ReadScope:        readScope,
 		Scope:            query.Scope,
+		WorkspaceIDs:     query.WorkspaceIDs,
 		WorktreeID:       query.Worktree,
 		OwnerKind:        query.OwnerKind,
 		OwnerRef:         query.OwnerRef,

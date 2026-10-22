@@ -155,6 +155,7 @@ export const tasksKeys = {
       ...tasksKeys.inboxRoot(),
       normalizeText(normalized.scope),
       normalizeText(normalized.workspace),
+      breadthKey(normalized),
       normalizeText(normalized.worktree),
       normalizeText(normalized.owner_kind),
       normalizeText(normalized.owner_ref),

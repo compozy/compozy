@@ -9,6 +9,60 @@ import (
 	"strings"
 )
 
+// ListTaskRuns List runs for one task
+func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*TaskRunsResponse, error) {
+	path := "/api/tasks/{id}/runs"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.SessionID != nil {
+		query.Set("session_id", *params.SessionID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListTasksParams carries the path, query, and header parameters.
+type ListTasksParams struct {
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Scope         *string   `url:"scope"`
+	Workspace     *string   `url:"workspace"`
+	Status        *string   `url:"status"`
+	Priority      *string   `url:"priority"`
+	IncludeDrafts *bool     `url:"include_drafts"`
+	IncludeLoop   *bool     `url:"include_loop"`
+	LoopRunID     *string   `url:"loop_run_id"`
+	ApprovalState *string   `url:"approval_state"`
+	OwnerKind     *string   `url:"owner_kind"`
+	OwnerRef      *string   `url:"owner_ref"`
+	ParentTaskID  *string   `url:"parent_task_id"`
+	Worktree      *string   `url:"worktree"`
+	Query         *string   `url:"query"`
+	Sort          *string   `url:"sort"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
 // ListTasks List a bounded task catalog page
 func (c *Client) ListTasks(ctx context.Context, params ListTasksParams) (*TasksResponse, error) {
 	path := "/api/tasks"

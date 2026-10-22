@@ -19079,6 +19079,14 @@ export type GetTaskInboxData = {
      */
     workspace?: string;
     /**
+     * Read all projects and User rows
+     */
+    all_workspaces?: boolean;
+    /**
+     * Repeatable project IDs or @user; requires all_workspaces=true
+     */
+    workspace_ids?: Array<string>;
+    /**
      * Filter by active run worktree ID
      */
     worktree?: string;

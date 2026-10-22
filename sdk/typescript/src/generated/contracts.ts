@@ -4921,6 +4921,7 @@ export type CatalogScope = string;
 export interface TaskInboxParams {
   scope?: CatalogScope;
   workspace?: string;
+  workspace_ids?: string[];
   worktree?: string;
   owner_kind?: OwnerKind;
   owner_ref?: string;

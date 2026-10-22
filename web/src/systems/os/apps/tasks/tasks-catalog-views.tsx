@@ -123,6 +123,7 @@ function TasksInboxMode({ page }: { page: TasksPageModel }) {
       onStatusChange={page.handleInboxStatusChange}
       onToggleUnread={page.handleInboxUnreadToggle}
       priorityFilter={page.inboxPriorityFilter}
+      projectFilter={page.projectFilter}
       searchQuery={page.inboxSearchQuery}
       statusFilter={page.inboxStatusFilter}
       unreadOnly={page.inboxUnreadOnly}

@@ -9,6 +9,65 @@ import (
 	"strings"
 )
 
+// ListProviderModelsByProvider List provider model catalog entries for one provider
+func (c *Client) ListProviderModelsByProvider(ctx context.Context, params ListProviderModelsByProviderParams) (*ProviderModelListResponse, error) {
+	path := "/api/model-catalog/providers/{provider_id}/models"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	query := url.Values{}
+	if params.View != nil {
+		query.Set("view", *params.View)
+	}
+	if params.SourceID != nil {
+		query.Set("source_id", *params.SourceID)
+	}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.IncludeStale != nil {
+		query.Set("include_stale", strconv.FormatBool(*params.IncludeStale))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderModelListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviderUsageParams carries the path, query, and header parameters.
+type ListProviderUsageParams struct {
+	Profile *string `url:"profile"`
+}
+
+// ListProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
+func (c *Client) ListProviderUsage(ctx context.Context, params ListProviderUsageParams) (*ProviderUsageEnvelope, error) {
+	path := "/api/provider-usage"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ProviderUsageEnvelope
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProviders List providers and declared auth status
+func (c *Client) ListProviders(ctx context.Context) (*ProviderListResponse, error) {
+	path := "/api/providers"
+	var out ProviderListResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListResourcesParams carries the path, query, and header parameters.
 type ListResourcesParams struct {
 	Kind       *string `url:"kind"`
@@ -367,58 +426,4 @@ type ListSessionSubagentsParams struct {
 	Status      *string `url:"status"`
 	Limit       *int    `url:"limit"`
 	Cursor      *string `url:"cursor"`
-}
-
-// ListSessionSubagents List a session's subagents
-func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSubagentsParams) (*SubagentListPayload, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Origin != nil {
-		query.Set("origin", *params.Origin)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SubagentListPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListSessionToolsParams carries the path, query, and header parameters.
-type ListSessionToolsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	AgentName   *string `url:"agent_name"`
-}
-
-// ListSessionTools List session-callable registry tools
-func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsParams) (*ToolsResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

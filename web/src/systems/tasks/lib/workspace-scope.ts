@@ -29,10 +29,13 @@ export function taskScopeForActiveWorkspace(
 }
 
 /**
- * The inbox has no aggregate selector: omitting the scope reads every task,
- * which is exactly All projects, so only a bounded scope is sent.
+ * Omitting the inbox scope reads every task, which is exactly All projects, so
+ * the aggregate is sent only to carry its Project filter (`workspace_ids`).
  */
 export function taskInboxScope(scope: ActiveTaskScopeFilter | null) {
+  if (scope?.all_workspaces && scope.workspace_ids?.length) {
+    return { all_workspaces: true, workspace_ids: scope.workspace_ids };
+  }
   return { scope: scope?.scope, workspace: scope?.workspace, worktree: scope?.worktree };
 }
 

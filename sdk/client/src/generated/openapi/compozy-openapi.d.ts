@@ -28718,6 +28718,10 @@ export interface operations {
         scope?: "global" | "workspace" | "user" | "@user";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
+        /** @description Read all projects and User rows */
+        all_workspaces?: boolean;
+        /** @description Repeatable project IDs or @user; requires all_workspaces=true */
+        workspace_ids?: string[];
         /** @description Filter by active run worktree ID */
         worktree?: string;
         /** @description Filter by owner kind */

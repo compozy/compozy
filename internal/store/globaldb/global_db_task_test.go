@@ -2844,6 +2844,22 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			if inbox.Total != 2 {
 				t.Fatalf("ListTaskInbox(default).Total = %d, want 2", inbox.Total)
 			}
+			// The All projects Project filter narrows the inbox like the catalog (AP BR-12).
+			for _, tc := range []struct {
+				ids  []string
+				want int
+			}{{ids: []string{"@user"}, want: 2}, {ids: []string{"ws-unrelated"}, want: 0}} {
+				narrowed, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
+					ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+					WorkspaceIDs: tc.ids, ExcludeCreatedBy: excluded, Limit: 10,
+				}, taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"})
+				if err != nil {
+					t.Fatalf("ListTaskInbox(workspace_ids=%v) error = %v", tc.ids, err)
+				}
+				if narrowed.Total != tc.want {
+					t.Fatalf("ListTaskInbox(workspace_ids=%v).Total = %d, want %d", tc.ids, narrowed.Total, tc.want)
+				}
+			}
 		})
 
 		t.Run("Should project provenance and page one Loop run without duplicates", func(t *testing.T) {
@@ -6050,7 +6066,12 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		query := taskpkg.CatalogQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, AllWorkspaces: true, WorkspaceIDs: []string{a, "@user"}, Limit: 1}
+		query := taskpkg.CatalogQuery{
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			AllWorkspaces: true,
+			WorkspaceIDs:  []string{a, "@user"},
+			Limit:         1,
+		}
 		page, err := db.ListTaskCatalog(ctx, query)
 		if err != nil {
 			t.Fatal(err)
@@ -6076,14 +6097,24 @@ func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
 		if _, err := db.ListTaskCatalog(ctx, query); !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
 			t.Fatalf("changed profile error = %v", err)
 		}
-		user, err := db.ListTaskCatalog(ctx, taskpkg.CatalogQuery{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true, WorkspaceIDs: []string{"@user"}})
+		user, err := db.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{
+				ReadScope:     store.ReadScope{AllProfiles: true},
+				AllWorkspaces: true,
+				WorkspaceIDs:  []string{"@user"},
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if user.Total != 1 || user.Tasks[0].WorkspaceID != "" {
 			t.Fatalf("User page = %#v", user)
 		}
-		summaries, err := db.ListTasks(ctx, taskpkg.Query{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceIDs: []string{"@user", a}})
+		summaries, err := db.ListTasks(
+			ctx,
+			taskpkg.Query{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceIDs: []string{"@user", a}},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -6107,14 +6138,27 @@ func TestGlobalDBTaskCatalogBreadthQueryPlan(t *testing.T) {
 			if allProfiles {
 				scope = store.ReadScope{AllProfiles: true}
 			}
-			query, err := taskpkg.NormalizeCatalogQuery(taskpkg.CatalogQuery{ReadScope: scope, AllWorkspaces: true, Limit: 10})
+			query, err := taskpkg.NormalizeCatalogQuery(
+				taskpkg.CatalogQuery{ReadScope: scope, AllWorkspaces: true, Limit: 10},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			baseWhere, args := taskCatalogBaseFilter(query)
 			where, filterArgs := taskCatalogFilter(query)
-			statement := taskCatalogStatement("SELECT "+taskCatalogSelectColumns+" FROM catalog", baseWhere, where) + taskCatalogOrderBy(query.Sort) + taskCatalogLimitClause(query.Limit+1)
-			rows, err := db.db.QueryContext(t.Context(), "EXPLAIN QUERY PLAN "+statement, append(args, filterArgs...)...)
+			statement := taskCatalogStatement(
+				"SELECT "+taskCatalogSelectColumns+" FROM catalog",
+				baseWhere,
+				where,
+			) + taskCatalogOrderBy(
+				query.Sort,
+			) + taskCatalogLimitClause(
+				query.Limit+1,
+			)
+			rows, err := db.db.QueryContext(
+				t.Context(),
+				"EXPLAIN QUERY PLAN "+statement,
+				append(args, filterArgs...)...)
 			if err != nil {
 				t.Fatal(err)
 			}

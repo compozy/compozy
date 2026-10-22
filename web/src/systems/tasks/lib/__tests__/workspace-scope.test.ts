@@ -78,11 +78,18 @@ describe("taskScopeForActiveWorkspace", () => {
 });
 
 describe("taskInboxScope", () => {
-  it("Should omit the scope under All projects, since the inbox omission is every task", () => {
-    expect(taskInboxScope({ all_workspaces: true, workspace_ids: ["ws_alpha"] })).toEqual({
+  it("Should omit the scope under unfiltered All projects, since the inbox omission is every task", () => {
+    expect(taskInboxScope({ all_workspaces: true })).toEqual({
       scope: undefined,
       workspace: undefined,
       worktree: undefined,
+    });
+  });
+
+  it("Should carry the All projects Project filter as workspace_ids", () => {
+    expect(taskInboxScope({ all_workspaces: true, workspace_ids: ["ws_alpha", "@user"] })).toEqual({
+      all_workspaces: true,
+      workspace_ids: ["ws_alpha", "@user"],
     });
   });
 

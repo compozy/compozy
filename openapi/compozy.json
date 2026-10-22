@@ -58072,6 +58072,25 @@
             }
           },
           {
+            "description": "Read all projects and User rows",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Repeatable project IDs or @user; requires all_workspaces=true",
+            "in": "query",
+            "name": "workspace_ids",
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
             "description": "Filter by active run worktree ID",
             "in": "query",
             "name": "worktree",

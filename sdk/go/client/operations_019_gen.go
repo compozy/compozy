@@ -9,6 +9,60 @@ import (
 	"strings"
 )
 
+// ListSessionSubagents List a session's subagents
+func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSubagentsParams) (*SubagentListPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Origin != nil {
+		query.Set("origin", *params.Origin)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SubagentListPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionToolsParams carries the path, query, and header parameters.
+type ListSessionToolsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	AgentName   *string `url:"agent_name"`
+}
+
+// ListSessionTools List session-callable registry tools
+func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsParams) (*ToolsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionsParams carries the path, query, and header parameters.
 type ListSessionsParams struct {
 	WorkspaceID   *string   `url:"workspace_id"`
@@ -371,58 +425,4 @@ type ListTaskRunsParams struct {
 	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListTaskRuns List runs for one task
-func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*TaskRunsResponse, error) {
-	path := "/api/tasks/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTasksParams carries the path, query, and header parameters.
-type ListTasksParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	Status        *string   `url:"status"`
-	Priority      *string   `url:"priority"`
-	IncludeDrafts *bool     `url:"include_drafts"`
-	IncludeLoop   *bool     `url:"include_loop"`
-	LoopRunID     *string   `url:"loop_run_id"`
-	ApprovalState *string   `url:"approval_state"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	ParentTaskID  *string   `url:"parent_task_id"`
-	Worktree      *string   `url:"worktree"`
-	Query         *string   `url:"query"`
-	Sort          *string   `url:"sort"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }
