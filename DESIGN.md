@@ -1294,7 +1294,10 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   Each part picks its size, weight, and padding from `data-compact` on the
   prose root. Block margins are the exception: the root density recipes own
   them and override the reading defaults that `li`, `hr`, and the streamed
-  code block carry.
+  code block carry. Neither primitive sets a reading measure: prose, tables,
+  and code fill the container. The session transcript is full-bleed, so its
+  messages grow with the pane; a surface that wants a measure sets it at the
+  callsite.
 - `<OwnerAvatar>`: owner identity. Color resolves through the owner palette
   helper; monogram and aria-label behavior stay in the primitive.
 - `<StatusDot>`: small state indicator. Defaults to decorative unless a label
