@@ -18782,6 +18782,10 @@ export type ListAttentionNotificationsData = {
      */
     workspace?: string;
     /**
+     * Every project's tasks, matching an All projects Home overview
+     */
+    all_workspaces?: boolean;
+    /**
      * Read one profile's rows by name
      */
     profile?: string;
@@ -18840,6 +18844,10 @@ export type AcknowledgeAttentionNotificationsData = {
      * Home workspace scope; empty selects global tasks
      */
     workspace?: string;
+    /**
+     * Every project's tasks, matching an All projects Home overview
+     */
+    all_workspaces?: boolean;
     /**
      * Read one profile's rows by name
      */

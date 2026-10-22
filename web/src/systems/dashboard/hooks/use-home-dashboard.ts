@@ -132,6 +132,8 @@ export function useHomeDashboard({
     ...profileScope,
     receipt_profile: destination,
     workspace: scope.workspaceParam || undefined,
+    // The acknowledgement must name the population the overview showed (AP BR-2).
+    ...("allWorkspaces" in scope.overview ? { all_workspaces: true } : {}),
     surface: "home",
   };
   const attentionActions = useHomeAttentionActions({

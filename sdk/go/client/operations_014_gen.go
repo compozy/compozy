@@ -395,6 +395,7 @@ func (c *Client) ListAppTokens(ctx context.Context, params ListAppTokensParams) 
 type ListAttentionNotificationsParams struct {
 	ReceiptProfile *string `url:"receipt_profile"`
 	Workspace      *string `url:"workspace"`
+	AllWorkspaces  *bool   `url:"all_workspaces"`
 	Profile        *string `url:"profile"`
 	AllProfiles    *bool   `url:"all_profiles"`
 }
@@ -408,6 +409,9 @@ func (c *Client) ListAttentionNotifications(ctx context.Context, params ListAtte
 	}
 	if params.Workspace != nil {
 		query.Set("workspace", *params.Workspace)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)

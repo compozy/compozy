@@ -191,6 +191,8 @@ describe("useHomeDashboard", () => {
     for (const [filter] of getHomeOverview.mock.calls) {
       expect(filter).not.toHaveProperty("workspace");
     }
+    // Acknowledgements name the same all-projects population the overview showed.
+    expect(result.current.notificationScope).toMatchObject({ all_workspaces: true });
     // Working-now cards name their projects from the registered catalog.
     const [, , names] = useHomeWorkingNow.mock.calls.at(-1) ?? [];
     expect(names).toEqual(

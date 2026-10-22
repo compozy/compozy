@@ -28379,6 +28379,8 @@ export interface operations {
         receipt_profile?: string;
         /** @description Home workspace scope; empty selects global tasks */
         workspace?: string;
+        /** @description Every project's tasks, matching an All projects Home overview */
+        all_workspaces?: boolean;
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */
@@ -28444,6 +28446,8 @@ export interface operations {
         receipt_profile?: string;
         /** @description Home workspace scope; empty selects global tasks */
         workspace?: string;
+        /** @description Every project's tasks, matching an All projects Home overview */
+        all_workspaces?: boolean;
         /** @description Read one profile's rows by name */
         profile?: string;
         /** @description Read the owner-labeled all-profiles aggregate */

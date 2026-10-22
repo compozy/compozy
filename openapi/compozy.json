@@ -57484,6 +57484,14 @@
             }
           },
           {
+            "description": "Every project's tasks, matching an All projects Home overview",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Read one profile's rows by name",
             "in": "query",
             "name": "profile",
@@ -57581,6 +57589,14 @@
             "name": "workspace",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Every project's tasks, matching an All projects Home overview",
+            "in": "query",
+            "name": "all_workspaces",
+            "schema": {
+              "type": "boolean"
             }
           },
           {
