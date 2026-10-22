@@ -4838,6 +4838,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"lineage_kind",
 				"origin_message_id",
 				"origin_agent_name",
+				"effective_workspace_access",
 			},
 		)
 	})

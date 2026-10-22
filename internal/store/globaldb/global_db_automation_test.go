@@ -75,6 +75,7 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_input_mapping",
 		"created_at",
 		"updated_at",
+		"grant_ceiling",
 	})
 	assertTableColumns(t, globalDB.db, "automation_triggers", []string{
 		"id",
@@ -100,8 +101,11 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"loop_input_mapping",
 		"created_at",
 		"updated_at",
+		"grant_ceiling",
 	})
 	assertTableColumns(t, globalDB.db, "automation_runs", []string{
+		"workspace_id",
+		"attribution",
 		"id",
 		"profile_id",
 		"job_id",
@@ -3395,6 +3399,9 @@ func TestGlobalDBLatestRunsByOwner(t *testing.T) {
 			}
 			if latest["digest"].Metadata["reason"] != "self_overlap" {
 				t.Fatalf("metadata = %#v", latest["digest"].Metadata)
+			}
+			if latest["digest"].Attribution == "" {
+				t.Fatalf("attribution = %q, want the persisted run attribution", latest["digest"].Attribution)
 			}
 		}
 		for _, owner := range []automation.RunOwnerKind{automation.RunOwnerJob, automation.RunOwnerTrigger} {

@@ -89,6 +89,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"needs_attention_by_kind",
 		"needs_attention_by_ref",
 		"wake_creator",
+		"grant_ceiling",
 	})
 	assertTableColumns(t, globalDB.db, "task_blocks", []string{
 		"id",

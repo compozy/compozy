@@ -3200,7 +3200,14 @@ func TestGlobalDBSubagentMigration(t *testing.T) {
 		now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 		old := &GlobalDB{db: prefix, path: path, now: func() time.Time { return now }}
 		old.initializeRepositories(openConfig{})
-		id := registerInputQueueSession(t, old)
+		workspaceID := registerWorkspaceForGlobalTests(t, old, "input-queue-workspace", filepath.Join(t.TempDir(), "workspace"))
+		id := "sess-input-queue"
+		created := store.FormatTimestamp(time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC))
+		insertPrefixRow(t, prefix, "sessions", map[string]any{
+			"id": id, "profile_id": store.DefaultProfileID, "name": "Input Queue", "agent_name": "coder",
+			"provider": "claude", "runtime_status": string(store.SessionRuntimeUnbound), "workspace_id": workspaceID,
+			"session_type": defaultSessionType, "state": "active", "created_at": created, "updated_at": created,
+		})
 		for _, entry := range []string{"a", "b"} {
 			if _, err = prefix.ExecContext(
 				ctx,

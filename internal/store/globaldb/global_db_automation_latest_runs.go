@@ -51,7 +51,7 @@ func automationLatestRunsSQL(owner automation.RunOwnerKind) (string, error) {
     )
     SELECT id, ` + automationRunProfileIDSQL + `, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
         status, attempt, scheduled_at, started_at, ended_at, error,
-        delivery_error, delivery_error_at, loop_run_id, metadata_json
+        delivery_error, delivery_error_at, loop_run_id, metadata_json, workspace_id, attribution
     FROM automation_runs JOIN latest_ids ON latest_ids.latest_id = automation_runs.id`, nil
 }
 

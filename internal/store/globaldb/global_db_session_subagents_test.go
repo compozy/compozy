@@ -903,7 +903,11 @@ func TestSubagentWorktreePersistence(t *testing.T) {
 		old := &GlobalDB{db: prefix, path: path, now: func() time.Time { return now }}
 		old.initializeRepositories(openConfig{})
 		ws := registerWorkspaceForGlobalTests(t, old, "isolation-upgrade", t.TempDir())
-		registerSubagentSession(t, old, ws, "parent", "", "", now)
+		insertPrefixRow(t, prefix, "sessions", map[string]any{
+			"id": "parent", "profile_id": store.DefaultProfileID, "agent_name": "coder", "provider": "claude",
+			"workspace_id": ws, "runtime_status": string(store.SessionRuntimeUnbound), "session_type": defaultSessionType,
+			"state": "stopped", "created_at": store.FormatTimestamp(now), "updated_at": store.FormatTimestamp(now),
+		})
 		_, err = prefix.ExecContext(
 			t.Context(),
 			`INSERT INTO session_subagents (id,workspace_id,parent_session_id,parent_turn_id,origin,idempotency_key,request_fingerprint,title,task_chars,pending_task,depth,status,work_state,wake_policy,created_at,updated_at) VALUES ('sub-old',?,'parent','turn','delegated','key','fingerprint','old task',4,'task',1,'queued','working','always',?,?)`,
