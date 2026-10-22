@@ -63,3 +63,29 @@ export function taskBreadthParams(query: BreadthQuery): {
     ? { all_workspaces: true, workspace_ids: [...query.workspaceIds] }
     : { all_workspaces: true };
 }
+
+/** Where a Loop list read goes: the aggregate route, or one workspace path (`@user` for User). */
+export type LoopBreadthTarget =
+  | { kind: "aggregate"; params: { all_workspaces: true; workspace_ids?: string[] } }
+  | { kind: "workspace"; workspaceId: string };
+
+/**
+ * Loop-list spelling: under All projects the flat aggregate route
+ * (`/api/loops`, `/api/loop-runs`, `/api/loop-requests`) with `all_workspaces`
+ * (+ `workspace_ids`); otherwise the workspace path segment.
+ */
+export function loopBreadthTarget(query: BreadthQuery): LoopBreadthTarget {
+  const { scope } = query;
+  if (scope.kind === "all") {
+    return {
+      kind: "aggregate",
+      params: query.workspaceIds
+        ? { all_workspaces: true, workspace_ids: [...query.workspaceIds] }
+        : { all_workspaces: true },
+    };
+  }
+  return {
+    kind: "workspace",
+    workspaceId: scope.kind === "user" ? USER_SCOPE_SELECTOR : scope.workspaceId,
+  };
+}

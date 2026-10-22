@@ -14,6 +14,7 @@ import type { TaskListItem } from "../types";
 import { TasksListRow } from "./tasks-list-row";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+import { itemBindingSearch } from "@/systems/workspace";
 
 export interface TaskLoopRowProps {
   task: TaskListItem;
@@ -83,6 +84,8 @@ export function TaskLoopRow({
           aria-label={`Open run for ${identity}`}
           onClick={onOpenRun}
           params={runLink.params}
+          // The run lives with its task: it opens bound to the task's project (or User).
+          search={itemBindingSearch(task.workspace_id)}
           to={runLink.to}
         />
       }

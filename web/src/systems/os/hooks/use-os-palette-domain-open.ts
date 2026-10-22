@@ -19,7 +19,7 @@ import type { OsAppId } from "../lib/os-types";
  * bound to the row's scope); the other kinds keep the switch-project path
  * until their slice migrates them.
  */
-const OPEN_IN_PLACE_APPS: ReadonlySet<OsAppId> = new Set<OsAppId>(["tasks"]);
+const OPEN_IN_PLACE_APPS: ReadonlySet<OsAppId> = new Set<OsAppId>(["tasks", "loops"]);
 
 interface PendingDomainOpen {
   readonly row: OsPaletteDomainRow;

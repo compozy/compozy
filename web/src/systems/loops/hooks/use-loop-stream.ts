@@ -8,7 +8,7 @@ import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
 import { buildLoopStreamUrl } from "../adapters/loops-api";
 import { isLoopRequestEventKind } from "../lib/loop-graph-events";
-import { loopsKeys } from "../lib/query-keys";
+import { LOOP_AGGREGATE_KEY, loopsKeys } from "../lib/query-keys";
 import type { LoopRunEventFrame, LoopRunEventKind } from "../types";
 import {
   loopStreamLifecycleLogic,
@@ -84,12 +84,16 @@ function invalidateLoopRunQueries(
 ) {
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) });
   // The stream accelerates; the reads reconcile. A lifecycle frame is the signal
   // that the briefing, roster and story have something new to say — it is never
   // the story itself, because the daemon writes those sentences at read time.
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runReads(workspaceId, runId) });
   if (refreshCatalog) {
     void queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) });
+    void queryClient.invalidateQueries({
+      queryKey: loopsKeys.catalogByWorkspace(LOOP_AGGREGATE_KEY),
+    });
   }
 }
 
@@ -101,10 +105,14 @@ function invalidateLoopRequestQueries(
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) });
   void queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(workspaceId) });
+  void queryClient.invalidateQueries({
+    queryKey: loopsKeys.requestsByWorkspace(LOOP_AGGREGATE_KEY),
+  });
   // The workspace roster carries a server-owned needs-you marker, and a request
   // can be opened or answered from another surface entirely. Without this the
   // run list keeps advertising a decision that has already been made.
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) });
+  void queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) });
   // A request opening or closing changes the served verdict, so the briefing has
   // to be re-read rather than inferred from the frame.
   void queryClient.invalidateQueries({ queryKey: loopsKeys.runReads(workspaceId, runId) });

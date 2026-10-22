@@ -11,26 +11,24 @@ import {
   type LoopRunDiffRouteSearch,
   LoopStatusMark,
 } from "@/systems/loops";
-import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
+import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
+import { LoopUnboundState } from "./loop-unbound-state";
 
 export function LoopRunDiffLocation({
   runId,
-  routeWorkspaceId,
   search,
 }: {
   runId: string;
-  routeWorkspaceId?: string;
   search: LoopRunDiffRouteSearch;
 }) {
-  const { dataScope } = useActiveWorkspace();
-  const workspaceId = routeWorkspaceId ?? focusedWorkspaceSelector(dataScope);
+  const { scope, workspaceId } = useLoopWindowScope();
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="loop-run-diff-location">
       {workspaceId === "" ? (
-        <DiffState
-          description="Select a project to compare this run."
+        <LoopUnboundState
+          description="Open this run from Runs to compare it."
+          scope={scope}
           testId="loop-run-diff-no-workspace"
-          title="No project selected"
         />
       ) : (
         <LoopRunDiffPage key={runId} runId={runId} search={search} workspaceId={workspaceId} />

@@ -1,4 +1,4 @@
-import { Activity, AlertCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 
 import { useNavigate } from "@tanstack/react-router";
 
@@ -19,22 +19,25 @@ import {
   LoopRunControlDialog,
   LoopRunPageBody,
 } from "@/systems/loops";
-import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
+import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
+import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
+import { LoopUnboundState } from "./loop-unbound-state";
 
 export function LoopRunDetailLocation({
   runId,
-  routeWorkspaceId,
   requestFocus,
 }: {
   runId: string;
-  routeWorkspaceId?: string;
   requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
 }) {
   const navigate = useNavigate();
-  const { activeWorkspace, dataScope, workspaces } = useActiveWorkspace();
+  const { registeredWorkspaces } = useActiveWorkspace();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const workspaceId = routeWorkspaceId ?? focusedWorkspaceSelector(dataScope);
-  const workspaceName = workspaces.find(workspace => workspace.id === workspaceId)?.name;
+  const { scope, workspaceId, search } = useLoopWindowScope();
+  const workspaceName =
+    scope?.kind === "user"
+      ? DESTINATION_COPY.user
+      : registeredWorkspaces.find(workspace => workspace.id === workspaceId)?.name;
   const openLoops = () => {
     void navigate({ to: "/loops" });
   };
@@ -49,17 +52,11 @@ export function LoopRunDetailLocation({
 
   if (workspaceId === "") {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-        data-testid="loop-run-detail-no-workspace"
-      >
-        <Empty
-          className="max-w-md"
-          description="Select a project to monitor this run."
-          icon={Activity}
-          title="No project selected"
-        />
-      </div>
+      <LoopUnboundState
+        description="Open this run from Runs."
+        scope={scope}
+        testId="loop-run-detail-no-workspace"
+      />
     );
   }
 
@@ -71,11 +68,10 @@ export function LoopRunDetailLocation({
       runId={runId}
       liveDataEnabled={liveDataEnabled}
       navigate={navigate}
+      bindingSearch={search}
       openLoops={openLoops}
       openRuns={openRuns}
-      workspaceName={
-        workspaceName ?? (activeWorkspace?.id === workspaceId ? activeWorkspace.name : undefined)
-      }
+      workspaceName={workspaceName}
       requestFocus={requestFocus}
     />
   );
@@ -89,6 +85,7 @@ interface LoopRunDetailProps {
   workspaceName?: string;
   liveDataEnabled: boolean;
   navigate: ReturnType<typeof useNavigate>;
+  bindingSearch: { workspace?: string };
   requestFocus?: { generation?: number; nodeId: string; itemIndex: number };
 }
 
@@ -101,11 +98,12 @@ function LoopRunDetail({
   workspaceName,
   liveDataEnabled,
   navigate,
+  bindingSearch,
   requestFocus,
 }: LoopRunDetailProps) {
   const detail = useLoopRunDetail(workspaceId, runId, { liveDataEnabled });
   const { page, nodeControls, requests, timetravel, dialogs, events, goalTurns } = detail;
-  useLoopRunTopbar(detail, { runId, openLoops, openRuns, navigate });
+  useLoopRunTopbar(detail, { runId, openLoops, openRuns, navigate, bindingSearch });
 
   if (page.runQuery.isLoading) {
     return (

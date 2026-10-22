@@ -185,12 +185,13 @@ function useLoopSection(context: OsPaletteDomainContext, catalogs: OsPaletteWork
     "Loops",
     rows.map(({ loop, workspaceId }) =>
       rowSeed("Loops", {
-        key: `loop:${workspaceId ?? "global"}:${loop.name}`,
+        key: `loop:${workspaceId || "@user"}:${loop.name}`,
         label: loop.name,
         detail: loop.contract.goal,
         workspaceLabel: workspaceLabel(context.scope, workspaceId, context.workspaceNames),
         app: "loops",
-        route: loopRoute(loop.name, workspaceId),
+        // Opens through `openTarget`, bound to its own project (none: User).
+        route: loopRoute(loop.name),
         ...(workspaceId ? { workspaceId } : {}),
       })
     ),

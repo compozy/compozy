@@ -25,7 +25,9 @@ import {
   useLoopConfig,
   useLoopRun,
   useLoopRuns,
+  useLoopRunsList,
   useLoops,
+  useLoopsAggregate,
 } from "@/systems/loops";
 import { onboardingStatusOptions, useOnboardingStatus } from "@/systems/onboarding";
 import { homeActivityOptions, homeOverviewOptions, homePrefsStore } from "@/systems/dashboard";
@@ -106,7 +108,9 @@ const adapterMocks = vi.hoisted(() => ({
   listAutomationSuggestions: vi.fn(),
   listAutomationTriggers: vi.fn(),
   listLoopRuns: vi.fn(),
+  listLoopRunsAggregate: vi.fn(),
   listLoops: vi.fn(),
+  listLoopsAggregate: vi.fn(),
   listTasks: vi.fn(),
   listSettingsApplyRecords: vi.fn(),
   listSettingsMCPServers: vi.fn(),
@@ -214,7 +218,9 @@ vi.mock("@/systems/loops/adapters/loops-api", async importOriginal => ({
   getLoopConfig: adapterMocks.getLoopConfig,
   getLoopRun: adapterMocks.getLoopRun,
   listLoopRuns: adapterMocks.listLoopRuns,
+  listLoopRunsAggregate: adapterMocks.listLoopRunsAggregate,
   listLoops: adapterMocks.listLoops,
+  listLoopsAggregate: adapterMocks.listLoopsAggregate,
 }));
 
 import { Route as AppRoute } from "../../_app";
@@ -586,6 +592,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopRunFormRoute, {
         ...context(queryClient),
+        deps: {},
         params: { name: "review" },
       }),
     mountConsumer: queryClient =>
@@ -601,6 +608,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopEditorRoute, {
         ...context(queryClient),
+        deps: {},
         params: { name: "review" },
       }),
     mountConsumer: queryClient =>
@@ -616,6 +624,7 @@ const cases: PreloadCase[] = [
     load: queryClient =>
       invokeLoader(LoopConfigureRoute, {
         ...context(queryClient),
+        deps: {},
         params: { name: "review" },
       }),
     mountConsumer: queryClient =>
@@ -851,7 +860,8 @@ describe("route query preloading", () => {
       const queryClient = createQueryClient();
       adapterMocks.fetchProfileSelection.mockResolvedValue({ profile: "marketing" });
       setProfileView(profile === "@all" ? { kind: "aggregate" } : { kind: "profile", profile });
-      const scope = profile === "@all" ? { all_profiles: true } : { profile };
+      // Definitions resolve for one concrete profile: under All profiles, the acting one.
+      const scope = { profile: "marketing" };
       await invokeLoader(LoopsRoute, {
         ...context(queryClient),
         deps: { limit: 50, sort: "name" as const },
@@ -953,6 +963,52 @@ describe("route query preloading", () => {
     });
     await waitFor(() => expect(queryClient.isFetching()).toBe(0));
     expect(adapterMocks.fetchAgentCatalog).toHaveBeenCalledTimes(1);
+    unmount();
+    queryClient.clear();
+  });
+
+  it("Should preload and reuse the All projects Loop catalog and runs aggregates", async () => {
+    const queryClient = createQueryClient();
+    enableAllProjects();
+    adapterMocks.listLoopsAggregate.mockResolvedValue({
+      entries: [],
+      errors: [],
+      truncated: false,
+    });
+    adapterMocks.listLoopRunsAggregate.mockResolvedValue({ runs: [] });
+
+    await invokeLoader(LoopsRoute, {
+      ...context(queryClient),
+      deps: { limit: 50, sort: "name" as const },
+      location: { pathname: "/loops" },
+    });
+    await invokeLoader(LoopRunsRoute, {
+      ...context(queryClient),
+      deps: {},
+      location: { pathname: "/loop-runs" },
+    });
+
+    // The aggregate is one bounded batch: no per-project page size, no workspace route.
+    expect(adapterMocks.listLoopsAggregate).toHaveBeenCalledExactlyOnceWith(
+      { all_workspaces: true },
+      expect.objectContaining({ sort: "name", profile: "default" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listLoopsAggregate.mock.calls[0]?.[1].limit).toBeUndefined();
+    expect(adapterMocks.listLoopRunsAggregate).toHaveBeenCalledExactlyOnceWith(
+      { all_workspaces: true },
+      expect.objectContaining({ profile: "default" }),
+      expect.any(AbortSignal)
+    );
+    expect(adapterMocks.listLoops).not.toHaveBeenCalled();
+    expect(adapterMocks.listLoopRuns).not.toHaveBeenCalled();
+    const unmount = mountQueries(queryClient, () => {
+      useLoopsAggregate({ all_workspaces: true }, { sort: "name" });
+      useLoopRunsList({ kind: "aggregate", params: { all_workspaces: true } }, {});
+    });
+    await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+    expect(adapterMocks.listLoopsAggregate).toHaveBeenCalledTimes(1);
+    expect(adapterMocks.listLoopRunsAggregate).toHaveBeenCalledTimes(1);
     unmount();
     queryClient.clear();
   });

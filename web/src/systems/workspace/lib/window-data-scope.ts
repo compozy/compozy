@@ -1,6 +1,7 @@
 import {
   dataScopeFromSelector,
   GLOBAL_DESKTOP_WORKSPACE_ID,
+  ownerDataScope,
   USER_DESKTOP_WORKSPACE_ID,
   workspaceSelectorForScope,
   type DataScope,
@@ -32,4 +33,9 @@ export function windowDataScope(
   if (id === GLOBAL_DESKTOP_WORKSPACE_ID) return { kind: "all" };
   if (id === USER_DESKTOP_WORKSPACE_ID) return { kind: "user" };
   return { kind: "project", workspaceId: id };
+}
+
+/** Route search that binds an item navigation to its owner (`workspace_id` absent or empty is User). */
+export function itemBindingSearch(workspaceId: string | null | undefined): { workspace: string } {
+  return { [WINDOW_BINDING_SEARCH_KEY]: windowBindingValue(ownerDataScope(workspaceId)) };
 }

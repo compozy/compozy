@@ -1,7 +1,8 @@
 // Suite: Loop run detail route composition
-// Invariant: a run label identifies the same runtime workspace that loaded the run; under User
-// focus the run loads through `@user`, never an aggregate.
-// Owning layer: LoopRunDetailLocation, which binds shell workspace state to the run page.
+// Invariant: a run loads through its window's data scope — the serialized binding wins, a User
+// run loads through `@user`, and an unbound All projects window reads nothing — and the run label
+// names the same project that loaded it.
+// Owning layer: LoopRunDetailLocation, which binds the window's data scope to the run page.
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopbarSlot } from "@compozy/ui";
@@ -10,8 +11,9 @@ const workspace = vi.hoisted(() => ({
   activeWorkspace: { id: "ws_project", name: "Project workspace" },
   dataScope: { kind: "project", workspaceId: "ws_home" } as
     | { kind: "project"; workspaceId: string }
-    | { kind: "user" },
-  workspaces: [
+    | { kind: "user" }
+    | { kind: "all" },
+  registeredWorkspaces: [
     { id: "ws_home", name: "Home workspace" },
     { id: "ws_project", name: "Project workspace" },
     { id: "ws_target", name: "Target workspace" },
@@ -46,7 +48,11 @@ vi.mock("@compozy/ui", () => ({
 
 vi.mock("@/systems/workspace", async () => ({
   ...(await import("@/systems/workspace/lib/destination")),
+  ...(await import("@/systems/workspace/lib/workspace-scope-copy")),
   useActiveWorkspace: () => workspace,
+  // The window's data scope; the binding is folded into it by the hook under test elsewhere.
+  useWindowDataWorkspace: () => workspace.dataScope,
+  useWindowBindingSearch: () => ({}),
 }));
 
 vi.mock("../../../hooks/use-window-live-data-enabled", () => ({
@@ -197,15 +203,10 @@ describe("LoopRunDetailLocation", () => {
     );
   });
 
-  it("Should bind a trigger deep link to its explicit target workspace", () => {
+  it("Should load a bound run from its binding's project on the All projects desktop", () => {
+    workspace.dataScope = { kind: "project", workspaceId: "ws_target" };
     const requestFocus = { nodeId: "publish", itemIndex: 2 };
-    render(
-      <LoopRunDetailLocation
-        requestFocus={requestFocus}
-        routeWorkspaceId="ws_target"
-        runId="run-1"
-      />
-    );
+    render(<LoopRunDetailLocation requestFocus={requestFocus} runId="run-1" />);
 
     expect(loopRunPageSpy).toHaveBeenCalledWith("ws_target", "run-1", {
       liveDataEnabled: true,
@@ -213,6 +214,14 @@ describe("LoopRunDetailLocation", () => {
     expect(loopRunPageBodySpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ requestFocus, workspaceLabel: "Target workspace" })
     );
+  });
+
+  it("Should read nothing in an unbound All projects window", () => {
+    workspace.dataScope = { kind: "all" };
+
+    render(<LoopRunDetailLocation runId="run-1" />);
+
+    expect(loopRunPageSpy).not.toHaveBeenCalled();
   });
 
   it("Should keep Runs in the drill-in trail after the loop name loads", () => {

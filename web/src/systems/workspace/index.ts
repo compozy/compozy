@@ -156,22 +156,25 @@ export type { WorkspaceTreeNode, WorktreeListingByWorkspace } from "./lib/worksp
 // Hooks
 export { useActiveWorkspace, useDataScope } from "./hooks/use-active-workspace";
 export {
+  useWindowBindingSearch,
   useWindowDataWorkspace,
   WindowDataBindingContext,
 } from "./hooks/use-window-data-workspace";
 export type { WindowDataBinding } from "./hooks/use-window-data-workspace";
 export {
+  itemBindingSearch,
   WINDOW_BINDING_SEARCH_KEY,
   windowBindingValue,
   windowDataScope,
 } from "./lib/window-data-scope";
 export {
   breadthQuery,
+  loopBreadthTarget,
   sessionCatalogBreadthParams,
   taskBreadthParams,
   USER_SCOPE,
 } from "./lib/breadth-query";
-export type { BreadthQuery, ProjectFilterValue } from "./lib/breadth-query";
+export type { BreadthQuery, LoopBreadthTarget, ProjectFilterValue } from "./lib/breadth-query";
 export {
   PROJECT_FILTER_FIELD,
   projectFilterChip,

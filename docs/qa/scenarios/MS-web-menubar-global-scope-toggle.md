@@ -107,3 +107,6 @@ has no authored provider narrative, and no such rendering claim is made. See the
 closure in the cycle report for the complete earlier scope-control legs and evidence.
 
 2026-10-21 qa-impact (user-scope-work, web destination model): **reset to `untested`**. The binary Global/workspace scope became the destination model (breadth + focus with User). Re-walk the switcher order, User focus and its desktop, the zero-project globe, the v1→v2 upgrade of a real browser profile, and two windows on different worktrees surviving project → User → project → reload (E-01). Owned by the trailing QA pair of the user-scope-work / all-projects delivery.
+
+
+2026-10-21 qa-impact (all-projects AW3): Loops windows no longer adopt their route workspace. A `?workspace=` Loop run (bound window) renders in place and never changes the destination, so the 2026-10-04 retained-Loop-run reversal path is gone by design rather than guarded; `loops.spec.ts` now asserts the globe stays on through a bound Loop run permalink, the aggregate Runs and catalog, and a reload. Remains `untested` for the trailing QA pair.

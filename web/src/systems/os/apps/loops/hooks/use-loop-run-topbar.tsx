@@ -9,12 +9,14 @@ interface LoopRunTopbarNavigation {
   openLoops: () => void;
   openRuns: () => void;
   navigate: ReturnType<typeof useNavigate>;
+  /** Keeps the run's Loop link on this window's binding. */
+  bindingSearch: { workspace?: string };
 }
 
 /** Publishes run navigation, status, and controls into the owning window's top bar. */
 export function useLoopRunTopbar(
   { page, dialogs }: ReturnType<typeof useLoopRunDetail>,
-  { runId, openLoops, openRuns, navigate }: LoopRunTopbarNavigation
+  { runId, openLoops, openRuns, navigate, bindingSearch }: LoopRunTopbarNavigation
 ) {
   const loopName = page.run?.loop_name;
   // The run id stays in About; the crumb names the run by when it started.
@@ -28,7 +30,11 @@ export function useLoopRunTopbar(
         loopName === undefined
           ? undefined
           : () => {
-              void navigate({ to: "/loops/$name", params: { name: loopName } });
+              void navigate({
+                to: "/loops/$name",
+                params: { name: loopName },
+                search: bindingSearch,
+              });
             },
       openLoops,
       openRuns,

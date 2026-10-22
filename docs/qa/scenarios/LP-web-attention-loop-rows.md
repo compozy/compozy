@@ -29,3 +29,6 @@ request notifications. Terminal input inventory still uses the existing project 
 
 Backend evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`. The integrated browser re-walk
 is pending UW/A4; the previous report above is historical evidence, not a verdict for this change.
+
+
+2026-10-21 qa-impact (all-projects AW3): selecting a bell Loop node row that names its owner opens the run in place under All projects, bound to that project (`@user` for User); summary rows without an owner open Runs in the current scope. Re-walk with LP-web-loops-all-projects.

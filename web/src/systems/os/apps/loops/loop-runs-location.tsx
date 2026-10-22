@@ -27,7 +27,7 @@ type LoopRunsRoute = ReturnType<typeof useLoopRunsRoute>;
 
 export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   const route = useLoopRunsRoute(search);
-  const { workspaceId, inventoryState } = route;
+  const { ready, inventoryState } = route;
   const navigate = useNavigate();
   const openLoops = () => {
     void navigate({ to: "/loops" });
@@ -35,21 +35,16 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
   // Inventory ages and roster durations tick on one clock.
   const nowMs = useNowTick(true);
   // Query transitions must preserve the focused control and any empty text-chip draft.
-  const showToolbar = workspaceId !== "";
+  const showToolbar = ready;
 
   useTopbarSlot({
     ...loopRunsTrail({ level: "runs", onBack: openLoops, openLoops }),
     toolbar: showToolbar ? <LoopRunsToolbar route={route} search={search} /> : undefined,
   });
 
-  if (workspaceId === "") {
-    return (
-      <RunsState
-        description="Select a project to view its Loop runs."
-        testId="loop-runs-no-workspace"
-        title="No project selected"
-      />
-    );
+  // The first load stays blank until the window's data scope settles.
+  if (!ready) {
+    return <div className="min-h-0 flex-1" data-testid="loop-runs-no-workspace" aria-busy="true" />;
   }
 
   // The inventory is a peer view of the same runs area, not a nested state of
@@ -63,22 +58,26 @@ export function LoopRunsLocation({ search }: { search: LoopRunsRouteSearch }) {
 }
 
 function LoopRunsToolbar({ route, search }: { route: LoopRunsRoute; search: LoopRunsRouteSearch }) {
-  const { inventoryState, outcome, setInventoryState, setOriginFilter, setOutcome } = route;
+  const { allProjects, inventoryState, outcome, setInventoryState, setOriginFilter, setOutcome } =
+    route;
   return (
     <ListingToolbar data-testid="loop-runs-origin-toolbar">
       <ListingToolbar.Leading>
-        <PillGroup<"runs" | "nodes">
-          aria-label="Runs view"
-          data-testid="loop-runs-view-switch"
-          items={[
-            { value: "runs", label: "Runs", testId: "loop-runs-view-runs" },
-            { value: "nodes", label: "Steps", testId: "loop-runs-view-nodes" },
-          ]}
-          onChange={next =>
-            setInventoryState(next === "runs" ? undefined : LOOP_NODE_INVENTORY_STATES[0])
-          }
-          value={inventoryState === undefined ? "runs" : "nodes"}
-        />
+        {/* Steps read one project's inventory; All projects lists runs only. */}
+        {allProjects ? null : (
+          <PillGroup<"runs" | "nodes">
+            aria-label="Runs view"
+            data-testid="loop-runs-view-switch"
+            items={[
+              { value: "runs", label: "Runs", testId: "loop-runs-view-runs" },
+              { value: "nodes", label: "Steps", testId: "loop-runs-view-nodes" },
+            ]}
+            onChange={next =>
+              setInventoryState(next === "runs" ? undefined : LOOP_NODE_INVENTORY_STATES[0])
+            }
+            value={inventoryState === undefined ? "runs" : "nodes"}
+          />
+        )}
         {inventoryState === undefined ? (
           <ListingToolbar.Filters>
             <LoopRunsFilters
@@ -87,6 +86,7 @@ function LoopRunsToolbar({ route, search }: { route: LoopRunsRoute; search: Loop
               origin={search.origin}
               originSession={search.origin_session}
               outcome={outcome}
+              projectFilter={route.projectFilter}
             />
           </ListingToolbar.Filters>
         ) : null}
@@ -160,11 +160,15 @@ function LoopRunsRosterPane({
   openLoops: () => void;
   search: LoopRunsRouteSearch;
 }) {
-  const { runsQuery, outcome, setOutcome, setOriginFilter, profile } = route;
-  const hasActiveFilters = outcome !== "all" || Boolean(search.origin || search.origin_session);
+  const { runsQuery, outcome, setOutcome, setOriginFilter, profile, projectFilter } = route;
+  const hasActiveFilters =
+    outcome !== "all" ||
+    Boolean(search.origin || search.origin_session) ||
+    projectFilter.values.length > 0;
   const clearFilters = () => {
     setOutcome("all");
     setOriginFilter({});
+    projectFilter.clear();
   };
   if (runsQuery.isLoading) {
     return (
@@ -202,6 +206,7 @@ function LoopRunsRosterPane({
         onRetry={() => void runsQuery.refetch()}
         outcome={outcome}
         profileScope={profile}
+        projectOf={route.projectOf}
         runs={runsQuery.data?.runs ?? []}
       />
     </ListingPage>

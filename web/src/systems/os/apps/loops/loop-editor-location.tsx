@@ -2,17 +2,17 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { LoopEditor } from "@/systems/loops";
-import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
+import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
 
 export function LoopEditorLocation({ name }: { name: string }) {
-  const { dataScope } = useActiveWorkspace();
+  const { workspaceId, search } = useLoopWindowScope();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const navigate = useNavigate();
   const openLoops = () => void navigate({ to: "/loops" });
-  const openLoop = () => void navigate({ to: "/loops/$name", params: { name } });
+  const openLoop = () => void navigate({ to: "/loops/$name", params: { name }, search });
   return (
     <LoopEditor
-      workspaceId={focusedWorkspaceSelector(dataScope)}
+      workspaceId={workspaceId}
       name={name}
       liveDataEnabled={liveDataEnabled}
       topbarIdentity={{
@@ -24,7 +24,9 @@ export function LoopEditorLocation({ name }: { name: string }) {
         crumb: "Editor",
       }}
       // Publish → continue to the run form for the freshly published definition.
-      onPublished={loop => void navigate({ to: "/loops/$name/run", params: { name: loop.name } })}
+      onPublished={loop =>
+        void navigate({ to: "/loops/$name/run", params: { name: loop.name }, search })
+      }
     />
   );
 }

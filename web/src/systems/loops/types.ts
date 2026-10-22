@@ -21,6 +21,18 @@ export type LoopDefinition = LoopDetail["definition"];
 export type LoopDefinitionMeta = LoopDefinition["meta"];
 export type LoopDefinitionGraph = LoopDefinition["graph"];
 
+// All projects aggregate ------------------------------------------------------
+
+/** Breadth params of the flat aggregate Loop routes (`/api/loops`, `/api/loop-runs`, `/api/loop-requests`). */
+export interface LoopAggregateBreadth {
+  all_workspaces: true;
+  workspace_ids?: string[];
+}
+/** Bounded definitions batch: User rows plus each project's rows, with per-project errors. */
+export type LoopCatalogBatch = OperationResponse<"listLoopsAggregate", 200>;
+export type LoopCatalogBatchEntry = LoopCatalogBatch["entries"][number];
+export type LoopCatalogBatchError = LoopCatalogBatch["errors"][number];
+
 // Runs ----------------------------------------------------------------------
 
 export type LoopRunListResult = OperationResponse<"listLoopRuns", 200>;

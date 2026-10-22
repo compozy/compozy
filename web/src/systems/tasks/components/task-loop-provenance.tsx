@@ -10,6 +10,7 @@ import {
   type TaskLoopProvenance as TaskLoopProvenanceData,
 } from "../lib/task-loop-identity";
 import { TaskRailSection } from "./task-rail-section";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 export interface TaskLoopProvenanceProps {
   loop: TaskLoopProvenanceData;
@@ -25,6 +26,8 @@ export interface TaskLoopProvenanceProps {
  */
 export function TaskLoopProvenance({ loop }: TaskLoopProvenanceProps) {
   const runLink = taskLoopRunLink(loop);
+  // The run lives with its task: a bound task window opens it bound the same way.
+  const bindingSearch = useWindowBindingSearch();
   const nodeId = loop.node_id?.trim();
 
   // The heading names what the record is, so no row repeats it back.
@@ -38,6 +41,7 @@ export function TaskLoopProvenance({ loop }: TaskLoopProvenanceProps) {
               className="inline-flex min-h-6 min-w-0 items-center gap-1 rounded-sm px-1.5 py-0.5 text-small-body font-medium text-fg hover:bg-surface-2 focus-visible:outline-none focus-visible:shadow-focus-ring"
               data-testid="task-loop-provenance-open-run"
               params={runLink.params}
+              search={bindingSearch}
               to={runLink.to}
             >
               <span className="truncate">Open run</span>

@@ -653,9 +653,13 @@ test("Loop Runs session filter retains its draft across daemon responses", async
   await expect(addFilter).toBeFocused();
 });
 
-// Invariant: a scoped Loop navigation may select its project, but retained Loop
-// windows cannot overwrite later shell choices. Owner: LoopsWindow route adoption.
-test("scoped Loop windows preserve later Global scope choices", async ({ appPage, runtime }) => {
+// Invariant: under All projects a project's Loop run opens in place — the window reads its
+// binding and the shell never leaves All projects — and the Loops catalog and Runs list read the
+// aggregate with each row naming its project. Owner: Loops window binding + aggregate listings.
+test("Loop runs open in place under All projects and listings name their project", async ({
+  appPage,
+  runtime,
+}) => {
   if (!runtime.paths) throw new Error("Loop scope test requires launch-mode runtime paths");
   const workspace = await activateRuntimeWorkspace(appPage, runtime, runtime.paths.workspaceDir);
   const workspacePath = `/api/workspaces/${encodeURIComponent(workspace.id)}`;
@@ -679,27 +683,25 @@ test("scoped Loop windows preserve later Global scope choices", async ({ appPage
   await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
   await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
     "aria-pressed",
-    "false"
-  );
-
-  await setGlobalScope(appPage, true);
-  await expect(appPage.getByTestId("loop-run-detail-content")).toBeVisible();
-  await openAppWindow(appPage, "Home", "dashboard");
-  await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
-    "aria-pressed",
     "true"
   );
-  await openAppWindow(appPage, "Automations", "automations");
-  await expect(appPage).toHaveURL(runtime.url("/automations"));
+
+  await appPage.goto(runtime.url("/loop-runs"), { waitUntil: "domcontentloaded" });
+  const runRow = appPage.locator(`[data-testid="loop-run-row"][data-run-id="${started.run.id}"]`);
+  await expect(runRow.getByTestId("loop-run-project")).toContainText(workspace.name);
+
+  await appPage.goto(runtime.url("/loops"), { waitUntil: "domcontentloaded" });
+  const catalogRow = appPage.locator(
+    `[data-testid="loop-catalog-row"][data-loop="${loopWatchCursorSeedName}"]`
+  );
+  await expect(catalogRow.getByTestId("loop-catalog-row-project").first()).toContainText(
+    workspace.name
+  );
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(appPage.getByTestId("os-global-scope-toggle")).toHaveAttribute(
     "aria-pressed",
     "true"
   );
-  // The Automations window renders after the reload under Global scope. With no
-  // automations it opens on the first-run state, which has no search toolbar (UT-051).
-  await expect(appPage.getByTestId("automations-shell")).toBeVisible();
-  await expect(appPage.getByTestId("automations-list-empty")).toContainText("No automations in");
 });
 
 test("CompozyOS migration E2E-015: run page lifecycle controls and node inventories", async ({

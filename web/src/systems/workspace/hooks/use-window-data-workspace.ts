@@ -27,3 +27,13 @@ export function useWindowDataWorkspace(): DataScope | null {
   const destination = useDataScope({ enabled: frame === null });
   return frame === null ? destination : windowDataScope(frame.partition, frame.binding);
 }
+
+/**
+ * Search that keeps an in-window item navigation on the mounted window's
+ * serialized binding (`{ workspace }`), so following a link inside a bound
+ * window never drops back to the partition's data. Unbound windows get `{}`.
+ */
+export function useWindowBindingSearch(): { workspace?: string } {
+  const binding = useContext(WindowDataBindingContext)?.binding;
+  return typeof binding === "string" && binding.trim() !== "" ? { workspace: binding.trim() } : {};
+}

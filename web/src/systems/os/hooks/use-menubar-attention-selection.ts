@@ -13,6 +13,8 @@ import { useAttentionJump } from "./use-attention-jump";
 import { useOpenTarget } from "./use-open-target";
 import { useOsShell } from "./use-os-shell";
 
+const NOTIFICATION_OPEN_FAILURE = "Couldn't open this notification. Try again.";
+
 export function useMenubarAttentionSelection(
   onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void
 ) {
@@ -63,16 +65,31 @@ export function useMenubarAttentionSelection(
           workspaceId: row.workspaceId,
         });
         return;
-      case "loop-node":
-        openInWorkspace(row.workspaceId, {
-          app: "loops",
-          route: row.runId
-            ? { pathname: `/loop-runs/${encodeURIComponent(row.runId)}`, search: {} }
-            : { pathname: "/loop-runs", search: { nodes: row.state } },
-        });
+      // Loop rows open in place under All projects, bound to their own scope.
+      case "loop-node": {
+        const route = row.runId
+          ? { pathname: `/loop-runs/${encodeURIComponent(row.runId)}`, search: {} }
+          : { pathname: "/loop-runs", search: { nodes: row.state } };
+        // A summary row names no owner: it opens the Runs view of the current scope.
+        if (row.workspaceId === undefined) {
+          open({ app: "loops", route });
+          return;
+        }
+        openItem(
+          { app: "loops", binding: ownerDataScope(row.workspaceId), route },
+          NOTIFICATION_OPEN_FAILURE
+        );
         return;
+      }
       case "loop-request":
-        openInWorkspace(row.workspaceId, { app: "loops", route: loopRequestLocation(row) });
+        openItem(
+          {
+            app: "loops",
+            binding: ownerDataScope(row.workspaceId),
+            route: loopRequestLocation(row),
+          },
+          NOTIFICATION_OPEN_FAILURE
+        );
         return;
       case "terminal-input":
         openInWorkspace(row.workspaceId, {

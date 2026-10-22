@@ -2,17 +2,13 @@ import { AlertCircle, Repeat2 } from "lucide-react";
 
 import { Empty, PAGE_CONTENT_GUTTER, Skeleton, SkeletonRows, cn } from "@compozy/ui";
 
+import { LoopUnboundState } from "./loop-unbound-state";
 import { useLoopDetail } from "./use-loop-detail";
 import { LoopDetailView } from "@/systems/loops";
 
-export function LoopDetailLocation({
-  name,
-  routeWorkspaceId,
-}: {
-  name: string;
-  routeWorkspaceId?: string;
-}) {
+export function LoopDetailLocation({ name }: { name: string }) {
   const {
+    scope,
     workspaceId,
     loopQuery,
     configQuery,
@@ -22,13 +18,13 @@ export function LoopDetailLocation({
     deleteLoop,
     readGraph,
     handlers,
-  } = useLoopDetail(name, routeWorkspaceId);
+  } = useLoopDetail(name);
   if (workspaceId === "") {
     return (
-      <DetailState
-        description="Select a project to inspect this Loop."
+      <LoopUnboundState
+        description="Open this Loop from the Loops catalog."
+        scope={scope}
         testId="loop-detail-no-workspace"
-        title="No project selected"
       />
     );
   }

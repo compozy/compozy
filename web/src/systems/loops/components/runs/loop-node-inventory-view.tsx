@@ -28,6 +28,7 @@ import {
   type LoopNodeInventoryRowView,
 } from "../../lib/loop-node-inventory";
 import type { LoopNodeInventoryItem, LoopNodeInventoryState } from "../../types";
+import { useWindowBindingSearch } from "@/systems/workspace";
 
 export interface LoopNodeInventoryViewProps {
   state: LoopNodeInventoryState;
@@ -307,6 +308,7 @@ function InventoryRows({
   loadedCount: number;
   onLoadMore: () => void;
 }) {
+  const bindingSearch = useWindowBindingSearch();
   return (
     <div className="overflow-hidden rounded-lg bg-card shadow-card">
       <div className="flex items-center gap-4 border-b border-line px-4 py-2">
@@ -324,6 +326,7 @@ function InventoryRows({
           data-testid={`loop-node-inventory-row-${row.key}`}
           key={row.key}
           params={{ runId: row.runId }}
+          search={bindingSearch}
           to="/loop-runs/$runId"
         >
           <span className="flex min-w-0 flex-1 items-start gap-2">
@@ -376,6 +379,7 @@ function InventoryCards({
   loadedCount: number;
   onLoadMore: () => void;
 }) {
+  const bindingSearch = useWindowBindingSearch();
   return (
     <div>
       <div
@@ -387,6 +391,7 @@ function InventoryCards({
             <Link
               className="flex min-w-0 flex-col gap-3"
               params={{ runId: row.runId }}
+              search={bindingSearch}
               to="/loop-runs/$runId"
             >
               <span className="flex items-center gap-2">

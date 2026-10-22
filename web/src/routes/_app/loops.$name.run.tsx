@@ -7,7 +7,12 @@ export const Route = createFileRoute("/_app/loops/$name/run")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
     topbar: { crumb: { label: "Run" } },
   }),
-  loader: async ({ context, params }) =>
-    (await import("./-loops-preload")).preloadLoopRunFormRoute(context.queryClient, params.name),
+  loaderDeps: ({ search }) => ({ workspace: search.workspace }),
+  loader: async ({ context, deps, params }) =>
+    (await import("./-loops-preload")).preloadLoopRunFormRoute(
+      context.queryClient,
+      params.name,
+      deps.workspace
+    ),
   component: createOsRouteSync("loops"),
 });

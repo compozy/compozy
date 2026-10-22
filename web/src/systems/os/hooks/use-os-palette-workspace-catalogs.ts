@@ -1,8 +1,12 @@
-import { queryOptions, useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { agentsListOptions, type AgentPayload } from "@/systems/agent";
 import { extensionsListOptions, type ExtensionEntry } from "@/systems/extensions";
-import { listLoops, loopsCatalogOptions, type LoopCatalogEntry } from "@/systems/loops";
+import {
+  loopCatalogBatchEntries,
+  loopsAggregateOptions,
+  type LoopCatalogEntry,
+} from "@/systems/loops";
 import type { ProfileOwnerLabel } from "@/systems/profiles";
 import { worktreesListOptions } from "@/systems/workspace";
 
@@ -64,28 +68,10 @@ function queryState(
   };
 }
 
-async function fetchAllWorkspaceLoops(profile: string, workspaceId: string, signal: AbortSignal) {
-  const loops: LoopCatalogEntry[] = [];
-  const seenCursors = new Set<string>();
-  let cursor: string | undefined;
-  let total = 0;
-  for (;;) {
-    const page = await listLoops(workspaceId, { cursor, profile }, signal);
-    loops.push(...page.loops);
-    total = page.page.total;
-    if (!page.page.has_more) return { loops, total };
-    const nextCursor = page.page.next_cursor?.trim();
-    if (!nextCursor || seenCursors.has(nextCursor)) {
-      throw new Error(`Loop catalog returned an invalid continuation for ${workspaceId}`);
-    }
-    seenCursors.add(nextCursor);
-    cursor = nextCursor;
-  }
-}
-
 /**
- * Globe-mode catalogs that have no all-workspaces list API. Each workspace is
- * its own query under the domain option factory.
+ * Globe-mode catalogs. Loops read the All projects definitions batch (User
+ * rows plus every project's rows) in one query; catalogs that have no
+ * all-workspaces list API yet stay one query per workspace.
  */
 export function useOsPaletteWorkspaceCatalogs({
   profile,
@@ -96,18 +82,9 @@ export function useOsPaletteWorkspaceCatalogs({
   worktreesEnabled,
 }: UseOsPaletteWorkspaceCatalogsOptions): OsPaletteWorkspaceCatalogs {
   const ids = workspaceIds.filter(id => id.trim() !== "");
-  const loopQueries = useQueries({
-    queries: ids.map(workspaceId => {
-      const base = loopsCatalogOptions(workspaceId, { profile });
-      const queryKey: readonly unknown[] = [...base.queryKey, "palette-all-pages"];
-      return queryOptions({
-        queryKey,
-        queryFn: ({ signal }) => fetchAllWorkspaceLoops(profile, workspaceId, signal),
-        enabled: loopsEnabled,
-        staleTime: 15_000,
-      });
-    }),
-  });
+  const loopQuery = useQuery(
+    loopsAggregateOptions({ all_workspaces: true }, { profile }, loopsEnabled)
+  );
   const agentQueries = useQueries({
     queries: ids.map(workspaceId => ({
       ...agentsListOptions(workspaceId),
@@ -122,15 +99,10 @@ export function useOsPaletteWorkspaceCatalogs({
     queries: ids.map(workspaceId => worktreesListOptions(workspaceId, worktreesEnabled)),
   });
 
-  const loops: PaletteWorkspaceLoop[] = [];
-  let loopTotal = 0;
-  ids.forEach((workspaceId, index) => {
-    const catalog = loopQueries[index]?.data;
-    loopTotal += catalog?.total ?? 0;
-    for (const loop of catalog?.loops ?? []) {
-      loops.push({ loop, workspaceId });
-    }
-  });
+  // A User row has no `workspace_id`: it opens bound to User.
+  const loops: PaletteWorkspaceLoop[] = loopCatalogBatchEntries(loopQuery.data?.entries ?? []).map(
+    loop => ({ loop, workspaceId: loop.workspace_id ?? "" })
+  );
 
   const workspaceAgents: PaletteWorkspaceAgent[] = [];
   ids.forEach((workspaceId, index) => {
@@ -167,8 +139,8 @@ export function useOsPaletteWorkspaceCatalogs({
 
   return {
     loops,
-    loopTotal,
-    loopState: queryState(loopQueries),
+    loopTotal: loops.length,
+    loopState: queryState([loopQuery]),
     workspaceAgents,
     workspaceAgentState: queryState(agentQueries),
     publishedExtensions: publishedExtensions.data ?? [],

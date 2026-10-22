@@ -28,3 +28,8 @@ export function loopLastRunFact(entry: LoopCatalogEntry): LoopLastRunFact | null
   if (!run) return null;
   return { id: run.id, iso: run.created_at };
 }
+
+/** True when the shared facts line has anything to say. */
+export function loopFactsPresent(entry: LoopCatalogEntry): boolean {
+  return loopFactsSegments(entry).length > 0 || loopLastRunFact(entry) !== null;
+}

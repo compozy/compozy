@@ -69,7 +69,7 @@ export function useOsAttention(
   archived: boolean,
   modalEnabled = true
 ): OsAttentionModel {
-  const { dataScope, workspaces } = useActiveWorkspace();
+  const { dataScope } = useActiveWorkspace();
   const documentVisible = useDocumentVisible();
   const workspaceId = runtimeWorkspace?.id ?? null;
   const sessions = useSessionAttentionSources({
@@ -80,7 +80,8 @@ export function useOsAttention(
     modalEnabled,
   });
   const tasks = useTaskAttentionSources({ dataScope, documentVisible });
-  const loops = useLoopRequestAttention(workspaces, true, documentVisible);
+  // The loops badge counts what the Loops listing shows: breadth + profile lens.
+  const loops = useLoopRequestAttention(dataScope, true, documentVisible);
   // Terminals belong to a project or to User; All projects has no terminal badge.
   const terminal = useTerminalAttentionSources({
     documentVisible,

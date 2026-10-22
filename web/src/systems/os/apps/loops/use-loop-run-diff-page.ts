@@ -1,6 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
+import { useWindowBindingSearch } from "@/systems/workspace";
 import {
   comparableGenerations,
   type LoopDiffView,
@@ -57,6 +58,7 @@ export function useLoopRunDiffPage(
   search: LoopRunDiffRouteSearch
 ): LoopRunDiffPageModel {
   const navigate = useNavigate();
+  const bindingSearch = useWindowBindingSearch();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const runQuery = useLoopRun(workspaceId, runId, liveDataEnabled);
   const run = runQuery.data?.run;
@@ -94,13 +96,13 @@ export function useLoopRunDiffPage(
     baseGeneration,
     generations,
     goToLoop: () => {
-      void navigate({ params: { name: loopName }, to: "/loops/$name" });
+      void navigate({ params: { name: loopName }, search: bindingSearch, to: "/loops/$name" });
     },
     goToLoops: () => {
       void navigate({ to: "/loops" });
     },
     goToRun: () => {
-      void navigate({ params: { runId }, to: "/loop-runs/$runId" });
+      void navigate({ params: { runId }, search: bindingSearch, to: "/loop-runs/$runId" });
     },
     goToRuns: () => {
       void navigate({ to: "/loop-runs" });

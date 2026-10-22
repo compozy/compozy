@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "@compozy/ui";
 
+import { useWindowBindingSearch } from "@/systems/workspace";
+
 import { GoalVerificationSessions } from "./goal-verification-sessions";
 
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
@@ -136,6 +138,8 @@ export function SessionGoalStripBody({
   composerAffordance,
   onPrefillComposer,
 }: SessionGoalStripBodyProps) {
+  // The Goal run lives with its session: a bound session window opens it bound the same way.
+  const bindingSearch = useWindowBindingSearch();
   return (
     <div data-testid="goal-strip-body" className="flex flex-col gap-1.5 px-1 pt-1.5 pb-0.5">
       {/* The line truncates the objective; the body is where it reads in full. */}
@@ -147,6 +151,7 @@ export function SessionGoalStripBody({
         <Link
           to="/loop-runs/$runId"
           params={{ runId: snapshot.run_id }}
+          search={bindingSearch}
           hash={`node-${snapshot.node_id}`}
           className="text-info transition-colors hover:underline hover:underline-offset-2"
         >

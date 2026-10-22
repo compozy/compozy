@@ -1,8 +1,8 @@
-// Suite: menubar bell row selection (task kind of openTarget)
-// Invariant: under All projects a bell task row opens in place in the `global` desktop, bound
-// to its own scope (a project, or `@user` for a task without one), and the destination never
-// changes. With a project focused, a foreign task focuses its destination first and opens only
-// once that partition's window manager is live.
+// Suite: menubar bell row selection (task and Loop kinds of openTarget)
+// Invariant: under All projects a bell task or Loop row opens in place in the `global` desktop,
+// bound to its own scope (a project, or `@user` for an item without one), and the destination
+// never changes. With a project focused, a foreign item focuses its destination first and opens
+// only once that partition's window manager is live.
 // Owning layer: OS navigation hook. No prior suite owned bell row selection.
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,8 +21,8 @@ const userOpen = vi.fn(() => Promise.resolve("window-tasks"));
 
 vi.mock("@/lib/user-feedback", () => ({ notifyUser }));
 
-// Loop and terminal rows are other kinds; their barrels are not exercised by task rows.
-vi.mock("@/systems/loops", () => ({ loopRequestLocation: vi.fn() }));
+// Only the Loop request route builder; the terminal barrel is not exercised by these rows.
+vi.mock("@/systems/loops", async () => await import("@/systems/loops/lib/loop-request-location"));
 vi.mock("@/systems/terminal", () => ({ terminalAttentionLocation: vi.fn() }));
 
 vi.mock("@/systems/workspace", async () => {
@@ -124,5 +124,78 @@ describe("useMenubarAttentionSelection", () => {
       app: "tasks",
       route: { pathname: "/tasks/task-42", search: {} },
     });
+  });
+});
+
+describe("useMenubarAttentionSelection (Loop rows)", () => {
+  beforeEach(() => {
+    dataScope = { kind: "all" };
+    commandWorkspaceId = "global";
+    vi.clearAllMocks();
+  });
+
+  const requestRow = (workspaceId: string): OsAttentionRow => ({
+    kind: "loop-request",
+    id: `${workspaceId}:run-1:review:0`,
+    title: "review",
+    workspaceId,
+    workspaceLabel: "beta",
+    runId: "run-1",
+    loopName: "triage",
+    nodeId: "review",
+    itemIndex: 0,
+    requestKind: "ask",
+    openedAt: "2026-10-21T10:00:00Z",
+    stale: false,
+  });
+
+  it("Should open another project's Loop request in place under All projects", () => {
+    const { result } = renderHook(() => useMenubarAttentionSelection(vi.fn()));
+
+    act(() => result.current(requestRow("ws-beta")));
+
+    expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "loops",
+      route: {
+        pathname: "/loop-runs/run-1",
+        search: { workspace: "ws-beta", request_node: "review", request_item: 0 },
+      },
+    });
+    expect(focusDestination).not.toHaveBeenCalled();
+    expect(setActiveWorkspaceId).not.toHaveBeenCalled();
+  });
+
+  it("Should bind a User Loop node row to @user", () => {
+    const { result } = renderHook(() => useMenubarAttentionSelection(vi.fn()));
+
+    act(() =>
+      result.current({
+        kind: "loop-node",
+        id: "node-1",
+        title: "build",
+        workspaceId: "",
+        runId: "run-u",
+        state: "waiting",
+      })
+    );
+
+    expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "loops",
+      route: { pathname: "/loop-runs/run-u", search: { workspace: "@user" } },
+    });
+  });
+
+  it("Should focus a foreign Loop request's project first in project mode", () => {
+    dataScope = { kind: "project", workspaceId: "ws-alpha" };
+    commandWorkspaceId = "ws-alpha";
+    const { result } = renderHook(() => useMenubarAttentionSelection(vi.fn()));
+
+    act(() => result.current(requestRow("ws-beta")));
+
+    expect(focusDestination).toHaveBeenCalledExactlyOnceWith({
+      kind: "project",
+      workspaceId: "ws-beta",
+    });
+    expect(userOpen).not.toHaveBeenCalled();
   });
 });

@@ -1,13 +1,15 @@
 // Suite: breadth query encoders
 // Invariant: a DataScope plus an optional Project filter becomes one route-agnostic query; each
 // route spells it its own way — sessions send `all_workspaces` (+ `workspace_ids`) or one
-// `workspace_id` (`@user` for User), tasks send `all_workspaces` or `scope=global` for User. The
-// filter narrows only All projects, and no encoder ever sends `global` or an empty workspace.
+// `workspace_id` (`@user` for User), tasks send `all_workspaces` or `scope=global` for User, and
+// Loop lists read the flat aggregate route or one workspace path (`@user` for User). The filter
+// narrows only All projects, and no encoder ever sends `global` or an empty workspace.
 // Owning layer: workspace lib. Canonical suite: this file.
 import { describe, expect, it } from "vitest";
 
 import {
   breadthQuery,
+  loopBreadthTarget,
   sessionCatalogBreadthParams,
   taskBreadthParams,
   USER_SCOPE,
@@ -48,5 +50,24 @@ describe("breadthQuery", () => {
 
     expect(sessionCatalogBreadthParams(query)).toEqual({ workspace_id: "@user" });
     expect(taskBreadthParams(query)).toEqual({ scope: "global" });
+  });
+
+  it("Should send Loop lists to the aggregate route under All projects, else one workspace path", () => {
+    expect(loopBreadthTarget(breadthQuery({ kind: "all" }, ["ws_a", USER_SCOPE]))).toEqual({
+      kind: "aggregate",
+      params: { all_workspaces: true, workspace_ids: ["ws_a", "@user"] },
+    });
+    expect(loopBreadthTarget(breadthQuery({ kind: "all" }))).toEqual({
+      kind: "aggregate",
+      params: { all_workspaces: true },
+    });
+    expect(loopBreadthTarget(breadthQuery({ kind: "project", workspaceId: "ws_a" }))).toEqual({
+      kind: "workspace",
+      workspaceId: "ws_a",
+    });
+    expect(loopBreadthTarget(breadthQuery({ kind: "user" }))).toEqual({
+      kind: "workspace",
+      workspaceId: "@user",
+    });
   });
 });

@@ -5,6 +5,7 @@ import { useSelector } from "@xstate/store-react";
 
 import { Marker, MarkerMeta } from "@compozy/ui";
 import { Link } from "@tanstack/react-router";
+import { useWindowBindingSearch } from "@/systems/workspace";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
 import {
@@ -315,6 +316,8 @@ const GOAL_PROMPT_LABELS: Record<GoalPromptMeta["kind"], string> = {
 // `.marker--goal` — the goal prompt as one quiet marker line: a plain step
 // fact, the run link in `--info`. Node and generation stay on data attributes.
 function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
+  // The Goal run lives with its session: a bound session window opens it bound the same way.
+  const bindingSearch = useWindowBindingSearch();
   return (
     <Marker
       data-testid="goal-prompt-meta"
@@ -333,6 +336,7 @@ function GoalPromptNotice({ goal }: { goal: GoalPromptMeta }) {
       <Link
         className="text-info transition-colors hover:underline hover:underline-offset-2"
         params={{ runId: goal.run_id }}
+        search={bindingSearch}
         to="/loop-runs/$runId"
       >
         Open run

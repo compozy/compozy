@@ -2,11 +2,32 @@ import { Repeat2 } from "lucide-react";
 
 import { Button, Empty, ListGroup, ListGroupHeader, type ListingViewMode } from "@compozy/ui";
 
+import {
+  itemBindingSearch,
+  useWindowBindingSearch,
+  type WorkspaceBadgeIdentity,
+} from "@/systems/workspace";
+
 import type { LoopCatalogFilter } from "../../lib/loop-catalog";
 import { groupLoopCatalog, loopKindFacetCount } from "../../lib/loop-catalog";
+import { loopCatalogEntryKey } from "../../lib/loops-list-query";
 import type { LoopCatalogEntry, LoopsListResponse } from "../../types";
 import { LoopCatalogCard } from "./loop-catalog-card";
+import {
+  LoopCatalogProjectErrors,
+  type LoopCatalogProjectError,
+} from "./loop-catalog-project-errors";
 import { LoopCatalogRow } from "./loop-catalog-row";
+
+/** All projects mode: rows name their project and open bound to it. */
+export interface LoopCatalogAggregate {
+  projectOf: (workspaceId: string | undefined) => WorkspaceBadgeIdentity;
+  /** Projects whose definitions could not be resolved; healthy rows still render. */
+  errors: readonly LoopCatalogProjectError[];
+  /** The batch hit its bound; what shows is the first 2,000 definitions. */
+  truncated: boolean;
+  onRetry: () => void;
+}
 
 interface LoopCatalogProps {
   entries: readonly LoopCatalogEntry[];
@@ -20,6 +41,9 @@ interface LoopCatalogProps {
   onClearFilters: () => void;
   onLoadMore?: () => void;
   onRun: (entry: LoopCatalogEntry) => void;
+  aggregate?: LoopCatalogAggregate;
+  /** True-empty description; defaults to the single-project sentence. */
+  emptyDescription?: string;
 }
 
 const GROUP_PASS_THROUGH: LoopCatalogFilter = { kind: "all", category: null, status: null };
@@ -35,37 +59,54 @@ export function LoopCatalog({
   onClearFilters,
   onLoadMore,
   onRun,
+  aggregate,
+  emptyDescription = "This project has no Loops yet.",
 }: LoopCatalogProps) {
+  const windowSearch = useWindowBindingSearch();
   const groups = groupLoopCatalog(entries, GROUP_PASS_THROUGH);
   const isEmpty = entries.length === 0;
+  // Aggregate rows open bound to their own project; elsewhere links keep the window's binding.
+  const linkSearch = (entry: LoopCatalogEntry) =>
+    aggregate ? itemBindingSearch(entry.workspace_id) : windowSearch;
+  const projectOf = aggregate
+    ? (entry: LoopCatalogEntry) => aggregate.projectOf(entry.workspace_id)
+    : undefined;
+  const projectErrors = aggregate ? (
+    <LoopCatalogProjectErrors
+      errors={aggregate.errors}
+      onRetry={aggregate.onRetry}
+      truncated={aggregate.truncated}
+    />
+  ) : null;
 
   if (isEmpty) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center p-4"
-        data-testid="loop-catalog-empty"
-      >
-        <Empty
-          action={
-            hasActiveFilters ? (
-              <Button
-                data-testid="loop-catalog-clear-filters"
-                onClick={onClearFilters}
-                size="sm"
-                type="button"
-                variant="ghost"
-              >
-                Clear filters
-              </Button>
-            ) : undefined
-          }
-          className="max-w-sm"
-          description={
-            hasActiveFilters ? "Try clearing search or filters." : "This project has no Loops yet."
-          }
-          icon={Repeat2}
-          title={hasActiveFilters ? "No matching loops" : "No loops yet"}
-        />
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {projectErrors}
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center p-4"
+          data-testid="loop-catalog-empty"
+        >
+          <Empty
+            action={
+              hasActiveFilters ? (
+                <Button
+                  data-testid="loop-catalog-clear-filters"
+                  onClick={onClearFilters}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
+            className="max-w-sm"
+            description={hasActiveFilters ? "Try clearing search or filters." : emptyDescription}
+            icon={Repeat2}
+            title={hasActiveFilters ? "No matching loops" : "No loops yet"}
+          />
+        </div>
       </div>
     );
   }
@@ -88,7 +129,13 @@ export function LoopCatalog({
                   data-testid="loop-catalog-card-grid"
                 >
                   {group.entries.map(entry => (
-                    <LoopCatalogCard key={entry.name} entry={entry} onRun={onRun} />
+                    <LoopCatalogCard
+                      key={loopCatalogEntryKey(entry)}
+                      entry={entry}
+                      linkSearch={linkSearch(entry)}
+                      onRun={onRun}
+                      project={projectOf?.(entry)}
+                    />
                   ))}
                 </div>
               </>
@@ -99,7 +146,13 @@ export function LoopCatalog({
                 label={group.label}
               >
                 {group.entries.map(entry => (
-                  <LoopCatalogRow key={entry.name} entry={entry} onRun={onRun} />
+                  <LoopCatalogRow
+                    key={loopCatalogEntryKey(entry)}
+                    entry={entry}
+                    linkSearch={linkSearch(entry)}
+                    onRun={onRun}
+                    project={projectOf?.(entry)}
+                  />
                 ))}
               </ListGroup>
             )}
@@ -111,6 +164,7 @@ export function LoopCatalog({
 
   return (
     <div className="flex flex-col gap-3">
+      {projectErrors}
       {catalog}
       {errorMessage ? (
         <p className="text-caption text-danger" data-testid="loop-catalog-page-error" role="alert">

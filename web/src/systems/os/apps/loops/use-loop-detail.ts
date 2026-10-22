@@ -14,14 +14,13 @@ import {
   useLoopRuns,
   useLoops,
 } from "@/systems/loops";
-import { useActiveWorkspace, focusedWorkspaceSelector } from "@/systems/workspace";
+import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
 
 const RECENT_RUNS_LIMIT = 5;
 
 /** View-model for the Loop detail route: definition, 30d aggregate, recent runs, bindings, nav. */
-export function useLoopDetail(name: string, routeWorkspaceId?: string) {
-  const { dataScope } = useActiveWorkspace();
-  const workspaceId = routeWorkspaceId ?? focusedWorkspaceSelector(dataScope);
+export function useLoopDetail(name: string) {
+  const { scope, workspaceId, search } = useLoopWindowScope();
   const navigate = useNavigate();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const active = workspaceId !== "" && liveDataEnabled;
@@ -37,8 +36,8 @@ export function useLoopDetail(name: string, routeWorkspaceId?: string) {
   const catalogEntry = catalogQuery.loops.find(entry => entry.name === name) ?? null;
 
   const handlers = {
-    onRun: () => void navigate({ to: "/loops/$name/run", params: { name } }),
-    onConfigure: () => void navigate({ to: "/loops/$name/configure", params: { name } }),
+    onRun: () => void navigate({ to: "/loops/$name/run", params: { name }, search }),
+    onConfigure: () => void navigate({ to: "/loops/$name/configure", params: { name }, search }),
     onOpenEditor: async () => {
       if (workspaceId === "" || createLoop.isPending) return;
       if (loopQuery.data?.source !== "workspace") {
@@ -51,7 +50,7 @@ export function useLoopDetail(name: string, routeWorkspaceId?: string) {
           }
         }
       }
-      void navigate({ to: "/loops/$name/editor", params: { name } });
+      void navigate({ to: "/loops/$name/editor", params: { name }, search });
     },
     onDelete: async () => {
       if (workspaceId === "" || loopQuery.data?.source !== "workspace" || deleteLoop.isPending) {
@@ -71,6 +70,7 @@ export function useLoopDetail(name: string, routeWorkspaceId?: string) {
   };
 
   return {
+    scope,
     workspaceId,
     loopQuery,
     configQuery,

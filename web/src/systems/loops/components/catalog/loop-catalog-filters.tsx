@@ -2,6 +2,12 @@ import { ListFilter } from "lucide-react";
 
 import { Button, FiltersWithSearch, type Filter } from "@compozy/ui";
 
+import {
+  projectFilterChip,
+  projectFilterValuesFromChips,
+  type ProjectFilterModel,
+} from "@/systems/workspace";
+
 import type { LoopCatalogFilter } from "../../lib/loop-catalog";
 import {
   applyLoopFilterChips,
@@ -13,6 +19,8 @@ export interface LoopCatalogFiltersProps {
   filter: LoopCatalogFilter;
   categoryOptions: readonly string[];
   onFiltersChange: (next: LoopCatalogFilter) => void;
+  /** The shared listing Project filter; its field shows only under All projects. */
+  projectFilter?: ProjectFilterModel;
 }
 
 /**
@@ -23,11 +31,22 @@ export interface LoopCatalogFiltersProps {
  * present on the loaded page, so `canceled` stays selectable on a roster that has
  * none — the answer is the truthful empty state, not a missing option.
  */
-function LoopCatalogFilters({ filter, categoryOptions, onFiltersChange }: LoopCatalogFiltersProps) {
-  const fields = buildLoopFilterFields(categoryOptions, filter.category);
-  const chips = loopFiltersToChips(filter);
+function LoopCatalogFilters({
+  filter,
+  categoryOptions,
+  onFiltersChange,
+  projectFilter,
+}: LoopCatalogFiltersProps) {
+  const projectField = projectFilter?.field ?? null;
+  const projectChip = projectField ? projectFilterChip(projectFilter?.values ?? []) : null;
+  const fields = [
+    ...buildLoopFilterFields(categoryOptions, filter.category),
+    ...(projectField ? [projectField] : []),
+  ];
+  const chips = [...loopFiltersToChips(filter), ...(projectChip ? [projectChip] : [])];
 
   const handleFiltersChange = (next: Filter<string>[]) => {
+    if (projectField) projectFilter?.setValues(projectFilterValuesFromChips(next));
     applyLoopFilterChips(next, { onFiltersChange });
   };
 
