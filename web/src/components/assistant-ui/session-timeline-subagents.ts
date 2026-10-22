@@ -57,9 +57,10 @@ export interface SubagentPartition {
   /** Inner parts of each provider-native card, keyed by subagent id, in order. */
   nested: ReadonlyMap<string, readonly SessionTimelinePart[]>;
   /**
-   * Flow parts that directly follow a removed part. The removed tool call or
-   * inner work separated what surrounds it, so prose on either side must not
-   * be joined as one streamed block.
+   * Flow parts that directly follow a removed card-owned call: the parent's own
+   * call separated what surrounds it, so prose on either side must not be
+   * joined as one streamed block. Native inner work streams concurrently with
+   * the parent's reply and draws inside its card, so it never separates prose.
    */
   boundaries: ReadonlySet<SessionTimelinePart>;
 }
@@ -96,7 +97,6 @@ export function partitionSubagentParts(parts: readonly SessionTimelinePart[]): S
       const inner = nested.get(owner);
       if (inner) inner.push(part);
       else nested.set(owner, [part]);
-      removed = true;
       continue;
     }
     if (part.kind === "tool" && part.isError !== true && cardToolCalls.has(part.toolCallId)) {

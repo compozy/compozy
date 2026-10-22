@@ -4382,6 +4382,15 @@ describe("SessionThread streaming render-count", () => {
             state: "done",
             turn_id: "turn-render-isolation",
           },
+          // A settled call draws a row between the blocks; adjacent prose would read as one.
+          {
+            type: "tool-Read",
+            toolCallId: "call-render-isolation",
+            state: "output-available",
+            input: { file_path: "README.md" },
+            output: "ok",
+            turn_id: "turn-render-isolation",
+          },
           {
             type: "text",
             text: liveText,

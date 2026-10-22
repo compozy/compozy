@@ -1750,19 +1750,68 @@ describe("session timeline subagent cards", () => {
     ]);
     expect(rows.map(row => row.kind)).toEqual(["text", "text", "subagents"]);
     expect(rows[0]).toMatchObject({ part: { text: "I'll pick this up when they wake me." } });
+  });
 
-    // Inner parts of a native card leave the flow the same way.
-    const native = deriveSessionRows([
-      text("t1", "Reviewing.", "turn-1"),
+  // #896. Invariant: the parent's prose splits only where a row is drawn. The daemon closes the
+  // parent's text part at every interleaved event, so native inner work streaming beside the
+  // reply, a child event that adds no part, and an unnamed session-message part all fall between
+  // deltas, mid-word or mid code span, and must still read as one Markdown block.
+  it("Should keep one prose block when native inner work streams between its deltas", () => {
+    const inner = (index: number): SessionTimelinePart[] => [
+      tool(index, { parentToolCallId: "toolu", toolName: "Bash", status: "running" }),
+      {
+        kind: "data",
+        id: `inner-tick-${index}`,
+        name: "data-compozy-event",
+        data: { type: "tool_call", parent_tool_call_id: "toolu" },
+        turnId: "turn-1",
+        parentToolCallId: "toolu",
+      },
+    ];
+    const unnamed: SessionTimelinePart = {
+      kind: "data",
+      id: "unnamed-send",
+      name: "data-compozy-session-message",
+      data: { tool_call_id: "" },
+      turnId: "turn-1",
+    };
+    const rows = deriveSessionRows([
+      delegate(1, { toolName: "Agent", toolCallId: "toolu" }),
       subagentPart("sub-n", "toolu", { origin: "provider_native" }),
-      { ...text("inner", "inside", "turn-1"), parentToolCallId: "toolu" },
-      tick,
-      text("t2", "Done.", "turn-1"),
+      text("t1", "- The typecheck est", "turn-1"),
+      ...inner(2),
+      text("t2", "ava clean before any ch", "turn-1"),
+      ...inner(3),
+      text("t3", "ange.", "turn-1"),
+      text("t4", "\n\nGallery links (`http://127.0.0.1:4400/?", "turn-1"),
+      unnamed,
+      text("t5", "p=mentorias&w=390`).", "turn-1"),
     ]);
-    expect(native.filter(row => row.kind === "text").map(row => row.part.text)).toEqual([
-      "Reviewing.",
-      "Done.",
+
+    expect(rows.map(row => row.kind)).toEqual(["subagents", "text"]);
+    const prose = rows[1];
+    if (prose?.kind !== "text") throw new Error("expected one prose block");
+    expect(prose.part.text).toBe(
+      "- The typecheck estava clean before any change.\n\nGallery links (`http://127.0.0.1:4400/?p=mentorias&w=390`)."
+    );
+    expect(prose.parts.map(part => part.id)).toEqual(["t1", "t2", "t3", "t4", "t5"]);
+    const card = rows[0];
+    if (card?.kind !== "subagents") throw new Error("expected the native card");
+    expect(card.nested.get("sub-n")?.map(part => part.id)).toEqual([
+      "tool-2",
+      "inner-tick-2",
+      "tool-3",
+      "inner-tick-3",
     ]);
+
+    // Visible rows still separate prose: the card, and a child's own text never joins the parent.
+    const separated = deriveSessionRows([
+      text("before", "Reviewing.", "turn-1"),
+      subagentPart("sub-n", "toolu", { origin: "provider_native" }),
+      text("after", "Done.", "turn-1"),
+      { ...text("orphan", "child aside", "turn-1"), parentToolCallId: "toolu-unknown" },
+    ]);
+    expect(separated.map(row => row.kind)).toEqual(["text", "subagents", "text", "text"]);
   });
 
   it("UT-W09: Should summarize subagent tools in their own verbs", () => {

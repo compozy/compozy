@@ -221,17 +221,12 @@ function deriveBaseRows(
     markerKey = null;
   };
 
-  let hiddenProgress = false;
-  // A part that left the flow (card-owned call, native inner work) separates prose like its row would.
+  // A card-owned call left the flow: it separates prose like its tool row would.
   let separated = false;
   for (const part of parts) {
     if (boundaries.has(part)) separated = true;
-    if (part.kind === "data" && isProgressTick(part)) {
-      hiddenProgress = true;
-      continue;
-    }
-    const joinsProse = hiddenProgress && !separated;
-    hiddenProgress = false;
+    if (part.kind === "data" && isProgressTick(part)) continue;
+    const joinsProse = !separated;
     separated = false;
     if (part.kind === "tool" || part.kind === "reasoning") {
       flushMarkerCluster();
@@ -282,12 +277,15 @@ function deriveBaseRows(
 
     flushWorkCluster();
     flushMarkerCluster();
+    // The daemon closes a text part at every interleaved event, a subagent's included. Prose
+    // splits only where a row was drawn, so deltas around parts that draw nothing stay one block.
     const previous = rows.at(-1);
     if (
       joinsProse &&
       part.kind === "text" &&
       previous?.kind === "text" &&
-      previous.turnId === part.turnId
+      previous.turnId === part.turnId &&
+      previous.part.parentToolCallId === part.parentToolCallId
     ) {
       rows[rows.length - 1] = {
         ...previous,
