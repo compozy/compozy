@@ -25,6 +25,7 @@ import (
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/observe"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -2708,10 +2709,20 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		return err
 	}
 
+	profiles, err := profilepkg.NewManager(
+		profilepkg.WithStore(registry),
+		profilepkg.WithHomePaths(homePaths),
+		profilepkg.WithLogger(discardLogger()),
+	)
+	if err != nil {
+		t.Fatalf("profile.NewManager() error = %v", err)
+	}
 	fanout := &integrationNotifierFanout{}
 	resolver, err := workspacepkg.NewResolver(
 		registry,
 		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithOperatorHomeDir(t.TempDir()),
+		workspacepkg.WithProfileAvailabilityChecker(profiles),
 		workspacepkg.WithLogger(discardLogger()),
 		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return cfg, nil }),
 		workspacepkg.WithProfileConfigLoader(func(root, profile string) (compozyconfig.Config, error) {

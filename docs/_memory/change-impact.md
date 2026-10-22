@@ -4184,3 +4184,7 @@ search hides the unfiltered header total. Native tools, extensibility/hooks/conf
 workspace isolation, and the official skill are unchanged. Web impact is covered by the existing
 terminal surface, tool-call card, and sessions modal suites; the affected QA scenarios are updated.
 Go integration fixture changes are formatter-only and preserve their existing assertions.
+
+The UDS integration runtime now injects the same real profile manager as daemon bootstrap and uses
+an isolated operator home. Its existing automation round-trip assertions remain unchanged; this
+repairs fixture wiring for the accepted User scope contract, with no public behavior change.
