@@ -20,9 +20,9 @@ import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 import { MatchedToolFieldContent } from "./tool-renderers/matched-field-content";
 import { ToolResultArtifact } from "./tool-result-artifact";
 
-const TerminalContent = lazy(async () => {
-  const { TerminalContent: Content } = await import("./tool-renderers/terminal-content");
-  return { default: Content };
+const SessionTerminalToolRow = lazy(async () => {
+  const { SessionTerminalToolRow: Row } = await import("./session-terminal-tool-row");
+  return { default: Row };
 });
 
 export interface SessionToolCallRowProps {
@@ -315,7 +315,14 @@ export function SessionToolCallRow({
   ) {
     return (
       <Suspense fallback={null}>
-        <TerminalContent message={message} />
+        <SessionTerminalToolRow
+          message={message}
+          defaultExpanded={defaultExpanded}
+          partIndex={partIndex}
+          revealOpen={revealOpen}
+          onRevealRelease={onRevealRelease}
+          onRail={onRail}
+        />
       </Suspense>
     );
   }

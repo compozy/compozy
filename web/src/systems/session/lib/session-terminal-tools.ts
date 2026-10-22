@@ -1,4 +1,7 @@
+import type { ToolCallStatus } from "@compozy/ui";
+
 import type { TerminalExit, TerminalInfo, TerminalSignal } from "@/systems/terminal/parts";
+import type { UIMessage } from "../types";
 
 /** Native tools that open or run a supervised terminal — not internal command output. */
 const DELIBERATE_TERMINAL_TOOLS = new Set(["compozy__terminal_exec", "compozy__terminal_open"]);
@@ -92,4 +95,104 @@ function envelopeExit(envelope: SessionTerminalEnvelopeRun, at: string): Termina
     return { cause: "unknown", at };
   }
   return { cause: "exited", code: envelope.exitCode, at };
+}
+
+/**
+ * The output a terminal tool call recorded — never its envelope.
+ *
+ * MCP results also carry the structured payload serialized as `content`, so an
+ * empty `output` must stay empty: falling back to `content` would paint the
+ * envelope's JSON as if the command had printed it. `stdout`/`content` are
+ * read only when the result carries no terminal envelope at all.
+ */
+export function readTerminalOutput(
+  result: Pick<NonNullable<UIMessage["toolResult"]>, "rawOutput" | "stdout" | "content"> | undefined
+): string {
+  const envelope = readTerminalEnvelope(result?.rawOutput);
+  if (typeof envelope.output === "string") return envelope.output;
+  if (TERMINAL_ENVELOPE_FIELDS.some(field => field in envelope)) return "";
+  return result?.stdout ?? result?.content ?? "";
+}
+
+const TERMINAL_ENVELOPE_FIELDS = ["terminal_id", "command_id", "exit_code", "still_running"];
+
+export interface SessionTerminalFacts extends SessionTerminalEnvelopeRun {
+  terminalId: string;
+  /** The human name the agent gave the terminal; never the argv. */
+  title: string | null;
+  preview: string;
+  durationMs: number | null;
+}
+
+/**
+ * Reads the tool call's own record.
+ *
+ * The terminal fields ride the raw tool envelope rather than the normalized
+ * `ToolUseResult`, so they are read from there and narrowed one field at a time.
+ * Nothing is inferred: a field the runtime did not send stays absent.
+ */
+export function readSessionTerminalFacts(message: UIMessage): SessionTerminalFacts | null {
+  const result = message.toolResult;
+  const raw = readTerminalEnvelope(result?.rawOutput);
+  const terminalId = readSupervisedTerminalId(result?.rawOutput);
+  if (!terminalId) return null;
+  const exitCode = typeof raw.exit_code === "number" ? raw.exit_code : null;
+  const signal = readTerminalSignal(raw.signal);
+  const durationMs =
+    typeof raw.duration_ms === "number" && Number.isFinite(raw.duration_ms) && raw.duration_ms > 0
+      ? raw.duration_ms
+      : null;
+  return {
+    terminalId,
+    title: readNonEmptyString(asRecord(message.toolInput).title),
+    preview: readTerminalOutput(result),
+    exitCode,
+    signal,
+    durationMs,
+    stillRunning:
+      raw.still_running === true ||
+      (canonicalCompozyToolName(message.toolName ?? "") === "compozy__terminal_open" &&
+        exitCode === null &&
+        signal === null),
+  };
+}
+
+function readTerminalSignal(value: unknown): TerminalSignal | null {
+  switch (value) {
+    case "INT":
+    case "TERM":
+    case "KILL":
+    case "HUP":
+      return value;
+    default:
+      return null;
+  }
+}
+
+export interface SessionTerminalOutcome {
+  status: ToolCallStatus;
+  /** The one outcome word the glyph cannot carry (`exit 1`, `signal TERM`); null when calm. */
+  mark: string | null;
+}
+
+/**
+ * The single status a terminal row states, from the resolved run alone.
+ *
+ * Success rests without a glyph, a non-zero exit is a plain code beside the
+ * settled ×, a signal reads as stopped, and a run still going spins.
+ */
+export function sessionTerminalOutcome(
+  run: { stillRunning: boolean; exit: TerminalExit | null },
+  toolFailed = false
+): SessionTerminalOutcome {
+  const exit = run.exit;
+  if (!exit) return { status: "running", mark: null };
+  if (exit.cause === "signaled") {
+    return { status: "stopped", mark: `signal ${exit.signal ?? "unknown"}` };
+  }
+  if (exit.cause === "unknown" || exit.code === null || exit.code === undefined) {
+    return toolFailed ? { status: "absorbed", mark: "failed" } : { status: "empty", mark: "ended" };
+  }
+  if (exit.code === 0) return { status: "success", mark: null };
+  return { status: "absorbed", mark: `exit ${exit.code}` };
 }

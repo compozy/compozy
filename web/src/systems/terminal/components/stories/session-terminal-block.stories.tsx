@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
 
 import { DEV_SERVER_TERMINAL, MAKE_GATE_TERMINAL } from "../../mocks/terminal-fixtures";
 import { SessionTerminalBlock } from "../session-terminal-block";
@@ -14,7 +13,6 @@ const meta: Meta<typeof SessionTerminalBlock> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const NOOP = fn();
 const ESC = String.fromCharCode(27);
 const CRLF = String.fromCharCode(13, 10);
 
@@ -44,23 +42,21 @@ const HANDOFF_PREVIEW = [
 ].join(CRLF);
 
 /**
- * VC-15 — deliberate terminal use, inside the conversation.
+ * VC-15 — the screen inside an opened terminal tool row.
  *
- * The Open action and start clock appear when the catalog already has them.
- * The tool envelope itself does not carry those fields, so production omits
- * them when the catalog row is missing rather than inventing them.
+ * The row owns the title, outcome, duration and the Open terminal jump; the
+ * block is only the screen, sized to what the command printed (capped at
+ * eight rows) so a short output never leaves an empty emulator below it.
  */
 export const SessionBlock: Story = {
-  name: "VC-15 · Session terminal block",
+  name: "VC-15 · Session terminal screen",
   args: {},
   render: () => (
     <TerminalVisualStage width="block">
       <div className="p-4">
         <SessionTerminalBlock
           blockId="tool-call-7f21"
-          onOpenTerminal={NOOP}
           preview={DEV_SERVER_PREVIEW}
-          startedLabel="12:40"
           terminalId={DEV_SERVER_TERMINAL.id}
           title="dev server"
         />
@@ -70,16 +66,14 @@ export const SessionBlock: Story = {
 };
 
 export const Finished: Story = {
-  name: "VC-15b · Finished terminal block",
+  name: "VC-15b · Finished screen, sized to its output",
   args: {},
   render: () => (
     <TerminalVisualStage width="block">
       <div className="p-4">
         <SessionTerminalBlock
           blockId="tool-call-gate"
-          durationLabel="2m 41s · finished 12:47"
           exit={{ at: "2026-08-25T12:47:00Z", cause: "exited", code: 0 }}
-          onOpenTerminal={NOOP}
           preview={GATE_PREVIEW}
           terminalId={MAKE_GATE_TERMINAL.id}
           title="make gate"
@@ -90,16 +84,14 @@ export const Finished: Story = {
 };
 
 export const StillRunningHandoff: Story = {
-  name: "VC-15c · Still-running handoff",
+  name: "VC-15c · Still-running recorded screen",
   args: {},
   render: () => (
     <TerminalVisualStage width="block">
       <div className="p-4">
         <SessionTerminalBlock
           blockId="tool-call-e2e"
-          onOpenTerminal={NOOP}
           preview={HANDOFF_PREVIEW}
-          stillRunning
           terminalId="term-77c1d0e94ab3"
           title="e2e suite"
         />
