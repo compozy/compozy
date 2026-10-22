@@ -1,4 +1,4 @@
-// Suite: menubar global-scope toggle
+// Suite: menubar All projects globe
 // Invariant: the one scope control — a locked globe toggle never fires a change, the flip
 // announces through the polite live region only on state change (never on mount), and the
 // locked reason composes into the accessible name. Pressed state is aria-pressed.
@@ -18,7 +18,7 @@ function renderToggle(props: Partial<React.ComponentProps<typeof GlobalScopeTogg
     <UIProvider reducedMotion="never" skipAnimations>
       <GlobalScopeToggle
         checked={false}
-        tooltip="Global scope ~"
+        tooltip="All projects"
         onCheckedChange={onCheckedChange}
         {...props}
       />
@@ -35,7 +35,7 @@ function rerenderToggle(
     <UIProvider reducedMotion="never" skipAnimations>
       <GlobalScopeToggle
         checked={false}
-        tooltip="Global scope ~"
+        tooltip="All projects"
         onCheckedChange={view.onCheckedChange}
         {...props}
       />
@@ -48,7 +48,7 @@ describe("GlobalScopeToggle", () => {
     const user = userEvent.setup();
     const { onCheckedChange } = renderToggle();
 
-    const control = screen.getByRole("button", { name: "Global scope" });
+    const control = screen.getByRole("button", { name: "All projects" });
     expect(control).toHaveAttribute("aria-pressed", "false");
     await user.click(control);
 
@@ -64,7 +64,7 @@ describe("GlobalScopeToggle", () => {
     });
 
     const control = screen.getByRole("button", {
-      name: "Global scope — Add a workspace to scope down",
+      name: "All projects — Add a workspace to scope down",
     });
     expect(control).toHaveAttribute("aria-pressed", "true");
     expect(control).toHaveAttribute("aria-disabled", "true");
@@ -80,9 +80,9 @@ describe("GlobalScopeToggle", () => {
     expect(liveRegion()).toHaveTextContent("");
 
     rerenderToggle(view, { checked: true });
-    expect(liveRegion()).toHaveTextContent("Global scope on");
+    expect(liveRegion()).toHaveTextContent("All projects on");
 
     rerenderToggle(view, { checked: false });
-    expect(liveRegion()).toHaveTextContent("Global scope off");
+    expect(liveRegion()).toHaveTextContent("All projects off");
   });
 });

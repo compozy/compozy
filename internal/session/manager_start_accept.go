@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type acceptedSessionStart struct {
@@ -69,6 +71,9 @@ func (m *Manager) acceptSessionStart(
 		return nil, errors.Join(err, cleanupErr)
 	}
 
+	if spec.startAction == sessionStartActionCreate {
+		spec.effectiveWorkspaceAccess = spec.origin.Effective(runtime.agentDef.WorkspaceAccess)
+	}
 	session := spec.newStartingSession(runtime.agent, runtime.agentDef, storage, m.now())
 	session.followUpMode = m.busyInputDefaultMode
 	session.pendingDeriveReceipt = cloneDerivationReceipt(spec.deriveReceipt)
@@ -112,7 +117,7 @@ func (m *Manager) resolveAcceptedStartRuntime(
 			return sessionStartRuntime{}, err
 		}
 	}
-	if spec.creationIdentityPinned {
+	if spec.creationIdentityPinned || spec.workspace.Scope == workspacepkg.ScopeUser {
 		if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
 			return sessionStartRuntime{}, fmt.Errorf(
 				"session: prepare creation identity for %q: %w",

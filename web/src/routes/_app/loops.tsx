@@ -22,10 +22,15 @@ export const Route = createFileRoute("/_app/loops")({
     q: search.q,
     sort: "name" as const,
     status: search.status,
+    workspace: search.workspace,
   }),
-  loader: async ({ context, deps, location }) =>
+  loader: async ({ context, deps: { workspace, ...filters }, location }) =>
     location.pathname.split("/").filter(Boolean).length === 1
-      ? (await import("./-loops-preload")).preloadLoopsRoute(context.queryClient, deps)
+      ? (await import("./-loops-preload")).preloadLoopsRoute(
+          context.queryClient,
+          filters,
+          workspace
+        )
       : undefined,
   component: createOsRouteSync("loops"),
 });

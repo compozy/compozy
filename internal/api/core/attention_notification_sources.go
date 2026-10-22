@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
 )
 
@@ -58,24 +59,27 @@ func (h *BaseHandlers) bellNotificationItems(
 			Title: item.Title, Detail: item.Kind, OccurredAt: item.OccurredAt,
 		})
 	}
-	for _, workspace := range workspaces {
-		loops, err := h.loopNotificationItems(ctx, workspace.ID)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, loops...)
-		terminal, err := h.terminalNotificationItems(ctx, workspace.ID)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, terminal...)
+	loops, err := h.loopNotificationItems(ctx, "")
+	if err != nil {
+		return nil, err
 	}
+	items = append(items, loops...)
+	terminals, err := h.terminalNotificationItems(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range terminals {
+		if _, registered := labels[item.WorkspaceID]; item.WorkspaceID == "" || registered {
+			items = append(items, item)
+		}
+	}
+
 	for index := range items {
 		items[index].WorkspaceLabel = labels[items[index].WorkspaceID]
 		if items[index].WorkspaceLabel == "" {
 			items[index].WorkspaceLabel = items[index].WorkspaceID
 			if items[index].WorkspaceID == "" {
-				items[index].WorkspaceLabel = "Global"
+				items[index].WorkspaceLabel = "User"
 			}
 		}
 	}
@@ -172,7 +176,12 @@ func (h *BaseHandlers) loopNotificationItems(
 ) ([]contract.AttentionNotificationPayload, error) {
 	items := make([]contract.AttentionNotificationPayload, 0)
 	requests := make(map[string]bool)
-	query := LoopRequestListQuery{State: "pending", Limit: 200}
+	query := LoopRequestListQuery{
+		AllWorkspaces: true,
+		ReadScope:     store.ReadScope{AllProfiles: true},
+		State:         "pending",
+		Limit:         200,
+	}
 	for {
 		page, err := h.Loops.ListLoopRequests(ctx, workspace, query)
 		if err != nil {
@@ -180,7 +189,7 @@ func (h *BaseHandlers) loopNotificationItems(
 		}
 		for _, request := range page.Items {
 			key := loopNotificationKey(
-				workspace,
+				request.WorkspaceID,
 				request.LoopRunID,
 				request.NodeID,
 				request.Generation,
@@ -195,7 +204,7 @@ func (h *BaseHandlers) loopNotificationItems(
 				),
 				Kind:        "loop-request",
 				SourceID:    key,
-				WorkspaceID: workspace,
+				WorkspaceID: request.WorkspaceID,
 				Title:       request.NodeID,
 				RunID:       request.LoopRunID,
 				NodeID:      request.NodeID,
@@ -224,11 +233,17 @@ func (h *BaseHandlers) loopNotificationItems(
 }
 
 func (h *BaseHandlers) terminalNotificationItems(
-	ctx context.Context, workspace string,
+	ctx context.Context,
 ) ([]contract.AttentionNotificationPayload, error) {
 	items := make([]contract.AttentionNotificationPayload, 0)
 
-	requests, err := h.Terminal.InputRequests(ctx, workspace, store.ReadScope{AllProfiles: true}, "")
+	reader, ok := h.Terminal.(interface {
+		InputRequestsAggregate(context.Context, store.ReadScope) ([]terminalpkg.PendingInputRequest, error)
+	})
+	if !ok {
+		return nil, errors.New("terminal input aggregate unavailable")
+	}
+	requests, err := reader.InputRequestsAggregate(ctx, store.ReadScope{AllProfiles: true})
 	if err != nil {
 		return nil, err
 	}
@@ -241,12 +256,12 @@ func (h *BaseHandlers) terminalNotificationItems(
 			ID: attention.Identity(
 				"terminal-input",
 				request.ProfileID,
-				workspace,
+				request.WorkspaceID,
 				string(request.ID),
 			),
 			Kind:        "terminal-input",
 			SourceID:    string(request.ID),
-			WorkspaceID: workspace,
+			WorkspaceID: request.WorkspaceID,
 			TerminalID:  string(request.TerminalID),
 			Title:       title,
 			Detail:      request.Reason,
@@ -264,14 +279,25 @@ func (h *BaseHandlers) loopNodeNotificationItems(
 	items := make([]contract.AttentionNotificationPayload, 0)
 
 	for _, state := range []string{"waiting", "attention"} {
-		query := LoopNodeListQuery{State: state, Limit: 200}
+		query := LoopNodeListQuery{
+			AllWorkspaces: true,
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			State:         state,
+			Limit:         200,
+		}
 		for {
 			page, err := h.Loops.ListLoopNodes(ctx, workspace, query)
 			if err != nil {
 				return nil, err
 			}
 			for _, node := range page.Items {
-				key := loopNotificationKey(workspace, node.LoopRunID, node.NodeID, node.Generation, node.ItemIndex)
+				key := loopNotificationKey(
+					node.WorkspaceID,
+					node.LoopRunID,
+					node.NodeID,
+					node.Generation,
+					node.ItemIndex,
+				)
 				if requests[key] {
 					continue
 				}
@@ -284,7 +310,7 @@ func (h *BaseHandlers) loopNodeNotificationItems(
 					),
 					Kind:        "loop-node",
 					SourceID:    key,
-					WorkspaceID: workspace,
+					WorkspaceID: node.WorkspaceID,
 					Title:       fmt.Sprintf("%s — %s", node.LoopName, node.NodeID),
 					Detail:      state,
 					RunID:       node.LoopRunID,

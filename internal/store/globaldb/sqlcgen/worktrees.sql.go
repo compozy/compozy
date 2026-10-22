@@ -585,6 +585,53 @@ func (q *Queries) ListWorktrees(ctx context.Context, workspaceID string) ([]Work
 	return items, nil
 }
 
+const listWorktreesAggregate = `-- name: ListWorktreesAggregate :many
+SELECT id, profile_id, workspace_id, name, branch, path, git_dir, state, pending_phase, origin, setup_state, setup_error, base_ref, created_branch, run_namespace, created_head, run_id, created_at, updated_at FROM worktrees WHERE state <> 'dismissed' ORDER BY created_at, id
+`
+
+func (q *Queries) ListWorktreesAggregate(ctx context.Context) ([]Worktree, error) {
+	rows, err := q.db.QueryContext(ctx, listWorktreesAggregate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Worktree{}
+	for rows.Next() {
+		var i Worktree
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProfileID,
+			&i.WorkspaceID,
+			&i.Name,
+			&i.Branch,
+			&i.Path,
+			&i.GitDir,
+			&i.State,
+			&i.PendingPhase,
+			&i.Origin,
+			&i.SetupState,
+			&i.SetupError,
+			&i.BaseRef,
+			&i.CreatedBranch,
+			&i.RunNamespace,
+			&i.CreatedHead,
+			&i.RunID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setWorktreeState = `-- name: SetWorktreeState :execrows
 UPDATE worktrees SET state = ?1, updated_at = ?2
 WHERE workspace_id = ?3

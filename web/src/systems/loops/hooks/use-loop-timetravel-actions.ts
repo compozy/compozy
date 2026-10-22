@@ -3,7 +3,7 @@ import { useProfileReadScope } from "@/systems/profiles";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { forkLoopRun, rerunLoopRun } from "../adapters/loops-api";
-import { loopsKeys } from "../lib/query-keys";
+import { LOOP_AGGREGATE_KEY, loopsKeys } from "../lib/query-keys";
 import { loopRunDiffOptions } from "../lib/query-options";
 import type { LoopDiffQuery, LoopForkRequest, LoopRerunRequest } from "../types";
 
@@ -29,7 +29,9 @@ function invalidateTimetravel(
 ): Promise<unknown> {
   const pending = [
     queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.catalogByWorkspace(LOOP_AGGREGATE_KEY) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runDiffRoot() }),
   ];

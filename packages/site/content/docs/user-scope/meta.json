@@ -1,0 +1,5 @@
+{
+    "title": "User scope",
+    "icon": "Folder",
+    "pages": ["index", "quickstart", "unrestricted-agents"]
+}

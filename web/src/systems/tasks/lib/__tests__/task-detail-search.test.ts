@@ -14,6 +14,18 @@ describe("validateTaskDetailSearch", () => {
     });
   });
 
+  it("Should keep the window's data binding so an item window opened in place stays bound", () => {
+    expect(validateTaskDetailSearch({ tab: "runs", workspace: " ws_beta " })).toEqual({
+      tab: "runs",
+      workspace: "ws_beta",
+    });
+    expect(validateTaskDetailSearch({ workspace: "@user" })).toEqual({
+      tab: "overview",
+      workspace: "@user",
+    });
+    expect(validateTaskDetailSearch({ workspace: "  " })).toEqual({ tab: "overview" });
+  });
+
   it("Should reject invalid URL enums without retaining untrusted values", () => {
     expect(validateTaskDetailSearch({ tab: "orchestration", inspect: "secrets" })).toEqual({
       tab: "overview",

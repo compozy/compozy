@@ -14,6 +14,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func legacyFocusSnapshotJSON(t *testing.T, includeAnchor bool) []byte {
@@ -401,4 +403,47 @@ func TestMigrateSnapshotV4(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestRebindWorkspace(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should rewrite every retained binding of the migrated workspace and keep unrelated ones",
+		func(t *testing.T) {
+			t.Parallel()
+			bound := func(ref string) RouteIntent {
+				value, _ := json.Marshal(ref)
+				return RouteIntent{Pathname: "/loops/run-1", Search: RouteSearch{"workspace": value}}
+			}
+			window := Window{
+				ID:       "w-1",
+				Route:    bound("ws-home"),
+				NavStack: []RouteIntent{bound("ws-home"), bound("ws-other")},
+			}
+			snapshot := Snapshot{
+				Windows:       map[WindowID]Window{"w-1": window},
+				ClosedEntries: []ClosedEntry{{Windows: []Window{{ID: "w-2", Route: bound("ws-home")}}}},
+				History: History{Undo: []HistoryEntry{{
+					Before: State{Windows: map[WindowID]Window{"w-1": {ID: "w-1", Route: bound("ws-home")}}},
+					After:  State{Windows: map[WindowID]Window{"w-1": {ID: "w-1", Route: bound("ws-other")}}},
+				}}},
+			}
+			if !RebindWorkspace(&snapshot, "ws-home", workspaceaccess.UserSelector) {
+				t.Fatal("RebindWorkspace() = false, want changed")
+			}
+			for _, route := range []RouteIntent{
+				snapshot.Windows["w-1"].Route, snapshot.Windows["w-1"].NavStack[0],
+				snapshot.ClosedEntries[0].Windows[0].Route, snapshot.History.Undo[0].Before.Windows["w-1"].Route,
+			} {
+				if !routeBindsWorkspace(route, workspaceaccess.UserSelector) {
+					t.Fatalf("route %#v not rebound to @user", route)
+				}
+			}
+			for _, route := range []RouteIntent{snapshot.Windows["w-1"].NavStack[1], snapshot.History.Undo[0].After.Windows["w-1"].Route} {
+				if !routeBindsWorkspace(route, "ws-other") {
+					t.Fatalf("unrelated route %#v was rebound", route)
+				}
+			}
+		},
+	)
 }

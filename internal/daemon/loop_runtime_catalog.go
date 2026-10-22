@@ -17,8 +17,9 @@ type loopRuntimeCatalogFactory struct {
 func (f loopRuntimeCatalogFactory) ForWorkspace(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 ) (looppkg.RuntimeCatalog, error) {
-	cfg, err := resolveLoopServiceConfig(ctx, f.homePaths, f.workspaceResolver, workspaceID)
+	cfg, err := resolveLoopProfileConfig(ctx, f.homePaths, f.workspaceResolver, workspaceID, profileID)
 	if err != nil {
 		return nil, err
 	}

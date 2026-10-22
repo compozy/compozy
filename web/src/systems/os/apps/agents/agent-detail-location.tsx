@@ -29,7 +29,7 @@ import {
 } from "@/systems/agent";
 import { SessionDeleteDialog, SessionRenameDialog, type SessionPayload } from "@/systems/session";
 import { OsSessionsDeriveHost } from "../../components/os-sessions-derive-host";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useAgentWindowScope } from "@/systems/agent";
 
 interface AgentInstructionsSectionProps {
   agent: AgentPayload;
@@ -291,7 +291,7 @@ interface AgentDetailContentProps {
 /** Present an agent and its sessions, forwarding lifecycle results to the shared confirmation UI. */
 export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps) {
   const page = useAgentDetail(name, rawSearch);
-  const { runtimeWorkspaceId } = useActiveWorkspace();
+  const { projectId } = useAgentWindowScope();
   useAgentDetailTopbar(page, name);
 
   if (page.agentLoading) {
@@ -302,7 +302,5 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
     return <AgentDetailNotFound name={name} error={page.agentError} onBack={page.onBackToAgents} />;
   }
 
-  return (
-    <AgentDetailBody agent={page.agent} name={name} page={page} workspaceId={runtimeWorkspaceId} />
-  );
+  return <AgentDetailBody agent={page.agent} name={name} page={page} workspaceId={projectId} />;
 }

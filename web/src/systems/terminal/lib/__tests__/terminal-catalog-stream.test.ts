@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { DEV_SERVER_TERMINAL, PSQL_TERMINAL } from "../../mocks/terminal-fixtures";
 import {
   parseTerminalCatalogEvent,
+  reconcileTerminalCatalog,
   TerminalCatalogProtocolError,
 } from "../terminal-catalog-stream";
 
@@ -28,6 +30,38 @@ describe("parseTerminalCatalogEvent", () => {
     );
 
     expect(error.message).not.toContain(secret);
+  });
+
+  // The daemon names the owner on close and delete frames (aggregate stream, path streams too).
+  it("Should accept the owner fields on close and drop a deleted terminal", () => {
+    const closed = parseTerminalCatalogEvent("terminal.closed", {
+      terminal_id: DEV_SERVER_TERMINAL.id,
+      exit: null,
+      workspace_id: "ws-atlas",
+      profile_id: "prof_1",
+    });
+    expect(closed).toEqual({
+      name: "terminal.closed",
+      terminalId: DEV_SERVER_TERMINAL.id,
+      exit: null,
+    });
+
+    const deleted = parseTerminalCatalogEvent("terminal.deleted", {
+      terminal_id: DEV_SERVER_TERMINAL.id,
+      workspace_id: "",
+      profile_id: "prof_1",
+    });
+    expect(
+      reconcileTerminalCatalog([DEV_SERVER_TERMINAL, PSQL_TERMINAL], deleted!).map(t => t.id)
+    ).toEqual([PSQL_TERMINAL.id]);
+  });
+
+  it("Should replace the list with an aggregate reset snapshot", () => {
+    const snapshot = parseTerminalCatalogEvent("terminal.snapshot", {
+      terminals: [PSQL_TERMINAL],
+      reset: true,
+    });
+    expect(reconcileTerminalCatalog([DEV_SERVER_TERMINAL], snapshot!)).toEqual([PSQL_TERMINAL]);
   });
 
   it("Should ignore an unregistered event name", () => {

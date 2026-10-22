@@ -17,7 +17,7 @@ var _ store.SessionDerivationStore = (*SessionRepo)(nil)
 
 // RegisterDerivedSession writes the child's catalog row, its creation identity, and the
 // derive receipt with its immutable outcome in one transaction. A receipt already
-// recorded for the same (workspace_id, idempotency_key) rolls the whole transaction
+// recorded for the same scope (workspace, or User profile) and key rolls the whole transaction
 // back with store.ErrSessionDerivationExists.
 func (g *SessionRepo) RegisterDerivedSession(
 	ctx context.Context,
@@ -65,18 +65,19 @@ func (g *SessionRepo) RegisterDerivedSession(
 	})
 }
 
-// SessionDerivationReceipt loads one receipt by its workspace-scoped idempotency key.
+// SessionDerivationReceipt loads one receipt by its project or User-profile idempotency key.
 func (g *SessionRepo) SessionDerivationReceipt(
 	ctx context.Context,
 	workspaceID string,
 	idempotencyKey string,
+	profileID string,
 ) (store.SessionDerivationReceipt, bool, error) {
 	if err := g.checkReady(ctx, "get session derivation receipt"); err != nil {
 		return store.SessionDerivationReceipt{}, false, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
-	if workspaceID == "" || idempotencyKey == "" {
+	if idempotencyKey == "" || (workspaceID == "" && strings.TrimSpace(profileID) == "") {
 		return store.SessionDerivationReceipt{}, false, errors.New(
 			"store: session derivation workspace id and idempotency key are required",
 		)
@@ -84,6 +85,7 @@ func (g *SessionRepo) SessionDerivationReceipt(
 	row, err := g.queries.GetSessionDerivation(ctx, sqlcgen.GetSessionDerivationParams{
 		WorkspaceID:    workspaceID,
 		IdempotencyKey: idempotencyKey,
+		ProfileID:      profileID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionDerivationReceipt{}, false, nil

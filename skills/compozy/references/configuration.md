@@ -24,6 +24,7 @@
 - Terminal
 - Shell session preferences
 - Provider usage
+- User-scope execution directory
 
 ## Desired State And Apply Lifecycle
 
@@ -528,15 +529,23 @@ governs one daemon. Workspace overlays remain valid.
 
 ## Shell Session Preferences
 
-`shell.sessions.sort` persists the session list order and accepts `last_activity` (default) or
-`attention`. `shell.sessions.scope` persists the list breadth and accepts `workspace` (default) or
-`all-workspaces`. Both keys are global, apply live, and survive browser restarts in
-`$COMPOZY_HOME/config.toml`; workspace-scoped writes are rejected, and browser-local storage is not
-authoritative.
+`shell.sessions.sort` persists ordering (`created`, `name`, `last_activity`, `attention`, or `manual`).
+`shell.sessions.group_by` controls grouping: `none` (default), `project`, or `profile`. These user-wide
+preferences apply live. Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`.
+PATCH preserves omitted preferences and returns the apply receipt plus the effective config.
 
-Use `compozy config get|set shell.sessions.<key>` or `GET/PATCH /api/settings/shell`. The PATCH
-request replaces the complete `shell` config section, so read the current section before changing
-one field.
+Through v0.4.0, `shell.sessions.scope` remains stored and functional as legacy breadth intent
+(`workspace` or `all-workspaces`). Writes return a deprecation warning naming `group_by` and the topbar
+globe. While grouping is unset, `all-workspaces` derives `group_by=project`; an explicit grouping wins.
+The response's `legacy_scope` reports `value`, whether the user overlay is `explicit`, and a durable
+`revision` that advances even for same-value writes. Default-only scope is never a breadth instruction.
+Existing clients may continue writing the legacy key in v0.4.0. In v0.5.0 the loader materializes
+`group_by = "project"` from `scope = "all-workspaces"` when grouping is unset, drops the key with a
+logged notice, and the next apply deletes it from the overlay; it never fails as an unknown key.
+`group_by = "project"` takes effect only under All projects and `profile` only under All profiles;
+an inapplicable value renders as `none` without being rewritten. Unknown values fail with
+`shell_config_invalid`. Breadth (All projects versus one project or User) is browser state owned by
+the topbar globe, not a config key.
 
 ## Provider Usage
 
@@ -557,3 +566,25 @@ Use `compozy config set provider_usage.<key> <value>` or `GET/PATCH /api/setting
 `refresh_interval`, and `providers.<id>.enabled` through `compozy__config_set`, but not
 `keychain_access`: consent is operator-only. Consent alone never reads the Keychain; a read still
 needs an explicit local refresh, which agents cannot make.
+
+## User-scope execution directory
+
+`[user_scope] work_dir = "~"` selects the User execution directory. A personal profile overlay may
+replace it. Resolution expands `~` and requires an existing absolute directory, otherwise returning
+`user_scope_work_dir_invalid`. Validation is deferred until use; changes affect later starts.
+The execution directory contributes no workspace or workspace-profile configuration.
+
+`@user` is a public User reference, never a registered workspace id. CLI workspace resolution forwards
+it verbatim. Project-only routes refuse it with `user_scope_unsupported`; worktree routes take
+precedence with `user_scope_worktree_unsupported`. New registrations and renames reject `user`,
+`global`, and names starting with `@` (`workspace_name_reserved`). Registration also rejects both the
+operator home and `COMPOZY_HOME` (`workspace_home_forbidden`).
+
+User work upgrades from the former `COMPOZY_HOME` pseudo-project without registering a replacement.
+The daemon verifies profile journal rows and retained blobs, keeps the source journal as `.migrated`,
+and copies layouts before removing the old registration. Worktree-bearing sources and sources used
+by Loop-targeting automations remain projects. Migration collisions and workspace-only bindings are
+retained in `user_scope_migration_archive`; progress is recorded in `user_scope_migrations`.
+Do not remove retained directories or bypass a migration refusal. Reserved-name aliases warn through
+v0.4.0 and are removed in v0.5.0. On data selectors, `global` resolves only a migration-created alias;
+on window-manager surfaces it always means the reserved partition. `@user` always means User.

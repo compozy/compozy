@@ -2,7 +2,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useSelector } from "@xstate/store-react";
 
-import { enableGlobalScope } from "@/systems/workspace";
+import { focusUser } from "@/systems/workspace";
 
 import { onboardingDraftStore } from "../stores/use-onboarding-draft-store";
 import { useCompleteOnboarding } from "./use-complete-onboarding";
@@ -53,7 +53,7 @@ export interface OnboardingWizardApi {
   goToStep: (step: number) => void;
   back: () => void;
   next: () => Promise<void>;
-  skipToGlobal: () => Promise<void>;
+  skipToUser: () => Promise<void>;
 }
 
 export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi {
@@ -79,11 +79,12 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     }
   };
 
-  const finish = async (scope: "current" | "global") => {
+  const finish = async (destination: "current" | "user") => {
     setCommitError(null);
     try {
       await complete.mutateAsync();
-      if (scope === "global") enableGlobalScope();
+      // Skipping projects lands in User: work runs in the home folder.
+      if (destination === "user") focusUser();
       onboardingDraftStore.trigger.draftCleared();
       onComplete();
     } catch (error) {
@@ -115,9 +116,9 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     }
   };
 
-  const skipToGlobal = async () => {
+  const skipToUser = async () => {
     if (step !== 2 || workspaceBusy || complete.isPending) return;
-    await finish("global");
+    await finish("user");
   };
 
   return {
@@ -133,6 +134,6 @@ export function useOnboardingWizard(onComplete: () => void): OnboardingWizardApi
     goToStep,
     back,
     next,
-    skipToGlobal,
+    skipToUser,
   };
 }

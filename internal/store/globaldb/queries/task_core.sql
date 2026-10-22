@@ -1,5 +1,6 @@
 -- name: InsertTask :exec
 INSERT INTO tasks (
+ grant_ceiling,
   profile_id,
   id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
@@ -7,6 +8,7 @@ INSERT INTO tasks (
   created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, wake_creator,
   metadata_json
 ) VALUES (
+ sqlc.arg(grant_ceiling),
   sqlc.arg(profile_id),
   sqlc.arg(id), sqlc.narg(identifier), sqlc.arg(scope), sqlc.narg(workspace_id),
   sqlc.narg(parent_task_id), sqlc.arg(title), sqlc.narg(description),
@@ -23,7 +25,7 @@ DELETE FROM tasks WHERE id = sqlc.arg(id);
 
 -- name: UpdateTask :execrows
 UPDATE tasks
-SET identifier = sqlc.narg(identifier),
+SET grant_ceiling = sqlc.arg(grant_ceiling), identifier = sqlc.narg(identifier),
     scope = sqlc.arg(scope),
     workspace_id = sqlc.narg(workspace_id),
     parent_task_id = sqlc.narg(parent_task_id),
@@ -56,7 +58,7 @@ SET identifier = sqlc.narg(identifier),
 WHERE id = sqlc.arg(id);
 
 -- name: GetTask :one
-SELECT
+SELECT grant_ceiling,
   id, profile_id, identifier, scope, workspace_id, parent_task_id, title, description,
   priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
   owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
@@ -194,3 +196,8 @@ ON CONFLICT(designation_group_id) DO UPDATE SET
   task_id = excluded.task_id,
   summary_json = excluded.summary_json,
   created_at = excluded.created_at;
+
+-- name: UpdateTaskGrantCeiling :exec
+UPDATE tasks SET grant_ceiling = CASE WHEN CAST(sqlc.arg(operator) AS BOOLEAN) THEN sqlc.arg(ceiling)
+ WHEN grant_ceiling = 'unrestricted' AND sqlc.arg(ceiling) = 'unrestricted' THEN 'unrestricted' ELSE '' END
+WHERE id = sqlc.arg(id);

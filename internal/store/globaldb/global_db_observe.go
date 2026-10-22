@@ -142,7 +142,7 @@ func (g *ObserveRepo) ListEventSummaries(
 		JOIN profiles AS event_profile ON event_profile.id = event_summaries.profile_id`
 	eventWhere, args := store.BuildClauses(
 		store.ReadScopeClause("profile_id", query.ReadScope),
-		store.StringClause("workspace_id", query.WorkspaceID),
+		store.SessionWorkspaceClause(query.WorkspaceID),
 		store.StringClause("worktree_id", query.WorktreeID),
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),

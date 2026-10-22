@@ -21,6 +21,14 @@ type WorkspaceID string
 // when the operator has no project workspace. It never grants workspace data scope.
 const GlobalDesktopWorkspaceID WorkspaceID = "global"
 
+// UserDesktopWorkspaceID is the reserved User desktop partition within one profile.
+const UserDesktopWorkspaceID WorkspaceID = "user"
+
+// IsReservedDesktopPartition identifies partitions that do not require a project registration.
+func IsReservedDesktopPartition(id WorkspaceID) bool {
+	return id == GlobalDesktopWorkspaceID || id == UserDesktopWorkspaceID
+}
+
 type DesktopID string
 type WindowID string
 type NodeID string

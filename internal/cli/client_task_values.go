@@ -9,6 +9,14 @@ import (
 
 func taskValues(query TaskListQuery) url.Values {
 	values := url.Values{}
+	if query.AllWorkspaces {
+		values.Set("all_workspaces", "true")
+	}
+	for _, id := range query.WorkspaceIDs {
+		if id = strings.TrimSpace(id); id != "" {
+			values.Add("workspace_ids", id)
+		}
+	}
 	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
 		values.Set("scope", trimmed)
 	}

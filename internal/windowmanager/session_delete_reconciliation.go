@@ -48,7 +48,7 @@ func (m *Manager) ReconcileDeletedSession(
 		_, err = m.Execute(ctx, CommandRequest{
 			WorkspaceID:      workspaceID,
 			ExpectedRevision: snapshot.Revision,
-			Actor:            Actor{Kind: "system", ID: "session.delete"},
+			Actor:            Actor{Kind: systemActorKind, ID: "session.delete"},
 			Origin:           "session.delete",
 			Payload:          sessionDeletionCommand{sessionID: target},
 		})

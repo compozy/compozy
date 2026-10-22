@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
@@ -349,6 +351,11 @@ func resolveWorkspaceCandidate(
 	trimmed := strings.TrimSpace(ref)
 	if trimmed == "" {
 		return workspaceResolution{}, errWorkspaceReferenceRequired
+	}
+	if trimmed == workspaceaccess.UserSelector {
+		resolution := workspaceResolution{ID: trimmed, Source: source}
+		recordWorkspaceResolution(cmd, resolution)
+		return resolution, nil
 	}
 	detail, err := client.GetWorkspace(ctx, trimmed)
 	if err != nil {

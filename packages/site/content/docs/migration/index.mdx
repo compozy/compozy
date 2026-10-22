@@ -5,7 +5,7 @@ description: Breaking-change migration guidance for current CompozyOS releases a
 
 # CompozyOS Migration Guide
 
-For an existing v0.3 installation, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal) if you are upgrading from a release that predates it. The numbered sections below describe the separate v0.2.15-to-v0.3 clean-state transition.
+For an existing v0.3 installation, follow [User scope and All projects](#user-scope-and-all-projects) when upgrading to v0.4.0. Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a release that predates them. The numbered sections below describe the separate v0.2.15-to-v0.3 clean-state transition.
 
 CompozyOS v0.3 is a hard cut, not an in-place compatibility release. It keeps the `compozy` binary
 and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned
@@ -14,6 +14,68 @@ extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
+
+<a id="user-scope-and-all-projects"></a>
+
+## User scope and All projects (v0.4.0)
+
+v0.4.0 upgrades in place. Nothing needs editing by hand and no data is deleted. Stop the daemon and
+back up `COMPOZY_HOME` (including `compozy.db`, its SQLite sidecars, and `workspaces/`) before the
+first start, as for any release.
+
+### What the first start changes
+
+- **The hidden `COMPOZY_HOME` project becomes User.** Earlier releases ran personal tasks,
+  automations, Loop judges, and managed Goals inside a hidden project registered at `COMPOZY_HOME`
+  (usually `~/.compozy`). The upgrade moves that work, and any leftover home-folder registration, into
+  the User scope of each profile that owns it. Session identities and creation stamps are unchanged.
+  Terminal history and retained recordings are copied per profile and verified before the old journal
+  folder is renamed with a `.migrated` suffix. Desktop layouts are copied when no User layout exists.
+  The hidden project is removed only after every store reports completion and no table still
+  references it. An interrupted upgrade resumes on the next start.
+- **Exceptions stay projects.** A hidden project that has worktrees, or that a Loop-targeting
+  automation points at, stays an ordinary project (`keep_project`, logged once). Reach it by its ID or
+  name.
+- **Nothing is dropped.** Rows that cannot move (name collisions with existing User rows,
+  coordination rows, extension bindings and dev links, model discovery contexts) are kept in the
+  `user_scope_migration_archive` table with their original JSON and source identity; progress is in
+  `user_scope_migrations`. Colliding automation names are renamed `<name> (migrated)`. Keep `.migrated`
+  folders until you no longer need a rollback.
+- **Reserved project names are renamed.** `user`, `global`, and names starting with `@` are reserved.
+  Existing projects with those names are renamed deterministically (leading `@` stripped, `-project`
+  appended when the result is empty or reserved, then the usual uniqueness suffix). Workspace IDs never
+  change.
+- **Automation run history gains attribution.** Older runs whose job or trigger still exists record
+  its project as `derived`; the rest stay `unknown` and read "Unknown project".
+
+### Update scripts and integrations
+
+| Before                                                       | After                                                                | Until                                                             |
+| ------------------------------------------------------------ | -------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Old name of a renamed project as a selector                  | The project's ID or new name                                         | Alias works with a warning through v0.4.0; removed in v0.5.0      |
+| `workspace_id=global` or `--workspace global` on data routes | `@user` for User, `all_workspaces=true` for every project            | Rejected with `workspace_reserved` unless it is a migration alias |
+| `shell.sessions.scope`                                       | `shell.sessions.group_by` for grouping; the topbar globe for breadth | Works with a warning through v0.4.0; dropped tolerantly in v0.5.0 |
+| Bell `workspace_label` `"Global"`                            | `"User"` (display string)                                            | Changed in v0.4.0; match on `workspace_id` instead                |
+| Registering `COMPOZY_HOME` as a project                      | Run that work in User (`--user`, `@user`)                            | Refused with `workspace_home_forbidden`                           |
+
+To move off `shell.sessions.scope` now:
+
+```bash
+compozy config unset shell.sessions.scope
+compozy config set shell.sessions.group_by project
+```
+
+In v0.5.0 the daemon converts `scope = "all-workspaces"` into `group_by = "project"` when grouping is
+unset, drops the key with a logged notice, and removes it from `config.toml` on the next apply.
+
+### Agent definitions with `workspace_access`
+
+`workspace_access: unrestricted` is a new AGENT.md field. Daemons older than v0.4.0 decode AGENT.md
+strictly and refuse files that contain it, so upgrade every daemon that reads a shared agents folder
+before adding the field. The field reintroduces a grant for this one purpose, superseding the earlier
+rule that cross-workspace access has no grant vocabulary. Tasks, automations, and Loop runs saved
+before v0.4.0 carry no grant ceiling; save them again as the operator if a granted agent should keep
+its access when they run.
 
 <a id="memory-removal"></a>
 

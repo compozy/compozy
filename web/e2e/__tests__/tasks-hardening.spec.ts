@@ -418,17 +418,13 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   expect(blockedRunResponse.ok).toBe(true);
   const blockedRunPayload = (await blockedRunResponse.json()) as TaskRunEnvelope;
   // Operator claim route is gone; blocked work must also fail on the agent claim-next path.
-  const workspaceRoot = runtime.paths?.homeDir;
-  if (!workspaceRoot) {
-    throw new Error("blocked claim check requires launch-mode runtime home");
-  }
-  const claimWorkspace = await runtime.resolveWorkspace(workspaceRoot);
+  // Global tasks are User work: a User session claims them (the home is never a workspace).
   const blockedSession = (
     await runtime.requestJSON<{ session: { id: string; agent_name: string } }>("/api/sessions", {
       method: "POST",
       body: JSON.stringify({
         agent_name: "browser-lifecycle-agent",
-        workspace: claimWorkspace.id,
+        workspace: "@user",
       }),
     })
   ).session;
@@ -691,7 +687,9 @@ test("E2E-web-2 / E2E-web-4: needs_attention stays distinct in list and kanban a
   await test.step("tasks list and kanban surface needs_attention as a distinct status", async () => {
     await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(ui);
+    // All projects is its own desktop: open Tasks there so the User task is listed.
     await setGlobalScope(appPage, true);
+    await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
     if ((await ui.modeList.getAttribute("aria-current")) !== "page") {
       await ui.modeList.click();
     }
@@ -787,12 +785,8 @@ test("task detail reflects the wake_creator opt-out on agent-created tasks", asy
 }) => {
   const ui = tasksOperatorSelectors(appPage);
   await ensureProjectWorkspace(appPage, runtime);
-  const homeDir = runtime.paths?.homeDir;
-  if (!homeDir) {
-    throw new Error("wake indicator e2e requires launch-mode runtime paths.");
-  }
-  const workspace = await runtime.resolveWorkspace(homeDir);
-  const session = await createSession(runtime, tasksSessionAgentName, workspace.id);
+  // Global tasks are User work: a User session creates them (the home is never a workspace).
+  const session = await createSession(runtime, tasksSessionAgentName, "@user");
   await waitForSeedSessionActive(runtime, session.id);
 
   const wakeOffTask = await createAgentTask(runtime, session.id, tasksSessionAgentName, {

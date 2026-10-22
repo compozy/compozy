@@ -7,8 +7,14 @@ import {
   ListingToolbar,
   SearchInput,
   type Filter,
+  type FilterFieldConfig,
   type ListingViewMode,
 } from "@compozy/ui";
+import {
+  projectFilterChip,
+  projectFilterValuesFromChips,
+  type ProjectFilterValue,
+} from "@/systems/workspace";
 
 import {
   agentFleetFiltersToChips,
@@ -28,6 +34,12 @@ export interface AgentFleetToolbarProps {
   onDraftQueryChange: (next: string) => void;
   onFiltersChange: (next: Pick<AgentsFleetSearch, "category" | "status">) => void;
   onViewChange: (next: ListingViewMode) => void;
+  /** All projects only: the shared Project filter field, its selection and change. */
+  projectField?: FilterFieldConfig<string> | null;
+  projects?: readonly ProjectFilterValue[];
+  onProjectsChange?: (next: readonly ProjectFilterValue[]) => void;
+  /** All profiles: definitions resolve for one profile, so the toolbar names it. */
+  definitionsFor?: string | null;
 }
 
 function AgentFleetToolbar({
@@ -41,12 +53,18 @@ function AgentFleetToolbar({
   onDraftQueryChange,
   onFiltersChange,
   onViewChange,
+  projectField,
+  projects = [],
+  onProjectsChange,
+  definitionsFor,
 }: AgentFleetToolbarProps) {
-  const fields = buildAgentFleetFilterFields(categoryOptions);
-  const chips = agentFleetFiltersToChips(search);
+  const fields = buildAgentFleetFilterFields(categoryOptions, projectField);
+  const projectChip = projectFilterChip(projects);
+  const chips = [...agentFleetFiltersToChips(search), ...(projectChip ? [projectChip] : [])];
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     onFiltersChange(agentFleetChipsToFilters(next));
+    onProjectsChange?.(projectFilterValuesFromChips(next));
   };
 
   return (
@@ -86,9 +104,16 @@ function AgentFleetToolbar({
           </ListingToolbar.Filters>
         ) : null}
       </ListingToolbar.Leading>
-      {showViewToggle ? (
+      {showViewToggle || definitionsFor ? (
         <ListingToolbar.Trailing>
-          <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
+          {definitionsFor ? (
+            <span className="text-micro text-muted" data-testid="agent-fleet-definitions-for">
+              Definitions for {definitionsFor}
+            </span>
+          ) : null}
+          {showViewToggle ? (
+            <ListingToolbar.ViewToggle onChange={onViewChange} value={view} />
+          ) : null}
         </ListingToolbar.Trailing>
       ) : null}
     </ListingToolbar>

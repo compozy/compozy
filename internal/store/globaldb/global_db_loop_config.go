@@ -45,6 +45,7 @@ func upsertLoopConfigWithExecutor(
 	ctx context.Context,
 	exec globalSQLExecutor,
 	workspaceID string,
+	profileID string,
 	loopName string,
 	original looppkg.LoopConfig,
 	normalized looppkg.LoopConfig,
@@ -66,6 +67,7 @@ func upsertLoopConfigWithExecutor(
 		return err
 	}
 	insert := sqlcgen.InsertLoopConfigIfMissingParams{
+		ProfileID:           loopStateProfileID(looppkg.WorkspaceID(workspaceID), profileID),
 		WorkspaceID:         workspaceID,
 		LoopName:            loopName,
 		HumanGateEnabled:    int64(boolPtrToInt(normalized.HumanGateEnabled)),

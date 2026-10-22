@@ -5,10 +5,11 @@ vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
-    Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
+    Link: ({ to, params, search, children, ...props }: Record<string, unknown>) => (
       <a
         href={typeof to === "string" ? to : "#"}
         data-params={JSON.stringify(params)}
+        data-search={JSON.stringify(search)}
         {...(props as Record<string, unknown>)}
       >
         {children as React.ReactNode}
@@ -202,5 +203,52 @@ describe("LoopCatalog", () => {
     expect(screen.getByTestId("loop-catalog-empty")).toBeInTheDocument();
     expect(screen.getByText("No loops yet")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-catalog-clear-filters")).not.toBeInTheDocument();
+  });
+
+  // All projects: one row per (project, name), each naming its project and opening bound to it;
+  // a project whose definitions failed gets its own inline row while healthy rows still render.
+  it("Should name each All projects row's project, bind its link, and isolate failed projects", () => {
+    const onRetry = vi.fn();
+    const projectOf = (id: string | undefined) =>
+      id ? { kind: "project" as const, name: "beta", monogram: "BE" } : userIdentity;
+    const userIdentity = { kind: "user" as const, name: "User", monogram: "~" };
+    render(
+      <LoopCatalog
+        aggregate={{
+          projectOf,
+          errors: [{ workspaceId: "ws_c", label: "gamma", message: "loop config invalid" }],
+          truncated: true,
+          onRetry,
+        }}
+        entries={[
+          { ...reviewCatalogEntry, workspace_id: "" },
+          { ...reviewCatalogEntry, workspace_id: "ws_b" },
+        ]}
+        hasActiveFilters={false}
+        onClearFilters={() => {}}
+        onRun={() => {}}
+        view="rows"
+      />
+    );
+
+    const rows = screen.getAllByTestId("loop-catalog-row");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]!).getByTestId("loop-catalog-row-project")).toHaveTextContent("User");
+    expect(within(rows[1]!).getByTestId("loop-catalog-row-project")).toHaveTextContent("beta");
+    expect(within(rows[0]!).getByRole("link", { name: "Open review-and-fix" })).toHaveAttribute(
+      "data-search",
+      JSON.stringify({ workspace: "@user" })
+    );
+    expect(within(rows[1]!).getByRole("link", { name: "Open review-and-fix" })).toHaveAttribute(
+      "data-search",
+      JSON.stringify({ workspace: "ws_b" })
+    );
+    const failed = screen.getByTestId("loop-catalog-project-error");
+    expect(failed).toHaveTextContent("Couldn't load gamma");
+    fireEvent.click(within(failed).getByRole("button", { name: "Retry" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("loop-catalog-truncated")).toHaveTextContent(
+      "Showing the first 2,000 definitions"
+    );
   });
 });

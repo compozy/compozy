@@ -7,6 +7,138 @@ import (
 	"time"
 )
 
+// TaskBlockResponse is a daemon API value.
+type TaskBlockResponse struct {
+	Block TaskBlockPayload `json:"block"`
+}
+
+// TaskBlocksResponse is a daemon API value.
+type TaskBlocksResponse struct {
+	Blocks []TaskBlockPayload `json:"blocks"`
+}
+
+// TaskCatalogFacetsPayload is a daemon API value.
+type TaskCatalogFacetsPayload struct {
+	Statuses []TaskCatalogStatusFacetPayload `json:"statuses"`
+	Owners   []TaskCatalogOwnerFacetPayload  `json:"owners"`
+}
+
+// TaskCatalogItemPayload is a daemon API value.
+type TaskCatalogItemPayload struct {
+	ID                   string                 `json:"id"`
+	ProfileID            string                 `json:"profile_id"`
+	ProfileName          string                 `json:"profile_name"`
+	ProfileColor         string                 `json:"profile_color,omitempty"`
+	ProfileIcon          string                 `json:"profile_icon,omitempty"`
+	Identifier           string                 `json:"identifier,omitempty"`
+	Scope                TaskScope              `json:"scope"`
+	WorkspaceID          string                 `json:"workspace_id,omitempty"`
+	ParentTaskID         string                 `json:"parent_task_id,omitempty"`
+	Title                string                 `json:"title"`
+	Priority             Priority               `json:"priority,omitempty"`
+	MaxAttempts          int                    `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	Status               TaskStatus             `json:"status"`
+	ApprovalPolicy       ApprovalPolicy         `json:"approval_policy,omitempty"`
+	ApprovalState        ApprovalState          `json:"approval_state,omitempty"`
+	Draft                bool                   `json:"draft,omitempty"`
+	Owner                *Ownership             `json:"owner,omitempty"`
+	CurrentRunID         string                 `json:"current_run_id,omitempty"`
+	LatestEventSeq       int64                  `json:"latest_event_seq"`
+	NeedsAttention       bool                   `json:"needs_attention,omitempty"`
+	NeedsAttentionReason string                 `json:"needs_attention_reason,omitempty"`
+	NeedsAttentionAt     *time.Time             `json:"needs_attention_at,omitempty"`
+	NeedsAttentionBy     *ActorIdentity         `json:"needs_attention_by,omitempty"`
+	WakeCreator          bool                   `json:"wake_creator"`
+	CreatedBy            ActorIdentity          `json:"created_by"`
+	Origin               Origin                 `json:"origin"`
+	CreatedAt            time.Time              `json:"created_at"`
+	UpdatedAt            time.Time              `json:"updated_at"`
+	ClosedAt             *time.Time             `json:"closed_at,omitempty"`
+	ChildCount           int                    `json:"child_count,omitempty"`
+	DependencyCount      int                    `json:"dependency_count,omitempty"`
+	ActiveRun            *TaskCatalogRunPayload `json:"active_run,omitempty"`
+	LastActivityAt       *time.Time             `json:"last_activity_at,omitempty"`
+	Loop                 *LoopProvenance        `json:"loop,omitempty"`
+}
+
+// TaskCatalogOwnerFacetPayload is a daemon API value.
+type TaskCatalogOwnerFacetPayload struct {
+	Owner Ownership `json:"owner"`
+	Count int       `json:"count"`
+}
+
+// TaskCatalogRunPayload is a daemon API value.
+type TaskCatalogRunPayload struct {
+	ID                   string               `json:"id"`
+	TaskID               string               `json:"task_id"`
+	Status               TaskRunStatus        `json:"status"`
+	Attempt              int                  `json:"attempt"`
+	RecoveryCount        int                  `json:"recovery_count"`
+	PreviousRunID        string               `json:"previous_run_id,omitempty"`
+	FailureKind          string               `json:"failure_kind,omitempty"`
+	MaxAttempts          int                  `json:"max_attempts"`
+	SessionID            string               `json:"session_id,omitempty"`
+	WorktreeID           string               `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode ResolvedWorktreeMode `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef  string               `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy            *ActorIdentity       `json:"claimed_by,omitempty"`
+	LeaseUntil           *time.Time           `json:"lease_until,omitempty"`
+	HeartbeatAt          *time.Time           `json:"heartbeat_at,omitempty"`
+	QueuedAt             time.Time            `json:"queued_at"`
+	ClaimedAt            *time.Time           `json:"claimed_at,omitempty"`
+	StartedAt            *time.Time           `json:"started_at,omitempty"`
+	EndedAt              *time.Time           `json:"ended_at,omitempty"`
+	Error                string               `json:"error,omitempty"`
+}
+
+// TaskCatalogStatusFacetPayload is a daemon API value.
+type TaskCatalogStatusFacetPayload struct {
+	Status TaskStatus `json:"status"`
+	Count  int        `json:"count"`
+}
+
+// TaskDashboardActiveRunPayload is a daemon API value.
+type TaskDashboardActiveRunPayload struct {
+	TaskID         string        `json:"task_id"`
+	TaskIdentifier string        `json:"task_identifier,omitempty"`
+	TaskTitle      string        `json:"task_title"`
+	TaskStatus     TaskStatus    `json:"task_status"`
+	TaskPriority   Priority      `json:"task_priority,omitempty"`
+	TaskOwner      *Ownership    `json:"task_owner,omitempty"`
+	Scope          TaskScope     `json:"scope"`
+	WorkspaceID    string        `json:"workspace_id,omitempty"`
+	LatestEventSeq int64         `json:"latest_event_seq"`
+	RunID          string        `json:"run_id"`
+	RunStatus      TaskRunStatus `json:"run_status"`
+	Attempt        int           `json:"attempt"`
+	MaxAttempts    int           `json:"max_attempts"`
+	SessionID      string        `json:"session_id,omitempty"`
+	LastActivityAt time.Time     `json:"last_activity_at"`
+	AgeMilli       int64         `json:"age_ms"`
+	HealthStatus   string        `json:"health_status"`
+	Stuck          bool          `json:"stuck"`
+	Error          string        `json:"error,omitempty"`
+}
+
+// TaskDashboardActiveRunsPayload is a daemon API value.
+type TaskDashboardActiveRunsPayload struct {
+	Total    int                             `json:"total"`
+	Running  int                             `json:"running"`
+	Starting int                             `json:"starting"`
+	Claimed  int                             `json:"claimed"`
+	Queued   int                             `json:"queued"`
+	Items    []TaskDashboardActiveRunPayload `json:"items,omitempty"`
+}
+
+// TaskDashboardBlockedCardPayload is a daemon API value.
+type TaskDashboardBlockedCardPayload struct {
+	Tasks                int    `json:"tasks"`
+	AwaitingApproval     int    `json:"awaiting_approval"`
+	AwaitingDependencies int    `json:"awaiting_dependencies"`
+	HealthStatus         string `json:"health_status"`
+}
+
 // TaskDashboardCardsPayload is a daemon API value.
 type TaskDashboardCardsPayload struct {
 	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
@@ -315,134 +447,4 @@ type TaskInspectPayload struct {
 // TaskInspectResponse is a daemon API value.
 type TaskInspectResponse struct {
 	Inspect TaskInspectPayload `json:"inspect"`
-}
-
-// TaskInspectRunPayload is a daemon API value.
-type TaskInspectRunPayload struct {
-	RunID                   string        `json:"run_id"`
-	TaskID                  string        `json:"task_id"`
-	Status                  TaskRunStatus `json:"status"`
-	ClaimTokenHashTruncated string        `json:"claim_token_hash_truncated,omitempty"`
-	LeaseUntil              *time.Time    `json:"lease_until,omitempty"`
-	HeartbeatAt             *time.Time    `json:"heartbeat_at,omitempty"`
-	HeartbeatAgeSeconds     *int64        `json:"heartbeat_age_seconds,omitzero"`
-	Retries                 int           `json:"retries,omitzero"`
-	LastErrorSummary        string        `json:"last_error_summary,omitempty"`
-	FailureKind             string        `json:"failure_kind,omitempty"`
-	BoundSessionID          string        `json:"bound_session_id,omitempty"`
-	StartedAt               *time.Time    `json:"started_at,omitempty"`
-	EndedAt                 *time.Time    `json:"ended_at,omitempty"`
-	PreviousRunID           string        `json:"previous_run_id,omitempty"`
-	QueuedAt                time.Time     `json:"queued_at"`
-	Attempt                 int           `json:"attempt"`
-}
-
-// TaskInspectSchedulerPayload is a daemon API value.
-type TaskInspectSchedulerPayload struct {
-	Paused    bool       `json:"paused"`
-	PausedBy  string     `json:"paused_by,omitempty"`
-	PausedAt  *time.Time `json:"paused_at,omitempty"`
-	Reason    string     `json:"reason,omitempty"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
-}
-
-// TaskInspectSessionPayload is a daemon API value.
-type TaskInspectSessionPayload struct {
-	SessionID      string     `json:"session_id"`
-	State          string     `json:"state,omitempty"`
-	AgentName      string     `json:"agent_name,omitempty"`
-	ProviderName   string     `json:"provider_name,omitempty"`
-	WorkspaceID    string     `json:"workspace_id,omitempty"`
-	StartedAt      *time.Time `json:"started_at,omitempty"`
-	LastActivityAt *time.Time `json:"last_activity_at,omitempty"`
-	StopReason     string     `json:"stop_reason,omitempty"`
-	FailureKind    string     `json:"failure_kind,omitempty"`
-}
-
-// TaskLatencyMetricPayload is a daemon API value.
-type TaskLatencyMetricPayload struct {
-	Samples       int   `json:"samples"`
-	AverageMillis int64 `json:"average_ms"`
-	MaximumMillis int64 `json:"maximum_ms"`
-}
-
-// TaskOwnerTotalPayload is a daemon API value.
-type TaskOwnerTotalPayload struct {
-	OwnerKind string `json:"owner_kind"`
-	OwnerRef  string `json:"owner_ref"`
-	Count     int    `json:"count"`
-}
-
-// TaskPayload is a daemon API value.
-type TaskPayload struct {
-	ID                   string          `json:"id"`
-	ProfileID            string          `json:"profile_id"`
-	ProfileName          string          `json:"profile_name"`
-	ProfileColor         string          `json:"profile_color,omitempty"`
-	ProfileIcon          string          `json:"profile_icon,omitempty"`
-	Identifier           string          `json:"identifier,omitempty"`
-	Scope                TaskScope       `json:"scope"`
-	WorkspaceID          string          `json:"workspace_id,omitempty"`
-	ParentTaskID         string          `json:"parent_task_id,omitempty"`
-	Title                string          `json:"title"`
-	Description          string          `json:"description,omitempty"`
-	Priority             Priority        `json:"priority,omitempty"`
-	MaxAttempts          int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady   bool            `json:"auto_enqueue_on_ready,omitempty"`
-	Status               TaskStatus      `json:"status"`
-	ApprovalPolicy       ApprovalPolicy  `json:"approval_policy,omitempty"`
-	ApprovalState        ApprovalState   `json:"approval_state,omitempty"`
-	Draft                bool            `json:"draft,omitempty"`
-	Owner                *Ownership      `json:"owner,omitempty"`
-	CurrentRunID         string          `json:"current_run_id,omitempty"`
-	LatestEventSeq       int64           `json:"latest_event_seq"`
-	Paused               bool            `json:"paused,omitempty"`
-	PausedBy             string          `json:"paused_by,omitempty"`
-	PausedAt             *time.Time      `json:"paused_at,omitempty"`
-	PausedReason         string          `json:"paused_reason,omitempty"`
-	EffectivePaused      bool            `json:"effective_paused,omitempty"`
-	PausedByTaskID       string          `json:"paused_by_task_id,omitempty"`
-	BlockedReasons       []BlockedReason `json:"blocked_reasons,omitempty"`
-	NeedsAttention       bool            `json:"needs_attention,omitempty"`
-	NeedsAttentionReason string          `json:"needs_attention_reason,omitempty"`
-	NeedsAttentionAt     *time.Time      `json:"needs_attention_at,omitempty"`
-	NeedsAttentionBy     *ActorIdentity  `json:"needs_attention_by,omitempty"`
-	WakeCreator          bool            `json:"wake_creator"`
-	CreatedBy            ActorIdentity   `json:"created_by"`
-	Origin               Origin          `json:"origin"`
-	CreatedAt            time.Time       `json:"created_at"`
-	UpdatedAt            time.Time       `json:"updated_at"`
-	ClosedAt             *time.Time      `json:"closed_at,omitempty"`
-	Metadata             json.RawMessage `json:"metadata,omitempty"`
-	Loop                 *LoopProvenance `json:"loop,omitempty"`
-}
-
-// TaskQueueDepthPayload is a daemon API value.
-type TaskQueueDepthPayload struct {
-	Count               int        `json:"count"`
-	OldestQueuedAt      *time.Time `json:"oldest_queued_at,omitempty"`
-	OldestQueueAgeMilli int64      `json:"oldest_queue_age_ms"`
-}
-
-// TaskRecoveryTotalsPayload is a daemon API value.
-type TaskRecoveryTotalsPayload struct {
-	Requeued      int `json:"requeued"`
-	MarkedRunning int `json:"marked_running"`
-	Failed        int `json:"failed"`
-}
-
-// TaskReferencePayload is a daemon API value.
-type TaskReferencePayload struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitempty"`
-	EffectivePaused bool       `json:"effective_paused,omitempty"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
 }

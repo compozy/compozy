@@ -20,12 +20,13 @@ const (
 
 // TaskSummaryQuery filters the current task summary view.
 type TaskSummaryQuery struct {
-	ReadScope   store.ReadScope   `json:"-"`
-	Scope       taskpkg.Scope     `json:"scope,omitempty"`
-	WorkspaceID string            `json:"workspace_id,omitempty"`
-	WorktreeID  string            `json:"worktree_id,omitempty"`
-	OwnerKind   taskpkg.OwnerKind `json:"owner_kind,omitempty"`
-	OwnerRef    string            `json:"owner_ref,omitempty"`
+	WorkspaceIDs []string          `json:"workspace_ids,omitempty"`
+	ReadScope    store.ReadScope   `json:"-"`
+	Scope        taskpkg.Scope     `json:"scope,omitempty"`
+	WorkspaceID  string            `json:"workspace_id,omitempty"`
+	WorktreeID   string            `json:"worktree_id,omitempty"`
+	OwnerKind    taskpkg.OwnerKind `json:"owner_kind,omitempty"`
+	OwnerRef     string            `json:"owner_ref,omitempty"`
 
 	OriginKind       taskpkg.OriginKind `json:"origin_kind,omitempty"`
 	Search           string             `json:"search,omitempty"`
@@ -88,12 +89,13 @@ func (q TaskMetricsQuery) Validate() error {
 
 // TaskDashboardQuery filters the observer-backed task dashboard read model.
 type TaskDashboardQuery struct {
-	ReadScope   store.ReadScope   `json:"-"`
-	Scope       taskpkg.Scope     `json:"scope,omitempty"`
-	WorkspaceID string            `json:"workspace_id,omitempty"`
-	WorktreeID  string            `json:"worktree_id,omitempty"`
-	OwnerKind   taskpkg.OwnerKind `json:"owner_kind,omitempty"`
-	OwnerRef    string            `json:"owner_ref,omitempty"`
+	WorkspaceIDs []string          `json:"workspace_ids,omitempty"`
+	ReadScope    store.ReadScope   `json:"-"`
+	Scope        taskpkg.Scope     `json:"scope,omitempty"`
+	WorkspaceID  string            `json:"workspace_id,omitempty"`
+	WorktreeID   string            `json:"worktree_id,omitempty"`
+	OwnerKind    taskpkg.OwnerKind `json:"owner_kind,omitempty"`
+	OwnerRef     string            `json:"owner_ref,omitempty"`
 
 	OriginKind       taskpkg.OriginKind `json:"origin_kind,omitempty"`
 	ExcludeCreatedBy []taskpkg.ActorRef `json:"exclude_created_by,omitempty"`
@@ -116,12 +118,13 @@ func (q TaskDashboardQuery) Validate() error {
 
 func (q TaskDashboardQuery) summaryQuery() TaskSummaryQuery {
 	return TaskSummaryQuery{
-		ReadScope:   q.ReadScope,
-		Scope:       q.Scope,
-		WorkspaceID: q.WorkspaceID,
-		WorktreeID:  q.WorktreeID,
-		OwnerKind:   q.OwnerKind,
-		OwnerRef:    q.OwnerRef,
+		WorkspaceIDs: q.WorkspaceIDs,
+		ReadScope:    q.ReadScope,
+		Scope:        q.Scope,
+		WorkspaceID:  q.WorkspaceID,
+		WorktreeID:   q.WorktreeID,
+		OwnerKind:    q.OwnerKind,
+		OwnerRef:     q.OwnerRef,
 
 		OriginKind:       q.OriginKind,
 		ExcludeCreatedBy: q.ExcludeCreatedBy,

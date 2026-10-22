@@ -1,61 +1,70 @@
 import {
-  GLOBAL_SCOPE_COPY,
-  globalScopeTooltipOn,
+  allProjectsTooltipOn,
+  DESTINATION_COPY,
+  focusLabel,
   workspaceMonogram,
   type ActiveWorktreeSelection,
+  type BreadthMode,
+  type Focus,
   type WorkspaceChipIdentity,
   type WorkspacePayload,
-  type WorkspaceScopeMode,
 } from "@/systems/workspace";
 
 interface DesktopMenubarScopeInput {
   activeWorkspace: WorkspacePayload | undefined;
-  canDisableGlobal: boolean;
+  breadthMode: BreadthMode;
   chip?: WorkspaceChipIdentity;
-  rememberedWorkspaceName?: string | null;
-  scope: WorkspaceScopeMode;
+  /** The focus turning All projects off returns to. */
+  focus: Focus;
+  /** Name of the focused project; ignored for User. */
+  focusWorkspaceName?: string | null;
   scopePending: boolean;
-  toggleLocked: boolean;
   worktreeSelection?: ActiveWorktreeSelection;
 }
 
+function fallbackChip(
+  breadthMode: BreadthMode,
+  activeWorkspace: WorkspacePayload | undefined
+): WorkspaceChipIdentity {
+  if (breadthMode === "all") {
+    return {
+      kind: "all",
+      name: DESTINATION_COPY.allProjects,
+      monogram: DESTINATION_COPY.allProjectsMonogram,
+    };
+  }
+  if (!activeWorkspace) {
+    return { kind: "user", name: DESTINATION_COPY.user, monogram: DESTINATION_COPY.userMonogram };
+  }
+  return {
+    kind: "project",
+    name: activeWorkspace.name,
+    monogram: workspaceMonogram(activeWorkspace.name),
+  };
+}
+
+/**
+ * Topbar destination model. The globe is never locked by the catalog: User is
+ * always a focus, so turning All projects off always has somewhere to go. It
+ * only waits while resolution is pending.
+ */
 export function desktopMenubarScopeModel({
   activeWorkspace,
-  canDisableGlobal,
+  breadthMode,
   chip,
-  rememberedWorkspaceName,
-  scope,
+  focus,
+  focusWorkspaceName,
   scopePending,
-  toggleLocked,
   worktreeSelection,
 }: DesktopMenubarScopeInput) {
-  const globalOn = scope === "global";
-  const rememberedName =
-    rememberedWorkspaceName === undefined
-      ? (activeWorkspace?.name ?? null)
-      : rememberedWorkspaceName;
-  const workspace =
-    chip ??
-    (activeWorkspace
-      ? { name: activeWorkspace.name, monogram: workspaceMonogram(activeWorkspace.name) }
-      : { name: GLOBAL_SCOPE_COPY.chipLabel, monogram: GLOBAL_SCOPE_COPY.chipMonogram });
-  const toggleTooltip = scopePending
-    ? GLOBAL_SCOPE_COPY.tooltipOff
-    : toggleLocked
-      ? GLOBAL_SCOPE_COPY.tooltipLocked
-      : globalOn
-        ? rememberedName
-          ? globalScopeTooltipOn(rememberedName)
-          : GLOBAL_SCOPE_COPY.tooltipPickWorkspace
-        : GLOBAL_SCOPE_COPY.tooltipOff;
-  const toggleLockedReason = scopePending
-    ? undefined
-    : toggleLocked
-      ? GLOBAL_SCOPE_COPY.tooltipLocked
-      : globalOn && !canDisableGlobal
-        ? GLOBAL_SCOPE_COPY.tooltipPickWorkspace
-        : undefined;
-  const fallback = globalOn ? null : (worktreeSelection?.fallback ?? null);
+  const allProjectsOn = breadthMode === "all";
+  const workspace = chip ?? fallbackChip(breadthMode, activeWorkspace);
+  const toggleTooltip =
+    !scopePending && allProjectsOn
+      ? allProjectsTooltipOn(focusLabel(focus, focusWorkspaceName ?? activeWorkspace?.name))
+      : DESTINATION_COPY.allProjects;
+  const projectFocused = !allProjectsOn && focus.kind === "project";
+  const fallback = projectFocused ? (worktreeSelection?.fallback ?? null) : null;
   const fallbackNotice = fallback
     ? `${fallback.name ?? "The selected worktree"} isn't available, so new sessions start in the main project folder.`
     : null;
@@ -63,12 +72,11 @@ export function desktopMenubarScopeModel({
   return {
     fallback,
     fallbackNotice,
-    globalOn,
-    toggleLockedReason,
+    allProjectsOn,
     toggleTooltip,
     workspace: {
       ...workspace,
-      worktree: globalOn ? null : (worktreeSelection?.activeWorktree?.name ?? null),
+      worktree: projectFocused ? (worktreeSelection?.activeWorktree?.name ?? null) : null,
     },
   };
 }

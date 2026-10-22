@@ -25,6 +25,9 @@ const (
 	specFormatInt64            = "int64"
 	specParameterInPath        = openapi3.ParameterInPath
 	specParameterInQuery       = openapi3.ParameterInQuery
+	specArrayKind              = "array"
+	specWorkspaceIDKey         = "workspace_id"
+	specAggregateDeniedText    = "Agent aggregate access denied"
 )
 
 const (

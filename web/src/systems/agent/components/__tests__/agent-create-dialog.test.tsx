@@ -234,7 +234,7 @@ describe("AgentCreateDialog", () => {
     expect(screen.getByTestId("submit-agent-create")).toBeDisabled();
   });
 
-  it("Should show a read-only destination statement for workspace and Global drafts", () => {
+  it("Should show a read-only destination statement for workspace and User drafts", () => {
     const { unmount } = renderStatefulDialog({ draft: validDraft({ scope: "workspace" }) });
 
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in alpha");
@@ -243,7 +243,7 @@ describe("AgentCreateDialog", () => {
     unmount();
 
     renderStatefulDialog({ draft: validDraft({ scope: "global" }) });
-    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in Global");
+    expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in User");
     // No profile destination chip: creating an agent definition does not stamp a
     // profile owner, so claiming one here would promise filing that never happens.
     expect(screen.queryByTestId("profile-destination-chip")).not.toBeInTheDocument();

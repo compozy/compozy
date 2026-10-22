@@ -3,6 +3,8 @@ package httpapi
 import "github.com/gin-gonic/gin"
 
 func registerTerminalRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/terminals", handlers.ListTerminalAggregate)
+	api.GET("/terminals/catalog-stream", handlers.StreamTerminalAggregate)
 	terminals := api.Group("/workspaces/:workspace_id/terminals")
 	terminals.GET("/stream", handlers.StreamTerminalCatalog)
 	terminals.GET("", handlers.ListTerminals)

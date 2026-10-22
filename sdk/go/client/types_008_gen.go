@@ -135,6 +135,22 @@ type LoopBudget struct {
 // LoopBudgetExceeded is a daemon API value.
 type LoopBudgetExceeded string
 
+// LoopCatalogAggregateEntryPayload is a daemon API value.
+type LoopCatalogAggregateEntryPayload struct {
+	WorkspaceID   string                      `json:"workspace_id,omitempty"`
+	Name          string                      `json:"name"`
+	Version       int                         `json:"version"`
+	Description   string                      `json:"description,omitempty"`
+	Source        LoopCatalogSourcePayload    `json:"source"`
+	Catalog       LoopCatalogResourceSpec     `json:"catalog"`
+	Inputs        map[string]LoopInput        `json:"inputs,omitempty"`
+	Start         []LoopStartBinding          `json:"start,omitempty"`
+	Contract      LoopContract                `json:"contract"`
+	LastRun       *LoopCatalogLastRunPayload  `json:"last_run,omitzero"`
+	Aggregate30d  LoopCatalogAggregatePayload `json:"aggregate_30d"`
+	SuccessRate30 float64                     `json:"success_rate_30d"`
+}
+
 // LoopCatalogAggregatePayload is a daemon API value.
 type LoopCatalogAggregatePayload struct {
 	Runs      int `json:"runs"`
@@ -142,8 +158,16 @@ type LoopCatalogAggregatePayload struct {
 	Failed    int `json:"failed"`
 }
 
+// LoopCatalogBatchResponse is a daemon API value.
+type LoopCatalogBatchResponse struct {
+	Entries   []LoopCatalogAggregateEntryPayload `json:"entries"`
+	Errors    []LoopCatalogWorkspaceError        `json:"errors"`
+	Truncated bool                               `json:"truncated"`
+}
+
 // LoopCatalogEntryPayload is a daemon API value.
 type LoopCatalogEntryPayload struct {
+	WorkspaceID   string                      `json:"workspace_id,omitempty"`
 	Name          string                      `json:"name"`
 	Version       int                         `json:"version"`
 	Description   string                      `json:"description,omitempty"`
@@ -178,6 +202,19 @@ type LoopCatalogResourceSpec struct {
 	UseWhen  string   `json:"use_when,omitempty"`
 	Keywords []string `json:"keywords,omitempty"`
 	Category string   `json:"category,omitempty"`
+}
+
+// LoopCatalogSourcePayload is a daemon API value.
+type LoopCatalogSourcePayload struct {
+	Kind  LoopSource `json:"kind"`
+	Layer string     `json:"layer"`
+}
+
+// LoopCatalogWorkspaceError is a daemon API value.
+type LoopCatalogWorkspaceError struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Code        string `json:"code"`
+	Message     string `json:"message"`
 }
 
 // LoopCompletionState is a daemon API value.
@@ -408,33 +445,4 @@ type LoopGateDecision string
 type LoopGateDiagnosticWarning struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
-}
-
-// LoopGateVerdictEventPayload is a daemon API value.
-type LoopGateVerdictEventPayload struct {
-	NodeID         string                          `json:"node_id"`
-	Generation     int64                           `json:"generation"`
-	GateID         string                          `json:"gate_id"`
-	ItemIndex      int                             `json:"item_index"`
-	Verdict        string                          `json:"verdict"`
-	Reason         string                          `json:"reason"`
-	Route          string                          `json:"route"`
-	BlockingIssues []LoopGateBlockingIssuePayload  `json:"blocking_issues"`
-	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
-	Score          *float64                        `json:"score,omitzero"`
-	BestGeneration *int64                          `json:"best_generation,omitzero"`
-}
-
-// LoopGateVerdictOutcome is a daemon API value.
-type LoopGateVerdictOutcome string
-
-// LoopGateVerdictPayload is a daemon API value.
-type LoopGateVerdictPayload struct {
-	GateID         string                           `json:"gate_id"`
-	ItemIndex      int                              `json:"item_index"`
-	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
-	Score          *float64                         `json:"score,omitzero"`
-	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
-	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
-	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
 }

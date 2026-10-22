@@ -22,6 +22,7 @@ import type {
   SettingsSkillsSection,
   TerminalSettingsConfig,
 } from "@/systems/settings";
+import type { OperationResponse } from "@/lib/api-contract";
 import { storyAgentNames, storyWorkspacePaths } from "@/storybook/fintech-scenario";
 
 export const terminalSettingsFixture: TerminalSettingsConfig = {
@@ -1163,7 +1164,13 @@ export const settingsRestartStatusFixture: SettingsRestartStatus = {
   updated_at: "2026-04-17T10:05:05Z",
 };
 
-export const settingsAppliedMutationFixture: SettingsMutationResult = {
+/** A section apply receipt; the shell section adds its own config to it. */
+type SettingsApplyReceipt = Exclude<
+  SettingsMutationResult,
+  OperationResponse<"updateSettingsShell", 200>
+>;
+
+export const settingsAppliedMutationFixture: SettingsApplyReceipt = {
   active_config_hash: "sha256:active-live",
   active_generation: 42,
   applied: true,
@@ -1178,7 +1185,7 @@ export const settingsAppliedMutationFixture: SettingsMutationResult = {
   write_target: "global-config",
 };
 
-export const settingsRestartRequiredMutationFixture: SettingsMutationResult = {
+export const settingsRestartRequiredMutationFixture: SettingsApplyReceipt = {
   active_config_hash: "sha256:active-blocked",
   active_generation: 41,
   applied: true,

@@ -16,7 +16,7 @@ func sessionNavigationOperations() []OperationSpec {
 				pathParam("session_id", "Session id"),
 				{
 					Name:        "q",
-					In:          "query",
+					In:          specParameterInQuery,
 					Description: "Literal case-insensitive text; 1 to 4096 bytes",
 					Required:    true,
 					Kind:        specStringKey,

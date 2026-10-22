@@ -1,4 +1,4 @@
-import { lazy, useEffectEvent, useLayoutEffect } from "react";
+import { lazy } from "react";
 
 import { useDesktop } from "../../hooks/use-desktop";
 import { sameOsWindowRoute } from "../../lib/window-manager-route";
@@ -15,7 +15,6 @@ import {
   validateLoopRunsSearch,
   validateLoopsSearch,
 } from "@/systems/loops";
-import { setActiveWorkspaceId, useActiveWorkspace } from "@/systems/workspace";
 
 const DEFAULT_LOOPS_ROUTE = { pathname: "/loops", search: {} } as const;
 const LoopEditorLocation = lazy(() =>
@@ -30,48 +29,25 @@ function decodePathSegment(value: string): string {
   }
 }
 
-/** Loops and Loop runs controller driven exclusively by the logical WM location. */
+/**
+ * Loops and Loop runs controller driven exclusively by the logical WM location.
+ * Every location reads its data scope from the window (`useWindowDataWorkspace`):
+ * a serialized `workspace` binding wins, so opening a bound Loop never changes
+ * the shell's destination.
+ */
 export function LoopsWindow({ windowId }: { windowId: string }) {
-  const focused = useDesktop(state => state.focusedId === windowId);
   const location = useDesktop(
     (state): OsWindowRoute => state.windows[windowId]?.route ?? DEFAULT_LOOPS_ROUTE,
     (left, right) => left !== undefined && sameOsWindowRoute(left, right)
   );
-  const { activeWorkspaceId, workspaces } = useActiveWorkspace();
-  const routeWorkspaceId =
-    typeof location.search.workspace === "string" && location.search.workspace.trim() !== ""
-      ? location.search.workspace.trim()
-      : undefined;
-  const canAdoptRouteWorkspace =
-    routeWorkspaceId !== undefined &&
-    workspaces.some(workspace => workspace.id === routeWorkspaceId);
-
-  const adoptRouteWorkspace = useEffectEvent((workspaceId: string) => {
-    if (workspaceId !== activeWorkspaceId) {
-      setActiveWorkspaceId(workspaceId);
-    }
-  });
-  // A foreground navigation adopts its owner; later shell scope choices are
-  // not another navigation, and retained background windows cannot own them.
-  useLayoutEffect(() => {
-    if (focused && canAdoptRouteWorkspace) adoptRouteWorkspace(routeWorkspaceId);
-  }, [canAdoptRouteWorkspace, focused, routeWorkspaceId]);
-
-  return <LoopLocation location={location} routeWorkspaceId={routeWorkspaceId} />;
+  return <LoopLocation location={location} />;
 }
 
-function LoopLocation({
-  location,
-  routeWorkspaceId,
-}: {
-  location: OsWindowRoute;
-  routeWorkspaceId: string | undefined;
-}) {
+function LoopLocation({ location }: { location: OsWindowRoute }) {
   const runDiff = /^\/loop-runs\/([^/]+)\/diff$/.exec(location.pathname);
   if (runDiff) {
     return (
       <LoopRunDiffLocation
-        routeWorkspaceId={routeWorkspaceId}
         runId={decodePathSegment(runDiff[1])}
         search={validateLoopRunDiffSearch(location.search)}
       />
@@ -82,7 +58,6 @@ function LoopLocation({
   if (runDetail) {
     return (
       <LoopRunDetailLocation
-        routeWorkspaceId={routeWorkspaceId}
         runId={decodePathSegment(runDetail[1])}
         requestFocus={loopRequestFocus(location.search)}
       />
@@ -102,9 +77,7 @@ function LoopLocation({
 
   const detail = /^\/loops\/([^/]+)$/.exec(location.pathname);
   if (detail) {
-    return (
-      <LoopDetailLocation name={decodePathSegment(detail[1])} routeWorkspaceId={routeWorkspaceId} />
-    );
+    return <LoopDetailLocation name={decodePathSegment(detail[1])} />;
   }
   return <LoopsCatalogLocation search={validateLoopsSearch(location.search)} />;
 }

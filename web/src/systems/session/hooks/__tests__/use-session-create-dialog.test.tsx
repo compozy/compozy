@@ -27,14 +27,15 @@ import {
 } from "../use-session-create-dialog";
 import type { AgentPayload } from "@/systems/agent";
 import { OsShellContext, type OsShellHandle } from "@/systems/os";
-import type { WorkspacePayload } from "@/systems/workspace";
+import type { DataScope, WorkspacePayload } from "@/systems/workspace";
+import { LAST_SESSION_PROJECT_STORAGE_KEY } from "../../lib/session-create-target";
 import {
   buildWorktreeFixture,
   emptyWorktreeListingFixture,
 } from "@/systems/workspace/mocks/worktree-fixtures";
 
-// Invariant: creation submits only durable session identity and launch context, derives Global
-// from the hidden home registration without a worktree choice, materializes a project environment
+// Invariant: creation submits only durable session identity and launch context, binds creation
+// outside a project to the home path without a worktree choice, materializes a project environment
 // before binding to it, and hands off to the canonical session route without inventing a prompt.
 // A prompt already sent from the composer is staged separately while its agent fallback waits.
 // Every exit from a pending environment rolls the worktree back without losing that staged prompt.
@@ -51,7 +52,22 @@ const {
   mockUserHomeDir,
   mockWorkspaceListRef,
   mockWorktreeListingRef,
+  mockActive,
+  mockProfileScope,
+  mockProfiles,
 } = vi.hoisted(() => ({
+  mockActive: {
+    current: {
+      breadthMode: "focused" as "focused" | "all",
+      pending: false,
+      projectWorkspaces: [] as unknown[],
+      dataScope: { kind: "project", workspaceId: "ws_alpha" } as unknown,
+    },
+  },
+  mockProfileScope: { current: { aggregate: false, destination: "default" } },
+  mockProfiles: {
+    current: [] as { name: string; archived_at: string | null }[],
+  },
   mockCancel: vi.fn(),
   mockMaterializationRef: { current: { status: "idle" as string, worktree: undefined as unknown } },
   mockMutateAsync: vi.fn<(input: unknown) => Promise<SessionPayload>>(),
@@ -83,7 +99,7 @@ vi.mock("@/systems/workspace/hooks/use-worktree-materialization", () => ({
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mockNavigate }));
 
 vi.mock("@/systems/agent/hooks/use-agents", () => ({
-  useAgents: (workspaceId: string, options?: { enabled?: boolean }) =>
+  useAgents: (workspaceId: string, options?: { enabled?: boolean; profile?: string }) =>
     mockUseAgents(workspaceId, options),
 }));
 
@@ -108,8 +124,18 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
     activeWorkspaceId: "ws_alpha",
     runtimeWorkspaceId: "ws_alpha",
     runtimeWorkspace: { default_agent: "codex-agent" },
-    scope: "workspace" as const,
+    ...mockActive.current,
   }),
+}));
+
+vi.mock("@/systems/profiles/hooks/use-profile-read-scope", async importOriginal => ({
+  ...(await importOriginal<object>()),
+  useProfileReadScope: () => mockProfileScope.current,
+}));
+
+vi.mock("@/systems/profiles/hooks/use-profiles", async importOriginal => ({
+  ...(await importOriginal<object>()),
+  useProfiles: () => ({ data: mockProfiles.current }),
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-worktree", async importOriginal => ({
@@ -161,6 +187,8 @@ const createdSession: SessionPayload = {
   supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
+  scope: "workspace",
+  effective_workspace_access: "",
   id: "sess-new",
   agent_name: "codex-agent",
   workspace_id: "ws_alpha",
@@ -198,9 +226,9 @@ interface TestSessionCreateDialogApi extends SessionCreateDialogApi {
 function useSessionCreateDialog(context: {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
-  scope?: "workspace" | "global";
+  dataScope?: DataScope | null;
   projectWorkspaceId?: string | null;
-  homeWorkspaceId?: string;
+  focusedBinding?: string | null;
 }): TestSessionCreateDialogApi {
   const controller = useSessionCreateDialogController();
   const dialog = useSessionCreateDialogViewModel(context, controller.store);
@@ -209,10 +237,9 @@ function useSessionCreateDialog(context: {
     ...dialog,
     pendingPrompt,
     openDialog: agentName => {
-      if (!context.activeWorkspace) return;
       controller.store.trigger.dialogOpened({
         agentName,
-        workspaceId: context.activeWorkspace.id,
+        workspaceId: context.activeWorkspace?.id ?? "",
       });
     },
     stageFallbackPrompt: prompt => controller.store.trigger.fallbackPromptStaged({ prompt }),
@@ -272,6 +299,15 @@ describe("useSessionCreateDialog", () => {
     // Most cases are not git-backed, so the environment control is absent and
     // creation behaves exactly as it did before worktrees existed.
     mockWorktreeListingRef.current = undefined;
+    mockActive.current = {
+      breadthMode: "focused",
+      pending: false,
+      projectWorkspaces: [activeWorkspace],
+      dataScope: { kind: "project", workspaceId: "ws_alpha" },
+    };
+    mockProfileScope.current = { aggregate: false, destination: "default" };
+    mockProfiles.current = [];
+    window.localStorage.removeItem(LAST_SESSION_PROJECT_STORAGE_KEY);
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
     takePendingTerminalQuote();
     clearSessionTerminalQuote(createdSession.id);
@@ -422,12 +458,12 @@ describe("useSessionCreateDialog", () => {
     );
   });
 
-  it("Should bind Global creation to home without exposing or activating a worktree", async () => {
+  it("W-07 Should start a User session in User without a project picker, worktree or activation", async () => {
     mockUserHomeDir.current = "/Users/operator";
     mockWorktreeListingRef.current = emptyWorktreeListingFixture;
     mockMutateAsync.mockResolvedValue({
       ...createdSession,
-      workspace_id: "ws_home",
+      workspace_id: "",
       workspace_path: "/Users/operator",
     });
 
@@ -437,21 +473,18 @@ describe("useSessionCreateDialog", () => {
         useSessionCreateDialog({
           agents,
           activeWorkspace: homeWorkspace,
-          scope: "global",
+          dataScope: { kind: "user" },
           projectWorkspaceId: activeWorkspace.id,
-          homeWorkspaceId: homeWorkspace.id,
         }),
       { wrapper }
     );
 
     act(() => result.current.openDialog("codex-agent"));
     expect(result.current.environment).toBeUndefined();
+    expect(result.current.destinationAxes.project).toBeUndefined();
     await act(async () => result.current.submit());
 
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      agent_name: "codex-agent",
-      workspace: homeWorkspace.id,
-    });
+    expect(mockMutateAsync).toHaveBeenCalledWith({ agent_name: "codex-agent", scope: "user" });
     await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
     expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();
   });
@@ -794,6 +827,199 @@ describe("useSessionCreateDialog", () => {
       // on the table — the field renders them from this same model.
       expect(result.current.environment?.materialization.status).toBe("failed");
       expect(result.current.environment?.onChange).toBeTypeOf("function");
+    });
+  });
+
+  describe("destination pickers under the aggregates (ADR-003)", () => {
+    const betaWorkspace: WorkspacePayload = {
+      ...activeWorkspace,
+      id: "ws_beta",
+      root_dir: "/workspace/beta",
+      name: "beta",
+    };
+
+    function allProjects(projectWorkspaces: WorkspacePayload[]) {
+      mockActive.current = {
+        breadthMode: "all",
+        pending: false,
+        projectWorkspaces,
+        dataScope: { kind: "all" },
+      };
+      mockUseAgents.mockReturnValue({ data: agents });
+    }
+
+    it("W-13 Should prefill the focused window's project and land in place", async () => {
+      allProjects([activeWorkspace, betaWorkspace]);
+      mockMutateAsync.mockResolvedValue({ ...createdSession, workspace_id: "ws_beta" });
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(
+        () =>
+          useSessionCreateDialog({
+            agents,
+            activeWorkspace: undefined,
+            dataScope: { kind: "all" },
+            focusedBinding: "ws_beta",
+          }),
+        { wrapper }
+      );
+
+      act(() => result.current.openDialog("codex-agent"));
+      expect(result.current.destinationAxes.project?.value).toBe("ws_beta");
+      expect(result.current.destinationAxes.project?.options.map(option => option.value)).toEqual([
+        "ws_alpha",
+        "ws_beta",
+        "@user",
+      ]);
+      await act(async () => result.current.submit());
+
+      expect(mockMutateAsync).toHaveBeenCalledWith({
+        agent_name: "codex-agent",
+        workspace: "ws_beta",
+      });
+      await waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith({
+          to: "/agents/$name/sessions/$id",
+          params: { name: "codex-agent", id: "sess-new" },
+          search: { workspace: "ws_beta" },
+        })
+      );
+      // All projects stays on: the created session never switches the destination.
+      expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();
+      expect(window.localStorage.getItem(LAST_SESSION_PROJECT_STORAGE_KEY)).toBe("ws_beta");
+    });
+
+    it("W-14 Should fall back to the first project when the last-used one is gone", async () => {
+      allProjects([activeWorkspace, betaWorkspace]);
+      window.localStorage.setItem(LAST_SESSION_PROJECT_STORAGE_KEY, "ws_c");
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(
+        () =>
+          useSessionCreateDialog({
+            agents,
+            activeWorkspace: undefined,
+            dataScope: { kind: "all" },
+          }),
+        { wrapper }
+      );
+
+      act(() => result.current.openDialog("codex-agent"));
+      expect(result.current.destinationAxes.project?.value).toBe("ws_alpha");
+      await act(async () => result.current.submit());
+
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: "ws_alpha" })
+      );
+      expect(mockMutateAsync).not.toHaveBeenCalledWith(
+        expect.objectContaining({ workspace: "ws_c" })
+      );
+    });
+
+    it("W-14 Should prefer the last-used project over the first one", () => {
+      allProjects([activeWorkspace, betaWorkspace]);
+      window.localStorage.setItem(LAST_SESSION_PROJECT_STORAGE_KEY, "ws_beta");
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(
+        () =>
+          useSessionCreateDialog({
+            agents,
+            activeWorkspace: undefined,
+            dataScope: { kind: "all" },
+          }),
+        { wrapper }
+      );
+
+      act(() => result.current.openDialog("codex-agent"));
+      expect(result.current.destinationAxes.project?.value).toBe("ws_beta");
+    });
+
+    it("W-15 Should prefill the acting profile, hide archived ones, and send the pick", async () => {
+      mockProfileScope.current = { aggregate: true, destination: "default" };
+      mockProfiles.current = [
+        { name: "default", archived_at: null },
+        { name: "marketing", archived_at: null },
+        { name: "old", archived_at: "2026-01-01T00:00:00Z" },
+      ];
+      mockUseAgents.mockReturnValue({ data: agents });
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+        wrapper,
+      });
+
+      act(() => result.current.openDialog("codex-agent"));
+      expect(result.current.destinationAxes.project).toBeUndefined();
+      expect(result.current.destinationAxes.profile?.value).toBe("default");
+      expect(result.current.destinationAxes.profile?.options.map(option => option.value)).toEqual([
+        "default",
+        "marketing",
+      ]);
+      act(() => result.current.destinationAxes.profile?.onChange("marketing"));
+      expect(mockUseAgents).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.objectContaining({ profile: "marketing" })
+      );
+      await act(async () => result.current.submit());
+
+      expect(mockMutateAsync).toHaveBeenCalledWith({
+        agent_name: "codex-agent",
+        workspace: "ws_alpha",
+        profile: "marketing",
+      });
+    });
+
+    it("W-16 Should end the project list with User", () => {
+      allProjects([activeWorkspace]);
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(
+        () =>
+          useSessionCreateDialog({
+            agents,
+            activeWorkspace: undefined,
+            dataScope: { kind: "all" },
+          }),
+        { wrapper }
+      );
+
+      act(() => result.current.openDialog("codex-agent"));
+      expect(result.current.destinationAxes.project?.options.at(-1)).toEqual({
+        value: "@user",
+        label: "User",
+        monogram: "~",
+      });
+    });
+
+    it("W-16 Should prefill User with zero projects and start the session in User", async () => {
+      allProjects([]);
+      mockUserHomeDir.current = "/Users/operator";
+      mockMutateAsync.mockResolvedValue({
+        ...createdSession,
+        workspace_id: "",
+        workspace_path: "/Users/operator",
+      });
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(
+        () =>
+          useSessionCreateDialog({
+            agents,
+            activeWorkspace: undefined,
+            dataScope: { kind: "all" },
+          }),
+        { wrapper }
+      );
+
+      act(() => result.current.openDialog("codex-agent"));
+      expect(result.current.destinationAxes.project?.options.map(option => option.value)).toEqual([
+        "@user",
+      ]);
+      expect(result.current.destinationAxes.project?.value).toBe("@user");
+      expect(result.current.destinationLabel).toBe("User");
+      await act(async () => result.current.submit());
+
+      expect(mockMutateAsync).toHaveBeenCalledWith({ agent_name: "codex-agent", scope: "user" });
+      await waitFor(() =>
+        expect(mockNavigate).toHaveBeenCalledWith(
+          expect.objectContaining({ search: { workspace: "@user" } })
+        )
+      );
     });
   });
 });

@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// EffectResult is a daemon API value.
+type EffectResult struct {
+	EffectID string          `json:"effect_id"`
+	Payload  json.RawMessage `json:"payload,omitempty"`
+}
+
 // EffectSpec is a daemon API value.
 type EffectSpec struct {
 	Emit *EmitSpec      `json:"emit,omitzero"`

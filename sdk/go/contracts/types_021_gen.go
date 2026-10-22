@@ -123,18 +123,19 @@ type TaskInboxLaneGroupPayload struct {
 }
 
 type TaskInboxParams struct {
-	Scope     CatalogScope  `json:"scope,omitempty"`
-	Workspace string        `json:"workspace,omitempty"`
-	Worktree  string        `json:"worktree,omitempty"`
-	OwnerKind OwnerKind     `json:"owner_kind,omitempty"`
-	OwnerRef  string        `json:"owner_ref,omitempty"`
-	Lane      TaskInboxLane `json:"lane,omitempty"`
-	Status    Status        `json:"status,omitempty"`
-	Priority  Priority      `json:"priority,omitempty"`
-	Unread    *bool         `json:"unread,omitempty"`
-	Query     string        `json:"query,omitempty"`
-	Cursor    string        `json:"cursor,omitempty"`
-	Limit     int           `json:"limit,omitempty"`
+	Scope        CatalogScope  `json:"scope,omitempty"`
+	Workspace    string        `json:"workspace,omitempty"`
+	WorkspaceIDs []string      `json:"workspace_ids,omitempty"`
+	Worktree     string        `json:"worktree,omitempty"`
+	OwnerKind    OwnerKind     `json:"owner_kind,omitempty"`
+	OwnerRef     string        `json:"owner_ref,omitempty"`
+	Lane         TaskInboxLane `json:"lane,omitempty"`
+	Status       Status        `json:"status,omitempty"`
+	Priority     Priority      `json:"priority,omitempty"`
+	Unread       *bool         `json:"unread,omitempty"`
+	Query        string        `json:"query,omitempty"`
+	Cursor       string        `json:"cursor,omitempty"`
+	Limit        int           `json:"limit,omitempty"`
 }
 
 type TaskInboxPriorityFacetPayload struct {

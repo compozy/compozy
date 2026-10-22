@@ -133,7 +133,7 @@ func TestFilesystemAttachmentStorePathSanitization(t *testing.T) {
 		{name: "Should reject a parent-directory workspace", workspaceID: "../escape", sessionID: "sess_1"},
 		{name: "Should reject a slashed session id", workspaceID: "ws_a", sessionID: "sess/1"},
 		{name: "Should reject a dotted traversal session", workspaceID: "ws_a", sessionID: ".."},
-		{name: "Should reject an empty workspace", workspaceID: "", sessionID: "sess_1"},
+		{name: "Should reject a blank workspace", workspaceID: " ", sessionID: "sess_1"},
 		{name: "Should reject a traversal attachment id", workspaceID: "ws_a", sessionID: "sess_1", id: "../att_x"},
 	}
 
@@ -686,4 +686,31 @@ func assertAttachmentPresent(
 	if _, err := store.Stat(t.Context(), workspaceID, sessionID, id); err != nil {
 		t.Fatalf("Stat(%q) error = %v, want retained attachment", id, err)
 	}
+}
+
+func TestFilesystemAttachmentStoreUserScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should store and remove a User session's attachments under the reserved User directory", func(t *testing.T) {
+		t.Parallel()
+		root := filepath.Join(t.TempDir(), "session-attachments")
+		store := openTestAttachmentStore(t, root, testAttachmentRetention())
+		ref, err := store.Put(
+			t.Context(),
+			PutRequest{SessionID: "sess_user", Name: "notes.txt", Data: []byte("plain notes")},
+		)
+		if err != nil {
+			t.Fatalf("Put(User) error = %v", err)
+		}
+		if _, err := store.Stat(t.Context(), "", "sess_user", ref.ID); err != nil {
+			t.Fatalf("Stat(User) error = %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(root, userScopeAttachmentDir, "sess_user", ref.ID)); err != nil {
+			t.Fatalf("User attachment not under %q: %v", userScopeAttachmentDir, err)
+		}
+		lease, err := store.AcquireScopeLease(t.Context(), "", "sess_user")
+		if err != nil {
+			t.Fatalf("AcquireScopeLease(User) error = %v, want session removal to proceed", err)
+		}
+		lease.Release()
+	})
 }

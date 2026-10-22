@@ -49,6 +49,7 @@ func (r IngressSubjectRef) Validate() error {
 
 // IngressSubject is trusted ownership and routing metadata resolved by the server.
 type IngressSubject struct {
+	ProfileID string
 	IngressSubjectRef
 	Scope             IngressScopeKind
 	WorkspaceID       string

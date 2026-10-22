@@ -97,3 +97,8 @@ and preserves Studio's three tasks. All affected gates pass. The empty claim pro
 invocation only, not acquisition of a nonempty queue; dedicated task-lease journeys own that invariant.
 
 QA impact 2026-10-07 (memory removal): the `compozy__memory_*` family was removed, so the memory legs in the dated receipts above (reference-memory save, memory read-back, own-project memory mutation refusal, public memory catalogs) are historical; the remaining families (workspace, automation, hook, task claim) and the operator-only global/all rule are unchanged. No verdict change.
+
+CI1 regression coverage (2026-10-21): native execution-profile objects and extension installation
+profile selectors retain their domain meaning; implicit `@user` skill reads resolve User/Profile
+layers. The affected native dispatcher and real extension lifecycle suites pass with race detection.
+See [the CI1 report](../reports/2026-10-21-all-projects-ci1.md). This does not replace the hosted-agent walk.

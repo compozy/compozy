@@ -256,7 +256,7 @@ func TestAgentCrossWorkspaceUDSIdentityMapping(t *testing.T) {
 				if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
 					req.Actor.SessionID != "sess-approve-reads" ||
 					req.Actor.WorkspaceID != sourceWorkspaceID ||
-					req.TargetWorkspaceID != targetWorkspaceID {
+					req.Target.WorkspaceID != targetWorkspaceID {
 					t.Fatalf("Authorize() request = %#v, want UDS identity mapping", req)
 				}
 				return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil

@@ -16,17 +16,17 @@ import (
 )
 
 type loopActionSessionBinder struct {
-	sessions            loopPromptSessionManager
-	bindings            goalpkg.BindingStore
-	bindingAllocator    goalpkg.BindingAttemptAllocator
-	prompts             loopGoalPromptRuntimeStore
-	creationStore       store.SessionCreationStore
-	managedInputs       loopManagedInputSessionManager
-	usageReporters      managedGoalUsageReporters
-	globalWorkspacePath string
-	policyGate          *loopSessionPolicyGate
-	worktrees           loopActionWorktrees
-	now                 func() time.Time
+	sessions         loopPromptSessionManager
+	bindings         goalpkg.BindingStore
+	bindingAllocator goalpkg.BindingAttemptAllocator
+	prompts          loopGoalPromptRuntimeStore
+	creationStore    store.SessionCreationStore
+	managedInputs    loopManagedInputSessionManager
+	usageReporters   managedGoalUsageReporters
+
+	policyGate *loopSessionPolicyGate
+	worktrees  loopActionWorktrees
+	now        func() time.Time
 }
 
 type loopManagedSessionManager interface {

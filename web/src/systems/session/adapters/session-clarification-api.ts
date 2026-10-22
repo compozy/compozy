@@ -6,6 +6,7 @@ import type {
   ClarificationPending,
 } from "../types";
 import { SessionApiError, throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 /**
  * A clarification answer was rejected because the request already left the live broker map
@@ -31,7 +32,7 @@ export async function fetchSessionClarifications(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       signal,
     }
   );
@@ -62,7 +63,11 @@ export async function answerSessionClarification(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: id, request_id: requestId },
+        path: {
+          workspace_id: sessionWorkspacePath(workspaceId),
+          session_id: id,
+          request_id: requestId,
+        },
       },
       body,
       signal,

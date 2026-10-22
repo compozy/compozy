@@ -2,9 +2,10 @@ package tools
 
 // ToolExecutionMetadata holds optional dispatch behavior without growing copied descriptors.
 type ToolExecutionMetadata struct {
-	MaxResultBytes int64     `json:"max_result_bytes,omitempty"`
-	Idempotent     bool      `json:"idempotent,omitempty"`
-	InputErrorCode ErrorCode `json:"input_error_code,omitempty"`
+	ReservedWorkspacePartition bool      `json:"reserved_workspace_partition,omitempty"`
+	MaxResultBytes             int64     `json:"max_result_bytes,omitempty"`
+	Idempotent                 bool      `json:"idempotent,omitempty"`
+	InputErrorCode             ErrorCode `json:"input_error_code,omitempty"`
 }
 
 func NewToolExecutionMetadata(idempotent bool, inputErrorCode ErrorCode, maxResultBytes int64) *ToolExecutionMetadata {

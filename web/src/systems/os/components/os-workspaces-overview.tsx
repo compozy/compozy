@@ -22,10 +22,10 @@ import {
 import { OsWorkspacesWorktreeMenu } from "./os-workspaces-worktree-menu";
 import {
   contractHomePath,
+  DESTINATION_COPY,
   groupWorkspaceTree,
   workspaceMonogram,
   type WorkspacePayload,
-  type WorkspaceScopeMode,
   type WorkspaceTreeNode,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
@@ -36,8 +36,6 @@ export interface OsWorkspacesOverviewProps {
   onOpenChange: (open: boolean) => void;
   workspaces: WorkspacePayload[];
   activeWorkspaceId: string | null;
-  /** While Global is on no tile is current and the notice line renders. */
-  scope: WorkspaceScopeMode;
   onSelectWorkspace: (workspaceId: string) => void;
   onNewWorkspace: () => void;
   reducedMotion: boolean;
@@ -152,10 +150,10 @@ function captionFor(
   };
 }
 
-const GLOBAL_CAPTION: OsWorkspacesCaptionModel = {
-  key: "global",
-  title: "Global",
-  meta: "visible to every project",
+const USER_CAPTION: OsWorkspacesCaptionModel = {
+  key: "user",
+  title: DESTINATION_COPY.user,
+  meta: "work outside any project",
   path: "~",
 };
 
@@ -163,7 +161,6 @@ const GLOBAL_CAPTION: OsWorkspacesCaptionModel = {
 function OsWorkspacesStage({
   workspaces,
   activeWorkspaceId,
-  scope,
   onSelectWorkspace,
   onNewWorkspace,
   reducedMotion,
@@ -185,8 +182,6 @@ function OsWorkspacesStage({
     projectWorkspacesStage({
       workspaces,
       worktreesByWorkspace,
-      userHomeDir,
-      scope,
       selectedWorktreeId,
       activeWorkspaceId,
       onCreateWorktree,
@@ -198,8 +193,8 @@ function OsWorkspacesStage({
       onNewWorkspace();
       return;
     }
-    // Enter on a tile always lands on the workspace root; while Global is on
-    // the store turns Global off in the same gesture (workspaceSelected).
+    // Enter on a tile always lands on the workspace root; under All projects
+    // or User the store focuses the project in the same gesture (workspaceSelected).
     onSelectWorkspace(entry.key);
     onOpenChange(false);
   };
@@ -229,9 +224,9 @@ function OsWorkspacesStage({
   const switcher = useWorkspacesSwitcher({
     entries,
     menuNavRowsForKey: key => menuModelByKey.get(key)?.navRows ?? [],
-    initialFocusKey: scope === "workspace" ? activeWorkspaceId : null,
+    initialFocusKey: activeWorkspaceId,
     scopedRowKeyForKey: key =>
-      scope === "workspace" && key === activeWorkspaceId ? readySelectedWorktreeKey : null,
+      activeWorkspaceId !== null && key === activeWorkspaceId ? readySelectedWorktreeKey : null,
     reducedMotion,
     onActivateEntry: activateEntry,
     onActivateMenuRow: activateMenuRow,
@@ -248,7 +243,6 @@ function OsWorkspacesStage({
   const { focusedEntry, menuModel, scopedRowKey, focusedRowKey } = focusedWorkspacesMenu(
     switcher,
     menuModelByKey,
-    scope,
     activeWorkspaceId,
     readySelectedWorktreeKey
   );
@@ -282,7 +276,7 @@ function OsWorkspacesStage({
             )}
           >
             <p className="max-w-workspaces-empty-copy text-small-body text-muted">
-              No project folders yet. Sessions run in Global until you add one.
+              No project folders yet. Sessions run in User until you add one.
             </p>
             {/* The one primary on this surface — there is nothing to switch to. */}
             <Button
@@ -306,7 +300,6 @@ function OsWorkspacesStage({
             <WorkspaceTiles
               entries={entries}
               switcher={switcher}
-              scope={scope}
               activeWorkspaceId={activeWorkspaceId}
               readySelectedWorktreeKey={readySelectedWorktreeKey}
               workingSessionsByWorkspace={workingSessionsByWorkspace}
@@ -314,7 +307,7 @@ function OsWorkspacesStage({
           </OsWorkspacesStrip>
         )}
         <OsWorkspacesCaption
-          model={empty ? GLOBAL_CAPTION : captionFor(focusedEntry, userHomeDir)}
+          model={empty ? USER_CAPTION : captionFor(focusedEntry, userHomeDir)}
           reducedMotion={reducedMotion}
         />
         {/* Zero-height slot: the menu hangs under the caption without ever
@@ -366,14 +359,12 @@ function OsWorkspacesStage({
 function WorkspaceTiles({
   entries,
   switcher,
-  scope,
   activeWorkspaceId,
   readySelectedWorktreeKey,
   workingSessionsByWorkspace,
 }: {
   entries: WorkspacesSwitcherEntry[];
   switcher: ReturnType<typeof useWorkspacesSwitcher>;
-  scope: WorkspaceScopeMode;
   activeWorkspaceId: string | null;
   readySelectedWorktreeKey: string | null;
   workingSessionsByWorkspace: OsWorkspacesOverviewProps["workingSessionsByWorkspace"];
@@ -408,7 +399,7 @@ function WorkspaceTiles({
             focused={anchorsMenu}
             tabIndex={focused ? 0 : -1}
             current={
-              scope === "workspace" && entry.key === activeWorkspaceId
+              activeWorkspaceId !== null && entry.key === activeWorkspaceId
                 ? readySelectedWorktreeKey
                   ? "wt"
                   : "root"
@@ -427,8 +418,6 @@ function WorkspaceTiles({
 function projectWorkspacesStage({
   workspaces,
   worktreesByWorkspace,
-  userHomeDir,
-  scope,
   selectedWorktreeId,
   activeWorkspaceId,
   onCreateWorktree,
@@ -436,14 +425,12 @@ function projectWorkspacesStage({
   OsWorkspacesStageProps,
   | "workspaces"
   | "worktreesByWorkspace"
-  | "userHomeDir"
-  | "scope"
   | "selectedWorktreeId"
   | "activeWorkspaceId"
   | "onCreateWorktree"
 >) {
   const tree = worktreesByWorkspace
-    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
+    ? groupWorkspaceTree(workspaces, worktreesByWorkspace)
     : workspaces.map(flatNode);
   const empty = tree.length === 0;
   const entries: WorkspacesSwitcherEntry[] = empty
@@ -453,7 +440,7 @@ function projectWorkspacesStage({
         ADD_ENTRY,
       ];
   const readySelectedWorktreeKey =
-    scope === "workspace" && selectedWorktreeId
+    activeWorkspaceId !== null && selectedWorktreeId
       ? (tree
           .find(node => node.workspace.id === activeWorkspaceId)
           ?.worktrees.find(

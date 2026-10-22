@@ -31,16 +31,18 @@ var (
 type CatalogKind string
 
 type CatalogQuery struct {
-	WorkspaceID string
-	ProfileID   string
-	ProfileName string
-	Search      string
-	Kind        CatalogKind
-	Category    string
-	Status      Status
-	Sort        string
-	Cursor      string
-	Limit       int
+	AllWorkspaces bool
+	WorkspaceIDs  []string
+	WorkspaceID   string
+	ProfileID     string
+	ProfileName   string
+	Search        string
+	Kind          CatalogKind
+	Category      string
+	Status        Status
+	Sort          string
+	Cursor        string
+	Limit         int
 }
 
 type CatalogRunAggregate struct {
@@ -115,9 +117,6 @@ func NormalizeCatalogQuery(query CatalogQuery) (CatalogQuery, error) {
 	}
 	if query.Limit == 0 {
 		query.Limit = DefaultCatalogLimit
-	}
-	if query.WorkspaceID == "" {
-		return CatalogQuery{}, fmt.Errorf("%w: workspace_id is required", ErrCatalogQueryInvalid)
 	}
 	if query.ProfileID == "" || query.ProfileName == "" {
 		return CatalogQuery{}, fmt.Errorf("%w: profile id and name are required", ErrCatalogQueryInvalid)

@@ -151,7 +151,7 @@ func buildParameter(spec ParameterSpec) *openapi3.Parameter {
 func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 	var schema *openapi3.Schema
 	switch spec.Kind {
-	case "array":
+	case specArrayKind:
 		schema = openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema())
 	case "boolean":
 		schema = openapi3.NewBoolSchema()

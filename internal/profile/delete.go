@@ -56,6 +56,7 @@ func (m *Manager) Delete(
 			[]lifecycleStep{
 				{Seq: 0, Action: stepRemoveProfile, PathOld: m.profileDir(profile.Name)},
 				{Seq: 1, Action: stepRemoveDesktopPartitions},
+				{Seq: 2, Action: stepRemoveUserJournal},
 			},
 		); err != nil {
 			return err
@@ -124,6 +125,10 @@ func deleteProfileOwnedRows(
 		{label: "tool approval history", statement: `DELETE FROM tool_approval_pending WHERE profile_id = ?`},
 		{label: "attention receipts", statement: `DELETE FROM attention_acknowledgements WHERE profile_id = ?`},
 		{label: "attention snapshots", statement: `DELETE FROM attention_snapshots WHERE profile_id = ?`},
+		{label: "loop_config", statement: `DELETE FROM loop_config WHERE workspace_id = '' AND profile_id = ?`},
+		{label: "loop_definition_snapshots", statement: `DELETE FROM loop_definition_snapshots WHERE workspace_id = '' AND profile_id = ?`},
+		{label: "loop_ui_annotations", statement: `DELETE FROM loop_ui_annotations WHERE workspace_id = '' AND profile_id = ?`},
+		{label: "loop_admission_claims", statement: `DELETE FROM loop_admission_claims WHERE workspace_id = '' AND profile_id = ?`},
 		{label: "event summaries", statement: `DELETE FROM event_summaries WHERE profile_id = ?`},
 		{label: "credential requirements", statement: `DELETE FROM profile_credential_requirements WHERE profile_id = ?`},
 		{label: "profile selections", statement: `DELETE FROM profile_selections WHERE profile_id = ?`},

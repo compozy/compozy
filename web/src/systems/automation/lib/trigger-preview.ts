@@ -19,6 +19,7 @@ import {
   ENVELOPE_KEYS,
   availableDataFields,
   getEventDef,
+  type EnvelopeScope,
   type EventDef,
   type TriggerEnvelope,
 } from "./trigger-catalog";
@@ -99,6 +100,11 @@ function activeFilterEntries(filter: Filter): Array<[string, string]> {
   return Object.entries(filter).filter(([key]) => key.trim() !== "");
 }
 
+// Draft scopes accept the "user"/"@user" input aliases; emitted envelopes keep the stored "global".
+function envelopeScope(scope: Draft["scope"]): EnvelopeScope {
+  return scope === "workspace" ? "workspace" : "global";
+}
+
 function buildEnvelope(
   draft: Draft,
   def: EventDef | undefined,
@@ -107,7 +113,7 @@ function buildEnvelope(
   if (!def) {
     return {
       kind: draft.event.trim() || "event",
-      scope: draft.scope,
+      scope: envelopeScope(draft.scope),
       workspace_id: draft.scope === "workspace" ? (draft.workspace_id ?? "") : "",
       source: "observer",
       data: {},
@@ -117,7 +123,7 @@ function buildEnvelope(
   const isWebhook = def.family === "webhook";
   return {
     kind: sampleEventKind(selection, def.sample.kind),
-    scope: isWebhook ? "global" : draft.scope,
+    scope: isWebhook ? "global" : envelopeScope(draft.scope),
     workspace_id: isWebhook ? "" : draft.scope === "workspace" ? (draft.workspace_id ?? "") : "",
     source: def.sample.source,
     data: { ...def.sample.data },

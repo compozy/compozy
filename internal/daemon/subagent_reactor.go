@@ -97,7 +97,7 @@ func (b subagentSettledBridge) DispatchSubagentSettled(ctx context.Context, row 
 
 func subagentSettledWorktree(row store.SessionSubagent) *hooks.SubagentWorktreePayload {
 	wt := row.WorktreeState()
-	if row.Isolation != "worktree" || wt.ID == "" {
+	if row.Isolation != worktreeKey || wt.ID == "" {
 		return nil
 	}
 	facts := wt.Facts

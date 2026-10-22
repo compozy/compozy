@@ -26,12 +26,14 @@ type TaskStreamQuery struct {
 
 // TaskDashboardQuery captures the shared observer-backed task dashboard filters.
 type TaskDashboardQuery struct {
-	Scope      taskpkg.Scope      `json:"scope,omitempty"`
-	Workspace  string             `json:"workspace,omitempty"`
-	Worktree   string             `json:"worktree,omitempty"`
-	OwnerKind  taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
-	OwnerRef   string             `json:"owner_ref,omitempty"`
-	OriginKind taskpkg.OriginKind `json:"origin_kind,omitempty"`
+	AllWorkspaces bool               `json:"all_workspaces,omitzero"`
+	WorkspaceIDs  []string           `json:"workspace_ids,omitempty"`
+	Scope         taskpkg.Scope      `json:"scope,omitempty"`
+	Workspace     string             `json:"workspace,omitempty"`
+	Worktree      string             `json:"worktree,omitempty"`
+	OwnerKind     taskpkg.OwnerKind  `json:"owner_kind,omitempty"`
+	OwnerRef      string             `json:"owner_ref,omitempty"`
+	OriginKind    taskpkg.OriginKind `json:"origin_kind,omitempty"`
 }
 
 // CreateTaskRequest is the shared task-create request payload.

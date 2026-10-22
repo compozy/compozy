@@ -19,7 +19,7 @@ import { homePrefsStore, useHomeSystemOpen, useHomeUsageWindow } from "./use-hom
 import { useHomeSystem } from "./use-home-system";
 import { useHomeWorkingNow } from "./use-home-working-now";
 import { useDaemonHealth } from "@/systems/status";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { DESTINATION_COPY, useActiveWorkspace } from "@/systems/workspace";
 import type { AttentionNotificationScope } from "@/systems/notifications";
 import { useProfileReadScope } from "@/systems/profiles";
 
@@ -63,25 +63,30 @@ function surfaceStatus(isLoading: boolean, isError: boolean, hasData: boolean): 
 }
 
 // Stable argument for disabled queries while workspace scope is undetermined.
-const UNSETTLED_HOME_SCOPE: HomeScope = { workspaceParam: "", taskScope: { scope: "global" } };
+const UNSETTLED_HOME_SCOPE: HomeScope = {
+  dataScope: { kind: "all" },
+  workspaceParam: "",
+  taskScope: { all_workspaces: true },
+  overview: { allWorkspaces: true },
+};
 
 export function useHomeDashboard({
   liveEnabled = true,
 }: UseHomeDashboardOptions = {}): HomeDashboardModel {
   const { connectionStatus } = useDaemonHealth();
-  const { activeWorkspace, activeWorkspaceId, scope: workspaceScope } = useActiveWorkspace();
+  const { activeWorkspace, dataScope, registeredWorkspaces } = useActiveWorkspace();
   const usageWindow = useHomeUsageWindow();
   const systemOpen = useHomeSystemOpen();
 
   const { aggregate, params: profileScope, destination } = useProfileReadScope();
-  const resolvedScope = homeScopeForActiveWorkspace(workspaceScope, activeWorkspaceId);
+  const resolvedScope = homeScopeForActiveWorkspace(dataScope);
   const scopeSettled = resolvedScope !== null;
   const scope = resolvedScope ?? UNSETTLED_HOME_SCOPE;
 
   const overviewQuery = useQuery(
     homeOverviewOptions(
       {
-        workspace: scope.workspaceParam || undefined,
+        ...scope.overview,
         usageWindow,
         receiptProfile: destination,
         // Usage follows the active view: a scoped profile sees only its own
@@ -108,7 +113,11 @@ export function useHomeDashboard({
     enabled: scopeSettled && liveEnabled,
   });
 
-  const workingNow = useHomeWorkingNow(scope, scopeSettled && liveEnabled);
+  const workingNow = useHomeWorkingNow(
+    scope,
+    scopeSettled && liveEnabled,
+    new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]))
+  );
   const overviewPresentation = queryPresentation(overviewQuery, scopeSettled);
   const activityPresentation = queryPresentation(activityQuery, scopeSettled);
   const overview = overviewQuery.data;
@@ -123,6 +132,8 @@ export function useHomeDashboard({
     ...profileScope,
     receipt_profile: destination,
     workspace: scope.workspaceParam || undefined,
+    // The acknowledgement must name the population the overview showed (AP BR-2).
+    ...("allWorkspaces" in scope.overview ? { all_workspaces: true } : {}),
     surface: "home",
   };
   const attentionActions = useHomeAttentionActions({
@@ -145,7 +156,12 @@ export function useHomeDashboard({
     activity: activityQuery.data,
     activityStatus: activityPresentation.status,
     activityErrorMessage: activityPresentation.errorMessage,
-    activeWorkspaceName: workspaceScope === "global" ? "Global" : (activeWorkspace?.name ?? null),
+    activeWorkspaceName:
+      scope.dataScope.kind === "project"
+        ? (activeWorkspace?.name ?? null)
+        : scope.dataScope.kind === "user"
+          ? DESTINATION_COPY.user
+          : DESTINATION_COPY.allProjects,
     workingNow,
     agents,
     system,

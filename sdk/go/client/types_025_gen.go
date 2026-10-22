@@ -7,6 +7,118 @@ import (
 	"time"
 )
 
+// ToolApprovalGrantSetRequest is a daemon API value.
+type ToolApprovalGrantSetRequest struct {
+	ToolID    ToolID                       `json:"tool_id"`
+	Decision  ApprovalGrantDecision        `json:"decision"`
+	Scope     ApprovalGrantManagementScope `json:"scope"`
+	AgentName string                       `json:"agent_name,omitempty"`
+}
+
+// ToolApprovalPayload is a daemon API value.
+type ToolApprovalPayload struct {
+	ApprovalToken string    `json:"approval_token"`
+	ExpiresAt     time.Time `json:"expires_at"`
+	ToolID        ToolID    `json:"tool_id"`
+	InputDigest   string    `json:"input_digest"`
+}
+
+// ToolApprovalRequest is a daemon API value.
+type ToolApprovalRequest struct {
+	SessionID   string          `json:"session_id"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	AgentName   string          `json:"agent_name,omitempty"`
+	Input       json.RawMessage `json:"input,omitempty"`
+	InputDigest string          `json:"input_digest,omitempty"`
+}
+
+// ToolApprovalResponse is a daemon API value.
+type ToolApprovalResponse struct {
+	Approval ToolApprovalPayload `json:"approval"`
+}
+
+// ToolApprovalStatusResponse is a daemon API value.
+type ToolApprovalStatusResponse struct {
+	ApprovalStatus  ApprovalOutcome         `json:"approval_status"`
+	ExecutionStatus ApprovalExecutionStatus `json:"execution_status,omitempty"`
+	Result          json.RawMessage         `json:"result,omitempty"`
+	Error           json.RawMessage         `json:"error,omitempty"`
+	ExpiresAt       *time.Time              `json:"expires_at,omitempty"`
+}
+
+// ToolArtifactPageResponse is a daemon API value.
+type ToolArtifactPageResponse struct {
+	Artifact   ArtifactRef `json:"artifact"`
+	Offset     int64       `json:"offset"`
+	Bytes      int64       `json:"bytes"`
+	TotalBytes int64       `json:"total_bytes"`
+	DataBase64 string      `json:"data_base64"`
+	NextOffset int64       `json:"next_offset"`
+	EOF        bool        `json:"eof"`
+}
+
+// ToolAvailabilityPayload is a daemon API value.
+type ToolAvailabilityPayload struct {
+	Registered  bool         `json:"registered"`
+	Enabled     bool         `json:"enabled"`
+	Available   bool         `json:"available"`
+	Authorized  bool         `json:"authorized"`
+	Executable  bool         `json:"executable"`
+	Conflicted  bool         `json:"conflicted"`
+	ReasonCodes []ReasonCode `json:"reason_codes,omitempty"`
+}
+
+// ToolBackendRefPayload is a daemon API value.
+type ToolBackendRefPayload struct {
+	Kind                 BackendKind `json:"kind"`
+	ExtensionID          string      `json:"extension_id,omitempty"`
+	Handler              string      `json:"handler,omitempty"`
+	MCPServer            string      `json:"mcp_server,omitempty"`
+	MCPTool              string      `json:"mcp_tool,omitempty"`
+	NativeName           string      `json:"native_name,omitempty"`
+	RequiresCapabilities []string    `json:"requires_capabilities,omitempty"`
+}
+
+// ToolCallEventKind is a daemon API value.
+type ToolCallEventKind string
+
+// ToolCallEventPayload is a daemon API value.
+type ToolCallEventPayload struct {
+	Kind                 ToolCallEventKind `json:"kind"`
+	ToolID               ToolID            `json:"tool_id"`
+	DisplayTitle         string            `json:"display_title,omitempty"`
+	SourceKind           SourceKind        `json:"source_kind,omitempty"`
+	SourceOwner          string            `json:"source_owner,omitempty"`
+	WorkspaceID          string            `json:"workspace_id,omitempty"`
+	SessionID            string            `json:"session_id,omitempty"`
+	AgentName            string            `json:"agent_name,omitempty"`
+	Risk                 RiskClass         `json:"risk,omitempty"`
+	ReadOnly             bool              `json:"read_only"`
+	Destructive          bool              `json:"destructive"`
+	OpenWorld            bool              `json:"open_world"`
+	ApprovalMode         string            `json:"approval_mode,omitempty"`
+	Decision             string            `json:"decision,omitempty"`
+	ReasonCodes          []ReasonCode      `json:"reason_codes,omitempty"`
+	DurationMS           int64             `json:"duration_ms,omitzero"`
+	ResultBytes          int64             `json:"result_bytes,omitzero"`
+	Truncated            bool              `json:"truncated"`
+	CorrelationID        string            `json:"correlation_id,omitempty"`
+	ErrorCode            ErrorCode         `json:"error_code,omitempty"`
+	InputDigest          string            `json:"input_digest,omitempty"`
+	RedactedInputFields  []string          `json:"redacted_input_fields,omitempty"`
+	ResultDigest         string            `json:"result_digest,omitempty"`
+	ResultRedactionPaths []string          `json:"result_redaction_paths,omitempty"`
+}
+
+// ToolContent is a daemon API value.
+type ToolContent struct {
+	Type     string                     `json:"type"`
+	Text     string                     `json:"text,omitempty"`
+	Data     json.RawMessage            `json:"data,omitempty"`
+	MIMEType string                     `json:"mime_type,omitempty"`
+	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ToolDescriptorPayload is a daemon API value.
 type ToolDescriptorPayload struct {
 	ToolID              ToolID                `json:"tool_id"`
@@ -327,115 +439,4 @@ type UpdateExtensionsRequest struct {
 	Version         string           `json:"version,omitempty"`
 	CheckOnly       bool             `json:"check_only,omitzero"`
 	AllowUnverified bool             `json:"allow_unverified,omitzero"`
-}
-
-// UpdateJobRequest is a daemon API value.
-type UpdateJobRequest struct {
-	Name       *string          `json:"name,omitempty"`
-	Prompt     *string          `json:"prompt,omitempty"`
-	Schedule   *ScheduleSpec    `json:"schedule,omitempty"`
-	Task       *JobTaskConfig   `json:"task,omitempty"`
-	LoopTarget *LoopTarget      `json:"loop_target,omitempty"`
-	Enabled    *bool            `json:"enabled,omitempty"`
-	Retry      *RetryConfig     `json:"retry,omitempty"`
-	FireLimit  *FireLimitConfig `json:"fire_limit,omitempty"`
-}
-
-// UpdateMarketplaceSourceRequest is a daemon API value.
-type UpdateMarketplaceSourceRequest struct {
-	Enabled *bool `json:"enabled"`
-}
-
-// UpdateProfileRequest is a daemon API value.
-type UpdateProfileRequest struct {
-	Color *string `json:"color,omitzero"`
-	Icon  *string `json:"icon,omitzero"`
-	Emoji *string `json:"emoji,omitzero"`
-}
-
-// UpdateSettingsAttentionPayload is a daemon API value.
-type UpdateSettingsAttentionPayload struct {
-	Toasts          bool      `json:"toasts"`
-	Sound           bool      `json:"sound"`
-	System          bool      `json:"system"`
-	MutedWorkspaces *[]string `json:"muted_workspaces,omitzero"`
-}
-
-// UpdateSettingsAttentionRequest is a daemon API value.
-type UpdateSettingsAttentionRequest struct {
-	Config UpdateSettingsAttentionPayload `json:"config"`
-}
-
-// UpdateSettingsAutomationRequest is a daemon API value.
-type UpdateSettingsAutomationRequest struct {
-	Config SettingsAutomationConfigPayload `json:"config"`
-}
-
-// UpdateSettingsCmdPaletteRequest is a daemon API value.
-type UpdateSettingsCmdPaletteRequest struct {
-	FallbackAgentEnabled *bool              `json:"fallback_agent_enabled,omitzero"`
-	Personalization      *bool              `json:"personalization,omitzero"`
-	Aliases              *map[string]string `json:"aliases,omitzero"`
-}
-
-// UpdateSettingsGeneralRequest is a daemon API value.
-type UpdateSettingsGeneralRequest struct {
-	Config SettingsGeneralConfigPayload `json:"config"`
-}
-
-// UpdateSettingsHooksExtensionsRequest is a daemon API value.
-type UpdateSettingsHooksExtensionsRequest struct {
-	Config SettingsExtensionsConfigPayload `json:"config"`
-}
-
-// UpdateSettingsMarketplaceRequest is a daemon API value.
-type UpdateSettingsMarketplaceRequest struct {
-	Config SettingsMarketplaceCatalogPayload `json:"config"`
-}
-
-// UpdateSettingsObservabilityRequest is a daemon API value.
-type UpdateSettingsObservabilityRequest struct {
-	Config SettingsObservabilityConfigPayload `json:"config"`
-}
-
-// UpdateSettingsPersonaRequest is a daemon API value.
-type UpdateSettingsPersonaRequest struct {
-	Config SettingsDefaultsPayload `json:"config"`
-}
-
-// UpdateSettingsRolesRequest is a daemon API value.
-type UpdateSettingsRolesRequest struct {
-	Config SettingsRolesConfigPayload `json:"config"`
-}
-
-// UpdateSettingsShellRequest is a daemon API value.
-type UpdateSettingsShellRequest struct {
-	Config SettingsShellPayload `json:"config"`
-}
-
-// UpdateSettingsSkillsRequest is a daemon API value.
-// UpdateSettingsSkillsRequest preserves its custom JSON wire representation.
-type UpdateSettingsSkillsRequest = json.RawMessage
-
-// UpdateSettingsWindowManagerRequest is a daemon API value.
-type UpdateSettingsWindowManagerRequest struct {
-	PreserveShortcuts bool                                `json:"preserve_shortcuts,omitzero"`
-	Config            *SettingsWindowManagerConfigPayload `json:"config,omitzero"`
-	Shortcuts         *map[string][]string                `json:"shortcuts,omitzero"`
-	Aliases           *map[string]string                  `json:"aliases,omitzero"`
-	GlobalShortcuts   *map[string]string                  `json:"global_shortcuts,omitzero"`
-	Overwrite         bool                                `json:"overwrite,omitzero"`
-}
-
-// UpdateTaskRequest is a daemon API value.
-type UpdateTaskRequest struct {
-	Title              *string          `json:"title,omitempty"`
-	Description        *string          `json:"description,omitempty"`
-	Priority           *Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Metadata           *json.RawMessage `json:"metadata,omitempty"`
-	Owner              *Ownership       `json:"owner,omitempty"`
-	ClearOwner         bool             `json:"clear_owner,omitempty"`
 }

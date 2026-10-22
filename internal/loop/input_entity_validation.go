@@ -46,7 +46,7 @@ func ValidateInputEntities(
 		switch input.Type {
 		case dsl.InputTypeRuntime:
 			if err := validateRuntimeInput(
-				ctx, workspaceID, field, input, value, origin, loopName, runtimes,
+				ctx, workspaceID, profileID, field, input, value, origin, loopName, runtimes,
 			); err != nil {
 				return err
 			}
@@ -109,6 +109,7 @@ func validateEntityInput(
 func validateRuntimeInput(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	field string,
 	input dsl.Input,
 	value any,
@@ -124,7 +125,7 @@ func validateRuntimeInput(
 	}
 	var catalog RuntimeCatalog
 	if runtimes != nil {
-		catalog, err = runtimes.ForWorkspace(ctx, workspaceID)
+		catalog, err = runtimes.ForWorkspace(ctx, workspaceID, profileID)
 		if err != nil {
 			return fmt.Errorf("resolve workspace runtime catalog: %w", err)
 		}

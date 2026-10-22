@@ -12,7 +12,6 @@ import (
 func newBootLoopActionRegistry(
 	store taskStore,
 	state *bootState,
-	globalWorkspacePath string,
 	toolRegistry lazyToolRegistry,
 	policyGate *loopSessionPolicyGate,
 	gateEvaluator gate.GateEvaluator,
@@ -20,10 +19,10 @@ func newBootLoopActionRegistry(
 ) (*looppkg.ActionRegistry, error) {
 	worktrees := executionWorktreesForState(state)
 	actionBinder := &loopActionSessionBinder{
-		sessions:            state.sessions,
-		globalWorkspacePath: globalWorkspacePath,
-		policyGate:          policyGate,
-		worktrees:           worktrees,
+		sessions: state.sessions,
+
+		policyGate: policyGate,
+		worktrees:  worktrees,
 	}
 	actionOptions := []looppkg.ActionRegistryOption{
 		looppkg.WithActionDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
@@ -46,7 +45,6 @@ func newBootLoopActionRegistry(
 		goalRuntime := withGoalToolProjection(newLoopGoalProductionRuntime(
 			goalStore,
 			state.sessions,
-			globalWorkspacePath,
 			policyGate,
 			time.Now,
 			state.logger,

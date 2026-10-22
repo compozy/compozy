@@ -101,7 +101,14 @@ func (s *service) DryRun(
 	if err != nil {
 		return nil, err
 	}
-	resolvedInputs, err := s.resolveEffectiveInputs(ctx, ws, loopName, resolved.Definition, inputs.Values)
+	resolvedInputs, err := s.resolveEffectiveInputs(
+		ctx,
+		ws,
+		inputs.ProfileID,
+		loopName,
+		resolved.Definition,
+		inputs.Values,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -113,6 +120,7 @@ func (s *service) DryRun(
 	effective, err := s.effectiveConfig(
 		ctx,
 		ws,
+		inputs.ProfileID,
 		loopName,
 		resolved,
 		inputs.InheritedEnvironment,
@@ -162,14 +170,14 @@ func (s *service) Configure(
 	if err := validateConfigJSON(clamped); err != nil {
 		return err
 	}
-	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws)
+	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws, profileID)
 	if err != nil {
 		return err
 	}
 	if err := ValidateLoopConfigRuntime(ctx, catalog, clamped); err != nil {
 		return err
 	}
-	return s.store.UpsertLoopConfig(ctx, ws, loopName, clamped)
+	return s.store.UpsertLoopConfig(ctx, ws, profileID, loopName, clamped)
 }
 
 func (s *service) GetConfig(ctx context.Context, ws WorkspaceID, name string) (*LoopConfig, error) {
@@ -177,7 +185,7 @@ func (s *service) GetConfig(ctx context.Context, ws WorkspaceID, name string) (*
 	if err != nil {
 		return nil, err
 	}
-	return s.store.GetLoopConfig(ctx, ws, loopName)
+	return s.store.GetLoopConfig(ctx, ws, "", loopName)
 }
 
 func (s *service) GetConfigSnapshot(
@@ -190,14 +198,14 @@ func (s *service) GetConfigSnapshot(
 	if err != nil {
 		return ConfigSnapshot{}, err
 	}
-	stored, err := s.store.GetLoopConfig(ctx, ws, loopName)
+	stored, err := s.store.GetLoopConfig(ctx, ws, profileID, loopName)
 	if err != nil && !errors.Is(err, ErrConfigNotFound) {
 		return ConfigSnapshot{}, err
 	}
 	if errors.Is(err, ErrConfigNotFound) {
 		stored = nil
 	}
-	defaults, err := s.resolveDefaults(ctx, ws)
+	defaults, err := s.resolveDefaults(ctx, ws, profileID)
 	if err != nil {
 		return ConfigSnapshot{}, fmt.Errorf("resolve loop defaults: %w", err)
 	}
@@ -205,7 +213,7 @@ func (s *service) GetConfigSnapshot(
 	if err != nil {
 		return ConfigSnapshot{}, err
 	}
-	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws)
+	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws, profileID)
 	if err != nil {
 		return ConfigSnapshot{}, err
 	}
@@ -296,19 +304,20 @@ func (s *service) resolveDefinition(
 func (s *service) effectiveConfig(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 	loopName string,
 	resolved *ResolvedDefinition,
 	inheritedEnvironment *dsl.EnvironmentSpec,
 	perRun LoopConfig,
 ) (EffectiveConfig, error) {
-	stored, err := s.store.GetLoopConfig(ctx, ws, loopName)
+	stored, err := s.store.GetLoopConfig(ctx, ws, profileID, loopName)
 	if err != nil && !errors.Is(err, ErrConfigNotFound) {
 		return EffectiveConfig{}, err
 	}
 	if errors.Is(err, ErrConfigNotFound) {
 		stored = nil
 	}
-	defaults, err := s.resolveDefaults(ctx, ws)
+	defaults, err := s.resolveDefaults(ctx, ws, profileID)
 	if err != nil {
 		return EffectiveConfig{}, fmt.Errorf("resolve loop defaults: %w", err)
 	}
@@ -316,7 +325,7 @@ func (s *service) effectiveConfig(
 	if err != nil {
 		return EffectiveConfig{}, err
 	}
-	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws)
+	catalog, err := s.runtimeCatalogForWorkspace(ctx, ws, profileID)
 	if err != nil {
 		return EffectiveConfig{}, err
 	}

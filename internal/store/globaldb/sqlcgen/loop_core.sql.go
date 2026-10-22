@@ -13,37 +13,40 @@ import (
 
 const deleteLoopConfig = `-- name: DeleteLoopConfig :exec
 DELETE FROM loop_config
-WHERE workspace_id = ?1 AND loop_name = ?2
+WHERE profile_id = ?1 AND workspace_id = ?2 AND loop_name = ?3
 `
 
 type DeleteLoopConfigParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	LoopName    string `json:"loop_name"`
 }
 
 func (q *Queries) DeleteLoopConfig(ctx context.Context, arg DeleteLoopConfigParams) error {
-	_, err := q.db.ExecContext(ctx, deleteLoopConfig, arg.WorkspaceID, arg.LoopName)
+	_, err := q.db.ExecContext(ctx, deleteLoopConfig, arg.ProfileID, arg.WorkspaceID, arg.LoopName)
 	return err
 }
 
 const deleteLoopUIAnnotations = `-- name: DeleteLoopUIAnnotations :exec
-DELETE FROM loop_ui_annotations WHERE workspace_id = ?1 AND loop_name = ?2
+DELETE FROM loop_ui_annotations WHERE profile_id = ?1 AND workspace_id = ?2 AND loop_name = ?3
 `
 
 type DeleteLoopUIAnnotationsParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	LoopName    string `json:"loop_name"`
 }
 
 func (q *Queries) DeleteLoopUIAnnotations(ctx context.Context, arg DeleteLoopUIAnnotationsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteLoopUIAnnotations, arg.WorkspaceID, arg.LoopName)
+	_, err := q.db.ExecContext(ctx, deleteLoopUIAnnotations, arg.ProfileID, arg.WorkspaceID, arg.LoopName)
 	return err
 }
 
 const findActiveLoopRun = `-- name: FindActiveLoopRun :one
-SELECT id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs
+SELECT grant_ceiling, id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs
 WHERE workspace_id = ?1
-  AND loop_name = ?2
+  AND (workspace_id <> '' OR profile_id = ?2)
+  AND loop_name = ?3
   AND historical = 0
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')
 ORDER BY created_at ASC, id ASC
@@ -52,13 +55,15 @@ LIMIT 1
 
 type FindActiveLoopRunParams struct {
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 	LoopName    string `json:"loop_name"`
 }
 
 func (q *Queries) FindActiveLoopRun(ctx context.Context, arg FindActiveLoopRunParams) (LoopRun, error) {
-	row := q.db.QueryRowContext(ctx, findActiveLoopRun, arg.WorkspaceID, arg.LoopName)
+	row := q.db.QueryRowContext(ctx, findActiveLoopRun, arg.WorkspaceID, arg.ProfileID, arg.LoopName)
 	var i LoopRun
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.WorkspaceID,
@@ -110,7 +115,7 @@ func (q *Queries) FindActiveLoopRun(ctx context.Context, arg FindActiveLoopRunPa
 }
 
 const findLiveSessionGoal = `-- name: FindLiveSessionGoal :one
-SELECT id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs
+SELECT grant_ceiling, id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs
 WHERE workspace_id = ?1
   AND origin_kind = 'session'
   AND historical = 0
@@ -129,6 +134,7 @@ func (q *Queries) FindLiveSessionGoal(ctx context.Context, arg FindLiveSessionGo
 	row := q.db.QueryRowContext(ctx, findLiveSessionGoal, arg.WorkspaceID, arg.OriginSessionID)
 	var i LoopRun
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.WorkspaceID,
@@ -238,10 +244,11 @@ SELECT human_gate_enabled, reattempt_strategy, enabled_checks_json,
        iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
        no_progress_window, fan_out_width, gate_max_revisions,
        runtime_defaults_json, runtime_rules_json, environment_json
-FROM loop_config WHERE workspace_id = ?1 AND loop_name = ?2
+FROM loop_config WHERE profile_id = ?1 AND workspace_id = ?2 AND loop_name = ?3
 `
 
 type GetLoopConfigParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	LoopName    string `json:"loop_name"`
 }
@@ -263,7 +270,7 @@ type GetLoopConfigRow struct {
 }
 
 func (q *Queries) GetLoopConfig(ctx context.Context, arg GetLoopConfigParams) (GetLoopConfigRow, error) {
-	row := q.db.QueryRowContext(ctx, getLoopConfig, arg.WorkspaceID, arg.LoopName)
+	row := q.db.QueryRowContext(ctx, getLoopConfig, arg.ProfileID, arg.WorkspaceID, arg.LoopName)
 	var i GetLoopConfigRow
 	err := row.Scan(
 		&i.HumanGateEnabled,
@@ -284,7 +291,7 @@ func (q *Queries) GetLoopConfig(ctx context.Context, arg GetLoopConfigParams) (G
 }
 
 const getLoopRun = `-- name: GetLoopRun :one
-SELECT id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs WHERE workspace_id = ?1 AND id = ?2
+SELECT grant_ceiling, id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs WHERE workspace_id = ?1 AND id = ?2
 `
 
 type GetLoopRunParams struct {
@@ -296,6 +303,7 @@ func (q *Queries) GetLoopRun(ctx context.Context, arg GetLoopRunParams) (LoopRun
 	row := q.db.QueryRowContext(ctx, getLoopRun, arg.WorkspaceID, arg.ID)
 	var i LoopRun
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.WorkspaceID,
@@ -347,13 +355,14 @@ func (q *Queries) GetLoopRun(ctx context.Context, arg GetLoopRunParams) (LoopRun
 }
 
 const getLoopRunByID = `-- name: GetLoopRunByID :one
-SELECT id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs WHERE id = ?1
+SELECT grant_ceiling, id, profile_id, workspace_id, loop_name, status, historical, completion_state, forked_from_run_id, forked_from_generation, generation, reattempt_strategy, last_progress_at, completed_at, budget_tokens, budget_wall_sec, budget_on_exceeded, tokens_used, parent_loop_run_id, pause_requested, inputs_json, created_at, iteration_cap, started_by_kind, started_by_ref, started_origin_kind, started_origin_ref, started_at, definition_version, definition_digest, active_gate_id, active_human_criteria_json, budget_approval_seq, start_metadata_json, origin_kind, origin_session_id, goal_cleared_at, budget_version, goal_context_nudge_ratio, control_actor_kind, control_actor_id, control_requested_at, origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest, best_generation, best_score FROM loop_runs WHERE id = ?1
 `
 
 func (q *Queries) GetLoopRunByID(ctx context.Context, id string) (LoopRun, error) {
 	row := q.db.QueryRowContext(ctx, getLoopRunByID, id)
 	var i LoopRun
 	err := row.Scan(
+		&i.GrantCeiling,
 		&i.ID,
 		&i.ProfileID,
 		&i.WorkspaceID,
@@ -424,21 +433,22 @@ func (q *Queries) GetLoopRunEventHead(ctx context.Context, arg GetLoopRunEventHe
 }
 
 const insertLoopConfigIfMissing = `-- name: InsertLoopConfigIfMissing :exec
-INSERT OR IGNORE INTO loop_config (
+INSERT OR IGNORE INTO loop_config (profile_id,
   workspace_id, loop_name, human_gate_enabled, reattempt_strategy, enabled_checks_json,
   iteration_cap, budget_tokens, budget_wall_sec, budget_on_exceeded,
   no_progress_window, fan_out_width, gate_max_revisions,
   runtime_defaults_json, runtime_rules_json, environment_json
-) VALUES (
-  ?1, ?2, ?3,
-  ?4, ?5, ?6,
-  ?7, ?8, ?9,
-  ?10, ?11, ?12,
-  ?13, ?14, ?15
+) VALUES (?1,
+  ?2, ?3, ?4,
+  ?5, ?6, ?7,
+  ?8, ?9, ?10,
+  ?11, ?12, ?13,
+  ?14, ?15, ?16
 )
 `
 
 type InsertLoopConfigIfMissingParams struct {
+	ProfileID           string         `json:"profile_id"`
 	WorkspaceID         string         `json:"workspace_id"`
 	LoopName            string         `json:"loop_name"`
 	HumanGateEnabled    int64          `json:"human_gate_enabled"`
@@ -458,6 +468,7 @@ type InsertLoopConfigIfMissingParams struct {
 
 func (q *Queries) InsertLoopConfigIfMissing(ctx context.Context, arg InsertLoopConfigIfMissingParams) error {
 	_, err := q.db.ExecContext(ctx, insertLoopConfigIfMissing,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.LoopName,
 		arg.HumanGateEnabled,
@@ -479,6 +490,7 @@ func (q *Queries) InsertLoopConfigIfMissing(ctx context.Context, arg InsertLoopC
 
 const insertLoopRun = `-- name: InsertLoopRun :exec
 INSERT INTO loop_runs (
+ grant_ceiling,
   profile_id,
   id, workspace_id, loop_name, status, historical, generation, reattempt_strategy, created_at, started_at,
   last_progress_at, definition_version, definition_digest, active_gate_id,
@@ -489,22 +501,24 @@ INSERT INTO loop_runs (
   goal_context_nudge_ratio, origin_kind, origin_session_id,
   origin_creation_profile_ref, origin_policy_spec_digest, origin_creation_digest
 ) VALUES (
-  ?1,
-  ?2, ?3, ?4, ?5, ?6,
-  ?7, ?8, ?9, ?10,
-  ?11, ?12, ?13,
-  ?14, ?15, ?16,
-  ?17, ?18,
-  ?19, ?20, ?21,
-  ?22, ?23, ?24,
-  ?25, ?26, ?27,
-  ?28, ?29, ?30,
-  ?31, ?32, ?33,
-  ?34, ?35
+ ?1,
+  ?2,
+  ?3, ?4, ?5, ?6, ?7,
+  ?8, ?9, ?10, ?11,
+  ?12, ?13, ?14,
+  ?15, ?16, ?17,
+  ?18, ?19,
+  ?20, ?21, ?22,
+  ?23, ?24, ?25,
+  ?26, ?27, ?28,
+  ?29, ?30, ?31,
+  ?32, ?33, ?34,
+  ?35, ?36
 )
 `
 
 type InsertLoopRunParams struct {
+	GrantCeiling             string         `json:"grant_ceiling"`
 	ProfileID                string         `json:"profile_id"`
 	ID                       string         `json:"id"`
 	WorkspaceID              string         `json:"workspace_id"`
@@ -544,6 +558,7 @@ type InsertLoopRunParams struct {
 
 func (q *Queries) InsertLoopRun(ctx context.Context, arg InsertLoopRunParams) error {
 	_, err := q.db.ExecContext(ctx, insertLoopRun,
+		arg.GrantCeiling,
 		arg.ProfileID,
 		arg.ID,
 		arg.WorkspaceID,
@@ -613,11 +628,12 @@ func (q *Queries) InsertLoopRunEvent(ctx context.Context, arg InsertLoopRunEvent
 }
 
 const insertLoopUIAnnotation = `-- name: InsertLoopUIAnnotation :exec
-INSERT INTO loop_ui_annotations (workspace_id, loop_name, node_id, x, y)
-VALUES (?1, ?2, ?3, ?4, ?5)
+INSERT INTO loop_ui_annotations (profile_id, workspace_id, loop_name, node_id, x, y)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6)
 `
 
 type InsertLoopUIAnnotationParams struct {
+	ProfileID   string  `json:"profile_id"`
 	WorkspaceID string  `json:"workspace_id"`
 	LoopName    string  `json:"loop_name"`
 	NodeID      string  `json:"node_id"`
@@ -627,6 +643,7 @@ type InsertLoopUIAnnotationParams struct {
 
 func (q *Queries) InsertLoopUIAnnotation(ctx context.Context, arg InsertLoopUIAnnotationParams) error {
 	_, err := q.db.ExecContext(ctx, insertLoopUIAnnotation,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.LoopName,
 		arg.NodeID,
@@ -795,11 +812,12 @@ func (q *Queries) ListLoopRunEventsBackward(ctx context.Context, arg ListLoopRun
 
 const listLoopUIAnnotations = `-- name: ListLoopUIAnnotations :many
 SELECT node_id, x, y FROM loop_ui_annotations
-WHERE workspace_id = ?1 AND loop_name = ?2
+WHERE profile_id = ?1 AND workspace_id = ?2 AND loop_name = ?3
 ORDER BY node_id ASC
 `
 
 type ListLoopUIAnnotationsParams struct {
+	ProfileID   string `json:"profile_id"`
 	WorkspaceID string `json:"workspace_id"`
 	LoopName    string `json:"loop_name"`
 }
@@ -811,7 +829,7 @@ type ListLoopUIAnnotationsRow struct {
 }
 
 func (q *Queries) ListLoopUIAnnotations(ctx context.Context, arg ListLoopUIAnnotationsParams) ([]ListLoopUIAnnotationsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listLoopUIAnnotations, arg.WorkspaceID, arg.LoopName)
+	rows, err := q.db.QueryContext(ctx, listLoopUIAnnotations, arg.ProfileID, arg.WorkspaceID, arg.LoopName)
 	if err != nil {
 		return nil, err
 	}
@@ -878,7 +896,7 @@ UPDATE loop_config SET
   runtime_defaults_json = CASE WHEN ?21 THEN ?22 ELSE runtime_defaults_json END,
   runtime_rules_json = CASE WHEN ?23 THEN ?24 ELSE runtime_rules_json END,
   environment_json = CASE WHEN ?25 THEN ?26 ELSE environment_json END
-WHERE workspace_id = ?27 AND loop_name = ?28
+WHERE profile_id = ?27 AND workspace_id = ?28 AND loop_name = ?29
 `
 
 type PatchLoopConfigParams struct {
@@ -908,6 +926,7 @@ type PatchLoopConfigParams struct {
 	RuntimeRulesJson      sql.NullString `json:"runtime_rules_json"`
 	PatchEnvironment      sql.NullString `json:"patch_environment"`
 	EnvironmentJson       sql.NullString `json:"environment_json"`
+	ProfileID             string         `json:"profile_id"`
 	WorkspaceID           string         `json:"workspace_id"`
 	LoopName              string         `json:"loop_name"`
 }
@@ -940,8 +959,26 @@ func (q *Queries) PatchLoopConfig(ctx context.Context, arg PatchLoopConfigParams
 		arg.RuntimeRulesJson,
 		arg.PatchEnvironment,
 		arg.EnvironmentJson,
+		arg.ProfileID,
 		arg.WorkspaceID,
 		arg.LoopName,
 	)
+	return err
+}
+
+const updateLoopRunGrantCeiling = `-- name: UpdateLoopRunGrantCeiling :exec
+UPDATE loop_runs SET grant_ceiling = CASE WHEN CAST(?1 AS BOOLEAN) THEN ?2
+ WHEN grant_ceiling = 'unrestricted' AND ?2 = 'unrestricted' THEN 'unrestricted' ELSE '' END
+WHERE id = ?3
+`
+
+type UpdateLoopRunGrantCeilingParams struct {
+	Operator bool   `json:"operator"`
+	Ceiling  string `json:"ceiling"`
+	ID       string `json:"id"`
+}
+
+func (q *Queries) UpdateLoopRunGrantCeiling(ctx context.Context, arg UpdateLoopRunGrantCeilingParams) error {
+	_, err := q.db.ExecContext(ctx, updateLoopRunGrantCeiling, arg.Operator, arg.Ceiling, arg.ID)
 	return err
 }

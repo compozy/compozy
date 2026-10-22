@@ -40,10 +40,10 @@ export function SessionWindow({ windowId }: { windowId: string }) {
   } = useSessionWindowController(windowId);
 
   if (deletedLocally || sessionId === null) {
-    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
+    return <SessionWindowEmpty windowId={windowId} />;
   }
   if (agentName === null) {
-    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
+    return <SessionWindowEmpty windowId={windowId} />;
   }
   if (crossesWorkspace) {
     return <SessionWindowNotice title="This session is outside the current project" />;

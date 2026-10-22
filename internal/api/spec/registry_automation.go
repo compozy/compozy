@@ -1,6 +1,9 @@
 package spec
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/workspaceaccess"
+)
 
 func registryAutomationOperations() []OperationSpec {
 	operations := []OperationSpec{
@@ -40,8 +43,14 @@ func listAutomationJobsOperationSpec() OperationSpec {
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
+			enumQueryParam(
+				specScopeKey,
+				"Filter by automation scope",
+				append(automationScopeValues(), "user", workspaceaccess.UserSelector),
+			),
 			queryParam("workspace_id", "Filter by workspace id", false),
+			boolQueryParam("all_workspaces", "Read every definition"),
+			workspaceIDsQueryParam("Project IDs or @user; requires all_workspaces=true"),
 			enumQueryParam("source", "Filter by job source", automationSourceValues()),
 			automationJobTargetParam(),
 			boolQueryParam("enabled", "Filter by enabled state"),
@@ -293,8 +302,14 @@ func listAutomationTriggersOperationSpec() OperationSpec {
 		Tags:        []string{specAutomationKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: withProfileScope(
-			enumQueryParam(specScopeKey, "Filter by automation scope", automationScopeValues()),
+			enumQueryParam(
+				specScopeKey,
+				"Filter by automation scope",
+				append(automationScopeValues(), "user", workspaceaccess.UserSelector),
+			),
 			queryParam("workspace_id", "Filter by workspace id", false),
+			boolQueryParam("all_workspaces", "Read every definition"),
+			workspaceIDsQueryParam("Project IDs or @user; requires all_workspaces=true"),
 			enumQueryParam("source", "Filter by trigger source", automationSourceValues()),
 			automationTriggerTargetParam(),
 			boolQueryParam("enabled", "Filter by enabled state"),

@@ -1,7 +1,8 @@
 // Suite: OS workspaces overview (Command-Tab switcher)
 // Invariant: one strip layer over one vertical menu layer with roving DOM focus — arrows wrap,
 // typeahead cycles, inert rows are skipped, Escape steps one layer at a time, activation lands
-// root/scope/create/add with a single close, and current markers follow the scope contract.
+// root/scope/create/add with a single close, and current markers appear only on a focused
+// project (none under All projects or User, where no project is active).
 // Boundary IN: OsWorkspacesOverview interaction model — tiles, caption, worktree menu, hints.
 // Boundary OUT: active-workspace store semantics, worktree dialog flows, transport, and the
 // strip's scroll physics (no layout in jsdom).
@@ -91,7 +92,6 @@ function renderOverview(overrides: Partial<OsWorkspacesOverviewProps> = {}) {
     open: true,
     workspaces: [COMPOZY, BRANAS, NOTES],
     activeWorkspaceId: COMPOZY.id,
-    scope: "workspace",
     reducedMotion: true,
     worktreesByWorkspace: LISTINGS,
     userHomeDir: "/Users/ada",
@@ -185,7 +185,6 @@ describe("OsWorkspacesOverview", () => {
             onOpenChange={setOpen}
             workspaces={[COMPOZY]}
             activeWorkspaceId={COMPOZY.id}
-            scope="workspace"
             reducedMotion
             worktreesByWorkspace={{ [COMPOZY.id]: worktreeListingFixture }}
             onSelectWorkspace={vi.fn()}
@@ -525,11 +524,11 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("Should keep picking live while Global is on — the store owns turning it off", async () => {
+  it("Should keep picking live with no project focused — the store owns focusing it", async () => {
     const user = userEvent.setup();
-    const callbacks = renderOverview({ scope: "global" });
+    const callbacks = renderOverview({ activeWorkspaceId: null });
 
-    expect(screen.queryByText(/Global scope is on/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/All projects is on/)).not.toBeInTheDocument();
     await user.keyboard("{Enter}");
     expect(callbacks.onSelectWorkspace).toHaveBeenCalledExactlyOnceWith(COMPOZY.id);
     expect(callbacks.onOpenChange).toHaveBeenCalledWith(false);
@@ -608,8 +607,8 @@ describe("OsWorkspacesOverview", () => {
     expect(callbacks.onRemoveWorktree.mock.calls[0]?.[1]?.key).toBe(worktreeBehindFixture.id);
   });
 
-  it("Should show no current marker anywhere while Global is on", async () => {
-    await act(async () => renderOverview({ scope: "global", selectedWorktreeId: null }));
+  it("Should show no current marker anywhere with no project focused", async () => {
+    await act(async () => renderOverview({ activeWorkspaceId: null, selectedWorktreeId: null }));
     expect(tile(COMPOZY.id)).not.toHaveAttribute("data-current");
     expect(tile(BRANAS.id)).not.toHaveAttribute("data-current");
     expect(tile(COMPOZY.id)).toHaveAttribute("aria-selected", "false");
@@ -681,20 +680,19 @@ describe("OsWorkspacesOverview", () => {
     expect(create.closest('[data-slot="scroll-area"]')).toBeNull();
   });
 
-  it("Should render the one primary and the Global identity at zero workspaces", async () => {
+  it("Should render the one primary and the User identity at zero workspaces", async () => {
     const user = userEvent.setup();
     const callbacks = renderOverview({
       workspaces: [],
       worktreesByWorkspace: {},
       activeWorkspaceId: null,
-      scope: "global",
     });
 
     expect(
-      screen.getByText("No project folders yet. Sessions run in Global until you add one.")
+      screen.getByText("No project folders yet. Sessions run in User until you add one.")
     ).toBeInTheDocument();
-    expect(caption()).toHaveTextContent("Global");
-    expect(caption()).toHaveTextContent("visible to every project");
+    expect(caption()).toHaveTextContent("User");
+    expect(caption()).toHaveTextContent("work outside any project");
     expect(screen.getByTestId("os-workspaces-subtitle")).toHaveTextContent("0 projects");
 
     await user.click(screen.getByTestId("os-workspaces-new"));
@@ -708,7 +706,6 @@ describe("OsWorkspacesOverview", () => {
       workspaces: [],
       worktreesByWorkspace: {},
       activeWorkspaceId: null,
-      scope: "global",
     });
 
     screen.getByTestId("os-workspaces-new").focus();

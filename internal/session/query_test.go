@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
@@ -3570,6 +3572,74 @@ func TestManagerUnreadableMetadataWarnings(t *testing.T) {
 		list()
 		if count := strings.Count(logs.String(), "session: skip unreadable session metadata"); count != 3 {
 			t.Fatalf("backoff warnings = %d, want 3", count)
+		}
+	})
+}
+
+func TestSessionWorkspaceFilter(t *testing.T) {
+	t.Run("Should normalize selection and bind cursor identity to the full workspace set", func(t *testing.T) {
+		t.Parallel()
+		query := ListQuery{
+			ReadScope:     store.ReadScope{AllProfiles: true},
+			AllWorkspaces: true,
+			WorkspaceIDs:  []string{" ws-a ", workspaceaccess.UserSelector, "ws-a"},
+		}
+		normalized, err := normalizeListQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(normalized.WorkspaceIDs, []string{workspaceaccess.UserSelector, "ws-a"}) {
+			t.Fatalf("selection = %v", normalized.WorkspaceIDs)
+		}
+		fingerprint, err := sessionListFingerprintForQuery(normalized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		normalized.WorkspaceIDs = []string{"ws-b"}
+		other, err := sessionListFingerprintForQuery(normalized)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fingerprint == other {
+			t.Fatal("different selections share cursor identity")
+		}
+		for _, id := range []string{"", "ws-a"} {
+			if !sessionMatchesWorkspaceIDs(id, []string{workspaceaccess.UserSelector, "ws-a"}) {
+				t.Fatalf("excluded %q", id)
+			}
+		}
+		if sessionMatchesWorkspaceIDs("ws-b", []string{workspaceaccess.UserSelector, "ws-a"}) {
+			t.Fatal("included another project")
+		}
+	})
+	for _, values := range [][]string{{""}, {"global"}} {
+		t.Run("Should reject reserved or empty filter "+strings.Join(values, ","), func(t *testing.T) {
+			t.Parallel()
+			_, err := NormalizeWorkspaceIDs(values, true)
+			if !errors.Is(err, ErrListQueryInvalid) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+	t.Run("Should reject a filter without aggregate breadth", func(t *testing.T) {
+		t.Parallel()
+		_, err := NormalizeWorkspaceIDs([]string{"ws-a"}, false)
+		if !errors.Is(err, ErrListQueryInvalid) {
+			t.Fatalf("error = %v", err)
+		}
+	})
+}
+
+func TestSessionInfoFromCatalogKeepsEffectiveWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project the persisted grant for a session that is not loaded", func(t *testing.T) {
+		t.Parallel()
+		info := sessionInfoFromCatalog(&store.SessionInfo{ID: "sess-granted", EffectiveWorkspaceAccess: "unrestricted"})
+		if info.EffectiveWorkspaceAccess != "unrestricted" {
+			t.Fatalf(
+				"EffectiveWorkspaceAccess = %q, want the persisted unrestricted grant (USW BR-13)",
+				info.EffectiveWorkspaceAccess,
+			)
 		}
 	})
 }

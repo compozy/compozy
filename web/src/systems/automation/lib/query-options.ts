@@ -9,7 +9,10 @@ import {
   listAutomationTriggerRuns,
   listAutomationTriggers,
 } from "../adapters/automation-api";
-import { listAutomationSuggestions } from "../adapters/automation-suggestions-api";
+import {
+  listAutomationSuggestions,
+  listAutomationSuggestionsAggregate,
+} from "../adapters/automation-suggestions-api";
 import { automationKeys } from "./query-keys";
 import {
   automationJobRequest,
@@ -22,6 +25,7 @@ import type {
   AutomationRunHistoryFilter,
   AutomationRunListFilter,
   AutomationSuggestionStatus,
+  AutomationSuggestionsSource,
   AutomationTriggerStableFilter,
 } from "../types";
 import type { ProfileScopeParams } from "@/systems/profiles";
@@ -39,6 +43,26 @@ export function automationSuggestionsListOptions(
     queryFn: ({ signal }) => listAutomationSuggestions(workspaceID, status, signal),
     staleTime: DEFAULT_STALE_TIME,
     enabled: Boolean(workspaceID),
+  });
+}
+
+/** Suggestions for a source: a project's path route, or the All projects aggregate. */
+export function automationSuggestionsSourceOptions(
+  source: AutomationSuggestionsSource,
+  status: AutomationSuggestionStatus = "pending"
+) {
+  const queryKey: readonly unknown[] =
+    source.kind === "workspace"
+      ? automationKeys.suggestionList(source.workspaceID, status)
+      : automationKeys.suggestionAggregate(source.workspaceIDs, status);
+  return queryOptions({
+    queryKey,
+    queryFn: ({ signal }) =>
+      source.kind === "workspace"
+        ? listAutomationSuggestions(source.workspaceID, status, signal)
+        : listAutomationSuggestionsAggregate(source.workspaceIDs, status, signal),
+    staleTime: DEFAULT_STALE_TIME,
+    enabled: source.kind === "all" || Boolean(source.workspaceID),
   });
 }
 

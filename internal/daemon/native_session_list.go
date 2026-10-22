@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
@@ -41,7 +43,9 @@ func (n *daemonNativeTools) sessionList(
 	}
 	workspaceRef := nativeCallerWorkspaceInput(input.Workspace, scope)
 	workspaceID := ""
-	if workspaceRef != "" {
+	if workspaceRef == workspaceaccess.UserSelector {
+		workspaceID = workspaceaccess.UserSelector
+	} else if workspaceRef != "" {
 		resolvedWorkspaceID, err := n.workspaceID(ctx, workspaceRef)
 		if err != nil {
 			return toolspkg.ToolResult{}, err

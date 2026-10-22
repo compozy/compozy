@@ -18,7 +18,7 @@ import (
 
 func (h *BaseHandlers) soulActorForRequest() soul.AuthoringIdentity {
 	return soul.AuthoringIdentity{
-		Kind: "user",
+		Kind: userScopeValue,
 		Ref:  h.transportName(),
 	}
 }

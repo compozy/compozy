@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// LoopGateVerdictEventPayload is a daemon API value.
+type LoopGateVerdictEventPayload struct {
+	NodeID         string                          `json:"node_id"`
+	Generation     int64                           `json:"generation"`
+	GateID         string                          `json:"gate_id"`
+	ItemIndex      int                             `json:"item_index"`
+	Verdict        string                          `json:"verdict"`
+	Reason         string                          `json:"reason"`
+	Route          string                          `json:"route"`
+	BlockingIssues []LoopGateBlockingIssuePayload  `json:"blocking_issues"`
+	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
+	Score          *float64                        `json:"score,omitzero"`
+	BestGeneration *int64                          `json:"best_generation,omitzero"`
+}
+
+// LoopGateVerdictOutcome is a daemon API value.
+type LoopGateVerdictOutcome string
+
+// LoopGateVerdictPayload is a daemon API value.
+type LoopGateVerdictPayload struct {
+	GateID         string                           `json:"gate_id"`
+	ItemIndex      int                              `json:"item_index"`
+	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
+	Score          *float64                         `json:"score,omitzero"`
+	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
+	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
+	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
+}
+
 // LoopGateVerdictRunEventPayload is a daemon API value.
 type LoopGateVerdictRunEventPayload struct {
 	ID          string                      `json:"id"`
@@ -208,16 +237,17 @@ type LoopNodeControlPayload struct {
 
 // LoopNodeInventoryItem is a daemon API value.
 type LoopNodeInventoryItem struct {
-	State      LoopNodeInventoryState  `json:"state"`
-	LoopRunID  string                  `json:"loop_run_id"`
-	LoopName   string                  `json:"loop_name"`
-	Generation int                     `json:"generation"`
-	NodeID     string                  `json:"node_id"`
-	ItemIndex  int                     `json:"item_index"`
-	StateAt    time.Time               `json:"state_at"`
-	Wait       *LoopNodeWaitPayload    `json:"wait,omitzero"`
-	Control    *LoopNodeControlPayload `json:"control,omitzero"`
-	Output     *LoopGenerationOutput   `json:"output,omitzero"`
+	WorkspaceID string                  `json:"workspace_id,omitempty"`
+	State       LoopNodeInventoryState  `json:"state"`
+	LoopRunID   string                  `json:"loop_run_id"`
+	LoopName    string                  `json:"loop_name"`
+	Generation  int                     `json:"generation"`
+	NodeID      string                  `json:"node_id"`
+	ItemIndex   int                     `json:"item_index"`
+	StateAt     time.Time               `json:"state_at"`
+	Wait        *LoopNodeWaitPayload    `json:"wait,omitzero"`
+	Control     *LoopNodeControlPayload `json:"control,omitzero"`
+	Output      *LoopGenerationOutput   `json:"output,omitzero"`
 }
 
 // LoopNodeInventoryResponse is a daemon API value.
@@ -318,6 +348,8 @@ type LoopRequestAggregates struct {
 
 // LoopRequestPayload is a daemon API value.
 type LoopRequestPayload struct {
+	WorkspaceID      string          `json:"workspace_id,omitempty"`
+	ProfileID        string          `json:"profile_id"`
 	LoopRunID        string          `json:"loop_run_id"`
 	LoopName         string          `json:"loop_name,omitempty"`
 	Generation       int             `json:"generation"`

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   useAcceptAutomationSuggestion,
@@ -9,6 +9,7 @@ import {
   AutomationSuggestionsCard,
   type AutomationSuggestionPendingAction,
 } from "./automation-suggestions-card";
+import type { AutomationSuggestion, AutomationSuggestionsSource } from "../types";
 
 const LOAD_ERROR = "Couldn't load automation suggestions. Retry the request.";
 const ACCEPT_ERROR = "Couldn't create this job. Review the proposal and try again.";
@@ -22,17 +23,25 @@ function actionErrorMessage(error: unknown, fallback: string): string {
 
 export function AutomationSuggestionsPanel({
   className,
+  projectBadge,
+  source,
   timeZone,
-  workspaceID,
 }: {
   className?: string;
+  /** All projects: each suggestion names its project. */
+  projectBadge?: (suggestion: AutomationSuggestion) => ReactNode;
+  source: AutomationSuggestionsSource;
   /** The global automation time zone the suggested schedules read in. */
   timeZone?: string;
-  workspaceID: string;
 }) {
-  const suggestionsQuery = useAutomationSuggestions(workspaceID);
-  const acceptSuggestion = useAcceptAutomationSuggestion(workspaceID);
-  const dismissSuggestion = useDismissAutomationSuggestion(workspaceID);
+  const suggestionsQuery = useAutomationSuggestions(source);
+  const acceptSuggestion = useAcceptAutomationSuggestion();
+  const dismissSuggestion = useDismissAutomationSuggestion();
+  const suggestions = suggestionsQuery.data?.suggestions ?? [];
+  const workspaceOf = (suggestionID: string) =>
+    source.kind === "workspace"
+      ? source.workspaceID
+      : (suggestions.find(suggestion => suggestion.id === suggestionID)?.workspace_id ?? "");
   const [pendingActions, setPendingActions] = useState<
     Partial<Record<string, AutomationSuggestionPendingAction>>
   >({});
@@ -50,10 +59,11 @@ export function AutomationSuggestionsPanel({
     });
 
     try {
+      const workspaceID = workspaceOf(suggestionID);
       if (action === "accept") {
-        await acceptSuggestion.mutateAsync({ suggestionID });
+        await acceptSuggestion.mutateAsync({ workspaceID, suggestionID });
       } else {
-        await dismissSuggestion.mutateAsync({ suggestionID });
+        await dismissSuggestion.mutateAsync({ workspaceID, suggestionID });
       }
     } catch (error) {
       const fallback = action === "accept" ? ACCEPT_ERROR : DISMISS_ERROR;
@@ -81,7 +91,8 @@ export function AutomationSuggestionsPanel({
       onDismiss={suggestionID => void runAction(suggestionID, "dismiss")}
       onRetry={() => void suggestionsQuery.refetch()}
       pendingActions={pendingActions}
-      suggestions={suggestionsQuery.data?.suggestions ?? []}
+      projectBadge={projectBadge}
+      suggestions={suggestions}
     />
   );
 }

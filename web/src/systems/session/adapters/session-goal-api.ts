@@ -6,6 +6,7 @@ import type {
   SessionGoalResponse,
 } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export async function fetchSessionGoal(
   workspaceId: string,
@@ -15,7 +16,7 @@ export async function fetchSessionGoal(
   const { data, error, response } = await apiClient.GET(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
       signal,
     }
   );
@@ -33,7 +34,11 @@ export async function mutateSessionGoal(
 ): Promise<SessionGoalCommandResult> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/goal",
-    { params: { path: { workspace_id: workspaceId, session_id: id } }, body: request, signal }
+    {
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id } },
+      body: request,
+      signal,
+    }
   );
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, `Failed to control Goal for session "${id}"`, id);

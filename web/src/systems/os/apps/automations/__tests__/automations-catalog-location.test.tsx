@@ -45,8 +45,14 @@ vi.mock("@compozy/ui", async importOriginal => ({
 vi.mock("@/systems/automation", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/automation")>()),
   AutomationEditorDialog: () => null,
-  AutomationSuggestionsPanel: ({ workspaceID }: { workspaceID: string }) => (
-    <div data-testid="suggestions-panel">{workspaceID}</div>
+  AutomationSuggestionsPanel: ({
+    source,
+  }: {
+    source: { kind: "workspace"; workspaceID: string } | { kind: "all" };
+  }) => (
+    <div data-testid="suggestions-panel">
+      {source.kind === "workspace" ? source.workspaceID : "all"}
+    </div>
   ),
 }));
 
@@ -89,12 +95,13 @@ function page(overrides: Record<string, unknown> = {}) {
     profileScope: scopedListingScopeFixture,
     retry: vi.fn(),
     runNow: vi.fn(),
-    scopeFilter: null,
+    projectFilter: [],
+    projectFilterField: null,
     searchQuery: "",
     setDeleteTarget: vi.fn(),
     setEnabledFilter: vi.fn(),
     setLoopFilter: vi.fn(),
-    setScopeFilter: vi.fn(),
+    setProjectFilter: vi.fn(),
     setSearchQuery: vi.fn(),
     setSourceFilter: vi.fn(),
     setStart: vi.fn(),
@@ -102,7 +109,7 @@ function page(overrides: Record<string, unknown> = {}) {
     setView: vi.fn(),
     sourceFilter: null,
     start: null,
-    suggestionsWorkspaceId: null,
+    suggestionsSource: null,
     targetFilter: null,
     toggleEnabled: vi.fn(),
     total: 7,
@@ -132,7 +139,7 @@ describe("AutomationsCatalogLocation", () => {
     renderLocation({
       counts: { all: 0, schedule: 0, event: 0 },
       firstRun: true,
-      suggestionsWorkspaceId: "ws_launch_hq",
+      suggestionsSource: { kind: "workspace", workspaceID: "ws_launch_hq" },
       total: 0,
     });
 

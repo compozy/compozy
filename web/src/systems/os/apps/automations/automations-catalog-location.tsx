@@ -1,16 +1,6 @@
-import { AlertCircle, Plus, Zap } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { Plus, Zap } from "lucide-react";
 
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-  Button,
-  ListingPage,
-  ListingToolbar,
-  buttonVariants,
-  useTopbarSlot,
-} from "@compozy/ui";
+import { Button, ListingPage, useTopbarSlot } from "@compozy/ui";
 
 import { useAutomationsPage } from "../automation/use-automation-page";
 import {
@@ -18,15 +8,18 @@ import {
   AutomationCatalogShell,
   AutomationDeleteAction,
   AutomationEditorDialog,
-  AutomationListFilters,
   AutomationRow,
-  AutomationStartViews,
-  AutomationSuggestionsPanel,
   automationDetailSearchFrom,
   type AutomationItemControls,
   type AutomationsRouteSearch,
 } from "@/systems/automation";
-import { AutomationListFooter, AutomationPartialAlert } from "./automations-catalog-parts";
+import { AutomationListFooter } from "./automations-catalog-parts";
+import {
+  AutomationsCatalogBanner,
+  AutomationsCatalogToolbar,
+  AutomationsEmptySuggestions,
+  AutomationsFirstRunActions,
+} from "./automations-catalog-sections";
 
 export function AutomationsCatalogLocation({ search }: { search: AutomationsRouteSearch }) {
   const page = useAutomationsPage(search);
@@ -50,43 +43,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
     ),
     toolbar:
       page.isLoading || page.loadError || firstRun ? undefined : (
-        <ListingToolbar>
-          <ListingToolbar.Leading>
-            <AutomationStartViews
-              counts={page.counts}
-              onChange={page.setStart}
-              value={page.start}
-            />
-            <ListingToolbar.Search
-              aria-label="Search automations"
-              data-testid="automation-search-input"
-              onChange={page.setSearchQuery}
-              placeholder="Search automations"
-              value={page.searchQuery}
-            />
-            <ListingToolbar.Filters>
-              <AutomationListFilters
-                handlers={{
-                  onEnabledChange: page.setEnabledFilter,
-                  onLoopChange: page.setLoopFilter,
-                  onScopeChange: page.setScopeFilter,
-                  onSourceChange: page.setSourceFilter,
-                  onTargetChange: page.setTargetFilter,
-                }}
-                state={{
-                  enabled: page.enabledFilter,
-                  loop: page.loopFilter,
-                  scope: page.scopeFilter,
-                  source: page.sourceFilter,
-                  target: page.targetFilter,
-                }}
-              />
-            </ListingToolbar.Filters>
-          </ListingToolbar.Leading>
-          <ListingToolbar.Trailing>
-            <ListingToolbar.ViewToggle onChange={page.setView} value={page.view} />
-          </ListingToolbar.Trailing>
-        </ListingToolbar>
+        <AutomationsCatalogToolbar page={page} />
       ),
   });
 
@@ -105,54 +62,11 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
   return (
     <>
       <ListingPage
-        banner={
-          page.unavailableMessage ? (
-            <div className="border-b border-line px-9 py-3">
-              <Alert data-testid="automations-runtime-alert" variant="warning">
-                <AlertCircle aria-hidden="true" className="size-4" />
-                <AlertTitle>Automations aren&apos;t available right now</AlertTitle>
-                <AlertDescription>
-                  {page.unavailableMessage}
-                  <div className="mt-2">
-                    <Link
-                      className={buttonVariants({ size: "sm", variant: "secondary" })}
-                      to="/settings/automation"
-                    >
-                      Open Settings
-                    </Link>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            </div>
-          ) : page.partialFailure ? (
-            <AutomationPartialAlert failed={page.partialFailure} onRetry={page.retry} />
-          ) : page.loadError && page.items.length > 0 ? (
-            <AutomationPartialAlert failed="refresh" onRetry={page.retry} />
-          ) : null
-        }
+        banner={<AutomationsCatalogBanner page={page} />}
         data-testid="automations-shell"
       >
         <AutomationCatalogShell
-          firstRunActions={
-            <div className="flex gap-2">
-              <Link
-                className={buttonVariants({ size: "sm", variant: "neutral" })}
-                data-testid="automations-empty-start-schedule"
-                search={{ create: 1, start: "schedule" }}
-                to="/automations"
-              >
-                On a schedule
-              </Link>
-              <Link
-                className={buttonVariants({ size: "sm", variant: "neutral" })}
-                data-testid="automations-empty-start-event"
-                search={{ create: 1, start: "event" }}
-                to="/automations"
-              >
-                When something happens
-              </Link>
-            </div>
-          }
+          firstRunActions={<AutomationsFirstRunActions />}
           hasActiveFilters={page.hasActiveFilters}
           isLoading={page.isLoading}
           itemCount={page.items.length}
@@ -167,15 +81,7 @@ export function AutomationsCatalogLocation({ search }: { search: AutomationsRout
             onLoadMore: page.loadMore,
           }}
           profileScope={page.profileScope}
-          unfilteredEmptyPanel={
-            page.suggestionsWorkspaceId ? (
-              <AutomationSuggestionsPanel
-                key={page.suggestionsWorkspaceId}
-                timeZone={page.timeZone}
-                workspaceID={page.suggestionsWorkspaceId}
-              />
-            ) : null
-          }
+          unfilteredEmptyPanel={<AutomationsEmptySuggestions page={page} />}
           view={page.view}
         >
           {page.items.map(view =>

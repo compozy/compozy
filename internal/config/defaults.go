@@ -32,6 +32,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		WindowManager: DefaultWindowManagerConfig(),
 		Terminal:      DefaultTerminalConfig(),
 		CmdPalette:    DefaultCmdPaletteConfig(),
+		UserScope:     UserScopeConfig{WorkDir: "~"},
 		Defaults: DefaultsConfig{
 			Agent: DefaultAgentName,
 		},

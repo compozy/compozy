@@ -9,6 +9,7 @@ import {
 import type { OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
 import { SessionApiError, throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 /** The daemon's measurement of what a continue or fork of one session would carry. */
 export type SessionDerivePreview = OperationResponse<"previewSessionDerive", 200>;
@@ -71,7 +72,7 @@ export async function fetchSessionDerivePreview(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: sessionId },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId },
         query: messageId ? { message_id: messageId } : undefined,
       },
       signal,
@@ -94,7 +95,7 @@ export async function continueSession(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/continue",
     {
       body,
-      params: { path: { workspace_id: workspaceId, session_id: sessionId } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
       signal,
     }
   );
@@ -117,7 +118,7 @@ export async function forkSession(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/fork",
     {
       body,
-      params: { path: { workspace_id: workspaceId, session_id: sessionId } },
+      params: { path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId } },
       signal,
     }
   );

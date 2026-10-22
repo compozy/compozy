@@ -215,6 +215,7 @@ export type { TaskCreateSearch, TasksRouteSearch } from "./lib/task-location-sea
 export {
   TASK_INSPECT_TARGETS,
   TASK_DETAIL_TABS,
+  taskWindowBinding,
   validateTaskDetailSearch,
 } from "./lib/task-detail-search";
 export type {
@@ -251,7 +252,11 @@ export {
   taskLoopRunLink,
 } from "./lib/task-loop-identity";
 export type { TaskLoopProvenance as TaskLoopProvenanceData } from "./lib/task-loop-identity";
-export { taskScopeForActiveWorkspace } from "./lib/workspace-scope";
+export {
+  schedulerBacklogScope,
+  taskInboxScope,
+  taskScopeForActiveWorkspace,
+} from "./lib/workspace-scope";
 export type { ActiveTaskScopeFilter } from "./lib/workspace-scope";
 
 export {

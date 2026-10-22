@@ -67,6 +67,26 @@ func automationRunBundle(item RunRecord) outputBundle {
 	}
 }
 
+// automationRunAggregateTable renders All projects runs with their source project.
+func automationRunAggregateTable(runs []RunRecord, labels map[string]string) func() (string, error) {
+	return func() (string, error) {
+		rows := make([][]string, 0, len(runs))
+		for index := range runs {
+			run := &runs[index]
+			project := "Unknown project"
+			if run.WorkspaceID != nil {
+				project = aggregateProjectName(labels, *run.WorkspaceID)
+			}
+			rows = append(rows, []string{project, run.ID, string(run.Status), formatOptionalTime(run.StartedAt)})
+		}
+		return renderHumanTable(
+			"Automation Runs",
+			[]string{cliProjectHeader, "ID", "STATUS", cliStartedHeader},
+			rows,
+		), nil
+	}
+}
+
 func automationRunListBundle(items []RunRecord) outputBundle {
 	return listBundle(
 		contract.RunsResponse{Runs: items},

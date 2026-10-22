@@ -17,7 +17,7 @@ import { profileFixtures } from "@/systems/profiles/mocks/fixtures";
 import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { statusFixture } from "@/systems/status/mocks";
 import {
-  enableGlobalScope,
+  enableAllProjects,
   useWorkspaces,
   workspaceKeys,
   type WorkspacePayload,
@@ -134,7 +134,7 @@ describe("useSettingsAttentionPage", () => {
     vi.clearAllMocks();
     resetSettingsRestartStore();
     resetProfileViews();
-    enableGlobalScope();
+    enableAllProjects();
     setProfileView({ kind: "profile", profile: "marketing" });
     serverConfigs = {
       marketing: structuredClone(storedConfig),

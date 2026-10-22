@@ -220,7 +220,7 @@ func (l *terminalLane) finishIdleCandidates(generation uint64) {
 func (l *terminalLane) finishIdleCandidate(candidate idleCandidate) {
 	ctx, cancel := context.WithTimeout(l.service.laneCtx, laneCleanupTimeout)
 	defer cancel()
-	id, err := l.service.reserveObservedCommandID(ctx, l.info.WS)
+	id, err := l.service.reserveObservedCommandID(ctx, terminalpkg.JournalWorkspaceID(l.info.WS, l.info.ProfileID))
 	if err != nil {
 		l.service.logger.Error("terminal journal: reserve idle command id", "terminal_id", l.info.ID, "error", err)
 		l.setAuditBlocked()

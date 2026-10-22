@@ -87,6 +87,7 @@ CREATE TABLE task_triage_state (
 	);
 
 CREATE TABLE "tasks" (
+ grant_ceiling TEXT NOT NULL DEFAULT '',
 		id              TEXT PRIMARY KEY,
 		profile_id      TEXT NOT NULL REFERENCES profiles(id),
 		identifier      TEXT,
@@ -218,6 +219,8 @@ CREATE INDEX idx_tasks_parent ON tasks(parent_task_id);
 CREATE INDEX idx_tasks_paused ON tasks(paused, updated_at DESC);
 
 CREATE INDEX idx_tasks_priority ON tasks(priority);
+
+CREATE INDEX idx_tasks_profile ON tasks(profile_id);
 
 CREATE INDEX idx_tasks_review_policy ON tasks(review_policy);
 

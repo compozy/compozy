@@ -270,3 +270,14 @@ func (g *WorktreeRepo) pendingMutationResult(
 	}
 	return worktree.ErrNotPending
 }
+
+func (g *WorktreeRepo) ListAggregate(ctx context.Context) ([]worktree.Worktree, error) {
+	if err := g.checkReady(ctx, "list aggregate worktrees"); err != nil {
+		return nil, err
+	}
+	rows, err := g.queries.ListWorktreesAggregate(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("store: aggregate worktrees: %w", err)
+	}
+	return worktreesFromSQLC(rows)
+}

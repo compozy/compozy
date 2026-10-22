@@ -3,13 +3,15 @@ package globaldb
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 )
 
-const sessionCatalogFacetSelect = "SELECT workspace_id, " + sessionCatalogBadgeExpression + ", COUNT(1) FROM sessions"
-const sessionCatalogFacetGrouping = " GROUP BY workspace_id, " +
+const sessionCatalogFacetSelect = "SELECT workspace_id, profile_id, " + sessionCatalogBadgeExpression +
+	", COUNT(1) FROM sessions"
+const sessionCatalogFacetGrouping = " GROUP BY workspace_id, profile_id, " +
 	sessionCatalogBadgeExpression + " ORDER BY workspace_id"
 
 // SessionCatalogFacets counts eligible durable badge and approval metadata.
@@ -46,10 +48,11 @@ func (g *SessionRepo) SessionCatalogFacets(
 		}
 	}()
 	result.ByWorkspace = make([]store.WorkspaceSessionCatalogFacets, 0)
+	profiles := map[string]store.SessionCatalogFacets{}
 	for rows.Next() {
-		var workspaceID, badge string
+		var workspaceID, profileID, badge string
 		var count int
-		if err := rows.Scan(&workspaceID, &badge, &count); err != nil {
+		if err := rows.Scan(&workspaceID, &profileID, &badge, &count); err != nil {
 			return result, fmt.Errorf("store: scan session catalog facets: %w", err)
 		}
 		if len(result.ByWorkspace) == 0 || result.ByWorkspace[len(result.ByWorkspace)-1].WorkspaceID != workspaceID {
@@ -61,10 +64,21 @@ func (g *SessionRepo) SessionCatalogFacets(
 		workspace := &result.ByWorkspace[len(result.ByWorkspace)-1]
 		addCatalogBadgeCount(&workspace.Facets, badge, count)
 		addCatalogBadgeCount(&result.Facets, badge, count)
+		facets := profiles[profileID]
+		addCatalogBadgeCount(&facets, badge, count)
+		profiles[profileID] = facets
 	}
 	if err := rows.Err(); err != nil {
 		return result, fmt.Errorf("store: iterate session catalog facets: %w", err)
 	}
+	result.ByProfile = make([]store.ProfileSessionCatalogFacets, 0, len(profiles))
+	for id, facets := range profiles {
+		result.ByProfile = append(result.ByProfile, store.ProfileSessionCatalogFacets{ProfileID: id, Facets: facets})
+	}
+	slices.SortFunc(
+		result.ByProfile,
+		func(a, b store.ProfileSessionCatalogFacets) int { return strings.Compare(a.ProfileID, b.ProfileID) },
+	)
 	if err := g.addTerminalApprovalFacets(ctx, query, &result); err != nil {
 		return result, err
 	}

@@ -28,8 +28,6 @@ func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 		SyntheticCorrelation: req.SyntheticCorrelation.Normalize(),
 	}
 	switch {
-	case normalized.WorkspaceID == "":
-		return WakeRequest{}, errors.New("heartbeat: wake workspace id is required")
 	case normalized.AgentName == "":
 		return WakeRequest{}, errors.New("heartbeat: wake agent name is required")
 	case normalized.SessionID == "":

@@ -190,8 +190,8 @@ func configApplyHistoryBundle(record SettingsApplyHistoryRecord) outputBundle {
 func configPathBundle(record configPathRecord) outputBundle {
 	rows := []keyValue{
 		{Label: "Home", Value: stringOrDash(record.HomeDir)},
-		{Label: "Global Config", Value: stringOrDash(record.GlobalConfig)},
-		{Label: "Global MCP JSON", Value: stringOrDash(record.GlobalMCPJSON)},
+		{Label: "User Config", Value: stringOrDash(record.GlobalConfig)},
+		{Label: "User MCP JSON", Value: stringOrDash(record.GlobalMCPJSON)},
 		{Label: configScopeValue, Value: stringOrDash(record.Scope)},
 		{Label: "Selected Config Target", Value: stringOrDash(record.SelectedConfigTarget)},
 		{Label: configManagedValue, Value: strconv.FormatBool(record.Managed)},

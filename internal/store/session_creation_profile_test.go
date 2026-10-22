@@ -5,11 +5,36 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should bind User ownership to its immutable profile", func(t *testing.T) {
+		t.Parallel()
+		profile := validSessionCreationProfile(t)
+		profile.Version = UserSessionCreationProfileVersion
+		profile.WorkspaceID = workspaceaccess.UserSelector
+		ref, err := profile.Ref()
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile.ProfileID = "another-profile"
+		other, err := profile.Ref()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ref == other {
+			t.Fatal("User profile does not bind its owner")
+		}
+		profile.WorktreeRef = "worktree"
+		if err := profile.Validate(); err == nil {
+			t.Fatal("User accepted a worktree")
+		}
+	})
 
 	t.Run("Should preserve the current canonical profile and its identity", func(t *testing.T) {
 		t.Parallel()

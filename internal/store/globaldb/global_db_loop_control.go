@@ -85,7 +85,7 @@ func validateLoopCoordinatorReactivation(req *looppkg.CoordinatorReactivationReq
 	if req == nil {
 		return fmt.Errorf("%w: coordinator reactivation request is required", looppkg.ErrValidation)
 	}
-	if strings.TrimSpace(string(req.Run.ID)) == "" || strings.TrimSpace(string(req.Run.WorkspaceID)) == "" {
+	if strings.TrimSpace(string(req.Run.ID)) == "" {
 		return fmt.Errorf("%w: workspace_id and run_id are required", looppkg.ErrValidation)
 	}
 	if err := req.Actor.Validate(); err != nil {

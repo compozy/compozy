@@ -236,6 +236,7 @@ type stubClient struct {
 	putLoopInputDefaultFn func(
 		context.Context, string, string, string, contract.PutLoopInputDefaultRequest,
 	) (contract.LoopInputDefaultResponse, error)
+	listLoopRequestsFn func(context.Context, string, LoopRequestListQuery) (contract.LoopRequestsResponse, error)
 	listLoopRunsFn     func(context.Context, string, LoopRunListQuery) (contract.LoopRunsResponse, error)
 	listGoalTurnsFn    func(context.Context, string, string, GoalTurnListQuery) (contract.GoalTurnPage, error)
 	getLoopRunFn       func(context.Context, string, string) (contract.LoopRunResponse, error)
@@ -1951,10 +1952,13 @@ func (s *stubClient) ListLoopRuns(
 }
 
 func (s *stubClient) ListLoopRequests(
-	context.Context,
-	string,
-	LoopRequestListQuery,
+	ctx context.Context,
+	workspace string,
+	query LoopRequestListQuery,
 ) (contract.LoopRequestsResponse, error) {
+	if s.listLoopRequestsFn != nil {
+		return s.listLoopRequestsFn(ctx, workspace, query)
+	}
 	return contract.LoopRequestsResponse{}, errors.New("unexpected ListLoopRequests call")
 }
 

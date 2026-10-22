@@ -117,14 +117,14 @@ func (s *session) beginRecording(ctx context.Context) (RecordingRef, error) {
 		return RecordingRef{}, err
 	}
 	info := s.Info()
-	id, err := s.manager.journal.ReserveRecordingID(ctx, info.WS)
+	id, err := s.manager.journal.ReserveRecordingID(ctx, JournalWorkspaceID(info.WS, info.ProfileID))
 	if err != nil {
 		return RecordingRef{}, fmt.Errorf("terminal: reserve recording id: %w", err)
 	}
 	releaseID := true
 	defer func() {
 		if releaseID {
-			s.manager.journal.ReleaseRecordingID(info.WS, id)
+			s.manager.journal.ReleaseRecordingID(JournalWorkspaceID(info.WS, info.ProfileID), id)
 		}
 	}()
 	startedAt := s.manager.now()

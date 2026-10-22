@@ -83,6 +83,7 @@ CREATE TABLE loop_run_events (
 		);
 
 CREATE TABLE loop_runs (
+ grant_ceiling TEXT NOT NULL DEFAULT '',
 			id                   TEXT PRIMARY KEY,
 			profile_id           TEXT NOT NULL REFERENCES profiles(id) ON DELETE RESTRICT,
 			workspace_id         TEXT NOT NULL,
@@ -159,12 +160,13 @@ CREATE TABLE loop_session_bindings (
 );
 
 CREATE TABLE loop_ui_annotations (
+	profile_id TEXT NOT NULL DEFAULT '',
 			workspace_id TEXT NOT NULL,
 			loop_name    TEXT NOT NULL,
 			node_id      TEXT NOT NULL,
 			x            REAL NOT NULL,
 			y            REAL NOT NULL,
-			PRIMARY KEY (workspace_id, loop_name, node_id)
+			PRIMARY KEY (workspace_id, profile_id, loop_name, node_id)
 		);
 
 CREATE INDEX idx_loop_gate_decisions_workspace_run
@@ -237,3 +239,7 @@ CREATE UNIQUE INDEX uq_loop_runs_active_session_goal ON loop_runs(origin_session
 
 CREATE UNIQUE INDEX uq_loop_session_bindings_active
 			ON loop_session_bindings(loop_run_id, handle) WHERE state='active';
+
+CREATE INDEX idx_loop_runs_profile_created ON loop_runs(profile_id, created_at DESC, id DESC);
+CREATE INDEX idx_loop_runs_created ON loop_runs(created_at DESC, id DESC);
+CREATE INDEX idx_loop_requests_state_expiry ON loop_requests(state, expires_at, opened_at);

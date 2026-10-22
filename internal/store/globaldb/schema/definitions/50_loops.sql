@@ -1,4 +1,5 @@
 CREATE TABLE loop_config (
+	profile_id TEXT NOT NULL DEFAULT '',
 			workspace_id        TEXT NOT NULL,
 			loop_name           TEXT NOT NULL,
 			human_gate_enabled  INTEGER NOT NULL DEFAULT 0,
@@ -14,10 +15,11 @@ CREATE TABLE loop_config (
 			runtime_defaults_json TEXT CHECK (runtime_defaults_json IS NULL OR json_valid(runtime_defaults_json)),
 			runtime_rules_json    TEXT CHECK (runtime_rules_json IS NULL OR json_valid(runtime_rules_json)),
 			environment_json      TEXT CHECK (environment_json IS NULL OR json_valid(environment_json)),
-			PRIMARY KEY (workspace_id, loop_name)
+			PRIMARY KEY (workspace_id, profile_id, loop_name)
 		);
 
 CREATE TABLE loop_definition_snapshots (
+	profile_id TEXT NOT NULL DEFAULT '',
 			workspace_id        TEXT NOT NULL,
 			definition_digest  TEXT NOT NULL,
 			definition_version INTEGER NOT NULL DEFAULT 0,
@@ -25,7 +27,7 @@ CREATE TABLE loop_definition_snapshots (
 			byte_size          INTEGER NOT NULL CHECK (byte_size >= 0),
 			created_at         TEXT NOT NULL,
 			last_used_at       TEXT NOT NULL,
-			PRIMARY KEY (workspace_id, definition_digest)
+			PRIMARY KEY (workspace_id, profile_id, definition_digest)
 		);
 
 CREATE TABLE loop_gate_decisions (
@@ -263,6 +265,7 @@ CREATE TABLE loop_node_lane_pauses (
 );
 
 CREATE TABLE loop_admission_claims (
+	profile_id TEXT NOT NULL DEFAULT '',
 	workspace_id       TEXT NOT NULL,
 	loop_name          TEXT NOT NULL,
 	source_key         TEXT NOT NULL,
@@ -272,7 +275,7 @@ CREATE TABLE loop_admission_claims (
 	expires_at         TIMESTAMP NOT NULL,
 	suppressed_count   INTEGER NOT NULL DEFAULT 0,
 	last_suppressed_at TIMESTAMP,
-	PRIMARY KEY (workspace_id, loop_name, source_key, event_key)
+	PRIMARY KEY (workspace_id, profile_id, loop_name, source_key, event_key)
 );
 
 CREATE TABLE loop_effect_outbox (

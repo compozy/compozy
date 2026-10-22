@@ -163,6 +163,26 @@ export async function fetchTerminals(
   return payload.terminals;
 }
 
+/**
+ * Every project's terminals plus User's (operator, local listener only),
+ * narrowed by the Project filter. Each row carries its own `workspace_id`.
+ */
+export async function fetchTerminalsAggregate(
+  workspaceIds: readonly string[],
+  scope: TerminalScopeParams,
+  signal?: AbortSignal
+): Promise<TerminalInfo[]> {
+  const query = terminalScopeQuery(scope);
+  query.set("all_workspaces", "true");
+  for (const id of workspaceIds) query.append("workspace_ids", id);
+  const payload = await parseTerminalResponse(
+    withQuery(`${apiBaseUrl}/api/terminals`, query),
+    terminalListResponseSchema,
+    { method: "GET", signal }
+  );
+  return payload.terminals;
+}
+
 export async function fetchTerminal(
   workspaceId: string,
   terminalId: string,

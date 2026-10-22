@@ -55,3 +55,8 @@ func (e ValidationError) Error() string {
 	}
 	return e.Path + " " + e.Message
 }
+
+// UserScopeConfig controls the execution directory for profile-owned work.
+type UserScopeConfig struct {
+	WorkDir string `toml:"work_dir"`
+}

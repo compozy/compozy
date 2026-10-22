@@ -37,6 +37,7 @@ type WindowManagerErrorCode string
 const (
 	WindowManagerErrorWorkspaceNotFound WindowManagerErrorCode = "window_manager_workspace_not_found"
 	WindowManagerErrorRevisionConflict  WindowManagerErrorCode = "window_manager_revision_conflict"
+	WindowManagerErrorBindingInvalid    WindowManagerErrorCode = "window_binding_invalid"
 	WindowManagerErrorInvalidCommand    WindowManagerErrorCode = "window_manager_invalid_command"
 	WindowManagerErrorInvalidTopology   WindowManagerErrorCode = "window_manager_invalid_topology"
 	WindowManagerErrorDesktopNotFound   WindowManagerErrorCode = "window_manager_desktop_not_found"
@@ -57,6 +58,7 @@ func WindowManagerErrorCodeValues() []string {
 	return []string{
 		string(WindowManagerErrorWorkspaceNotFound),
 		string(WindowManagerErrorRevisionConflict),
+		string(WindowManagerErrorBindingInvalid),
 		string(WindowManagerErrorInvalidCommand),
 		string(WindowManagerErrorInvalidTopology),
 		string(WindowManagerErrorDesktopNotFound),

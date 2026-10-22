@@ -63,15 +63,12 @@ func (m *Manager) lockPromptAdmission(workspaceID string, sessionID string, idem
 	}
 }
 
+// sessionPromptWorkspaceID returns the admission scope of a live session; "" is the User scope.
 func sessionPromptWorkspaceID(session *Session) (string, error) {
 	if session == nil || session.Info() == nil {
 		return "", errors.New("session: prompt workspace is unavailable")
 	}
-	workspaceID := strings.TrimSpace(session.Info().WorkspaceID)
-	if workspaceID == "" {
-		return "", errors.New("session: prompt workspace is unavailable")
-	}
-	return workspaceID, nil
+	return strings.TrimSpace(session.Info().WorkspaceID), nil
 }
 
 func (m *Manager) newPromptAdmissionRequest(

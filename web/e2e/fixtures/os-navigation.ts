@@ -152,6 +152,15 @@ export async function switchWorkspace(
   await expect(workspaceControl).toContainText(workspaceName);
 }
 
+/** Focus the User destination (work outside any project) from the menubar switcher. */
+export async function focusUserScope(page: Page): Promise<void> {
+  await setGlobalScope(page, false);
+  const workspaceControl = page.locator('[data-slot="os-menubar-workspace"]');
+  await workspaceControl.click();
+  await page.getByTestId("os-destination-user").click();
+  await expect(workspaceControl).toContainText("User");
+}
+
 /** Turn Global scope on or off from the menubar globe toggle. */
 export async function setGlobalScope(page: Page, on: boolean): Promise<void> {
   const toggle = page.getByTestId("os-global-scope-toggle");

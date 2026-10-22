@@ -23,6 +23,7 @@ import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { SessionSidebar } from "../session-sidebar";
+import { sessionListViewFixture } from "../../mocks/session-list-view-fixtures";
 
 const meta: Meta<typeof SessionSidebar> = {
   title: "systems/session/components/SessionSidebar",
@@ -59,21 +60,12 @@ type Story = StoryObj<typeof meta>;
  */
 export const ProvenanceThreads: Story = {
   args: {
-    view: {
-      scope: "workspace",
+    view: sessionListViewFixture({
       sort: "last_activity",
-      archived: false,
-      saving: false,
-      setScope: fn(),
       setSort: fn(),
       setArchived: fn(),
-      workspaceGroups: [],
-      collapsedWorkspaceIds: new Set(),
-      toggleWorkspace: fn(),
-      aggregate: false,
-      scopeLabel: "default",
       ownerOf: () => ({ id: "default", name: "default", archived: false }),
-    },
+    }),
     open: true,
     sessions: PROVENANCE_FAMILY,
     disconnected: false,

@@ -52,9 +52,11 @@ func (l InboxLane) Validate(path string) error {
 
 // InboxQuery captures one bounded actor-scoped task inbox request.
 type InboxQuery struct {
-	ReadScope        store.ReadScope
-	Scope            CatalogScope
-	WorkspaceID      string
+	ReadScope   store.ReadScope
+	Scope       CatalogScope
+	WorkspaceID string
+	// WorkspaceIDs narrows the All projects inbox; "@user" selects User tasks (AP BR-12).
+	WorkspaceIDs     []string `json:"workspace_ids,omitempty"`
 	WorktreeID       string
 	OwnerKind        OwnerKind
 	OwnerRef         string
@@ -129,6 +131,7 @@ type inboxFingerprint struct {
 	ActorKind        ActorKind    `json:"actor_kind"`
 	ActorRef         string       `json:"actor_ref"`
 	Scope            CatalogScope `json:"scope"`
+	WorkspaceIDs     []string     `json:"workspace_ids,omitempty"`
 	WorkspaceID      string       `json:"workspace_id"`
 	WorktreeID       string       `json:"worktree_id"`
 	OwnerKind        OwnerKind    `json:"owner_kind"`
@@ -176,6 +179,7 @@ func normalizeInboxQueryFields(query InboxQuery) InboxQuery {
 		query.Scope = CatalogScopeAll
 	}
 	query.WorkspaceID = strings.TrimSpace(query.WorkspaceID)
+	query.WorkspaceIDs = normalizeWorkspaceIDs(query.WorkspaceIDs)
 	query.WorktreeID = strings.TrimSpace(query.WorktreeID)
 	query.OwnerKind = query.OwnerKind.Normalize()
 	query.OwnerRef = strings.TrimSpace(query.OwnerRef)
@@ -201,6 +205,8 @@ func validateInboxQuery(query InboxQuery) error {
 		ReadScope:        query.ReadScope,
 		Scope:            query.Scope,
 		WorkspaceID:      query.WorkspaceID,
+		AllWorkspaces:    len(query.WorkspaceIDs) != 0,
+		WorkspaceIDs:     query.WorkspaceIDs,
 		WorktreeID:       query.WorktreeID,
 		Status:           query.Status,
 		Priority:         query.Priority,
@@ -274,6 +280,7 @@ func taskInboxFingerprint(query InboxQuery, actor ActorIdentity) (string, error)
 		ActorRef:         strings.TrimSpace(actor.Ref),
 		Scope:            query.Scope,
 		WorkspaceID:      query.WorkspaceID,
+		WorkspaceIDs:     query.WorkspaceIDs,
 		WorktreeID:       query.WorktreeID,
 		OwnerKind:        query.OwnerKind,
 		OwnerRef:         query.OwnerRef,

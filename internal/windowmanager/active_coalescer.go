@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+// systemActorKind attributes reducer commands the daemon issues on its own.
+const systemActorKind = "system"
+
 const stackActiveQuietPeriod = 2 * time.Second
 
 type stackActiveFlushResult struct {
@@ -181,7 +184,7 @@ func (c *activeCoalescer) flushLocked(
 	request := CommandRequest{
 		WorkspaceID: workspaceID,
 		CommandID:   CommandWindowStackSetActive,
-		Actor:       Actor{Kind: "system", ID: "active_coalescer"},
+		Actor:       Actor{Kind: systemActorKind, ID: "active_coalescer"},
 		Origin:      "active_coalescer",
 		Payload:     SetStackActiveCommand{},
 	}

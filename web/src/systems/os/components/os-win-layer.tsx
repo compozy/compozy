@@ -103,8 +103,7 @@ function DesktopLayer({
   onFrameSeamPreview,
   onSeamPreviewEnd,
   paletteShortcutLabel,
-  hasProject,
-  onPickProject,
+  canStart,
 }: {
   model: DesktopLayerModel;
   showEmptyDesktop: boolean;
@@ -115,8 +114,7 @@ function DesktopLayer({
   onTransitionComplete: () => void;
   seamProjection: LayoutProjection | undefined;
   paletteShortcutLabel: string | null;
-  hasProject: boolean;
-  onPickProject?: () => void;
+  canStart: boolean;
 } & SeamGestureHandlers) {
   const { incoming, interactive, style } = desktopLayerView({
     model,
@@ -165,8 +163,7 @@ function DesktopLayer({
             <OsEmptyDesktop
               desktopName={model.desktop.name}
               paletteShortcutLabel={paletteShortcutLabel}
-              hasProject={hasProject}
-              onPickProject={onPickProject}
+              canStart={canStart}
             />
           </Suspense>
         </OsWindowErrorBoundary>
@@ -204,8 +201,7 @@ export function OsWinLayer({
   onFrameSeamPreview,
   onSeamPreviewEnd,
   paletteShortcutLabel,
-  hasProject,
-  onPickProject,
+  canStart,
 }: {
   model: OsWinLayerModel;
   showEmptyDesktop?: boolean;
@@ -214,9 +210,8 @@ export function OsWinLayer({
   onTransitionComplete: () => void;
   paletteShortcutLabel: string | null;
   /** A project is active (Global has none): gates the empty desktop's composer. */
-  hasProject: boolean;
+  canStart: boolean;
   /** Global scope has no project: the empty desktop offers the workspace picker instead. */
-  onPickProject?: () => void;
 } & SeamGestureHandlers) {
   const { layerRef, desktops, presentation, viewportState, activeProjection } = model;
   return (
@@ -243,8 +238,7 @@ export function OsWinLayer({
           onFrameSeamPreview={onFrameSeamPreview}
           onSeamPreviewEnd={onSeamPreviewEnd}
           paletteShortcutLabel={paletteShortcutLabel}
-          hasProject={hasProject}
-          onPickProject={onPickProject}
+          canStart={canStart}
         />
       ))}
       {viewportState === "rejected" ? (

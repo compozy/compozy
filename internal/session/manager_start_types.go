@@ -12,15 +12,18 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type sessionStartSpec struct {
-	sessionID          string
-	profileID          string
-	sessionName        string
-	agentName          string
-	provider           string
-	commandFingerprint string
+	origin                   workspaceaccess.Origin
+	effectiveWorkspaceAccess string
+	sessionID                string
+	profileID                string
+	sessionName              string
+	agentName                string
+	provider                 string
+	commandFingerprint       string
 	// command is the attempt's explicit launch command (RuntimeOverrides.Command).
 	command    string
 	sessionEnv compozyconfig.SessionEnv

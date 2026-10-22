@@ -18,6 +18,7 @@ export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOve
       by_kind: { approval: 1, failure: 1, needs_input: 0 },
       items: [
         {
+          workspace_id: "ws_compozy",
           kind: "approval",
           title: "Deploy docs site",
           task_id: "task-approval",
@@ -25,6 +26,7 @@ export function makeHomeOverview(overrides: Partial<HomeOverview> = {}): HomeOve
           actions: ["approve", "reject", "open"],
         },
         {
+          workspace_id: "ws_compozy",
           kind: "failure",
           title: "Overnight writer session",
           detail: "provider timed out",
@@ -204,6 +206,7 @@ export const homeOverviewFixture: HomeOverview = makeHomeOverview({
     by_kind: { approval: 1, failure: 1, needs_input: 1 },
     items: [
       {
+        workspace_id: "ws_compozy",
         kind: "approval",
         title: "Approve public timeout copy for BR merchants",
         detail: `${storyAgentNames.compliance} is waiting on a manual approval`,
@@ -213,6 +216,7 @@ export const homeOverviewFixture: HomeOverview = makeHomeOverview({
         actions: ["approve", "reject", "open"],
       },
       {
+        workspace_id: "ws_compozy",
         kind: "needs_input",
         title: "Confirm the MX cashback wording before the landing page ships",
         detail: `${storyAgentNames.copywriter} asked which claim variant legal cleared`,
@@ -221,6 +225,7 @@ export const homeOverviewFixture: HomeOverview = makeHomeOverview({
         actions: ["open"],
       },
       {
+        workspace_id: "ws_compozy",
         kind: "failure",
         title: "Reconcile BR settlement replay ETA with the partner bank",
         detail: "partner-bank replay detail was stale and blocked the public timeout copy",

@@ -126,7 +126,7 @@ func (g *AutomationRepo) GetRun(ctx context.Context, id string) (automation.Run,
 	row := g.db.QueryRowContext(ctx, `SELECT
 		id, `+automationRunProfileIDSQL+`, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
-		delivery_error, delivery_error_at, loop_run_id, metadata_json
+		delivery_error, delivery_error_at, loop_run_id, metadata_json, workspace_id, attribution
 		FROM automation_runs WHERE id = ?`, trimmedID)
 	run, err := scanAutomationRun(row)
 	if err != nil {
@@ -154,11 +154,24 @@ func (g *AutomationRepo) ListRuns(
 	sqlQuery := `SELECT
 		id, ` + automationRunProfileIDSQL + `, job_id, trigger_id, session_id, task_id, task_run_id, fire_id,
 		status, attempt, scheduled_at, started_at, ended_at, error,
-		delivery_error, delivery_error_at, loop_run_id, metadata_json
+		delivery_error, delivery_error_at, loop_run_id, metadata_json, workspace_id, attribution
 		FROM automation_runs`
 	where, args := buildAutomationRunClauses(query)
+	position, cursorErr := automation.DecodeRunCursor(query)
+	if cursorErr != nil {
+		return nil, cursorErr
+	}
+	if query.Cursor != "" {
+		if position.NullStarted {
+			where = append(where, "started_at IS NULL AND id < ?")
+			args = append(args, position.ID)
+		} else {
+			where = append(where, "(started_at IS NULL OR started_at < ? OR (started_at = ? AND id < ?))")
+			args = append(args, position.Started, position.Started, position.ID)
+		}
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY started_at DESC, id DESC"
+	sqlQuery += " ORDER BY started_at IS NULL, started_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)

@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 
 import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { useLoop, useLoopConfig, useLoopRuns } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
 
 /**
  * View-model for the run-form route: the loop definition, its effective config, and
@@ -13,8 +13,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
  */
 export function useLoopRunFormPage(name: string) {
   const navigate = useNavigate();
-  const { runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
+  const { scope, workspaceId, search } = useLoopWindowScope();
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const enabled = workspaceId !== "" && liveDataEnabled;
   const loopQuery = useLoop(workspaceId, name, enabled);
@@ -24,9 +23,11 @@ export function useLoopRunFormPage(name: string) {
     activeRun: liveRunsQuery.data?.runs[0] ?? null,
     configQuery,
     loopQuery,
-    openLoop: () => void navigate({ to: "/loops/$name", params: { name } }),
+    openLoop: () => void navigate({ to: "/loops/$name", params: { name }, search }),
     openLoops: () => void navigate({ to: "/loops" }),
-    openRun: (runId: string) => void navigate({ to: "/loop-runs/$runId", params: { runId } }),
+    openRun: (runId: string) =>
+      void navigate({ to: "/loop-runs/$runId", params: { runId }, search }),
+    scope,
     workspaceId,
   };
 }

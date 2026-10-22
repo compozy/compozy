@@ -1,0 +1,125 @@
+---
+title: Start your first User session
+description: Start an agent session that belongs to no project, prompt it, restart the daemon, and pick it back up — from the Web app and from the CLI.
+---
+
+By the end of this page you will have an agent session that runs in your home folder, belongs to no
+project, and survives a daemon restart. You will find it under **User** in the Web app and with
+`--workspace @user` in the CLI.
+
+Expect about five minutes. Nothing here registers a project or changes existing work.
+
+## Before you start
+
+- The daemon is running (`compozy status`) and is v0.4.0 or later.
+- A default agent works: `compozy session new --agent general` succeeds in any project.
+- You do **not** need a registered project. This walkthrough works with zero projects.
+
+## Step 1: Pick User in the Web app
+
+1. Open the workspace switcher in the topbar (the chip next to the globe).
+2. Choose **User**. It sits between **All projects** and your projects.
+
+The chip now reads **User** with a `~` mark, and the desktop changes to your User desktop. Sessions,
+Tasks, Loops, Automations, Terminal, and Home show User work only.
+
+3. Click **New session** and send a first message, for example _"What folder are you in?"_.
+
+The agent answers with your home folder (or the folder you set in `[user_scope] work_dir`). No project
+picker appears: User is already the target.
+
+## Step 2: Do the same from the CLI
+
+```bash
+compozy session new --user --agent general --name weekly-review
+```
+
+```text
+Session
+=======
+ID:               sess-68508fb136f50621
+Name:             weekly-review
+Agent:            general
+Workspace:        /Users/you
+State:            active
+Badge:            idle
+```
+
+Output trimmed. `--user` is shorthand for `--workspace @user`. The `Workspace` line shows the folder
+the session runs in, not a registered project. Copy the `ID` from your own output.
+
+Scripts read the same answer as JSON:
+
+```bash
+compozy session new --user --agent general --name inbox-triage -o json
+```
+
+```json
+{
+  "id": "sess-f9ee7ec76d2fff42",
+  "scope": "user",
+  "effective_workspace_access": "",
+  "profile_name": "default",
+  "name": "inbox-triage",
+  "state": "active"
+}
+```
+
+There is no `workspace_id`: User work has none. `scope` is `"user"`.
+
+<OperatorNote>
+  `--user` cannot be combined with `--workspace`, `--cwd`, `--worktree`, or `--new-worktree`. User
+  work never has a worktree, and it never registers the folder it runs in.
+</OperatorNote>
+
+## Step 3: Prompt it
+
+```bash
+compozy session prompt <session-id> "Reply with only your current working directory path."
+```
+
+The reply is your work directory, for example `/Users/you`. The first prompt starts the agent
+process, exactly as it does for project sessions.
+
+## Step 4: List User sessions
+
+```bash
+compozy session list --workspace @user
+```
+
+```text
+Sessions
+========
+ID                     Profile  Name           Agent    State   Workspace
+sess-f9ee7ec76d2fff42  default  inbox-triage   general  active  /Users/you
+sess-68508fb136f50621  default  weekly-review  general  active  /Users/you
+```
+
+Output trimmed to the relevant columns. Only User sessions of your current profile appear. Use
+`--all-workspaces` to see them next to every project's sessions, or open
+[All projects](/docs/all-projects) in the Web app, where they carry a **User** badge.
+
+## Step 5: Restart and resume
+
+```bash
+compozy daemon stop
+compozy daemon start
+compozy session prompt <session-id> "What did I ask you before? One sentence."
+```
+
+The agent remembers the earlier turn: User sessions resume like project sessions. In the Web app, the
+session is still in the User list after a reload.
+
+## What you built
+
+- A session in the User scope of your profile, running in `[user_scope] work_dir`.
+- No new project registration: `compozy workspace list` is unchanged.
+- The same session reachable from the Web app (**User**), the CLI (`--workspace @user`), and
+  HTTP/UDS (`/api/workspaces/@user/sessions/<id>`).
+
+## Next steps
+
+- Run a Loop in User: `compozy loop run <loop> --workspace @user`.
+- Open a terminal in User from the Terminal app while User is focused.
+- Let an always-on agent work across every project:
+  [Give an agent access to everything](/docs/user-scope/unrestricted-agents).

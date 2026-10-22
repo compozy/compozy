@@ -3,12 +3,11 @@ package automation
 import (
 	"context"
 	"errors"
-
 	"strings"
 
 	modelpkg "github.com/compozy/compozy/internal/automation/model"
-
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // Triggers returns overlay-aware trigger definitions from persistence.
@@ -46,6 +45,7 @@ func (m *Manager) CreateTrigger(
 	if err := ValidateTriggerEvent(trigger.Event, "trigger"); err != nil {
 		return Trigger{}, err
 	}
+	trigger.GrantCeiling = workspaceaccess.AuthoringCeiling(ctx, false)
 	trigger.ProfileID = strings.TrimSpace(trigger.ProfileID)
 	if trigger.ProfileID == "" {
 		trigger.ProfileID = store.DefaultProfileID
@@ -138,6 +138,10 @@ func (m *Manager) UpdateTrigger(
 		return Trigger{}, err
 	}
 	next := cloneTrigger(trigger)
+	next.GrantCeiling, err = updatedTriggerGrant(ctx, currentStored, next)
+	if err != nil {
+		return Trigger{}, err
+	}
 	next.ID = currentStored.ID
 	next.Source = currentStored.Source
 	next.CreatedAt = currentStored.CreatedAt

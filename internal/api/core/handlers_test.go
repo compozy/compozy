@@ -1267,7 +1267,7 @@ func TestGetSessionOwnerNeverRepairsTheSession(t *testing.T) {
 		if err := json.Unmarshal(response.Body.Bytes(), &owner); err != nil || response.Code != http.StatusOK {
 			t.Fatalf("Global owner status = %d body = %s (%v), want 200", response.Code, response.Body.String(), err)
 		}
-		if owner.SessionID != "sess-global" || owner.WorkspaceID != "" || owner.WorkspaceName != "Global" {
+		if owner.SessionID != "sess-global" || owner.WorkspaceID != "" || owner.WorkspaceName != "User" {
 			t.Fatalf("Global owner = %+v", owner)
 		}
 	})

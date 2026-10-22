@@ -3,6 +3,8 @@ package session
 import (
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // Spawn permission rules name why one requested atom was refused.
@@ -124,4 +126,14 @@ func (e *SpawnLimitError) Error() string {
 // Is lets callers branch on ErrSpawnLimitExceeded.
 func (e *SpawnLimitError) Is(target error) bool {
 	return target == ErrSpawnLimitExceeded
+}
+
+func spawnWorkspaceAccessDenied(targetWorkspaceID string, parentWorkspaceID string) error {
+	return fmt.Errorf(
+		"%w: child workspace %q is outside parent workspace %q: %s",
+		ErrSpawnPermissionDenied,
+		targetWorkspaceID,
+		parentWorkspaceID,
+		workspaceaccess.DenialHint,
+	)
 }

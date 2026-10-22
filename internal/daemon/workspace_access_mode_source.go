@@ -18,7 +18,7 @@ type workspaceAccessModeSource struct {
 	sessions workspaceAccessSessionStatus
 }
 
-var _ workspaceaccess.ModeSource = (*workspaceAccessModeSource)(nil)
+var _ workspaceaccess.SessionFactsSource = (*workspaceAccessModeSource)(nil)
 
 func newWorkspaceAccessModeSource(sessions workspaceAccessSessionStatus) (*workspaceAccessModeSource, error) {
 	if sessions == nil {
@@ -27,30 +27,45 @@ func newWorkspaceAccessModeSource(sessions workspaceAccessSessionStatus) (*works
 	return &workspaceAccessModeSource{sessions: sessions}, nil
 }
 
-func (s *workspaceAccessModeSource) SessionPermissionMode(
+func (s *workspaceAccessModeSource) SessionFacts(
 	ctx context.Context,
 	sessionID string,
-) (workspaceaccess.Mode, error) {
+) (workspaceaccess.SessionFacts, error) {
 	if ctx == nil {
-		return "", errors.New("daemon: workspace access mode context is required")
+		return workspaceaccess.SessionFacts{}, errors.New("daemon: workspace access mode context is required")
 	}
 	sessionID = strings.TrimSpace(sessionID)
 	if sessionID == "" {
-		return "", errors.New("daemon: workspace access session id is required")
+		return workspaceaccess.SessionFacts{}, errors.New("daemon: workspace access session id is required")
 	}
 	info, err := s.sessions.Status(ctx, sessionID)
 	if err != nil {
-		return "", fmt.Errorf("daemon: read workspace access session %q: %w", sessionID, err)
+		return workspaceaccess.SessionFacts{}, fmt.Errorf(
+			"daemon: read workspace access session %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	if info == nil {
-		return "", fmt.Errorf("daemon: workspace access session %q returned no status", sessionID)
+		return workspaceaccess.SessionFacts{}, fmt.Errorf(
+			"daemon: workspace access session %q returned no status",
+			sessionID,
+		)
 	}
 	if info.State == session.StateStopped {
-		return "", fmt.Errorf("daemon: workspace access session %q is stopped", sessionID)
+		return workspaceaccess.SessionFacts{}, fmt.Errorf("daemon: workspace access session %q is stopped", sessionID)
 	}
 	mode := workspaceaccess.Mode(strings.TrimSpace(info.EffectivePermissions))
 	if mode == "" {
-		return "", fmt.Errorf("daemon: workspace access session %q has no effective permission mode", sessionID)
+		return workspaceaccess.SessionFacts{}, fmt.Errorf(
+			"daemon: workspace access session %q has no effective permission mode",
+			sessionID,
+		)
 	}
-	return mode, nil
+	return workspaceaccess.SessionFacts{
+		Mode:            mode,
+		WorkspaceAccess: info.EffectiveWorkspaceAccess,
+		ProfileID:       info.ProfileID,
+		WorkspaceID:     info.WorkspaceID,
+	}, nil
 }

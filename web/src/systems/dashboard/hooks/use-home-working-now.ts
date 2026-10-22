@@ -4,20 +4,33 @@ import type { HomeRunCardModel, HomeWorkingNowModel, HomeWorkingNowStatus } from
 import { elapsedSecondsSince } from "./use-elapsed-ticker";
 import { useSessions } from "@/systems/session";
 import { useTaskDashboard } from "@/systems/tasks";
+import { ownerDataScope, windowBindingValue, workspaceBadgeIdentity } from "@/systems/workspace";
 
-/** Reads sessions and task runs only after workspace scope has settled. */
-export function useHomeWorkingNow(scope: HomeScope, enabled: boolean): HomeWorkingNowModel {
+const NO_NAMES: ReadonlyMap<string, string> = new Map();
+
+/**
+ * Reads sessions and task runs only after workspace scope has settled. Under
+ * All projects each card names its project (from `workspaceNames`).
+ */
+export function useHomeWorkingNow(
+  scope: HomeScope,
+  enabled: boolean,
+  workspaceNames: ReadonlyMap<string, string> = NO_NAMES
+): HomeWorkingNowModel {
+  const projectOf =
+    scope.dataScope.kind === "all"
+      ? (workspaceId: string | undefined) => ({
+          project: {
+            badge: workspaceBadgeIdentity(workspaceId, workspaceNames),
+            binding: windowBindingValue(ownerDataScope(workspaceId)),
+          },
+        })
+      : () => ({});
   const sessionsQuery = useSessions(scope.workspaceParam || null, {
     enabled,
     filters: homeWorkingNowSessionFilters(),
   });
-  const dashboardQuery = useTaskDashboard(
-    {
-      scope: scope.taskScope.scope,
-      workspace: scope.taskScope.workspace,
-    },
-    { enabled }
-  );
+  const dashboardQuery = useTaskDashboard(scope.taskScope, { enabled });
 
   const sessionsAtMs = sessionsQuery.dataUpdatedAt;
   const dashboardAtMs = dashboardQuery.dataUpdatedAt;
@@ -42,6 +55,7 @@ export function useHomeWorkingNow(scope: HomeScope, enabled: boolean): HomeWorki
       ),
       baseAtMs: sessionsAtMs,
       sessionLink: { agentName: session.agent_name, sessionId: session.id },
+      ...projectOf(session.workspace_id),
     });
   }
 
@@ -59,6 +73,7 @@ export function useHomeWorkingNow(scope: HomeScope, enabled: boolean): HomeWorki
       elapsedBaseSeconds: Math.max(0, Math.floor(run.age_ms / 1000)),
       baseAtMs: dashboardAtMs,
       runLink: { taskId: run.task_id, runId: run.run_id },
+      ...projectOf(run.workspace_id),
     });
   }
 

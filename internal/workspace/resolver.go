@@ -407,6 +407,7 @@ func (r *Resolver) buildResolvedWorkspace(
 	skills := mergeSkillPaths(scan.skills)
 
 	return ResolvedWorkspace{
+		Scope:               ScopeWorkspace,
 		Workspace:           cloneWorkspace(ws),
 		ProfileName:         profileName,
 		ProfileRoot:         resolvedProfileRoot(r.homePaths.ProfilesDir, profileName),

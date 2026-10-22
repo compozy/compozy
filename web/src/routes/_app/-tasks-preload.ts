@@ -4,7 +4,9 @@ import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-pr
 import { schedulerBacklogOptions, schedulerStatusOptions } from "@/systems/scheduler";
 import {
   parseTasksSurfaceMode,
+  schedulerBacklogScope,
   taskDashboardOptions,
+  taskInboxScope,
   taskInboxBadgeOptions,
   taskListFilterFromRouteSearch,
   taskDetailOptions,
@@ -23,34 +25,22 @@ export async function preloadTasksRoute(
   const profileScope = readProfileScopeParams(queryClient);
   const mode = parseTasksSurfaceMode(search);
   const resolution = await resolveActiveWorkspaceSelection(queryClient);
-  const scope = taskScopeForActiveWorkspace(resolution.scope, resolution.activeWorkspaceId);
+  const scope = taskScopeForActiveWorkspace(resolution.dataScope);
   if (!scope) {
     return;
   }
 
   const queries: Promise<unknown>[] = [
     queryClient.ensureInfiniteQueryData(
-      taskInboxBadgeOptions({
-        scope: scope.scope,
-        workspace: scope.workspace,
-        limit: 1,
-        ...profileScope,
-      })
+      taskInboxBadgeOptions({ ...taskInboxScope(scope), limit: 1, ...profileScope })
     ),
   ];
   if (mode === "dashboard") {
     queries.unshift(
-      queryClient.ensureQueryData(
-        taskDashboardOptions({ scope: scope.scope, workspace: scope.workspace, ...profileScope })
-      ),
+      queryClient.ensureQueryData(taskDashboardOptions({ ...scope, ...profileScope })),
       queryClient.ensureQueryData(schedulerStatusOptions()),
       queryClient.ensureQueryData(
-        schedulerBacklogOptions({
-          include_paused: true,
-          limit: 5,
-          scope: scope.scope,
-          workspace: scope.workspace,
-        })
+        schedulerBacklogOptions({ ...schedulerBacklogScope(scope), limit: 5, include_paused: true })
       )
     );
   } else if (mode === "inbox") {

@@ -119,7 +119,7 @@ export function OnboardingSetupFrame({ wizard }: OnboardingSetupFrameProps) {
                 <StepDefaultModel model={wizard.defaultModel} />
               ) : (
                 <StepWorkspaces
-                  onSkip={() => void wizard.skipToGlobal()}
+                  onSkip={() => void wizard.skipToUser()}
                   skipDisabled={wizard.isBusy}
                   workspaces={wizard.workspaces}
                 />

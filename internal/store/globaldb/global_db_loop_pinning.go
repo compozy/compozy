@@ -37,6 +37,7 @@ func upsertLoopDefinitionSnapshot(
 		usedAt = run.CreatedAt.UTC()
 	}
 	affected, err := sqlcgen.New(exec).UpsertLoopDefinitionSnapshot(ctx, sqlcgen.UpsertLoopDefinitionSnapshotParams{
+		ProfileID:   loopStateProfileID(run.WorkspaceID, run.ProfileID),
 		WorkspaceID: string(run.WorkspaceID), DefinitionDigest: run.DefinitionDigest,
 		DefinitionVersion: int64(run.DefinitionVersion), DefinitionJson: string(run.DefinitionSnapshot),
 		ByteSize: int64(len(run.DefinitionSnapshot)), CreatedAt: store.FormatTimestamp(usedAt),
@@ -57,20 +58,21 @@ func upsertLoopDefinitionSnapshot(
 
 func (g *LoopRepo) GetLoopDefinitionSnapshot(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	digest string,
 ) (looppkg.DefinitionSnapshot, error) {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return looppkg.DefinitionSnapshot{}, err
+	}
 	if err := g.checkReady(ctx, "get loop definition snapshot"); err != nil {
 		return looppkg.DefinitionSnapshot{}, err
 	}
 	trimmedDigest := strings.TrimSpace(digest)
-	if strings.TrimSpace(string(ws)) == "" {
-		return looppkg.DefinitionSnapshot{}, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
-	}
 	if trimmedDigest == "" {
 		return looppkg.DefinitionSnapshot{}, fmt.Errorf("%w: definition_digest is required", looppkg.ErrValidation)
 	}
 	row, err := g.queries.GetLoopDefinitionSnapshot(ctx, sqlcgen.GetLoopDefinitionSnapshotParams{
+		ProfileID:   loopStateProfileID(ws, profileID),
 		WorkspaceID: string(ws), DefinitionDigest: trimmedDigest,
 	})
 	if err != nil {
@@ -226,9 +228,6 @@ func (g *LoopRepo) ListLoopGateDecisions(
 		return nil, err
 	}
 	trimmedGateID := strings.TrimSpace(string(gateID))
-	if strings.TrimSpace(string(ws)) == "" {
-		return nil, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
-	}
 	if strings.TrimSpace(string(runID)) == "" {
 		return nil, fmt.Errorf("%w: run_id is required", looppkg.ErrValidation)
 	}
@@ -284,9 +283,6 @@ func normalizeLoopGateDecisionRecords(
 			next.DecidedAt = defaultDecidedAt.UTC()
 		} else {
 			next.DecidedAt = next.DecidedAt.UTC()
-		}
-		if next.WorkspaceID == "" {
-			return nil, fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
 		}
 		if next.RunID == "" {
 			return nil, fmt.Errorf("%w: run_id is required", looppkg.ErrValidation)

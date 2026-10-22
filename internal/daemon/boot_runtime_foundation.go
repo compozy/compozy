@@ -85,9 +85,6 @@ func (d *Daemon) bootRegistryState(
 		return fmt.Errorf("daemon: verify default profile: %w", err)
 	}
 	state.registry = registry
-	if err := startLoopReconciliation(ctx, state, registry, cleanup, d.readyCh); err != nil {
-		return err
-	}
 
 	if profileStore, ok := registry.(*globaldb.GlobalDB); ok {
 		profiles, err := d.bootProfiles(state, profileStore)
@@ -124,7 +121,7 @@ func (d *Daemon) bootRegistryState(
 	if err := d.bootWindowManager(ctx, state, cleanup); err != nil {
 		return err
 	}
-	if err := recoverProfiles(ctx, state); err != nil {
+	if err := startLoopReconciliation(ctx, state, registry, cleanup, d.readyCh); err != nil {
 		return err
 	}
 

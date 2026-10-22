@@ -3,11 +3,6 @@ export interface WorkspaceHomeCandidate {
   root_dir?: string | null;
 }
 
-export interface ProjectWorkspacePartition<T extends WorkspaceHomeCandidate> {
-  homeWorkspace: T | undefined;
-  projectWorkspaces: T[];
-}
-
 /** Trailing separators vary between daemon paths and `$HOME`; compare without them. */
 export function normalizeRootDir(path: string): string {
   let end = path.length;
@@ -17,7 +12,10 @@ export function normalizeRootDir(path: string): string {
   return path.slice(0, end);
 }
 
-/** True when this registration is the daemon's operator-home row (`$HOME`). */
+/**
+ * True when a folder is the operator home. The daemon refuses to register it
+ * (User work runs there without a project), so registration inputs skip it.
+ */
 export function isOperatorHomeWorkspace<T extends WorkspaceHomeCandidate>(
   workspace: T,
   userHomeDir: string | undefined
@@ -26,25 +24,4 @@ export function isOperatorHomeWorkspace<T extends WorkspaceHomeCandidate>(
     return false;
   }
   return normalizeRootDir(workspace.root_dir) === normalizeRootDir(userHomeDir);
-}
-
-/**
- * Split the catalog into the hidden operator-home registration and the project
- * workspaces the UI may list. Home is never a selectable project row.
- */
-export function partitionProjectWorkspaces<T extends WorkspaceHomeCandidate>(
-  workspaces: ReadonlyArray<T> | undefined,
-  userHomeDir: string | undefined
-): ProjectWorkspacePartition<T> {
-  const workspaceList = workspaces ?? [];
-  const homeWorkspace = workspaceList.find(workspace =>
-    isOperatorHomeWorkspace(workspace, userHomeDir)
-  );
-  if (!homeWorkspace) {
-    return { homeWorkspace: undefined, projectWorkspaces: [...workspaceList] };
-  }
-  return {
-    homeWorkspace,
-    projectWorkspaces: workspaceList.filter(workspace => workspace.id !== homeWorkspace.id),
-  };
 }

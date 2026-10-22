@@ -79,14 +79,6 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 		t.Fatalf("len(delivery.Runs) = %d, want %d", got, want)
 	}
 
-	globalWorkspace, err := harness.ResolveWorkspace(ctx, harness.HomePaths.HomeDir)
-	if err != nil {
-		t.Fatalf("ResolveWorkspace(%q) error = %v", harness.HomePaths.HomeDir, err)
-	}
-	if strings.TrimSpace(globalWorkspace.ID) == "" {
-		t.Fatalf("global automation workspace ID = empty; workspace=%#v", globalWorkspace)
-	}
-
 	runID := delivery.Runs[0].ID
 	waitForRuntimeCondition(t, "automation webhook run completion", 10*time.Second, func() bool {
 		run, err := harness.GetAutomationRun(ctx, runID)
@@ -96,7 +88,7 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 		if err := requireCompletedSessionAutomationRun(run); err != nil {
 			return false
 		}
-		sessionInfo, err := harness.GetSession(ctx, run.SessionID)
+		sessionInfo, err := harness.GetUserSession(ctx, run.SessionID)
 		if err != nil {
 			return false
 		}
@@ -125,12 +117,17 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 		t.Fatalf("len(ListAutomationRuns(trigger)) = %d, want %d", got, want)
 	}
 
-	sessionInfo, err := harness.GetSession(ctx, run.SessionID)
+	sessionInfo, err := harness.GetUserSession(ctx, run.SessionID)
 	if err != nil {
-		t.Fatalf("GetSession(%q) error = %v", run.SessionID, err)
+		t.Fatalf("GetUserSession(%q) error = %v", run.SessionID, err)
 	}
 	if got, want := sessionInfo.AgentName, automationTaskFixtureAgentName; got != want {
 		t.Fatalf("sessionInfo.AgentName = %q, want %q", got, want)
+	}
+	// A User-scope (global) automation runs in the User scope, never in a home pseudo-workspace
+	// (USW BR-1, BR-3).
+	if sessionInfo.WorkspaceID != "" {
+		t.Fatalf("sessionInfo.WorkspaceID = %q, want the User scope", sessionInfo.WorkspaceID)
 	}
 	if got, want := sessionInfo.State, sessionpkg.StateStopped; got != want {
 		t.Fatalf("sessionInfo.State = %q, want %q", got, want)
@@ -147,7 +144,10 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 		t.Fatalf("session meta state = %q, want %q", got, want)
 	}
 
-	transcriptResp := mustSessionTranscript(t, ctx, harness, run.SessionID)
+	transcriptResp, err := harness.UserSessionTranscript(ctx, run.SessionID)
+	if err != nil {
+		t.Fatalf("UserSessionTranscript(%q) error = %v", run.SessionID, err)
+	}
 	transcriptContent := joinTranscriptContent(sessionTranscriptMessages(transcriptResp))
 	if !strings.Contains(transcriptContent, "Review payload deploy for main") {
 		t.Fatalf("transcript = %q, want rendered automation prompt", transcriptContent)

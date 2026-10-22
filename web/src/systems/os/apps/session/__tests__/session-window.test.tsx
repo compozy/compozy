@@ -2,7 +2,8 @@
 // Invariant: every visible session window on the active desktop owns a live tail, while operator
 // presence additionally requires the shell window and browser document to hold focus; and the
 // window resolves a session through the profile-enforced read before deciding it is gone.
-// A document's project lens hides out-of-scope history without retiring the shared window.
+// A window's data scope (its binding, else its partition: a project, or User) hides another
+// scope's history without retiring the shared window; an All projects catalog window hides none.
 // Owning layer: the OS session-window controller.
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,7 +32,10 @@ const queryOptionsSpy = vi.fn((_options: Record<string, unknown>) => undefined);
 const userRetireSession = vi.fn(() => Promise.resolve(true));
 const userClose = vi.fn(() => Promise.resolve(true));
 const userOpen = vi.fn(() => Promise.resolve(null));
-const workspace = { runtimeWorkspaceId: "ws-1" as string | null };
+type TestDataScope = { kind: "project"; workspaceId: string } | { kind: "user" } | { kind: "all" };
+const workspace: { dataScope: TestDataScope | null } = {
+  dataScope: { kind: "project", workspaceId: "ws-1" },
+};
 const documentActivity = vi.hoisted(() => ({ active: true }));
 const useSessionPresenceSpy = vi.hoisted(() => vi.fn());
 const queryState: {
@@ -88,6 +92,11 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({ activeWorkspaceId: "ws-1", ...workspace }),
 }));
 
+vi.mock("@/systems/workspace/hooks/use-window-data-workspace", () => ({
+  // The window's own data scope: its binding, else its partition.
+  useWindowDataWorkspace: () => workspace.dataScope,
+}));
+
 vi.mock("@/hooks/use-document-active", () => ({
   useDocumentActive: () => documentActivity.active,
 }));
@@ -134,7 +143,7 @@ describe("SessionWindow", () => {
     queryState.error = null;
     queryState.isLoading = false;
     queryState.isError = false;
-    workspace.runtimeWorkspaceId = "ws-1";
+    workspace.dataScope = { kind: "project", workspaceId: "ws-1" };
     documentActivity.active = true;
     sessionWindowViewSpy.mockClear();
     sessionWindowNoticeSpy.mockClear();
@@ -249,8 +258,8 @@ describe("SessionWindow", () => {
     );
   });
 
-  it("Should render a Global-scope session from its authoritative workspace", () => {
-    workspace.runtimeWorkspaceId = "";
+  it("Should render a session from its authoritative workspace under All projects", () => {
+    workspace.dataScope = { kind: "all" };
 
     render(<SessionWindow windowId="session:sess-1" />);
 
@@ -261,7 +270,7 @@ describe("SessionWindow", () => {
     expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
 
-  it("Should keep Global history in the shared layout while this document views a project", async () => {
+  it("Should keep User history in the shared layout while this document views a project", async () => {
     queryState.data = { ...session, workspace_id: "" };
     documentActivity.active = false;
     const view = render(<SessionWindow windowId="session:sess-1" />);
@@ -271,11 +280,20 @@ describe("SessionWindow", () => {
     expect(sessionWindowViewSpy).not.toHaveBeenCalled();
     expect(userRetireSession).not.toHaveBeenCalled();
 
-    workspace.runtimeWorkspaceId = null;
+    workspace.dataScope = { kind: "user" };
     view.rerender(<SessionWindow windowId="session:sess-1" />);
     expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
       expect.objectContaining({ session: queryState.data, workspaceId: "" })
     );
+    expect(userRetireSession).not.toHaveBeenCalled();
+  });
+
+  it("Should hide a project's session on the User desktop without retiring the window", async () => {
+    workspace.dataScope = { kind: "user" };
+    render(<SessionWindow windowId="session:sess-1" />);
+
+    await waitFor(() => expect(sessionWindowNoticeSpy).toHaveBeenCalled());
+    expect(sessionWindowViewSpy).not.toHaveBeenCalled();
     expect(userRetireSession).not.toHaveBeenCalled();
   });
 

@@ -22,9 +22,6 @@ type TurnKey struct {
 
 // Validate enforces the complete workspace-safe Goal identity.
 func (k TurnKey) Validate() error {
-	if strings.TrimSpace(string(k.WorkspaceID)) == "" {
-		return fmt.Errorf("%w: goal workspace_id is required", loop.ErrValidation)
-	}
 	if strings.TrimSpace(string(k.LoopRunID)) == "" {
 		return fmt.Errorf("%w: goal loop_run_id is required", loop.ErrValidation)
 	}

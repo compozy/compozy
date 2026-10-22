@@ -8,6 +8,12 @@ import (
 	"database/sql"
 )
 
+type LegacyImport struct {
+	SourceWorkspaceID string `json:"source_workspace_id"`
+	SourceRowID       string `json:"source_row_id"`
+	ContentDigest     string `json:"content_digest"`
+}
+
 type TerminalArtifact struct {
 	ID         string         `json:"id"`
 	TerminalID sql.NullString `json:"terminal_id"`

@@ -88,6 +88,9 @@ func (m *Manager) resolveSoulRefreshWorkspace(
 	ctx context.Context,
 	info *Info,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if info.WorkspaceID == "" {
+		return resolveUserWorkspace(ctx, m.workspace, info.ProfileID)
+	}
 	target := firstTrimmedNonEmpty(info.WorkspaceID, info.Workspace)
 	if m.workspace != nil && target != "" {
 		resolved, err := m.workspace.Resolve(ctx, target)

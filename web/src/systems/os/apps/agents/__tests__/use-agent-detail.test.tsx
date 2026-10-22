@@ -1,4 +1,5 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
+import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -17,6 +18,10 @@ const {
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
 let mockRuntimeWorkspaceId: string | null = "ws_alpha";
+let mockDataScope: { kind: "project"; workspaceId: string } | { kind: "user" } | { kind: "all" } = {
+  kind: "project",
+  workspaceId: "ws_alpha",
+};
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => mockNavigate,
@@ -72,10 +77,13 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspaceId: mockActiveWorkspaceId,
     runtimeWorkspaceId: mockRuntimeWorkspaceId,
+    registeredWorkspaces: [{ id: "ws_beta", name: "beta" }],
   }),
+  useDataScope: () => mockDataScope,
 }));
 
 import { useAgentDetailPage } from "@/systems/os/apps/agents/use-agent-detail";
+import { WindowDataBindingContext } from "@/systems/workspace";
 
 const emptySearch = {};
 
@@ -83,6 +91,7 @@ describe("useAgentDetailPage", () => {
   beforeEach(() => {
     mockActiveWorkspaceId = "ws_alpha";
     mockRuntimeWorkspaceId = "ws_alpha";
+    mockDataScope = { kind: "project", workspaceId: "ws_alpha" };
     mockNavigate.mockReset();
     mockUseAgent.mockReset();
     mockUseAgentSessions.mockReset();
@@ -146,17 +155,39 @@ describe("useAgentDetailPage", () => {
     });
   });
 
-  it("Should bind Global agent details to the hidden home workspace", () => {
+  it("Should read User agent details through @user under User focus", () => {
     mockActiveWorkspaceId = null;
-    mockRuntimeWorkspaceId = "ws_home";
+    mockRuntimeWorkspaceId = null;
+    mockDataScope = { kind: "user" };
 
-    const { result } = renderHook(() => useAgentDetailPage("global-agent", emptySearch));
+    renderHook(() => useAgentDetailPage("global-agent", emptySearch));
 
-    expect(mockUseAgent).toHaveBeenCalledWith("global-agent", "ws_home");
-    expect(mockUseAgentSessions).toHaveBeenCalledWith("ws_home", "global-agent");
-    expect(mockUseAgentCatalogMetrics).toHaveBeenCalledWith("ws_home", "global-agent");
-    expect(result.current.sessionActions).toBe(
-      mockUseSessionLifecycleActions.mock.results[0]?.value.actions
+    expect(mockUseAgent).toHaveBeenCalledWith("global-agent", "@user");
+    expect(mockUseAgentSessions).toHaveBeenCalledWith("@user", "global-agent");
+  });
+
+  // All projects: an agent opened in place reads its own project through the
+  // window binding and keeps that binding across in-window navigation.
+  it("Should read an agent opened in place through its window binding", () => {
+    mockActiveWorkspaceId = null;
+    mockRuntimeWorkspaceId = null;
+    mockDataScope = { kind: "all" };
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(
+        WindowDataBindingContext,
+        { value: { partition: "global", binding: "ws_beta" } },
+        children
+      );
+
+    const { result } = renderHook(() => useAgentDetailPage("reviewer", emptySearch), { wrapper });
+
+    expect(mockUseAgent).toHaveBeenCalledWith("reviewer", "ws_beta");
+    expect(mockUseAgentSessions).toHaveBeenCalledWith("ws_beta", "reviewer");
+    act(() => result.current.setTab("sessions"));
+    expect(mockNavigate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        search: expect.objectContaining({ tab: "sessions", workspace: "ws_beta" }),
+      })
     );
   });
 

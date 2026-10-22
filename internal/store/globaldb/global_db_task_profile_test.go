@@ -3,12 +3,14 @@ package globaldb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestGlobalDBExecutionProfileStore(t *testing.T) {
@@ -223,4 +225,38 @@ func assertStringSliceGlobal(t *testing.T, got []string, want []string) {
 			t.Fatalf("slice = %#v, want %#v", got, want)
 		}
 	}
+}
+
+func TestTaskExecutionProfileGrantCeiling(t *testing.T) {
+	t.Parallel()
+	t.Run("Should persist narrowing and refuse elevation by a granted agent", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		record := taskRecordForTest("task-grant-profile")
+		record.GrantCeiling = workspaceaccess.Unrestricted
+		if err := db.CreateTask(t.Context(), record); err != nil {
+			t.Fatal(err)
+		}
+		for index, ceiling := range []string{"", workspaceaccess.Unrestricted} {
+			ctx := workspaceaccess.WithOrigin(
+				t.Context(),
+				workspaceaccess.Origin{Kind: workspaceaccess.ActorAgentSession, Ceiling: ceiling},
+			)
+			profile := taskpkg.DefaultExecutionProfile(record.ID)
+			event := taskEventForTest(fmt.Sprintf("event-grant-%d", index), record.ID, "")
+			if _, err := db.SetTaskExecutionProfile(
+				ctx,
+				&taskpkg.ExecutionProfileMutation{Profile: profile, Event: event},
+			); err != nil {
+				t.Fatal(err)
+			}
+			stored, err := db.GetTask(t.Context(), record.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stored.GrantCeiling != "" {
+				t.Fatalf("grant after agent edit = %q", stored.GrantCeiling)
+			}
+		}
+	})
 }

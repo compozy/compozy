@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-client";
 
 import type { SessionAttachment } from "../types";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export class SessionAttachmentApiError extends Error {
   constructor(
@@ -39,7 +40,7 @@ export async function uploadSessionAttachment(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
     {
       params: {
-        path: { workspace_id: workspaceId, session_id: sessionId },
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: sessionId },
       },
       body: { file: file.name },
       bodySerializer: () => {
@@ -74,7 +75,7 @@ export async function deleteSessionAttachment(
     {
       params: {
         path: {
-          workspace_id: workspaceId,
+          workspace_id: sessionWorkspacePath(workspaceId),
           session_id: sessionId,
           attachment_id: attachmentId,
         },

@@ -32,7 +32,7 @@ func (s *service) parentCloseActions(
 	if parent.Generation < 1 || strings.TrimSpace(parent.DefinitionDigest) == "" {
 		return nil, nil
 	}
-	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, workspaceID, parent.DefinitionDigest)
+	snapshot, err := s.store.GetLoopDefinitionSnapshot(ctx, workspaceID, parent.ProfileID, parent.DefinitionDigest)
 	if err != nil {
 		return nil, err
 	}

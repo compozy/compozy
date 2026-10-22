@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // SessionCatalogAttentionRank is the stable attention-class component of a catalog cursor.
@@ -62,6 +64,7 @@ type SessionCatalogPageQuery struct {
 	Subagents           string
 	SkipTotal           bool
 	ReadScope           ReadScope
+	WorkspaceIDs        []string
 	WorkspaceID         string
 	WorktreeID          string
 	State               string
@@ -133,4 +136,12 @@ type SessionCatalogPage struct {
 // SessionCatalogPager exposes the bounded catalog read used by public session lists.
 type SessionCatalogPager interface {
 	PageSessions(ctx context.Context, query SessionCatalogPageQuery) (SessionCatalogPage, error)
+}
+
+// SessionWorkspaceClause keeps an explicit User selection distinct from an unfiltered catalog.
+func SessionWorkspaceClause(value string) Clause {
+	if strings.TrimSpace(value) == workspaceaccess.UserSelector {
+		return Clause{sql: "workspace_id = ?", arg: "", ok: true, hasArg: true}
+	}
+	return StringClause("workspace_id", value)
 }

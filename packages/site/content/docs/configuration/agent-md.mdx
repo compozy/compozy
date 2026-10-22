@@ -35,6 +35,7 @@ The parser is strict. Unknown frontmatter fields fail loading.
 | `toolsets`         | string array                | empty                                                | Canonical ToolsetIDs.                                                | Additional named tool bundles allowed for the agent.                      |
 | `deny_tools`       | string array                | empty                                                | Exact canonical ToolIDs or namespace-prefix wildcards.               | Tool denies that always narrow the agent grants.                          |
 | `permissions`      | string                      | `[permissions].mode`, default `approve-all`          | `deny-all`, `approve-reads`, `approve-all`                           | Agent-specific permission mode.                                           |
+| `workspace_access` | string                      | absent                                               | absent or `unrestricted`                                             | Operator-only grant to reach every project, User, and profile.            |
 | `skills`           | object                      | empty                                                | Currently only `disabled` is accepted.                               | Agent-scoped logical skill tombstones and agent-local overlay policy.     |
 | `category_path`    | string array                | empty                                                | Non-empty path segments without `.`, `..`, `/`, or `\`.              | Display-only hierarchy used by CLI/API/Web views.                         |
 | `mcp_servers`      | array of MCP server objects | empty                                                | Each object requires `name` and `command`.                           | Agent-local MCP servers.                                                  |
@@ -255,6 +256,38 @@ Missing or unsupported live options fail loudly with `reasoning_option_missing` 
 | Required     | no                                                    |
 | Valid values | `deny-all`, `approve-reads`, `approve-all`            |
 | Description  | Overrides the global permission mode for this agent.  |
+
+### `workspace_access`
+
+| Attribute    | Value                                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| Type         | string                                                                                                 |
+| Default      | absent (sessions stay bound to their own project or User scope and profile)                            |
+| Required     | no                                                                                                     |
+| Valid values | absent or `unrestricted`                                                                               |
+| Description  | Lets sessions of this agent read and act on every project, the User scope, and every profile, audited. |
+
+```yaml
+---
+name: companion
+workspace_access: unrestricted
+permissions: approve-reads
+---
+```
+
+Only you, the operator, can set this field: in the Web agent editor, through the HTTP agent routes
+without agent credentials, or by editing the file. An agent that tries to set or raise it through `compozy__agent_create` or an agent update gets
+`workspace_access_operator_only`. Agents installed from the marketplace or an extension cannot ship
+it; the loader drops it with the diagnostic `workspace_access_untrusted_source`.
+
+The grant is fixed when a session starts and shown as `effective_workspace_access` on the session.
+A session started by another agent never gets more access than that agent has. It does not change
+tool approvals: `permissions` still decides which risky tools need your approval. Each decision the
+grant allows is logged as `workspace.access_granted` with source `agent_grant`. See
+[Give an agent access to everything](/docs/user-scope/unrestricted-agents).
+
+Daemons older than v0.4.0 reject an `AGENT.md` that contains this field, because frontmatter is
+decoded strictly. Upgrade every daemon that reads the file before adding it.
 
 ### `skills`
 
@@ -528,15 +561,17 @@ RFC examples also use permission values such as `plan`. Current CompozyOS uses `
 
 ## Common Errors
 
-| Error                                   | Cause                                                      | Fix                                                                        |
-| --------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `config: missing YAML frontmatter`      | The file does not start with a frontmatter block.          | Add an opening and closing `---` block.                                    |
-| `config: unterminated YAML frontmatter` | The opening delimiter has no closing delimiter.            | Close the frontmatter before the prompt body.                              |
-| `unknown field`                         | A draft or misspelled frontmatter field is present.        | Remove it or move the setting to a supported config surface.               |
-| `agent prompt is required`              | The body after frontmatter is empty.                       | Add the agent prompt.                                                      |
-| `agent.permissions must be one of ...`  | Unsupported permission value.                              | Use `deny-all`, `approve-reads`, or `approve-all`.                         |
-| `agent.category_path[...]`              | A category segment is blank, `.`, `..`, or contains slash. | Use an array of clean path segments, for example `["Marketing", "Sales"]`. |
-| `provider "<name>" command is required` | A custom provider has no command.                          | Add `[providers.<name>].command` or set `command` in `AGENT.md`.           |
+| Error                                   | Cause                                                      | Fix                                                                           |
+| --------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `config: missing YAML frontmatter`      | The file does not start with a frontmatter block.          | Add an opening and closing `---` block.                                       |
+| `config: unterminated YAML frontmatter` | The opening delimiter has no closing delimiter.            | Close the frontmatter before the prompt body.                                 |
+| `unknown field`                         | A draft or misspelled frontmatter field is present.        | Remove it or move the setting to a supported config surface.                  |
+| `agent prompt is required`              | The body after frontmatter is empty.                       | Add the agent prompt.                                                         |
+| `agent.permissions must be one of ...`  | Unsupported permission value.                              | Use `deny-all`, `approve-reads`, or `approve-all`.                            |
+| `workspace_access_operator_only`        | An agent tried to set or raise `workspace_access`.         | Set it yourself in the agent editor or the file.                              |
+| `workspace_access_untrusted_source`     | A marketplace or extension agent declared the field.       | The field is dropped. Author the agent in your own agents folder to grant it. |
+| `agent.category_path[...]`              | A category segment is blank, `.`, `..`, or contains slash. | Use an array of clean path segments, for example `["Marketing", "Sales"]`.    |
+| `provider "<name>" command is required` | A custom provider has no command.                          | Add `[providers.<name>].command` or set `command` in `AGENT.md`.              |
 
 ## Related Pages
 

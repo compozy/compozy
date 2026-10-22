@@ -116,7 +116,7 @@ func (i automationJobsListInput) query(
 		query.Limit = automationpkg.DefaultListLimit
 	}
 	if scope := strings.TrimSpace(i.Scope); scope != "" {
-		query.Scope = automationpkg.Scope(scope)
+		query.Scope = automationpkg.Scope(scope).Normalize()
 	}
 	if source := strings.TrimSpace(i.Source); source != "" {
 		query.Source = automationpkg.JobSource(source)
@@ -159,7 +159,7 @@ func (i automationTriggersListInput) query(
 		query.Limit = automationpkg.DefaultListLimit
 	}
 	if scope := strings.TrimSpace(i.Scope); scope != "" {
-		query.Scope = automationpkg.Scope(scope)
+		query.Scope = automationpkg.Scope(scope).Normalize()
 	}
 	if source := strings.TrimSpace(i.Source); source != "" {
 		query.Source = automationpkg.JobSource(source)

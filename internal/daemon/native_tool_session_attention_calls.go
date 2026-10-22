@@ -46,7 +46,7 @@ func (n *daemonNativeTools) notifyOperator(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, workspaceID, sessionID)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

@@ -397,7 +397,7 @@ func (s *daemonLoopAPIService) ValidateLoop(
 	}
 	var catalog looppkg.RuntimeCatalog
 	if s.runtimeCatalog != nil {
-		catalog, err = s.runtimeCatalog.ForWorkspace(ctx, ws)
+		catalog, err = s.runtimeCatalog.ForWorkspace(ctx, ws, profileID)
 		if err != nil {
 			return contract.LoopValidationResponse{}, fmt.Errorf("resolve workspace runtime catalog: %w", err)
 		}

@@ -215,7 +215,7 @@ func (h *BaseHandlers) UpdateSettingsShell(c *gin.Context) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
-	h.updateSettingsSection(c, req)
+	h.updateSettingsShellSection(c, req)
 }
 
 // GetSettingsObservability returns the observability settings section.

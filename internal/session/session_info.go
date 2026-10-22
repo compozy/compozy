@@ -51,6 +51,7 @@ func (s *Session) infoLocked() *Info {
 		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
 		SelectedRuntime:          cloneRuntimeSelection(s.SelectedRuntime),
 		RuntimeSelectionRevision: s.RuntimeSelectionRevision,
+		EffectiveWorkspaceAccess: s.EffectiveWorkspaceAccess,
 		EffectivePermissions:     s.EffectivePermissions,
 		WorkspaceID:              s.WorkspaceID,
 		Workspace:                s.Workspace,

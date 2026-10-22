@@ -40,7 +40,7 @@ func (m *Manager) setArchived(
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	sessionID = strings.TrimSpace(sessionID)
-	if workspaceID == "" || sessionID == "" {
+	if sessionID == "" {
 		return nil, errors.New("session: archive workspace and session ids are required")
 	}
 	archiveStore, ok := m.sessionCatalog.(store.SessionArchiveStore)

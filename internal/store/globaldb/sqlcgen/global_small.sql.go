@@ -83,6 +83,27 @@ func (q *Queries) GetWorkspace(ctx context.Context, id string) (Workspace, error
 	return i, err
 }
 
+const getWorkspaceByLegacyName = `-- name: GetWorkspaceByLegacyName :one
+SELECT workspaces.id, workspaces.root_dir, workspaces.add_dirs, workspaces.name, workspaces.default_agent, workspaces.created_at, workspaces.updated_at FROM workspace_name_aliases
+JOIN workspaces ON workspaces.id = workspace_name_aliases.workspace_id
+WHERE workspace_name_aliases.old_name = ?
+`
+
+func (q *Queries) GetWorkspaceByLegacyName(ctx context.Context, oldName string) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceByLegacyName, oldName)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.RootDir,
+		&i.AddDirs,
+		&i.Name,
+		&i.DefaultAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getWorkspaceByName = `-- name: GetWorkspaceByName :one
 SELECT id, root_dir, add_dirs, name, default_agent, created_at, updated_at
 FROM workspaces WHERE name = ?1

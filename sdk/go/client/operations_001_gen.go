@@ -33,6 +33,7 @@ func (c *Client) AcceptAutomationSuggestion(ctx context.Context, params AcceptAu
 type AcknowledgeAttentionNotificationsParams struct {
 	ReceiptProfile *string `url:"receipt_profile"`
 	Workspace      *string `url:"workspace"`
+	AllWorkspaces  *bool   `url:"all_workspaces"`
 	Profile        *string `url:"profile"`
 	AllProfiles    *bool   `url:"all_profiles"`
 	Surface        *string `url:"surface"`
@@ -47,6 +48,9 @@ func (c *Client) AcknowledgeAttentionNotifications(ctx context.Context, params A
 	}
 	if params.Workspace != nil {
 		query.Set("workspace", *params.Workspace)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)

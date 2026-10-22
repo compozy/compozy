@@ -401,7 +401,7 @@ func normalizePromptAdmissionScope(
 	workspaceID = strings.TrimSpace(workspaceID)
 	sessionID = strings.TrimSpace(sessionID)
 	idempotencyKey = strings.TrimSpace(idempotencyKey)
-	if workspaceID == "" || sessionID == "" || idempotencyKey == "" {
+	if sessionID == "" || idempotencyKey == "" {
 		return "", "", "", time.Time{}, errors.New(
 			"store: session prompt workspace, session, and idempotency key are required",
 		)

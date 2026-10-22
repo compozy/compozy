@@ -56,7 +56,12 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha", runtimeWorkspaceId: "ws_alpha" }),
+  useActiveWorkspace: () => ({
+    activeWorkspaceId: "ws_alpha",
+    runtimeWorkspaceId: "ws_alpha",
+    breadthMode: "focused",
+    registeredWorkspaces: [{ id: "ws_alpha", name: "alpha" }],
+  }),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -106,6 +111,8 @@ const createdSession: SessionPayload = {
   supervision: null,
   profile_id: "00000000000000000000000000",
   profile_name: "default",
+  scope: "workspace",
+  effective_workspace_access: "",
   id: "sess-created",
   name: "Created session",
   agent_name: "claude-agent",
@@ -253,7 +260,7 @@ describe("session actions", () => {
     });
   });
 
-  it("Should announce the acting profile after aggregate session creation", async () => {
+  it("Should announce the project and profile after aggregate session creation", async () => {
     act(() => setProfileView({ kind: "aggregate" }));
     vi.mocked(createSession).mockResolvedValue(createdSession);
     const queryClient = new QueryClient({
@@ -269,9 +276,25 @@ describe("session actions", () => {
 
     expect(createSession).toHaveBeenCalledWith({ workspace: WORKSPACE_ID }, "default");
     expect(notifyUser).toHaveBeenCalledExactlyOnceWith({
-      message: "Created in default.",
+      message: "Session started in alpha · default",
       tone: "success",
     });
+  });
+
+  it("Should file the session into the picked profile instead of the acting one", async () => {
+    vi.mocked(createSession).mockResolvedValue(createdSession);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useCreateSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ workspace: WORKSPACE_ID, profile: "marketing" });
+    });
+
+    expect(createSession).toHaveBeenCalledWith({ workspace: WORKSPACE_ID }, "marketing");
   });
 
   it("useClearSessionConversation clears transcript caches optimistically without touching drafts", async () => {

@@ -14,6 +14,10 @@ export function normalizeSessionListFilters(filters: SessionListFilters = {}): S
     : { all_workspaces: true };
   const agent = normalizedText(filters.agent);
   const search = normalizedText(filters.q);
+  // The project filter narrows the aggregate only; sorted so equal filters share a key.
+  if (!workspaceId && filters.workspace_ids?.length) {
+    normalized.workspace_ids = [...new Set(filters.workspace_ids)].sort();
+  }
   // Server-side scoping: a worktree selection filters on the bound worktree id
   // rather than trimming a loaded page client-side.
   const worktree = normalizedText(filters.worktree);

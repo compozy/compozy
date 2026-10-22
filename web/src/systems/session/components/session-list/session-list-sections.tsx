@@ -47,7 +47,8 @@ export interface SessionListSectionsProps {
   onSelectSession: (session: SessionPayload) => void;
   onNewSessionInFolder?: (folderId: string) => void;
   onFolderDialog: (state: SessionFolderDialogState) => void;
-  selection: SessionRowSelection;
+  /** Bulk selection; absent where the list is read-only (grouped lists). */
+  selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   emptyMessage: string;

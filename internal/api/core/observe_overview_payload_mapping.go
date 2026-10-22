@@ -53,6 +53,7 @@ func overviewAttentionPayload(attention observe.OverviewAttention) contract.Over
 			TaskID:         item.TaskID,
 			RunID:          item.RunID,
 			SessionID:      item.SessionID,
+			WorkspaceID:    item.WorkspaceID,
 			OccurredAt:     item.OccurredAt,
 			Actions:        append([]string(nil), item.Actions...),
 		})

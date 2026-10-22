@@ -82,7 +82,6 @@ function baseProps(): OsWorkspacesOverviewProps {
     onOpenChange: fn(),
     workspaces: THREE_WORKSPACES,
     activeWorkspaceId: COMPOZY.id,
-    scope: "workspace",
     onSelectWorkspace: fn(),
     onNewWorkspace: fn(),
     reducedMotion: true,
@@ -132,7 +131,7 @@ export const FocusNonCurrent: Story = {
   render: () => <OsWorkspacesOverview {...baseProps()} />,
 };
 
-/** Zero project workspaces: the one primary on this surface; Global caption. */
+/** Zero project workspaces: the one primary on this surface; User caption. */
 export const Empty: Story = {
   args: {},
   render: () => (
@@ -141,7 +140,6 @@ export const Empty: Story = {
       workspaces={[]}
       worktreesByWorkspace={{}}
       activeWorkspaceId={null}
-      scope="global"
     />
   ),
 };
@@ -174,10 +172,12 @@ export const ManyOverflow: Story = {
   ),
 };
 
-/** Global scope on: no tile is current and the notice line renders. */
-export const GlobalOn: Story = {
+/** No project focused (All projects or User): no tile is current. */
+export const NoProjectFocused: Story = {
   args: {},
-  render: () => <OsWorkspacesOverview {...baseProps()} scope="global" selectedWorktreeId={null} />,
+  render: () => (
+    <OsWorkspacesOverview {...baseProps()} activeWorkspaceId={null} selectedWorktreeId={null} />
+  ),
 };
 
 /** The dashed add tile focused: caption invites picking a project folder. */

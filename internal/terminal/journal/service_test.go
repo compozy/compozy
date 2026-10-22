@@ -23,6 +23,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -31,6 +33,93 @@ import (
 )
 
 func TestService(t *testing.T) {
+	t.Run("Should isolate User journals and artifacts by profile", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		service, _ := newJournalTestService(ctx, t)
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		for _, profileID := range []string{"profile-a", "profile-b"} {
+			row := terminalpkg.CommandRow{ID: "cmd-shared", ProfileID: profileID,
+				Actor:   terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: profileID},
+				Command: "echo " + profileID, Cwd: t.TempDir(), StartedAt: now}
+			if err := service.Record(ctx, "", row); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, profileID := range []string{"profile-a", "profile-b"} {
+			page, err := service.Query(
+				ctx,
+				workspaceaccess.UserSelector,
+				store.ReadScope{ProfileID: profileID},
+				terminalpkg.Query{},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(page.Entries) != 1 || page.Entries[0].Command != "echo "+profileID {
+				t.Fatalf("journal crossed profiles: %+v", page)
+			}
+		}
+		spill, err := service.WriteArtifact(
+			ctx,
+			"",
+			"profile-a",
+			"cmd-shared",
+			nil,
+			[]byte("user output"),
+			now.Add(time.Hour),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(spill.Path, filepath.Join("workspaces", "user-profile-a")) {
+			t.Fatalf("unexpected User artifact path: %s", spill.Path)
+		}
+		reader, err := service.Artifact(
+			ctx,
+			workspaceaccess.UserSelector,
+			store.ReadScope{ProfileID: "profile-a"},
+			spill.ArtifactID,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := io.ReadAll(reader)
+		closeErr := reader.Close()
+		if err != nil || closeErr != nil {
+			t.Fatalf("read artifact: %v, close: %v", err, closeErr)
+		}
+		if string(data) != "user output" {
+			t.Fatalf("artifact = %q", data)
+		}
+		if reader, err := service.Artifact(
+			ctx,
+			workspaceaccess.UserSelector,
+			store.ReadScope{ProfileID: "profile-b"},
+			spill.ArtifactID,
+		); err == nil {
+			if closeErr := reader.Close(); closeErr != nil {
+				t.Error(closeErr)
+			}
+			t.Fatal("foreign profile read User artifact")
+		}
+		if err := service.RemoveWorkspace(ctx, "user-profile-a"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(spill.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("removed artifact: %v", err)
+		}
+		page, err := service.Query(
+			ctx,
+			workspaceaccess.UserSelector,
+			store.ReadScope{ProfileID: "profile-b"},
+			terminalpkg.Query{},
+		)
+		if err != nil || len(page.Entries) != 1 {
+			t.Fatalf("other profile affected by removal: %+v, %v", page, err)
+		}
+	})
+
 	t.Run("Should fail closed when authenticated marker facts have no terminal lane", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

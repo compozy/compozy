@@ -20,14 +20,11 @@ export function DashboardWindow({ windowId }: { windowId: string }) {
     status: (
       <ConnectionIndicator data-testid="home-connection-indicator" status={connectionStatus} />
     ),
-    // Global scope has no project to start in, so the action stays disabled and
-    // says why (the shared shell control).
     actions: (
       <OsNewSessionButton
-        hasProject={hasActiveWorkspace}
+        canStart={hasActiveWorkspace}
         busy={isCreating}
         onNewSession={() => openForAgent("")}
-        disabledTestId="home-new-session-disabled"
       />
     ),
   });

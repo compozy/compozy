@@ -25,6 +25,7 @@ func scanAutomationJob(scanner rowScanner) (automation.Job, error) {
 		updatedAt   string
 	)
 	if err := scanner.Scan(
+		&job.GrantCeiling,
 		&job.ID,
 		&scope,
 		&job.Name,
@@ -101,6 +102,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		updatedAt        string
 	)
 	if err := scanner.Scan(
+		&trigger.GrantCeiling,
 		&trigger.ID,
 		&scope,
 		&trigger.Name,
@@ -176,6 +178,7 @@ func assignAutomationTriggerTimestamps(trigger *automation.Trigger, createdAt st
 
 func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 	var (
+		workspaceID   sql.NullString
 		run           automation.Run
 		jobID         sql.NullString
 		triggerID     sql.NullString
@@ -212,10 +215,14 @@ func scanAutomationRun(scanner rowScanner) (automation.Run, error) {
 		&deliveryErrAt,
 		&loopRunID,
 		&metadataRaw,
+		&workspaceID, &run.Attribution,
 	); err != nil {
 		return automation.Run{}, fmt.Errorf("store: scan automation run: %w", err)
 	}
 
+	if workspaceID.Valid {
+		run.WorkspaceID = new(workspaceID.String)
+	}
 	run.JobID = automationNullStringValue(jobID)
 	run.TriggerID = automationNullStringValue(triggerID)
 	run.SessionID = automationNullStringValue(sessionID)

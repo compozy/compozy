@@ -77,7 +77,7 @@ const hydrateAutomationJobCatalog = `-- name: HydrateAutomationJobCatalog :many
 WITH requested(job_id, ordinal) AS (
   SELECT CAST(value AS TEXT), CAST(key AS INTEGER) FROM json_each(?1)
 )
-SELECT j.id, j.scope, j.name, j.agent_name, j.workspace_id, j.prompt, j.schedule, j.task,
+SELECT j.grant_ceiling, j.profile_id, j.id, j.scope, j.name, j.agent_name, j.workspace_id, j.prompt, j.schedule, j.task,
   CASE WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE j.enabled END AS enabled,
   j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
@@ -89,6 +89,8 @@ ORDER BY requested.ordinal
 `
 
 type HydrateAutomationJobCatalogRow struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
+	ProfileID        string         `json:"profile_id"`
 	ID               string         `json:"id"`
 	Scope            string         `json:"scope"`
 	Name             string         `json:"name"`
@@ -120,6 +122,8 @@ func (q *Queries) HydrateAutomationJobCatalog(ctx context.Context, idsJson any) 
 	for rows.Next() {
 		var i HydrateAutomationJobCatalogRow
 		if err := rows.Scan(
+			&i.GrantCeiling,
+			&i.ProfileID,
 			&i.ID,
 			&i.Scope,
 			&i.Name,
@@ -157,7 +161,7 @@ const hydrateAutomationTriggerCatalog = `-- name: HydrateAutomationTriggerCatalo
 WITH requested(trigger_id, ordinal) AS (
   SELECT CAST(value AS TEXT), CAST(key AS INTEGER) FROM json_each(?1)
 )
-SELECT t.id, t.scope, t.name, t.agent_name, t.workspace_id, t.prompt, t.event, t.filter,
+SELECT t.grant_ceiling, t.profile_id, t.id, t.scope, t.name, t.agent_name, t.workspace_id, t.prompt, t.event, t.filter,
   CASE WHEN t.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
@@ -170,6 +174,8 @@ ORDER BY requested.ordinal
 `
 
 type HydrateAutomationTriggerCatalogRow struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
+	ProfileID        string         `json:"profile_id"`
 	ID               string         `json:"id"`
 	Scope            string         `json:"scope"`
 	Name             string         `json:"name"`
@@ -204,6 +210,8 @@ func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson a
 	for rows.Next() {
 		var i HydrateAutomationTriggerCatalogRow
 		if err := rows.Scan(
+			&i.GrantCeiling,
+			&i.ProfileID,
 			&i.ID,
 			&i.Scope,
 			&i.Name,

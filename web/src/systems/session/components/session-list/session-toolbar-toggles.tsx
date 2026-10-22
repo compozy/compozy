@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Archive, Globe, type LucideIcon } from "lucide-react";
+import { Archive, type LucideIcon } from "lucide-react";
 
 import { Icon, Toggle, Tooltip, TooltipContent, TooltipTrigger, cn } from "@compozy/ui";
 
-import { SESSION_ARCHIVED_COPY, SESSION_SCOPE_COPY } from "../../lib/session-toolbar-copy";
+import { SESSION_ARCHIVED_COPY } from "../../lib/session-toolbar-copy";
 
 interface ToolbarToggleCopy {
   controlName: string;
@@ -24,8 +24,7 @@ interface ToolbarToggleProps {
 }
 
 /**
- * Deliberately the same globe-shaped control as the menubar scope toggle, so
- * one icon button in this row always means one mode.
+ * One icon button in the list toolbar that always means one mode.
  *
  * Busy is `aria-disabled` rather than `disabled` so the control keeps focus and
  * its tooltip while a write is in flight.
@@ -76,34 +75,6 @@ function ToolbarToggle({ copy, icon, on, busy, onChange, slot, testId }: Toolbar
         {announcement}
       </span>
     </span>
-  );
-}
-
-export interface SessionScopeToggleProps {
-  allWorkspaces: boolean;
-  /** True while the daemon has not acknowledged the scope write yet. */
-  busy?: boolean;
-  onAllWorkspacesChange: (allWorkspaces: boolean) => void;
-  testId: string;
-}
-
-/** Session-list breadth: this workspace, or every workspace. */
-export function SessionScopeToggle({
-  allWorkspaces,
-  busy = false,
-  onAllWorkspacesChange,
-  testId,
-}: SessionScopeToggleProps) {
-  return (
-    <ToolbarToggle
-      copy={SESSION_SCOPE_COPY}
-      icon={Globe}
-      on={allWorkspaces}
-      busy={busy}
-      onChange={onAllWorkspacesChange}
-      slot="session-scope-toggle"
-      testId={testId}
-    />
   );
 }
 

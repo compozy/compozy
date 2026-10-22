@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -262,9 +263,10 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 }
 
 type loopCatalogRunReaderStub struct {
-	calls     int
-	query     looppkg.CatalogRunQuery
-	summaries map[string]looppkg.CatalogRunSummary
+	byWorkspace map[string]map[string]looppkg.CatalogRunSummary
+	calls       int
+	query       looppkg.CatalogRunQuery
+	summaries   map[string]looppkg.CatalogRunSummary
 }
 
 type loopProfileNameResolverStub map[string]string
@@ -283,6 +285,9 @@ func (s *loopCatalogRunReaderStub) ListLoopCatalogRunSummaries(
 ) (map[string]looppkg.CatalogRunSummary, error) {
 	s.calls++
 	s.query = query
+	if s.byWorkspace != nil {
+		return s.byWorkspace[string(query.WorkspaceID)], nil
+	}
 	return s.summaries, nil
 }
 
@@ -326,4 +331,122 @@ func loopCatalogSpecWithFile(
 		t.Fatalf("ParseResourceFile() error = %v", err)
 	}
 	return spec
+}
+
+func TestDaemonLoopCatalogAggregate(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain User rows with zero projects and bound definition hydration", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		records := make([]resources.Record[looppkg.ResourceSpec], 0, 201)
+		dir := t.TempDir()
+		for index := range 201 {
+			name := fmt.Sprintf("loop-%03d", index)
+			records = append(
+				records,
+				resources.Record[looppkg.ResourceSpec]{
+					ID:    name,
+					Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+					Spec:  loopCatalogSpecWithFile(t, dir, name, looppkg.SourceUser),
+				},
+			)
+		}
+		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
+		catalog.Replace(1, records)
+		service := &daemonLoopAPIService{
+			catalog:           catalog,
+			catalogRuns:       &loopCatalogRunReaderStub{},
+			workspaceResolver: resolver,
+			now:               func() time.Time { return time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC) },
+		}
+		response, err := service.ListLoops(
+			t.Context(),
+			"",
+			looppkg.CatalogQuery{AllWorkspaces: true, ProfileID: store.DefaultProfileID},
+		)
+		if err != nil || response.Aggregate == nil {
+			t.Fatalf("batch = %+v, %v", response, err)
+		}
+		batch := response.Aggregate
+		if len(batch.Entries) != 200 || !batch.Truncated || len(batch.Errors) != 0 {
+			t.Fatalf("batch bounds = %d, %+v", len(batch.Entries), batch.Errors)
+		}
+		for _, row := range batch.Entries {
+			if row.WorkspaceID != "" || row.Source.Layer != "user" {
+				t.Fatalf("User row = %+v", row)
+			}
+		}
+	})
+	t.Run("Should attribute inherited and overridden definitions once and isolate broken projects", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		db := openDaemonTestGlobalDB(t)
+		for _, id := range []string{"ws-a", "ws-b", "ws-broken"} {
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{ID: id, Name: id, RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		resolver, err := workspacepkg.NewResolver(db, workspacepkg.WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		user := loopCatalogSpecWithFile(t, t.TempDir(), "triage", looppkg.SourceUser)
+		override := loopCatalogSpecWithFile(t, t.TempDir(), "triage", looppkg.SourceWorkspace)
+		broken := loopCatalogSpecWithFile(t, t.TempDir(), "broken", looppkg.SourceWorkspace)
+		if err := os.WriteFile(broken.FilePath, []byte("broken: ["), 0600); err != nil {
+			t.Fatal(err)
+		}
+		catalog := newResourceCatalog(looppkg.CloneResourceSpec)
+		catalog.Replace(1, []resources.Record[looppkg.ResourceSpec]{
+			{ID: "user", Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser}, Spec: user},
+			{
+				ID:    "override",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-a"},
+				Spec:  override,
+			},
+			{
+				ID:    "broken",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-broken"},
+				Spec:  broken,
+			},
+		})
+		reader := &loopCatalogRunReaderStub{byWorkspace: map[string]map[string]looppkg.CatalogRunSummary{
+			"":     {"triage": {LoopName: "triage", Aggregate30d: looppkg.CatalogRunAggregate{Runs: 1}}},
+			"ws-a": {"triage": {LoopName: "triage", Aggregate30d: looppkg.CatalogRunAggregate{Runs: 2}}},
+			"ws-b": {"triage": {LoopName: "triage", Aggregate30d: looppkg.CatalogRunAggregate{Runs: 3}}},
+		}}
+		service := &daemonLoopAPIService{
+			catalog:           catalog,
+			catalogRuns:       reader,
+			workspaceResolver: resolver,
+			now:               func() time.Time { return now },
+		}
+		response, err := service.ListLoops(
+			t.Context(),
+			"",
+			looppkg.CatalogQuery{AllWorkspaces: true, ProfileID: store.DefaultProfileID},
+		)
+		if err != nil || response.Aggregate == nil {
+			t.Fatalf("batch = %+v, %v", response, err)
+		}
+		batch := response.Aggregate
+		if len(batch.Entries) != 3 || len(batch.Errors) != 1 || batch.Errors[0].WorkspaceID != "ws-broken" {
+			t.Fatalf("batch = %+v", batch)
+		}
+		for index, row := range batch.Entries {
+			if row.Aggregate30d.Runs != index+1 {
+				t.Fatalf("summary = %+v", row)
+			}
+		}
+		if batch.Entries[1].Source.Layer != "workspace" || batch.Entries[2].Source.Layer != "user" {
+			t.Fatalf("layers = %+v", batch.Entries)
+		}
+	})
 }

@@ -2,7 +2,7 @@ import { useLoopRunOwner } from "./use-loop-run-owner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { amendLoopNode, respondLoopRequest } from "../adapters/loops-api";
-import { loopsKeys } from "../lib/query-keys";
+import { LOOP_AGGREGATE_KEY, loopsKeys } from "../lib/query-keys";
 import type { LoopAmendRequest, LoopRespondRequest } from "../types";
 
 type QueryClient = ReturnType<typeof useQueryClient>;
@@ -29,8 +29,10 @@ function invalidateRequestLifecycle(
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.requestsByWorkspace(LOOP_AGGREGATE_KEY) }),
   ]);
 }
 

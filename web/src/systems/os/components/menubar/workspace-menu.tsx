@@ -1,5 +1,5 @@
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Layers } from "lucide-react";
 
 import {
   Avatar,
@@ -13,12 +13,15 @@ import {
 } from "@compozy/ui";
 
 import {
+  DESTINATION_COPY,
   groupWorkspaceTree,
   WorkspaceWorkingDot,
   WorktreeAggregate,
   WorktreeSubmenuPanel,
   worktreeNestPresence,
   WORKTREE_SUBMENU_FRAME_CLASS,
+  type BreadthMode,
+  type Focus,
   type WorkspacePayload,
   type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
@@ -33,10 +36,13 @@ export interface WorkspaceMenuProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaces: WorkspacePayload[];
-  activeWorkspaceId: string | undefined;
-  globalScopeOn?: boolean;
+  /** All projects is checked while on; otherwise the focus is. */
+  breadthMode: BreadthMode;
+  focus: Focus;
   monogram: (name: string) => string;
   onSelectWorkspace: (workspaceId: string) => void;
+  onFocusUser?: () => void;
+  onEnableAllProjects?: () => void;
   /** Runs a registry command through the one dispatch seam. */
   onRun: (commandId: string) => void;
   onAddWorkspace: () => void;
@@ -81,16 +87,59 @@ function WorkspaceRowLabel({
   );
 }
 
-/** Workspace switcher: the bound set, then the overview and creation paths. */
+function ActiveCheck({ active }: { active: boolean }) {
+  return active ? <Check className="ml-auto size-3.5 text-accent" /> : null;
+}
+
+/** The All projects and User rows: destinations, never projects, with no worktree submenu. */
+function DestinationRows({
+  breadthMode,
+  focus,
+  onFocusUser,
+  onEnableAllProjects,
+}: Pick<WorkspaceMenuProps, "breadthMode" | "focus" | "onFocusUser" | "onEnableAllProjects">) {
+  return (
+    <>
+      <MenubarItem
+        data-testid="os-destination-all-projects"
+        onClick={() => onEnableAllProjects?.()}
+      >
+        <Avatar size="sm" className="size-5 shrink-0">
+          <AvatarFallback>
+            <Layers aria-hidden="true" className="size-3" />
+          </AvatarFallback>
+        </Avatar>
+        {DESTINATION_COPY.allProjects}
+        <ActiveCheck active={breadthMode === "all"} />
+      </MenubarItem>
+      <MenubarItem data-testid="os-destination-user" onClick={() => onFocusUser?.()}>
+        <Avatar size="sm" className="size-5 shrink-0">
+          <AvatarFallback className="text-badge font-semibold">
+            {DESTINATION_COPY.userMonogram}
+          </AvatarFallback>
+        </Avatar>
+        {DESTINATION_COPY.user}
+        <ActiveCheck active={breadthMode === "focused" && focus.kind === "user"} />
+      </MenubarItem>
+    </>
+  );
+}
+
+/**
+ * Destination switcher in order: All projects, User, then the projects (each
+ * with its worktrees), then the overview and creation paths.
+ */
 export function WorkspaceMenu({
   trigger,
   open,
   onOpenChange,
   workspaces,
-  activeWorkspaceId,
-  globalScopeOn = false,
+  breadthMode,
+  focus,
   monogram,
   onSelectWorkspace,
+  onFocusUser,
+  onEnableAllProjects,
   onRun,
   onAddWorkspace,
   worktreesByWorkspace,
@@ -105,9 +154,9 @@ export function WorkspaceMenu({
   onRemoveWorktrees,
   notice,
 }: WorkspaceMenuProps) {
-  const tree = worktreesByWorkspace
-    ? groupWorkspaceTree(workspaces, worktreesByWorkspace, userHomeDir)
-    : null;
+  const focusedProjectId =
+    breadthMode === "focused" && focus.kind === "project" ? focus.workspaceId : undefined;
+  const tree = worktreesByWorkspace ? groupWorkspaceTree(workspaces, worktreesByWorkspace) : null;
   const nodeByWorkspaceId = new Map(tree?.map(node => [node.workspace.id, node]) ?? []);
   const orderedWorkspaces = tree?.map(node => node.workspace) ?? workspaces;
 
@@ -130,6 +179,17 @@ export function WorkspaceMenu({
                 ]
               : []),
             {
+              id: "destinations",
+              content: (
+                <DestinationRows
+                  breadthMode={breadthMode}
+                  focus={focus}
+                  onFocusUser={onFocusUser}
+                  onEnableAllProjects={onEnableAllProjects}
+                />
+              ),
+            },
+            {
               id: "workspaces",
               content:
                 orderedWorkspaces.length > 0 ? (
@@ -141,7 +201,7 @@ export function WorkspaceMenu({
                       const presence = node
                         ? worktreeNestPresence(node, Boolean(onCreateWorktree))
                         : "absent";
-                      const isActive = !globalScopeOn && workspace.id === activeWorkspaceId;
+                      const isActive = workspace.id === focusedProjectId;
                       const rowLabel = (
                         <WorkspaceRowLabel
                           monogram={monogram(workspace.name)}
@@ -158,7 +218,7 @@ export function WorkspaceMenu({
                             onClick={() => onSelectWorkspace(workspace.id)}
                           >
                             {rowLabel}
-                            {isActive ? <Check className="ml-auto size-3.5 text-accent" /> : null}
+                            <ActiveCheck active={isActive} />
                           </MenubarItem>
                         );
                       }
@@ -190,7 +250,7 @@ export function WorkspaceMenu({
                             <WorktreeSubmenuPanel
                               node={node}
                               onRemoveWorktrees={onRemoveWorktrees}
-                              selectedWorktreeId={globalScopeOn ? null : selectedWorktreeId}
+                              selectedWorktreeId={isActive ? selectedWorktreeId : null}
                               testIdPrefix="os"
                               variant="menu"
                               userHomeDir={userHomeDir}

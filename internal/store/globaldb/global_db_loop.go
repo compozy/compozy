@@ -16,7 +16,7 @@ import (
 
 var _ looppkg.Store = (*LoopRepo)(nil)
 
-const loopRunSelectColumnsSQL = `
+const loopRunSelectColumnsSQL = `grant_ceiling,
 	id, profile_id, workspace_id, loop_name, status, historical, generation, reattempt_strategy, created_at, started_at,
 	last_progress_at, completed_at, definition_version, definition_digest, active_gate_id,
 	active_human_criteria_json, budget_approval_seq, start_metadata_json,
@@ -126,7 +126,7 @@ func applyLoopStartConcurrencyPolicy(
 	run looppkg.Run,
 	policy dsl.ConcurrencyPolicy,
 ) (looppkg.Run, error) {
-	active, err := findActiveLoopRunWithExecutor(ctx, exec, run.WorkspaceID, run.LoopName)
+	active, err := findActiveLoopRunWithExecutor(ctx, exec, run.WorkspaceID, run.ProfileID, run.LoopName)
 	if err != nil {
 		return looppkg.Run{}, err
 	}
@@ -231,22 +231,27 @@ func (g *LoopRepo) GetLoopRunByID(ctx context.Context, runID looppkg.RunID) (loo
 // FindActiveLoopRun returns the oldest live run for a workspace loop.
 func (g *LoopRepo) FindActiveLoopRun(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	loopName string,
 ) (*looppkg.Run, error) {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return nil, err
+	}
 	if err := g.checkReady(ctx, "find active loop run"); err != nil {
 		return nil, err
 	}
-	return findActiveLoopRunWithExecutor(ctx, g.db, ws, loopName)
+	return findActiveLoopRunWithExecutor(ctx, g.db, ws, profileID, loopName)
 }
 
 func findActiveLoopRunWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	ws looppkg.WorkspaceID,
+	profileID string,
 	loopName string,
 ) (*looppkg.Run, error) {
 	row, err := sqlcgen.New(exec).FindActiveLoopRun(ctx, sqlcgen.FindActiveLoopRunParams{
+		ProfileID:   profileID,
 		WorkspaceID: string(ws), LoopName: strings.TrimSpace(loopName),
 	})
 	if err != nil {
@@ -316,18 +321,18 @@ func (g *LoopRepo) CompareAndSwapLoopRunStatus(
 // UpsertLoopConfig persists a no-fork per-loop config override.
 func (g *LoopRepo) UpsertLoopConfig(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	loopName string,
 	cfg looppkg.LoopConfig,
 ) error {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return err
+	}
 	if err := g.checkReady(ctx, "upsert loop config"); err != nil {
 		return err
 	}
 	workspaceID := strings.TrimSpace(string(ws))
 	trimmedLoopName := strings.TrimSpace(loopName)
-	if workspaceID == "" {
-		return fmt.Errorf("%w: workspace_id is required", looppkg.ErrValidation)
-	}
 	if trimmedLoopName == "" {
 		return fmt.Errorf("%w: loop_name is required", looppkg.ErrValidation)
 	}
@@ -336,7 +341,7 @@ func (g *LoopRepo) UpsertLoopConfig(
 		return err
 	}
 	err = g.withImmediateTransaction(ctx, "upsert loop config", func(exec globalSQLExecutor) error {
-		return upsertLoopConfigWithExecutor(ctx, exec, workspaceID, trimmedLoopName, cfg, normalized)
+		return upsertLoopConfigWithExecutor(ctx, exec, workspaceID, profileID, trimmedLoopName, cfg, normalized)
 	})
 	if err != nil {
 		return fmt.Errorf("store: upsert loop config %q/%q: %w", workspaceID, trimmedLoopName, err)
@@ -347,13 +352,17 @@ func (g *LoopRepo) UpsertLoopConfig(
 // GetLoopConfig loads a no-fork per-loop config override.
 func (g *LoopRepo) GetLoopConfig(
 	ctx context.Context,
-	ws looppkg.WorkspaceID,
+	ws looppkg.WorkspaceID, profileID string,
 	loopName string,
 ) (*looppkg.LoopConfig, error) {
+	if err := validateLoopStateScope(ws, profileID); err != nil {
+		return nil, err
+	}
 	if err := g.checkReady(ctx, "get loop config"); err != nil {
 		return nil, err
 	}
 	row, err := g.queries.GetLoopConfig(ctx, sqlcgen.GetLoopConfigParams{
+		ProfileID:   loopStateProfileID(ws, profileID),
 		WorkspaceID: string(ws), LoopName: strings.TrimSpace(loopName),
 	})
 	if err != nil {

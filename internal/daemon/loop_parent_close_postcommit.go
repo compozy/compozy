@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -82,9 +81,6 @@ func parentCloseWorkspace(
 	run, err := api.persistence.GetLoopRunByID(ctx, looppkg.RunID(spec.ChildLoopRunID))
 	if err != nil {
 		return "", fmt.Errorf("load parent-close child %q: %w", spec.ChildLoopRunID, err)
-	}
-	if strings.TrimSpace(string(run.WorkspaceID)) == "" {
-		return "", fmt.Errorf("%w: parent-close child %q has no workspace", looppkg.ErrValidation, spec.ChildLoopRunID)
 	}
 	return run.WorkspaceID, nil
 }

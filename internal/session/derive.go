@@ -163,7 +163,7 @@ func (m *Manager) committedDeriveFailure(
 	// The request may already be canceled; the receipt lookup still answers it.
 	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
-	receipt, found, err := derivations.SessionDerivationReceipt(lookupCtx, spec.workspaceID, spec.key)
+	receipt, found, err := derivations.SessionDerivationReceipt(lookupCtx, spec.workspaceID, spec.key, spec.profileID)
 	if err != nil || !found || receipt.RequestFingerprint != spec.fingerprint {
 		return DeriveResult{}
 	}
@@ -176,7 +176,7 @@ func validateDeriveSpec(spec deriveSpec) error {
 		return fmt.Errorf("%w: source session id is required", ErrValidation)
 	case spec.key == "":
 		return fmt.Errorf("%w: idempotency key is required", ErrValidation)
-	case spec.workspaceID == "":
+	case spec.workspaceID == "" && spec.profileID == "":
 		return fmt.Errorf("%w: workspace id is required", ErrValidation)
 	}
 	fences := spec.fences
@@ -261,7 +261,8 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}
 	meta := &snapshot.meta
-	if strings.TrimSpace(meta.WorkspaceID) != spec.workspaceID {
+	if strings.TrimSpace(meta.WorkspaceID) != spec.workspaceID ||
+		(spec.workspaceID == "" && meta.ProfileID != spec.profileID) {
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}
 	lineage := store.NormalizeSessionLineage(meta.ID, meta.Lineage)

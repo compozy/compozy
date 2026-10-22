@@ -203,6 +203,25 @@ boot, drops the removed windows from their participant slots, and logs
 form. A layout document passed to `compozy layout apply` must carry the current snapshot `version`,
 which is `4`.
 
+## All projects and User desktops
+
+Besides one topology per project, each profile has two reserved desktops:
+
+| Partition | Shown when                                                  | Address it with                                                               | Who may change it                                                |
+| --------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `global`  | The topbar globe is on ([All projects](/docs/all-projects)) | `/api/workspaces/global/window-manager`, `workspace: "global"` (native tools) | You only. Every agent is refused, including unrestricted ones.   |
+| `user`    | **User** is focused ([User scope](/docs/user-scope))        | `--workspace @user`, `workspace: "@user"`                                     | You, and agents with the unrestricted grant of the same profile. |
+
+A window remembers which data it shows through `route.search.workspace`: a project ID, `@user`, or
+nothing. A remembered value always wins. Without one, a window on `global` shows every project, a
+window on a project desktop shows that project, and a window on `user` shows User. On `global`, open,
+navigate, reopen, and layout apply refuse a value that is neither `@user` nor a registered project
+with `window_binding_invalid`. Saved layouts always load, even when a remembered project is gone.
+
+When a session is deleted, every desktop of every profile drops it: its windows move to the empty
+sessions view and it leaves closed-window, navigation, and undo history. When a project is removed,
+windows bound to it fall back to their app's list, and nothing can bring the binding back.
+
 ## Agent and transport access
 
 The lazy `compozy__window_manager` toolset exposes 26 desktop, window, and layout tools with structured

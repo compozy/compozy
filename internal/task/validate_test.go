@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	storepkg "github.com/compozy/compozy/internal/store"
 )
 
@@ -1877,4 +1879,33 @@ func TestAdditionalBranchCoverage(t *testing.T) {
 			t.Fatalf("nestedPath('root', '') = %q, want root", got)
 		}
 	})
+}
+
+func TestUserScopeAliases(t *testing.T) {
+	t.Parallel()
+	for _, raw := range []string{"user", workspaceaccess.UserSelector, "global"} {
+		t.Run("Should normalize "+raw+" to stored global scope", func(t *testing.T) {
+			t.Parallel()
+			if got := Scope(raw).Normalize(); got != ScopeGlobal {
+				t.Fatalf("scope = %q", got)
+			}
+			if got := CatalogScope(raw).Normalize(); got != CatalogScopeGlobal {
+				t.Fatalf("catalog scope = %q", got)
+			}
+			if err := ValidateScopeBinding(Scope(raw), "", "task", "workspace_id"); err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateScopeBinding(
+				Scope(raw),
+				"ws-other",
+				"task",
+				"workspace_id",
+			); !errors.Is(
+				err,
+				ErrInvalidScopeBinding,
+			) {
+				t.Fatalf("binding error = %v", err)
+			}
+		})
+	}
 }

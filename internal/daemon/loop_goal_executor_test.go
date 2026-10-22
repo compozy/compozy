@@ -10,6 +10,9 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	"github.com/compozy/compozy/internal/acp"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -53,7 +56,6 @@ func TestComposeLoopGoalExecutorShouldRegisterThroughParentActionBoundary(t *tes
 		runtime := newLoopGoalProductionRuntime(
 			store,
 			manager,
-			t.TempDir(),
 			&loopSessionPolicyGate{},
 			time.Now,
 			discardLogger(),
@@ -747,7 +749,7 @@ func (s *goalJudgeLoopStore) GetLoopRun(
 
 func (s *goalJudgeLoopStore) GetLoopDefinitionSnapshot(
 	context.Context,
-	looppkg.WorkspaceID,
+	looppkg.WorkspaceID, string,
 	string,
 ) (looppkg.DefinitionSnapshot, error) {
 	return s.snapshot, nil
@@ -976,6 +978,45 @@ func TestGoalToolProjectionRuntimeShouldInvalidateOnGoalPromptTransitions(t *tes
 		}
 		if undecorated := withGoalToolProjection(runtime, nil); undecorated != loopGoalBinderRuntime(runtime) {
 			t.Fatal("withGoalToolProjection(nil) wrapped the runtime, want it unchanged")
+		}
+	})
+}
+
+type loopPolicyUserResolver struct{ root string }
+
+func (r loopPolicyUserResolver) Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (r loopPolicyUserResolver) ResolveOrRegister(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (r loopPolicyUserResolver) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{
+		Scope:     workspacepkg.ScopeUser,
+		ProfileID: profileID,
+		RootDir:   r.root,
+		Agents: []compozyconfig.AgentDef{
+			{Name: "judge", Provider: "claude", Model: "sonnet", Prompt: "Judge the work."},
+		},
+	}, nil
+}
+
+func TestLoopSessionPolicyGateUserScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should leave the User work directory to session creation instead of a caller CWD", func(t *testing.T) {
+		t.Parallel()
+		gate := &loopSessionPolicyGate{workspaceResolver: loopPolicyUserResolver{root: t.TempDir()}}
+		opts := session.CreateOpts{Scope: workspacepkg.ScopeUser, ProfileID: "profile-a"}
+		if _, err := gate.applyResolved(t.Context(), &opts, "judge", nil); err != nil {
+			t.Fatalf("applyResolved(User) error = %v", err)
+		}
+		if opts.CWD != "" {
+			t.Fatalf("CreateOpts.CWD = %q, want empty: User sessions reject a caller directory", opts.CWD)
 		}
 	})
 }

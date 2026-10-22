@@ -2,7 +2,6 @@ import type { useWorkspacesSwitcher } from "@/systems/os/hooks/use-workspaces-sw
 import {
   worktreeNestPresence,
   type WorkspacePayload,
-  type WorkspaceScopeMode,
   type WorkspaceTreeNode,
   type WorktreeNestEntry,
 } from "@/systems/workspace";
@@ -58,7 +57,6 @@ export function buildWorkspacesWorktreeMenuModel(
 export function focusedWorkspacesMenu(
   switcher: Pick<ReturnType<typeof useWorkspacesSwitcher>, "focusedEntry" | "layer" | "menuIndex">,
   menuModelByKey: ReadonlyMap<string, OsWorkspacesWorktreeMenuModel | null>,
-  scope: WorkspaceScopeMode,
   activeWorkspaceId: string | null,
   readySelectedWorktreeKey: string | null
 ) {
@@ -67,7 +65,9 @@ export function focusedWorkspacesMenu(
   const menuModel = focusedMenuKey ? (menuModelByKey.get(focusedMenuKey) ?? null) : null;
   const menuNavRows = menuModel?.navRows ?? [];
   const scopedRowKey =
-    scope === "workspace" && focusedMenuKey === activeWorkspaceId ? readySelectedWorktreeKey : null;
+    activeWorkspaceId !== null && focusedMenuKey === activeWorkspaceId
+      ? readySelectedWorktreeKey
+      : null;
   const focusedRowKey =
     switcher.layer === "menu" ? (menuNavRows[switcher.menuIndex]?.key ?? null) : null;
   return { focusedEntry, menuModel, menuNavRows, scopedRowKey, focusedRowKey };

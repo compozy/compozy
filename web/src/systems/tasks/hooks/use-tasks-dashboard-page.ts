@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 
 import { useTaskDashboard } from "./use-task-dashboard";
-import type { TaskDashboardFilter } from "../types";
+import { schedulerBacklogScope, type ActiveTaskScopeFilter } from "../lib/workspace-scope";
 import {
   useDrainScheduler,
   usePauseScheduler,
@@ -10,13 +10,12 @@ import {
   useSchedulerStatus,
 } from "@/systems/scheduler";
 
-export function useTasksDashboardPage(filters: TaskDashboardFilter, enabled: boolean) {
-  const dashboardQuery = useTaskDashboard(filters, { enabled });
+export function useTasksDashboardPage(scope: ActiveTaskScopeFilter, enabled: boolean) {
+  const dashboardQuery = useTaskDashboard(scope, { enabled });
   const schedulerStatusQuery = useSchedulerStatus({ enabled });
   const schedulerBacklogFilters = {
-    scope: filters.scope,
+    ...schedulerBacklogScope(scope),
     limit: 5,
-    workspace: filters.workspace,
     include_paused: true,
   };
   const schedulerBacklogQuery = useSchedulerBacklog(schedulerBacklogFilters, { enabled });

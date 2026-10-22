@@ -7,12 +7,9 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnostics"
-
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-
 	"github.com/compozy/compozy/internal/store"
-
 	"github.com/compozy/compozy/internal/workref"
 )
 
@@ -26,19 +23,26 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 }
 
 func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.SessionPayload {
-	payload := contract.SessionPayload{}
+	scope := workspaceScopeValue
+	if info != nil && info.WorkspaceID == "" {
+		scope = userScopeValue
+	}
+	payload := contract.SessionPayload{
+		Scope: scope}
 	if info == nil {
 		return payload
 	}
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
-		Supervision: session.CloneSupervisionState(info.Supervision),
-		BusyInput:   info.BusyInput,
-		ID:          info.ID,
-		ProfileID:   strings.TrimSpace(info.ProfileID),
-		Name:        info.Name,
-		AgentName:   info.AgentName,
+		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
+		Scope:                    scope,
+		Supervision:              session.CloneSupervisionState(info.Supervision),
+		BusyInput:                info.BusyInput,
+		ID:                       info.ID,
+		ProfileID:                strings.TrimSpace(info.ProfileID),
+		Name:                     info.Name,
+		AgentName:                info.AgentName,
 		Runtime: contract.SessionRuntimePayload{
 			Status:            info.RuntimeStatus,
 			Transition:        info.RuntimeTransition,
@@ -95,6 +99,7 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 	state := session.State(strings.TrimSpace(info.State))
 	attention := info.AttentionSnapshot()
 	converted := &session.Info{
+		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
 		ID:                       strings.TrimSpace(info.ID),
 		ProfileID:                strings.TrimSpace(info.ProfileID),
 		Name:                     strings.TrimSpace(info.Name),

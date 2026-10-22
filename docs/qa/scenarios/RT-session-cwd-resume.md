@@ -25,3 +25,7 @@ Walk each listed public entry point, then reload and read the stored result inde
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+2026-10-21 User scope coverage:
+
+With zero registered projects, create a User session through `session new --user` or HTTP `scope: "user"`, prompt, restart, resume, and prompt again. Verify the configured User work directory and that no workspace was registered. Integration evidence: `TestManagerIntegrationUserLifecycle` covers immediate and accepted creation against real SQLite stores. A public provider walk remains required.

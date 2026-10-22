@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, Command, LayoutGrid } from "lucide-react";
+import { Bell, ChevronDown, Command, LayoutGrid, Layers } from "lucide-react";
 
 import {
   Avatar,
@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The desktop topbar: CompozyOS mark, Global globe toggle, workspace chip, app
+ * The desktop topbar: CompozyOS mark, All projects globe toggle, destination chip, app
  * menus, then the tray — desktop pager dots, All desktops, Provider usage, the
  * approvals bell, and the ⌘K palette button. Flat chrome on the rail surface across the full
  * window width with no bottom hairline: topbar and rail read as one surface
@@ -40,6 +40,8 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
    * the bar never advertises a scope that cannot run anything.
    */
   workspace: {
+    /** `all` draws the stacked mark in place of the monogram. */
+    kind?: "all" | "user" | "project";
     name: string;
     monogram: string;
     worktree?: string | null;
@@ -78,7 +80,7 @@ export interface OsMenuBarProps extends React.ComponentProps<"header"> {
   /** Renders the workspace chip inside its menu owner (shell wiring). */
   workspaceMenu?: (trigger: React.ReactNode) => React.ReactNode;
   /**
-   * Global-scope globe toggle. Lives between the mark and the workspace chip,
+   * All projects globe toggle. Lives between the mark and the destination chip,
    * outside `role="menubar"`, so compact chrome can hide app menus without
    * losing mark + toggle + chip.
    */
@@ -189,7 +191,11 @@ function WorkspaceChip({ workspace }: { workspace: OsMenuBarProps["workspace"] }
     <>
       <Avatar size="sm" className="size-5.5">
         <AvatarFallback className="bg-rail-selected text-badge font-semibold">
-          {workspace.monogram}
+          {workspace.kind === "all" ? (
+            <Icon as={Layers} aria-hidden="true" className="size-3" />
+          ) : (
+            workspace.monogram
+          )}
         </AvatarFallback>
       </Avatar>
       <span className="text-item-title font-medium text-fg">{workspace.name}</span>

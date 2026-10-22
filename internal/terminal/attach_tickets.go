@@ -41,6 +41,7 @@ func (m *Service) MintAttachTicket(
 	if err := requestContextError(ctx, "mint attach ticket"); err != nil {
 		return AttachTicket{}, err
 	}
+	binding.WorkspaceID = terminalWorkspaceID(binding.WorkspaceID)
 	if err := validateAttachTicketBinding(binding); err != nil {
 		return AttachTicket{}, err
 	}
@@ -104,7 +105,7 @@ func (m *Service) AttachWithTicket(
 	}
 	// Claim before attachment so a valid token remains single-use even when Handle or Attach fails.
 	// Callers must mint a new ticket after any post-claim failure.
-	ticket, err := m.tickets.claimStream(token, workspaceID, terminalID, mode, m.now())
+	ticket, err := m.tickets.claimStream(token, terminalWorkspaceID(workspaceID), terminalID, mode, m.now())
 	if err != nil {
 		return nil, nil, AttachTicket{}, err
 	}
@@ -133,7 +134,7 @@ func (m *Service) invalidateAttachTicketsOnClose(_ context.Context, event Event)
 }
 
 func validateAttachTicketBinding(binding AttachTicketBinding) error {
-	if strings.TrimSpace(binding.WorkspaceID) == "" || strings.TrimSpace(binding.ProfileID) == "" ||
+	if strings.TrimSpace(binding.ProfileID) == "" ||
 		strings.TrimSpace(string(binding.TerminalID)) == "" {
 		return newTerminalError(ErrorCodeTicketInvalid, "terminal attach ticket scope is incomplete", ErrTicketInvalid)
 	}

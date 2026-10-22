@@ -104,7 +104,7 @@ export function AutomationDetailHead({
   );
 }
 
-/** `Project **checkout-api**` or `Global`. */
+/** `Project **checkout-api**` or `User`. */
 function LocationText({ view }: { view: AutomationView }) {
   const { lead, name } = automationLocationSegments(view);
   return (

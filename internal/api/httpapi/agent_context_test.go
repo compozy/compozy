@@ -237,7 +237,7 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 				policyRequests = append(policyRequests, req)
 				if req.Actor.Kind != workspaceaccess.ActorAgentSession ||
 					req.Actor.WorkspaceID != sourceWorkspaceID ||
-					req.TargetWorkspaceID != targetWorkspaceID {
+					req.Target.WorkspaceID != targetWorkspaceID {
 					t.Fatalf("Authorize() request = %#v, want HTTP identity mapping", req)
 				}
 				return workspaceaccess.Decision{

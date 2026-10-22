@@ -293,7 +293,7 @@ func newExtensionKitAutomationManager(
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		}),
 		automationpkg.WithLogger(discardLogger()),
-		automationpkg.WithGlobalWorkspacePath(workspaceRoot),
+
 		automationpkg.WithResourceDefinitions(
 			jobStore,
 			triggerStore,

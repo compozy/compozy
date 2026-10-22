@@ -228,6 +228,8 @@ type RunOutcome struct {
 
 // RunPayload is a daemon API value.
 type RunPayload struct {
+	WorkspaceID     *string        `json:"workspace_id,omitempty"`
+	Attribution     string         `json:"attribution"`
 	ID              string         `json:"id"`
 	ProfileID       string         `json:"profile_id"`
 	ProfileName     string         `json:"profile_name"`
@@ -355,7 +357,8 @@ type RunWorktreeExitActionRequest struct {
 
 // RunsResponse is a daemon API value.
 type RunsResponse struct {
-	Runs []RunPayload `json:"runs"`
+	Page *CursorPagePayload `json:"page,omitempty"`
+	Runs []RunPayload       `json:"runs"`
 }
 
 // RuntimeActivityPayload is a daemon API value.
@@ -438,13 +441,3 @@ type RuntimeSpec struct {
 
 // ScheduleMode is a daemon API value.
 type ScheduleMode string
-
-// ScheduleSpec is a daemon API value.
-type ScheduleSpec struct {
-	Mode                ScheduleMode           `json:"mode"`
-	Expr                string                 `json:"expr,omitempty"`
-	Interval            string                 `json:"interval,omitempty"`
-	Time                string                 `json:"time,omitempty"`
-	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
-}

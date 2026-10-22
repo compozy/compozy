@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
+import type { LoopBreadthTarget } from "@/systems/workspace";
 import { loopCatalogFixtures } from "../../mocks/fixtures";
+import type { LoopAggregateBreadth } from "../../types";
 
 import {
   goalTurnsOptions,
@@ -14,7 +16,9 @@ import {
   loopRunBriefingOptions,
   loopRunRosterOptions,
   loopRunTimelineOptions,
+  loopRunsListOptions,
   loopRunsOptions,
+  loopsAggregateOptions,
   loopsCatalogOptions,
 } from "../query-options";
 
@@ -183,15 +187,50 @@ describe("loop query-options", () => {
     expect(loopRequestsOptions("ws_a", { state: "resolved" }).queryKey).toContain("resolved");
   });
 
-  it("Should key the bell cache exactly and disable it without a workspace", () => {
-    expect(loopRequestAttentionOptions("ws_a").queryKey).toEqual([
+  it("Should key the loops badge per breadth and profile and disable it without a workspace", () => {
+    const workspace = { kind: "workspace", workspaceId: "ws_a" } as const;
+    expect(loopRequestAttentionOptions(workspace, { profile: "default" }).queryKey).toEqual([
       "loops",
       "requests",
       "ws_a",
       "attention",
+      "",
+      "default",
     ]);
-    expect(loopRequestAttentionOptions("", true).enabled).toBe(false);
-    expect(loopRequestAttentionOptions("ws_a", true, false).refetchInterval).toBe(false);
+    const aggregate: LoopBreadthTarget = {
+      kind: "aggregate",
+      params: { all_workspaces: true, workspace_ids: ["ws_b", "@user"] },
+    };
+    expect(loopRequestAttentionOptions(aggregate, { all_profiles: true }).queryKey).toEqual([
+      "loops",
+      "requests",
+      "@all",
+      "attention",
+      "@user,ws_b",
+      "@all",
+    ]);
+    expect(
+      loopRequestAttentionOptions({ kind: "workspace", workspaceId: "" }, { profile: "default" })
+        .enabled
+    ).toBe(false);
+    expect(
+      loopRequestAttentionOptions(workspace, { profile: "default" }, true, false).refetchInterval
+    ).toBe(false);
+  });
+
+  it("Should key All projects runs and definitions apart from any workspace and by their filter", () => {
+    const params: LoopAggregateBreadth = { all_workspaces: true, workspace_ids: ["ws_b", "ws_a"] };
+    const runs = loopRunsListOptions({ kind: "aggregate", params }, { origin: "session" });
+    expect(runs.queryKey.slice(0, 3)).toEqual(["loops", "runs", "@all"]);
+    expect(runs.queryKey.at(-1)).toBe("ws_a,ws_b");
+    expect(runs.refetchInterval).toBe(15_000);
+    // A workspace target shares the workspace roster's cache entry exactly.
+    expect(loopRunsListOptions({ kind: "workspace", workspaceId: "ws_a" }).queryKey).toEqual(
+      loopRunsOptions("ws_a").queryKey
+    );
+    const catalog = loopsAggregateOptions(params, { q: " triage " });
+    expect(catalog.queryKey.slice(0, 4)).toEqual(["loops", "catalog", "@all", "triage"]);
+    expect(catalog.queryKey.at(-1)).toBe("ws_a,ws_b");
   });
 
   it("Should stop paging the request inventory when the daemon returns no cursor", () => {

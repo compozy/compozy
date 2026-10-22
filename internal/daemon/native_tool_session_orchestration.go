@@ -187,7 +187,7 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 	if err != nil {
 		return "", nil, nativeInputError(id, err)
 	}
-	info, err := n.nativeSessionInWorkspace(ctx, id, workspaceID, target)
+	info, err := n.nativeSessionInWorkspace(ctx, scope, id, workspaceID, target)
 	if err != nil {
 		if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok && toolErr != nil {
 			return "", nil, err

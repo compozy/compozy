@@ -14,14 +14,20 @@ import {
   automationsStartView,
   type AutomationDoes,
   type AutomationEditorSeed,
-  type AutomationScope,
   type AutomationSource,
   type AutomationsRouteSearch,
 } from "@/systems/automation";
 
 import { automationCreateSeedLogic } from "./automation-create-seed-store";
 import { type SettingsAutomationSection, useSettingsAutomation } from "@/systems/settings";
-import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+import {
+  automationBreadthParams,
+  breadthQuery,
+  toWorkspaceCommandSelectOptions,
+  useActiveWorkspace,
+  useProjectFilter,
+  useWindowDataWorkspace,
+} from "@/systems/workspace";
 
 const UNAVAILABLE_OFF =
   "Automations are turned off. Turn on automations in Settings, then restart CompozyOS.";
@@ -46,11 +52,11 @@ export function useAutomationCreateSeedStore() {
 }
 
 /**
- * Opens the editor for a `?create=1|loop` deep link once the project or Global
+ * Opens the editor for a `?create=1|loop` deep link once the project or User
  * lens is resolved (the draft binds its location). The params stay while the
  * editor is open — a late or repeated mount opens it again — and leave the
  * URL when the operator closes it. A Loop seed needs a project, since the
- * Loop lives in one: in Global it says so and strips the params.
+ * Loop lives in one: without a project it says so and strips the params.
  */
 export function useAutomationCreateSeed(
   store: ReturnType<typeof useAutomationCreateSeedStore>,
@@ -92,10 +98,18 @@ export function useAutomationCreateSeed(
  * URL-driven listing state for `/automations`: Start view, search, facets and
  * display mode, plus the active workspace and the runtime health gate. The
  * list filters never carry `start`; a Start view only decides which list loads.
+ * The window's data scope decides breadth: a project lists only its own
+ * automations (8A), User only those without a project, and All projects every
+ * one, narrowed by the transient Project filter.
  */
 export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
   const navigate = useNavigate();
   const { activeWorkspace, activeWorkspaceId, pending, workspaces } = useActiveWorkspace();
+  const dataScope = useWindowDataWorkspace();
+  const projectFilter = useProjectFilter(dataScope, workspaces);
+  const breadth = dataScope
+    ? automationBreadthParams(breadthQuery(dataScope, projectFilter.values))
+    : null;
   const settingsQuery = useSettingsAutomation();
 
   const start = automationsStartView(search) ?? null;
@@ -119,19 +133,18 @@ export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
     enabled: search.enabled,
     loop: automationListLoopFilter(search),
     q: committedSearchQuery,
-    scope: search.scope,
     source: search.source,
     target: search.target,
-    workspace_id: search.scope === "workspace" ? (activeWorkspaceId ?? undefined) : undefined,
+    ...breadth,
   };
 
   const clearFilters = () => {
     searchInput.reset("");
+    projectFilter.setValues([]);
     updateSearch({
       enabled: undefined,
       loop: search.create === "loop" ? search.loop : undefined,
       q: undefined,
-      scope: undefined,
       source: undefined,
       start: undefined,
       target: undefined,
@@ -141,21 +154,28 @@ export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
   return {
     activeWorkspace,
     activeWorkspaceId,
-    /** The project or Global lens is known (no longer loading). */
+    /** What this window lists; `null` while the destination is unsettled (lists stay idle). */
+    dataScope,
+    /** The project, User, or All projects lens is known (no longer loading). */
     workspaceResolved: !pending,
     automationRuntime: settingsQuery.data?.runtime ?? null,
     /** The global automation time zone every listing sentence reads in. */
     timeZone: settingsQuery.data?.config?.timezone?.trim() || undefined,
     clearFilters,
     enabledFilter: search.enabled ?? null,
-    hasActiveFilters: automationRouteHasActiveFilters({ ...search, q: searchInput.draftValue }),
+    hasActiveFilters:
+      automationRouteHasActiveFilters({ ...search, q: searchInput.draftValue }) ||
+      projectFilter.values.length > 0,
     listFilters,
+    listsEnabled: breadth !== null,
     loopFilter: automationListLoopFilter(search) ?? null,
-    scopeFilter: search.scope ?? null,
+    projectFilter: projectFilter.values,
+    /** The shared Project filter field; only under All projects. */
+    projectFilterField: projectFilter.field,
     searchQuery: searchInput.draftValue,
     setEnabledFilter: (enabled: boolean | null) => updateSearch({ enabled: enabled ?? undefined }),
     setLoopFilter: (loop: string | null) => updateSearch({ loop: loop ?? undefined }),
-    setScopeFilter: (scope: AutomationScope | null) => updateSearch({ scope: scope ?? undefined }),
+    setProjectFilter: projectFilter.setValues,
     setSearchQuery: searchInput.setDraftValue,
     setSourceFilter: (source: AutomationSource | null) =>
       updateSearch({ source: source ?? undefined }),

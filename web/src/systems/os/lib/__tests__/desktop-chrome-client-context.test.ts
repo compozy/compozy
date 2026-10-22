@@ -1,5 +1,6 @@
 // Suite: live palette client context
-// Invariant: chrome publishes the current scope, focused session, destination
+// Invariant: chrome publishes the current breadth (All projects on → `scope.global`), focused
+// session, destination
 // route, and a fail-closed trust echo instead of the registration snapshot.
 // Owning layer: unit — the chrome context helper.
 import { describe, expect, it } from "vitest";
@@ -14,7 +15,7 @@ describe("resolveLivePaletteClientContext", () => {
   it("Should publish live shell fields and fail closed when trust is unknown", () => {
     expect(
       resolveLivePaletteClientContext({
-        scope: "global",
+        breadthMode: "all",
         focusedSessionState: "waiting-for-input",
         registeredWorkspaceTrusted: undefined,
         destinationRoute: { pathname: "/tasks", search: { query: "review" } },
@@ -32,13 +33,25 @@ describe("resolveLivePaletteClientContext", () => {
   it("Should echo the registered trust bit when the daemon already supplied one", () => {
     expect(
       resolveLivePaletteClientContext({
-        scope: "workspace",
+        breadthMode: "focused",
         focusedSessionState: null,
         registeredWorkspaceTrusted: true,
         destinationRoute: null,
         globalShortcuts: [],
       }).workspaceTrusted
     ).toBe(true);
+  });
+
+  it("Should report All projects off while a project or User is focused", () => {
+    expect(
+      resolveLivePaletteClientContext({
+        breadthMode: "focused",
+        focusedSessionState: null,
+        registeredWorkspaceTrusted: undefined,
+        destinationRoute: null,
+        globalShortcuts: [],
+      }).scopeGlobal
+    ).toBe(false);
   });
 });
 

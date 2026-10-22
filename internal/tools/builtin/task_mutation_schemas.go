@@ -15,7 +15,10 @@ const taskCreateInputSchema = `{
 	"properties":{
 		"id":{"type":"string"},
 		"identifier":{"type":"string"},
-		"scope":{"type":"string"},
+		"scope":{
+			"type":"string",
+			"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
+		},
 		"workspace":{"type":"string"},
 		"title":{"type":"string"},
 		"description":{"type":"string"},
@@ -37,7 +40,10 @@ const taskChildCreateInputSchema = `{
 		"parent_task_id":{"type":"string"},
 		"id":{"type":"string"},
 		"identifier":{"type":"string"},
-		"scope":{"type":"string"},
+		"scope":{
+			"type":"string",
+			"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
+		},
 		"workspace":{"type":"string"},
 		"title":{"type":"string"},
 		"description":{"type":"string"},

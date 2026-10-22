@@ -23,7 +23,14 @@ import { sessionRuntime } from "./runtime-fixture";
 
 export { sessionRuntime } from "./runtime-fixture";
 
-type SessionFixtureInput = Omit<SessionPayload, "pending_interactions" | "supervision"> & {
+type SessionFixtureInput = Omit<
+  SessionPayload,
+  "pending_interactions" | "supervision" | "scope" | "effective_workspace_access"
+> & {
+  /** Defaults from `workspace_id`: empty is a User session. */
+  scope?: SessionPayload["scope"];
+  /** Defaults to `""`: fixture agents carry no grant. */
+  effective_workspace_access?: SessionPayload["effective_workspace_access"];
   pending_interactions?: SessionPayload["pending_interactions"];
   /** Defaults to `null`: supervision has not inspected the fixture session yet. */
   supervision?: SessionPayload["supervision"];
@@ -270,6 +277,8 @@ const sessionFixtureRows: SessionFixtureInput[] = [
 
 export const sessionFixtures: SessionPayload[] = sessionFixtureRows.map(session => ({
   ...session,
+  scope: session.scope ?? (session.workspace_id ? "workspace" : "user"),
+  effective_workspace_access: session.effective_workspace_access ?? "",
   pending_interactions: session.pending_interactions ?? [],
   supervision: session.supervision ?? null,
 }));

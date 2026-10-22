@@ -128,7 +128,6 @@ func (d *Daemon) newBootTaskRuntimeParts(
 func (d *Daemon) newBootTaskSessionBridge(state *bootState) (*taskSessionBridge, error) {
 	return newTaskSessionBridge(
 		state.sessions,
-		d.homePaths.HomeDir,
 		state.logger,
 		withTaskSessionContextOverlay(state.situationContext),
 		withTaskSessionWorktrees(executionWorktreesForState(state)),

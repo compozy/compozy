@@ -222,6 +222,7 @@ export const automationStoryRuns: AutomationRun[] = [
     ? [
         {
           ...owner,
+          attribution: "recorded",
           ...ownerId,
           id: item.last_run.id,
           status: item.last_run.status,

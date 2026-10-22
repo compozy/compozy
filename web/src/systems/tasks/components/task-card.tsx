@@ -17,6 +17,9 @@ import type { TaskListItem } from "../types";
 import { TaskLoopRow } from "./task-loop-row";
 import { TasksListRow } from "./tasks-list-row";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
+import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
+
+import { taskWindowBinding } from "../lib/task-detail-search";
 
 export interface TaskCardProps {
   task: TaskListItem;
@@ -26,10 +29,15 @@ export interface TaskCardProps {
    * from `task.owner`, which names the assignee — two different questions.
    */
   profileOwner?: ProfileOwner;
+  /**
+   * The task's project, supplied only under All projects (a mixed list). The
+   * row then opens the task in place, bound to that project.
+   */
+  projectBadge?: WorkspaceBadgeIdentity;
 }
 
 /** One record in the Tasks table: a work item, or a revealed Loop execution record. */
-export function TaskCard({ task, onOpenLoopRun, profileOwner }: TaskCardProps) {
+export function TaskCard({ task, onOpenLoopRun, profileOwner, projectBadge }: TaskCardProps) {
   // Loop execution records only reach the listing when the reveal filter is on,
   // and they read by their provenance rather than the work-item meta line.
   if (task.loop) {
@@ -38,23 +46,34 @@ export function TaskCard({ task, onOpenLoopRun, profileOwner }: TaskCardProps) {
         loop={task.loop}
         onOpenRun={onOpenLoopRun}
         profileOwner={profileOwner}
+        projectBadge={projectBadge}
         task={task}
       />
     );
   }
-  return <TaskWorkItemRow profileOwner={profileOwner} task={task} />;
+  return <TaskWorkItemRow profileOwner={profileOwner} projectBadge={projectBadge} task={task} />;
 }
 
 function TaskWorkItemRow({
   task,
   profileOwner,
+  projectBadge,
 }: {
   task: TaskListItem;
   profileOwner?: ProfileOwner;
+  projectBadge?: WorkspaceBadgeIdentity;
 }) {
   const meta = taskCardMetaModel(task);
   // `TasksListRow` joins meta children with separators; null slots drop out.
   const metaItems = [
+    projectBadge ? (
+      <WorkspaceBadge
+        className="max-w-40 shrink-[1000]"
+        data-testid={`task-card-project-${task.id}`}
+        identity={projectBadge}
+        key="project"
+      />
+    ) : null,
     taskHasApprovalPending(task) ? (
       <Pill data-testid={`task-card-approval-${task.id}`} key="approval" size="sm" tone="accent">
         {taskApprovalStateLabel(task.approval_state)}
@@ -104,7 +123,14 @@ function TaskWorkItemRow({
       data-status={task.status}
       data-testid={`task-card-${task.id}`}
       id={task.identifier ?? undefined}
-      link={<Link aria-label={`Open ${task.title}`} params={{ id: task.id }} to="/tasks/$id" />}
+      link={
+        <Link
+          aria-label={`Open ${task.title}`}
+          params={{ id: task.id }}
+          search={projectBadge ? taskWindowBinding(task.workspace_id) : undefined}
+          to="/tasks/$id"
+        />
+      }
       meta={metaItems.length > 0 ? metaItems : undefined}
       owner={<TaskOwnerChip task={task} />}
       priority={task.priority ? taskPriorityLabel(task.priority) : undefined}

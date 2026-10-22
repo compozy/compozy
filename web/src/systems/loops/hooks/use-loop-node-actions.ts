@@ -7,7 +7,7 @@ import {
   requeueLoopNode,
   resumeLoopNode,
 } from "../adapters/loops-api";
-import { loopsKeys } from "../lib/query-keys";
+import { LOOP_AGGREGATE_KEY, loopsKeys } from "../lib/query-keys";
 import type {
   LoopNodeMutationRequest,
   LoopNodePauseRequest,
@@ -54,6 +54,7 @@ function invalidateNodeLifecycle(
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: loopsKeys.runDetail(workspaceId, runId) }),
     queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(workspaceId) }),
+    queryClient.invalidateQueries({ queryKey: loopsKeys.runsByWorkspace(LOOP_AGGREGATE_KEY) }),
     queryClient.invalidateQueries({
       queryKey: loopsKeys.nodeInventoryByWorkspace(workspaceId),
     }),

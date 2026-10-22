@@ -1,5 +1,108 @@
 # Compozy Change Impact
 
+## User scope work — `user-scope-work`, 2026-10-21
+
+Owner: spec `.compozy/tasks/user-scope-work/` (prerequisite of `all-projects`), branch
+`feat/all-projects`, slices U1–U5 + UW. Evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`.
+
+- **Native tools:** every `workspace` input parses `"@user"` before registry lookup (User scope of the
+  call's profile); WM/desktop/layout tools map it to the reserved `user` partition. User ↔ project and
+  same-workspace/other-profile requests are cross-scope and reach `workspaceaccess` (typed `TargetRef`
+  with kind `workspace|user|aggregate` and profile; no same-workspace shortcut across profiles).
+  Sessions with effective `workspace_access: unrestricted` pass workspace-axis checks, may pass
+  `profile`/`all_profiles`, and read aggregates (`requireOperatorOrGrantedAgent`); `global` and other
+  profiles' partitions, presence leases, and notification receipts stay operator-only.
+  `compozy__agent_create` and agent update tools reject setting/raising the grant
+  (`workspace_access_operator_only`). Native loop request reads carry the authenticated profile.
+- **Extensibility, hooks, config:** new `[user_scope] work_dir` (default `~`, profile overlay, `live`,
+  validated at use → `user_scope_work_dir_invalid`). New strict AGENT.md `workspace_access`
+  (`unrestricted`); marketplace/extension sources drop it (`workspace_access_untrusted_source`); older
+  daemons reject files using it. Hook payloads for User work carry empty `workspace_id` and session
+  `scope: "user"`; `tool.pre_call` still runs before the grant decision. No new hook events, extension
+  permissions, or tool IDs. App tokens never carry the grant.
+- **HTTP/UDS/CLI:** `@user` on route paths and selectors; `POST /api/sessions` `scope: "user"`
+  (`session_create_scope_conflict`); session payloads add `scope` and `effective_workspace_access`;
+  agent DTOs add `workspace_access`; errors `user_scope_unsupported`, `user_scope_worktree_unsupported`,
+  `workspace_name_reserved`, `workspace_reserved`; `workspace_home_forbidden` extended to
+  `COMPOZY_HOME`. CLI `--workspace @user` everywhere, `compozy session new --user`, `agent info` prints
+  `workspace_access`. OpenAPI, TS/Go SDKs, and CLI reference pages regenerated.
+- **Workspace data isolation and user state:** User is per profile and never a `workspaces` row; every
+  User read filters `workspace_id ''` (or `NULL`) **and** `profile_id`; watch events compare exactly.
+  Migrations: `00145` rebuilds `loop_config`, `loop_definition_snapshots`, `loop_ui_annotations`, and
+  admission claims with `profile_id`; `00147` relaxes the session-folder/derivation owners for User;
+  `00150` adds `sessions.effective_workspace_access` and `grant_ceiling` on tasks, automation
+  jobs/triggers, and Loop runs (empty for existing rows); `00151` + `00152_user_scope_data.sql`
+  (hand-written data migration) add `user_scope_migrations`, `user_scope_migration_archive`,
+  `workspace_name_aliases`, rebuild `attention_workspace_mutes` and `tool_approval_pending` for User
+  owners, re-key the `COMPOZY_HOME` pseudo-workspace into User per profile, merge
+  usage/cursor/palette counters, archive collisions and workspace-only rows, and rename reserved
+  workspace names; workspacedb `00005` adds the journal `legacy_import` ledger. Boot reconciliation
+  copies journal rows and retained blobs (digest-verified, source kept as `.migrated`) and layouts
+  (existing User layout wins) before User writers start, then deletes the registration only after a
+  live schema reference scan. `keep_project` keeps worktree-bearing or Loop-target sources as
+  projects. Session DB owner stamps and v1 creation profiles are never rewritten (User sessions use
+  creation profile v2 with `@user`). `task_run_terminal_commands.workspace_id` stays `''` for User.
+  Automation run attribution re-keys to `''` and keeps `NULL` unknown. Grant ceilings survive re-key.
+- **Compatibility (SD-013):** reserved-name aliases resolve with a deprecation warning through v0.4.0,
+  removed v0.5.0; `global` on data selectors resolves only a migration-created alias. Stored/emitted
+  `"global"` values unchanged. Cross-workspace ADR-007 §1 superseded by USW ADR-003 for this one field
+  (glossary + official references). Internal delete targets: every `globalWorkspacePath` use,
+  `Request.TargetWorkspaceID`, the web `$HOME` binding and hidden-home partition.
+- **Official skill (`skills/compozy/`):** `runtime-operations.md` (User scope and All projects),
+  `native-tools.md` (Workspace Boundary `@user`, grant, WM partitions), `agent-definitions.md`
+  (Unrestricted Workspace Access + authority matrix), `configuration.md` (`[user_scope]`, migration),
+  `window-management.md` (Reserved Partitions); router row added in `SKILL.md`.
+- **Web/Docs:** User switcher destination and desktop, New session in User, Unrestricted badge, agent
+  editor Access field (UW). Site: `user-scope/` (overview, quickstart, unrestricted agents),
+  `configuration/agent-md` and `config-toml`, `sessions/permissions`, `workspaces/resolver`,
+  `workspaces/window-management`, `profiles/index`, migration guide; glossary entries User scope,
+  Unrestricted grant, amended Cross-workspace access and Profile; release note
+  `.release-notes/user-scope-work-*.md`.
+- **Fixed during docs lab run:** User session create (reply-watch sender listing) and CLI/HTTP
+  admitted prompts to User sessions failed; fixed in the docs slice with regression coverage.
+
+## All projects — `all-projects`, 2026-10-21
+
+Owner: spec `.compozy/tasks/all-projects/`, branch `feat/all-projects`, slices A1–A4 + AW1–AW4.
+Evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`.
+
+- **Native tools:** `compozy__window_*`, `compozy__desktop_*`, `compozy__layout_*` accept
+  `workspace: "global"` for the operator only (binder, before registry normalization); every agent
+  identity, including granted ones, is denied on `global`; other tools reject it. Window data binding
+  is `route.search.workspace`. Native list tools keep workspace pinning and gain no aggregate params;
+  aggregates are open only to operators and granted agents.
+- **Extensibility, hooks, config:** no new hook events; workspace-unregistration retirement publishes
+  on the existing workspace event channel. New `shell.sessions.group_by` (`none|project|profile`);
+  `shell.sessions.scope` stays functional as legacy breadth intent through v0.4.0 (write warnings,
+  `group_by` derived only while unset, `legacy_scope.revision` in `app_metadata`
+  `shell.sessions.scope_revision`) and is dropped tolerantly in v0.5.0. `manual` sort accepted.
+- **HTTP/UDS/CLI:** new app-denied operator aggregates `/api/loop-runs`, `/api/loop-requests`,
+  `/api/loops`, `/api/worktrees`, `/api/terminals` (+ `/catalog-stream`, local only),
+  `/api/automation/suggestions`, `/api/agents/aggregate`; `all_workspaces=true` + `workspace_ids` on
+  sessions, tasks, task dashboard, overview, automation jobs/triggers/runs (existing omission
+  populations, envelopes, and app access unchanged); errors `workspace_breadth_invalid`,
+  `workspace_reserved`, `window_binding_invalid`. DTOs add `RunPayload.workspace_id`/`attribution`,
+  `LoopRequestPayload.workspace_id`/`profile_id`, loop catalog `workspace_id` + `source.layer`, session
+  facets `by_profile`, `SettingsShellResponse.warnings`/`legacy_scope`. Bell `workspace_label`
+  `"Global"` → `"User"` (display string, changed without window). CLI `--all-workspaces` (exclusive
+  with `--workspace`) on loop runs/requests/list, task list, automation jobs/triggers/runs/suggestions,
+  worktree list, terminal list, agent list, with a `PROJECT` column.
+- **Workspace data isolation and user state:** aggregates keep the profile lens and listener tiers;
+  the needs-you bell stays operator-wide. Cursors embed breadth, filter, and profile. Migrations:
+  `00144` (`idx_tasks_profile`), `00146` (loop run/request indexes), `00148` +
+  `00149_automation_run_attribution.sql` (hand-written backfill from surviving definitions only;
+  unknown stays `NULL`). Command-time window binding validation in `global`; `ValidateSnapshot` stays
+  registry-free. Session deletion and workspace unregistration reconcile every partition of every
+  profile, including navigation, closed entries, and undo/redo. Client store
+  `compozy:active-workspace:v4` v1→v2 is owned by USW.
+- **Official skill (`skills/compozy/`):** `native-tools.md` (All-Projects Aggregates),
+  `runtime-operations.md`, `configuration.md` (`group_by`, `scope` deprecation),
+  `window-management.md` (Reserved Partitions).
+- **Web/Docs:** All projects mode, Group by, Project filter, composer pickers, project badges,
+  open-in-place (AW1–AW4). Site: `all-projects/` (overview, Web quickstart, CLI/HTTP scripts),
+  `config-toml` `[shell.sessions]`, generated CLI pages; glossary entries All projects and topbar;
+  release note `.release-notes/all-projects-*.md`; migration guide section.
+
 ## Session monitor visibility — 2026-10-21
 
 Owner: branch `feat/session-monitor-visibility`. Additive across every public surface (SD-013); no
@@ -4071,3 +4174,4 @@ Owner: `docs/research/desktop-update-flow/README.md`; branch `fix/desktop-update
   E2E-017 also induces a real filesystem cleanup failure and requires archived failure plus shell exit.
   Signed release delivery and upgrades from already shipped broken updater code remain distinct
   from local fixture evidence; the research report records these limits.
+

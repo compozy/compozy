@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { GLOBAL_SCOPE_COPY } from "@/systems/workspace";
+import { allProjectsTooltipOn, DESTINATION_COPY } from "@/systems/workspace";
 import { CenteredSurface } from "@/storybook/story-layout";
 
 import { GlobalScopeToggle } from "../global-scope-toggle";
@@ -14,7 +14,7 @@ const meta: Meta<typeof GlobalScopeToggle> = {
     docs: {
       description: {
         component:
-          "Menubar owner of Global vs workspace destination. Create dialogs read this mode; they never pick a destination themselves.",
+          "Menubar owner of breadth: pressed is All projects, unpressed is the focus (a project or User). Create dialogs read this mode; they never pick a destination themselves.",
       },
     },
   },
@@ -30,32 +30,42 @@ const meta: Meta<typeof GlobalScopeToggle> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Workspace-scoped: Global is off and the control can turn it on. */
+/** A project or User is focused: All projects is off and the control can turn it on. */
 export const Off: Story = {
   args: {
     checked: false,
     locked: false,
     onCheckedChange: fn(),
-    tooltip: GLOBAL_SCOPE_COPY.tooltipOff,
+    tooltip: DESTINATION_COPY.allProjects,
   },
 };
 
-/** Global is on; the tooltip names the workspace to return to. */
+/** All projects is on; the tooltip names the focus to return to. */
 export const On: Story = {
   args: {
     checked: true,
     locked: false,
     onCheckedChange: fn(),
-    tooltip: "Back to alpha",
+    tooltip: allProjectsTooltipOn("alpha"),
   },
 };
 
-/** No project workspace exists, so the globe toggle cannot leave Global. */
+/** All projects is on with User as the focus to return to (zero projects never lock it). */
+export const OnBackToUser: Story = {
+  args: {
+    checked: true,
+    locked: false,
+    onCheckedChange: fn(),
+    tooltip: allProjectsTooltipOn(DESTINATION_COPY.user),
+  },
+};
+
+/** Destination resolution is still pending, so the globe waits. */
 export const Locked: Story = {
   args: {
     checked: true,
     locked: true,
     onCheckedChange: fn(),
-    tooltip: GLOBAL_SCOPE_COPY.tooltipLocked,
+    tooltip: DESTINATION_COPY.allProjects,
   },
 };

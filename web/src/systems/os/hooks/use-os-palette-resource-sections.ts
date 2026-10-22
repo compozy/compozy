@@ -51,13 +51,15 @@ function useVaultSection(context: OsPaletteDomainContext) {
   );
 }
 
+/** Marketplace installs land in the focused project, or at the user layer outside one. */
 function useMarketplaceSection(context: OsPaletteDomainContext) {
   const enabled = paletteDomainEnabled(context, "Marketplace");
+  const projectId = context.scope.kind === "project" ? context.scope.workspaceId : null;
   const marketplace = useMarketplaceCatalog(
     {
       q: context.query,
       profileName: context.profile,
-      ...(context.scopedWorkspace ? { workspaceId: context.scopedWorkspace } : {}),
+      ...(projectId ? { workspaceId: projectId } : {}),
     },
     enabled
   );
@@ -70,21 +72,17 @@ function useMarketplaceSection(context: OsPaletteDomainContext) {
           key: `marketplace:${item.source_ref}:${item.entry_id}`,
           label: item.name,
           detail: item.description,
-          workspaceLabel: workspaceLabel(
-            context.scope,
-            context.scopedWorkspace,
-            context.workspaceNames
-          ),
+          workspaceLabel: workspaceLabel(context.scope, projectId, context.workspaceNames),
           app: "marketplace",
           route: marketplaceEntryRoute({
             source: item.source,
             profileName: context.profile,
             entryId: item.entry_id,
             scope: context.scope,
-            workspaceId: context.scopedWorkspace,
+            workspaceId: projectId,
             installedName: item.installed_name,
           }),
-          ...(context.scopedWorkspace ? { workspaceId: context.scopedWorkspace } : {}),
+          ...(projectId ? { workspaceId: projectId } : {}),
         })
       )
     ),
@@ -104,21 +102,22 @@ function useExtensionSection(
   catalogs: OsPaletteWorkspaceCatalogs
 ) {
   const enabled = paletteDomainEnabled(context, "Extensions");
-  const published = useExtensionInventory(enabled && context.scope === "workspace");
+  const all = context.scope.kind === "all";
+  // Outside All projects the inventory follows the destination: a project's, or User's.
+  const published = useExtensionInventory(enabled && !all);
   if (context.signals === null) return EMPTY_SECTION("Extensions");
-  const rows =
-    context.scope === "global"
-      ? [
-          ...catalogs.publishedExtensions.map(extension => ({
-            extension,
-            workspaceId: undefined,
-          })),
-          ...catalogs.workspaceExtensions,
-        ]
-      : (published.data ?? []).map(item => ({
-          extension: item.extension,
-          workspaceId: published.workspaceId ?? undefined,
-        }));
+  const rows = all
+    ? [
+        ...catalogs.publishedExtensions.map(extension => ({
+          extension,
+          workspaceId: undefined,
+        })),
+        ...catalogs.workspaceExtensions,
+      ]
+    : (published.data ?? []).map(item => ({
+        extension: item.extension,
+        workspaceId: published.workspaceId ?? undefined,
+      }));
   return section(
     "Extensions",
     rows.map(({ extension, workspaceId }) =>
@@ -132,23 +131,22 @@ function useExtensionSection(
           source: extension.marketplace?.source,
           profileName: context.profile,
           entryId: extension.marketplace?.entry_id ?? extension.name,
-          scope: workspaceId ? "workspace" : "global",
+          scope: workspaceId ? { kind: "project", workspaceId } : { kind: "user" },
           workspaceId,
           installedName: extension.name,
         }),
         ...(workspaceId ? { workspaceId } : {}),
       })
     ),
-    context.scope === "global" ? catalogs.workspaceExtensionState : published,
+    all ? catalogs.workspaceExtensionState : published,
     enabled,
     context.query,
     context.signals,
     {
       limit: context.domainLimit,
-      catalogTotal:
-        context.scope === "global"
-          ? catalogs.publishedExtensions.length + catalogs.workspaceExtensions.length
-          : published.data?.length,
+      catalogTotal: all
+        ? catalogs.publishedExtensions.length + catalogs.workspaceExtensions.length
+        : published.data?.length,
     }
   );
 }

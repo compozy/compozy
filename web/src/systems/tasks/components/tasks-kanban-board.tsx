@@ -5,8 +5,9 @@ import { Button, Empty, Skeleton, Spinner } from "@compozy/ui";
 import { TaskKanbanCard } from "./task-kanban-card";
 import { TaskKanbanColumn } from "./task-kanban-column";
 import { taskStatusFacetTotal, type KanbanColumnGroup } from "../lib/task-grouping";
-import type { TaskStatus } from "../types";
+import type { TaskListItem, TaskStatus } from "../types";
 import { type ProfileListingScope } from "@/systems/profiles";
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 const KANBAN_SKELETON_KEYS = ["a", "b", "c"] as const;
 
@@ -24,6 +25,8 @@ export interface TasksKanbanBoardProps {
   onLoadMore?: () => void;
   onRetryLoad?: () => void;
   profile?: ProfileListingScope;
+  /** Each card's project under All projects; absent while one scope is listed. */
+  projectBadgeOf?: (task: TaskListItem) => WorkspaceBadgeIdentity;
 }
 
 export function TasksKanbanBoard({
@@ -40,6 +43,7 @@ export function TasksKanbanBoard({
   onLoadMore,
   onRetryLoad,
   profile,
+  projectBadgeOf,
 }: TasksKanbanBoardProps) {
   const loadedTaskCount = columns.reduce((count, column) => count + column.tasks.length, 0);
   if (errorMessage && loadedTaskCount === 0) {
@@ -83,6 +87,7 @@ export function TasksKanbanBoard({
                     onRetry={onRetryTask}
                     onSelect={onSelectTask}
                     profileOwner={profile?.aggregate ? profile.ownerOf(task) : undefined}
+                    projectBadge={projectBadgeOf?.(task)}
                     selected={task.id === selectedTaskId}
                     task={task}
                   />

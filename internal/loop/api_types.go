@@ -15,6 +15,8 @@ var ErrInvalidRunListCursor = errors.New("invalid_cursor")
 // RunListQuery filters loop run listings within one explicit profile read
 // lens and workspace. AllProfiles is reserved for intentional aggregates.
 type RunListQuery struct {
+	AllWorkspaces    bool
+	WorkspaceIDs     []string
 	ReadScope        store.ReadScope
 	WorkspaceID      WorkspaceID
 	LoopName         string
@@ -109,8 +111,19 @@ type RunReader interface {
 
 // AnnotationStore persists workspace-scoped loop editor sidecars.
 type AnnotationStore interface {
-	ListLoopUIAnnotations(ctx context.Context, ws WorkspaceID, loopName string) ([]UIAnnotation, error)
-	ReplaceLoopUIAnnotations(ctx context.Context, ws WorkspaceID, loopName string, annotations []UIAnnotation) error
+	ListLoopUIAnnotations(
+		ctx context.Context,
+		ws WorkspaceID,
+		profileID string,
+		loopName string,
+	) ([]UIAnnotation, error)
+	ReplaceLoopUIAnnotations(
+		ctx context.Context,
+		ws WorkspaceID,
+		profileID string,
+		loopName string,
+		annotations []UIAnnotation,
+	) error
 }
 
 // DefinitionState contains mutable sidecars owned by one file-backed Loop definition.
@@ -121,10 +134,15 @@ type DefinitionState struct {
 
 // DefinitionStateStore owns atomic removal and restoration of definition sidecars.
 type DefinitionStateStore interface {
-	DeleteLoopDefinitionState(ctx context.Context, ws WorkspaceID, loopName string) (DefinitionState, error)
-	RestoreLoopDefinitionState(
+	DeleteLoopDefinitionState(
 		ctx context.Context,
 		ws WorkspaceID,
+		profileID string,
+		loopName string,
+	) (DefinitionState, error)
+	RestoreLoopDefinitionState(
+		ctx context.Context,
+		ws WorkspaceID, profileID string,
 		loopName string,
 		state DefinitionState,
 	) error

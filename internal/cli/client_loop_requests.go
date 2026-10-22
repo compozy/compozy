@@ -12,10 +12,11 @@ import (
 )
 
 type LoopRequestListQuery struct {
-	RunID  string
-	State  string
-	Cursor string
-	Limit  int
+	AllWorkspaces bool
+	RunID         string
+	State         string
+	Cursor        string
+	Limit         int
 }
 
 func (c *daemonClient) ListLoopRequests(
@@ -26,6 +27,10 @@ func (c *daemonClient) ListLoopRequests(
 	var response contract.LoopRequestsResponse
 	path := loopWorkspacePath(workspaceID) + "/loop-requests"
 	values := url.Values{}
+	if query.AllWorkspaces {
+		path = "/api/loop-requests"
+		values.Set("all_workspaces", "true")
+	}
 	setLoopListQueryValue(values, "run_id", query.RunID)
 	setLoopListQueryValue(values, "state", query.State)
 	setLoopListQueryValue(values, "cursor", query.Cursor)

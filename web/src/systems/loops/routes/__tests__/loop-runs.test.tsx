@@ -101,8 +101,10 @@ async function renderAttentionRoute(
       HttpResponse.json({
         available_scopes: ["user"],
         config: { sessions: { scope: "workspace", sort: "last_activity" } },
+        legacy_scope: { explicit: false, revision: 0, value: "workspace" },
         scope: "user",
         section: "shell",
+        warnings: [],
       })
     ),
     compozyApiMock.get("/api/workspaces/{workspace_id}/loop-nodes", () =>

@@ -99,8 +99,9 @@ func (r *CoordinatorRunner) applyTerminalNodeLifecycle(
 	}
 	defer r.discardTargetProbe(output.TaskRunID)
 	targetInput := ActionExecutionInput{
-		WorkspaceID: run.WorkspaceID,
-		ToolScope:   tools.Scope{ProfileID: strings.TrimSpace(run.ProfileID)},
+		GrantCeiling: run.GrantCeilingSnapshot(),
+		WorkspaceID:  run.WorkspaceID,
+		ToolScope:    tools.Scope{ProfileID: strings.TrimSpace(run.ProfileID)},
 	}
 	if r.targetHealth != nil {
 		namespace, err := runtimeNamespaceWithHistory(

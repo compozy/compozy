@@ -1,0 +1,142 @@
+---
+title: Read every project from the CLI and HTTP
+description: List sessions, Loops, Goals, tasks, automations, worktrees, terminals, and agents across every project with --all-workspaces and all_workspaces=true.
+---
+
+The Web app's All projects mode reads the same aggregates any script can. This page walks through the
+CLI first, then the HTTP/UDS form, with the output you should expect.
+
+Expect about ten minutes.
+
+## Before you start
+
+- The daemon is v0.4.0 or later, and you run commands as the operator (not from inside an agent
+  session). Agent sessions are refused with `agent_scope_denied` unless their agent holds the
+  [unrestricted grant](/docs/user-scope/unrestricted-agents).
+- Two projects are registered. The examples use `checkout-api` and `marketing-site`.
+
+## Step 1: One flag on every list
+
+Add `--all-workspaces` to a list command. It reads every registered project plus the User scope, for
+the profile you are acting as. It cannot be combined with `--workspace`.
+
+```bash
+compozy agent list --all-workspaces
+```
+
+```text
+agents
+======
+PROJECT         NAME              PROVIDER
+-------         ----              --------
+User            code_implementer
+marketing-site  code_implementer
+checkout-api    code_implementer
+User            general
+```
+
+Output trimmed. The `PROJECT` column names the project, `User` for the User scope, or `?` when a row's
+project is unknown. Session lists retain their existing Workspace and other columns and add Project
+under `--all-workspaces`. The same flag works on:
+
+```bash
+compozy session list --all-workspaces
+compozy task list --all-workspaces
+compozy loop list --all-workspaces
+compozy loop runs --all-workspaces
+compozy loop requests --all-workspaces
+compozy automation jobs --all-workspaces
+compozy automation triggers --all-workspaces
+compozy automation runs --all-workspaces
+compozy automation suggestions --all-workspaces
+compozy worktree list --all-workspaces
+compozy terminal list --all-workspaces
+```
+
+## Step 2: Find every running Goal
+
+Goals are Loop runs started from a session:
+
+```bash
+compozy loop runs --all-workspaces --origin session --status running -o json
+```
+
+JSON output keeps `workspace_id` on each run; User runs have it empty. Join project names from
+`compozy workspace list -o json` (or `GET /api/workspaces`).
+
+## Step 3: Use HTTP or UDS
+
+Every aggregate takes `all_workspaces=true`. Use the HTTP address from `compozy status`:
+
+```bash
+curl -s "http://localhost:2123/api/loop-runs?all_workspaces=true&origin=session&status=running"
+```
+
+New aggregate routes need the parameter. Without it you get:
+
+```json
+{ "error": "choose workspace_id or all_workspaces=true", "code": "workspace_breadth_invalid" }
+```
+
+| Read                            | Route                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| Sessions                        | `GET /api/sessions?all_workspaces=true`                                   |
+| Tasks                           | `GET /api/tasks?all_workspaces=true`                                      |
+| Task dashboard, Home            | `GET /api/observe/tasks/dashboard`, `GET /api/observe/overview`           |
+| Loop runs and Goals             | `GET /api/loop-runs?all_workspaces=true`                                  |
+| Loop requests                   | `GET /api/loop-requests?all_workspaces=true`                              |
+| Loop definitions                | `GET /api/loops?all_workspaces=true`                                      |
+| Automation jobs, triggers, runs | `GET /api/automation/jobs` (`/triggers`, `/runs`) `?all_workspaces=true`  |
+| Automation suggestions          | `GET /api/automation/suggestions?all_workspaces=true`                     |
+| Worktrees                       | `GET /api/worktrees?all_workspaces=true`                                  |
+| Terminals (local only)          | `GET /api/terminals?all_workspaces=true`, `/api/terminals/catalog-stream` |
+| Agents                          | `GET /api/agents/aggregate?all_workspaces=true`                           |
+
+## Step 4: Narrow to some projects
+
+Repeat `workspace_ids` to keep only some projects. `@user` keeps User rows:
+
+```bash
+curl -s "http://localhost:2123/api/tasks?all_workspaces=true&workspace_ids=ws_a&workspace_ids=@user"
+```
+
+`workspace_ids` only works together with `all_workspaces=true`, and `all_workspaces=true` cannot be
+combined with a single-project selector:
+
+```json
+{
+  "error": "all_workspaces conflicts with a workspace selector",
+  "code": "workspace_breadth_invalid"
+}
+```
+
+`global` is not a project name on data routes:
+
+```json
+{ "error": "global is reserved without a migration alias", "code": "workspace_reserved" }
+```
+
+## Step 5: Page through results
+
+Paged aggregates return a cursor. Send it back with the **same** breadth, filters, and profile.
+Changing any of them invalidates the cursor; start again from the first page.
+
+## Rules worth knowing
+
+- **Profiles.** `all_workspaces` never widens the profile. Add `all_profiles=true` (operator) to read
+  every profile. Loop definitions and agents resolve for one concrete profile and reject
+  `all_profiles=true`.
+- **Loop runs** are newest first (`created_at DESC, id DESC`). `order=operational` needs a single
+  workspace.
+- **Loop definitions** return `entries`, per-project `errors`, and `truncated` (200 per project, 2,000
+  total). A definition from your user or profile layer appears once on a User row; it also appears on
+  a project row when it ran in that project in the last 30 days.
+- **Automation runs** carry `workspace_id` (the project of the job or trigger that started them) and
+  `attribution`: `recorded`, `derived` for older runs whose job still exists, or `unknown`. Unknown
+  runs never match a `workspace_ids` filter.
+- **Worktrees** come from cached state; `--refresh` cannot accompany `--all-workspaces`.
+- **Terminals** aggregate only on the local listener.
+- **App tokens** are refused on the new aggregate routes. On routes they could already read
+  (`/api/tasks`, automation jobs, triggers, and runs, `/api/agents/catalog`), nothing changes.
+- **The needs-you bell** (`GET /api/notifications/attention`) is always every project and profile.
+  User items are labeled `"User"`.

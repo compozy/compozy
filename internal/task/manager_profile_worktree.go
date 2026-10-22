@@ -47,6 +47,7 @@ func (m *Service) SetWorktreePolicy(
 		return ExecutionProfile{}, err
 	}
 	stored, err := m.store.SetTaskWorktreePolicy(ctx, &WorktreePolicyMutation{
+		Actor:  actor,
 		TaskID: trimmedID,
 		Policy: normalized,
 		Event:  event,

@@ -26,7 +26,7 @@ func (d *Daemon) bootWorkspaceAccess(state *bootState, sessions SessionManager) 
 		return err
 	}
 	policy, err := workspaceaccess.New(workspaceaccess.Deps{
-		Modes:   modeSource,
+		Facts:   modeSource,
 		Consent: consent,
 		Audit:   audit,
 		Log:     state.logger,

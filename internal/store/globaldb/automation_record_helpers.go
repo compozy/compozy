@@ -137,7 +137,11 @@ func buildAutomationRunClauses(query automation.RunQuery) ([]string, []any) {
 		where = append(where, automationRunProfileIDSQL+` = ?`)
 		args = append(args, query.ReadScope.ProfileID)
 	}
-	return where, args
+	ids := query.WorkspaceIDs
+	if query.WorkspaceID != "" {
+		ids = []string{query.WorkspaceID}
+	}
+	return appendAutomationWorkspaceClauses(where, args, "workspace_id", ids)
 }
 
 func requireAutomationID(value string, label string) (string, error) {

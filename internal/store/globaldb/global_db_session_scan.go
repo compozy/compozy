@@ -234,6 +234,7 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 	var row sessionInfoRow
 	if err := scanner.Scan(
+		&row.session.EffectiveWorkspaceAccess,
 		&row.session.ID,
 		&row.session.ProfileID,
 		&row.name,

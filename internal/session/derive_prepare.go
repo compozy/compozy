@@ -82,6 +82,7 @@ func (m *Manager) prepareDerive(
 		AgentName:        agentName,
 		Name:             deriveChildName(spec.name, meta.Name),
 		Workspace:        meta.WorkspaceID,
+		Scope:            workspace.Scope,
 		Worktree:         meta.WorktreeIDValue(),
 		CWD:              deriveSourceCWD(meta),
 		Type:             SessionTypeUser,
@@ -92,6 +93,9 @@ func (m *Manager) prepareDerive(
 		Derivation:      derivation,
 		ImportedContext: imported,
 		deriveReceipt:   &receipt,
+	}
+	if workspace.Scope == workspacepkg.ScopeUser {
+		opts.CWD = ""
 	}
 	runtime := spec.runtime
 	if spec.kind == store.LineageKindFork {

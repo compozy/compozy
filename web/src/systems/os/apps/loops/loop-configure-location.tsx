@@ -3,6 +3,7 @@ import { AlertCircle, Repeat2 } from "lucide-react";
 import { Empty, Spinner } from "@compozy/ui";
 
 import { useLoopConfigureLocation } from "./hooks/use-loop-configure-location";
+import { LoopUnboundState } from "./loop-unbound-state";
 import { LoopConfigureDialog } from "@/systems/loops";
 
 /**
@@ -11,14 +12,15 @@ import { LoopConfigureDialog } from "@/systems/loops";
  * closing or saving returns to the loop detail. Structural edits route to the fork editor.
  */
 export function LoopConfigureLocation({ name }: { name: string }) {
-  const { close, configQuery, loopQuery, openEditor, workspaceId } = useLoopConfigureLocation(name);
+  const { close, configQuery, loopQuery, openEditor, scope, workspaceId } =
+    useLoopConfigureLocation(name);
 
   if (workspaceId === "") {
     return (
-      <ConfigureState
-        description="Select a project to configure this Loop."
+      <LoopUnboundState
+        description="Open this Loop from the Loops catalog."
+        scope={scope}
         testId="loop-configure-no-workspace"
-        title="No project selected"
       />
     );
   }

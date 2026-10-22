@@ -19,6 +19,7 @@ import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
 import { TaskRowsLoadingSkeleton } from "./task-loading-skeletons";
 import { emptyForScope, type ProfileListingScope } from "@/systems/profiles";
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 export interface TasksListSurfaceProps {
   tasks: TaskListItem[];
@@ -37,6 +38,10 @@ export interface TasksListSurfaceProps {
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
   onRetryLoad?: () => void;
+  /** Each row's project under All projects; absent while one scope is listed. */
+  projectBadgeOf?: (task: TaskListItem) => WorkspaceBadgeIdentity;
+  /** Clears every list filter, offered when the filters emptied the list. */
+  onClearFilters?: () => void;
 }
 
 export function TasksListSurface({
@@ -54,6 +59,8 @@ export function TasksListSurface({
   isLoadingMore = false,
   onLoadMore,
   onRetryLoad,
+  projectBadgeOf,
+  onClearFilters,
 }: TasksListSurfaceProps) {
   const hasTasks = tasks.length > 0;
   const hasFilters = filterState === "active" || searchQuery.trim() !== "";
@@ -66,6 +73,7 @@ export function TasksListSurface({
             errorMessage={errorMessage}
             hasFilters={hasFilters}
             isLoading={isLoading}
+            onClearFilters={onClearFilters}
             onRetryLoad={onRetryLoad}
             onShowWorkItems={onShowWorkItems}
             recordsFilter={recordsFilter}
@@ -88,6 +96,7 @@ export function TasksListSurface({
         <TasksListTable
           onOpenLoopRun={onOpenLoopRun}
           profile={profile}
+          projectBadgeOf={projectBadgeOf}
           statusCounts={statusCounts}
           tasks={tasks}
         />
@@ -109,12 +118,18 @@ export function TasksListSurface({
   );
 }
 
+type TasksListTableProps = Pick<
+  TasksListSurfaceProps,
+  "tasks" | "profile" | "statusCounts" | "onOpenLoopRun" | "projectBadgeOf"
+>;
+
 function TasksListTable({
   tasks,
   profile,
   statusCounts,
   onOpenLoopRun,
-}: Pick<TasksListSurfaceProps, "tasks" | "profile" | "statusCounts" | "onOpenLoopRun">) {
+  projectBadgeOf,
+}: TasksListTableProps) {
   const total = Object.values(statusCounts).reduce((sum, count) => sum + count, 0);
   return (
     <Table className="table-fixed" data-testid="tasks-list-table" overflowX="hidden">
@@ -138,6 +153,7 @@ function TasksListTable({
       <TasksListGroups
         onOpenLoopRun={onOpenLoopRun}
         profile={profile}
+        projectBadgeOf={projectBadgeOf}
         statusCounts={statusCounts}
         tasks={tasks}
       />
@@ -150,7 +166,8 @@ function TasksListGroups({
   profile,
   statusCounts,
   onOpenLoopRun,
-}: Pick<TasksListSurfaceProps, "tasks" | "profile" | "statusCounts" | "onOpenLoopRun">) {
+  projectBadgeOf,
+}: TasksListTableProps) {
   const buckets = groupTasksForList(tasks).filter(
     bucket =>
       bucket.tasks.length > 0 || taskStatusFacetTotal(bucket.group.statuses, statusCounts) > 0
@@ -168,6 +185,7 @@ function TasksListGroups({
           key={task.id}
           onOpenLoopRun={onOpenLoopRun}
           profileOwner={profile.aggregate ? profile.ownerOf(task) : undefined}
+          projectBadge={projectBadgeOf?.(task)}
           task={task}
         />
       ))}
@@ -192,6 +210,7 @@ function TasksListEmptyBody({
   scopeLabel,
   onRetryLoad,
   onShowWorkItems,
+  onClearFilters,
 }: {
   isLoading: boolean;
   errorMessage: string | null;
@@ -200,6 +219,7 @@ function TasksListEmptyBody({
   scopeLabel: ProfileListingScope["scopeLabel"];
   onRetryLoad?: () => void;
   onShowWorkItems?: () => void;
+  onClearFilters?: () => void;
 }) {
   if (isLoading) {
     return (
@@ -241,8 +261,21 @@ function TasksListEmptyBody({
   if (hasFilters) {
     return (
       <Empty
+        action={
+          onClearFilters ? (
+            <Button
+              data-testid="tasks-list-clear-filters"
+              onClick={onClearFilters}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              Clear filters
+            </Button>
+          ) : null
+        }
         data-testid="tasks-list-surface-empty"
-        description="Clear filters to see other tasks in this project."
+        description="Clear filters to see other tasks."
         icon={Search}
         title="No tasks match the current filters"
       />

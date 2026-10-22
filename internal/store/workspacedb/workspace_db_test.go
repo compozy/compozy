@@ -1,7 +1,9 @@
 package workspacedb
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -40,8 +42,8 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 4 || firstStatus.AppliedCount != 4 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 4", firstStatus)
+		if firstStatus.Version != 5 || firstStatus.AppliedCount != 5 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 5", firstStatus)
 		}
 		assertTerminalSchema(ctx, t, db.DB())
 		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
@@ -713,4 +715,123 @@ func TestSweepExpiredTerminalFiles(t *testing.T) {
 			t.Fatalf("empty sweep waited for writer: %v", sweepErr)
 		}
 	})
+}
+
+func TestLegacyJournalImport(t *testing.T) {
+	t.Run(
+		"Should resume after a corrupt blob without duplicating rows or touching existing User data",
+		func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			ctx := t.Context()
+			source := openWorkspaceTestDB(
+				ctx,
+				t,
+				Options{HomeDir: home, WorkspaceID: "legacy", WorkspaceRoot: t.TempDir()},
+			)
+			root := filepath.Dir(source.Path())
+			directory := filepath.Join(root, "terminal-recordings")
+			if err := os.MkdirAll(directory, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			contents := []byte("recording bytes")
+			digest := fmt.Sprintf("%x", sha256.Sum256(contents))
+			for _, profile := range []string{"p1", "p2"} {
+				path := filepath.Join(directory, profile)
+				if err := os.WriteFile(path, contents, 0o600); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := source.DB().
+					ExecContext(ctx, `INSERT INTO terminal_recordings VALUES (?,? ,?, ?, ?, 1,2,?,99)`, profile, "terminal", profile, digest, path, len(contents)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := source.DB().
+				ExecContext(ctx, `INSERT INTO terminal_commands(id,profile_id,actor_kind,actor_id,command,cwd,started_at,exit_cause,detected_by,approval,output_bytes,truncated,recording_id) VALUES ('command','p1','human','operator','pwd','/tmp',1,'exited','exact','human',0,0,'p1')`); err != nil {
+				t.Fatal(err)
+			}
+			artifactDir := filepath.Join(root, "terminal-artifacts")
+			if err := os.MkdirAll(artifactDir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			artifact := filepath.Join(artifactDir, "spill")
+			if err := os.WriteFile(artifact, []byte("corrupt"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := source.DB().
+				ExecContext(ctx, `INSERT INTO terminal_artifacts(id,command_id,profile_id,digest,path,bytes,expires_at) VALUES ('artifact','command','p1',?,?,?,99)`, digest, artifact, len(contents)); err != nil {
+				t.Fatal(err)
+			}
+			if err := source.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			user := openWorkspaceTestDB(ctx, t, Options{HomeDir: home, WorkspaceID: "user-p1", WorkspaceRoot: home})
+			if _, err := user.DB().
+				ExecContext(ctx, `INSERT INTO terminal_recordings VALUES ('existing','terminal','p1','existing','existing',1,2,0,99)`); err != nil {
+				t.Fatal(err)
+			}
+			if err := user.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if err := ImportLegacyJournal(ctx, home, "legacy", nil); err == nil {
+				t.Fatal("accepted corrupt artifact")
+			}
+			if _, err := os.Stat(root); err != nil {
+				t.Fatal("source disappeared before verification", err)
+			}
+			if err := os.WriteFile(artifact, contents, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if err := ImportLegacyJournal(ctx, home, "legacy", nil); err != nil {
+				t.Fatal(err)
+			}
+			if err := ImportLegacyJournal(ctx, home, "legacy", nil); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(root + ".migrated"); err != nil {
+				t.Fatal(err)
+			}
+			for _, profile := range []string{"p1", "p2"} {
+				target := openWorkspaceTestDB(
+					ctx,
+					t,
+					Options{HomeDir: home, WorkspaceID: "user-" + profile, WorkspaceRoot: home},
+				)
+				var count int
+				if err := target.DB().
+					QueryRowContext(ctx, "SELECT count(*) FROM terminal_recordings WHERE id=?", profile).
+					Scan(&count); err != nil ||
+					count != 1 {
+					t.Fatalf("count=%d err=%v", count, err)
+				}
+				var path string
+				if err := target.DB().
+					QueryRowContext(ctx, "SELECT path FROM terminal_recordings WHERE id=?", profile).
+					Scan(&path); err != nil {
+					t.Fatal(err)
+				}
+				if !strings.HasPrefix(path, filepath.Dir(target.Path())+string(filepath.Separator)) {
+					t.Fatal("blob not contained", path)
+				}
+				data, err := os.ReadFile(path)
+				if err != nil || !bytes.Equal(data, contents) {
+					t.Fatalf("blob=%q err=%v", data, err)
+				}
+				if profile == "p1" {
+					if err := target.DB().
+						QueryRowContext(ctx, "SELECT count(*) FROM terminal_recordings WHERE id='existing' AND digest='existing'").
+						Scan(&count); err != nil ||
+						count != 1 {
+						t.Fatal("existing row changed", err)
+					}
+					if err := target.DB().
+						QueryRowContext(ctx, "SELECT count(*) FROM legacy_import").
+						Scan(&count); err != nil ||
+						count != 3 {
+						t.Fatalf("ledger=%d err=%v", count, err)
+					}
+				}
+			}
+		},
+	)
 }

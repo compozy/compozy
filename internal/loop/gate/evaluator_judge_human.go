@@ -47,6 +47,7 @@ func (e *Evaluator) evaluateAgentJudge(
 	runtime := mergeJudgeRuntime(in.JudgeRuntime, criterion.Runtime)
 	attempt := in.Revision + 1
 	response, err := e.judges.Judge(ctx, JudgeRequest{
+		GrantCeiling:    in.GrantCeiling,
 		ParentSessionID: strings.TrimSpace(in.JudgeParentSessionID),
 		LoopRunID:       strings.TrimSpace(in.LoopRunID),
 		GateID:          gate.ID,

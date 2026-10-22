@@ -24,6 +24,8 @@ interface TerminalWindowCreationScope {
   catalogScope: TerminalQueryScope;
   destinationScope: TerminalProfileQueryScope;
   coordinator: RoutingCoordinator;
+  /** The window's binding, kept on the terminal route it retargets to. */
+  retargetSearch?: Record<string, unknown>;
 }
 
 interface TerminalWindowCreation extends TerminalWindowCreationScope {
@@ -83,7 +85,10 @@ export function useTerminalWindowCreation(scope: TerminalWindowCreationScope) {
       await input.coordinator.userRetarget(input.windowId, {
         app: "terminal",
         instanceKey: terminal.id,
-        route: { pathname: `/terminal/${encodeURIComponent(terminal.id)}`, search: {} },
+        route: {
+          pathname: `/terminal/${encodeURIComponent(terminal.id)}`,
+          search: input.retargetSearch ?? {},
+        },
       });
     },
     onError: error =>

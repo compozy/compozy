@@ -30,7 +30,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await expect(ui.osDesktop).toBeVisible();
 
   const workspaceControl = appPage.locator('[data-slot="os-menubar-workspace"]');
-  await expect(workspaceControl).toContainText("Global");
+  await expect(workspaceControl).toContainText("All projects");
   await workspaceControl.click();
   await appPage.getByTestId("os-workspace-add").click();
 
@@ -67,7 +67,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await appPage.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(ui.osDesktop).toBeVisible();
-  await expect(workspaceControl).toContainText("Global");
+  await expect(workspaceControl).toContainText("All projects");
 });
 
 test.describe("first-run default model", () => {

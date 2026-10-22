@@ -63,6 +63,7 @@ SELECT
 FROM loop_runs AS lr
 JOIN loop_definition_snapshots AS snapshot
   ON snapshot.workspace_id = lr.workspace_id
+ AND snapshot.profile_id = CASE WHEN lr.workspace_id = '' THEN lr.profile_id ELSE '' END
  AND snapshot.definition_digest = lr.definition_digest
 WHERE lr.workspace_id = ?
   AND lr.id IN (%s)`

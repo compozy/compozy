@@ -313,7 +313,12 @@ func TestGlobalDBSessionDerivationReceipts(t *testing.T) {
 		); err != nil {
 			t.Fatalf("RegisterDerivedSession(first) error = %v", err)
 		}
-		receipt, found, err := globalDB.SessionDerivationReceipt(ctx, workspaceID, "idem-derive")
+		receipt, found, err := globalDB.SessionDerivationReceipt(
+			ctx,
+			workspaceID,
+			"idem-derive",
+			store.DefaultProfileID,
+		)
 		if err != nil || !found {
 			t.Fatalf("SessionDerivationReceipt() = found %v, error %v; want recorded receipt", found, err)
 		}
@@ -340,13 +345,75 @@ func TestGlobalDBSessionDerivationReceipts(t *testing.T) {
 		if err := globalDB.DeleteSession(ctx, "sess-child"); err != nil {
 			t.Fatalf("DeleteSession(child) error = %v", err)
 		}
-		tombstoned, found, err := globalDB.SessionDerivationReceipt(ctx, workspaceID, "idem-derive")
+		tombstoned, found, err := globalDB.SessionDerivationReceipt(
+			ctx,
+			workspaceID,
+			"idem-derive",
+			store.DefaultProfileID,
+		)
 		if err != nil || !found || tombstoned.ChildDeletedAt == nil ||
 			tombstoned.Outcome != receiptFor("sess-child").Outcome {
 			t.Fatalf("SessionDerivationReceipt(after child delete) = %#v, found %v, error %v", tombstoned, found, err)
 		}
-		if _, found, err := globalDB.SessionDerivationReceipt(ctx, workspaceID, "idem-missing"); err != nil || found {
+		if _, found, err := globalDB.SessionDerivationReceipt(
+			ctx,
+			workspaceID,
+			"idem-missing",
+			store.DefaultProfileID,
+		); err != nil ||
+			found {
 			t.Fatalf("SessionDerivationReceipt(missing) = found %v, error %v; want not found", found, err)
+		}
+	})
+}
+
+func TestGlobalDBUserDerivationReceipts(t *testing.T) {
+	t.Run("Should isolate identical User idempotency keys by profile", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		profiles := []string{store.DefaultProfileID, insertLayoutTestProfile(ctx, t, db)}
+		for _, profile := range profiles {
+			childID := "child-" + profile
+			now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+			info := SessionInfo{
+				ID:            childID,
+				ProfileID:     profile,
+				AgentName:     "coder",
+				Provider:      "codex",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				SessionType:   "user",
+				State:         "active",
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}
+			identity := store.SessionCreationIdentity{
+				CreationProfileRef: "profile:sha256:derive",
+				PolicySpecDigest:   "policy:sha256:derive",
+				CreationDigest:     "creation:sha256:derive",
+			}
+			receipt := store.SessionDerivationReceipt{
+				ProfileID:          profile,
+				IdempotencyKey:     "same-key",
+				RequestFingerprint: "sha256:request",
+				SourceSessionID:    "source-" + profile,
+				ChildSessionID:     childID,
+				Kind:               store.LineageKindFork,
+				CreatedAt:          now,
+				Outcome: store.SessionDerivationOutcome{
+					Seed:        store.SessionDerivationSeedReplay,
+					FirstPrompt: store.SessionDerivationFirstPromptStaged,
+				},
+			}
+			if err := db.RegisterDerivedSession(ctx, info, identity, receipt); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for _, profile := range profiles {
+			receipt, found, err := db.SessionDerivationReceipt(ctx, "", "same-key", profile)
+			if err != nil || !found || receipt.ChildSessionID != "child-"+profile {
+				t.Fatalf("receipt=%+v found=%t err=%v", receipt, found, err)
+			}
 		}
 	})
 }

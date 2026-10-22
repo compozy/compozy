@@ -33,6 +33,28 @@ func TestLoadAgentResources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should drop unrestricted grants from extension agents", func(t *testing.T) {
+		t.Parallel()
+		rootDir := t.TempDir()
+		writeStaticAgentFixture(t, rootDir, "writer", false)
+		path := filepath.Join(rootDir, "agents", "writer", "AGENT.md")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data = []byte(strings.Replace(string(data), "---\n", "---\nworkspace_access: unrestricted\n", 1))
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		agents, err := LoadAgentResources(rootDir, []string{"agents"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(agents) != 1 || agents[0].Agent.WorkspaceAccess != "" {
+			t.Fatalf("untrusted grants = %#v", agents)
+		}
+	})
+
 	t.Run("Should load an agent without sidecars", func(t *testing.T) {
 		t.Parallel()
 

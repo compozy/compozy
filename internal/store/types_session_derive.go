@@ -80,7 +80,6 @@ func (r SessionDerivationReceipt) Validate() error {
 		value string
 		name  string
 	}{
-		{r.WorkspaceID, "session derivation workspace id"},
 		{r.ProfileID, "session derivation profile id"},
 		{r.IdempotencyKey, "session derivation idempotency key"},
 		{r.RequestFingerprint, "session derivation request fingerprint"},
@@ -117,6 +116,7 @@ type SessionDerivationStore interface {
 		ctx context.Context,
 		workspaceID string,
 		idempotencyKey string,
+		profileID string,
 	) (SessionDerivationReceipt, bool, error)
 	// MarkDerivationChildDeleted is called by the session delete path; the receipt survives.
 	MarkDerivationChildDeleted(ctx context.Context, childSessionID string, at time.Time) error

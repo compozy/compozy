@@ -5,6 +5,7 @@
  */
 
 import type { ProfileOwner } from "@/systems/profiles";
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 
 import {
   automationDoesOf,
@@ -58,6 +59,8 @@ export interface AutomationView {
   workspaceName?: string;
   /** The owning profile; set only in aggregate (all-profiles) mode. */
   owner?: ProfileOwner;
+  /** The project badge; set only under All projects, where rows of every project mix. */
+  project?: WorkspaceBadgeIdentity;
   /** The profile name mutations route to. */
   profileName: string;
   /** Jobs: `scheduler.next_run_at ?? next_run`. */
@@ -75,6 +78,8 @@ export interface AutomationView {
 export interface AutomationViewContext extends SentenceContext {
   /** Resolves the owner tag; supplied only in aggregate mode. */
   ownerOf?: (entity: AutomationJob | AutomationTrigger) => ProfileOwner | undefined;
+  /** Resolves the project badge; supplied only under All projects. */
+  projectOf?: (entity: AutomationJob | AutomationTrigger) => WorkspaceBadgeIdentity;
 }
 
 function nonEmpty(value: string | null | undefined): string | undefined {
@@ -107,6 +112,7 @@ export function toAutomationView(
 ): AutomationView {
   const kind: AutomationEntityKind = isAutomationTrigger(entity) ? "trigger" : "job";
   const owner = ctx.ownerOf?.(entity);
+  const project = ctx.projectOf?.(entity);
   const workspaceName = entity.workspace_id
     ? (ctx.workspaceName?.(entity.workspace_id) ?? undefined)
     : undefined;
@@ -130,6 +136,7 @@ export function toAutomationView(
     ...(entity.workspace_id ? { workspaceId: entity.workspace_id } : {}),
     ...(workspaceName ? { workspaceName } : {}),
     ...(owner ? { owner } : {}),
+    ...(project ? { project } : {}),
     profileName: entity.profile_name,
     ...(nextRunAt ? { nextRunAt } : {}),
     ...(lastRun ? { lastRun } : {}),
@@ -180,7 +187,7 @@ export function automationCardFootLead(stat: AutomationTimeStat): string | null 
   return `Next run ${stat.value.charAt(0).toLowerCase()}${stat.value.slice(1)}`;
 }
 
-/** Location label: `Project checkout-api` or `Global`. */
+/** Location label: `Project checkout-api` or `User` (no project). */
 export function automationLocationLabel(
   view: Pick<AutomationView, "scope" | "workspaceId" | "workspaceName">
 ): string {

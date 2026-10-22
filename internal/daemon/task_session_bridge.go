@@ -8,8 +8,11 @@ import (
 	"os"
 	"strings"
 
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+
 	"github.com/compozy/compozy/internal/session"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/compozy/compozy/internal/worktree"
 )
 
@@ -29,11 +32,11 @@ type taskBridgeSessionRequestStopper interface {
 }
 
 type taskSessionBridge struct {
-	sessions            taskBridgeSessionManager
-	worktrees           taskBridgeWorktrees
-	globalWorkspacePath string
-	contextOverlay      taskSessionContextOverlay
-	logger              *slog.Logger
+	sessions  taskBridgeSessionManager
+	worktrees taskBridgeWorktrees
+
+	contextOverlay taskSessionContextOverlay
+	logger         *slog.Logger
 }
 
 type taskBridgeWorktrees interface {
@@ -88,7 +91,6 @@ var _ taskpkg.SessionExecutor = (*taskSessionBridge)(nil)
 
 func newTaskSessionBridge(
 	sessions taskBridgeSessionManager,
-	globalWorkspacePath string,
 	logger *slog.Logger,
 	options ...taskSessionBridgeOption,
 ) (*taskSessionBridge, error) {
@@ -99,9 +101,9 @@ func newTaskSessionBridge(
 		logger = slog.Default()
 	}
 	bridge := &taskSessionBridge{
-		sessions:            sessions,
-		globalWorkspacePath: strings.TrimSpace(globalWorkspacePath),
-		logger:              logger,
+		sessions: sessions,
+
+		logger: logger,
 	}
 	for _, option := range options {
 		if option != nil {
@@ -123,6 +125,7 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 
 	opts := session.CreateOpts{
+		Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: spec.Task.GrantCeiling},
 		ProfileID: spec.Task.ProfileID,
 		AgentName: taskSessionAgentName(spec.Task),
 		Provider:  "",
@@ -137,10 +140,7 @@ func (b *taskSessionBridge) StartTaskSession(
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = strings.TrimSpace(spec.Task.WorkspaceID)
 	case taskpkg.ScopeGlobal:
-		if b.globalWorkspacePath == "" {
-			return nil, errors.New("daemon: task session bridge global workspace path is required")
-		}
-		opts.WorkspacePath = b.globalWorkspacePath
+		opts.Scope = workspacepkg.ScopeUser
 	default:
 		return nil, fmt.Errorf(
 			"%w: unsupported task scope %q for task session start",

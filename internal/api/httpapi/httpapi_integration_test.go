@@ -3711,7 +3711,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		automationpkg.WithWorkspaceResolver(resolver),
 		automationpkg.WithConfig(cfg.Automation),
 		automationpkg.WithLogger(discardLogger()),
-		automationpkg.WithGlobalWorkspacePath(homePaths.HomeDir),
+
 		automationpkg.WithWebhookSecretStore(vaultService),
 	)
 	if err != nil {

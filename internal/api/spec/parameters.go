@@ -149,3 +149,8 @@ func dateTimeQueryParam(name string, description string) ParameterSpec {
 		Format:      "date-time",
 	}
 }
+
+// workspaceIDsQueryParam is the repeatable All projects narrowing parameter.
+func workspaceIDsQueryParam(description string) ParameterSpec {
+	return ParameterSpec{Name: "workspace_ids", In: specParameterInQuery, Kind: specArrayKind, Description: description}
+}

@@ -5,13 +5,16 @@ import { useDebouncedValue } from "@/hooks/use-debounced-input";
 import { getSessionDisplayTitle, useSessionCatalog, type SessionPayload } from "@/systems/session";
 import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
+  DESTINATION_COPY,
   sortWorktreeNestEntries,
   toWorktreeNestEntries,
   useScopedWorktreeFilter,
-  useWorktreeListings,
+  useWorktreeAggregate,
   useWorktrees,
-  type WorkspaceScopeMode,
+  type DataScope,
+  type WorktreeListingByWorkspace,
   type WorktreeNestEntry,
+  type WorktreesResponse,
 } from "@/systems/workspace";
 
 import { getOsAppDescriptor, osAppId } from "../lib/app-catalog";
@@ -71,8 +74,8 @@ export interface OsPaletteWorktreeResult extends WorktreeNestEntry {
 export interface UseOsPaletteEntitiesOptions {
   readonly open: boolean;
   readonly activeWorkspaceId: string | null;
-  readonly runtimeWorkspaceId: string | null;
-  readonly scope: WorkspaceScopeMode;
+  /** `null` while the destination is unsettled: no session read runs. */
+  readonly dataScope: DataScope | null;
   /** The empty tab being replaced, so it never offers itself as a destination. */
   readonly destinationWindowId: string | null;
   readonly destination: boolean;
@@ -142,8 +145,7 @@ function rankEntityRows<T>(
 export function useOsPaletteEntities({
   open,
   activeWorkspaceId,
-  runtimeWorkspaceId,
-  scope,
+  dataScope,
   destinationWindowId,
   destination,
   query,
@@ -155,39 +157,37 @@ export function useOsPaletteEntities({
   const profile = useProfileReadScope();
   const queryEnabled = paletteEntityQueryEnabled(destination, query, signals);
   const worktreeScopeId = useFocusedWorktreeScopeId();
+  const project = dataScope?.kind === "project";
+  const all = dataScope?.kind === "all";
   const worktreesQuery = useWorktrees(activeWorkspaceId, {
-    enabled: open && queryEnabled && scope === "workspace" && activeWorkspaceId !== null,
+    enabled: open && queryEnabled && project && activeWorkspaceId !== null,
   });
-  const worktreeListings = useWorktreeListings(workspaces, {
-    enabled: open && queryEnabled && scope === "global",
-  });
+  // All projects: one store read for every project's worktrees, never a fan-out.
+  const worktreeAggregate = useWorktreeAggregate([], { enabled: open && queryEnabled && all });
+  const worktreeListings = groupWorktreeAggregate(worktreeAggregate.data);
   // The shell surface follows the focused window's scope, matching the chip.
-  // Global cannot bind a worktree, so the filter stays off in that mode.
+  // Only a project binds a worktree, so the filter stays off elsewhere.
   const worktreeFilter = useScopedWorktreeFilter(activeWorkspaceId, worktreeScopeId, {
-    enabled: open && scope === "workspace",
+    enabled: open && project,
   });
   const sessions = useSessionCatalog(
-    scope === "global" ? null : runtimeWorkspaceId,
+    dataScope,
     {
       limit: 100,
       q: remoteQuery,
       search_fields: "title_agent",
-      ...(scope === "workspace" ? { worktree: worktreeFilter.worktreeId } : {}),
+      ...(project ? { worktree: worktreeFilter.worktreeId } : {}),
     },
-    open &&
-      paletteEntityQueryEnabled(destination, remoteQuery, signals) &&
-      (scope === "global" || runtimeWorkspaceId !== null) &&
-      worktreeFilter.resolved
+    open && paletteEntityQueryEnabled(destination, remoteQuery, signals) && worktreeFilter.resolved
   );
   const sessionRows = projectPaletteSessions(sessions.sessions, profile, {
-    runtimeWorkspaceId,
-    scope,
+    dataScope,
     workspaces,
   });
   const tabs = usePaletteTabs(open, destinationWindowId, sessions.sessions);
 
   const worktrees = projectPaletteWorktrees(
-    scope,
+    dataScope,
     workspaces,
     worktreeListings,
     worktreesQuery.data
@@ -228,7 +228,6 @@ export function useOsPaletteEntities({
     worktreeTotal: rankedWorktrees.total,
     selectWorktree: entry =>
       applyPaletteWorktreeSelection({
-        scope,
         worktreeScopeId,
         activeWorkspaceId,
         entry,
@@ -253,15 +252,12 @@ function paletteEntityQueryEnabled(
 function projectPaletteSessions(
   sessions: readonly SessionPayload[],
   profile: ReturnType<typeof useProfileReadScope>,
-  {
-    runtimeWorkspaceId,
-    scope,
-    workspaces,
-  }: Pick<UseOsPaletteEntitiesOptions, "runtimeWorkspaceId" | "scope" | "workspaces">
+  { dataScope, workspaces }: Pick<UseOsPaletteEntitiesOptions, "dataScope" | "workspaces">
 ): OsPaletteSessionResult[] {
   const scopedSessions = sessions.map(session => ({
     session,
-    workspaceId: session.workspace_id ?? runtimeWorkspaceId ?? "",
+    // Absent or empty is a User session.
+    workspaceId: session.workspace_id ?? "",
   }));
   const sessionRows: OsPaletteSessionResult[] = [];
   const workspaceNameById = new Map(workspaces.map(workspace => [workspace.id, workspace.name]));
@@ -274,7 +270,11 @@ function projectPaletteSessions(
       agentName,
       workspaceId,
       workspaceLabel:
-        scope === "global" ? (workspaceNameById.get(workspaceId) ?? workspaceId) : undefined,
+        dataScope?.kind === "all"
+          ? workspaceId === ""
+            ? DESTINATION_COPY.user
+            : (workspaceNameById.get(workspaceId) ?? workspaceId)
+          : undefined,
       owner: profile.aggregate ? profile.ownerOf(session) : undefined,
       route: {
         pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(session.id)}`,
@@ -349,14 +349,31 @@ function projectPaletteTabs(
   return tabs;
 }
 
+/** The aggregate listing split back into per-project listings (adopted rows only). */
+export function groupWorktreeAggregate(
+  aggregate: WorktreesResponse | undefined
+): WorktreeListingByWorkspace {
+  if (!aggregate) return {};
+  const listings: Record<string, WorktreesResponse> = {};
+  for (const worktree of aggregate.worktrees) {
+    const listing = (listings[worktree.workspace_id] ??= {
+      worktrees: [],
+      discovered: [],
+      repo: aggregate.repo,
+    });
+    listing.worktrees.push(worktree);
+  }
+  return listings;
+}
+
 function projectPaletteWorktrees(
-  scope: WorkspaceScopeMode,
+  dataScope: DataScope | null,
   workspaces: UseOsPaletteEntitiesOptions["workspaces"],
-  worktreeListings: ReturnType<typeof useWorktreeListings>,
+  worktreeListings: WorktreeListingByWorkspace,
   workspaceWorktrees: ReturnType<typeof useWorktrees>["data"]
 ): OsPaletteWorktreeResult[] {
   const worktrees: OsPaletteWorktreeResult[] = [];
-  if (scope === "global") {
+  if (dataScope?.kind === "all") {
     for (const workspace of workspaces) {
       const entries = sortWorktreeNestEntries(
         toWorktreeNestEntries(worktreeListings[workspace.id])
@@ -366,7 +383,7 @@ function projectPaletteWorktrees(
         worktrees.push({ ...entry, workspaceId: workspace.id, workspaceLabel: workspace.name });
       }
     }
-  } else {
+  } else if (dataScope?.kind === "project") {
     worktrees.push(
       ...sortWorktreeNestEntries(toWorktreeNestEntries(workspaceWorktrees)).filter(
         entry => entry.kind === "worktree" && entry.displayState === "ready"

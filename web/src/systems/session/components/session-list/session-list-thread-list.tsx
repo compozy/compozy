@@ -17,7 +17,8 @@ export interface SessionListThreadListProps {
   ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
-  selection: SessionRowSelection;
+  /** Bulk selection; absent where the list is read-only (grouped lists). */
+  selection?: SessionRowSelection;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   /** Shown in place of the threads when none survive the filter. */

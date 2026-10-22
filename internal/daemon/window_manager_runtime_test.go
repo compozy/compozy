@@ -1,13 +1,17 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	"github.com/compozy/compozy/internal/clientstate"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -542,6 +546,22 @@ func TestWindowManagerGlobalDesktopWorkspace(t *testing.T) {
 			t.Fatalf("Snapshot(global desktop) = %#v, want isolated persisted layout", snapshot)
 		}
 	})
+	t.Run("Should persist User desktop state without a project workspace", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		workspaceID := windowmanager.UserDesktopWorkspaceID
+
+		executeDaemonDesktopCreate(t, fixture.manager, workspaceID, "desktop-user", "User")
+		snapshot, err := fixture.manager.Snapshot(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("Snapshot(global desktop) error = %v", err)
+		}
+		if snapshot.WorkspaceID != workspaceID || snapshot.Revision != 1 ||
+			len(snapshot.Desktops) != 2 || snapshot.Desktops[1].Name != "User" {
+			t.Fatalf("Snapshot(global desktop) = %#v, want isolated persisted layout", snapshot)
+		}
+	})
 }
 
 func TestWindowManagerWorkspaceResolverErrorClassification(t *testing.T) {
@@ -734,4 +754,275 @@ func (p *windowManagerSessionRemovalPreparation) Commit(context.Context) error {
 func (p *windowManagerSessionRemovalPreparation) Rollback(context.Context) error {
 	p.rollbacks++
 	return nil
+}
+
+func TestWindowManagerUserSessionDeletion(t *testing.T) {
+	t.Run("Should retire a User session in both reserved partitions", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		sessionID := "session-user-delete"
+		partitions := []windowmanager.WorkspaceID{
+			windowmanager.UserDesktopWorkspaceID,
+			windowmanager.GlobalDesktopWorkspaceID,
+		}
+		for _, partition := range partitions {
+			snapshot, err := fixture.manager.Snapshot(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = fixture.manager.Execute(ctx, windowmanager.CommandRequest{
+				WorkspaceID: partition, ExpectedRevision: snapshot.Revision,
+				Payload: windowmanager.OpenWindowCommand{Window: windowmanager.WindowSpec{
+					ID:          "user-window",
+					App:         "session",
+					InstanceKey: &sessionID,
+					Route: windowmanager.RouteIntent{
+						Pathname: "/session/session-user-delete",
+						Search:   windowmanager.RouteSearch{},
+					},
+					DesktopID: snapshot.Desktops[0].ID,
+				}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		reconciler := &windowManagerSessionReconciler{registry: fixture.registry}
+		reconciler.SetReady()
+		if err := reconciler.ReconcileDeletedSession(ctx, testWindowManagerProfileID, "", sessionID); err != nil {
+			t.Fatal(err)
+		}
+		for _, partition := range partitions {
+			snapshot, err := fixture.manager.Snapshot(ctx, partition)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, window := range snapshot.Windows {
+				if window.InstanceKey != nil && *window.InstanceKey == sessionID {
+					t.Fatalf("session still open in %s", partition)
+				}
+			}
+		}
+	})
+}
+
+func TestWindowManagerCrossPartitionRetirement(t *testing.T) {
+	for _, retirement := range []string{"session", "workspace"} {
+		t.Run("Should reconcile every persisted profile partition after "+retirement+" retirement", func(t *testing.T) {
+			t.Parallel()
+			fixture := newDaemonWindowManagerFixture(t)
+			ctx := t.Context()
+			partitions := []windowmanager.WorkspaceID{
+				windowmanager.GlobalDesktopWorkspaceID,
+				windowmanager.UserDesktopWorkspaceID,
+				windowmanager.WorkspaceID(fixture.workspace.ID),
+			}
+			for _, profile := range []string{testWindowManagerProfileID, "profile-inactive"} {
+				manager, err := fixture.registry.For(profile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, partition := range partitions {
+					bindingTarget := fixture.workspace.ID
+					if retirement == "session" {
+						bindingTarget = workspaceaccess.UserSelector
+					}
+					binding, err := json.Marshal(bindingTarget)
+					if err != nil {
+						t.Fatal(err)
+					}
+					_, err = manager.Execute(
+						ctx,
+						windowmanager.CommandRequest{
+							WorkspaceID: partition,
+							Payload: windowmanager.OpenWindowCommand{
+								Window: windowmanager.WindowSpec{
+									ID:          "bound",
+									App:         "session",
+									InstanceKey: new("deleted-session"),
+									DesktopID:   "desktop-default",
+									Route: windowmanager.RouteIntent{
+										Pathname: "/sessions/deleted-session",
+										Search:   windowmanager.RouteSearch{"workspace": binding},
+									},
+								},
+							},
+						},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			reloaded, err := newWindowManagerRegistry(
+				fixture.engine,
+				windowManagerWorkspaceAuthorizer{resolver: fixture.storeResolver},
+				nil,
+				fixture.resolver,
+				windowmanager.DefaultConfig(),
+				discardLogger(),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := reloaded.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			reconciler := &windowManagerSessionReconciler{registry: reloaded}
+			reconciler.SetReady()
+			if retirement == "session" {
+				if err := reconciler.ReconcileDeletedSession(
+					ctx,
+					"unrelated-profile",
+					"",
+					"deleted-session",
+				); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := reloaded.ReconcileUnregisteredWorkspace(ctx, fixture.workspace.ID); err != nil {
+				t.Fatal(err)
+			}
+			for _, profile := range []string{testWindowManagerProfileID, "profile-inactive"} {
+				manager, err := reloaded.For(profile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, partition := range partitions {
+					snapshot, err := manager.Snapshot(ctx, partition)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if snapshot.Windows["bound"].InstanceKey != nil ||
+						snapshot.Windows["bound"].Route.Pathname != "/sessions" ||
+						len(snapshot.History.Undo) != 0 ||
+						len(snapshot.Windows["bound"].Route.Search) != 0 {
+						t.Fatalf("unretired %s/%s: %#v", profile, partition, snapshot)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestUserScopeLayoutMigration(t *testing.T) {
+	t.Run("Should keep booting and retain the registration when a legacy journal is defective", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		source := fixture.workspace.ID
+		journalRoot := filepath.Join(fixture.homePaths.HomeDir, "workspaces", source)
+		for _, dir := range []string{journalRoot, journalRoot + ".migrated"} {
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := fixture.database.DB().ExecContext(ctx,
+			`INSERT INTO user_scope_migrations(source_workspace_id,source_root,disposition,profile_ids,sql_done_at)
+			VALUES (?,?,'migrate','[]',datetime('now'))`, source, fixture.workspace.RootDir); err != nil {
+			t.Fatal(err)
+		}
+		if err := reconcileUserScopeMigrations(ctx, fixture.database, fixture.engine,
+			fixture.homePaths.HomeDir, discardLogger()); err != nil {
+			t.Fatalf(
+				"reconcileUserScopeMigrations() error = %v, want a logged retention instead of a boot failure",
+				err,
+			)
+		}
+		var registered int
+		var journalState string
+		if err := fixture.database.DB().QueryRowContext(ctx,
+			`SELECT (SELECT count(*) FROM workspaces WHERE id=?), journal_state FROM user_scope_migrations
+			WHERE source_workspace_id=?`, source, source).Scan(&registered, &journalState); err != nil {
+			t.Fatal(err)
+		}
+		if registered != 1 || journalState != "pending" {
+			t.Fatalf(
+				"registration=%d journal_state=%q, want the registration kept and the journal pending",
+				registered,
+				journalState,
+			)
+		}
+	})
+
+	t.Run("Should copy a profile layout once and retain both source and existing destination", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := t.Context()
+		source := windowmanager.WorkspaceID(fixture.workspace.ID)
+		executeDaemonDesktopCreate(t, fixture.manager, source, "legacy-desktop", "Legacy")
+		if err := migrateUserScopeLayouts(ctx, fixture.engine, string(source), discardLogger()); err != nil {
+			t.Fatal(err)
+		}
+		key := windowManagerSnapshotKey(testWindowManagerProfileID)
+		first, err := fixture.engine.Get(
+			ctx,
+			clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID),
+			windowManagerStateDomain,
+			key,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := migrateUserScopeLayouts(ctx, fixture.engine, string(source), discardLogger()); err != nil {
+			t.Fatal(err)
+		}
+		second, err := fixture.engine.Get(
+			ctx,
+			clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID),
+			windowManagerStateDomain,
+			key,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.Rev != second.Rev || !bytes.Equal(first.Value, second.Value) {
+			t.Fatal("migration overwrote existing destination")
+		}
+		if _, err := fixture.engine.Get(
+			ctx,
+			clientstate.WorkspaceID(source),
+			windowManagerStateDomain,
+			key,
+		); err != nil {
+			t.Fatal("source layout was removed", err)
+		}
+		var snapshot windowmanager.Snapshot
+		if err := json.Unmarshal(first.Value, &snapshot); err != nil {
+			t.Fatal(err)
+		}
+		if snapshot.WorkspaceID != windowmanager.UserDesktopWorkspaceID || len(snapshot.Desktops) != 2 {
+			t.Fatalf("snapshot=%#v", snapshot)
+		}
+		if _, err := fixture.database.DB().ExecContext(ctx,
+			`INSERT INTO user_scope_migrations(source_workspace_id,source_root,disposition,profile_ids,sql_done_at)
+			VALUES (?,?,'migrate','[]',datetime('now'))`, string(source), fixture.workspace.RootDir); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			if err := reconcileUserScopeMigrations(ctx, fixture.database, fixture.engine,
+				fixture.homePaths.HomeDir, discardLogger()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var remaining int
+		if err := fixture.database.DB().QueryRowContext(ctx,
+			"SELECT count(*) FROM workspaces WHERE id=?", string(source)).
+			Scan(&remaining); err != nil || remaining != 0 {
+			t.Fatalf("registration remaining=%d err=%v", remaining, err)
+		}
+		var completed int
+		if err := fixture.database.DB().QueryRowContext(ctx,
+			`SELECT count(*) FROM user_scope_migrations WHERE source_workspace_id=? AND journal_state='verified'
+			AND layout_state='verified' AND registration_removed_at IS NOT NULL`, string(source)).Scan(&completed); err != nil || completed != 1 {
+			t.Fatalf("completed migrations=%d err=%v", completed, err)
+		}
+		retained, err := fixture.engine.Get(ctx, clientstate.WorkspaceID(windowmanager.UserDesktopWorkspaceID),
+			windowManagerStateDomain, key)
+		if err != nil || retained.Rev != first.Rev || !bytes.Equal(retained.Value, first.Value) {
+			t.Fatalf("reconciliation changed User layout: %v", err)
+		}
+	})
 }

@@ -304,6 +304,9 @@ func windowManagerDescriptors() []toolspkg.Descriptor {
 			spec.tags,
 			[]string{spec.title, spec.description},
 		)
+		metadata := descriptor.ExecutionMetadata()
+		metadata.ReservedWorkspacePartition = true
+		descriptor.ToolExecutionMetadata = &metadata
 		descriptor.OutputSchema = json.RawMessage(spec.outputSchema)
 		descriptors = append(descriptors, withRequiredCapabilities(descriptor, spec.capability))
 	}

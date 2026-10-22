@@ -368,7 +368,7 @@ func (h *BaseHandlers) modelCatalogExecutionContext(
 			"api: resolved model catalog workspace has no canonical id",
 		)
 	}
-	if err := h.authorizeModelCatalogWorkspace(c, canonicalWorkspaceID); err != nil {
+	if err := h.authorizeModelCatalogWorkspace(c, canonicalWorkspaceID, profileID); err != nil {
 		return modelcatalog.CatalogExecutionContext{}, err
 	}
 	return modelcatalog.CatalogExecutionContext{
@@ -378,7 +378,7 @@ func (h *BaseHandlers) modelCatalogExecutionContext(
 	}, nil
 }
 
-func (h *BaseHandlers) authorizeModelCatalogWorkspace(c *gin.Context, workspaceID string) error {
+func (h *BaseHandlers) authorizeModelCatalogWorkspace(c *gin.Context, workspaceID, profileID string) error {
 	credentials := agentCallerCredentialsFromRequest(c)
 	if !hasAgentCallerIdentityCredentials(credentials) {
 		return nil
@@ -389,6 +389,8 @@ func (h *BaseHandlers) authorizeModelCatalogWorkspace(c *gin.Context, workspaceI
 	}
 	request := workspaceAccessRequestForCaller(caller, workspaceID)
 	request.Seam = workspaceaccess.SeamCatalog
+	request.Target.ProfileID = profileID
+	request.ReadOnly = true
 	return agentidentity.ValidateWorkspaceAccess(c.Request.Context(), h.WorkspaceAccess, request)
 }
 

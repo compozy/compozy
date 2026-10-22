@@ -24,9 +24,12 @@ import {
   getLoopRunRoster,
   getLoopRunTimeline,
   listLoopRequests,
+  listLoopRequestsAggregate,
   listGoalTurns,
   listLoopRuns,
+  listLoopRunsAggregate,
   listLoops,
+  listLoopsAggregate,
   patchLoop,
   pauseLoopRun,
   putLoopAnnotations,
@@ -247,6 +250,34 @@ describe("loops-api (request construction + error mapping)", () => {
     await expectFetchRequest({
       path: "/api/workspaces/ws_1/loop-runs?loop=implement-tasks&status=running&origin=session&origin_session=session_1&live=true&limit=10&profile=marketing&all_profiles=false",
       method: "GET",
+    });
+  });
+
+  // All projects reads go to the flat aggregate routes with the breadth params; the Project
+  // filter repeats `workspace_ids` (`@user` selects User rows).
+  it("Should GET the All projects aggregates with breadth params and the Project filter", async () => {
+    const breadth = { all_workspaces: true as const, workspace_ids: ["ws_b", "@user"] };
+    mockJsonResponse({ entries: [], errors: [], truncated: false });
+    await listLoopsAggregate(breadth, { q: " triage ", sort: "name", profile: "default" });
+    await expectFetchRequest({
+      path: "/api/loops?all_workspaces=true&workspace_ids=ws_b&workspace_ids=%40user&q=triage&sort=name&profile=default",
+    });
+
+    mockJsonResponse({
+      runs: [],
+      aggregates: { total: 0, live: 0, terminal: 0, succeeded: 0, failed: 0 },
+    });
+    await listLoopRunsAggregate({ all_workspaces: true }, { origin: "session", profile: "p1" });
+    await expectFetchRequest({
+      callIndex: 1,
+      path: "/api/loop-runs?all_workspaces=true&origin=session&profile=p1",
+    });
+
+    mockJsonResponse({ items: [], aggregates: { pending: 0 }, next_cursor: "" });
+    await listLoopRequestsAggregate(breadth, { state: "pending", limit: 50, all_profiles: true });
+    await expectFetchRequest({
+      callIndex: 2,
+      path: "/api/loop-requests?all_workspaces=true&workspace_ids=ws_b&workspace_ids=%40user&state=pending&limit=50&all_profiles=true",
     });
   });
 

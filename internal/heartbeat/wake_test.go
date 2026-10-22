@@ -18,6 +18,25 @@ import (
 func TestManagedWakeServiceDecision(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should wake an eligible User session", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		cfg := compozyconfig.DefaultHeartbeatConfig()
+		store := newFakeWakeStore(t)
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-user", "", "coder", base, "User policy")}
+		health := newFakeWakeHealth()
+		health.rows["sess-user"] = eligibleWakeHealth("sess-user", "", "coder", base)
+		prompter := &fakeWakePrompter{}
+		service := newTestWakeService(t, store, health, prompter, cfg, base)
+		decision, err := service.Wake(
+			t.Context(),
+			WakeRequest{WorkspaceID: "", AgentName: "coder", SessionID: "sess-user", Source: WakeSourceScheduler},
+		)
+		if err != nil || decision.Result != WakeResultSent {
+			t.Fatalf("User wake = %+v, %v", decision, err)
+		}
+	})
+
 	t.Run("Should project the policy snapshot returned by the store into wake prompts", func(t *testing.T) {
 		t.Parallel()
 
@@ -548,7 +567,7 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 
 		decisions, err := service.WakeMany(t.Context(), []WakeRequest{
 			{WorkspaceID: "ws-1", AgentName: "coder", SessionID: "sess-1", Source: WakeSourceScheduler},
-			{AgentName: "coder", SessionID: "sess-2", Source: WakeSourceScheduler},
+			{SessionID: "sess-2", Source: WakeSourceScheduler},
 		})
 		if err == nil {
 			t.Fatal("WakeMany(partial invalid request) error = nil, want aggregate error")

@@ -31,8 +31,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
 		if err := first.UpsertLoopConfig(
 			testutil.Context(t),
-			"ws-loop-environment",
-			"delivery",
+			"ws-loop-environment", "", "delivery",
 			looppkg.LoopConfig{Environment: &environment},
 		); err != nil {
 			t.Fatalf("UpsertLoopConfig(environment) error = %v", err)
@@ -64,7 +63,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			}
 		})
 		assertLoopRunStateSchema(t, second)
-		stored, err := second.GetLoopConfig(testutil.Context(t), "ws-loop-environment", "delivery")
+		stored, err := second.GetLoopConfig(testutil.Context(t), "ws-loop-environment", "", "delivery")
 		if err != nil {
 			t.Fatalf("GetLoopConfig(reopened environment) error = %v", err)
 		}
@@ -341,7 +340,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 				t.Errorf("Close(reopened cleanup) error = %v", closeErr)
 			}
 		})
-		claim, err := reopened.GetAdmissionClaim(verificationCtx, "ws-upgrade", "delivery", "source", "event:42")
+		claim, err := reopened.GetAdmissionClaim(verificationCtx, "ws-upgrade", "", "delivery", "source", "event:42")
 		if err != nil {
 			t.Fatalf("GetAdmissionClaim() error = %v", err)
 		}
@@ -412,8 +411,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		})
 		claim, err := reopened.GetAdmissionClaim(
 			verificationCtx,
-			"ws-upgrade",
-			"delivery",
+			"ws-upgrade", "", "delivery",
 			"source",
 			"event:fractional",
 		)
@@ -433,8 +431,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 		writerClaim, err := reopened.GetAdmissionClaim(
 			verificationCtx,
-			"ws-upgrade",
-			"delivery",
+			"ws-upgrade", "", "delivery",
 			"source",
 			"event:writer",
 		)

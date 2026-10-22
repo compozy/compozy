@@ -125,6 +125,7 @@ type AttentionWorkspaceMute struct {
 }
 
 type AutomationJob struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
 	ID               string         `json:"id"`
 	ProfileID        string         `json:"profile_id"`
 	Scope            string         `json:"scope"`
@@ -175,6 +176,8 @@ type AutomationJobOverlay struct {
 }
 
 type AutomationRun struct {
+	WorkspaceID     sql.NullString `json:"workspace_id"`
+	Attribution     string         `json:"attribution"`
 	ID              string         `json:"id"`
 	ProfileID       sql.NullString `json:"profile_id"`
 	JobID           sql.NullString `json:"job_id"`
@@ -224,6 +227,7 @@ type AutomationSuggestion struct {
 }
 
 type AutomationTrigger struct {
+	GrantCeiling     string         `json:"grant_ceiling"`
 	ID               string         `json:"id"`
 	ProfileID        string         `json:"profile_id"`
 	Scope            string         `json:"scope"`
@@ -534,6 +538,7 @@ type GatewaySurfaceExposure struct {
 }
 
 type LoopAdmissionClaim struct {
+	ProfileID        string       `json:"profile_id"`
 	WorkspaceID      string       `json:"workspace_id"`
 	LoopName         string       `json:"loop_name"`
 	SourceKey        string       `json:"source_key"`
@@ -546,6 +551,7 @@ type LoopAdmissionClaim struct {
 }
 
 type LoopConfig struct {
+	ProfileID           string         `json:"profile_id"`
 	WorkspaceID         string         `json:"workspace_id"`
 	LoopName            string         `json:"loop_name"`
 	HumanGateEnabled    int64          `json:"human_gate_enabled"`
@@ -564,6 +570,7 @@ type LoopConfig struct {
 }
 
 type LoopDefinitionSnapshot struct {
+	ProfileID         string `json:"profile_id"`
 	WorkspaceID       string `json:"workspace_id"`
 	DefinitionDigest  string `json:"definition_digest"`
 	DefinitionVersion int64  `json:"definition_version"`
@@ -893,6 +900,7 @@ type LoopRequest struct {
 }
 
 type LoopRun struct {
+	GrantCeiling             string          `json:"grant_ceiling"`
 	ID                       string          `json:"id"`
 	ProfileID                string          `json:"profile_id"`
 	WorkspaceID              string          `json:"workspace_id"`
@@ -1007,6 +1015,7 @@ type LoopTimetravelOp struct {
 }
 
 type LoopUiAnnotation struct {
+	ProfileID   string  `json:"profile_id"`
 	WorkspaceID string  `json:"workspace_id"`
 	LoopName    string  `json:"loop_name"`
 	NodeID      string  `json:"node_id"`
@@ -1345,6 +1354,7 @@ type SchedulerPause struct {
 }
 
 type Session struct {
+	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ID                       string         `json:"id"`
 	ProfileID                string         `json:"profile_id"`
 	Name                     sql.NullString `json:"name"`
@@ -1698,6 +1708,7 @@ type SkillExposure struct {
 }
 
 type Task struct {
+	GrantCeiling          string         `json:"grant_ceiling"`
 	ID                    string         `json:"id"`
 	ProfileID             string         `json:"profile_id"`
 	Identifier            sql.NullString `json:"identifier"`
@@ -2065,6 +2076,25 @@ type ToolProcess struct {
 	CompletedAt    sql.NullString `json:"completed_at"`
 }
 
+type UserScopeMigration struct {
+	SourceWorkspaceID     string         `json:"source_workspace_id"`
+	SourceRoot            string         `json:"source_root"`
+	Disposition           string         `json:"disposition"`
+	ProfileIds            string         `json:"profile_ids"`
+	SqlDoneAt             sql.NullString `json:"sql_done_at"`
+	JournalState          string         `json:"journal_state"`
+	LayoutState           string         `json:"layout_state"`
+	RegistrationRemovedAt sql.NullString `json:"registration_removed_at"`
+}
+
+type UserScopeMigrationArchive struct {
+	SourceWorkspaceID string `json:"source_workspace_id"`
+	TableName         string `json:"table_name"`
+	RowJson           string `json:"row_json"`
+	Reason            string `json:"reason"`
+	ArchivedAt        string `json:"archived_at"`
+}
+
 type VaultSecret struct {
 	Ref            string `json:"ref"`
 	Kind           string `json:"kind"`
@@ -2092,6 +2122,12 @@ type WorkspaceDeletionIntent struct {
 	CreatedAt    string         `json:"created_at"`
 	UpdatedAt    string         `json:"updated_at"`
 	RequestedAt  string         `json:"requested_at"`
+}
+
+type WorkspaceNameAlias struct {
+	OldName     string `json:"old_name"`
+	WorkspaceID string `json:"workspace_id"`
+	CreatedAt   string `json:"created_at"`
 }
 
 type Worktree struct {

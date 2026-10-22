@@ -220,7 +220,7 @@ func (o *loopWatchEventsObserver) matchAndWake(ctx context.Context, event looppk
 	}
 	var errs []error
 	for _, subscription := range subscriptions {
-		if !watchEventsWorkspaceMayMatch(subscription.WorkspaceID, event.WorkspaceID) ||
+		if !watchEventsScopeMayMatch(subscription, event) ||
 			!o.subscriptionMatchesEvent(subscription, event) {
 			continue
 		}
@@ -391,10 +391,19 @@ func loopWatchEventsWakeKey(loopRunID string, nodeID string) string {
 	)
 }
 
-func watchEventsWorkspaceMayMatch(subscriptionWorkspaceID string, eventWorkspaceID string) bool {
-	subscriptionWorkspaceID = strings.TrimSpace(subscriptionWorkspaceID)
-	eventWorkspaceID = strings.TrimSpace(eventWorkspaceID)
-	return subscriptionWorkspaceID == "" || eventWorkspaceID == "" || subscriptionWorkspaceID == eventWorkspaceID
+// watchEventsScopeMayMatch admits an event only from the subscription's own scope. An empty
+// workspace is the User scope of one profile, so User subscriptions also require the event's
+// profile (USW BR-8); an event without a profile never reaches a User subscription.
+func watchEventsScopeMayMatch(subscription looppkg.ParkedWatchEventSubscription, event looppkg.WatchEvent) bool {
+	workspaceID := strings.TrimSpace(subscription.WorkspaceID)
+	if workspaceID != strings.TrimSpace(event.WorkspaceID) {
+		return false
+	}
+	if workspaceID != "" {
+		return true
+	}
+	profileID := strings.TrimSpace(subscription.ProfileID)
+	return profileID != "" && profileID == strings.TrimSpace(event.ProfileID)
 }
 
 func loopWatchEventsOutcome(eventType string) string {

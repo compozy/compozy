@@ -37,11 +37,12 @@ type ResolvedInputs struct {
 func (s *service) resolveEffectiveInputs(
 	ctx context.Context,
 	ws WorkspaceID,
+	profileID string,
 	loopName string,
 	def dsl.Definition,
 	run map[string]any,
 ) (ResolvedInputs, error) {
-	layers, err := s.resolveInputDefaults(ctx, ws, loopName)
+	layers, err := s.resolveInputDefaults(ctx, ws, profileID, loopName)
 	if err != nil {
 		return ResolvedInputs{}, fmt.Errorf("resolve Loop input defaults: %w", err)
 	}

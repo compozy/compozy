@@ -47,6 +47,10 @@ type agentCatalogCursor struct {
 
 // ListAgentCatalog returns a scoped fleet page with exact session metrics.
 func (h *BaseHandlers) ListAgentCatalog(c *gin.Context) {
+	if c.Query("all_workspaces") != "" || len(c.QueryArray("workspace_ids")) > 0 {
+		h.respondAggregateBreadthError(c, invalidWorkspaceBreadth("use /api/agents/aggregate"))
+		return
+	}
 	query, err := parseAgentCatalogQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -129,7 +133,7 @@ func parseAgentCatalogQuery(c *gin.Context) (agentCatalogQuery, error) {
 			agentCatalogMaxLimit,
 		)
 	}
-	workspace := strings.TrimSpace(c.Query("workspace"))
+	workspace := agentWorkspaceRef(c)
 	status := strings.ToLower(strings.TrimSpace(c.Query("status")))
 	if status != "" && status != queryFilterActiveValue && status != "idle" {
 		return agentCatalogQuery{}, fmt.Errorf(

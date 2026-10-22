@@ -87,9 +87,7 @@ function composer() {
   return runtimes.latest.thread.composer;
 }
 
-function renderDesktop(
-  options: { hasProject?: boolean; onPickProject?: () => void; store?: SessionCreateStore } = {}
-) {
+function renderDesktop(options: { canStart?: boolean; store?: SessionCreateStore } = {}) {
   const store = options.store ?? createSessionCreateStore();
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Infinity } },
@@ -113,8 +111,7 @@ function renderDesktop(
           <OsEmptyDesktop
             desktopName="Desktop 2"
             paletteShortcutLabel="⌘K"
-            hasProject={options.hasProject ?? true}
-            onPickProject={options.onPickProject}
+            canStart={options.canStart ?? true}
           />
         </SessionCreateProvider>
       </TooltipProvider>
@@ -381,22 +378,17 @@ describe("OsEmptyDesktop", () => {
     }
   });
 
-  it("Should keep the composer closed in Global scope and lead to picking a project", async () => {
-    const user = userEvent.setup();
+  it("Should rest the composer without a project prompt while the destination settles", () => {
     workspace.runtimeWorkspaceId = null;
     workspace.runtimeWorkspace = undefined;
-    workspace.scope = "global";
-    const onPickProject = vi.fn();
-    renderDesktop({ hasProject: false, onPickProject });
+    renderDesktop({ canStart: false });
 
     const input = screen.getByTestId("composer-input");
     expect(input).toHaveAttribute("inert");
-    expect(input).toHaveTextContent("Pick a project to start a session");
+    expect(input).not.toHaveTextContent(/pick a project/i);
     expect(screen.getByTestId("composer-send-button")).toBeDisabled();
     expect(screen.queryByTestId("os-desk-agent-select")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Pick a project" }));
-    expect(onPickProject).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: /pick a project/i })).toBeNull();
     expect(createSessionAsync).not.toHaveBeenCalled();
   });
 });

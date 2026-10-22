@@ -127,10 +127,15 @@ func (q *Queries) GetGatewayIngressBinding(ctx context.Context, arg GetGatewayIn
 }
 
 const getGatewayWebhookIngressSubject = `-- name: GetGatewayWebhookIngressSubject :one
-SELECT scope_kind, workspace_id, endpoint_slug, webhook_id
+SELECT scope_kind, workspace_id, endpoint_slug, webhook_id, profile_id
 FROM (
   SELECT
     resource.scope_kind,
+    CASE resource.scope_kind
+      WHEN 'profile' THEN (SELECT id FROM profiles WHERE name = resource.scope_id)
+      WHEN 'workspace_profile' THEN (SELECT id FROM profiles WHERE name = substr(resource.scope_id, instr(resource.scope_id, '@pf:') + 4))
+      ELSE '00000000000000000000000000'
+    END AS profile_id,
     resource.scope_id AS workspace_id,
     CAST(json_extract(resource.spec_json, '$.endpoint_slug') AS TEXT) AS endpoint_slug,
     CAST(json_extract(resource.spec_json, '$.webhook_id') AS TEXT) AS webhook_id,
@@ -140,6 +145,7 @@ FROM (
   UNION ALL
   SELECT
     legacy.scope AS scope_kind,
+    legacy.profile_id,
     legacy.workspace_id,
     legacy.endpoint_slug,
     legacy.webhook_id,
@@ -160,6 +166,7 @@ type GetGatewayWebhookIngressSubjectRow struct {
 	WorkspaceID  sql.NullString `json:"workspace_id"`
 	EndpointSlug string         `json:"endpoint_slug"`
 	WebhookID    string         `json:"webhook_id"`
+	ProfileID    string         `json:"profile_id"`
 }
 
 func (q *Queries) GetGatewayWebhookIngressSubject(ctx context.Context, subjectID string) (GetGatewayWebhookIngressSubjectRow, error) {
@@ -170,6 +177,7 @@ func (q *Queries) GetGatewayWebhookIngressSubject(ctx context.Context, subjectID
 		&i.WorkspaceID,
 		&i.EndpointSlug,
 		&i.WebhookID,
+		&i.ProfileID,
 	)
 	return i, err
 }

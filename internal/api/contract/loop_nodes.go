@@ -69,16 +69,17 @@ type LoopNodeWaitPayload struct {
 
 // LoopNodeInventoryItem is one stable-ordered workspace inventory row.
 type LoopNodeInventoryItem struct {
-	State      LoopNodeInventoryState  `json:"state"`
-	LoopRunID  string                  `json:"loop_run_id"`
-	LoopName   string                  `json:"loop_name"`
-	Generation int                     `json:"generation"`
-	NodeID     string                  `json:"node_id"`
-	ItemIndex  int                     `json:"item_index"`
-	StateAt    time.Time               `json:"state_at"`
-	Wait       *LoopNodeWaitPayload    `json:"wait,omitzero"`
-	Control    *LoopNodeControlPayload `json:"control,omitzero"`
-	Output     *LoopGenerationOutput   `json:"output,omitzero"`
+	WorkspaceID string                  `json:"workspace_id,omitempty"`
+	State       LoopNodeInventoryState  `json:"state"`
+	LoopRunID   string                  `json:"loop_run_id"`
+	LoopName    string                  `json:"loop_name"`
+	Generation  int                     `json:"generation"`
+	NodeID      string                  `json:"node_id"`
+	ItemIndex   int                     `json:"item_index"`
+	StateAt     time.Time               `json:"state_at"`
+	Wait        *LoopNodeWaitPayload    `json:"wait,omitzero"`
+	Control     *LoopNodeControlPayload `json:"control,omitzero"`
+	Output      *LoopGenerationOutput   `json:"output,omitzero"`
 }
 
 // LoopNodeInventoryResponse is one page of workspace-scoped node state.

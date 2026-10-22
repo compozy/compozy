@@ -1,7 +1,9 @@
 // Suite: OS window runtime component
 // Invariant: the live OsWindow frame mounts safely in StrictMode, keeps every member mounted
 // across minimize/compact/tab switches, hosts the deck only at ≥2 members, and maps semantic
-// frame order onto visual layers where floating windows remain above tiled resize seams.
+// frame order onto visual layers where floating windows remain above tiled resize seams. On the
+// All projects desktop a bound item window names its project (or User) in the chrome; catalog
+// windows and project desktops show no badge.
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,6 +18,12 @@ import { OsSnapSeamLayer } from "../os-snap-seam";
 import { OsWindow } from "../os-window";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
+vi.mock("@/systems/workspace", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace")>()),
+  useActiveWorkspace: () => ({
+    registeredWorkspaces: [{ id: "ws_beta", name: "beta" }],
+  }),
+}));
 vi.mock("../../hooks/use-os-shell", () => {
   const manager = {};
   return {
@@ -143,11 +151,13 @@ function hookModel(frame: OsWindowFrameModel): OsWindowModel {
 }
 
 let presentation: OsDesktopRuntimeStore["presentation"];
+let partition: string;
 let windows: Record<string, OsWindowState>;
 let model: OsWindowModel;
 
 beforeEach(() => {
   presentation = "floating";
+  partition = "ws_alpha";
   windows = { "window:tasks": windowState() };
   model = hookModel(frameModel());
   pendingJobsController = false;
@@ -158,12 +168,48 @@ beforeEach(() => {
     // to carry a keymap for the deck to label anything with one.
     selector({
       presentation,
+      snapshot: { workspaceId: partition },
       windows,
       windowManagerConfig: {
         effectiveShortcuts: { "window.tab.new": ["meta+KeyT"], "window.close": ["meta+KeyW"] },
       },
     } as unknown as OsDesktopRuntimeStore)
   );
+});
+
+describe("OsWindow project badge", () => {
+  it.each([
+    ["ws_beta", "beta"],
+    ["@user", "User"],
+  ])(
+    "Should name the bound scope %s in the chrome on the All projects desktop",
+    (binding, name) => {
+      partition = "global";
+      windows = {
+        "window:tasks": windowState({
+          route: { pathname: "/tasks", search: { workspace: binding } },
+        }),
+      };
+      render(<OsWindow frame={frameModel()} />);
+
+      expect(screen.getByTestId("os-window-project-window:tasks")).toHaveTextContent(name);
+    }
+  );
+
+  it("Should show no badge on a catalog window or on a project desktop", () => {
+    partition = "global";
+    const view = render(<OsWindow frame={frameModel()} />);
+    expect(screen.queryByTestId("os-window-project-window:tasks")).not.toBeInTheDocument();
+
+    partition = "ws_alpha";
+    windows = {
+      "window:tasks": windowState({
+        route: { pathname: "/tasks", search: { workspace: "ws_beta" } },
+      }),
+    };
+    view.rerender(<OsWindow frame={frameModel()} />);
+    expect(screen.queryByTestId("os-window-project-window:tasks")).not.toBeInTheDocument();
+  });
 });
 
 describe("OsWindow", () => {

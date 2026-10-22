@@ -116,7 +116,7 @@ describe("WorkspaceCommandSelect", () => {
     );
   });
 
-  it("Should hide the operator-home row and list project workspaces only", async () => {
+  it("Should list every registered workspace, including one at the home folder", async () => {
     const user = userEvent.setup();
 
     render(
@@ -136,8 +136,8 @@ describe("WorkspaceCommandSelect", () => {
     const items = Array.from(group.querySelectorAll<HTMLElement>('[data-slot="command-item"]'));
     expect(items.map(item => item.getAttribute("data-testid"))).toEqual([
       "workspace-command-item-ws_alpha",
+      "workspace-command-item-ws_beta",
     ]);
-    expect(screen.queryByText("Home workspace")).not.toBeInTheDocument();
   });
 
   it("Should filter results via keyboard search", async () => {

@@ -12,6 +12,7 @@ const (
 
 func loopsOperations() []OperationSpec {
 	operations := loopCatalogOperations()
+	operations = append(operations, loopAggregateOperations()...)
 	operations = append(operations, loopInputDefaultsOperations()...)
 	operations = append(operations, loopRuntimeOperations()...)
 	operations = append(operations, loopRequestAndTimeTravelOperations()...)

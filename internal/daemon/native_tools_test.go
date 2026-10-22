@@ -3823,7 +3823,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err := binder.AuthorizeCallInput(t.Context(), scope, descriptor, call); err != nil {
 			t.Fatalf("AuthorizeCallInput(allow) error = %v", err)
 		}
-		if policy.calls != 1 || policy.last.TargetWorkspaceID != "ws-2" {
+		if policy.calls != 1 || policy.last.Target.WorkspaceID != "ws-2" {
 			t.Fatalf("policy calls/request = %d/%#v, want foreign target", policy.calls, policy.last)
 		}
 
@@ -3977,7 +3977,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if daemonPolicy.calls != 1 ||
 			daemonPolicy.last.Actor.Kind != workspaceaccess.ActorDaemon ||
 			daemonPolicy.last.Actor.WorkspaceID != "ws-1" ||
-			daemonPolicy.last.TargetWorkspaceID != "ws-2" {
+			daemonPolicy.last.Target.WorkspaceID != "ws-2" {
 			t.Fatalf(
 				"daemon foreign-workspace policy calls/request = %d/%#v, want daemon ws-1 to ws-2",
 				daemonPolicy.calls,
@@ -9240,7 +9240,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					},
 				},
 				Workspaces:      workspaces,
-				WorkspaceAccess: func() workspaceaccess.Policy { return policy },
+				WorkspaceAccess: policy,
 			}, nativeApproveAllPolicyInputs())
 			result, err := registry.Call(
 				t.Context(),
@@ -9254,7 +9254,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			if got := bytes.Contains(result.Structured, []byte(`"id":"ws-b"`)); got != tt.allowed {
 				t.Fatalf("%s: workspace_list = %s, want ws-b listed = %t", tt.name, result.Structured, tt.allowed)
 			}
-			if policy.last.Seam != workspaceaccess.SeamCatalog || policy.last.TargetWorkspaceID != "ws-b" ||
+			if policy.last.Seam != workspaceaccess.SeamCatalog || policy.last.Target.WorkspaceID != "ws-b" ||
 				policy.last.Actor.SessionID != "sess-a" {
 				t.Fatalf("%s: access request = %#v, want catalog seam for ws-b", tt.name, policy.last)
 			}
@@ -14486,5 +14486,239 @@ func requireNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descript
 	}
 	if err := compiled.Validate(instance); err != nil {
 		t.Fatalf("%s output schema rejected %s: %v", descriptor.ID, payload, err)
+	}
+}
+
+func TestNativeUserWorkspaceReference(t *testing.T) {
+	t.Parallel()
+	t.Run("Should parse User before registry lookup and authorize a typed User target", func(t *testing.T) {
+		t.Parallel()
+		descriptor := toolspkg.Descriptor{
+			ID:          toolspkg.ToolIDWorkspaceDescribe,
+			Backend:     toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"workspace":{"type":"string"}}}`),
+		}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		sessions := apitest.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+			return &session.Info{ID: "sess-user", ProfileID: "p1", State: session.StateActive}, nil
+		}}
+		binder := newNativeWorkspaceInputBinder(nil, sessions, policy, nil)
+		scope := toolspkg.Scope{SessionID: "sess-user", ProfileID: "p1"}
+		input, err := binder.BindCallInput(t.Context(), scope, descriptor, json.RawMessage(`{"workspace":"@user"}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(input) != `{"workspace":"@user"}` {
+			t.Fatalf("bound input = %s", input)
+		}
+		if err := binder.AuthorizeCallInput(
+			t.Context(),
+			scope,
+			descriptor,
+			toolspkg.CallRequest{Input: input},
+		); err != nil {
+			t.Fatal(err)
+		}
+		if policy.calls != 1 || policy.last.Target != workspaceaccess.ScopeTarget(workspaceaccess.UserSelector, "p1") ||
+			policy.last.Actor.WorkspaceID != "" {
+			t.Fatalf("User policy request = %#v", policy.last)
+		}
+	})
+}
+
+func TestNativeUserSession(t *testing.T) {
+	t.Run("Should accept explicit User creation without project resolution", func(t *testing.T) {
+		t.Parallel()
+		var accepted *session.CreateAcceptedOpts
+		manager := &nativeSessionPageHealthManager{
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				accepted = &opts
+				return &session.Info{
+					ID:        "session-user",
+					ProfileID: opts.Session.ProfileID,
+					AgentName: "general",
+					State:     session.StateActive,
+				}, nil
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces: nativeUserWorkspaceService{
+				StubWorkspaceService: apitest.StubWorkspaceService{},
+			},
+			Sessions: manager,
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionCreate, Input: json.RawMessage(`{"agent":"general","workspace":"@user"}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if accepted == nil || accepted.Session.Scope != workspacepkg.ScopeUser || accepted.Session.Workspace != "" ||
+			accepted.Session.ProfileID != store.DefaultProfileID {
+			t.Fatalf("accepted=%+v", accepted)
+		}
+	})
+}
+
+type nativeUserWorkspaceService struct{ apitest.StubWorkspaceService }
+
+func (nativeUserWorkspaceService) ResolveUser(
+	_ context.Context,
+	profileID string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return workspacepkg.ResolvedWorkspace{Scope: workspacepkg.ScopeUser, ProfileID: profileID}, nil
+}
+
+func TestNativeWindowGlobalPartition(t *testing.T) {
+	t.Run("Should bind operator global before registry resolution and deny agents", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				Sessions:       nativeTestSessionManager("workspace-a"),
+				WindowManagers: fixture.registry,
+				Workspaces:     fixture.resolver,
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		request := toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDWindowOpen,
+			Input: json.RawMessage(
+				`{"workspace":"global","expected_revision":0,"window_id":"global-window","app":"session","desktop_id":"desktop-default","route":{"pathname":"/sessions","search":{"workspace":"@user"}}}`,
+			),
+		}
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: testWindowManagerProfileID},
+			request,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var opened windowManagerCommandResult
+		if err := json.Unmarshal(result.Structured, &opened); err != nil {
+			t.Fatal(err)
+		}
+		if opened.WorkspaceID != windowmanager.GlobalDesktopWorkspaceID || !opened.Applied {
+			t.Fatalf("result = %#v", opened)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				WorkspaceID: "workspace-a",
+				SessionID:   "session-a",
+				AgentName:   "agent-a",
+				ProfileID:   testWindowManagerProfileID,
+			},
+			request,
+		)
+		if !errors.Is(err, toolspkg.ErrToolDenied) {
+			t.Fatalf("agent global error = %v", err)
+		}
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, ProfileID: testWindowManagerProfileID},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDWorkspaceDescribe,
+				Input:  json.RawMessage(`{"workspace":"global"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("non-WM global error = %v", err)
+		}
+	})
+}
+
+func TestNativeGrantSelection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should select another profile and retain the authenticated creator ceiling", func(t *testing.T) {
+		t.Parallel()
+		policy := &recordingNativeWorkspaceAccessPolicy{
+			decision: workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceAgentGrant},
+		}
+		var accepted *session.CreateAcceptedOpts
+		manager := apitest.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:                       "creator",
+					ProfileID:                "p1",
+					AgentName:                "coder",
+					State:                    session.StateActive,
+					EffectiveWorkspaceAccess: workspaceaccess.Unrestricted,
+				}, nil
+			},
+			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+				accepted = &opts
+				return &session.Info{ID: "child", ProfileID: opts.Session.ProfileID, State: session.StateActive}, nil
+			},
+		}
+		deps := &daemonNativeToolsDeps{
+			Sessions:        manager,
+			Workspaces:      nativeUserWorkspaceService{},
+			WorkspaceAccess: policy,
+			Profiles: nativeProfileReaderStub{
+				profiles: []profilepkg.WithCounts{
+					{ID: "p1", Name: "one", State: profilepkg.StateActive},
+					{ID: "p2", Name: "two", State: profilepkg.StateActive},
+				},
+			},
+		}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
+			t,
+			deps,
+			toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()),
+			policy,
+		)
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "creator", ProfileID: "p1", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionCreate,
+				Input:  json.RawMessage(`{"agent":"general","workspace":"@user","profile":"two"}`),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if accepted == nil || accepted.Session.ProfileID != "p2" ||
+			accepted.Session.Origin.Kind != workspaceaccess.ActorAgentSession ||
+			accepted.Session.Origin.Ceiling != workspaceaccess.Unrestricted {
+			t.Fatalf("accepted = %+v", accepted)
+		}
+		if policy.last.Target.ProfileID != "p2" || policy.last.Target.Kind != workspaceaccess.TargetUser {
+			t.Fatalf("profile authorization = %+v", policy.last)
+		}
+	})
+}
+
+func TestNativeUserLogSelection(t *testing.T) {
+	for _, toolID := range []toolspkg.ToolID{toolspkg.ToolIDListLogs, toolspkg.ToolIDObserveSearch} {
+		t.Run(string(toolID), func(t *testing.T) {
+			t.Parallel()
+			observer := &nativeObserverStub{}
+			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+				Observer: observer, Sessions: nativeTestSessionManager("ws-1"),
+				Workspaces: nativeUserWorkspaceService{},
+			}, nativeApproveAllPolicyInputs())
+			input := json.RawMessage(`{"workspace":"@user"}`)
+			if toolID == toolspkg.ToolIDObserveSearch {
+				input = json.RawMessage(`{"workspace":"@user","query":"audit"}`)
+			}
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true, ProfileID: "profile-user"},
+				toolspkg.CallRequest{
+					ToolID: toolID, Input: input,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if observer.lastEventQuery.WorkspaceID != workspaceaccess.UserSelector ||
+				observer.lastEventQuery.ReadScope.ProfileID != "profile-user" {
+				t.Fatalf("User event query lost its workspace or profile filter: %+v", observer.lastEventQuery)
+			}
+		})
 	}
 }

@@ -13,9 +13,13 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sessionStartSpec, error) {
+	if opts.Origin.Kind == "" {
+		opts.Origin = workspaceaccess.OriginFromContext(ctx)
+	}
 	opts, err := m.dispatchSessionPreCreate(ctx, opts)
 	if err != nil {
 		return sessionStartSpec{}, err
@@ -52,6 +56,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	}
 	return sessionStartSpec{
 		sessionID:                sessionID,
+		origin:                   opts.Origin,
 		profileID:                normalizeCreateProfileID(opts.ProfileID),
 		sessionName:              strings.TrimSpace(opts.Name),
 		agentName:                strings.TrimSpace(agentName),

@@ -57,10 +57,7 @@ func (n *daemonNativeTools) addressableWorkspaces(
 		return nil, err
 	}
 	workspaces := []workspacepkg.Workspace{own.Workspace}
-	var policy workspaceaccess.Policy
-	if n.deps.WorkspaceAccess != nil {
-		policy = n.deps.WorkspaceAccess()
-	}
+	policy := n.deps.WorkspaceAccess
 	if policy == nil || strings.TrimSpace(scope.SessionID) == "" {
 		return workspaces, nil
 	}
@@ -79,8 +76,8 @@ func (n *daemonNativeTools) addressableWorkspaces(
 				WorkspaceID: own.ID,
 				AgentName:   strings.TrimSpace(scope.AgentName),
 			},
-			TargetWorkspaceID: candidate.ID,
-			Seam:              workspaceaccess.SeamCatalog,
+			Target: workspaceaccess.ScopeTarget(candidate.ID, scope.ProfileID),
+			Seam:   workspaceaccess.SeamCatalog,
 		})
 		if err == nil && decision.Allowed {
 			workspaces = append(workspaces, candidate)
@@ -162,6 +159,9 @@ func (n *daemonNativeTools) listLogs(
 		return toolspkg.ToolResult{}, err
 	}
 	query.WorkspaceID = workspaceID
+	if input.WorkspaceID == workspaceaccess.UserSelector {
+		query.WorkspaceID = workspaceaccess.UserSelector
+	}
 	events, err := n.deps.Observer.QueryEvents(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -206,6 +206,9 @@ func (n *daemonNativeTools) observeSearch(
 		return toolspkg.ToolResult{}, err
 	}
 	query.WorkspaceID = workspaceID
+	if input.WorkspaceID == workspaceaccess.UserSelector {
+		query.WorkspaceID = workspaceaccess.UserSelector
+	}
 	query.Limit = 0
 	events, err := n.deps.Observer.QueryEvents(ctx, query)
 	if err != nil {

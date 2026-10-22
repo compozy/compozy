@@ -26,3 +26,16 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 QA impact 2026-10-07 (memory removal): the native read seam used for the read-decision matrix moved from the retired `compozy__memory_list` to `compozy__task_list`; the mode matrix itself is unchanged. The skip above still stands.
+
+
+2026-10-21 U5 grant coverage: repeat the matrix with an operator-authored
+`workspace_access: unrestricted` definition under `deny-all` and `approve-reads`.
+Project, User and cross-profile reads must succeed with `source=agent_grant` and
+actor/target profile plus target kind in the audit. Aggregate session/task/Loop
+reads accept granted sessions. Global and foreign-profile desktop partitions remain denied.
+Agent-credentialed definition writes setting the grant return
+`workspace_access_operator_only`. A child definition alone cannot elevate an ordinary
+creator. Resume preserves the effective grant; deferred execution uses its persisted
+ceiling, including after an agent edits executable fields and the daemon restarts.
+Extension-provided grants are discarded. U5 targeted evidence is recorded in
+`docs/qa/reports/2026-10-21-all-projects-user-scope.md`; the integrated browser walk remains pending.

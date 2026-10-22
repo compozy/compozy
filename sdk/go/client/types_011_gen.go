@@ -308,6 +308,7 @@ type OverviewAttentionItemPayload struct {
 	TaskID         string    `json:"task_id,omitempty"`
 	RunID          string    `json:"run_id,omitempty"`
 	SessionID      string    `json:"session_id,omitempty"`
+	WorkspaceID    string    `json:"workspace_id"`
 	OccurredAt     time.Time `json:"occurred_at"`
 	Actions        []string  `json:"actions"`
 }

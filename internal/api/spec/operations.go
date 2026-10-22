@@ -27,6 +27,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, providerOperations()...)
 	ops = append(ops, windowManagerOperations()...)
 	ops = append(ops, terminalOperations()...)
+	ops = append(ops, catalogAggregateOperations()...)
 	ops = append(ops, cmdPaletteOperations()...)
 	ops = applyToolArtifactContract(ops)
 	ops = applyAgentIdentityContract(ops)

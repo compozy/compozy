@@ -101,7 +101,7 @@ func nativeDescriptor(
 		Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: nativeName},
 		ToolPresentation: toolspkg.NewToolPresentation(title, "", ""),
 		Description:      description,
-		InputSchema:      json.RawMessage(inputSchema),
+		InputSchema:      nativeProfileInputSchema(inputSchema, readOnly),
 		OutputSchema:     json.RawMessage(`{"type":"object"}`),
 		Source:           Source(),
 		Visibility:       toolspkg.VisibilityModel,
@@ -147,4 +147,32 @@ func cloneStrings(src []string) []string {
 		return nil
 	}
 	return slices.Clone(src)
+}
+
+func nativeProfileInputSchema(input string, readOnly bool) json.RawMessage {
+	var schema map[string]json.RawMessage
+	if json.Unmarshal([]byte(input), &schema) != nil {
+		return json.RawMessage(input)
+	}
+	var properties map[string]json.RawMessage
+	if json.Unmarshal(schema["properties"], &properties) != nil {
+		return json.RawMessage(input)
+	}
+	if _, ok := properties["workspace"]; !ok {
+		return json.RawMessage(input)
+	}
+	properties["profile"] = json.RawMessage(`{"type":"string"}`)
+	if readOnly {
+		properties["all_profiles"] = json.RawMessage(`{"type":"boolean"}`)
+	}
+	encoded, err := json.Marshal(properties)
+	if err != nil {
+		return json.RawMessage(input)
+	}
+	schema["properties"] = encoded
+	encoded, err = json.Marshal(schema)
+	if err != nil {
+		return json.RawMessage(input)
+	}
+	return encoded
 }

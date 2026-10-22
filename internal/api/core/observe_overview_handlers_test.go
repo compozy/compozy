@@ -31,11 +31,12 @@ func TestObserveOverviewHandler(t *testing.T) {
 						Total:  2,
 						ByKind: map[string]int{"approval": 1, "failure": 1},
 						Items: []observe.OverviewAttentionItem{{
-							Kind:       "approval",
-							Title:      "Deploy docs site",
-							TaskID:     "task-1",
-							OccurredAt: time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC),
-							Actions:    []string{"approve", "reject", "open"},
+							Kind:        "approval",
+							Title:       "Deploy docs site",
+							TaskID:      "task-1",
+							WorkspaceID: "ws-home",
+							OccurredAt:  time.Date(2026, 7, 23, 10, 0, 0, 0, time.UTC),
+							Actions:     []string{"approve", "reject", "open"},
 						}},
 					},
 					Today:  observe.OverviewToday{RunsCompleted: 5, RunsFailed: 1, TasksClosed: 3},
@@ -71,8 +72,9 @@ func TestObserveOverviewHandler(t *testing.T) {
 				decoded.Overview.SchemaVersion, contract.ObserveOverviewSchemaVersion,
 			)
 		}
-		if decoded.Overview.Attention.Total != 2 || len(decoded.Overview.Attention.Items) != 1 {
-			t.Fatalf("attention = %+v, want mapped items", decoded.Overview.Attention)
+		if decoded.Overview.Attention.Total != 2 || len(decoded.Overview.Attention.Items) != 1 ||
+			decoded.Overview.Attention.Items[0].WorkspaceID != "ws-home" {
+			t.Fatalf("attention = %+v, want mapped items with their owning workspace", decoded.Overview.Attention)
 		}
 		if decoded.Overview.Today.RunsCompleted != 5 || decoded.Overview.System.RetentionDays != 7 {
 			t.Fatalf("payload = %+v, want mapped today and system blocks", decoded.Overview)
@@ -101,6 +103,35 @@ func TestObserveOverviewHandler(t *testing.T) {
 		}
 		if !strings.Contains(payload.Error, "usage_window must be 7, 30, or 90") {
 			t.Fatalf("error payload = %+v, want usage_window validation message", payload)
+		}
+	})
+}
+
+func TestObserveOverviewAllWorkspaces(t *testing.T) {
+	t.Parallel()
+	t.Run("Should select every task only with explicit all workspaces", func(t *testing.T) {
+		t.Parallel()
+		var captured observe.OverviewQuery
+		observer := testutil.StubObserver{
+			QueryObserveOverviewFn: func(_ context.Context, q observe.OverviewQuery) (observe.OverviewView, error) {
+				captured = q
+				return observe.OverviewView{}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, observer, testutil.StubWorkspaceService{})
+		for _, tc := range []struct {
+			suffix string
+			want   taskpkg.CatalogScope
+		}{{"", taskpkg.CatalogScopeGlobal}, {"?all_workspaces=false", taskpkg.CatalogScopeGlobal}, {"?all_workspaces=true", taskpkg.CatalogScopeAll}} {
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(t.Context(), "GET", "/observe/overview"+tc.suffix, nil),
+			)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "overview") ||
+				captured.TaskScope != tc.want {
+				t.Fatalf("response=%d %s query=%+v", response.Code, response.Body.String(), captured)
+			}
 		}
 	})
 }

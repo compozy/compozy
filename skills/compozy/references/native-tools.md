@@ -17,6 +17,8 @@
 - Observability tools
 - CLI/HTTP-only management surfaces
 - Descriptor discipline
+- Operator notification acknowledgement
+- All-projects aggregates
 
 ## Operating Rule
 
@@ -26,7 +28,7 @@ Never guess a tool schema from this reference. Resolve canonical `compozy__tool_
 
 Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, config apply history, and some session repair/recap/approval flows.
 
-`workspace` is optional and defaults to the bound session's workspace. Naming another workspace is a cross-workspace request governed by the session permission mode; see Workspace Boundary below. Bound sessions still cannot use `global`/`all`; operators can.
+`workspace` is optional and defaults to the bound session's workspace. `"@user"` names the User scope of the caller's profile (work that belongs to no project). Naming another workspace, or User from a project session, is a cross-scope request governed by the session permission mode; see Workspace Boundary below. Aggregate reads require an operator or an effective unrestricted grant; desktop `global` remains operator-only.
 
 ## Discovery And Catalog Toolsets
 
@@ -477,7 +479,22 @@ Registered IDs, durable workspace IDs, names and paths resolve to the same regis
 policy and dispatch. Naming the current project does not require cross-workspace approval, and
 native automation operations use the same project registration as CLI and HTTP/UDS reads.
 
-A call that names a workspace other than the bound session's is a cross-workspace request. The session's effective permission mode decides it, and there is no separate toggle, grant, or config key:
+`"@user"` is parsed before registry lookup on every descriptor with a `workspace` input and selects
+the User scope of the call's profile. It is never a registered workspace, name, or path. User is a
+scope of its own: a User session's own scope is User of its profile, and every registered project,
+including folders inside the User work directory, is foreign to it. A project session that reads or
+acts on User (lists User sessions, spawns into User, opens a User terminal) is equally cross-scope.
+"Same scope" means the same workspace and profile, or User of the same profile; the same workspace
+under a different profile is cross-profile and always reaches the policy. User has no worktrees:
+worktree parameters with `@user` fail with `user_scope_worktree_unsupported`, and other project-only
+operations fail with `user_scope_unsupported`.
+
+Renamed workspaces (reserved names `user`, `global`, and names starting with `@`) keep their former
+name as a selector with a deprecation warning through v0.4.0; the aliases are removed in v0.5.0. Use
+the workspace ID or the new name. On data tools `global` is not a workspace selector
+(`workspace_reserved`) unless it is such a migration alias.
+
+A call that names a workspace other than the bound session's is a cross-workspace request. An effective `workspace_access: unrestricted` grant allows it with audit source `agent_grant`; otherwise the session's effective permission mode decides:
 
 - `approve-all`: allowed at every seam.
 - `deny-all`: denied at every seam, including native tools. CompozyOS never prompts for crossing under this mode.
@@ -489,7 +506,9 @@ Denied native calls return `workspace_access_denied` with this exact hint:
 
 The prompt offers four daemon-computed options: `allow_once` (this call), `allow_session` (this call and every later crossing by this session, at every seam), `reject_once` (this call), and `reject_session` (this call and every later crossing by this session). A `*_session` answer lives only in daemon memory, expires when the session stops or the daemon restarts, and has no list or revoke surface. A prompt timeout, transport failure, or unknown answer denies and stores no session answer.
 
-Each policy evaluation attempts a best-effort `workspace.access_granted` or `workspace.access_denied` audit append with target workspace, seam, decision source, and mode. A prompt-eligible miss is a denied policy evaluation even when the operator then allows that one call; later evaluations allowed by `allow_session` are granted. Read persisted events through `compozy__logs`, `compozy__observe_search`, `compozy logs --type <event-type>`, or `GET /api/logs`.
+Granted agents may also select any active `profile`, use `all_profiles` on reads, and read aggregate routes. Work a granted agent creates in profile P is owned by P; the acting session's tool-approval grants apply. Tool-risk approvals still follow the session's `permissions` mode. Desktop tools remain restricted to project partitions and the caller profile's `user` partition; `global`, another profile's partitions, presence leases, and notification receipts stay operator-only. The full authority matrix and the operator-only authoring rule are in `references/agent-definitions.md` (Unrestricted Workspace Access). User Scope Work ADR-003 supersedes cross-workspace ADR-007 §1 for this one operator-authored field.
+
+Each policy evaluation attempts a best-effort `workspace.access_granted` or `workspace.access_denied` audit append with actor/target profiles, target kind/workspace, seam, decision source, and mode. A prompt-eligible miss is a denied policy evaluation even when the operator then allows that one call; later evaluations allowed by `allow_session` are granted. Read persisted events through `compozy__logs`, `compozy__observe_search`, `compozy logs --type <event-type>`, or `GET /api/logs`.
 
 On denial, report the hint to the operator and stop that line of work. Do not retry the same call, re-enter through another seam, spawn a child to cross for you, or edit `permissions.*` in config or an agent definition. `compozy__config_set` on `permissions.*` fail-closes; the operator owns the mode.
 
@@ -509,6 +528,12 @@ for mutations. Resolve descriptors, pass the workspace, and use the current revi
 - Layouts: `compozy__layout_get`, `compozy__layout_preview`, `compozy__layout_arrange`,
   `compozy__layout_resize`, `compozy__layout_balance`, `compozy__layout_undo`, `compozy__layout_redo`,
   `compozy__layout_export`, `compozy__layout_validate`, `compozy__layout_apply`.
+
+For operator calls, these descriptors accept `workspace: "global"` before registry normalization,
+selecting the acting profile's reserved All projects partition. Every agent identity, including
+agents with the unrestricted grant, is denied on it. `workspace: "@user"` selects the acting
+profile's reserved `user` partition. Neither makes `global` a valid workspace on other tools. Read
+`references/window-management.md` (Reserved partitions) for bindings and reconciliation.
 
 Every tab tool mutates and needs `window_manager.write`. `window_group` takes `target_window_id` plus
 a `window_ids` array and an optional `insert_index`; `window_reorder` moves one member inside its own
@@ -634,7 +659,9 @@ extension owner. Browser/OAuth login remains a management operation.
 
 ## Observability Tools
 
-Runtime log inspection is available through `compozy__logs`. Metrics and redacted event search are available through `compozy__observe_metrics` and `compozy__observe_search`.
+Runtime log inspection is available through `compozy__logs`. Logs and `compozy__observe_search`
+accept `workspace: "@user"` to read only User events in the selected profile. The CLI equivalent is
+`compozy logs --workspace @user --type workspace.access_granted`. Metrics and redacted event search are available through `compozy__observe_metrics` and `compozy__observe_search`.
 
 ## CLI/HTTP-Only Management Surfaces
 
@@ -671,3 +698,77 @@ requests remain reachable in their owning app. Session badges and attention-summ
 runtime state; bell/title counts represent unread notifications. Task candidates honor existing inbox
 triage. An acknowledged occurrence stays hidden across reconnects; a new source revision/run/request
 can notify again.
+
+## All-Projects Aggregates
+
+All projects means every registered project plus User rows (`workspace_id` absent or empty), within
+the current profile lens. It never widens the profile lens; that remains `profile=` or
+`all_profiles=true`. Aggregates are operator surfaces: ordinary agent identities get
+`403 agent_scope_denied`, sessions with an effective unrestricted grant are allowed and audited with
+target kind `aggregate`, and the new aggregate routes deny app tokens. Native list tools keep their
+workspace-bound inputs and gain no aggregate parameters, so use the CLI or HTTP/UDS for these reads.
+
+Breadth vocabulary, the same on every route (each route keeps its existing selector, omission
+population, and envelope):
+
+- `all_workspaces=true`: every project plus User rows.
+- `workspace_ids=<id>`: repeatable, only with `all_workspaces=true`; narrows the aggregate. `@user`
+  selects User rows. Values are trimmed, deduplicated, and sorted; an empty value fails with
+  `workspace_breadth_invalid`, `global` with `workspace_reserved`.
+- `all_workspaces=true` combined with the route's single-project selector or a workspace path, or
+  `workspace_ids` without it, fails with `400 workspace_breadth_invalid`.
+- Cursors embed breadth, filter, and profile. Reusing one under another selection fails with the
+  route's existing query-invalid error; restart paging instead.
+
+| Read                                  | CLI (`--all-workspaces`, exclusive with `--workspace`) | HTTP/UDS                                                                                     |
+| ------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Sessions                              | `compozy session list --all-workspaces`                | `GET /api/sessions?all_workspaces=true`, facets add `by_profile`                             |
+| Tasks                                 | `compozy task list --all-workspaces`                   | `GET /api/tasks?all_workspaces=true` (same population as operator omission; rejects `scope`) |
+| Task dashboard, Home overview         | —                                                      | `GET /api/observe/tasks/dashboard`, `GET /api/observe/overview` with `all_workspaces=true`   |
+| Loop runs (Goals: `--origin session`) | `compozy loop runs --all-workspaces`                   | `GET /api/loop-runs?all_workspaces=true`                                                     |
+| Loop requests                         | `compozy loop requests --all-workspaces`               | `GET /api/loop-requests?all_workspaces=true`                                                 |
+| Loop definitions                      | `compozy loop list --all-workspaces`                   | `GET /api/loops?all_workspaces=true`                                                         |
+| Automation jobs, triggers             | `compozy automation jobs\|triggers --all-workspaces`   | `GET /api/automation/jobs\|triggers?all_workspaces=true`                                     |
+| Automation runs                       | `compozy automation runs --all-workspaces`             | `GET /api/automation/runs?all_workspaces=true`                                               |
+| Automation suggestions                | `compozy automation suggestions --all-workspaces`      | `GET /api/automation/suggestions?all_workspaces=true`                                        |
+| Worktrees                             | `compozy worktree list --all-workspaces`               | `GET /api/worktrees?all_workspaces=true`                                                     |
+| Terminals (local listener only)       | `compozy terminal list --all-workspaces`               | `GET /api/terminals`, `/api/terminals/catalog-stream` with `all_workspaces=true`             |
+| Agents                                | `compozy agent list --all-workspaces`                  | `GET /api/agents/aggregate`                                                                  |
+
+Human CLI output adds a `PROJECT` column: the project name, `User` for User rows, `?` for unknown.
+JSON keeps `workspace_id` (and `attribution` on automation runs); join names from
+`GET /api/workspaces`. On `/api/tasks`, `all_workspaces=true&workspace_ids=@user` equals
+`scope=global`.
+
+Route specifics:
+
+- **Loop runs** use `created_at DESC, id DESC` only; `order=operational` requires a workspace path.
+- **Loop requests** keep the shared pending/resolved order with a rowid cursor that carries the
+  breadth; the profile lens applies through the owning run, and each request carries `workspace_id`.
+- **Loop definitions** and **agents** resolve for one concrete profile (`profile`, else the acting
+  profile); `all_profiles=true` is rejected. Identity is `(workspace_id, name)`. A User row
+  (`workspace_id` empty) lists each user/profile-layer definition and counts only User runs; a
+  project row lists definitions authored or overridden there, plus inherited user-layer definitions
+  with a run in that project in the last 30 days. Loop definitions return `entries`, per-workspace
+  `errors`, and `truncated` (200 entries per workspace, 2,000 total); each entry carries
+  `workspace_id` and `source.layer`. The existing workspace catalogs keep their envelopes. Agent
+  aggregate cursors and metrics use `(name, workspace_id)`.
+- **Automation jobs and triggers** accept `all_workspaces=true` with the same population as
+  omission, plus `workspace_ids`. **Runs** add `workspace_id`, `all_workspaces`, `workspace_ids`,
+  and an opaque `cursor` (`page.next_cursor`). A run's `workspace_id` is the source definition's
+  project at reservation, independent of where it executed; `attribution` is `recorded` for new
+  runs, `derived` for historical runs whose source still exists, and `unknown` without evidence.
+  Unknown runs are excluded by any `workspace_ids` filter and read as "Unknown project", never User.
+- **Worktrees** read cached store state with no Git discovery or refresh; `--refresh` cannot
+  accompany `--all-workspaces`.
+- **Terminals** aggregate only on local listeners (gateway tiers return 404). The stream's
+  `Last-Event-ID` is `<sequence>.<selection-fingerprint>`; a profile or filter change, or a replay
+  older than retention, yields a fresh `terminal.snapshot` with `reset: true`. Workspace-path
+  streams keep numeric cursors.
+- **Existing app-allowed routes** (`/api/tasks`, `/api/automation/{jobs,triggers,runs}`,
+  `/api/agents/catalog`) keep their app access; `all_workspaces=true` never widens what an app token
+  already reads by omission. `/api/agents/catalog` rejects `all_workspaces`; use
+  `/api/agents/aggregate`.
+
+The needs-you bell (`GET /api/notifications/attention`) stays operator-wide across every profile and
+labels User items `"User"` (previously `"Global"`; a display string).

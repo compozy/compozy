@@ -2,6 +2,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 
 import type { SessionPayload } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 /** Archives a stopped session using its explicit owner profile. */
 export async function archiveSession(
@@ -13,7 +14,10 @@ export async function archiveSession(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { profile },
+      },
       signal,
     }
   );
@@ -33,7 +37,10 @@ export async function unarchiveSession(
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/unarchive",
     {
-      params: { path: { workspace_id: workspaceId, session_id: id }, query: { profile } },
+      params: {
+        path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
+        query: { profile },
+      },
       signal,
     }
   );

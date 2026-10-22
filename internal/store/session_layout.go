@@ -45,7 +45,7 @@ type SessionLayoutScope struct {
 func (s SessionLayoutScope) Normalize() (SessionLayoutScope, error) {
 	s.ProfileID = strings.TrimSpace(s.ProfileID)
 	s.WorkspaceID = strings.TrimSpace(s.WorkspaceID)
-	if s.ProfileID == "" || s.WorkspaceID == "" {
+	if s.ProfileID == "" {
 		return SessionLayoutScope{}, fmt.Errorf("%w: profile and workspace are required", ErrSessionLayoutInvalid)
 	}
 	return s, nil

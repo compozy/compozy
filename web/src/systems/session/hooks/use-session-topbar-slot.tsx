@@ -28,6 +28,8 @@ import { SessionStatusLine } from "../components/session-status-line";
 import { SessionWorktreeBindingChip } from "../components/session-worktree-binding-chip";
 import { SessionTransportContext } from "../lib/session-transcript-thread-context-value";
 import { useSessionTransportState } from "./use-session-transcript-thread-messages";
+import { SessionUnrestrictedBadge } from "../components/session-unrestricted-badge";
+import { sessionIsUnrestricted } from "../lib/session-unrestricted";
 
 interface SessionTopbarWorktreeBinding {
   worktreeId: string;
@@ -214,6 +216,9 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
           session={session}
           showState={false}
         />
+        {sessionIsUnrestricted(session) ? (
+          <SessionUnrestrictedBadge data-testid="session-topbar-unrestricted" />
+        ) : null}
         {/* OQ7: the binding chip mounts here; the exit control never does. */}
         {worktreeBinding ? (
           <SessionWorktreeBindingChip

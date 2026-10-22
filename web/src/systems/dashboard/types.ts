@@ -1,3 +1,4 @@
+import type { WorkspaceBadgeIdentity } from "@/systems/workspace";
 import type { OperationQuery, OperationResponse } from "@/lib/api-contract";
 
 export type HomeOverview = OperationResponse<"getObserveOverview", 200>["overview"];
@@ -5,7 +6,10 @@ export type HomeOverviewWireFilter = OperationQuery<"getObserveOverview">;
 
 interface HomeOverviewFilterBase {
   receiptProfile?: string;
+  /** One project, or `@user`. Omitted with `allWorkspaces` unset reads User's tasks only. */
   workspace?: string;
+  /** All projects: every task. Mutually exclusive with `workspace`. */
+  allWorkspaces?: boolean;
   usageWindow?: HomeUsageWindow;
 }
 
@@ -53,6 +57,8 @@ export interface HomeRunCardModel {
   baseAtMs: number;
   sessionLink?: { agentName: string; sessionId: string };
   runLink?: { taskId: string; runId: string };
+  /** The item's project under All projects only; the card opens in place, bound to it. */
+  project?: { badge: WorkspaceBadgeIdentity; binding: string };
 }
 
 export interface HomeWorkingNowModel {

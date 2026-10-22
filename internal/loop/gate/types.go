@@ -95,6 +95,7 @@ func GateFromGoalJudge(nodeID string, criteria []dsl.GateCriterion) Gate {
 //
 //revive:disable-next-line:exported // GateInput is the TechSpec contract name.
 type GateInput struct {
+	GrantCeiling             string
 	JudgeParentSessionID     string
 	LoopRunID                string
 	Placement                Placement
@@ -255,6 +256,7 @@ type CommandRunner interface {
 
 // CommandRequest is one command criterion invocation.
 type CommandRequest struct {
+	ProfileID   string
 	WorkspaceID string
 	GateID      string
 	CriterionID string
@@ -277,6 +279,7 @@ type JudgeRunner interface {
 
 // JudgeRequest is the rendered agent-judge invocation.
 type JudgeRequest struct {
+	GrantCeiling    string
 	ParentSessionID string
 	LoopRunID       string
 	GateID          string

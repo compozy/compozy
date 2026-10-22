@@ -100,6 +100,9 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
   # Emit the same list as JSON
   compozy agent list -o json`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if wantsAllWorkspaces(cmd) {
+				return writeAggregateCatalog(cmd, deps, "agents")
+			}
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
@@ -117,6 +120,7 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().String("workspace", "", "Override workspace context (ID, name, or path)")
+	addAllWorkspacesFlag(cmd)
 	return cmd
 }
 
@@ -329,6 +333,7 @@ func renderAgentHuman(item AgentRecord) string {
 		{Label: "Definition Digest", Value: stringOrDash(item.DefinitionDigest)},
 		{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
 		{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
+		{Label: "workspace_access", Value: stringOrDash(item.WorkspaceAccess)},
 	})
 
 	servers := make([][]string, 0, len(item.MCPServers))

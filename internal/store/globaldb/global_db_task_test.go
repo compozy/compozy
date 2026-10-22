@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/workspaceaccess"
+
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -89,6 +91,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"needs_attention_by_kind",
 		"needs_attention_by_ref",
 		"wake_creator",
+		"grant_ceiling",
 	})
 	assertTableColumns(t, globalDB.db, "task_blocks", []string{
 		"id",
@@ -2842,6 +2845,22 @@ func TestGlobalDBTaskCatalogPaginationAndFacets(t *testing.T) {
 			}
 			if inbox.Total != 2 {
 				t.Fatalf("ListTaskInbox(default).Total = %d, want 2", inbox.Total)
+			}
+			// The All projects Project filter narrows the inbox like the catalog (AP BR-12).
+			for _, tc := range []struct {
+				ids  []string
+				want int
+			}{{ids: []string{workspaceaccess.UserSelector}, want: 2}, {ids: []string{"ws-unrelated"}, want: 0}} {
+				narrowed, err := globalDB.ListTaskInbox(ctx, taskpkg.InboxQuery{
+					ReadScope:    store.ReadScope{ProfileID: store.DefaultProfileID},
+					WorkspaceIDs: tc.ids, ExcludeCreatedBy: excluded, Limit: 10,
+				}, taskpkg.ActorIdentity{Kind: taskpkg.ActorKindHuman, Ref: "user:alice"})
+				if err != nil {
+					t.Fatalf("ListTaskInbox(workspace_ids=%v) error = %v", tc.ids, err)
+				}
+				if narrowed.Total != tc.want {
+					t.Fatalf("ListTaskInbox(workspace_ids=%v).Total = %d, want %d", tc.ids, narrowed.Total, tc.want)
+				}
 			}
 		})
 
@@ -6028,4 +6047,149 @@ func benchmarkTaskCatalogHistoryDB(b *testing.B) *GlobalDB {
 		b.Fatal(err)
 	}
 	return db
+}
+
+func TestGlobalDBTaskCatalogWorkspaceBreadth(t *testing.T) {
+	t.Parallel()
+	t.Run("Should narrow rows totals and cursors before paging", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		a := registerWorkspaceForGlobalTests(t, db, "breadth-a", t.TempDir())
+		b := registerWorkspaceForGlobalTests(t, db, "breadth-b", t.TempDir())
+		for i, ws := range []string{"", a, b} {
+			record := taskRecordForTest(fmt.Sprintf("breadth-%d", i))
+			record.Status = taskpkg.TaskStatusReady
+			if ws != "" {
+				record.Scope = taskpkg.ScopeWorkspace
+				record.WorkspaceID = ws
+			}
+			if err := db.CreateTask(ctx, record); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := taskpkg.CatalogQuery{
+			ReadScope:     store.ReadScope{ProfileID: store.DefaultProfileID},
+			AllWorkspaces: true,
+			WorkspaceIDs:  []string{a, workspaceaccess.UserSelector},
+			Limit:         1,
+		}
+		page, err := db.ListTaskCatalog(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if page.Total != 2 || len(page.Tasks) != 1 || !page.HasMore {
+			t.Fatalf("page = %#v", page)
+		}
+		query.Cursor = page.NextCursor
+		query.WorkspaceIDs = []string{workspaceaccess.UserSelector, a, a}
+		next, err := db.ListTaskCatalog(ctx, query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if next.Total != 2 || len(next.Tasks) != 1 || next.HasMore || next.Tasks[0].ID == page.Tasks[0].ID {
+			t.Fatalf("next = %#v", next)
+		}
+		query.WorkspaceIDs = []string{b}
+		if _, err := db.ListTaskCatalog(ctx, query); !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
+			t.Fatalf("changed filter error = %v", err)
+		}
+		query.WorkspaceIDs = []string{a, workspaceaccess.UserSelector}
+		query.ReadScope = store.ReadScope{AllProfiles: true}
+		if _, err := db.ListTaskCatalog(ctx, query); !errors.Is(err, taskpkg.ErrCatalogCursorInvalid) {
+			t.Fatalf("changed profile error = %v", err)
+		}
+		user, err := db.ListTaskCatalog(
+			ctx,
+			taskpkg.CatalogQuery{
+				ReadScope:     store.ReadScope{AllProfiles: true},
+				AllWorkspaces: true,
+				WorkspaceIDs:  []string{workspaceaccess.UserSelector},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if user.Total != 1 || user.Tasks[0].WorkspaceID != "" {
+			t.Fatalf("User page = %#v", user)
+		}
+		summaries, err := db.ListTasks(
+			ctx,
+			taskpkg.Query{
+				ReadScope:    store.ReadScope{AllProfiles: true},
+				WorkspaceIDs: []string{workspaceaccess.UserSelector, a},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(summaries) != 2 {
+			t.Fatalf("dashboard population = %d, want 2", len(summaries))
+		}
+	})
+}
+
+func TestGlobalDBTaskCatalogBreadthQueryPlan(t *testing.T) {
+	t.Parallel()
+	for _, allProfiles := range []bool{false, true} {
+		name := "Should explain one profile recent sort"
+		if allProfiles {
+			name = "Should explain all profiles recent sort"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+			if allProfiles {
+				scope = store.ReadScope{AllProfiles: true}
+			}
+			query, err := taskpkg.NormalizeCatalogQuery(
+				taskpkg.CatalogQuery{ReadScope: scope, AllWorkspaces: true, Limit: 10},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			baseWhere, args := taskCatalogBaseFilter(query)
+			where, filterArgs := taskCatalogFilter(query)
+			statement := taskCatalogStatement(
+				"SELECT "+taskCatalogSelectColumns+" FROM catalog",
+				baseWhere,
+				where,
+			) + taskCatalogOrderBy(
+				query.Sort,
+			) + taskCatalogLimitClause(
+				query.Limit+1,
+			)
+			rows, err := db.db.QueryContext(
+				t.Context(),
+				"EXPLAIN QUERY PLAN "+statement,
+				append(args, filterArgs...)...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := rows.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			profileSeek := false
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+					t.Fatal(err)
+				}
+				t.Log(detail)
+				if strings.Contains(detail, "SEARCH tasks USING INDEX idx_tasks_profile") {
+					profileSeek = true
+				}
+			}
+			if !allProfiles && !profileSeek {
+				t.Error("one-profile aggregate did not seek idx_tasks_profile")
+			}
+			if err := rows.Err(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }

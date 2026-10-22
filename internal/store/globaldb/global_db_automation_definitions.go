@@ -9,6 +9,7 @@ import (
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 // CreateJob stores a new automation job definition.
@@ -77,6 +78,7 @@ func (g *AutomationRepo) UpdateJob(
 		)
 	}
 	defer rollbackAutomationDefinitionTx(&err, tx, "update automation job")
+	params.Operator = workspaceaccess.OriginFromContext(ctx).Kind == workspaceaccess.ActorHuman
 	affected, err := sqlcgen.New(tx).UpdateAutomationJob(ctx, params)
 	if err != nil {
 		return automation.Job{}, fmt.Errorf(
@@ -224,6 +226,7 @@ func (g *AutomationRepo) UpdateTrigger(
 				err,
 			)
 		}
+		params.Operator = workspaceaccess.OriginFromContext(ctx).Kind == workspaceaccess.ActorHuman
 		affected, err := queries.UpdateAutomationTrigger(ctx, params)
 		if err != nil {
 			return fmt.Errorf(

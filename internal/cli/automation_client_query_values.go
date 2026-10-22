@@ -8,6 +8,9 @@ import (
 
 func automationJobValues(query AutomationJobQuery) url.Values {
 	values := url.Values{}
+	if query.AllWorkspaces {
+		values.Set("all_workspaces", "true")
+	}
 	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
 		values.Set("scope", trimmed)
 	}
@@ -40,6 +43,9 @@ func automationJobValues(query AutomationJobQuery) url.Values {
 
 func automationTriggerValues(query AutomationTriggerQuery) url.Values {
 	values := url.Values{}
+	if query.AllWorkspaces {
+		values.Set("all_workspaces", "true")
+	}
 	if trimmed := strings.TrimSpace(string(query.Scope)); trimmed != "" {
 		values.Set("scope", trimmed)
 	}

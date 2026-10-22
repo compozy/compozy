@@ -2,6 +2,10 @@
 export type {
   CreateLoopRequest,
   LoopAnnotationsUpdateRequest,
+  LoopAggregateBreadth,
+  LoopCatalogBatch,
+  LoopCatalogBatchEntry,
+  LoopCatalogBatchError,
   LoopCatalogEntry,
   LoopCatalogStableFilter,
   LoopConfigUpdateRequest,
@@ -61,8 +65,11 @@ export {
   getLoopRunTimeline,
   listGoalTurns,
   listLoopRequests,
+  listLoopRequestsAggregate,
   listLoopRuns,
+  listLoopRunsAggregate,
   listLoops,
+  listLoopsAggregate,
   patchLoop,
   pauseLoopRun,
   putLoopAnnotations,
@@ -76,7 +83,7 @@ export {
 
 // Query infrastructure
 export type { GoalControlAction } from "./lib/goal-control-action";
-export { loopsKeys } from "./lib/query-keys";
+export { LOOP_AGGREGATE_KEY, loopsKeys } from "./lib/query-keys";
 export {
   loopAnnotationsOptions,
   loopConfigOptions,
@@ -85,9 +92,12 @@ export {
   loopRequestsOptions,
   loopRunDetailOptions,
   loopRunDiffOptions,
+  loopRunsListOptions,
   loopRunsOptions,
+  loopsAggregateOptions,
   loopsCatalogOptions,
 } from "./lib/query-options";
+export { loopCatalogBatchEntries, loopCatalogEntryKey } from "./lib/loops-list-query";
 
 // Catalog helpers
 export type { LoopCatalogFilter, LoopStatusFilter } from "./lib/loop-catalog";
@@ -210,9 +220,12 @@ export {
   useLoop,
   useLoopAnnotations,
   useLoopConfig,
+  loopDefinitionProfile,
   useLoopRun,
   useLoopRuns,
+  useLoopRunsList,
   useLoops,
+  useLoopsAggregate,
 } from "./hooks/use-loops";
 export { useLoopRequestDetail, useLoopRequests } from "./hooks/use-loop-requests";
 export {
@@ -280,7 +293,8 @@ export type { LoopStreamEventSource } from "./hooks/use-loop-stream";
 export { LoopStatusMark } from "./components/loop-status-mark";
 export type { LoopStatusMarkProps } from "./components/loop-status-mark";
 export { LoopSection } from "./components/loop-section";
-export { LoopCatalog } from "./components/catalog/loop-catalog";
+export { LoopCatalog, type LoopCatalogAggregate } from "./components/catalog/loop-catalog";
+export type { LoopCatalogProjectError } from "./components/catalog/loop-catalog-project-errors";
 export { LoopCatalogCard } from "./components/catalog/loop-catalog-card";
 export { LoopCatalogFilters } from "./components/catalog/loop-catalog-filters";
 export { LoopCatalogLede } from "./components/catalog/loop-catalog-lede";

@@ -381,7 +381,10 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		shellConfigSchema := propertySchema(t, shellRequestSchema, "config")
 		assertRequired(t, shellConfigSchema, "sessions")
 		shellSessionsSchema := propertySchema(t, shellConfigSchema, "sessions")
-		assertRequired(t, shellSessionsSchema, "sort", "scope")
+		if len(shellSessionsSchema.Required) != 0 {
+			t.Fatalf("shell patch fields must be optional: %v", shellSessionsSchema.Required)
+		}
+		assertEnumValues(t, propertySchema(t, shellSessionsSchema, "group_by"), "none", "project", "profile")
 		assertEnumValues(
 			t,
 			propertySchema(t, shellSessionsSchema, "sort"),

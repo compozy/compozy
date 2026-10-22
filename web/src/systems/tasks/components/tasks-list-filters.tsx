@@ -1,7 +1,12 @@
 import { ListFilter } from "lucide-react";
 
 import { Button } from "@compozy/ui";
-import { FiltersWithSearch, type Filter } from "@compozy/ui";
+import { FiltersWithSearch, type Filter, type FilterFieldConfig } from "@compozy/ui";
+import {
+  projectFilterChip,
+  projectFilterValuesFromChips,
+  type ProjectFilterValue,
+} from "@/systems/workspace";
 
 import {
   applyTaskFilterChips,
@@ -19,6 +24,10 @@ export interface TasksListFiltersProps extends TaskFilterState {
   onStatusChange: TaskFilterHandlers["onStatusChange"];
   onOwnerChange: TaskFilterHandlers["onOwnerChange"];
   onPriorityChange: TaskFilterHandlers["onPriorityChange"];
+  /** The shared Project filter field; present only under All projects. */
+  projectField?: FilterFieldConfig<string> | null;
+  projectValues?: readonly ProjectFilterValue[];
+  onProjectChange?: (next: ProjectFilterValue[]) => void;
 }
 
 export function TasksListFilters({
@@ -30,13 +39,22 @@ export function TasksListFilters({
   onOwnerChange,
   onPriorityChange,
   statusShownElsewhere = false,
+  projectField = null,
+  projectValues = [],
+  onProjectChange,
 }: TasksListFiltersProps) {
-  const fields = buildTaskFilterFields(ownerOptions);
+  // Project leads: it decides which projects the other filters search.
+  const fields = [...(projectField ? [projectField] : []), ...buildTaskFilterFields(ownerOptions)];
   const chipOptions = { statusShownElsewhere };
-  const chips = taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter }, chipOptions);
+  const projectChip = projectField ? projectFilterChip(projectValues) : null;
+  const chips = [
+    ...(projectChip ? [projectChip] : []),
+    ...taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter }, chipOptions),
+  ];
 
   const handleFiltersChange = (next: Filter<string>[]) => {
     applyTaskFilterChips(next, { onStatusChange, onOwnerChange, onPriorityChange }, chipOptions);
+    if (projectField) onProjectChange?.(projectFilterValuesFromChips(next));
   };
 
   return (

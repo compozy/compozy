@@ -1,4 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -23,8 +24,10 @@ vi.mock("sonner", () => ({
   toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
+// Outside a window frame the window's data scope is the menubar destination.
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
-  useActiveWorkspace: () => ({ runtimeWorkspaceId: "ws_default" }),
+  useActiveWorkspace: () => ({ dataScope: { kind: "project", workspaceId: "ws_default" } }),
+  useDataScope: () => ({ kind: "project", workspaceId: "ws_default" }),
 }));
 
 vi.mock("@/systems/automation", async importOriginal => ({
@@ -69,6 +72,7 @@ vi.mock("@/systems/loops/hooks/use-loops", () => ({
 }));
 
 const { useLoopDetail } = await import("@/systems/os/apps/loops/use-loop-detail");
+const { WindowDataBindingContext } = await import("@/systems/workspace");
 const { LoopsApiError } = await import("@/systems/loops/adapters/loops-api");
 
 describe("useLoopDetail", () => {
@@ -111,10 +115,7 @@ describe("useLoopDetail", () => {
     });
 
     expect(mocks.toastError).toHaveBeenCalledWith("daemon unavailable");
-    expect(mocks.navigate).not.toHaveBeenCalledWith({
-      to: "/loops/$name/editor",
-      params: { name: "review-and-fix" },
-    });
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
   it("Should tolerate an existing workspace fork and navigate to the editor", async () => {
@@ -126,10 +127,42 @@ describe("useLoopDetail", () => {
     });
 
     expect(mocks.toastError).not.toHaveBeenCalled();
+    // An unbound window carries no binding into the editor route.
     expect(mocks.navigate).toHaveBeenCalledWith({
       to: "/loops/$name/editor",
       params: { name: "review-and-fix" },
+      search: {},
     });
+  });
+
+  it("Should read a bound window's project and keep its binding on item navigations", () => {
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <WindowDataBindingContext value={{ partition: "global", binding: "ws_b" }}>
+        {children}
+      </WindowDataBindingContext>
+    );
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"), { wrapper });
+
+    act(() => result.current.handlers.onRun());
+    act(() => result.current.handlers.onConfigure());
+
+    expect(result.current.workspaceId).toBe("ws_b");
+    expect(mocks.navigate.mock.calls).toEqual([
+      [
+        {
+          to: "/loops/$name/run",
+          params: { name: "review-and-fix" },
+          search: { workspace: "ws_b" },
+        },
+      ],
+      [
+        {
+          to: "/loops/$name/configure",
+          params: { name: "review-and-fix" },
+          search: { workspace: "ws_b" },
+        },
+      ],
+    ]);
   });
 
   it("Should open the Automations editor locked to this Loop [UT-114]", () => {

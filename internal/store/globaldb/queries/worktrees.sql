@@ -188,3 +188,6 @@ ORDER BY started_at, op_id;
 -- name: FailRunningWorktreeExitOperations :exec
 UPDATE worktree_exit_ops SET state = 'failed', finished_at = sqlc.arg(finished_at)
 WHERE state = 'running';
+
+-- name: ListWorktreesAggregate :many
+SELECT * FROM worktrees WHERE state <> 'dismissed' ORDER BY created_at, id;

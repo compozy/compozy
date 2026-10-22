@@ -41,6 +41,8 @@ const LOOP_NODE_ROWS: OsLoopNodeAttentionRow[] = [
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
     supervision: null,
+    scope: "workspace",
+    effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",
     id: "session-1",

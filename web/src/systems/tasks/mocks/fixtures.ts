@@ -1142,7 +1142,8 @@ export function buildCreatedTaskFixture(body?: Partial<CreateTaskRequest>): Task
       identifier: "TASK-NEW",
       title: body?.title?.trim() || "Created launch coordination task",
       status: body?.draft ? "draft" : "ready",
-      scope: body?.scope ?? "workspace",
+      scope:
+        body?.scope === "user" || body?.scope === "@user" ? "global" : (body?.scope ?? "workspace"),
       active_run: null,
       child_count: 0,
       dependency_count: 0,

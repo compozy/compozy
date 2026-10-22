@@ -127,6 +127,12 @@ func statusForWorkspaceError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
 		errors.Is(err, workspacepkg.ErrWorkspaceHasActiveSessions):
 		return http.StatusConflict
+	case errors.Is(err, workspacepkg.ErrWorkspaceReserved),
+		errors.Is(err, workspacepkg.ErrWorkspaceNameReserved),
+		errors.Is(err, workspacepkg.ErrUserScopeUnsupported),
+		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
+		errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid):
+		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceValidation):
 		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrOperatorHomeWorkspace):
@@ -190,7 +196,9 @@ func statusForSessionLookupError(err error) (int, bool) {
 
 func statusForSessionValidationError(err error) (int, bool) {
 	switch {
-	case errors.Is(err, workspacepkg.ErrAgentNotAvailable),
+	case errors.Is(err, workspacepkg.ErrUserScopeWorkDirInvalid),
+		errors.Is(err, workspacepkg.ErrUserScopeWorktreeUnsupported),
+		errors.Is(err, workspacepkg.ErrAgentNotAvailable),
 		errors.Is(err, compozyconfig.ErrProviderUnavailable),
 		errors.Is(err, session.ErrValidation),
 		errors.Is(err, store.ErrConversationRewindTargetInvalid),

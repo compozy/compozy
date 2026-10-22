@@ -94,7 +94,7 @@ SELECT sqlc.arg(trigger_id), CAST(value AS TEXT) FROM json_each(sqlc.arg(terms_j
 WITH requested(job_id, ordinal) AS (
   SELECT CAST(value AS TEXT), CAST(key AS INTEGER) FROM json_each(sqlc.arg(ids_json))
 )
-SELECT j.id, j.scope, j.name, j.agent_name, j.workspace_id, j.prompt, j.schedule, j.task,
+SELECT j.grant_ceiling, j.profile_id, j.id, j.scope, j.name, j.agent_name, j.workspace_id, j.prompt, j.schedule, j.task,
   CASE WHEN j.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE j.enabled END AS enabled,
   j.retry, j.fire_limit, j.source, j.target_kind, j.loop_workspace_id,
@@ -108,7 +108,7 @@ ORDER BY requested.ordinal;
 WITH requested(trigger_id, ordinal) AS (
   SELECT CAST(value AS TEXT), CAST(key AS INTEGER) FROM json_each(sqlc.arg(ids_json))
 )
-SELECT t.id, t.scope, t.name, t.agent_name, t.workspace_id, t.prompt, t.event, t.filter,
+SELECT t.grant_ceiling, t.profile_id, t.id, t.scope, t.name, t.agent_name, t.workspace_id, t.prompt, t.event, t.filter,
   CASE WHEN t.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,

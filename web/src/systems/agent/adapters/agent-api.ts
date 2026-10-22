@@ -7,6 +7,7 @@ import {
 } from "@/lib/api-client";
 
 import type {
+  AgentAggregateFilter,
   AgentCatalogFilter,
   AgentCatalogResponse,
   AgentPayload,
@@ -22,6 +23,27 @@ export async function fetchAgentCatalog(
 ): Promise<AgentCatalogResponse> {
   const { data, error, response } = await apiClient.GET("/api/agents/catalog", {
     params: { query: params },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new AgentApiError(
+      defaultApiErrorMessage("Failed to fetch agent catalog", response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, "Failed to fetch agent catalog");
+}
+
+/**
+ * User agents plus every project's agents for one concrete profile (operator
+ * only), one row per `(workspace_id, name)`, paged by that pair.
+ */
+export async function fetchAgentAggregate(
+  params: Omit<AgentAggregateFilter, "all_workspaces">,
+  signal?: AbortSignal
+): Promise<AgentCatalogResponse> {
+  const { data, error, response } = await apiClient.GET("/api/agents/aggregate", {
+    params: { query: { ...params, all_workspaces: true } },
     signal,
   });
   if (apiRequestFailed(response, error)) {

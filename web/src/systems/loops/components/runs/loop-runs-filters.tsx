@@ -4,6 +4,13 @@ import { ListFilter } from "lucide-react";
 import { Button, FiltersWithSearch, type Filter } from "@compozy/ui";
 
 import {
+  PROJECT_FILTER_FIELD,
+  projectFilterChip,
+  projectFilterValuesFromChips,
+  type ProjectFilterModel,
+} from "@/systems/workspace";
+
+import {
   applyLoopRunFilterChips,
   buildLoopRunFilterFields,
   loopRunFiltersToChips,
@@ -15,6 +22,8 @@ export interface LoopRunsFiltersProps extends LoopRunFilterHandlers {
   origin: LoopRunFilterState["origin"];
   originSession: LoopRunFilterState["originSession"];
   outcome: LoopRunFilterState["outcome"];
+  /** The shared listing Project filter; its field shows only under All projects. */
+  projectFilter?: ProjectFilterModel;
 }
 
 function sameRunFilterState(a: LoopRunFilterState, b: LoopRunFilterState): boolean {
@@ -53,7 +62,10 @@ function LoopRunsFilters({
   outcome,
   onOriginFilterChange,
   onOutcomeChange,
+  projectFilter,
 }: LoopRunsFiltersProps) {
+  const projectField = projectFilter?.field ?? null;
+  const projectChip = projectField ? projectFilterChip(projectFilter?.values ?? []) : null;
   const committedFromProps: LoopRunFilterState = { origin, originSession, outcome };
   const [chips, setChips] = useState(() => loopRunFiltersToChips(committedFromProps));
   const [committed, setCommitted] = useState(committedFromProps);
@@ -69,7 +81,9 @@ function LoopRunsFilters({
   }
 
   const handleFiltersChange = (next: Filter<string>[]) => {
-    const effective = reconcileRunChips(chips, next);
+    if (projectField) projectFilter?.setValues(projectFilterValuesFromChips(next));
+    const runChips = next.filter(chip => chip.field !== PROJECT_FILTER_FIELD);
+    const effective = reconcileRunChips(chips, runChips);
     setChips(effective);
     setCommitted(applyLoopRunFilterChips(effective, { onOriginFilterChange, onOutcomeChange }));
   };
@@ -77,8 +91,8 @@ function LoopRunsFilters({
   return (
     <FiltersWithSearch<string>
       allowMultiple={false}
-      fields={buildLoopRunFilterFields()}
-      filters={chips}
+      fields={[...buildLoopRunFilterFields(), ...(projectField ? [projectField] : [])]}
+      filters={[...chips, ...(projectChip ? [projectChip] : [])]}
       onChange={handleFiltersChange}
       size="sm"
       trigger={

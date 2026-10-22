@@ -4238,7 +4238,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		judgeModel := "stored-judge"
 		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
 
-		err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
+		err := globalDB.UpsertLoopConfig(ctx, "ws-1", "", "delivery", looppkg.LoopConfig{
 			HumanGateEnabled:  &humanGate,
 			ReattemptStrategy: &reattempt,
 			EnabledChecks:     []byte(`{"command":true}`),
@@ -4259,7 +4259,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 			t.Fatalf("UpsertLoopConfig() error = %v", err)
 		}
 
-		got, err := globalDB.GetLoopConfig(ctx, "ws-1", "delivery")
+		got, err := globalDB.GetLoopConfig(ctx, "ws-1", "", "delivery")
 		if err != nil {
 			t.Fatalf("GetLoopConfig() error = %v", err)
 		}
@@ -4287,7 +4287,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		if got.Environment == nil || got.Environment.Mode != dsl.EnvironmentPerRun {
 			t.Fatalf("Environment = %#v, want per_run", got.Environment)
 		}
-		_, err = globalDB.GetLoopConfig(ctx, "ws-2", "delivery")
+		_, err = globalDB.GetLoopConfig(ctx, "ws-2", "", "delivery")
 		if !errors.Is(err, looppkg.ErrConfigNotFound) {
 			t.Fatalf("GetLoopConfig(other workspace) error = %v, want ErrConfigNotFound", err)
 		}
@@ -4304,14 +4304,19 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 			loopName string
 			want     string
 		}{
-			{name: "Should reject empty workspace", ws: " ", loopName: "delivery", want: "workspace_id is required"},
+			{
+				name:     "Should reject User scope without profile",
+				ws:       " ",
+				loopName: "delivery",
+				want:     "User scope requires profile_id",
+			},
 			{name: "Should reject empty loop name", ws: "ws-1", loopName: " ", want: "loop_name is required"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				err := globalDB.UpsertLoopConfig(ctx, tc.ws, tc.loopName, looppkg.LoopConfig{})
+				err := globalDB.UpsertLoopConfig(ctx, tc.ws, "", tc.loopName, looppkg.LoopConfig{})
 				if !errors.Is(err, looppkg.ErrValidation) {
 					t.Fatalf("UpsertLoopConfig() error = %v, want ErrValidation", err)
 				}
@@ -4333,7 +4338,7 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		reattempt := looppkg.ReattemptFullBody
 		workerModel := "stored-worker"
 		environment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
-		if err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
+		if err := globalDB.UpsertLoopConfig(ctx, "ws-1", "", "delivery", looppkg.LoopConfig{
 			HumanGateEnabled:  &humanGate,
 			ReattemptStrategy: &reattempt,
 			EnabledChecks:     []byte(`{"command":true}`),
@@ -4346,13 +4351,13 @@ func TestGlobalDBLoopConfigShouldPersistOverrides(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("UpsertLoopConfig(initial) error = %v", err)
 		}
-		if err := globalDB.UpsertLoopConfig(ctx, "ws-1", "delivery", looppkg.LoopConfig{
+		if err := globalDB.UpsertLoopConfig(ctx, "ws-1", "", "delivery", looppkg.LoopConfig{
 			BudgetTokens: new(5000),
 		}); err != nil {
 			t.Fatalf("UpsertLoopConfig(partial) error = %v", err)
 		}
 
-		got, err := globalDB.GetLoopConfig(ctx, "ws-1", "delivery")
+		got, err := globalDB.GetLoopConfig(ctx, "ws-1", "", "delivery")
 		if err != nil {
 			t.Fatalf("GetLoopConfig() error = %v", err)
 		}
@@ -5415,7 +5420,7 @@ func TestGlobalDBLoopRunStatusShouldUseCompareAndSwap(t *testing.T) {
 		if created.Status != looppkg.StatusRunning {
 			t.Fatalf("CreateLoopRunForStart() status = %s, want running", created.Status)
 		}
-		snapshot, err := globalDB.GetLoopDefinitionSnapshot(ctx, created.WorkspaceID, created.DefinitionDigest)
+		snapshot, err := globalDB.GetLoopDefinitionSnapshot(ctx, created.WorkspaceID, "", created.DefinitionDigest)
 		if err != nil {
 			t.Fatalf("GetLoopDefinitionSnapshot() error = %v", err)
 		}
@@ -6555,7 +6560,7 @@ func TestGlobalDBLoopAdmissionClaimShouldSuppressConcurrentRedelivery(t *testing
 			t.Fatalf("result %d run id = %q, want winner %q", index, result.ID, winnerID)
 		}
 	}
-	claim, err := globalDB.GetAdmissionClaim(ctx, "ws-1", "delivery", "review-source", "review:42")
+	claim, err := globalDB.GetAdmissionClaim(ctx, "ws-1", "", "delivery", "review-source", "review:42")
 	if err != nil {
 		t.Fatalf("GetAdmissionClaim() error = %v", err)
 	}
@@ -7957,3 +7962,131 @@ func (persistedReviewCandidateVerifier) VerifyReviewCandidate(
 }
 
 var _ looppkg.WorktreeCandidateVerifier = persistedReviewCandidateVerifier{}
+
+func TestGlobalDBLoopUserScope(t *testing.T) {
+	t.Parallel()
+	t.Run("Should isolate User state and concurrency by profile", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+		foreign := "eeeeeeeeeeeeeeeeeeeeeeeeee"
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
+   VALUES (?, 'user-loop-foreign', '#E8572A', 'circle', 'active', ?)`, foreign, storepkg.FormatTimestamp(now)); err != nil {
+			t.Fatal(err)
+		}
+		for index, profileID := range []string{storepkg.DefaultProfileID, foreign} {
+			run := testLoopRun(fmt.Sprintf("user-run-%d", index), now, looppkg.StatusRunning)
+			run.WorkspaceID = ""
+			run.ProfileID = profileID
+			run.SetAdmission(
+				looppkg.AdmissionIdentity{SourceKey: "same-source", EventKey: "same-event", Horizon: time.Hour},
+			)
+			created, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyForbid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if created.WorkspaceID != "" || created.ProfileID != profileID {
+				t.Fatalf("wrong owner: %+v", created)
+			}
+			if _, err := db.GetLoopDefinitionSnapshot(ctx, "", profileID, run.DefinitionDigest); err != nil {
+				t.Fatal(err)
+			}
+			queued := run
+			queued.ID += "-queued"
+			queued.RunStartState = nil
+			queued.CreatedAt = now.Add(time.Second)
+			got, err := db.CreateLoopRunForStart(ctx, queued, dsl.ConcurrencyQueue)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Status != looppkg.StatusQueued {
+				t.Fatalf("status = %s", got.Status)
+			}
+			iterationCap := index + 3
+			if err := db.UpsertLoopConfig(
+				ctx,
+				"",
+				profileID,
+				"delivery",
+				looppkg.LoopConfig{IterationCap: &iterationCap},
+			); err != nil {
+				t.Fatal(err)
+			}
+			annotations := []looppkg.UIAnnotation{{NodeID: "finish", X: float64(index), Y: 4}}
+			if err := db.ReplaceLoopUIAnnotations(ctx, "", profileID, "delivery", annotations); err != nil {
+				t.Fatal(err)
+			}
+		}
+		for index, profileID := range []string{storepkg.DefaultProfileID, foreign} {
+			cfg, err := db.GetLoopConfig(ctx, "", profileID, "delivery")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.IterationCap == nil || *cfg.IterationCap != index+3 {
+				t.Fatalf("config crossed profiles: %+v", cfg)
+			}
+			positions, err := db.ListLoopUIAnnotations(ctx, "", profileID, "delivery")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(positions) != 1 || positions[0].X != float64(index) {
+				t.Fatalf("annotations crossed profiles: %+v", positions)
+			}
+		}
+		for _, id := range []string{"user-run-0", "user-run-1"} {
+			if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_requests
+ (workspace_id,loop_run_id,generation,node_id,kind,state,prompt,decisions_json,opened_at)
+ VALUES ('',?,1,'ask','ask','pending','Approve?','["approve"]',?)`, id, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+		page, err := db.ListRequests(ctx, "", looppkg.RequestQuery{ReadScope: storepkg.ReadScope{ProfileID: foreign}})
+		if err != nil || page.Pending != 1 || len(page.Items) != 1 || page.Items[0].ProfileID != foreign {
+			t.Fatalf("requests crossed profiles: %+v, %v", page, err)
+		}
+		page, err = db.ListRequests(ctx, "", looppkg.RequestQuery{ReadScope: storepkg.ReadScope{AllProfiles: true}})
+		if err != nil || page.Pending != 2 || len(page.Items) != 2 {
+			t.Fatalf("User request aggregate: %+v, %v", page, err)
+		}
+		project := testLoopRun("project-run", now, looppkg.StatusRunning)
+		if _, err := db.CreateLoopRunForStart(ctx, project, dsl.ConcurrencyAllow); err != nil {
+			t.Fatal(err)
+		}
+		runs, err := db.ListLoopRuns(
+			ctx,
+			looppkg.RunListQuery{WorkspaceID: "", ReadScope: storepkg.ReadScope{AllProfiles: true}},
+		)
+		if err != nil || len(runs) != 4 {
+			t.Fatalf("User aggregate leaked project: %d, %v", len(runs), err)
+		}
+		runs, err = db.ListLoopRuns(
+			ctx,
+			looppkg.RunListQuery{WorkspaceID: "", ReadScope: storepkg.ReadScope{ProfileID: foreign}},
+		)
+		if err != nil || len(runs) != 2 {
+			t.Fatalf("profile list: %d, %v", len(runs), err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			"UPDATE loop_runs SET status = 'done' WHERE id = 'user-run-0'",
+		); err != nil {
+			t.Fatal(err)
+		}
+		_, added, err := db.PromoteOldestQueuedLoopRun(
+			ctx,
+			"",
+			storepkg.DefaultProfileID,
+			project.LoopName,
+			taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "test"},
+			now.Add(time.Minute),
+		)
+		if err != nil || !added {
+			t.Fatalf("User queue promotion = %v, %v", added, err)
+		}
+		foreignQueued, err := db.GetLoopRun(ctx, "", "user-run-1-queued")
+		if err != nil || foreignQueued.Status != looppkg.StatusQueued {
+			t.Fatalf("foreign queue was changed: %+v, %v", foreignQueued, err)
+		}
+	})
+}

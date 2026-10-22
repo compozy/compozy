@@ -3,6 +3,7 @@ import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-clie
 import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import type { NormalizedSessionTranscriptResponse, SessionTranscriptQuery } from "../types";
 import { throwSessionRequestError } from "./session-api-errors";
+import { sessionWorkspacePath } from "./session-workspace-path";
 
 export interface SessionStreamCursor {
   afterSequence?: number;
@@ -47,7 +48,7 @@ export async function fetchSessionTranscript(
         })
       : await apiClient.GET("/api/workspaces/{workspace_id}/sessions/{session_id}/transcript", {
           params: {
-            path: { workspace_id: workspaceId, session_id: id },
+            path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
             query: Object.keys(query).length > 0 ? query : undefined,
           },
           signal,

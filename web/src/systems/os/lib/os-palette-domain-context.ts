@@ -1,5 +1,5 @@
 import type { CmdPaletteRankSignals } from "./cmd-palette-types";
-import type { WorkspaceScopeMode } from "@/systems/workspace";
+import type { DataScope } from "@/systems/workspace";
 
 export interface OsPaletteDomainContext {
   domainLimit?: number;
@@ -7,7 +7,8 @@ export interface OsPaletteDomainContext {
   profile: string;
   query: string;
   rootEnabled: boolean;
-  scope: WorkspaceScopeMode;
+  scope: DataScope;
+  /** Focused selector: the project id or `@user`; `null` under All projects. */
   scopedWorkspace: string | null;
   signals: CmdPaletteRankSignals | null;
   targetDomain?: string;

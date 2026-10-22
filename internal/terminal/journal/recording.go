@@ -16,6 +16,7 @@ func (s *Service) PersistRecording(
 	ref terminalpkg.RecordingRef,
 	contents []byte,
 ) (terminalpkg.RecordingRef, error) {
+	workspaceID = terminalpkg.JournalWorkspaceID(workspaceID, ref.ProfileID)
 	s.artifactMu.Lock()
 	defer s.artifactMu.Unlock()
 	path, digest, bytes, created, err := s.writeRecordingFile(workspaceID, ref.ID, contents)

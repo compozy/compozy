@@ -41,6 +41,7 @@ func (g *LoopRepo) listParkedLoopWaitEventSubscriptions(
 		FROM loop_node_waits AS wait
 		JOIN loop_runs AS run ON run.id = wait.loop_run_id
 		JOIN loop_definition_snapshots AS snapshot ON snapshot.workspace_id = run.workspace_id
+ AND snapshot.profile_id = CASE WHEN run.workspace_id = '' THEN run.profile_id ELSE '' END
 		 AND snapshot.definition_digest = run.definition_digest
 		JOIN loop_generation_outputs AS output ON output.loop_run_id = wait.loop_run_id
 		 AND output.generation = wait.generation AND output.node_id = wait.node_id

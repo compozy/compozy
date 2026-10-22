@@ -40,6 +40,8 @@ func windowManagerErrorPayload(
 
 func windowManagerErrorStatus(err error) (int, contract.WindowManagerErrorCode) {
 	switch {
+	case errors.Is(err, windowmanager.ErrWindowBindingInvalid):
+		return http.StatusBadRequest, contract.WindowManagerErrorBindingInvalid
 	case errors.Is(err, windowmanager.ErrWorkspaceNotFound), errors.Is(err, windowmanager.ErrSnapshotNotFound):
 		return http.StatusNotFound, contract.WindowManagerErrorWorkspaceNotFound
 	case errors.Is(err, windowmanager.ErrDesktopNotFound):

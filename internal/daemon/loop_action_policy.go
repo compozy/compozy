@@ -40,6 +40,20 @@ func (g *loopSessionPolicyGate) apply(
 	return err
 }
 
+// applyLoopSessionCWD resolves the CWD only for project sessions: User-scope sessions always
+// run in the configured User work directory and reject a caller directory.
+func applyLoopSessionCWD(opts *session.CreateOpts, resolved *workspacepkg.ResolvedWorkspace) error {
+	if resolved.Scope == workspacepkg.ScopeUser {
+		return nil
+	}
+	cwd, err := session.ResolveSessionCWD(resolved.RootDir, opts.CWD)
+	if err != nil {
+		return err
+	}
+	opts.CWD = cwd
+	return nil
+}
+
 func (g *loopSessionPolicyGate) applyResolved(
 	ctx context.Context,
 	opts *session.CreateOpts,
@@ -84,11 +98,9 @@ func (g *loopSessionPolicyGate) applyResolved(
 		resolvedAgent.DenyTools,
 		opts.DeniedToolsOverride,
 	)
-	cwd, err := session.ResolveSessionCWD(resolved.RootDir, opts.CWD)
-	if err != nil {
+	if err := applyLoopSessionCWD(opts, &resolved); err != nil {
 		return loopSessionPolicyResolution{}, err
 	}
-	opts.CWD = cwd
 	opts.Provider = strings.TrimSpace(resolvedAgent.Provider)
 	opts.Model = strings.TrimSpace(resolvedAgent.Model)
 	opts.ReasoningEffort = strings.TrimSpace(resolvedAgent.ReasoningEffort)
@@ -187,7 +199,11 @@ func (g *loopSessionPolicyGate) resolveWorkspace(
 	}
 	workspacePath := strings.TrimSpace(opts.WorkspacePath)
 	if workspacePath == "" {
-		return workspacepkg.ResolvedWorkspace{}, errors.New("daemon: loop session workspace is required")
+		resolver, ok := g.workspaceResolver.(workspacepkg.UserRuntimeResolver)
+		if !ok {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceResolverUnavailable
+		}
+		return resolver.ResolveUser(ctx, opts.ProfileID)
 	}
 	resolved, err := resolveRuntimeProfileWorkspace(
 		ctx,

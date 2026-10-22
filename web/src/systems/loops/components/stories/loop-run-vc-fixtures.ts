@@ -89,6 +89,7 @@ export function vcRequestExpiryScenario(): LoopRunStoryScenario {
   // blocker and no request staged an expiry notice with nothing expiring under it.
   const request: LoopRequest = {
     loop_run_id: STORY_RUN_ID,
+    profile_id: "",
     node_id: "fix_batch",
     item_index: 0,
     generation: 2,

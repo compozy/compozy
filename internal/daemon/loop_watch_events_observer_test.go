@@ -18,6 +18,37 @@ import (
 func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {
 	t.Parallel()
 
+	for _, tc := range []struct {
+		name         string
+		subscriber   string
+		event        string
+		eventProfile string
+		want         int
+	}{
+		{"Should not deliver User events to project subscribers", "ws-1", "", "profile-marketing", 0},
+		{"Should not deliver project events to User subscribers", "", "ws-1", "profile-marketing", 0},
+		{"Should deliver User events to User subscribers of the same profile", "", "", "profile-marketing", 1},
+		{"Should not deliver another profile's User events to User subscribers", "", "", "profile-personal", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			fixedNow := time.Date(2026, 7, 8, 17, 0, 0, 0, time.UTC)
+			watchStore := newRecordingLoopWatchEventsStore()
+			subscription := watchEventsParkedSubscriptionForTest("")
+			subscription.WorkspaceID = tc.subscriber
+			watchStore.setParked([]looppkg.ParkedWatchEventSubscription{subscription})
+			observer := newLoopWatchEventsObserverForTest(t, watchStore, &recordingWatchEventsBackstop{}, fixedNow)
+			payload := watchEventsTaskStatusPayloadForTest(tc.event, "task-target", "blocked", fixedNow)
+			payload.ProfileID = tc.eventProfile
+			if err := observer.OnTaskStatusChanged(t.Context(), payload); err != nil {
+				t.Fatal(err)
+			}
+			if got := len(watchStore.snapshotWakes()); got != tc.want {
+				t.Fatalf("wake calls = %d, want %d", got, tc.want)
+			}
+		})
+	}
+
 	t.Run("Should enqueue one wake and coalesce the second matching doorbell", func(t *testing.T) {
 		t.Parallel()
 
@@ -142,7 +173,7 @@ func TestLoopWatchEventsObserverShouldMatchAndWake(t *testing.T) {
 func TestLoopWatchEventsObserverShouldApplyDoorbellIsolation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject known foreign workspace and allow unknown workspace payloads", func(t *testing.T) {
+	t.Run("Should reject foreign workspace and User payloads for a project subscriber", func(t *testing.T) {
 		t.Parallel()
 
 		fixedNow := time.Date(2026, 7, 8, 17, 15, 0, 0, time.UTC)
@@ -156,13 +187,13 @@ func TestLoopWatchEventsObserverShouldApplyDoorbellIsolation(t *testing.T) {
 		if err := observer.OnTaskStatusChanged(t.Context(), foreign); err != nil {
 			t.Fatalf("OnTaskStatusChanged(foreign) error = %v", err)
 		}
-		unknown := watchEventsTaskStatusPayloadForTest("", "task-target", "blocked", fixedNow)
-		if err := observer.OnTaskStatusChanged(t.Context(), unknown); err != nil {
-			t.Fatalf("OnTaskStatusChanged(unknown) error = %v", err)
+		user := watchEventsTaskStatusPayloadForTest("", "task-target", "blocked", fixedNow)
+		if err := observer.OnTaskStatusChanged(t.Context(), user); err != nil {
+			t.Fatalf("OnTaskStatusChanged(user) error = %v", err)
 		}
 
-		if got, want := len(watchStore.snapshotWakes()), 1; got != want {
-			t.Fatalf("wake calls = %d, want only unknown workspace wake", got)
+		if got := len(watchStore.snapshotWakes()); got != 0 {
+			t.Fatalf("wake calls = %d, want none: an empty workspace is the User scope, never a wildcard", got)
 		}
 	})
 

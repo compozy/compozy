@@ -9,25 +9,40 @@ import { useCurrentWindowLiveDataEnabled } from "../../hooks/use-window-live-dat
 import {
   type LoopOutcomeValue,
   useLoopNodeInventory,
-  useLoopRuns,
+  useLoopRunsList,
   useLoops,
 } from "@/systems/loops";
-import { useActiveWorkspace } from "@/systems/workspace";
+import {
+  breadthQuery,
+  loopBreadthTarget,
+  useActiveWorkspace,
+  useProjectFilter,
+  workspaceBadgeIdentity,
+} from "@/systems/workspace";
 import { useProfileReadScope } from "@/systems/profiles";
+import { useLoopWindowScope } from "./hooks/use-loop-window-scope";
 
+/**
+ * View-model for the Runs route. A project's (or User's) runs read its
+ * workspace roster; under All projects the roster is the recency-ordered
+ * aggregate with a Project column and the Project filter. The Steps inventory
+ * reads one workspace, so it is offered only with a project or User in scope.
+ */
 export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
   // The runs listing's profile axis: owner tags under the aggregate, and the
   // profile named when nothing has run yet.
   const profile = useProfileReadScope();
-  const { activeWorkspace, runtimeWorkspaceId } = useActiveWorkspace();
-  const workspaceId = runtimeWorkspaceId ?? "";
-  const workspaceLabel = activeWorkspace?.name ?? activeWorkspace?.id ?? "workspace";
+  const { registeredWorkspaces, workspaces } = useActiveWorkspace();
+  const { scope, workspaceId } = useLoopWindowScope();
+  const allProjects = scope?.kind === "all";
+  const projectFilter = useProjectFilter(scope, workspaces);
+  const names = new Map(registeredWorkspaces.map(workspace => [workspace.id, workspace.name]));
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
-  const enabled = workspaceId !== "" && liveDataEnabled;
+  const enabled = (allProjects || workspaceId !== "") && liveDataEnabled;
   const [outcome, setOutcome] = useState<LoopOutcomeValue>("all");
   const navigate = useNavigate({ from: "/loop-runs" });
-  const runsQuery = useLoopRuns(
-    workspaceId,
+  const runsQuery = useLoopRunsList(
+    loopBreadthTarget(breadthQuery(scope ?? { kind: "all" }, projectFilter.values)),
     { origin: search.origin, origin_session: search.origin_session },
     enabled
   );
@@ -46,7 +61,7 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
     });
   };
 
-  const inventoryState = search.nodes;
+  const inventoryState = allProjects ? undefined : search.nodes;
   const catalogQuery = useLoops(
     workspaceId,
     { limit: 50, sort: "name" },
@@ -112,8 +127,12 @@ export function useLoopRunsRoute(search: LoopRunsRouteSearch) {
     runsQuery,
     setOriginFilter,
     setOutcome,
-    workspaceId,
-    workspaceLabel,
+    allProjects,
+    projectFilter,
+    /** Under All projects: each run's project, for its Project column. */
+    projectOf: allProjects ? (id: string) => workspaceBadgeIdentity(id, names) : undefined,
+    /** A data scope is settled: a project, User, or the All projects aggregate. */
+    ready: allProjects || workspaceId !== "",
     inventoryState,
     inventory,
     loopOptions,
