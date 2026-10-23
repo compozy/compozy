@@ -24,8 +24,35 @@ func TestWorktreesConfig(t *testing.T) {
 			t.Fatalf("ResolveRoot() = %q, want %q", root, filepath.Join(home, "worktrees"))
 		}
 		if got.RunBranchNamespace != "run/" || got.SetupTimeout != 10*time.Minute ||
+			got.TeardownCommand != "" || got.TeardownTimeout != 10*time.Minute ||
 			got.DiscoveryCacheTTL != 30*time.Second {
 			t.Fatalf("DefaultWorktreesConfig() = %#v, want run/, 10m, 30s", got)
+		}
+	})
+
+	t.Run("Should overlay teardown independently and allow an explicit empty command", func(t *testing.T) {
+		t.Parallel()
+		paths, err := ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := DefaultWithHome(paths)
+		cfg.Worktrees.SetupCommand = "setup"
+		path := filepath.Join(t.TempDir(), "overlay.toml")
+		writeFile(t, path, "[worktrees]\nteardown_command = \"cleanup\"\nteardown_timeout = \"3s\"\n")
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Worktrees.TeardownCommand != "cleanup" || cfg.Worktrees.TeardownTimeout != 3*time.Second ||
+			cfg.Worktrees.SetupCommand != "setup" {
+			t.Fatalf("overlay = %#v", cfg.Worktrees)
+		}
+		writeFile(t, path, "[worktrees]\nteardown_command = \"\"\n")
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Worktrees.TeardownCommand != "" || cfg.Worktrees.TeardownTimeout != 3*time.Second {
+			t.Fatalf("empty override = %#v", cfg.Worktrees)
 		}
 	})
 
@@ -111,6 +138,11 @@ func TestWorktreesConfig(t *testing.T) {
 				name:   "copy pattern outside the repository",
 				mutate: func(cfg *WorktreesConfig) { cfg.CopyList = []string{"../secret"} },
 				key:    "worktrees.copy_list",
+			},
+			{
+				name:   "teardown timeout",
+				mutate: func(cfg *WorktreesConfig) { cfg.TeardownTimeout = 0 },
+				key:    "worktrees.teardown_timeout",
 			},
 			{
 				name:   "setup timeout",

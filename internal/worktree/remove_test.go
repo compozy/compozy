@@ -20,9 +20,72 @@ import (
 func TestServiceRemoveAndRecover(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should run teardown before removal with the setup environment and redacted output", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = `test "$PWD" = "$COMPOZY_WORKTREE_PATH" && test "$COMPOZY_WORKTREE_ID" = "wt-remove" && test "$COMPOZY_WORKTREE_BRANCH" = "feature/remove" && printf 'cleaned\n' && printf 'token=super-secret-teardown\n' >&2`
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		WithConfig(settings, t.TempDir())(f.service)
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		if f.events.count(EventTeardownOutput) != 2 || f.events.count(EventTeardownFailed) != 0 ||
+			f.mustItem(t).State != StateRemoved {
+			t.Fatal("teardown output or removal missing")
+		}
+		for _, event := range f.events.events {
+			if strings.Contains(string(event.Payload), "super-secret-teardown") {
+				t.Fatal("secret exposed")
+			}
+		}
+	})
+	for _, tc := range []struct {
+		name, command string
+		timeout       time.Duration
+	}{
+		{"Should continue removal after teardown failure", "printf failure >&2; exit 7", time.Second},
+		{"Should continue removal after teardown timeout", "sleep 5", 30 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newRemovalTestFixture(t)
+			settings := config.DefaultWorktreesConfig()
+			settings.TeardownCommand, settings.TeardownTimeout = tc.command, tc.timeout
+			f.service.getenv = func(string) string { return "/bin/sh" }
+			WithConfig(settings, t.TempDir())(f.service)
+			if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+				t.Fatal(err)
+			}
+			if f.events.count(EventTeardownFailed) != 1 || f.mustItem(t).State != StateRemoved {
+				t.Fatal("failure must be observable and removal must complete")
+			}
+		})
+	}
+	t.Run("Should skip teardown when the removal hook denies", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf should-not-run"
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		WithConfig(settings, t.TempDir())(f.service)
+		WithHooks(removalHookDispatcher{dispatch: func(request HookRequest) (HookVerdict, error) {
+			return HookVerdict{Denied: request.Event == EventPreRemove}, nil
+		}})(f.service)
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, true); !errors.Is(err, ErrDeniedByHook) {
+			t.Fatalf("Remove = %v", err)
+		}
+		if f.events.count(EventTeardownOutput) != 0 || f.removeCalls.Load() != 0 {
+			t.Fatal("denied removal ran teardown or Git removal")
+		}
+	})
+
 	t.Run("Should dismiss idempotently and exclude active usage without touching disk", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf must-not-run"
+		WithConfig(settings, t.TempDir())(fixture.service)
 		if err := fixture.store.SetState(
 			t.Context(),
 			fixture.workspace.ID,
@@ -66,7 +129,8 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if fixture.events.count(EventDismissed) != 1 || len(fixture.runner.invocations()) != 0 {
+		if fixture.events.count(EventDismissed) != 1 || fixture.events.count(EventTeardownOutput) != 0 ||
+			len(fixture.runner.invocations()) != 0 {
 			t.Fatal("dismissal repeated effects or invoked Git")
 		}
 		if _, err := os.Stat(fixture.item.Path); err != nil {

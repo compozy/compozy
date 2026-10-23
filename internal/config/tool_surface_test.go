@@ -264,6 +264,16 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueDuration,
 		},
 		{
+			name: "Should allow worktree teardown command mutation",
+			path: worktreeTeardownCommandPath,
+			kind: ConfigValueString,
+		},
+		{
+			name: "Should allow worktree teardown timeout mutation",
+			path: worktreeTeardownTimeoutPath,
+			kind: ConfigValueDuration,
+		},
+		{
 			name: "Should allow worktree discovery cache mutation",
 			path: worktreeDiscoveryTTLPath,
 			kind: ConfigValueDuration,

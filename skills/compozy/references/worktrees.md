@@ -155,7 +155,8 @@ stale entry…**) and join **Select worktrees…**. They are removed by Git path
 
 `[worktrees]` controls new managed placement, per-run branch namespace, bootstrap copy/setup, and
 discovery freshness. Defaults are empty `root` (resolved under `$COMPOZY_HOME/worktrees`), `run/`,
-empty `copy_list` and `setup_command`, `10m` setup timeout, and `30s` discovery TTL. All apply live to
+empty `copy_list`, `setup_command` and `teardown_command`, `10m` setup and teardown timeouts,
+and `30s` discovery TTL. All apply live to
 later operations; existing paths and accepted decisions do not move. Read
 `references/configuration.md` in full before changing them. Task and Loop policies remain in
 `references/tasks-and-orchestration.md` and `references/loops.md`.
@@ -216,3 +217,26 @@ cleanup remains anchored and is retried at the next daemon boot.
 Settlement fields, including `pull_request_status`, are omitted while the child is running.
 A settled `unknown` PR status means the forge lookup was unavailable or failed; it does not mean
 that no PR exists.
+
+## Teardown on removal
+
+Set `worktrees.teardown_command` to clean up resources started by setup, for example
+`docker compose down`. The default is empty (disabled); `teardown_timeout` defaults to `10m`
+and must be positive. Both keys merge independently across user, profile, workspace and
+workspace-profile layers. An explicit empty command disables an inherited command.
+
+Teardown runs in the managed checkout after removal safety checks and `worktree.pre_remove`
+approval, before Git removes the directory. Hook denial skips teardown, including forced removal.
+It uses the same shell and allowlisted environment as setup: `PATH`, `HOME`, `LANG`, `TMPDIR`,
+`LC_*`, `SHELL`, `COMPOZY_WORKSPACE_ROOT`, `COMPOZY_WORKTREE_PATH`, `COMPOZY_WORKTREE_ID`, and
+`COMPOZY_WORKTREE_BRANCH`. Load any project-specific environment from the checkout explicitly.
+
+The worktree event stream carries redacted stdout/stderr as `worktree.teardown_output` with
+`stream` and `chunk`. A launch failure, nonzero exit or timeout emits `worktree.teardown_failed`
+with a bounded diagnostic and continues removal. A timeout terminates the command's process group.
+Git removal can still refuse changes made by teardown; commands should be safe to retry.
+These events do not change the recorded setup result.
+
+Dismiss remains metadata-only and never runs teardown, even if a checkout reappears. Missing paths,
+already removed records and discovered, unregistered worktrees also skip teardown. Adopted records
+use the configured teardown when removed. Unset teardown preserves existing removal behavior.

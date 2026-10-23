@@ -148,6 +148,13 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 		return refusalResult, err
 	}
 
+	if s.runTeardown(ctx, workspace, item) {
+		// Teardown can change checkout identity; never remove a replacement checkout.
+		if _, err := s.validateRemovalIdentity(ctx, item, commonDir); err != nil {
+			return nil, err
+		}
+	}
+
 	removedDespiteError, err := s.runFencedRemoval(ctx, workspace.Root, item, commonDir, force)
 	if removedDespiteError {
 		restoreReady = false
