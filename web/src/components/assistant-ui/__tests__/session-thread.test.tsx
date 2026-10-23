@@ -4445,7 +4445,11 @@ describe("SessionThread transcript states", () => {
     primeViewportAtEnd(viewport);
     const row = screen.getByText("Message 0");
     fireEvent.pointerDown(row);
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 1800 });
+    scrollViewportTo(viewport, 1_300);
+    expect(viewport.scrollTop).toBe(1_300);
     fireEvent.pointerUp(document);
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 2000 });
 
     // Still following: a later non-gesture scroll off the end is pinned back.
     scrollViewportTo(viewport, 300);

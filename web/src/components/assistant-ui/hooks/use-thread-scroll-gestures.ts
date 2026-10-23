@@ -41,6 +41,7 @@ export function useThreadScrollGestures(
     };
     let lastTouchY: number | null = null;
     let heldPointerScrollTop: number | null = null;
+    let heldPointerScrollHeight = 0;
     const handleWheel = (event: WheelEvent) => {
       observeNavigation(event.deltaY < 0 ? "up" : "down");
     };
@@ -59,6 +60,7 @@ export function useThreadScrollGestures(
     // it only once the scrolls it drives move the viewport.
     const handlePointerDown = (event: PointerEvent) => {
       heldPointerScrollTop = viewport.scrollTop;
+      heldPointerScrollHeight = viewport.scrollHeight;
       const onGutter =
         event.target === viewport &&
         event.clientX - viewport.getBoundingClientRect().left >= viewport.clientWidth;
@@ -77,10 +79,14 @@ export function useThreadScrollGestures(
       if (direction) observeNavigation(direction);
     };
     const handleScroll = () => {
-      if (heldPointerScrollTop !== null && viewport.scrollTop !== heldPointerScrollTop) {
-        const direction = viewport.scrollTop > heldPointerScrollTop ? "down" : "up";
+      if (heldPointerScrollTop !== null) {
+        // A shrinking layout clamps the viewport without a reader gesture.
+        const clamped = viewport.scrollHeight < heldPointerScrollHeight;
+        if (viewport.scrollTop !== heldPointerScrollTop && !clamped) {
+          observeNavigation(viewport.scrollTop > heldPointerScrollTop ? "down" : "up");
+        }
         heldPointerScrollTop = viewport.scrollTop;
-        observeNavigation(direction);
+        heldPointerScrollHeight = viewport.scrollHeight;
       }
       store.trigger.scrollObserved({
         atEnd: distanceFromBottom() <= FOLLOW_REARM_BAND_PX,
