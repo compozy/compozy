@@ -167,6 +167,32 @@ func TestManagerAdoptSession(t *testing.T) {
 		})
 	})
 
+	t.Run("Should refuse a subtree crossing workspaces without changing any lineage", func(t *testing.T) {
+		t.Parallel()
+		h := newReparentHarness(t)
+		source := h.createStopped(t, "")
+		target := h.createStopped(t, "")
+		child := store.SessionInfo{
+			ID: "sess-user-child", ProfileID: store.DefaultProfileID, AgentName: "coder",
+			SessionType: "user", State: "stopped", RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt: source.CreatedAt, UpdatedAt: source.CreatedAt,
+			Lineage: &store.SessionLineage{ParentSessionID: source.ID, RootSessionID: source.ID,
+				SpawnDepth: 1, Kind: store.LineageKindProvenance},
+		}
+		if err := h.db.RegisterSession(t.Context(), child); err != nil {
+			t.Fatal(err)
+		}
+		_, err := h.manager.AdoptSession(t.Context(), h.workspaceID, source.ID, target.ID)
+		refusal, ok := errors.AsType[*ReparentError](err)
+		if !ok || refusal.Reason != ReparentRefusalCrossWorkspace {
+			t.Fatalf("AdoptSession() = %v", err)
+		}
+		assertReparentLineage(t, h, source, wantLineage{root: source.ID, kind: store.LineageKindRoot})
+		if got := h.catalogLineage(t, child.ID); got.RootSessionID != source.ID || got.SpawnDepth != 1 {
+			t.Fatalf("foreign descendant lineage changed: %+v", got)
+		}
+	})
+
 	t.Run("Should refuse invalid reparent requests without changing lineage", func(t *testing.T) {
 		t.Parallel()
 
@@ -237,6 +263,50 @@ func TestManagerAdoptSession(t *testing.T) {
 			parent: root.ID, root: root.ID, depth: 1, kind: store.LineageKindProvenance,
 		})
 	})
+}
+
+func TestReparentDuringStartPreparation(t *testing.T) {
+	t.Parallel()
+	for _, resume := range []bool{false, true} {
+		name := "Should refresh a prepared child after its parent is adopted"
+		if resume {
+			name = "Should refresh a prepared resume after its session is adopted"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newReparentHarness(t)
+			target := h.createStopped(t, "")
+			source := h.createStopped(t, "")
+			var spec sessionStartSpec
+			var err error
+			if resume {
+				meta := readMeta(t, source.MetaPath())
+				spec, err = h.manager.prepareResumeStart(t.Context(), &meta)
+			} else {
+				spec, err = h.manager.prepareCreateStart(t.Context(), CreateOpts{
+					AgentName: "coder", Workspace: h.workspaceID,
+					Lineage: &store.SessionLineage{ParentSessionID: source.ID},
+				})
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := h.manager.AdoptSession(t.Context(), h.workspaceID, source.ID, target.ID); err != nil {
+				t.Fatal(err)
+			}
+			started, err := h.manager.startSession(t.Context(), &spec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h.harness, started.ID) })
+			want := wantLineage{parent: source.ID, root: target.ID, depth: 2, kind: store.LineageKindProvenance}
+			if resume {
+				want.parent = target.ID
+				want.depth = 1
+			}
+			assertReparentLineage(t, h, started, want)
+		})
+	}
 }
 
 func TestValidateReparentNodes(t *testing.T) {

@@ -33,3 +33,7 @@ and one subagent.
    one of the source's descendants offers no drop. Make top-level on the nested row returns it.
 6. Reload and restart the daemon: folders, order, and adopted lineage persist; a second window
    updates live.
+
+7. Attempt to reparent a session with a descendant in another workspace: expect
+   `session_reparent_cross_workspace_subtree` and unchanged source/descendant lineage.
+   Native calls targeting either a source or parent in another profile must be denied.

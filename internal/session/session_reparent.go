@@ -20,6 +20,8 @@ var (
 type ReparentRefusal string
 
 const (
+	// ReparentRefusalCrossWorkspace rejects subtrees spanning workspace boundaries.
+	ReparentRefusalCrossWorkspace ReparentRefusal = "cross_workspace_subtree"
 	// ReparentRefusalSourceHasParent rejects adopting a session that already has a parent.
 	ReparentRefusalSourceHasParent ReparentRefusal = "source_has_parent"
 	// ReparentRefusalSourceNotUser rejects reparenting managed, spawned, or subagent sessions.

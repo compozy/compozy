@@ -9003,6 +9003,45 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 			}
 		})
+
+		t.Run("Should preserve reparent refusal codes through the registry", func(t *testing.T) {
+			original := manager.DetachSessionFn
+			t.Cleanup(func() { manager.DetachSessionFn = original })
+			for _, reason := range []session.ReparentRefusal{
+				session.ReparentRefusalNotDetachable, session.ReparentRefusalCrossWorkspace,
+			} {
+				manager.DetachSessionFn = func(context.Context, string, string) (*session.Info, error) {
+					return nil, &session.ReparentError{Reason: reason, SessionID: "sess-1", Detail: "refused"}
+				}
+				_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionReparent,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","top_level":true}`),
+				})
+				got, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || string(got.Code) != "session_reparent_"+string(reason) {
+					t.Fatalf("Registry.Call() error = %v, want refusal %s", err, reason)
+				}
+			}
+		})
+		t.Run("Should fence both reparent targets to the effective profile", func(t *testing.T) {
+			original := manager.StatusFn
+			t.Cleanup(func() { manager.StatusFn = original })
+			for _, foreignID := range []string{"sess-1", "sess-parent"} {
+				manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+					target := *info
+					target.ID = id
+					if id == foreignID {
+						target.ProfileID = "profile-foreign"
+					}
+					return &target, nil
+				}
+				_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionReparent,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","parent_session_id":"sess-parent"}`),
+				})
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+			}
+		})
 		if renamedTarget != "ws-1/sess-1" || renamedName != "Release review" {
 			t.Fatalf("rename request = %q/%q, want ws-1/sess-1 and Release review", renamedTarget, renamedName)
 		}

@@ -51,6 +51,10 @@ func (m *Manager) acceptSessionStart(
 		}
 	}()
 
+	if err := m.refreshStartLineage(acceptCtx, spec); err != nil {
+		return nil, err
+	}
+
 	storage, err := m.prepareSessionStartStorage(spec)
 	if err != nil {
 		return nil, fmt.Errorf("session: prepare %s storage for %q: %w", spec.startAction, spec.sessionID, err)

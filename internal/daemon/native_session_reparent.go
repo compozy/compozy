@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -39,7 +40,7 @@ func (n *daemonNativeTools) sessionReparent(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, input.SessionID); err != nil {
+	if err := n.nativeReparentTarget(ctx, scope, req.ToolID, workspaceID, input.SessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	manager, ok := n.deps.Sessions.(core.SessionReparentManager)
@@ -49,18 +50,46 @@ func (n *daemonNativeTools) sessionReparent(
 	if input.TopLevel {
 		info, err := manager.DetachSession(ctx, workspaceID, input.SessionID)
 		if err != nil {
-			return toolspkg.ToolResult{}, err
+			return toolspkg.ToolResult{}, nativeReparentError(req.ToolID, err)
 		}
 		payload := core.SessionPayloadFromInfo(info)
 		return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 	}
-	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, parentID); err != nil {
+	if err := n.nativeReparentTarget(ctx, scope, req.ToolID, workspaceID, parentID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	info, err := manager.AdoptSession(ctx, workspaceID, input.SessionID, parentID)
 	if err != nil {
-		return toolspkg.ToolResult{}, err
+		return toolspkg.ToolResult{}, nativeReparentError(req.ToolID, err)
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+}
+
+func (n *daemonNativeTools) nativeReparentTarget(
+	ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID, workspaceID, sessionID string,
+) error {
+	info, err := n.nativeSessionInWorkspace(ctx, scope, id, workspaceID, sessionID)
+	if err != nil {
+		return err
+	}
+	profileID, _, _, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	if err != nil {
+		return err
+	}
+	targetProfile := strings.TrimSpace(info.ProfileID)
+	if targetProfile == "" {
+		targetProfile = store.DefaultProfileID
+	}
+	if targetProfile != profileID {
+		return nativeWorkspaceAccessDeniedError(id)
+	}
+	return nil
+}
+
+func nativeReparentError(id toolspkg.ToolID, err error) error {
+	if code := core.SessionReparentErrorCode(err); code != "" {
+		return toolspkg.NewToolError(toolspkg.ErrorCode(code), id, err.Error(), err)
+	}
+	return nativeHTTPStatusToolError(id, err, core.StatusForSessionError(err))
 }

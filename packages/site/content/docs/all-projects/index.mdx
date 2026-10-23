@@ -63,3 +63,5 @@ Opening an item from a project's own desktop works as before: an item from anoth
 - [User scope](/docs/user-scope) — work that belongs to no project.
 - [`[shell.sessions]`](/docs/configuration/config-toml#shellsessions) — `group_by` and the deprecated `scope` key.
 - [Window management](/docs/workspaces/window-management) — desktops and reserved partitions.
+
+Session nesting refuses an entire subtree that has descendants in another workspace. No lineage is changed; the API and native tool return `session_reparent_cross_workspace_subtree`. Both source and parent must belong to the effective profile.

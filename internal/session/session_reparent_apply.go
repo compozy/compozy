@@ -87,8 +87,12 @@ func (m *Manager) collectReparentSubtree(ctx context.Context, root *reparentNode
 		}
 		for i := range rows {
 			id := strings.TrimSpace(rows[i].ID)
-			if _, seen := visited[id]; seen || strings.TrimSpace(rows[i].WorkspaceID) != root.workspaceID {
+			if _, seen := visited[id]; seen {
 				continue
+			}
+			if strings.TrimSpace(rows[i].WorkspaceID) != root.workspaceID {
+				return nil, reparentRefusal(ReparentRefusalCrossWorkspace, root.id,
+					"sessions with descendants in another workspace cannot be reparented")
 			}
 			visited[id] = struct{}{}
 			queue = append(queue, id)
