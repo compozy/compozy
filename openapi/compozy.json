@@ -1966,6 +1966,14 @@
         ],
         "type": "object"
       },
+      "ArchiveSessionRequest": {
+        "properties": {
+          "stop": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "Argument": {
         "properties": {
           "name": {
@@ -83595,6 +83603,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveSessionRequest"
+              }
+            }
+          },
+          "description": "JSON request body"
+        },
         "responses": {
           "200": {
             "content": {
@@ -83605,6 +83623,16 @@
               }
             },
             "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid archive request"
           },
           "404": {
             "content": {
@@ -83624,7 +83652,7 @@
                 }
               }
             },
-            "description": "Session must be stopped before archiving"
+            "description": "Session must be stopped before archiving, or the requested stop failed"
           },
           "500": {
             "content": {
@@ -83647,7 +83675,7 @@
             "description": "Service unavailable - dependent service missing"
           }
         },
-        "summary": "Archive a stopped session",
+        "summary": "Archive a stopped session, or stop and archive a live session with stop=true",
         "tags": [
           "sessions"
         ],

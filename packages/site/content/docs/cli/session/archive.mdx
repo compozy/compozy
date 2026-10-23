@@ -1,11 +1,11 @@
 ---
 title: "compozy session archive"
-description: "Archive a stopped session"
+description: "Archive a stopped session, or stop and archive a live one with --stop"
 ---
 
 ## compozy session archive
 
-Archive a stopped session
+Archive a stopped session, or stop and archive a live one with --stop
 
 ```
 compozy session archive <id> [flags]
@@ -15,6 +15,7 @@ compozy session archive <id> [flags]
 
 ```
   -h, --help   help for archive
+      --stop   Stop a live session through the normal stop path (canceling any active turn) before archiving it
 ```
 
 ### Options inherited from parent commands

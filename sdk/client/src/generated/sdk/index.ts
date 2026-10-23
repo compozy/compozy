@@ -182,6 +182,7 @@ export type {
   ArchiveSessionData,
   ArchiveSessionError,
   ArchiveSessionErrors,
+  ArchiveSessionRequest,
   ArchiveSessionResponse,
   ArchiveSessionResponses,
   ArchiveTaskData,

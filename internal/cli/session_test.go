@@ -1029,8 +1029,10 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 		t.Parallel()
 
 		archivedAt := fixedTestNow.Add(time.Minute)
+		var stopRequests []bool
 		deps := newWorkspaceTestDeps(t, &stubClient{
-			archiveSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			archiveSessionFn: func(_ context.Context, id string, stop bool) (SessionRecord, error) {
+				stopRequests = append(stopRequests, stop)
 				return SessionRecord{
 					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
 					ArchivedAt: &archivedAt, CreatedAt: fixedTestNow, UpdatedAt: archivedAt,
@@ -1054,6 +1056,21 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 		}
 		if archived.ArchivedAt == nil || archived.ID != "sess-1" {
 			t.Fatalf("session archive output = %#v, want archive marker", archived)
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"session",
+			"archive",
+			"sess-1",
+			"--stop",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("executeRootCommand(session archive --stop) error = %v", err)
+		}
+		if len(stopRequests) != 2 || stopRequests[0] || !stopRequests[1] {
+			t.Fatalf("archive stop requests = %v, want [false true]", stopRequests)
 		}
 
 		unarchiveOutput, _, err := executeRootCommand(t, deps, "session", "unarchive", "sess-1", "-o", "json")

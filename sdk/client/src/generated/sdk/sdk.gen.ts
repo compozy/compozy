@@ -8871,7 +8871,7 @@ export class sessions extends HeyApiClient {
   }
 
   /**
-   * Archive a stopped session
+   * Archive a stopped session, or stop and archive a live session with stop=true
    */
   public archiveSession<ThrowOnError extends boolean = true>(
     options: Options<ArchiveSessionData, ThrowOnError>
@@ -8885,6 +8885,10 @@ export class sessions extends HeyApiClient {
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
       ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

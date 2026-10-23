@@ -65,6 +65,11 @@ export interface UseSessionLifecycleActionsResult {
   renameDialog: SessionRenameConfirmation;
 }
 
+/** A live session archives in one daemon-owned action that stops it first. */
+function archiveTarget(session: SessionPayload) {
+  return { ...session, stop: session.state !== "stopped" };
+}
+
 /** Preserve the daemon message, falling back only when the failure has no useful text. */
 function reportActionError(action: SessionLifecycleAction, error: unknown): void {
   const fallback = `Failed to ${action} session.`;
@@ -156,7 +161,7 @@ export function useSessionLifecycleActions(
         if (action === "delete")
           await remove.mutateAsync(sessions.find(session => session.id === id)!);
         else if (action === "archive")
-          await archive.mutateAsync(sessions.find(session => session.id === id)!);
+          await archive.mutateAsync(archiveTarget(sessions.find(session => session.id === id)!));
         else if (action === "unarchive")
           await unarchive.mutateAsync(sessions.find(session => session.id === id)!);
         else {
@@ -181,12 +186,13 @@ export function useSessionLifecycleActions(
     sessions: readonly SessionPayload[]
   ) => {
     // Subagent sessions archive with their parent (ADR-005), never on their own.
+    // Archive takes live and stopped sessions alike; the daemon stops live ones first.
     const eligible = sessions.filter(session =>
       action === "unarchive"
         ? session.archived_at !== null && !isSubagentSession(session)
         : session.archived_at === null &&
           (action === "archive"
-            ? session.state === "stopped" && !isSubagentSession(session)
+            ? !isSubagentSession(session)
             : session.state === "active" || session.state === "starting")
     );
     const results = await runBatch(action, eligible);
@@ -255,7 +261,9 @@ export function useSessionLifecycleActions(
       onStop: session =>
         stop.mutate(session, { onError: error => reportActionError("stop", error) }),
       onArchive: session =>
-        archive.mutate(session, { onError: error => reportActionError("archive", error) }),
+        archive.mutate(archiveTarget(session), {
+          onError: error => reportActionError("archive", error),
+        }),
       onUnarchive: session =>
         unarchive.mutate(session, { onError: error => reportActionError("unarchive", error) }),
       onDelete: session => {

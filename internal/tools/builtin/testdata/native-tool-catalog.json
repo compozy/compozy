@@ -1833,7 +1833,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "298dca287c9f9d1b7a41dc638490029b2b260e50f051dac8ffb16668e47a7e31",
+    "input_schema_digest": "4bed864856915afd043e5c53b3c7a2efb6d87bc70006c73c3d94fc735d3f2432",
     "output_schema_digest": "bbbdefb9a3bc6877ec4ca13de96c95ae34883c298c0c5c31e7202cfb96d0d00f"
   },
   {

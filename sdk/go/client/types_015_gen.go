@@ -4,6 +4,34 @@ package client
 
 import "time"
 
+// RuntimeRule is a daemon API value.
+type RuntimeRule struct {
+	Match   RuntimeMatch `json:"match"`
+	Runtime RuntimeSpec  `json:"runtime"`
+}
+
+// RuntimeSelectionPayload is a daemon API value.
+type RuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *Resolution               `json:"speed_resolution,omitempty"`
+}
+
+// RuntimeSpec is a daemon API value.
+type RuntimeSpec struct {
+	Provider   string      `json:"provider,omitempty"`
+	Model      string      `json:"model,omitempty"`
+	Reasoning  string      `json:"reasoning,omitempty"`
+	Speed      Speed       `json:"speed,omitempty"`
+	ACPOptions []Selection `json:"acp_options,omitempty"`
+}
+
+// ScheduleMode is a daemon API value.
+type ScheduleMode string
+
 // ScheduleSpec is a daemon API value.
 type ScheduleSpec struct {
 	Mode                ScheduleMode           `json:"mode"`
@@ -418,23 +446,4 @@ type SessionContextPayload struct {
 	ReportedTurnID string                          `json:"reported_turn_id,omitempty"`
 	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
 	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
-}
-
-// SessionContextRowPayload is a daemon API value.
-type SessionContextRowPayload struct {
-	Key              string    `json:"key"`
-	Label            string    `json:"label"`
-	Kind             string    `json:"kind"`
-	OwnerKind        string    `json:"owner_kind"`
-	Bytes            int64     `json:"bytes"`
-	Tokens           *int64    `json:"tokens,omitzero"`
-	DeliveredTurnID  string    `json:"delivered_turn_id"`
-	DeliverySequence int64     `json:"delivery_sequence"`
-	SentAt           time.Time `json:"sent_at"`
-	LastSeenTurnID   string    `json:"last_seen_turn_id,omitempty"`
-	Unchanged        bool      `json:"unchanged"`
-	Stale            bool      `json:"stale"`
-	Delivery         string    `json:"delivery,omitempty"`
-	HookModified     bool      `json:"hook_modified,omitzero"`
-	Name             string    `json:"name,omitempty"`
 }

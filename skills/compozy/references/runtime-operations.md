@@ -420,6 +420,7 @@ cannot be validated fail closed.
     compozy session resume --latest --workspace checkout-api
     compozy session stop <session-id>
     compozy session archive <session-id>
+    compozy session archive <session-id> --stop
     compozy session unarchive <session-id>
     compozy session remove <session-id>
     compozy session repair <session-id> --dry-run -o json
@@ -933,7 +934,9 @@ output committed before the stop remains in history.
 
 `compozy session stop` preserves durable history and ends attach eligibility; a later normal prompt
 restarts the same logical session. `compozy session archive` hides a stopped session from the
-default catalog without deleting it. Archived sessions keep their history and remain directly
+default catalog without deleting it; `--stop` (HTTP/UDS body `{"stop":true}`) first stops a live
+session through the normal stop path, canceling any active turn, and leaves it unarchived with
+code `session_archive_stop_failed` when that stop fails. Archived sessions keep their history and remain directly
 readable, but cannot resume, attach, or accept a prompt until `compozy session unarchive` clears the
 archive marker. Use `session list --archived` for only archived sessions or
 `session list --include-archived` for both catalog sections. `compozy session remove`

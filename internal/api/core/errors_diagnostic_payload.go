@@ -89,6 +89,8 @@ func enrichOperationError(payload *contract.ErrorPayload, err error) {
 		payload.Code = cmdPaletteInvalidRequestError
 	case errors.Is(err, session.ErrSubagentArchiveFollows):
 		payload.Code = "subagent_archive_follows_parent"
+	case errors.Is(err, session.ErrSessionArchiveStopFailed):
+		payload.Code = "session_archive_stop_failed"
 	case errors.Is(err, session.ErrCompactionUnsupported):
 		payload.Code = "compaction_unsupported"
 	case errors.Is(err, session.ErrPromptInProgress):

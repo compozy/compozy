@@ -12,6 +12,7 @@ import (
 type sessionArchiveInput struct {
 	Workspace string `json:"workspace,omitempty"`
 	SessionID string `json:"session_id"`
+	Stop      bool   `json:"stop,omitempty"`
 }
 
 func (n *daemonNativeTools) sessionArchive(
@@ -56,9 +57,12 @@ func (n *daemonNativeTools) setSessionArchived(
 		return toolspkg.ToolResult{}, errors.New("daemon: session archive manager is required")
 	}
 	var info *session.Info
-	if archived {
+	switch {
+	case archived && input.Stop:
+		info, err = manager.ArchiveWithStop(ctx, workspaceID, input.SessionID)
+	case archived:
 		info, err = manager.Archive(ctx, workspaceID, input.SessionID)
-	} else {
+	default:
 		info, err = manager.Unarchive(ctx, workspaceID, input.SessionID)
 	}
 	if err != nil {

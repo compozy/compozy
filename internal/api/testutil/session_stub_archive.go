@@ -17,6 +17,17 @@ func (s StubSessionManager) Archive(
 	return nil, session.ErrSessionNotFound
 }
 
+func (s StubSessionManager) ArchiveWithStop(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if s.ArchiveWithStopFn != nil {
+		return s.ArchiveWithStopFn(ctx, workspaceID, sessionID)
+	}
+	return nil, session.ErrSessionNotFound
+}
+
 func (s StubSessionManager) Unarchive(
 	ctx context.Context,
 	workspaceID string,

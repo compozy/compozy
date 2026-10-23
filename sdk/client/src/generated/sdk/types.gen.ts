@@ -549,6 +549,10 @@ export type ArchiveProfileResponse = {
   state: string;
 };
 
+export type ArchiveSessionRequest = {
+  stop?: boolean;
+};
+
 export type Argument = {
   name: string;
   options?: Array<string>;
@@ -32153,7 +32157,10 @@ export type ApproveSessionResponses = {
 export type ApproveSessionResponse = ApproveSessionResponses[keyof ApproveSessionResponses];
 
 export type ArchiveSessionData = {
-  body?: never;
+  /**
+   * JSON request body
+   */
+  body?: ArchiveSessionRequest;
   path: {
     /**
      * Workspace id
@@ -32175,11 +32182,15 @@ export type ArchiveSessionData = {
 
 export type ArchiveSessionErrors = {
   /**
+   * Invalid archive request
+   */
+  400: ErrorPayload;
+  /**
    * Session not found
    */
   404: ErrorPayload;
   /**
-   * Session must be stopped before archiving
+   * Session must be stopped before archiving, or the requested stop failed
    */
   409: ErrorPayload;
   /**

@@ -3,12 +3,21 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func archiveSessionOperationSpec() OperationSpec {
-	spec := sessionArchiveOperationSpec("archive", "archiveSession", "Archive a stopped session")
-	spec.Responses = append(spec.Responses, ResponseSpec{
-		Status:      409,
-		Description: "Session must be stopped before archiving",
-		Body:        contract.ErrorPayload{},
-	})
+	spec := sessionArchiveOperationSpec(
+		"archive",
+		"archiveSession",
+		"Archive a stopped session, or stop and archive a live session with stop=true",
+	)
+	spec.RequestBody = contract.ArchiveSessionRequest{}
+	spec.RequestBodyOptional = true
+	spec.Responses = append(spec.Responses,
+		ResponseSpec{Status: 400, Description: "Invalid archive request", Body: contract.ErrorPayload{}},
+		ResponseSpec{
+			Status:      409,
+			Description: "Session must be stopped before archiving, or the requested stop failed",
+			Body:        contract.ErrorPayload{},
+		},
+	)
 	return spec
 }
 

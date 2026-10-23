@@ -585,6 +585,52 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop and archive a live session in one archive-with-stop call", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		active := createSession(t, h)
+
+		archived, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, active.ID)
+		if err != nil {
+			t.Fatalf("ArchiveWithStop(active) error = %v", err)
+		}
+		if archived.ArchivedAt == nil || archived.State != StateStopped {
+			t.Fatalf("ArchiveWithStop(active) = %#v, want stopped archived session", archived)
+		}
+		status, err := h.manager.Status(ctx, active.ID)
+		if err != nil || status.State != StateStopped || status.ArchivedAt == nil {
+			t.Fatalf("Status(after archive-with-stop) = %#v, %v, want stopped archived session", status, err)
+		}
+		again, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, active.ID)
+		if err != nil || again.ArchivedAt == nil {
+			t.Fatalf("ArchiveWithStop(archived) = %#v, %v, want idempotent archive", again, err)
+		}
+	})
+
+	t.Run("Should leave the session unarchived when the stop before archiving fails", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		// A durable live row without a runtime the manager can stop.
+		catalog.sessions["sess-orphan-live"] = store.SessionInfo{
+			ID: "sess-orphan-live", WorkspaceID: h.workspaceID, AgentName: "coder",
+			State: string(StateActive), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+		}
+
+		_, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, "sess-orphan-live")
+		if !errors.Is(err, ErrSessionArchiveStopFailed) {
+			t.Fatalf("ArchiveWithStop(unstoppable) error = %v, want ErrSessionArchiveStopFailed", err)
+		}
+		if row := catalog.sessions["sess-orphan-live"]; row.ArchivedAt != nil {
+			t.Fatalf("catalog row after failed stop = %#v, want unarchived", row)
+		}
+	})
+
 	t.Run("Should treat onboarding as an ordinary user agent name", func(t *testing.T) {
 		t.Parallel()
 

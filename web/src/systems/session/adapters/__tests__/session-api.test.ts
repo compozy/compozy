@@ -542,6 +542,24 @@ describe("session archive", () => {
     });
   });
 
+  it("asks the daemon to stop a live session before archiving it", async () => {
+    const archivedSession = {
+      ...mockSession,
+      state: "stopped",
+      archived_at: "2026-08-04T12:00:00Z",
+    };
+    mockJsonResponse({ session: archivedSession });
+
+    await expect(
+      archiveSession(WORKSPACE_ID, mockSession.id, "design", undefined, true)
+    ).resolves.toEqual(archivedSession);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive?profile=design",
+      body: { stop: true },
+    });
+  });
+
   it("restores an archived session through its workspace endpoint", async () => {
     const restoredSession = { ...mockSession, archived_at: null };
     mockJsonResponse({ session: restoredSession });

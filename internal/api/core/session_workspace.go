@@ -158,6 +158,9 @@ func statusForSessionError(err error) int {
 		return http.StatusTooManyRequests
 	case errors.Is(err, session.ErrSessionMessageSelfTarget):
 		return http.StatusBadRequest
+	case errors.Is(err, session.ErrSessionArchiveStopFailed):
+		// The wrapped stop cause must not reclassify the unarchived session.
+		return http.StatusConflict
 	}
 	if status, ok := statusForDeriveError(err); ok {
 		return status

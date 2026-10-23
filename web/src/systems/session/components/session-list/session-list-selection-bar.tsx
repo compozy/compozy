@@ -26,6 +26,8 @@ interface SessionListSelectionBarProps {
   allSelected: boolean;
   stoppable: number;
   archivable: number;
+  /** Archivable sessions that archiving stops first. */
+  archivableLive: number;
   unarchivable: number;
   disabled: boolean;
   onSelectAll: () => void;
@@ -46,6 +48,7 @@ export function SessionListSelectionBar({
   allSelected,
   stoppable,
   archivable,
+  archivableLive,
   unarchivable,
   disabled,
   onSelectAll,
@@ -152,7 +155,11 @@ export function SessionListSelectionBar({
             data-testid={`${testIdPrefix}-selection-archive`}
           >
             <Archive className="size-3" />
-            Archive<DropdownMenuShortcut>{archivable} stopped</DropdownMenuShortcut>
+            {archivableLive > 0 ? "Stop and archive" : "Archive"}
+            <DropdownMenuShortcut>
+              {archivable}{" "}
+              {archivableLive > 0 ? (archivable === 1 ? "session" : "sessions") : "stopped"}
+            </DropdownMenuShortcut>
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={disabled || unarchivable === 0 || !onUnarchive}

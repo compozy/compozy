@@ -748,7 +748,8 @@ describe("session actions", () => {
       target.workspace_id,
       target.id,
       target.profile_name,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      false
     );
     expect(unarchiveSession).toHaveBeenCalledWith(
       target.workspace_id,
@@ -791,6 +792,33 @@ describe("session actions", () => {
 
     expect(requestSignal?.aborted).toBe(true);
     await expect(mutation).rejects.toThrow("Aborted");
+  });
+
+  it("archives a live session in one action by asking the daemon to stop it first", async () => {
+    vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => ({
+      ...createdSession,
+      id,
+      state: "stopped",
+      archived_at: "2026-08-04T12:00:00Z",
+    }));
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onArchive(createdSession));
+
+    await waitFor(() =>
+      expect(archiveSession).toHaveBeenCalledWith(
+        createdSession.workspace_id,
+        createdSession.id,
+        createdSession.profile_name,
+        expect.any(AbortSignal),
+        true
+      )
+    );
   });
 
   it("reports a lifecycle action failure without showing a success notification", async () => {
@@ -1522,12 +1550,24 @@ describe("session lifecycle batches", () => {
     vi.mocked(unarchiveSession).mockResolvedValue(stopped);
     const { result } = lifecycle();
     act(() => result.current.actions.onArchiveMany?.([createdSession, stopped, archived]));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session archived"));
-    expect(archiveSession).toHaveBeenCalledExactlyOnceWith(
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 sessions archived"));
+    // The live row archives in one daemon-owned call that stops it first.
+    expect(archiveSession).toHaveBeenCalledTimes(2);
+    expect(archiveSession).toHaveBeenNthCalledWith(
+      1,
+      WORKSPACE_ID,
+      createdSession.id,
+      createdSession.profile_name,
+      expect.any(AbortSignal),
+      true
+    );
+    expect(archiveSession).toHaveBeenNthCalledWith(
+      2,
       WORKSPACE_ID,
       "stopped",
       createdSession.profile_name,
-      expect.any(AbortSignal)
+      expect.any(AbortSignal),
+      false
     );
     act(() => result.current.actions.onUnarchiveMany?.([createdSession, stopped, archived]));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session unarchived"));
@@ -1537,5 +1577,35 @@ describe("session lifecycle batches", () => {
       createdSession.profile_name,
       expect.any(AbortSignal)
     );
+  });
+
+  it("archives a mixed selection with per-session outcomes when one stop fails", async () => {
+    const live = { ...createdSession, id: "sess-live", state: "active" as const };
+    const stopped = { ...createdSession, id: "sess-stopped", state: "stopped" as const };
+    const failing = { ...createdSession, id: "sess-failing", state: "active" as const };
+    vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => {
+      if (id === failing.id) throw new Error("stop before archiving failed");
+      return { ...createdSession, id, state: "stopped", archived_at: "2026-08-04T12:00:00Z" };
+    });
+    const { result } = lifecycle();
+
+    act(() => result.current.actions.onArchiveMany?.([live, failing, stopped]));
+
+    await waitFor(() =>
+      expect(result.current.batchResults).toEqual([
+        { id: live.id, status: "done" },
+        { id: failing.id, status: "failed", error: "stop before archiving failed" },
+        { id: stopped.id, status: "done" },
+      ])
+    );
+    const stopFlags = vi
+      .mocked(archiveSession)
+      .mock.calls.map(([, id, , , stop]) => [id, stop] as const);
+    expect(stopFlags).toEqual([
+      [live.id, true],
+      [failing.id, true],
+      [stopped.id, false],
+    ]);
+    expect(toast.error).toHaveBeenCalledWith("stop before archiving failed");
   });
 });

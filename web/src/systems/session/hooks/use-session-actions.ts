@@ -206,14 +206,21 @@ export function useDeleteSession(
   });
 }
 
+export interface ArchiveSessionParams extends SessionActionTarget {
+  /** Stop a live session through the daemon's normal stop path before archiving it. */
+  stop?: boolean;
+}
+
 /** Archives the supplied row without depending on the currently selected workspace. */
 export function useArchiveSession() {
   const queryClient = useQueryClient();
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name }: SessionActionTarget) =>
-      request(signal => archiveSession(requireWorkspace(workspace_id), id, profile_name, signal)),
+    mutationFn: ({ id, workspace_id, profile_name, stop }: ArchiveSessionParams) =>
+      request(signal =>
+        archiveSession(requireWorkspace(workspace_id), id, profile_name, signal, stop ?? false)
+      ),
     onSettled: (_data, _error, { id, workspace_id }) => {
       if (workspace_id) void invalidateSessionMutationQueries(queryClient, workspace_id, id);
     },

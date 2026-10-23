@@ -16,12 +16,38 @@ var (
 	ErrSessionArchiveRequiresStopped = errors.New("session: session must be stopped before archiving")
 	// ErrSessionArchiveUnavailable reports that archive persistence is not configured.
 	ErrSessionArchiveUnavailable = errors.New("session: archive store is unavailable")
+	// ErrSessionArchiveStopFailed reports that archive-with-stop could not stop
+	// the session, which therefore stays unarchived.
+	ErrSessionArchiveStopFailed = errors.New("session: stop before archiving failed")
 )
 
 // Archive removes a stopped session from the default catalog without deleting
 // its history or attachments, which remain readable after unarchive.
 func (m *Manager) Archive(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
 	return m.setArchived(ctx, workspaceID, sessionID, true)
+}
+
+// ArchiveWithStop archives a session in one daemon-owned operation: a live
+// session is first stopped through the normal user stop path, including its
+// subagent stop cascade, and then archived. A stopped session archives exactly
+// as Archive does. A failed stop leaves the session unarchived and reports
+// ErrSessionArchiveStopFailed.
+func (m *Manager) ArchiveWithStop(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
+	info, err := m.Archive(ctx, workspaceID, sessionID)
+	if !errors.Is(err, ErrSessionArchiveRequiresStopped) {
+		return info, err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	// A session that finalized after the archive attempt is no longer live, so
+	// its missing runtime is not a stop failure; the retry below decides.
+	if stopErr := m.Stop(ctx, sessionID); stopErr != nil && !errors.Is(stopErr, ErrSessionNotFound) {
+		return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, stopErr)
+	}
+	info, err = m.Archive(ctx, workspaceID, sessionID)
+	if errors.Is(err, ErrSessionArchiveRequiresStopped) {
+		return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, err)
+	}
+	return info, err
 }
 
 // Unarchive restores a session to the default catalog.

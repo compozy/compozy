@@ -125,10 +125,11 @@ export function useSessionRowMenuItems(
         icon: RotateCcw,
         onSelect: () => actions.onUnarchive(session),
       });
-    } else if (session.state === "stopped") {
+    } else {
+      // A live session stops first, which cancels any active turn.
       items.push({
         id: "archive",
-        label: "Archive session",
+        label: session.state === "stopped" ? "Archive session" : "Stop and archive session",
         icon: Archive,
         onSelect: () => actions.onArchive(session),
       });

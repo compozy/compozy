@@ -39,3 +39,14 @@ returns successfully, and a terminal 404/410 does not cause recurring control po
 A failed cold roster page must stop automatic pagination until an explicit retry.
 Record the session slice separately from this scenario's broader coverage in
 `docs/qa/reports/2026-10-17-issue-783-profile-sessions.md`.
+
+## Archive a running session in one action (#908)
+
+Archive a running session from the row "…" menu and from the right-click menu: the item reads
+"Stop and archive session", one click ends with the session stopped and archived, and the live
+list updates without a reload. Select a mix of running and stopped sessions and bulk-archive
+them: the selection menu reads "Stop and archive", every session ends stopped and archived, and a
+session whose stop fails stays unarchived with its own error while the rest succeed. Through the
+CLI, `compozy session archive <id>` still refuses a live session with `409`, and
+`compozy session archive <id> --stop` stops and archives it; HTTP/UDS `{"stop":true}` and native
+tool `stop: true` behave the same.

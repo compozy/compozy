@@ -234,6 +234,19 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should report a failed stop before archiving as a coded conflict", func(t *testing.T) {
+		t.Parallel()
+
+		// The stop cause alone would map to 400; the archive refusal owns the status.
+		stopErr := fmt.Errorf("%w: sess-a: %w", session.ErrSessionArchiveStopFailed, session.ErrSessionNotActive)
+		if got := statusForSessionError(stopErr); got != http.StatusConflict {
+			t.Fatalf("statusForSessionError(%v) = %d, want %d", stopErr, got, http.StatusConflict)
+		}
+		if payload := ErrorPayloadForStatus(http.StatusConflict, stopErr, false); payload.Code !=
+			"session_archive_stop_failed" {
+			t.Fatalf("ErrorPayloadForStatus(%v) = %#v, want session_archive_stop_failed code", stopErr, payload)
+		}
+	})
 	if got := statusForSessionError(transcript.ErrProjectionIncompatible); got != http.StatusServiceUnavailable {
 		t.Fatalf("statusForSessionError(projection incompatible) = %d, want %d", got, http.StatusServiceUnavailable)
 	}

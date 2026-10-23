@@ -7848,6 +7848,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
 		var archiveTarget string
+		var archiveWithStopTarget string
 		var unarchiveTarget string
 		var renamedTarget string
 		var detachedTarget string
@@ -7953,6 +7954,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
 				archiveTarget = workspaceID + "/" + id
+				archived := *info
+				archived.State = session.StateStopped
+				archivedAt := now.Add(time.Minute)
+				archived.ArchivedAt = &archivedAt
+				return &archived, nil
+			},
+			ArchiveWithStopFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+				archiveWithStopTarget = workspaceID + "/" + id
 				archived := *info
 				archived.State = session.StateStopped
 				archivedAt := now.Add(time.Minute)
@@ -8916,6 +8925,23 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("Registry.Call(session_archive) error = %v", callErr)
 			}
 			requireNativeStructuredContains(t, result, []byte(`"archived_at":"`))
+		})
+		t.Run("Should stop and archive a live session when the input opts in", func(t *testing.T) {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionArchive,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","stop":true}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(session_archive stop) error = %v", callErr)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"state":"stopped"`))
+			if archiveWithStopTarget != "ws-1/sess-1" {
+				t.Fatalf("archive-with-stop target = %q, want ws-1/sess-1", archiveWithStopTarget)
+			}
 		})
 		t.Run("Should unarchive a session", func(t *testing.T) {
 			result, callErr := registry.Call(

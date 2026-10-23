@@ -5309,7 +5309,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Archive a stopped session */
+    /** Archive a stopped session, or stop and archive a live session with stop=true */
     post: operations["archiveSession"];
     delete?: never;
     options?: never;
@@ -7384,6 +7384,9 @@ export interface components {
       frozen_queued_runs: number;
       paused_automations: string[];
       state: string;
+    };
+    ArchiveSessionRequest: {
+      stop?: boolean;
     };
     Argument: {
       name: string;
@@ -45949,7 +45952,12 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody?: never;
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": components["schemas"]["ArchiveSessionRequest"];
+      };
+    };
     responses: {
       /** @description OK */
       200: {
@@ -45958,6 +45966,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Invalid archive request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
       /** @description Session not found */
@@ -45969,7 +45986,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Session must be stopped before archiving */
+      /** @description Session must be stopped before archiving, or the requested stop failed */
       409: {
         headers: {
           [name: string]: unknown;
