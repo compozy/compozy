@@ -944,6 +944,13 @@ session directory. Use removal only when the operator intends to discard that hi
 for active, stopped, and archived user sessions without starting or replacing ACP and preserves the
 session ID, transcript, archive state, and lineage.
 
+`compozy session reparent <id> --parent <parent-id>` nests a session that has no parent under
+another user session in the same workspace and profile; `--top-level` undoes it for a session
+whose lineage kind is `provenance`. The daemon refuses archived sessions, cycles, subagent or
+spawned sessions, and continued, forked, or recovery sessions with HTTP 409 and a
+`session_reparent_*` code. The session's descendants take the new `root_session_id` and shift
+`spawn_depth` with it; runtime, permissions, spawn budget, and auto-stop stay unchanged.
+
 The session catalog is counted and workspace-scoped. Internal auto-title sessions never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
 For document-wide subscriptions, the session catalog, worktree catalog, and `/api/logs/stream`

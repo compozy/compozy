@@ -1120,6 +1120,81 @@ func TestSessionRenameCommandReturnsUpdatedSession(t *testing.T) {
 	})
 }
 
+func TestSessionReparentCommand(t *testing.T) {
+	t.Parallel()
+
+	record := func(id string, parent string) SessionRecord {
+		return SessionRecord{
+			ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+			Lineage:   &contract.SessionLineagePayload{ParentSessionID: parent},
+			CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+		}
+	}
+	newDeps := func(t *testing.T) commandDeps {
+		t.Helper()
+		return newWorkspaceTestDeps(t, &stubClient{
+			setSessionParentFn: func(_ context.Context, id string, request SetSessionParentRequest) (SessionRecord, error) {
+				if id != "sess-child" || request.ParentSessionID != "sess-parent" {
+					t.Fatalf("SetSessionParent() = id %q request %#v", id, request)
+				}
+				return record(id, request.ParentSessionID), nil
+			},
+			clearSessionParentFn: func(_ context.Context, id string) (SessionRecord, error) {
+				if id != "sess-child" {
+					t.Fatalf("ClearSessionParent() id = %q", id)
+				}
+				return record(id, ""), nil
+			},
+		})
+	}
+
+	t.Run("Should adopt a session under --parent", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := executeRootCommand(
+			t, newDeps(t), "session", "reparent", "sess-child", "--parent", "sess-parent", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session reparent --parent) error = %v", err)
+		}
+		var adopted SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &adopted); err != nil {
+			t.Fatalf("json.Unmarshal(session reparent) error = %v", err)
+		}
+		if adopted.Lineage == nil || adopted.Lineage.ParentSessionID != "sess-parent" {
+			t.Fatalf("session reparent output = %#v", adopted)
+		}
+	})
+
+	t.Run("Should detach a session with --top-level", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := executeRootCommand(
+			t, newDeps(t), "session", "reparent", "sess-child", "--top-level", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(session reparent --top-level) error = %v", err)
+		}
+		var detached SessionRecord
+		if err := json.Unmarshal([]byte(stdout), &detached); err != nil {
+			t.Fatalf("json.Unmarshal(session reparent) error = %v", err)
+		}
+		if detached.Lineage == nil || detached.Lineage.ParentSessionID != "" {
+			t.Fatalf("session reparent output = %#v", detached)
+		}
+	})
+
+	t.Run("Should require exactly one of --parent or --top-level", func(t *testing.T) {
+		t.Parallel()
+		for _, args := range [][]string{
+			{"session", "reparent", "sess-child"},
+			{"session", "reparent", "sess-child", "--parent", "sess-parent", "--top-level"},
+		} {
+			if _, _, err := executeRootCommand(t, newDeps(t), args...); err == nil {
+				t.Fatalf("executeRootCommand(%v) error = nil, want flag refusal", args)
+			}
+		}
+	})
+}
+
 func TestSessionListRejectsConflictingArchiveFilters(t *testing.T) {
 	t.Run("Should reject conflicting archive filters", func(t *testing.T) {
 		t.Parallel()

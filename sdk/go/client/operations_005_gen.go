@@ -10,6 +10,33 @@ import (
 	"strings"
 )
 
+// DeleteSessionFolder Delete a session folder; its sessions return to the workspace root
+func (c *Client) DeleteSessionFolder(ctx context.Context, params DeleteSessionFolderParams) (*SessionFoldersResponse, error) {
+	path := "/api/workspaces/{workspace_id}/session-folders/{folder_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionFoldersResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteSettingsHookParams carries the path, query, and header parameters.
+type DeleteSettingsHookParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // DeleteSettingsHook Delete one settings-backed hook declaration
 func (c *Client) DeleteSettingsHook(ctx context.Context, params DeleteSettingsHookParams) (*SettingsApplyResponse, error) {
 	path := "/api/settings/hooks/{name}"
@@ -414,31 +441,4 @@ func (c *Client) DismissAutomationSuggestion(ctx context.Context, params Dismiss
 type DismissTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// DismissTask Dismiss one task inbox item
-func (c *Client) DismissTask(ctx context.Context, params DismissTaskParams) (*TaskTriageStateResponse, error) {
-	path := "/api/tasks/{id}/triage/dismiss"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskTriageStateResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DismissWorktreeParams carries the path, query, and header parameters.
-type DismissWorktreeParams struct {
-	WorkspaceID  string  `url:"workspace_id"`
-	WorktreeID   string  `url:"worktree_id"`
-	DeleteBranch *bool   `url:"delete_branch"`
-	Force        *bool   `url:"force"`
-	Profile      *string `url:"profile"`
 }

@@ -2771,6 +2771,23 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"session":{"id":"sess-1","name":"Checkout retries","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":null,"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:03:00Z"}}`,
 					), nil
+				case req.Method == http.MethodPut && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/parent":
+					var body SetSessionParentRequest
+					if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+						t.Fatalf("decode session parent request error = %v", err)
+					}
+					if body.ParentSessionID != "sess-parent" {
+						t.Fatalf("session parent id = %q", body.ParentSessionID)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","lineage":{"parent_session_id":"sess-parent","root_session_id":"sess-parent","spawn_depth":1,"kind":"provenance"},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:04:00Z"}}`,
+					), nil
+				case req.Method == http.MethodDelete && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/parent":
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","lineage":{"root_session_id":"sess-1","spawn_depth":0},"created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:05:00Z"}}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/attach":
 					return newHTTPResponse(
 						http.StatusOK,
@@ -3076,6 +3093,18 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		)
 		if renameErr != nil || renamed.Name != "Checkout retries" {
 			t.Fatalf("RenameSession() = %#v, %v", renamed, renameErr)
+		}
+	})
+	t.Run("Should set and clear a session parent through the workspace route", func(t *testing.T) {
+		t.Parallel()
+
+		adopted, adoptErr := client.SetSessionParent(ctx, "sess-1", SetSessionParentRequest{ParentSessionID: "sess-parent"})
+		if adoptErr != nil || adopted.Lineage == nil || adopted.Lineage.ParentSessionID != "sess-parent" {
+			t.Fatalf("SetSessionParent() = %#v, %v", adopted, adoptErr)
+		}
+		detached, detachErr := client.ClearSessionParent(ctx, "sess-1")
+		if detachErr != nil || detached.Lineage == nil || detached.Lineage.ParentSessionID != "" {
+			t.Fatalf("ClearSessionParent() = %#v, %v", detached, detachErr)
 		}
 	})
 	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {

@@ -130,6 +130,9 @@ import type {
   ClearSessionInputsData,
   ClearSessionInputsErrors,
   ClearSessionInputsResponses,
+  ClearSessionParentData,
+  ClearSessionParentErrors,
+  ClearSessionParentResponses,
   ClearSessionRuntimeData,
   ClearSessionRuntimeErrors,
   ClearSessionRuntimeResponses,
@@ -1251,6 +1254,9 @@ import type {
   SetGatewaySurfaceData,
   SetGatewaySurfaceErrors,
   SetGatewaySurfaceResponses,
+  SetSessionParentData,
+  SetSessionParentErrors,
+  SetSessionParentResponses,
   SetSessionRuntimeData,
   SetSessionRuntimeErrors,
   SetSessionRuntimeResponses,
@@ -9328,6 +9334,46 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Make an adopted child session top-level again
+   */
+  public clearSessionParent<ThrowOnError extends boolean = true>(
+    options: Options<ClearSessionParentData, ThrowOnError>
+  ): RequestResult<ClearSessionParentResponses, ClearSessionParentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).delete<
+      ClearSessionParentResponses,
+      ClearSessionParentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
+      ...options,
+    });
+  }
+
+  /**
+   * Adopt a parentless user session as a child of another session
+   */
+  public setSessionParent<ThrowOnError extends boolean = true>(
+    options: Options<SetSessionParentData, ThrowOnError>
+  ): RequestResult<SetSessionParentResponses, SetSessionParentErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).put<
+      SetSessionParentResponses,
+      SetSessionParentErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent",
       ...options,
       headers: {
         "Content-Type": "application/json",

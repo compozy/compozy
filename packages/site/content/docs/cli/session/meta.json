@@ -24,6 +24,7 @@
         "rename",
         "reorder",
         "repair",
+        "reparent",
         "resume",
         "rewind",
         "search",

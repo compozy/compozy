@@ -28,6 +28,8 @@ type sessionClientAPI interface {
 	ArchiveSession(context.Context, string) (SessionRecord, error)
 	UnarchiveSession(context.Context, string) (SessionRecord, error)
 	RenameSession(context.Context, string, RenameSessionRequest) (SessionRecord, error)
+	SetSessionParent(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
+	ClearSessionParent(context.Context, string) (SessionRecord, error)
 	DeleteSession(context.Context, string) error
 	ResumeSession(context.Context, string) (SessionRecord, error)
 	UploadSessionAttachment(context.Context, string, string) (SessionAttachmentRecord, error)

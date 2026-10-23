@@ -9,6 +9,36 @@ import (
 	"strings"
 )
 
+// GetSessionGoal Get the newest visible session Goal
+func (c *Client) GetSessionGoal(ctx context.Context, params GetSessionGoalParams) (*SessionGoalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionGoalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionHealthParams carries the path, query, and header parameters.
+type GetSessionHealthParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// GetSessionHealth Read metadata-only session health and wake eligibility
+func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthParams) (*SessionHealthResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/health"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionHealthResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionHistoryParams carries the path, query, and header parameters.
 type GetSessionHistoryParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
@@ -412,30 +442,4 @@ func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPerso
 // GetSettingsProviderParams carries the path, query, and header parameters.
 type GetSettingsProviderParams struct {
 	Name string `url:"name"`
-}
-
-// GetSettingsProvider Read one settings-backed provider
-func (c *Client) GetSettingsProvider(ctx context.Context, params GetSettingsProviderParams) (*SettingsProviderResponse, error) {
-	path := "/api/settings/providers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out SettingsProviderResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsProviderUsage Read the provider usage settings section
-func (c *Client) GetSettingsProviderUsage(ctx context.Context) (*SettingsProviderUsageResponse, error) {
-	path := "/api/settings/provider-usage"
-	var out SettingsProviderUsageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsRestartStatusParams carries the path, query, and header parameters.
-type GetSettingsRestartStatusParams struct {
-	OperationID string `url:"operation_id"`
 }

@@ -11,6 +11,38 @@ import (
 	"strings"
 )
 
+// GetObserveOverview Get the observer-backed home overview
+func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOverviewParams) (*ObserveOverviewResponse, error) {
+	path := "/api/observe/overview"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.ReceiptProfile != nil {
+		query.Set("receipt_profile", *params.ReceiptProfile)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.UsageWindow != nil {
+		query.Set("usage_window", *params.UsageWindow)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ObserveOverviewResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetOnboardingStatus Get the first-run onboarding completion status
 func (c *Client) GetOnboardingStatus(ctx context.Context) (*OnboardingStatusResponse, error) {
 	path := "/api/onboarding"
@@ -412,34 +444,4 @@ func (c *Client) GetSessionCommands(ctx context.Context, params GetSessionComman
 type GetSessionGoalParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	SessionID   string `url:"session_id"`
-}
-
-// GetSessionGoal Get the newest visible session Goal
-func (c *Client) GetSessionGoal(ctx context.Context, params GetSessionGoalParams) (*SessionGoalResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionGoalResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionHealthParams carries the path, query, and header parameters.
-type GetSessionHealthParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// GetSessionHealth Read metadata-only session health and wake eligibility
-func (c *Client) GetSessionHealth(ctx context.Context, params GetSessionHealthParams) (*SessionHealthResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/health"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionHealthResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

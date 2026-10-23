@@ -223,6 +223,7 @@ func statusForSessionConflictError(err error) (int, bool) {
 	case errors.Is(err, session.ErrCompactionUnsupported),
 		errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrSessionArchived),
+		errors.Is(err, session.ErrSessionReparentRefused),
 		errors.Is(err, session.ErrSessionArchiveRequiresStopped),
 		errors.Is(err, session.ErrSubagentArchiveFollows),
 		errors.Is(err, store.ErrSessionArchived),
@@ -262,7 +263,8 @@ func statusForSessionAvailabilityError(err error) (int, bool) {
 		return http.StatusServiceUnavailable, true
 	case errors.Is(err, transcript.ErrProjectionCorrupt):
 		return http.StatusInternalServerError, true
-	case errors.Is(err, session.ErrSessionArchiveUnavailable):
+	case errors.Is(err, session.ErrSessionArchiveUnavailable),
+		errors.Is(err, session.ErrSessionReparentUnavailable):
 		return http.StatusServiceUnavailable, true
 	default:
 		return 0, false

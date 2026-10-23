@@ -326,6 +326,32 @@ func (c *Client) SetGatewaySurface(ctx context.Context, body GatewaySurfaceReque
 	return &out, nil
 }
 
+// SetSessionParentParams carries the path, query, and header parameters.
+type SetSessionParentParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// SetSessionParent Adopt a parentless user session as a child of another session
+func (c *Client) SetSessionParent(ctx context.Context, params SetSessionParentParams, body SetSessionParentRequest) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/parent"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // SetSessionRuntimeParams carries the path, query, and header parameters.
 type SetSessionRuntimeParams struct {
 	WorkspaceID string `url:"workspace_id"`
@@ -417,29 +443,4 @@ type SignalTerminalParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
-}
-
-// SignalTerminal Signal one running terminal
-func (c *Client) SignalTerminal(ctx context.Context, params SignalTerminalParams, body TerminalSignalRequest) (*TerminalDeliveredResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/signal"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalDeliveredResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// SpawnAgentSessionParams carries the path, query, and header parameters.
-type SpawnAgentSessionParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
 }

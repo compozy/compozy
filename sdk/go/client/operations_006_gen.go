@@ -10,6 +10,33 @@ import (
 	"strings"
 )
 
+// DismissTask Dismiss one task inbox item
+func (c *Client) DismissTask(ctx context.Context, params DismissTaskParams) (*TaskTriageStateResponse, error) {
+	path := "/api/tasks/{id}/triage/dismiss"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskTriageStateResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DismissWorktreeParams carries the path, query, and header parameters.
+type DismissWorktreeParams struct {
+	WorkspaceID  string  `url:"workspace_id"`
+	WorktreeID   string  `url:"worktree_id"`
+	DeleteBranch *bool   `url:"delete_branch"`
+	Force        *bool   `url:"force"`
+	Profile      *string `url:"profile"`
+}
+
 // DismissWorktree Dismiss a worktree tombstone
 func (c *Client) DismissWorktree(ctx context.Context, params DismissWorktreeParams) (*WorktreeCleanupResponse, error) {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss"
@@ -416,30 +443,6 @@ func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams
 		path += "?" + query.Encode()
 	}
 	var out FanOutTaskRunsResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForceFailTaskRunParams carries the path, query, and header parameters.
-type ForceFailTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ForceFailTaskRun Force fail one queued or claimed task run
-func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/runs/{id}/fail"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}

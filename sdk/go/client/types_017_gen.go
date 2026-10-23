@@ -335,6 +335,11 @@ type SetExtensionSecretsRequest struct {
 	Bindings []ExtensionSecretBindingInput `json:"bindings"`
 }
 
+// SetSessionParentRequest is a daemon API value.
+type SetSessionParentRequest struct {
+	ParentSessionID string `json:"parent_session_id"`
+}
+
 // SetSessionRuntimeRequest is a daemon API value.
 type SetSessionRuntimeRequest struct {
 	Runtime          PromptRuntimeSelectionPayload `json:"runtime"`

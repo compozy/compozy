@@ -41,6 +41,12 @@ type RenameSessionRequest struct {
 	Name string `json:"name"`
 }
 
+// SetSessionParentRequest adopts a parentless user session as a provenance
+// child of another user session in the same workspace and profile.
+type SetSessionParentRequest struct {
+	ParentSessionID string `json:"parent_session_id"`
+}
+
 // NewSessionWorktreeRequest materializes one worktree before the session starts.
 type NewSessionWorktreeRequest struct {
 	Name string `json:"name,omitempty"`

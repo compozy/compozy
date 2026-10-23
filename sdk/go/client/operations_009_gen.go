@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// GetHookRunsParams carries the path, query, and header parameters.
+type GetHookRunsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Session     string  `url:"session"`
+	Event       *string `url:"event"`
+	Outcome     *string `url:"outcome"`
+	Since       *string `url:"since"`
+	Last        *int    `url:"last"`
+}
+
 // GetHookRuns List hook run history for one session
 func (c *Client) GetHookRuns(ctx context.Context, params GetHookRunsParams) (*HookRunsResponse, error) {
 	path := "/api/workspaces/{workspace_id}/hooks/runs"
@@ -415,36 +425,4 @@ type GetObserveOverviewParams struct {
 	UsageWindow    *string `url:"usage_window"`
 	Profile        *string `url:"profile"`
 	AllProfiles    *bool   `url:"all_profiles"`
-}
-
-// GetObserveOverview Get the observer-backed home overview
-func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOverviewParams) (*ObserveOverviewResponse, error) {
-	path := "/api/observe/overview"
-	query := url.Values{}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.ReceiptProfile != nil {
-		query.Set("receipt_profile", *params.ReceiptProfile)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.UsageWindow != nil {
-		query.Set("usage_window", *params.UsageWindow)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ObserveOverviewResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

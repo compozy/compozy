@@ -36,6 +36,8 @@ const (
 	ToolIDSessionUnarchive ToolID = "compozy__session_unarchive"
 	// ToolIDSessionRename changes one user session's durable display name.
 	ToolIDSessionRename ToolID = "compozy__session_rename"
+	// ToolIDSessionReparent nests a top-level user session under another session, or detaches it.
+	ToolIDSessionReparent ToolID = "compozy__session_reparent"
 	// ToolIDSessionFolderList lists one workspace's session folders.
 	ToolIDSessionFolderList ToolID = "compozy__session_folder_list"
 	// ToolIDSessionFolderCreate creates one session folder.

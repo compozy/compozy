@@ -292,6 +292,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 
 		assertSessionCreateMutationSchema(t, descriptors[toolspkg.ToolIDSessionCreate])
 		assertSessionRenameMutationSchema(t, descriptors[toolspkg.ToolIDSessionRename])
+		assertSessionReparentMutationSchema(t, descriptors[toolspkg.ToolIDSessionReparent])
 		t.Run("Should validate the session archive schema", func(t *testing.T) {
 			t.Parallel()
 			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionArchive])
@@ -1493,6 +1494,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_rename", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_reparent", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_outline", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_search", risk: toolspkg.RiskRead,
@@ -1813,6 +1816,24 @@ func assertSessionRenameMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	}
 	if name.Type != "string" || name.MinLength != 1 || name.MaxLength != session.SessionNameMaxRunes {
 		t.Fatalf("%s name schema = %#v, want 1..%d characters", descriptor.ID, name, session.SessionNameMaxRunes)
+	}
+	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
+}
+
+func assertSessionReparentMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+	t.Helper()
+	var input nativeObjectSchema
+	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+	}
+	assertClosedObjectSchema(
+		t,
+		descriptor.ID.String()+" input",
+		input,
+		[]string{"parent_session_id", "profile", "session_id", "top_level", "workspace"},
+	)
+	if !slices.Equal(input.Required, []string{"session_id"}) {
+		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
 	}
 	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
 }
@@ -2982,6 +3003,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(sessions, toolspkg.ToolIDSessionArchive) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionUnarchive) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRename) ||
+			!slices.Contains(sessions, toolspkg.ToolIDSessionReparent) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionCreate) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionPrompt) ||
 			!slices.Contains(sessions, toolspkg.ToolIDSessionRewind) ||
