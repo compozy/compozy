@@ -260,10 +260,11 @@ export function SessionWindowContent({
                 sessions={sidebar.sessions}
                 disconnected={sidebar.disconnected}
                 collapsedThreadIds={sidebar.collapsedThreadIds}
+                subagentThreadIds={sidebar.subagentThreadIds}
                 view={sidebar.view}
                 currentSessionId={sessionId}
                 revealedSession={session}
-                onToggleThread={sidebar.onToggleThread}
+                onThreadBranchChange={sidebar.onThreadBranchChange}
                 onSelectSession={sidebar.onSelectSession}
                 onNewSession={sidebar.onNewSession}
                 sessionActions={sidebar.sessionActions}

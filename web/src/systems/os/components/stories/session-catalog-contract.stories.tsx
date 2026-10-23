@@ -237,8 +237,9 @@ function SessionCatalogContract({ state }: { state: CatalogState }) {
         sessions={storySessions(state)}
         disconnected={false}
         collapsedThreadIds={[]}
+        subagentThreadIds={[]}
         view={storyView(state)}
-        onToggleThread={fn()}
+        onThreadBranchChange={fn()}
         onSelectSession={fn()}
         onNewSession={fn()}
         sessionActions={ACTIONS}

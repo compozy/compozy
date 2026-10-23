@@ -6,6 +6,7 @@ import { useSelector } from "@xstate/store-react";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { SHELL_WORKTREE_SCOPE } from "@/systems/workspace";
 
+import type { SessionThreadSegment } from "../lib/session-thread-branch";
 import {
   normalizeSessionSidebarWidth,
   SESSION_SIDEBAR_DEFAULT_WIDTH,
@@ -18,7 +19,14 @@ import {
 export interface SessionSidebarScopeState {
   /** The rail is open until the operator closes it in this window. */
   open: boolean;
+  /** Child sessions start unfolded; a fold is remembered per root session id. */
   collapsedThreads: Record<string, boolean>;
+  /**
+   * Subagent lists start closed; an open one is remembered per parent session
+   * id. Opening it folds the children, so `collapsedThreads` alone still says
+   * which child rows are on screen.
+   */
+  subagentThreads: Record<string, boolean>;
   /** Folders start expanded; a collapse is remembered per folder id. */
   collapsedFolders: Record<string, boolean>;
   /**
@@ -55,6 +63,7 @@ export const SESSION_SIDEBAR_STORAGE_KEY = "compozy:session:sidebar:v1";
 const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   open: true,
   collapsedThreads: {},
+  subagentThreads: {},
   collapsedFolders: {},
   collapsedGroups: {},
   width: null,
@@ -82,6 +91,7 @@ function normalizedScopeState(value: unknown): SessionSidebarScopeState {
   return {
     open: typeof value.open === "boolean" ? value.open : DEFAULT_SCOPE_STATE.open,
     collapsedThreads: normalizedCollapsedFlags(value.collapsedThreads),
+    subagentThreads: normalizedCollapsedFlags(value.subagentThreads),
     collapsedFolders: normalizedCollapsedFlags(value.collapsedFolders),
     collapsedGroups: normalizedCollapsedFlags(value.collapsedGroups),
     width: normalizeSessionSidebarWidth(value.width),
@@ -138,6 +148,17 @@ function toggledFlag(flags: Record<string, boolean>, id: string): Record<string,
   return { ...flags, [id]: !(flags[id] ?? false) };
 }
 
+/** Subagent lists start closed, so only an open one is stored. */
+function withoutFalseFlag(
+  flags: Record<string, boolean>,
+  id: string,
+  value: boolean
+): Record<string, boolean> {
+  if (value) return { ...flags, [id]: true };
+  if (!Object.hasOwn(flags, id)) return flags;
+  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
+}
+
 /**
  * Group ids carry their whole lens, so every scope, profile, and grouping the
  * operator ever toggled would pile up if an expand kept a `false` flag. Groups
@@ -186,13 +207,24 @@ export const sessionSidebarLogic = createStoreLogic({
       withScopeState(context, event.scopeId, state => ({ ...state, open: !state.open })),
     sidebarVisibilityChanged: (context, event: { scopeId: string; open: boolean }) =>
       withScopeState(context, event.scopeId, state => ({ ...state, open: event.open })),
-    threadToggled: (context, event: { scopeId: string; sessionId: string }) => {
+    threadBranchChanged: (
+      context,
+      event: { scopeId: string; sessionId: string; segment: SessionThreadSegment | null }
+    ) => {
       if (!event.sessionId) {
         return;
       }
       return withScopeState(context, event.scopeId, state => ({
         ...state,
-        collapsedThreads: toggledFlag(state.collapsedThreads, event.sessionId),
+        collapsedThreads: {
+          ...state.collapsedThreads,
+          [event.sessionId]: event.segment !== "children",
+        },
+        subagentThreads: withoutFalseFlag(
+          state.subagentThreads,
+          event.sessionId,
+          event.segment === "subagents"
+        ),
       }));
     },
     widthChanged: (context, event: { scopeId: string; width: number }) => {
@@ -380,7 +412,10 @@ export interface UseSessionSidebarStateResult {
   toggle: () => void;
   setOpen: (open: boolean) => void;
   collapsedThreadIds: string[];
-  toggleThread: (sessionId: string) => void;
+  /** Parent sessions whose subagent list is open. */
+  subagentThreadIds: string[];
+  /** Shows one list under a session row, or folds its branch (`null`). */
+  setThreadBranch: (sessionId: string, segment: SessionThreadSegment | null) => void;
   collapsedFolderIds: string[];
   toggleFolder: (folderId: string) => void;
   collapsedGroupIds: string[];
@@ -417,13 +452,14 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     toggle: () => sessionSidebarStore.trigger.sidebarToggled({ scopeId }),
     setOpen: (nextOpen: boolean) =>
       sessionSidebarStore.trigger.sidebarVisibilityChanged({ scopeId, open: nextOpen }),
-    collapsedThreadIds: collapsedIds(state.collapsedThreads),
-    toggleThread: (sessionId: string) =>
-      sessionSidebarStore.trigger.threadToggled({ scopeId, sessionId }),
-    collapsedFolderIds: collapsedIds(state.collapsedFolders),
+    collapsedThreadIds: flaggedIds(state.collapsedThreads),
+    subagentThreadIds: flaggedIds(state.subagentThreads),
+    setThreadBranch: (sessionId: string, segment: SessionThreadSegment | null) =>
+      sessionSidebarStore.trigger.threadBranchChanged({ scopeId, sessionId, segment }),
+    collapsedFolderIds: flaggedIds(state.collapsedFolders),
     toggleFolder: (folderId: string) =>
       sessionSidebarStore.trigger.folderToggled({ scopeId, folderId }),
-    collapsedGroupIds: collapsedIds(state.collapsedGroups),
+    collapsedGroupIds: flaggedIds(state.collapsedGroups),
     toggleGroup: (groupId: string) =>
       sessionSidebarStore.trigger.groupToggled({ scopeId, groupId }),
     width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
@@ -433,6 +469,6 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
   };
 }
 
-function collapsedIds(flags: Record<string, boolean>): string[] {
+function flaggedIds(flags: Record<string, boolean>): string[] {
   return Object.entries(flags).flatMap(([id, collapsed]) => (collapsed ? [id] : []));
 }

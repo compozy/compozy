@@ -10,7 +10,6 @@ vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import { SessionInspectorSubagentsSection } from "../session-inspector-subagents-section";
 import { SubagentCard } from "../subagent-card";
-import { SubagentChip } from "../subagent-chip";
 import { SubagentComposerControl } from "../subagent-composer-control";
 import { SubagentOriginDivider } from "../subagent-origin-divider";
 import { SubagentWaitingBanner } from "../subagent-waiting-banner";
@@ -284,40 +283,6 @@ describe("SubagentWaitingBanner (UT-W13)", () => {
 
   it("Should render nothing with no live delegated subagents", () => {
     const { container } = renderUI(<SubagentWaitingBanner subagents={[]} />);
-    expect(container).toBeEmptyDOMElement();
-  });
-});
-
-describe("SubagentChip (UT-W17)", () => {
-  it("Should label live/total and preview five rows then +N more with no other footer", async () => {
-    const user = userEvent.setup();
-    const onOpen = vi.fn();
-    const rows = [...many(3, "running"), ...many(7, "completed")];
-    renderUI(
-      <SubagentChip
-        counts={{ live: 3, total: 10, failed: 0, attention: 0 }}
-        parentTurnRunning
-        preview={rows}
-        onOpen={onOpen}
-      />
-    );
-    const chip = screen.getByRole("button", { name: "3 of 10 subagents running" });
-    expect(chip).toHaveTextContent("3/10");
-    await user.tab();
-    await waitFor(() => expect(screen.getByText("+5 more")).toBeInTheDocument());
-    expect(document.querySelectorAll('[data-slot="hover-card-content"] li')).toHaveLength(5);
-    expect(screen.queryByText(/click/i)).not.toBeInTheDocument();
-    fireEvent.click(chip);
-    expect(onOpen).toHaveBeenCalledOnce();
-  });
-
-  it("Should render nothing once every subagent settled cleanly", () => {
-    const { container } = renderUI(
-      <SubagentChip
-        counts={{ live: 0, total: 6, failed: 0, attention: 0 }}
-        parentTurnRunning={false}
-      />
-    );
     expect(container).toBeEmptyDOMElement();
   });
 });

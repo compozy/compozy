@@ -133,8 +133,9 @@ function ProfileScopeComposition({ aggregate }: { aggregate: boolean }) {
             sessions={sessions}
             disconnected={false}
             collapsedThreadIds={[]}
+            subagentThreadIds={[]}
             view={view}
-            onToggleThread={fn()}
+            onThreadBranchChange={fn()}
             onSelectSession={fn()}
             onNewSession={fn()}
             sessionActions={ACTIONS}

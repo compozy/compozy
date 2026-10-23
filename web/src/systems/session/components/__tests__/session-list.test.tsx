@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { formatAbsoluteTime } from "@compozy/ui";
+import { useState } from "react";
 import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,9 +29,8 @@ import {
   sessionListCatalogFixture,
   sessionListViewFixture,
 } from "../../mocks/session-list-view-fixtures";
+import type { SessionThreadSegment } from "../../lib/session-thread-branch";
 import type { SessionPayload } from "../../types";
-import { sessionInspectorFocusStore } from "../../hooks/use-session-inspector-focus";
-import { sessionInspectorStore } from "../../hooks/use-session-inspector-state";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
@@ -115,6 +115,7 @@ function renderList(
     revealedSession?: SessionPayload | null;
     currentSessionId?: string;
     collapsedThreadIds?: string[];
+    subagentThreadIds?: string[];
     view?: SessionListViewModel;
     actions?: { onAdopt?: () => void; onMakeTopLevel?: () => void };
   } = {}
@@ -134,33 +135,60 @@ function renderList(
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
+  const onBranch = vi.fn<(sessionId: string, segment: SessionThreadSegment | null) => void>();
   const props = {
     open: true,
     sessions: overrides.sessions ?? sessions,
     revealedSession: overrides.revealedSession,
     currentSessionId: overrides.currentSessionId,
     disconnected: false,
-    collapsedThreadIds: overrides.collapsedThreadIds ?? [],
     view: overrides.view ?? view,
-    onToggleThread: vi.fn(),
     onSelectSession: onSelect,
     onNewSession: overrides.onNewSession ?? vi.fn(),
     sessionActions: actions,
   };
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   seedRuntimeCatalog(queryClient);
+  // The rail's branch flags, held the way the sidebar store holds them: opening the
+  // subagent list folds the children, and a fold closes both.
+  function BranchHost(
+    hostProps: Omit<
+      React.ComponentProps<typeof SessionSidebar>,
+      "collapsedThreadIds" | "subagentThreadIds" | "onThreadBranchChange"
+    >
+  ) {
+    const [collapsed, setCollapsed] = useState(overrides.collapsedThreadIds ?? []);
+    const [subagents, setSubagents] = useState(overrides.subagentThreadIds ?? []);
+    return (
+      <SessionSidebar
+        {...hostProps}
+        collapsedThreadIds={collapsed}
+        subagentThreadIds={subagents}
+        onThreadBranchChange={(sessionId, segment) => {
+          onBranch(sessionId, segment);
+          setCollapsed(ids => [
+            ...ids.filter(id => id !== sessionId),
+            ...(segment === "children" ? [] : [sessionId]),
+          ]);
+          setSubagents(ids => [
+            ...ids.filter(id => id !== sessionId),
+            ...(segment === "subagents" ? [sessionId] : []),
+          ]);
+        }}
+      />
+    );
+  }
   const tree = (node: React.ReactNode) => (
     <QueryClientProvider client={queryClient}>{node}</QueryClientProvider>
   );
-  const rendered = render(tree(<SessionSidebar {...props} />));
+  const rendered = render(tree(<BranchHost {...props} />));
   return {
     onSelect,
+    onBranch,
     actions,
     queryClient,
     update: (nextSessions: SessionPayload[], nextView = view) =>
-      rendered.rerender(
-        tree(<SessionSidebar {...props} sessions={nextSessions} view={nextView} />)
-      ),
+      rendered.rerender(tree(<BranchHost {...props} sessions={nextSessions} view={nextView} />)),
   };
 }
 
@@ -465,18 +493,23 @@ describe("SessionList subagents", () => {
     expect(within(thread).getByTestId("session-sidebar-session-plain")).toBeInTheDocument();
     expect(within(thread).getByTestId("session-sidebar-session-viewed-sub")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^session-sidebar-session-/)).toHaveLength(3);
-    // Only the plain child counts toward the thread toggle; the revealed subagent never folds.
-    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAccessibleName(
-      "Toggle 1 child session"
+    // Only the plain child counts toward the branch; the revealed subagent never folds.
+    expect(screen.getByRole("button", { name: "1 child session" })).toHaveAttribute(
+      "aria-expanded",
+      "true"
     );
   });
 
-  it("UT-W18: a parent whose only child is the viewed subagent gets no thread toggle", () => {
+  it("UT-W18: a parent whose only child is the viewed subagent gets no child-session toggle", () => {
     const viewed = row("viewed-sub", { lineage: lineage("parent", "subagent") });
     renderList({ sessions: [row("parent", summary(1, 3))], revealedSession: viewed });
 
     expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
-    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /child session/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-thread-toggle-parent")).toHaveAttribute(
+      "data-segment",
+      "subagents"
+    );
   });
 
   it("UT-W18: keeps the viewed subagent visible when its parent's plain children are folded", () => {
@@ -493,8 +526,9 @@ describe("SessionList subagents", () => {
       "aria-expanded",
       "false"
     );
-    expect(screen.getByTestId("session-sidebar-session-plain").closest("[inert]")).not.toBeNull();
-    expect(screen.getByTestId("session-sidebar-session-viewed-sub").closest("[inert]")).toBeNull();
+    // A folded list does not mount; the viewed subagent stays outside the fold.
+    expect(screen.queryByTestId("session-sidebar-session-plain")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
   });
 
   const detailResponse = (sessionsById: Record<string, SessionPayload>) =>
@@ -541,7 +575,7 @@ describe("SessionList subagents", () => {
       expect(within(thread).getByTestId("session-sidebar-session-grand-sub")).toBeVisible()
     );
     expect(within(thread).getByTestId("session-sidebar-session-mid-sub")).toBeVisible();
-    expect(screen.queryByTestId("session-sidebar-thread-toggle-parent")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /child session/ })).not.toBeInTheDocument();
   });
 
   // Review round 2: a deleted ancestor no longer hides its descendant for good.
@@ -557,7 +591,7 @@ describe("SessionList subagents", () => {
     );
   });
 
-  it("keeps one cache subscription per chip across list re-renders", () => {
+  it("reads no subagent cache for a folded branch across list re-renders", () => {
     const parent = row("parent", summary(1, 2));
     const { queryClient, update } = renderList({ sessions: [parent] });
     const subscribe = vi.spyOn(queryClient.getQueryCache(), "subscribe");
@@ -575,43 +609,68 @@ describe("SessionList subagents", () => {
     expect(screen.queryByTestId("session-sidebar-session-orphan-sub")).not.toBeInTheDocument();
   });
 
-  it("UT-W17: renders the parent chip and loads a five-row preview on hover", async () => {
-    const user = userEvent.setup();
-    const parent = row("parent", { badge: "running", ...summary(3, 10) });
-    // A further page exists; the five-row preview still reads only the first (review n6).
-    vi.mocked(globalThis.fetch).mockImplementation(
-      async () =>
-        new Response(
-          JSON.stringify({
-            subagents: Array.from({ length: 10 }, (_, index) =>
-              wireSubagent(index, index < 3 ? "running" : "completed")
-            ),
-            next_cursor: "cursor-page-2",
-          }),
-          { headers: { "Content-Type": "application/json" } }
-        )
+  const subagentPage = (from: number, to: number, nextCursor?: string) =>
+    new Response(
+      JSON.stringify({
+        subagents: Array.from({ length: to - from }, (_, offset) =>
+          wireSubagent(from + offset, from + offset < 3 ? "running" : "completed")
+        ),
+        ...(nextCursor ? { next_cursor: nextCursor } : {}),
+      }),
+      { headers: { "Content-Type": "application/json" } }
     );
-    renderList({ sessions: [parent] });
 
-    const chip = screen.getByRole("button", { name: "3 of 10 subagents running" });
-    expect(chip).toHaveTextContent("3/10");
-    expect(chip).toHaveAttribute("data-state", "running");
+  // Issue #919: the subagent list reads nothing while folded, then short pages on demand.
+  it("UT-W17: opens a bounded subagent branch that reads one page and pages with Show more", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", { badge: "running", ...summary(3, 21) });
+    vi.mocked(globalThis.fetch).mockImplementation(async input =>
+      new URL((input as Request).url).searchParams.get("cursor") === "page-2"
+        ? subagentPage(8, 16, "page-3")
+        : subagentPage(0, 8, "page-2")
+    );
+    const { onBranch } = renderList({ sessions: [parent] });
+
+    const toggle = screen.getByRole("button", { name: "3 of 21 subagents running" });
+    expect(toggle).toHaveTextContent("3/21");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(globalThis.fetch).not.toHaveBeenCalled();
-    await user.hover(chip);
 
-    await waitFor(() => expect(screen.getByText("+5 more")).toBeInTheDocument());
+    await user.click(toggle);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", "subagents");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const branch = await screen.findByTestId("session-sidebar-subagents-parent");
+    await waitFor(() =>
+      expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(8)
+    );
     await expectFetchRequest({
-      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=200`,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8`,
     });
-    expect(screen.getAllByText(/^Subagent \d$/)).toHaveLength(5);
-    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
+    await user.click(within(branch).getByRole("button", { name: "Show 8 more" }));
+    await waitFor(() =>
+      expect(within(branch).getAllByRole("button", { name: /^Open Subagent/ })).toHaveLength(16)
+    );
+    await expectFetchRequest({
+      callIndex: 1,
+      path: `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/parent/subagents?all_profiles=true&limit=8&cursor=page-2`,
+    });
+    expect(within(branch).getByRole("button", { name: "Show 5 more" })).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+
+    // Folding unmounts the list; reopening reads the cache, not the route.
+    await user.click(toggle);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", null);
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-sidebar-subagents-parent")).not.toBeInTheDocument()
+    );
   });
 
-  // M9: an open parent's stream-fed roster feeds the preview; the list route stays cold.
+  // M9: an open parent's stream-fed roster feeds the branch; the list route stays cold.
   // Invariant: only this parent's workspace-qualified roster updates its live
-  // preview; removing its last stream observer restores the authoritative list.
+  // branch; removing its last stream observer restores the authoritative list.
   // Owning layer: roster/query integration; canonical suite: this sidebar suite.
-  it("Should keep a live preview scoped and fall back when its stream owner leaves", async () => {
+  it("Should keep a live branch scoped and fall back when its stream owner leaves", async () => {
     const user = userEvent.setup();
     const parent = row("parent", { badge: "running", ...summary(1, 1) });
     vi.mocked(globalThis.fetch).mockResolvedValue(
@@ -634,7 +693,7 @@ describe("SessionList subagents", () => {
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       ),
     });
-    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    await user.click(screen.getByRole("button", { name: "1 of 1 subagent running" }));
     expect(await screen.findByText("Live row")).toBeInTheDocument();
     act(() => {
       queryClient.setQueryData(
@@ -655,38 +714,18 @@ describe("SessionList subagents", () => {
     expect(globalThis.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("UT-W17: previews from the parent's live roster while its thread holds the stream", async () => {
-    const user = userEvent.setup();
-    const parent = row("parent", { badge: "running", ...summary(1, 1) });
-    const { queryClient } = renderList({ sessions: [parent] });
-    const workspaceId = primarySessionFixture.workspace_id ?? "";
-    queryClient.setQueryData(sessionKeys.subagentRoster(workspaceId, "parent"), {
-      rows: [
-        subagentViewFromPayload({ ...wireSubagent(1, "running"), title: "Streamed row" } as never),
-      ],
-      staleIds: new Set<string>(),
-    });
-    renderHook(() => useSubagentRoster(workspaceId, "parent"), {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      ),
-    });
-
-    await user.hover(screen.getByRole("button", { name: "1 of 1 subagent running" }));
-
-    await waitFor(() => expect(screen.getByText("Streamed row")).toBeInTheDocument());
-    expect(globalThis.fetch).not.toHaveBeenCalled();
-  });
-
-  it("UT-W17: shows the total alone for failures and hides once everything settled cleanly", () => {
+  it("UT-W17: shows the total alone for failures and a quiet count once everything settled", () => {
     renderList({
       sessions: [row("failed-parent", summary(0, 6, 2)), row("clean-parent", summary(0, 4))],
     });
 
-    const chip = screen.getByRole("button", { name: "6 subagents, 2 failed" });
-    expect(chip).toHaveTextContent(/^6$/);
-    expect(chip).toHaveAttribute("data-state", "failed");
-    expect(screen.queryByRole("button", { name: /4 subagents/ })).not.toBeInTheDocument();
+    const failed = screen.getByRole("button", { name: "6 subagents, 2 failed" });
+    expect(failed).toHaveTextContent(/^6$/);
+    expect(failed).toHaveAttribute("data-state", "failed");
+    // Settled subagents stay browsable: the indicator keeps the count, without a glyph.
+    const clean = screen.getByRole("button", { name: "4 subagents" });
+    expect(clean).toHaveTextContent(/^4$/);
+    expect(clean).not.toHaveAttribute("data-state");
   });
 
   it("UT-W14: an idle parent with live subagents reads delegated, a running one does not", () => {
@@ -724,19 +763,57 @@ describe("SessionList subagents", () => {
     expect(within(finished).getByRole("img")).toHaveAttribute("data-badge", "done");
   });
 
-  it("opens the parent with its inspector landing on Subagents when the chip is clicked", async () => {
+  it("opens a subagent's own session from its branch row", async () => {
     const user = userEvent.setup();
-    const parent = row("chip-parent", summary(1, 1));
-    const { onSelect } = renderList({ sessions: [parent] });
+    const parent = row("branch-parent", summary(1, 1));
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 1));
+    const { onSelect } = renderList({ sessions: [parent], subagentThreadIds: ["branch-parent"] });
 
-    await user.click(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    await user.click(await screen.findByRole("button", { name: "Open Subagent 0" }));
 
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith(parent);
-    expect(sessionInspectorStore.getSnapshot().context.bySession["chip-parent"]).toBe(true);
-    expect(sessionInspectorFocusStore.getSnapshot().context.request).toEqual({
-      sessionId: "chip-parent",
-      section: "subagents",
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith({
+      id: "child-0",
+      agent_name: "coder",
+      workspace_id: parent.workspace_id,
     });
+  });
+
+  // Issue #919: with both kinds, the indicators are segments of one control; the selected
+  // segment folds the branch, the chevron reopens the first list, one list shows at a time.
+  it("Should switch between child sessions and subagents through the segmented control", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", summary(1, 2));
+    const child = row("plain", { lineage: lineage("parent") });
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 2));
+    const { onBranch } = renderList({ sessions: [parent, child] });
+
+    const group = screen.getByRole("group", { name: "Child sessions and subagents" });
+    const children = within(group).getByRole("button", { name: "1 child session" });
+    const subagents = within(group).getByRole("button", { name: "1 of 2 subagents running" });
+    const chevron = screen.getByRole("button", { name: "Toggle child sessions and subagents" });
+    expect(children).toHaveAttribute("aria-expanded", "true");
+    expect(subagents).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("session-sidebar-session-plain")).toBeVisible();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    await user.click(subagents);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", "subagents");
+    expect(subagents).toHaveAttribute("aria-expanded", "true");
+    expect(children).toHaveAttribute("aria-expanded", "false");
+    expect(await screen.findByRole("button", { name: "Open Subagent 1" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByTestId("session-sidebar-session-plain")).not.toBeInTheDocument()
+    );
+
+    // Pressing the selected segment folds the branch, like the chevron.
+    await user.click(subagents);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", null);
+    expect(chevron).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(chevron);
+    expect(onBranch).toHaveBeenLastCalledWith("parent", "children");
+    expect(children).toHaveAttribute("aria-expanded", "true");
+    expect(await screen.findByTestId("session-sidebar-session-plain")).toBeVisible();
   });
 
   it("offers no standalone archive on a subagent session row", async () => {

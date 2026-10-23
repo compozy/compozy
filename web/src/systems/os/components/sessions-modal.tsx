@@ -15,6 +15,7 @@ import { OsSessionsDeriveHost } from "./os-sessions-derive-host";
 import {
   type SessionLifecycleActionHandlers,
   SessionList,
+  type SessionListTarget,
   type SessionPayload,
   useSessionSidebarState,
   type SessionListViewModel,
@@ -115,14 +116,14 @@ export function OsSessionsModal({
   sessionActions,
 }: OsSessionsModalProps) {
   const jumpToSession = useAttentionJump();
-  const { collapsedThreadIds, toggleThread } = useSessionSidebarState();
+  const { collapsedThreadIds, subagentThreadIds, setThreadBranch } = useSessionSidebarState();
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && dismissalBlocked) return;
     onOpenChange(nextOpen);
   };
 
-  const selectSession = (session: SessionPayload) => {
+  const selectSession = (session: SessionListTarget) => {
     onOpenChange(false);
     jumpToSession({
       sessionId: session.id,
@@ -147,7 +148,8 @@ export function OsSessionsModal({
           sessions={sessions}
           disconnected={disconnected}
           collapsedThreadIds={collapsedThreadIds}
-          onToggleThread={toggleThread}
+          subagentThreadIds={subagentThreadIds}
+          onThreadBranchChange={setThreadBranch}
           onSelectSession={selectSession}
           onNewSession={onNewSession}
           sessionActions={sessionActions}

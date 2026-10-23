@@ -28,6 +28,7 @@ export type {
   SessionByIDResponse,
   SessionOwnerResponse,
   SessionPayload,
+  SessionListTarget,
   SessionSupervisionPayload,
   SessionWorkSignalPayload,
   SessionWorkSignalKind,
@@ -494,3 +495,4 @@ export { SessionDraftRuntimeProvider } from "./contexts/session-draft-runtime-pr
 export { SessionAttachmentAdapter } from "./hooks/use-session-attachment-adapter";
 export { getSessionPromptRuntimeSnapshot } from "./hooks/use-session-prompt-runtime";
 export { SessionPromptRuntimeContext } from "./contexts/session-prompt-runtime-context-value";
+export type { SessionThreadBranchChange, SessionThreadSegment } from "./lib/session-thread-branch";
