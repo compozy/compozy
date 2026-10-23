@@ -44,12 +44,7 @@ export function useSessionListGroupFolderCreate(target: {
   const projectOptions =
     target.workspaceId === null ? sessionProjectOptions(active.projectWorkspaces) : [];
   const profileOptions = target.profile === null ? sessionProfileOptions(profiles.data ?? []) : [];
-  const workspaceId =
-    target.workspaceId ??
-    picks.project ??
-    (projectOptions.length > 0
-      ? prefillSessionProject(projectOptions, { lastUsed: readLastSessionProject() })
-      : null);
+  const workspaceId = groupFolderWorkspace(target.workspaceId, picks.project, projectOptions);
   const profile = target.profile ?? picks.profile ?? profileScope.destination;
   const folders = useSessionFolders({
     workspaceId,
@@ -84,21 +79,40 @@ export function useSessionListGroupFolderCreate(target: {
           } satisfies SessionGroupFolderAxis)
         : undefined,
     /** Creates the folder in the settled pair; refuses until that pair's folders loaded. */
-    create: async (name: string) => {
-      const layout = folders.layout;
-      if (!layout) {
-        throw new Error(
-          folders.loadError ? "Couldn't load folders. Try again." : "Folders are still loading."
-        );
-      }
-      const folder = await layout.createFolder(name);
-      const where = [projectLabel, target.profile === null ? profile : null].filter(Boolean);
-      toast.success(
-        where.length > 0
-          ? `Folder “${folder.name}” created in ${where.join(" · ")}`
-          : `Folder “${folder.name}” created`
-      );
-      return folder;
-    },
+    create: (name: string) =>
+      createGroupFolder(folders, name, [projectLabel, target.profile === null ? profile : null]),
   };
+}
+
+async function createGroupFolder(
+  folders: ReturnType<typeof useSessionFolders>,
+  name: string,
+  destination: (string | null | undefined)[]
+) {
+  const layout = folders.layout;
+  if (!layout) {
+    throw new Error(
+      folders.loadError ? "Couldn't load folders. Try again." : "Folders are still loading."
+    );
+  }
+  const folder = await layout.createFolder(name);
+  const where = destination.filter(Boolean);
+  toast.success(
+    where.length > 0
+      ? `Folder “${folder.name}” created in ${where.join(" · ")}`
+      : `Folder “${folder.name}” created`
+  );
+  return folder;
+}
+
+function groupFolderWorkspace(
+  target: string | null,
+  picked: string | null,
+  options: SessionTargetOption[]
+): string | null {
+  if (target !== null) return target;
+  if (picked !== null) return picked;
+  return options.length > 0
+    ? prefillSessionProject(options, { lastUsed: readLastSessionProject() })
+    : null;
 }

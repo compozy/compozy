@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   Copy,
   CornerLeftUp,
+  CornerDownRight,
   GitFork,
   Hash,
   Pencil,
@@ -19,7 +20,7 @@ import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-act
 import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
-import { sessionCanMakeTopLevel } from "../lib/session-reparent";
+import { sessionAdoptRefusal, sessionCanMakeTopLevel } from "../lib/session-reparent";
 import { isUserControllableSession } from "../lib/session-running";
 import type { SessionPayload } from "../types";
 
@@ -33,6 +34,7 @@ export interface SessionRowMenuItem {
     | "continue"
     | "fork"
     | "make-top-level"
+    | "nest"
     | "stop"
     | "unarchive"
     | "archive"
@@ -40,7 +42,8 @@ export interface SessionRowMenuItem {
   label: string;
   icon: LucideIcon;
   destructive?: boolean;
-  onSelect: () => void;
+  onSelect?: () => void;
+  choices?: Array<{ id: string; label: string; onSelect: () => void }>;
 }
 
 function isStopEligible(session: SessionPayload): boolean {
@@ -95,6 +98,7 @@ export function useSessionRowMenuItems(
       onSelect: () => requestFork(session),
     });
   }
+  items.push(...sessionNestMenuItems(session, actions));
   const { onMakeTopLevel } = actions;
   if (onMakeTopLevel && sessionCanMakeTopLevel(session)) {
     items.push({
@@ -137,5 +141,29 @@ export function useSessionRowMenuItems(
     destructive: true,
     onSelect: () => actions.onDelete(session),
   });
+  return items;
+}
+
+function sessionNestMenuItems(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem[] {
+  const items: SessionRowMenuItem[] = [];
+  const { onAdopt } = actions;
+  const parents = onAdopt
+    ? (actions.nestParents ?? []).filter(parent => sessionAdoptRefusal(session, parent) === null)
+    : [];
+  if (onAdopt && parents.length > 0) {
+    items.push({
+      id: "nest",
+      label: "Nest under…",
+      icon: CornerDownRight,
+      choices: parents.map(parent => ({
+        id: parent.id,
+        label: getSessionDisplayTitle(parent),
+        onSelect: () => onAdopt(session, parent),
+      })),
+    });
+  }
   return items;
 }

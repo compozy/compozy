@@ -57,18 +57,34 @@ export function SessionRowContextMenu({
         onKeyDown={openContextMenuFromKeyboard}
       />
       <ContextMenuContent className="min-w-56">
-        {items.map(item => (
-          <ContextMenuItem
-            key={item.id}
-            data-testid={`session-row-menu-${item.id}-${session.id}`}
-            disabled={disabled}
-            onClick={item.onSelect}
-            variant={item.destructive ? "destructive" : undefined}
-          >
-            <item.icon aria-hidden="true" className="size-3" />
-            {item.label}
-          </ContextMenuItem>
-        ))}
+        {items.map(item =>
+          item.choices ? (
+            <ContextMenuSub key={item.id}>
+              <ContextMenuSubTrigger disabled={disabled}>
+                <item.icon aria-hidden="true" className="size-3" />
+                {item.label}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent>
+                {item.choices.map(choice => (
+                  <ContextMenuItem key={choice.id} onClick={choice.onSelect} disabled={disabled}>
+                    {choice.label}
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          ) : (
+            <ContextMenuItem
+              key={item.id}
+              data-testid={`session-row-menu-${item.id}-${session.id}`}
+              disabled={disabled}
+              onClick={item.onSelect}
+              variant={item.destructive ? "destructive" : undefined}
+            >
+              <item.icon aria-hidden="true" className="size-3" />
+              {item.label}
+            </ContextMenuItem>
+          )
+        )}
         {layout ? <SessionRowLayoutItems session={session} layout={layout} /> : null}
       </ContextMenuContent>
     </ContextMenu>

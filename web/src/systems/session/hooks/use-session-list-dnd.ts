@@ -75,7 +75,8 @@ export interface SessionListDnd {
     sessionId: string,
     container: SessionDropContainer,
     selection?: SessionSelectionDrag,
-    nest?: SessionRowNestTarget
+    nest?: SessionRowNestTarget,
+    targetOnly?: boolean
   ) => SessionDragHandlers;
   /** Drag source for folder reorder and drop target for "move into folder". */
   folderHeader: (folderId: string) => SessionDragHandlers;
@@ -107,11 +108,10 @@ const DRAG_MIME = "application/x-compozy-session-layout";
 export function useSessionListDnd(
   layout: SessionListLayout | undefined,
   options: { manual: boolean; reorderable: boolean }
-): SessionListDnd | undefined {
+): SessionListDnd {
   const [dragging, setDragging] = useState<SessionDragItem | null>(null);
   const [indicator, setIndicator] = useState<SessionDropIndicator | null>(null);
-  if (!layout) return undefined;
-  const rowReorder = options.manual && options.reorderable;
+  const rowReorder = layout !== undefined && options.manual && options.reorderable;
 
   const start = (item: SessionDragItem) => (event: DragEvent<HTMLElement>) => {
     event.stopPropagation();
@@ -156,16 +156,18 @@ export function useSessionListDnd(
   return {
     dragging,
     indicator,
-    sessionRow: (sessionId, container, selection, nest) => {
+    sessionRow: (sessionId, container, selection, nest, targetOnly = false) => {
       const edge = (event: DragEvent<HTMLElement>): SessionRowDropEdge | null => {
         if (dragging?.kind !== "session" || dragging.id === sessionId) return null;
-        return rowDropZone(event, rowReorder, nest?.accepts(dragging.id) ?? false);
+        return rowDropZone(event, rowReorder && !targetOnly, nest?.accepts(dragging.id) ?? false);
       };
       return {
-        draggable: true,
-        onDragStart: selection?.selectedIds.has(sessionId)
-          ? startSelection(selection)
-          : start({ kind: "session", id: sessionId, folderId: container.folderId }),
+        draggable: !targetOnly,
+        onDragStart: targetOnly
+          ? undefined
+          : selection?.selectedIds.has(sessionId)
+            ? startSelection(selection)
+            : start({ kind: "session", id: sessionId, folderId: container.folderId }),
         onDragEnd: end,
         onDragOver: event => {
           const position = edge(event);
@@ -188,91 +190,100 @@ export function useSessionListDnd(
               return;
             }
             const next = placeId(container.ids, moved, sessionId, position);
-            if (next) layout.reorderSessions(container.folderId, next);
+            if (next) layout?.reorderSessions(container.folderId, next);
           });
         },
       };
     },
-    folderHeader: folderId => ({
-      draggable: true,
-      onDragStart: start({ kind: "folder", id: folderId }),
-      onDragEnd: end,
-      onDragOver: event => {
-        if (dragging?.kind === "session") {
-          if (dragging.folderId !== folderId) {
-            accept(event, { kind: "folder", folderId, position: "into" });
-          }
-          return;
-        }
-        if (dragging?.kind === "folder" && dragging.id !== folderId) {
-          accept(event, { kind: "folder", folderId, position: dropPosition(event) });
-        }
-      },
-      onDrop: event => {
-        if (dragging?.kind === "session" && dragging.folderId !== folderId) {
-          const moved = dragging.id;
-          finish(event, () => layout.moveSession(moved, folderId));
-          return;
-        }
-        if (dragging?.kind === "folder" && dragging.id !== folderId) {
-          const moved = dragging.id;
-          const position = dropPosition(event);
-          finish(event, () => {
-            const next = placeId(
-              layout.folders.map(folder => folder.id),
-              moved,
-              folderId,
-              position
-            );
-            if (next) layout.reorderFolders(next);
-          });
-        }
-      },
-    }),
-    folderZone: (folderId, selection) => ({
-      onDragOver: event => {
-        if (selectionDrops(dragging, selection, folderId)) {
-          accept(event, { kind: "folder", folderId, position: "into" });
-        }
-      },
-      onDragLeave: event => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setIndicator(current =>
-            current?.kind === "folder" && current.folderId === folderId ? null : current
-          );
-        }
-      },
-      onDrop: event => {
-        if (selection && selectionDrops(dragging, selection, folderId)) {
-          finish(event, () => selection.move(folderId));
-        }
-      },
-    }),
-    rootZone: selection => ({
-      onDragOver: event => {
-        if (
-          (dragging?.kind === "session" && dragging.folderId !== null) ||
-          selectionDrops(dragging, selection, null)
-        ) {
-          accept(event, { kind: "root" });
-        }
-      },
-      onDragLeave: event => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setIndicator(current => (current?.kind === "root" ? null : current));
-        }
-      },
-      onDrop: event => {
-        if (dragging?.kind === "session" && dragging.folderId !== null) {
-          const moved = dragging.id;
-          finish(event, () => layout.moveSession(moved, null));
-          return;
-        }
-        if (selection && selectionDrops(dragging, selection, null)) {
-          finish(event, () => selection.move(null));
-        }
-      },
-    }),
+    folderHeader: folderId =>
+      !layout
+        ? {}
+        : {
+            draggable: true,
+            onDragStart: start({ kind: "folder", id: folderId }),
+            onDragEnd: end,
+            onDragOver: event => {
+              if (dragging?.kind === "session") {
+                if (dragging.folderId !== folderId) {
+                  accept(event, { kind: "folder", folderId, position: "into" });
+                }
+                return;
+              }
+              if (dragging?.kind === "folder" && dragging.id !== folderId) {
+                accept(event, { kind: "folder", folderId, position: dropPosition(event) });
+              }
+            },
+            onDrop: event => {
+              if (dragging?.kind === "session" && dragging.folderId !== folderId) {
+                const moved = dragging.id;
+                finish(event, () => layout.moveSession(moved, folderId));
+                return;
+              }
+              if (dragging?.kind === "folder" && dragging.id !== folderId) {
+                const moved = dragging.id;
+                const position = dropPosition(event);
+                finish(event, () => {
+                  const next = placeId(
+                    layout.folders.map(folder => folder.id),
+                    moved,
+                    folderId,
+                    position
+                  );
+                  if (next) layout.reorderFolders(next);
+                });
+              }
+            },
+          },
+    folderZone: (folderId, selection) =>
+      !layout
+        ? {}
+        : {
+            onDragOver: event => {
+              if (selectionDrops(dragging, selection, folderId)) {
+                accept(event, { kind: "folder", folderId, position: "into" });
+              }
+            },
+            onDragLeave: event => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setIndicator(current =>
+                  current?.kind === "folder" && current.folderId === folderId ? null : current
+                );
+              }
+            },
+            onDrop: event => {
+              if (selection && selectionDrops(dragging, selection, folderId)) {
+                finish(event, () => selection.move(folderId));
+              }
+            },
+          },
+    rootZone: selection =>
+      !layout
+        ? {}
+        : {
+            onDragOver: event => {
+              if (
+                (dragging?.kind === "session" && dragging.folderId !== null) ||
+                selectionDrops(dragging, selection, null)
+              ) {
+                accept(event, { kind: "root" });
+              }
+            },
+            onDragLeave: event => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                setIndicator(current => (current?.kind === "root" ? null : current));
+              }
+            },
+            onDrop: event => {
+              if (dragging?.kind === "session" && dragging.folderId !== null) {
+                const moved = dragging.id;
+                finish(event, () => layout.moveSession(moved, null));
+                return;
+              }
+              if (selection && selectionDrops(dragging, selection, null)) {
+                finish(event, () => selection.move(null));
+              }
+            },
+          },
   };
 }
 

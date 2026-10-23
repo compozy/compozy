@@ -36,6 +36,7 @@ export interface SessionListThreadProps {
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   rootLayout?: SessionThreadRootLayout;
+  childLayoutFor?: (session: SessionPayload) => SessionThreadRootLayout;
 }
 
 /**
@@ -57,6 +58,7 @@ export function SessionListThread({
   sessionActions,
   testIdPrefix,
   rootLayout,
+  childLayoutFor,
 }: SessionListThreadProps) {
   // A revealed subagent session is not a plain child: it adds no toggle count and
   // never folds away while the operator is viewing it (nav VC-02).
@@ -95,6 +97,7 @@ export function SessionListThread({
     return (
       <div key={child.id} className={CHILD_NODE}>
         <SessionListRow
+          {...childLayoutFor?.(child)}
           session={child}
           // A child in its root's profile repeats nothing; only a different owner is tagged.
           owner={childOwner && childOwner.id !== owner?.id ? childOwner : undefined}

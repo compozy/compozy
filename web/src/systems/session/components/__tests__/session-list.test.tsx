@@ -1365,6 +1365,56 @@ describe("SessionList folders and manual order", () => {
     expect(onAdopt).toHaveBeenCalledTimes(1);
   });
 
+  // Owning layer: session list interaction. Nesting is independent of folder layout;
+  // nested user rows remain destinations, and keyboard and drag use the same adopt action.
+  it.each([false, true])("Should nest onto a child with folder layout %s", withLayout => {
+    const onAdopt = vi.fn();
+    const parent = { ...layoutRows[0]!, lineage: undefined };
+    const source = { ...layoutRows[1]!, lineage: undefined };
+    const child = {
+      ...layoutRows[2]!,
+      id: "nest-child",
+      name: "Nested destination",
+      lineage: {
+        ...layoutRows[0]!.lineage!,
+        parent_session_id: parent.id,
+        root_session_id: parent.id,
+        spawn_depth: 1,
+        kind: "provenance",
+      },
+    } as SessionPayload;
+    renderList({
+      sessions: [parent, source, child],
+      view: { ...view, sort: "manual", layout: withLayout ? fakeLayout() : undefined },
+      actions: { onAdopt },
+    });
+    fireEvent.dragStart(rowContainer(source.id));
+    fireEvent.dragOver(rowContainer(child.id));
+    expect(rowContainer(child.id)).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(rowContainer(child.id));
+    expect(onAdopt).toHaveBeenCalledWith(source, child);
+    // An ancestor cannot move beneath its own child.
+    fireEvent.dragStart(rowContainer(parent.id));
+    fireEvent.dragOver(rowContainer(child.id));
+    expect(rowContainer(child.id)).not.toHaveAttribute("data-drop");
+  });
+
+  it("Should nest through the keyboard menu using only eligible parent choices", async () => {
+    const user = userEvent.setup();
+    const onAdopt = vi.fn();
+    const source = { ...layoutRows[0]!, lineage: undefined };
+    const target = { ...layoutRows[1]!, name: "Destination", lineage: undefined };
+    const foreign = { ...target, id: "foreign", name: "Foreign", profile_id: "another-profile" };
+    renderList({ sessions: [source, target, foreign], actions: { onAdopt } });
+    screen.getByTestId(`session-row-actions-${source.id}`).focus();
+    await user.keyboard("{Enter}");
+    await user.keyboard("Nest{ArrowRight}");
+    expect(await screen.findByRole("menuitem", { name: "Destination" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Foreign" })).not.toBeInTheDocument();
+    await user.keyboard("{Enter}");
+    expect(onAdopt).toHaveBeenCalledWith(source, target);
+  });
+
   it("Should offer Make top-level only on a nested provenance child", async () => {
     const user = userEvent.setup();
     const onMakeTopLevel = vi.fn();

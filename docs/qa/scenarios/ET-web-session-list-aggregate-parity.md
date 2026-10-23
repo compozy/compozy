@@ -31,6 +31,12 @@ and one subagent.
    nests it, the Undo toast detaches it again. `compozy session list -o json` shows the
    provenance lineage, root, and depth before and after. Dragging a child, a subagent, or onto
    one of the source's descendants offers no drop. Make top-level on the nested row returns it.
+   Repeat with Group by set to none under All projects and All profiles: same-pair nesting
+   remains available even though folders and manual ordering do not. Drop a top-level session
+   onto an already-nested user session; it becomes that session's child. Using only the keyboard,
+   open the row menu, choose Nest under…, and select an eligible loaded parent. Both row menus
+   use the same adopt operation; foreign-pair, archived, subagent, self, and descendant targets
+   are absent from the picker. The daemon revalidates every choice at mutation time.
 6. Reload and restart the daemon: folders, order, and adopted lineage persist; a second window
    updates live.
 

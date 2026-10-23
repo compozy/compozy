@@ -7,6 +7,13 @@ import type { SessionRowSelection } from "../../hooks/use-session-selection";
 import type { SessionThreadModel } from "../../lib/session-list-threads";
 import type { SessionPayload } from "../../types";
 import type { ProfileOwner, ProfileOwnerLabel } from "@/systems/profiles";
+import {
+  useSessionListDnd,
+  sessionRowNestTarget,
+  rowDropEdge,
+  rowDragged,
+} from "../../hooks/use-session-list-dnd";
+import { sessionHasOwnPlacement } from "../../lib/session-folders";
 import { SessionListThread } from "./session-list-thread";
 
 export interface SessionListThreadListProps {
@@ -38,12 +45,28 @@ export function SessionListThreadList({
   testIdPrefix,
   emptyMessage,
 }: SessionListThreadListProps) {
+  const dnd = useSessionListDnd(undefined, { manual: false, reorderable: false });
+  const nestParents = threads.flatMap(thread => [thread.session, ...thread.childSessions]);
+  const roots = new Map(threads.map(thread => [thread.session.id, thread.session]));
+  const rowLayout = (session: SessionPayload) => ({
+    drag: dnd.sessionRow(
+      session.id,
+      { folderId: null, ids: [] },
+      undefined,
+      sessionRowNestTarget(roots, session, sessionActions.onAdopt),
+      !sessionHasOwnPlacement(session)
+    ),
+    dropEdge: rowDropEdge(dnd.indicator, session.id),
+    dragging: rowDragged(dnd.dragging, session.id),
+  });
   return (
     <>
       {threads.map(thread => (
         <SessionListThread
           key={thread.session.id}
           session={thread.session}
+          rootLayout={rowLayout(thread.session)}
+          childLayoutFor={rowLayout}
           childSessions={thread.childSessions}
           currentSessionId={currentSessionId}
           owner={ownerOf?.(thread.session)}
@@ -52,7 +75,7 @@ export function SessionListThreadList({
           onToggleThread={onToggleThread}
           onSelectSession={onSelectSession}
           selection={selection}
-          sessionActions={sessionActions}
+          sessionActions={{ ...sessionActions, nestParents }}
           testIdPrefix={testIdPrefix}
         />
       ))}

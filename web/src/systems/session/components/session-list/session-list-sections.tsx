@@ -89,29 +89,36 @@ export function SessionListSections({
       thread.session,
     ])
   );
+  const nestParents = [
+    ...sections.folders.flatMap(section => section.threads),
+    ...sections.root,
+  ].flatMap(thread => [thread.session, ...thread.childSessions]);
   const allFolderIds = layout.folders.map(folder => folder.id);
   const rootLayoutFor = (
     thread: SessionThreadModel,
     container: SessionDropContainer
   ): SessionThreadRootLayout | undefined => {
     const id = thread.session.id;
-    if (!sessionHasOwnPlacement(thread.session)) return undefined;
+    const ownPlacement = sessionHasOwnPlacement(thread.session);
     const reorder = (delta: -1 | 1) => {
       const next = shiftId(container.ids, id, delta);
       return next ? () => layout.reorderSessions(container.folderId, next) : undefined;
     };
     return {
-      layoutMenu: {
-        folders: layout.folders,
-        folderId: container.folderId,
-        onMove: folderId => layout.moveSession(id, folderId),
-        ...(orderable ? { onMoveUp: reorder(-1), onMoveDown: reorder(1) } : {}),
-      },
+      layoutMenu: ownPlacement
+        ? {
+            folders: layout.folders,
+            folderId: container.folderId,
+            onMove: folderId => layout.moveSession(id, folderId),
+            ...(orderable ? { onMoveUp: reorder(-1), onMoveDown: reorder(1) } : {}),
+          }
+        : undefined,
       drag: dnd?.sessionRow(
         id,
         container,
         selectionDrag,
-        sessionRowNestTarget(roots, thread.session, sessionActions.onAdopt)
+        sessionRowNestTarget(roots, thread.session, sessionActions.onAdopt),
+        !ownPlacement
       ),
       dropEdge: rowDropEdge(dnd?.indicator ?? null, id),
       dragging: rowDragged(dnd?.dragging ?? null, id),
@@ -136,9 +143,19 @@ export function SessionListSections({
         onToggleThread={onToggleThread}
         onSelectSession={onSelectSession}
         selection={selection}
-        sessionActions={sessionActions}
+        sessionActions={{ ...sessionActions, nestParents }}
         testIdPrefix={testIdPrefix}
         rootLayout={rootLayoutFor(thread, container)}
+        childLayoutFor={child => ({
+          drag: dnd?.sessionRow(
+            child.id,
+            container,
+            undefined,
+            sessionRowNestTarget(roots, child, sessionActions.onAdopt),
+            true
+          ),
+          dropEdge: rowDropEdge(dnd?.indicator ?? null, child.id),
+        })}
       />
     ));
   };

@@ -89,11 +89,7 @@ export function SessionList({
   const threads = buildSessionListThreads(listed, remoteSearch ? "" : normalizedFilter);
   const grouped = view.groupBy !== "none";
   // Grouped lists read each group separately; the flat list is empty, so the groups own the count.
-  const visibleCount = grouped
-    ? normalizedFilter
-      ? null
-      : view.groups.reduce((sum, group) => sum + group.total, 0)
-    : countThreadSessions(threads);
+  const visibleCount = sessionListVisibleCount(view, threads, normalizedFilter);
   const collapsedThreads = new Set(collapsedThreadIds);
   const filtering = normalizedFilter !== "";
   const folders = useSessionListFolderLayout(view, threads, filtering);
@@ -427,4 +423,14 @@ function SessionListCatalogNavigation({
       ) : null}
     </div>
   );
+}
+
+function sessionListVisibleCount(
+  view: SessionListViewModel,
+  threads: ReturnType<typeof buildSessionListThreads>,
+  filter: string
+): number | null {
+  if (view.groupBy === "none") return countThreadSessions(threads);
+  if (filter) return null;
+  return view.groups.reduce((sum, group) => sum + group.total, 0);
 }

@@ -22,7 +22,9 @@ import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-l
 import type { SessionPayload } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListSections } from "./session-list-sections";
-import { SessionListThread } from "./session-list-thread";
+import { SessionListThreadList } from "./session-list-thread-list";
+import type { SessionSelectionDrag } from "../../hooks/use-session-list-dnd";
+import type { SessionListPair } from "../../lib/session-list-groups";
 
 export interface GroupRowProps {
   view: SessionListViewModel;
@@ -201,8 +203,7 @@ function SessionListPairGroupBody({
     );
   const drag = groupSelection?.drag;
   // A dragged selection moves inside one pair's layout; other groups never take its drop.
-  const selectionDrag =
-    drag && (drag.pairKey === null || drag.pairKey === sessionListPairKey(pair)) ? drag : undefined;
+  const selectionDrag = selectionDragForPair(drag, pair);
   const empty = emptyForScope(view.archived ? "archived sessions" : "sessions", view.scopeLabel);
   // The grouped dimension is the header: a profile group repeats no owner tag.
   // A split subgroup's own header and its parent's name both axes already.
@@ -282,22 +283,16 @@ function GroupThreads({
 }) {
   const selection = use(SessionListGroupSelectionContext)?.selection;
   if (threads.length === 0) return <GroupNote>{emptyMessage}</GroupNote>;
-  return threads.map(thread => (
-    <SessionListThread
-      key={thread.session.id}
-      session={thread.session}
-      childSessions={thread.childSessions}
-      currentSessionId={props.currentSessionId}
-      owner={ownerOf?.(thread.session)}
+  return (
+    <SessionListThreadList
+      {...props}
+      threads={threads}
       ownerOf={ownerOf}
-      collapsed={props.collapsedThreads.has(thread.session.id)}
-      onToggleThread={props.onToggleThread}
       onSelectSession={onSelectSession}
       selection={selection}
-      sessionActions={props.sessionActions}
-      testIdPrefix={props.testIdPrefix}
+      emptyMessage={emptyMessage}
     />
-  ));
+  );
 }
 
 /** A failed refresh over loaded rows, and the group's own previous/next paging. */
@@ -334,4 +329,12 @@ function GroupPager({ catalog }: { catalog: GroupCatalog }) {
       ) : null}
     </>
   );
+}
+
+function selectionDragForPair(
+  drag: SessionSelectionDrag | undefined,
+  pair: SessionListPair | null
+) {
+  if (!drag) return undefined;
+  return drag.pairKey === null || drag.pairKey === sessionListPairKey(pair) ? drag : undefined;
 }

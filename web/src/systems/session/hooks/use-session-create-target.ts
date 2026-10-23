@@ -5,6 +5,7 @@ import {
   DESTINATION_COPY,
   useActiveWorkspace,
   type FocusedDataScope,
+  type DataScope,
   type WorkspacePayload,
 } from "@/systems/workspace";
 
@@ -71,25 +72,18 @@ export function useSessionCreateTarget({
   if (current !== picks) setPicks(current);
 
   const projectOptions = projectAxis ? sessionProjectOptions(active.projectWorkspaces) : [];
-  const projectValue = projectAxis
-    ? (projectOptions.find(option => option.value === current.project)?.value ??
-      prefillSessionProject(projectOptions, {
-        focusedBinding,
-        lastUsed: readLastSessionProject(),
-      }))
-    : null;
+  const projectValue = resolveProjectPick(
+    projectAxis,
+    projectOptions,
+    current.project,
+    focusedBinding
+  );
   const profileOptions = profileAxis ? sessionProfileOptions(profiles.data ?? []) : [];
   const profile =
     profileOptions.find(option => option.value === current.profile)?.value ??
     profileScope.destination;
 
-  const focus = active.dataScope;
-  const scope: FocusedDataScope | null =
-    projectValue !== null
-      ? sessionTargetScope(projectValue)
-      : focus && focus.kind !== "all"
-        ? focus
-        : null;
+  const scope = resolveCreateScope(projectValue, active.dataScope);
   const workspace =
     scope?.kind === "project"
       ? active.projectWorkspaces.find(item => item.id === scope.workspaceId)
@@ -108,4 +102,25 @@ export function useSessionCreateTarget({
     selectProject: value => setPicks({ ...current, project: value }),
     selectProfile: value => setPicks({ ...current, profile: value }),
   };
+}
+
+function resolveProjectPick(
+  enabled: boolean,
+  options: SessionTargetOption[],
+  selected: string | null,
+  focusedBinding: string | null | undefined
+): string | null {
+  if (!enabled) return null;
+  return (
+    options.find(option => option.value === selected)?.value ??
+    prefillSessionProject(options, { focusedBinding, lastUsed: readLastSessionProject() })
+  );
+}
+
+function resolveCreateScope(
+  project: string | null,
+  focus: DataScope | null
+): FocusedDataScope | null {
+  if (project !== null) return sessionTargetScope(project);
+  return focus && focus.kind !== "all" ? focus : null;
 }
