@@ -1,3 +1,4 @@
+import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { use } from "react";
 
 import { TriangleAlert } from "lucide-react";
@@ -19,7 +20,7 @@ import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import { sessionListGroupRank, sessionListPairKey } from "../../lib/session-list-group-rows";
 import { sessionListGroupFilters, type SessionListGroupSpec } from "../../lib/session-list-groups";
 import { buildSessionListThreads, threadVisibleOrder } from "../../lib/session-list-threads";
-import type { SessionPayload } from "../../types";
+import type { SessionListTarget } from "../../types";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListSections } from "./session-list-sections";
 import { SessionListThreadList } from "./session-list-thread-list";
@@ -30,9 +31,10 @@ export interface GroupRowProps {
   view: SessionListViewModel;
   filtering: boolean;
   collapsedThreads: ReadonlySet<string>;
+  subagentThreads: ReadonlySet<string>;
   currentSessionId?: string;
-  onToggleThread: (sessionId: string) => void;
-  onSelectSession: (session: SessionPayload) => void;
+  onThreadBranchChange: SessionThreadBranchChange;
+  onSelectSession: (session: SessionListTarget) => void;
   /** Opens creation; a group names its folder and the pair that folder belongs to. */
   onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -193,7 +195,7 @@ function SessionListPairGroupBody({
     visibleOrder: threadVisibleOrder(layout.visibleThreads, props.collapsedThreads),
     pair: group.pair,
   });
-  const select = (session: SessionPayload) => {
+  const select = (session: SessionListTarget) => {
     if (!catalog.paging) props.onSelectSession(session);
   };
   const pair = group.pair;
@@ -233,9 +235,10 @@ function SessionListPairGroupBody({
             orderable={layout.orderable}
             filtering={props.filtering}
             collapsedThreads={props.collapsedThreads}
+            subagentThreads={props.subagentThreads}
             collapsedFolders={layout.collapsedFolders}
             currentSessionId={props.currentSessionId}
-            onToggleThread={props.onToggleThread}
+            onThreadBranchChange={props.onThreadBranchChange}
             onToggleFolder={layout.toggleFolder}
             onSelectSession={select}
             onNewSessionInFolder={newSessionInFolder}
@@ -279,7 +282,7 @@ function GroupThreads({
   threads: ReturnType<typeof buildSessionListThreads>;
   emptyMessage: string;
   ownerOf: SessionListViewModel["ownerOf"] | undefined;
-  onSelectSession: (session: SessionPayload) => void;
+  onSelectSession: (session: SessionListTarget) => void;
 }) {
   const selection = use(SessionListGroupSelectionContext)?.selection;
   if (threads.length === 0) return <GroupNote>{emptyMessage}</GroupNote>;

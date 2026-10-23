@@ -68,6 +68,7 @@ const meta: Meta<StoryArgs> = {
               sessions={PROVENANCE_FAMILY}
               disconnected={false}
               collapsedThreadIds={[]}
+              subagentThreadIds={[]}
               currentSessionId="sess-migration"
               view={sessionListViewFixture({
                 sort: "last_activity",
@@ -75,7 +76,7 @@ const meta: Meta<StoryArgs> = {
                 setArchived: fn(),
                 ownerOf: () => ({ id: "default", name: "default", archived: false }),
               })}
-              onToggleThread={fn()}
+              onThreadBranchChange={fn()}
               onSelectSession={fn()}
               onNewSession={fn()}
               sessionActions={{

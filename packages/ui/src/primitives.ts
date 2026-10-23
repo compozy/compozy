@@ -252,6 +252,11 @@ export {
   type PillGroupSize,
 } from "./components/custom/pill-group";
 export { pillGroupSegmentVariants } from "./components/custom/pill-group-variants";
+export { SegmentPill, type SegmentPillProps } from "./components/custom/segment-pill";
+export {
+  SEGMENT_PILL_DURATION,
+  SEGMENT_PILL_TARGET,
+} from "./components/custom/hooks/use-segment-pill";
 export { SearchInput, type SearchInputProps } from "./components/custom/search-input";
 export { Empty, type EmptyProps } from "./components/empty";
 export { Section, type SectionProps } from "./components/custom/section";

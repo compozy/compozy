@@ -1,4 +1,4 @@
-// Suite: session-window sessions rail state (open/closed, width, folder, thread, and group collapse)
+// Suite: session-window sessions rail state (open/closed, width, folder, thread branch, and group collapse)
 // Invariant: rail state is owned per window scope — two session windows never
 // share a toggle, a fold (thread, folder, or group-by group), or a width; a
 // window without its own entry starts from the last-used (shell) state; a
@@ -8,6 +8,8 @@
 // switch away and back keeps them; every older global blob (including one
 // written before widths existed) upgrades into the shell scope without loss,
 // and a pre-default blob's incidental `open: false` never masks the default.
+// A thread branch shows one list: opening its subagents folds its children,
+// and a stored blob without subagent flags reads as every subagent list closed.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -65,6 +67,37 @@ describe("useSessionSidebarState", () => {
     expect(result.current.collapsedFolderIds).toEqual([]);
   });
 
+  it("Should show one branch list at a time and remember it across a reload", async () => {
+    const first = await loadFreshSidebarState();
+    const result = renderInScope(first, WINDOW_ONE);
+    expect(result.current.subagentThreadIds).toEqual([]);
+
+    act(() => {
+      result.current.setThreadBranch("sess_root", "subagents");
+    });
+    expect(result.current).toMatchObject({
+      collapsedThreadIds: ["sess_root"],
+      subagentThreadIds: ["sess_root"],
+    });
+
+    act(() => {
+      result.current.setThreadBranch("sess_root", "children");
+    });
+    expect(result.current).toMatchObject({ collapsedThreadIds: [], subagentThreadIds: [] });
+    // A closed subagent list is the default, so nothing of it is stored.
+    expect(persistedContext().byScope[WINDOW_ONE].subagentThreads).toEqual({});
+
+    act(() => {
+      result.current.setThreadBranch("sess_other", "subagents");
+      result.current.setThreadBranch("sess_root", null);
+    });
+    const reloaded = await loadFreshSidebarState();
+    expect(renderInScope(reloaded, WINDOW_ONE).current).toMatchObject({
+      collapsedThreadIds: ["sess_root", "sess_other"],
+      subagentThreadIds: ["sess_other"],
+    });
+  });
+
   it("Should keep a closed rail closed across a reload once the operator closed it", async () => {
     const first = await loadFreshSidebarState();
     const result = renderInScope(first, WINDOW_ONE);
@@ -86,7 +119,7 @@ describe("useSessionSidebarState", () => {
     act(() => {
       one.current.toggle();
       one.current.toggleFolder("sfold-a");
-      one.current.toggleThread("sess_root");
+      one.current.setThreadBranch("sess_root", null);
       one.current.toggleGroup("project:ws_a");
     });
 

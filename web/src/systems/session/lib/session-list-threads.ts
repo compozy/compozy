@@ -16,11 +16,31 @@ function sessionMatchesFilter(session: SessionPayload, normalizedFilter: string)
   );
 }
 
+// The last threads built per catalog array. Query results keep their identity
+// across renders that change nothing (a fold, a hover), so the threads and every
+// row's props stay identical and memoized threads skip the render.
+const threadCache = new WeakMap<
+  readonly SessionPayload[],
+  { filter: string; threads: SessionThreadModel[] }
+>();
+
 /**
  * Groups the catalog into provenance threads that survive the filter. A
  * matching descendant keeps its root's thread, so it never renders detached.
+ * The same catalog array and filter return the same threads.
  */
 export function buildSessionListThreads(
+  sessions: readonly SessionPayload[],
+  normalizedFilter: string
+): SessionThreadModel[] {
+  const cached = threadCache.get(sessions);
+  if (cached?.filter === normalizedFilter) return cached.threads;
+  const threads = groupSessionThreads(sessions, normalizedFilter);
+  threadCache.set(sessions, { filter: normalizedFilter, threads });
+  return threads;
+}
+
+function groupSessionThreads(
   sessions: readonly SessionPayload[],
   normalizedFilter: string
 ): SessionThreadModel[] {

@@ -9,7 +9,7 @@ import { ensureProjectWorkspace } from "../fixtures/workspace";
 
 /**
  * E2E-009 (ADR-005, `_uiux.md` S9–S10): a parent that delegated ten subagents
- * keeps one sidebar row with a chip, its inspector lists the roster, opening a
+ * keeps one sidebar row with a folded subagent branch, its inspector lists the roster, opening a
  * subagent reveals only that row under the parent, and plain spawned children
  * keep their nesting. Runtime truth comes from acpmock agents: the parent turn
  * calls `compozy__subagent_delegate` ten times through its hosted MCP server
@@ -97,7 +97,7 @@ async function listSubagents(runtime: BrowserRuntime, parent: SessionPayload) {
   return subagents;
 }
 
-test("E2E-009: ten subagents stay one sidebar row with a chip and an inspector roster", async ({
+test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an inspector roster", async ({
   appPage,
   browserArtifacts,
   runtime,
@@ -128,13 +128,14 @@ test("E2E-009: ten subagents stay one sidebar row with a chip and an inspector r
   const sidebar = parentWin.getByTestId("session-sidebar");
   await expect(sidebar).toBeVisible();
 
-  await test.step("one parent row carries a 10/10 chip and no subagent rows", async () => {
+  await test.step("one parent row carries a folded 10/10 indicator and no subagent rows", async () => {
     const parentRow = sidebar.getByTestId(`session-sidebar-session-${parent.id}`);
     await expect(parentRow).toBeVisible();
     // The parent turn ended while its subagents work: it reads delegated, not done (UT-W14).
     await expect(parentRow.locator('[data-badge="delegated"]')).toBeVisible();
-    const chip = sidebar.getByRole("button", { name: "10 of 10 subagents running" });
-    await expect(chip).toHaveText("10/10");
+    const indicator = sidebar.getByRole("button", { name: "10 of 10 subagents running" });
+    await expect(indicator).toHaveText("10/10");
+    await expect(indicator).toHaveAttribute("aria-expanded", "false");
     for (const id of childSessionIDs) {
       await expect(sidebar.getByTestId(`session-sidebar-session-${id}`)).toHaveCount(0);
     }
@@ -144,22 +145,26 @@ test("E2E-009: ten subagents stay one sidebar row with a chip and an inspector r
         .getByTestId(`session-sidebar-thread-${other.id}`)
         .getByTestId(`session-sidebar-session-${plainChild.id}`)
     ).toBeVisible();
-    await browserArtifacts.captureScreenshot("subagents-sidebar-chip", appPage);
+    await browserArtifacts.captureScreenshot("subagents-sidebar-indicator", appPage);
   });
 
-  await test.step("hovering the chip previews five subagents and +5 more", async () => {
-    await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).hover();
-    const preview = appPage.locator('[data-slot="hover-card-content"]');
-    await expect(preview.getByText("+5 more")).toBeVisible();
-    await expect(preview.getByText(/^Nav subagent \d+$/)).toHaveCount(5);
-    await browserArtifacts.captureScreenshot("subagents-chip-preview", appPage);
-    await appPage.mouse.move(0, 0);
+  await test.step("unfolding the branch shows eight subagents, then Show 2 more", async () => {
+    await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).click();
+    const branch = sidebar.getByTestId(`session-sidebar-subagents-${parent.id}`);
+    await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(8);
+    await branch.getByRole("button", { name: "Show 2 more" }).click();
+    await expect(branch.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(10);
+    await browserArtifacts.captureScreenshot("subagents-sidebar-branch", appPage);
+    await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).click();
+    await expect(branch).toHaveCount(0);
   });
 
   const roster = parentWin.getByTestId("session-inspector-subagents");
   let revealedChildID = "";
-  await test.step("clicking the chip opens the inspector roster: 6 rows, then Show 4 more", async () => {
-    await sidebar.getByRole("button", { name: "10 of 10 subagents running" }).click();
+  await test.step("the inspector roster lists 6 rows, then Show 4 more", async () => {
+    const inspectorToggle = parentWin.getByTestId("session-inspector-toggle");
+    if ((await inspectorToggle.getAttribute("aria-pressed")) !== "true")
+      await inspectorToggle.click();
     await expect(roster).toBeVisible();
     await expect(roster.getByText("Subagents · 10 running")).toBeVisible();
     await expect(roster.getByRole("button", { name: /^Open Nav subagent/ })).toHaveCount(6);
@@ -188,17 +193,17 @@ test("E2E-009: ten subagents stay one sidebar row with a chip and an inspector r
     await browserArtifacts.captureScreenshot("subagents-revealed-child", appPage);
   });
 
-  await test.step("the chip hides live once every subagent settled cleanly", async () => {
+  await test.step("the indicator settles live to a quiet total once every subagent completed", async () => {
     // No reload: the parent's catalog upserts carry the fresh summary to the open sidebar.
     const liveSidebar = sessionWindow(appPage, revealedChildID).getByTestId("session-sidebar");
     const parentRow = liveSidebar.getByTestId(`session-sidebar-session-${parent.id}`);
     await expect(parentRow).toBeVisible();
-    await expect(liveSidebar.locator('[data-slot="subagent-chip"]')).toHaveCount(0, {
+    await expect(liveSidebar.getByRole("button", { name: "10 subagents" })).toHaveText("10", {
       timeout: 90_000,
     });
     expect((await listSubagents(runtime, parent)).map(row => row.status)).toEqual(
       Array.from({ length: 10 }, () => "completed")
     );
-    await browserArtifacts.captureScreenshot("subagents-chip-hidden-live", appPage);
+    await browserArtifacts.captureScreenshot("subagents-indicator-settled-live", appPage);
   });
 });

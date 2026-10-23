@@ -446,14 +446,3 @@ export function subagentComposerSignal(
     ariaLabel: `Subagents, ${live} running${needsYou}`,
   };
 }
-
-export const SUBAGENT_CHIP_PREVIEW_LIMIT = 5;
-
-/** Chip hover list: up to 5 most urgent, then `+N more` for the rest of the total. */
-export function subagentChipPreview(
-  subagents: readonly SubagentView[],
-  total: number = subagents.length
-): { rows: SubagentView[]; more: number } {
-  const rows = sortSubagentsByUrgency(subagents).slice(0, SUBAGENT_CHIP_PREVIEW_LIMIT);
-  return { rows, more: Math.max(0, total - rows.length) };
-}

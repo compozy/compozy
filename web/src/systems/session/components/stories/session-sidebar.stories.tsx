@@ -33,7 +33,7 @@ const meta: Meta<typeof SessionSidebar> = {
     docs: {
       description: {
         component:
-          "In-window sessions rail with provenance threads: child sessions hang off their origin by a tree elbow. Line 1 belongs to the title; owner, provider, agent, attention words, and the trailing chip and fold share line 2.",
+          "In-window sessions rail with provenance threads: child sessions hang off their origin by a tree elbow. Line 1 belongs to the title; owner, provider, agent, attention words, and the branch toggle share line 2.",
       },
     },
   },
@@ -70,8 +70,9 @@ export const ProvenanceThreads: Story = {
     sessions: PROVENANCE_FAMILY,
     disconnected: false,
     collapsedThreadIds: [],
+    subagentThreadIds: [],
     currentSessionId: "sess-migration",
-    onToggleThread: fn(),
+    onThreadBranchChange: fn(),
     onSelectSession: fn(),
     onNewSession: fn(),
     sessionActions: {
@@ -191,8 +192,9 @@ export const SelectionFolderMenu: Story = {
 
 /**
  * Subagents (nav VC-02): subagent sessions take no rows; each parent carries one
- * chip — attention, delegated while its turn is idle, or the failed total — and
- * plain spawned children keep their thread.
+ * subagent indicator — attention, delegated while its turn is idle, the failed
+ * total, or a quiet count once all settled — and plain spawned children keep
+ * their thread.
  */
 export const SubagentParents: Story = {
   args: {

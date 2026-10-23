@@ -52,7 +52,7 @@ export interface SessionSubagentsOptions {
  * holding the stream. The snapshot holds the newest 200 rows, so a full
  * snapshot defers to the list route.
  */
-function useLiveSubagentRoster(
+export function useLiveSubagentRoster(
   workspaceId: string,
   sessionId: string,
   enabled: boolean

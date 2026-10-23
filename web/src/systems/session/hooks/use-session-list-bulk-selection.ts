@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
 import { isEditableTarget } from "../lib/editable-target";
 import { sessionListShortcut, type SessionListShortcut } from "../lib/session-list-threads";
@@ -46,6 +46,13 @@ export function useSessionListBulkSelection({
   folders,
 }: SessionListBulkSelectionInput) {
   const selection = useSessionSelection(selectionKey, archived, sessions);
+  // Ranges read the order on screen when the operator clicks. Holding it outside
+  // the row contract keeps a fold, which reorders nothing a row shows, from
+  // handing every row a new selection object.
+  const visibleOrderRef = useRef(visibleOrder);
+  useLayoutEffect(() => {
+    visibleOrderRef.current = visibleOrder;
+  }, [visibleOrder]);
   const sessionsById = new Map(sessions.map(session => [session.id, session]));
   const selectedSessions = selection.selectedIds.flatMap(id => {
     const session = sessionsById.get(id);
@@ -92,7 +99,7 @@ export function useSessionListBulkSelection({
     rowSelection: {
       ...selection,
       selectedIds: selectedIdSet,
-      toggleRange: (id: string) => selection.toggleRange(id, visibleOrder),
+      toggleRange: (id: string) => selection.toggleRange(id, visibleOrderRef.current),
     },
     bar: {
       count: selection.selectedIds.length,

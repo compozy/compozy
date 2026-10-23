@@ -64,7 +64,8 @@ vi.mock("@/systems/session", async () => ({
     open: true,
     toggle: vi.fn(),
     collapsedThreadIds: [],
-    toggleThread: vi.fn(),
+    subagentThreadIds: [],
+    setThreadBranch: vi.fn(),
   }),
 }));
 

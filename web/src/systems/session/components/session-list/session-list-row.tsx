@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { sessionBadgeSignal } from "../../lib/session-badge";
-import { sessionAwaitsSubagents, sessionSubagentCounts } from "../../lib/session-subagent-summary";
+import { sessionAwaitsSubagents } from "../../lib/session-subagent-summary";
 import { sessionAwaitsMonitors } from "../../lib/session-monitor-summary";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { SessionBadgeMark } from "../session-badge-mark";
@@ -26,7 +26,6 @@ import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
 import { sessionIsUnrestricted } from "../../lib/session-unrestricted";
 import { rowMeta, type RowMeta } from "../../lib/session-row-meta";
 import { useKeyboardFocusToken } from "../../hooks/use-keyboard-focus-token";
-import { SessionListSubagentChip } from "./session-list-subagent-chip";
 import { ProfileOwnerTag, type ProfileOwner } from "@/systems/profiles";
 import { WorkspaceBadge, type WorkspaceBadgeIdentity } from "@/systems/workspace";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
@@ -48,7 +47,7 @@ export interface SessionListRowProps {
   testIdPrefix: string;
   /** A subagent session whose ancestry was deleted: it leads its thread, labelled. */
   orphanedSubagent?: boolean;
-  /** Controls rendered in the meta line's trailing cluster (e.g. a thread toggle). */
+  /** Controls rendered in the meta line's trailing cluster (the branch toggle). */
   trailing?: React.ReactNode;
   selection?: SessionRowSelection;
   /** Folder moves and manual-order verbs for a root row in the workspace list. */
@@ -66,7 +65,7 @@ export interface SessionListRowProps {
  * holding the compact time at rest and the row actions on hover or focus. Line 2
  * carries who runs it (owner, provider, agent), attention words, and the trailing
  * cluster. The title button's `::after` stretches over the row so the whole row
- * navigates, while the checkbox, chip, toggle, and actions sit above it as
+ * navigates, while the checkbox, branch toggle, and actions sit above it as
  * siblings — no interactive control nests inside another.
  */
 export function SessionListRow(props: SessionListRowProps) {
@@ -113,7 +112,6 @@ function SessionListRowBody({
 }: SessionListRowProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
-  const subagentCounts = sessionSubagentCounts(session);
   const runtime = useSessionRowRuntimeLabel(session);
   const signal = sessionBadgeSignal(session.badge);
   const { keyboardFocus, focusHandlers } = useKeyboardFocusToken();
@@ -121,7 +119,7 @@ function SessionListRowBody({
   const meta = rowMeta({ session, runtime, signal, orphanedSubagent });
   const badgeOf = useContext(SessionListBadgeContext);
   const badge = inheritsProject ? undefined : badgeOf?.(session);
-  const hasTrailing = subagentCounts !== null || trailing !== undefined;
+  const hasTrailing = trailing !== undefined;
   return (
     <>
       <SessionRowTarget
@@ -159,16 +157,7 @@ function SessionListRowBody({
               onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
             />
           }
-          trailing={
-            hasTrailing ? (
-              <SessionRowTrailing
-                session={session}
-                subagentCounts={subagentCounts}
-                trailing={trailing}
-                onSelect={onSelect}
-              />
-            ) : null
-          }
+          trailing={hasTrailing ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null}
         />
       ) : null}
     </>
@@ -305,24 +294,9 @@ function SessionRowEndSlot({
 }
 
 /** The meta line's trailing cluster, lifted above the row target. */
-function SessionRowTrailing({
-  session,
-  subagentCounts,
-  trailing,
-  onSelect,
-}: {
-  session: SessionPayload;
-  subagentCounts: ReturnType<typeof sessionSubagentCounts>;
-  trailing: React.ReactNode;
-  onSelect: () => void;
-}) {
+function SessionRowTrailing({ children }: { children: React.ReactNode }) {
   return (
-    <span className="relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5">
-      {subagentCounts !== null ? (
-        <SessionListSubagentChip session={session} counts={subagentCounts} onSelect={onSelect} />
-      ) : null}
-      {trailing}
-    </span>
+    <span className="relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5">{children}</span>
   );
 }
 

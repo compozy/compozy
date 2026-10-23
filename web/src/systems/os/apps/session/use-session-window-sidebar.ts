@@ -16,7 +16,9 @@ import { useAttentionJump } from "../../hooks/use-attention-jump";
 import { boundRoute } from "../../lib/open-target";
 import {
   type SessionLifecycleActionHandlers,
+  type SessionListTarget,
   type SessionPayload,
+  type SessionThreadBranchChange,
   useSessionCreateActions,
   useSessionListView,
   useSessionSidebarState,
@@ -40,9 +42,10 @@ export interface SessionWindowSidebarModel {
   sessions: SessionPayload[];
   disconnected: boolean;
   collapsedThreadIds: string[];
+  subagentThreadIds: string[];
   view: SessionListViewModel;
-  onToggleThread: (sessionId: string) => void;
-  onSelectSession: (session: SessionPayload) => void;
+  onThreadBranchChange: SessionThreadBranchChange;
+  onSelectSession: (session: SessionListTarget) => void;
   /** Drill-in by id (subagent rows): this window, or a split with `newWindow`. */
   openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
   onNewSession: (options?: SessionCreateOpenOptions) => void;
@@ -125,7 +128,7 @@ export function useSessionWindowSidebar({
     );
   };
 
-  const onSelectSession = (target: SessionPayload) =>
+  const onSelectSession = (target: SessionListTarget) =>
     openSession(
       {
         sessionId: target.id,
@@ -144,8 +147,9 @@ export function useSessionWindowSidebar({
       worktree.resolved &&
       (view.catalog?.failed || (transportDisconnected && transportGraceElapsed)),
     collapsedThreadIds: sidebar.collapsedThreadIds,
+    subagentThreadIds: sidebar.subagentThreadIds,
     view,
-    onToggleThread: sidebar.toggleThread,
+    onThreadBranchChange: sidebar.setThreadBranch,
     onSelectSession,
     openSession,
     onNewSession: options => openForAgent("", options),

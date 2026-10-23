@@ -246,7 +246,7 @@ test("E2E-005: an idle parent waits on two subagents, shows the delegated glyph,
   ).toBeVisible();
   // The sidebar's parent row reads delegated, not done.
   await expect(
-    scene.window.locator('[data-slot="subagent-chip"][data-state="delegated"]')
+    scene.window.locator('[data-segment="subagents"][data-state="delegated"]')
   ).toBeVisible();
 
   await banner.getByRole("button", { name: "Stop" }).click();

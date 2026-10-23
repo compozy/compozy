@@ -1,3 +1,4 @@
+import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { useState } from "react";
 
 import { TriangleAlert, WifiOff } from "lucide-react";
@@ -9,7 +10,7 @@ import { buildSessionListThreads, countThreadSessions } from "../../lib/session-
 import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
-import type { SessionPayload } from "../../types";
+import type { SessionListTarget, SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { emptyForScope } from "@/systems/profiles";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
@@ -29,13 +30,14 @@ export interface SessionListProps {
   sessions: readonly SessionPayload[];
   disconnected: boolean;
   collapsedThreadIds: readonly string[];
+  subagentThreadIds: readonly string[];
   currentSessionId?: string;
   /** The session on screen; a subagent session is revealed under its parent row. */
   revealedSession?: SessionPayload | null;
   /** Breadth, order, grouping, and the flat catalog or the Group-by groups. */
   view: SessionListViewModel;
-  onToggleThread: (sessionId: string) => void;
-  onSelectSession: (session: SessionPayload) => void;
+  onThreadBranchChange: SessionThreadBranchChange;
+  onSelectSession: (session: SessionListTarget) => void;
   /** Opens session creation; `folderId` files the new session into that folder. */
   onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
@@ -68,10 +70,11 @@ export function SessionList({
   sessions,
   disconnected,
   collapsedThreadIds,
+  subagentThreadIds,
   currentSessionId,
   revealedSession,
   view,
-  onToggleThread,
+  onThreadBranchChange,
   onSelectSession,
   onNewSession,
   sessionActions,
@@ -91,6 +94,7 @@ export function SessionList({
   // Grouped lists read each group separately; the flat list is empty, so the groups own the count.
   const visibleCount = sessionListVisibleCount(view, threads, normalizedFilter);
   const collapsedThreads = new Set(collapsedThreadIds);
+  const subagentThreads = new Set(subagentThreadIds);
   const filtering = normalizedFilter !== "";
   const folders = useSessionListFolderLayout(view, threads, filtering);
   const { layout, sections } = folders;
@@ -141,8 +145,9 @@ export function SessionList({
               view={view}
               filtering={filtering}
               collapsedThreads={collapsedThreads}
+              subagentThreads={subagentThreads}
               currentSessionId={currentSessionId}
-              onToggleThread={onToggleThread}
+              onThreadBranchChange={onThreadBranchChange}
               onSelectSession={onSelectSession}
               onNewSession={onNewSession}
               sessionActions={sessionActions}
@@ -159,8 +164,9 @@ export function SessionList({
           bulk={bulk}
           filtering={filtering}
           collapsedThreads={collapsedThreads}
+          subagentThreads={subagentThreads}
           currentSessionId={currentSessionId}
-          onToggleThread={onToggleThread}
+          onThreadBranchChange={onThreadBranchChange}
           onSelectSession={onSelectSession}
           onNewSession={onNewSession}
           sessionActions={sessionActions}
@@ -171,9 +177,10 @@ export function SessionList({
           view={view}
           threads={threads}
           collapsedThreads={collapsedThreads}
+          subagentThreads={subagentThreads}
           currentSessionId={currentSessionId}
           normalizedFilter={normalizedFilter}
-          onToggleThread={onToggleThread}
+          onThreadBranchChange={onThreadBranchChange}
           onSelectSession={onSelectSession}
           selection={bulk.rowSelection}
           sessionActions={sessionActions}
@@ -247,8 +254,9 @@ function SessionListFolderBody({
   bulk,
   filtering,
   collapsedThreads,
+  subagentThreads,
   currentSessionId,
-  onToggleThread,
+  onThreadBranchChange,
   onSelectSession,
   onNewSession,
   sessionActions,
@@ -261,8 +269,9 @@ function SessionListFolderBody({
   bulk: ReturnType<typeof useSessionListBulkSelection>;
   filtering: boolean;
   collapsedThreads: ReadonlySet<string>;
+  subagentThreads: ReadonlySet<string>;
   currentSessionId: SessionListProps["currentSessionId"];
-  onToggleThread: SessionListProps["onToggleThread"];
+  onThreadBranchChange: SessionListProps["onThreadBranchChange"];
   onSelectSession: SessionListProps["onSelectSession"];
   onNewSession: SessionListProps["onNewSession"];
   sessionActions: SessionListProps["sessionActions"];
@@ -282,9 +291,10 @@ function SessionListFolderBody({
         orderable={folders.orderable}
         filtering={filtering}
         collapsedThreads={collapsedThreads}
+        subagentThreads={subagentThreads}
         collapsedFolders={folders.collapsedFolders}
         currentSessionId={currentSessionId}
-        onToggleThread={onToggleThread}
+        onThreadBranchChange={onThreadBranchChange}
         onToggleFolder={folders.toggleFolder}
         onSelectSession={session => {
           if (!view.catalog?.paging) onSelectSession(session);
@@ -347,9 +357,10 @@ function SessionListBody({
   view,
   threads,
   collapsedThreads,
+  subagentThreads,
   currentSessionId,
   normalizedFilter,
-  onToggleThread,
+  onThreadBranchChange,
   onSelectSession,
   selection,
   sessionActions,
@@ -358,13 +369,14 @@ function SessionListBody({
   SessionListProps,
   | "view"
   | "currentSessionId"
-  | "onToggleThread"
+  | "onThreadBranchChange"
   | "onSelectSession"
   | "sessionActions"
   | "testIdPrefix"
 > & {
   threads: ReturnType<typeof buildSessionListThreads>;
   collapsedThreads: ReadonlySet<string>;
+  subagentThreads: ReadonlySet<string>;
   normalizedFilter: string;
   selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
 }) {
@@ -378,9 +390,10 @@ function SessionListBody({
         <SessionListThreadList
           threads={threads}
           collapsedThreads={collapsedThreads}
+          subagentThreads={subagentThreads}
           currentSessionId={currentSessionId}
           ownerOf={ownerOf}
-          onToggleThread={onToggleThread}
+          onThreadBranchChange={onThreadBranchChange}
           onSelectSession={session => {
             if (!view.catalog?.paging) onSelectSession(session);
           }}
