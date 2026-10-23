@@ -82,14 +82,20 @@ func (m *Manager) configureOrReplacePromptRuntime(
 	snapshot *runtimeBindingSnapshot,
 	plan *promptRuntimePlan,
 ) (*AgentProcess, error) {
-	liveErr := m.configurePromptRuntime(ctx, session, configurator, snapshot, plan)
+	refused, liveErr := m.configurePromptRuntime(ctx, session, configurator, snapshot, plan)
 	if liveErr == nil {
 		return snapshot.process, nil
 	}
-	if runtimeConfigurationRefused(liveErr, snapshot.process) {
+	if refused {
 		return nil, liveErr
 	}
-	proc, replacementErr := m.replacePromptRuntime(ctx, session, snapshot, plan)
+	var proc *AgentProcess
+	var replacementErr error
+	if current := session.runtimeBindingSnapshot(); current.runtimeRelease != nil {
+		proc, replacementErr = m.rebindReleasedRuntime(ctx, session, &current, plan)
+	} else {
+		proc, replacementErr = m.replacePromptRuntime(ctx, session, snapshot, plan)
+	}
 	if replacementErr == nil {
 		return proc, nil
 	}
@@ -153,15 +159,16 @@ func (m *Manager) bindUnboundPromptRuntime(
 	return nil, false, nil
 }
 
+// configurePromptRuntime classifies the primary refusal before rollback or cleanup can change liveness.
 func (m *Manager) configurePromptRuntime(
 	ctx context.Context,
 	session *Session,
 	configurator RuntimeConfigurator,
 	snapshot *runtimeBindingSnapshot,
 	plan *promptRuntimePlan,
-) error {
+) (refused bool, err error) {
 	if plan == nil {
-		return errors.New("session: prompt runtime plan is required")
+		return false, errors.New("session: prompt runtime plan is required")
 	}
 	selection := plan.selection
 	requestedConfig := runtimeConfigForSelection(selection, plan.spec.transportModel)
@@ -174,27 +181,28 @@ func (m *Manager) configurePromptRuntime(
 		RuntimeTransitionLiveConfiguration,
 		m.now(),
 	); err != nil {
-		return err
+		return false, err
 	}
 	if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
-		return errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, false))
+		return false, errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, false))
 	}
 
-	err := configurator.ConfigureRuntime(ctx, snapshot.process, requestedConfig)
+	err = configurator.ConfigureRuntime(ctx, snapshot.process, requestedConfig)
 	if err != nil {
 		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
+		refused = runtimeConfigurationRefused(err, snapshot.process)
 		var rollbackErr error
 		if !runtimeSelectionsEqual(snapshot.selection, selection) ||
-			!runtimeConfigurationRefused(err, snapshot.process) {
+			!refused {
 			rollbackErr = configurator.ConfigureRuntime(cleanupCtx, snapshot.process, rollbackConfig)
 		}
-		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
-		persistErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
-		return errors.Join(fmt.Errorf("session: configure runtime: %w", err), rollbackErr, persistErr)
+		return refused, m.restoreConfiguredRuntime(
+			cleanupCtx, session, snapshot, fmt.Errorf("session: configure runtime: %w", err), rollbackErr,
+		)
 	}
 
 	session.completeRuntimeTransition(
@@ -211,11 +219,33 @@ func (m *Manager) configurePromptRuntime(
 			snapshot.process,
 			rollbackConfig,
 		)
-		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
-		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
-		return errors.Join(err, rollbackErr, restoreErr)
+		return false, m.restoreConfiguredRuntime(cleanupCtx, session, snapshot, err, rollbackErr)
 	}
-	return nil
+	return false, nil
+}
+
+// restoreConfiguredRuntime retains a binding only when its provider rollback succeeded.
+// A failed rollback transfers process ownership to the existing verified-release path.
+func (m *Manager) restoreConfiguredRuntime(
+	ctx context.Context,
+	session *Session,
+	snapshot *runtimeBindingSnapshot,
+	cause error,
+	rollbackErr error,
+) error {
+	failure := errors.Join(cause, rollbackErr)
+	if rollbackErr == nil {
+		session.restoreRuntimeBinding(snapshot, failure.Error(), m.now())
+		return errors.Join(failure, m.persistSessionLifecycleState(ctx, session, false))
+	}
+	release := session.detachRuntimeAfterFailedRollback(snapshot, failure.Error(), m.now())
+	persistErr := m.persistSessionLifecycleState(ctx, session, false)
+	stopErr := m.stopReleasedRuntime(session, release)
+	var identityErr error
+	if stopErr == nil && session.clearReleasedRuntimeIdentity(release) {
+		identityErr = m.persistSessionLifecycleState(ctx, session, false)
+	}
+	return errors.Join(failure, persistErr, stopErr, identityErr)
 }
 
 // replacePromptRuntime keeps the previous route authoritative until the new binding commits.

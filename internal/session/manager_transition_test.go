@@ -26,6 +26,100 @@ var errRecordingCatalogMissingSession = errors.New("recording catalog missing se
 
 func TestPromptRuntimeReappliesProviderDrift(t *testing.T) {
 	t.Parallel()
+	for _, stopFails := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf(
+				"Should unbind failed rollback and recover the requested model with stop failure %t",
+				stopFails,
+			),
+			func(t *testing.T) {
+				t.Parallel()
+				h := newHarness(t)
+				driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+				h.manager.driver = driver
+				active := createSession(t, h)
+				t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+				initial := active.runtimeBindingSnapshot()
+				selection := initial.selection
+				selection.Model, selection.ReasoningEffort = "old-model", ""
+				active.completeRuntimeTransition(initial.process, selection, RuntimeTransitionInitialBind, time.Now())
+				initial.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+					{ID: "model", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "old-model"},
+				}})
+				refusal := &acp.NegotiationError{
+					Code:      acp.NegotiationCodeReasoningEffortUnsupported,
+					Requested: "ultra",
+				}
+				rollbackErr := &acp.NegotiationError{Code: acp.NegotiationCodeModelUnavailable, Requested: "old-model"}
+				driver.configHook = func(process *AgentProcess, config acp.RuntimeConfig) error {
+					if config.Model == "new-model" {
+						caps := process.CapsSnapshot()
+						caps.ConfigOptions[0].CurrentValueID = "new-model"
+						process.setCaps(caps)
+						return refusal
+					}
+					return rollbackErr
+				}
+				stopErr := errors.New("provider process has not exited")
+				if stopFails {
+					h.driver.stopHook = func(*fakeProcess) error { return stopErr }
+					t.Cleanup(func() {
+						h.driver.mu.Lock()
+						defer h.driver.mu.Unlock()
+						h.driver.stopHook = nil
+					})
+				}
+				changed := selection
+				changed.Model, changed.ReasoningEffort = "new-model", "ultra"
+				plan, err := h.manager.preparePromptRuntimePlan(t.Context(), active, changed)
+				if err != nil {
+					t.Fatal(err)
+				}
+				snapshot := active.runtimeBindingSnapshot()
+				_, err = h.manager.configureOrReplacePromptRuntime(t.Context(), active, driver, &snapshot, plan)
+				if !errors.Is(err, refusal) || !errors.Is(err, rollbackErr) {
+					t.Fatalf("failed rollback = %v, want both provider errors", err)
+				}
+				if active.processHandle() != nil || active.Info().RuntimeStatus != RuntimeStatusUnbound ||
+					active.Info().Model != "old-model" || active.Info().RuntimeFailure == "" {
+					t.Fatal("failed rollback retained an unsafe binding or lost requested intent/diagnostic")
+				}
+				if stopFails {
+					if !errors.Is(err, stopErr) || isProcessDone(initial.process) {
+						t.Fatal("failed process stop was not retained")
+					}
+					if _, err := h.manager.Prompt(
+						t.Context(),
+						active.ID,
+						"must stay blocked",
+					); !errors.Is(
+						err,
+						stopErr,
+					) {
+						t.Fatalf("prompt before verified exit = %v, want stop failure", err)
+					}
+					h.driver.mu.Lock()
+					h.driver.stopHook = nil
+					h.driver.mu.Unlock()
+				}
+				events, err := h.manager.Prompt(t.Context(), active.ID, "use the original requested model")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, events)
+				if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				h.driver.mu.Lock()
+				starts := slices.Clone(h.driver.startCalls)
+				h.driver.mu.Unlock()
+				if !isProcessDone(initial.process) || active.processHandle() == initial.process ||
+					len(starts) != 2 || starts[1].PreferredModel != "old-model" || active.Info().Model != "old-model" {
+					t.Fatalf("recovery did not replace the unsafe process with the requested model: starts=%#v", starts)
+				}
+			},
+		)
+	}
 	t.Run(
 		"Should preserve Fast intent and accept the next prompt after a failed change rolls back to normal",
 		func(t *testing.T) {
@@ -91,8 +185,7 @@ func TestPromptRuntimeReappliesProviderDrift(t *testing.T) {
 			if err != nil {
 				t.Fatalf("next prompt after rollback = %v", err)
 			}
-			for range events {
-			}
+			collectEvents(t, events)
 			if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
 				t.Fatal(err)
 			}

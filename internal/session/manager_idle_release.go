@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// runtimeRelease marks an agent process the supervisor released from an idle session.
+// runtimeRelease owns a detached process after idle release or failed configuration rollback.
 // The session stays active with an unbound runtime and keeps owning the released process
 // until its exit is verified: done closes when the release stop returns, and err keeps
 // a failed stop so neither a rebind nor a session stop treats the process as gone.

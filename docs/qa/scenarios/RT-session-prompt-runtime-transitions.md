@@ -49,3 +49,9 @@ Both completed turns retain requested max/Fast and report max/normal/rejected; g
 The focused composer suite also refetches reduced observations and checks the next send snapshot.
 A separate session transition regression counts one attempt per explicit retry and no process starts
 for a permanent configuration refusal, while a wrapped transport failure retains recovery.
+
+QA follow-up #914 (2026-10-23): if a provider accepts a new model, rejects its effort, and also
+refuses restoring the prior model, keep the original requested selection and the full diagnostic.
+The runtime becomes unbound and the altered process must exit before another prompt can bind.
+A failed stop blocks dispatch until exit is verified; the next prompt binds the original model.
+The canonical session transition and verified-release suites cover both stop outcomes.

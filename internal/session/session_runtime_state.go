@@ -252,6 +252,26 @@ func (s *Session) restoreRuntimeBindingLocked(snapshot *runtimeBindingSnapshot, 
 	}
 }
 
+// detachRuntimeAfterFailedRollback preserves intent without reusing an unconfirmed process.
+// The release owns the old process until exit is verified, including failed stop retries.
+func (s *Session) detachRuntimeAfterFailedRollback(
+	snapshot *runtimeBindingSnapshot, failure string, now time.Time,
+) *runtimeRelease {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.restoreRuntimeBindingLocked(snapshot, failure, now)
+	s.captureProcessCapabilitiesLocked()
+	release := &runtimeRelease{
+		acpSessionID: strings.TrimSpace(s.ACPSessionID), process: s.process, done: make(chan struct{}),
+	}
+	s.process = nil
+	s.runtimeRelease = release
+	s.RuntimeStatus = RuntimeStatusUnbound
+	s.RuntimeTransition = RuntimeTransitionNone
+	s.RuntimeRecovery = nil
+	return release
+}
+
 func (s *Session) markRuntimeUnbound(now time.Time) {
 	if s == nil {
 		return

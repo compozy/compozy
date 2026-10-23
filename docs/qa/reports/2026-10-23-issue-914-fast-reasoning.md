@@ -89,6 +89,22 @@ accepted; changing image support preserves other capabilities. Focused replay, c
 attachment, native output, and OpenAPI compatibility cases pass. Modern Go error inspection
 replaces the forbidden legacy helper.
 
+## Failed rollback follow-up
+
+Greptile's subsequent review identified a distinct valid partial-configuration failure: the provider
+can accept a new model, reject its effort, and also reject the prior model during rollback. The
+primary refusal is now classified before cleanup; failed rollback atomically restores requested
+intent and transfers the altered process to the existing verified-release owner. The session is
+unbound with the complete diagnostic. A stop failure remains owned and blocks prompt dispatch
+until exit is verified. The next prompt rebinds and negotiates the original requested model.
+
+The regression first failed because the unsafe process remained bound. Both successful-stop and
+failed-stop cases now pass, asserting termination, blocked dispatch before exit, retained intent,
+and successful subsequent prompt binding. The existing transport-recovery, idle-release, and
+lifecycle-transition suites pass as well. This failure injection is automated I/O-boundary evidence,
+not an additional live-provider claim. CI's empty-loop lint finding now uses the existing event
+collector; focused `revive` with the pinned tool passes.
+
 ## Review re-walk
 
 A second isolated lab repeated two short Claude max/Fast prompts. Both completed; after each turn the provider advertised `effort=max` and `fast=off`, while HTTP returned requested max/Fast and effective max/normal/rejected. There was no durable `selected` value. Runtime generation remained 1 and the second transition was live configuration. This provider acknowledged then revoked Fast again; it did not exercise an immediate setter refusal, which is covered by deterministic configuration-attempt/process-start assertions. Manifest-scoped teardown reported clean with zero survivors. Its stop readback was captured while stopping; only the first lab claims a verified stopped-session readback.
