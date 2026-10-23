@@ -49,6 +49,12 @@ func isBetaTrackCandidate(prerelease bool, candidate *semver.Version, current *s
 	return candidate != nil && current != nil && candidate.Prerelease() == "" && candidate.GreaterThan(current)
 }
 
+// isPrereleaseVersion reports whether raw names a prerelease; unparseable versions are not prereleases.
+func isPrereleaseVersion(raw string) bool {
+	parsed, err := parseVersion(raw)
+	return err == nil && parsed.Prerelease() != ""
+}
+
 func prereleaseTrack(prerelease string) releaseTrack {
 	track, _, _ := strings.Cut(prerelease, ".")
 	return releaseTrack(track)

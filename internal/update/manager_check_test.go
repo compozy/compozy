@@ -601,6 +601,10 @@ func TestManagerCheck(t *testing.T) {
 		if state.Status != StatusAvailable || !state.Available {
 			t.Fatalf("state = %#v, want available stable update", state)
 		}
+		npmState := manager.composeState(installInfo{Method: string(InstallMethodNPM), Managed: true}, release, nil)
+		if !strings.Contains(npmState.Recommendation, "npm install -g @compozy/cli`") {
+			t.Fatalf("npm recommendation = %q, want the plain stable package", npmState.Recommendation)
+		}
 	})
 
 	t.Run("Should mark Windows direct-binary installs as manual-only", func(t *testing.T) {
@@ -693,9 +697,9 @@ func TestManagerCheck(t *testing.T) {
 			forbidden string
 		}{
 			{
-				name:   "Should recommend the plain npm package that carries the stable release",
+				name:   "Should keep a selected beta on the npm beta tag",
 				method: InstallMethodNPM,
-				want:   "npm install -g @compozy/cli`",
+				want:   "npm install -g @compozy/cli@beta",
 			},
 			{
 				name:   "Should pin the exact beta for Go installs",

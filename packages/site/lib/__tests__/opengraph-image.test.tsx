@@ -106,6 +106,7 @@ describe("Landing OpenGraph image (root)", () => {
       "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
     );
     expect(copy).toContain("COMPOZYOS");
+    expect(copy).not.toMatch(/\bBETA\b/u);
     expect(copy).toContain("OPERATING SYSTEM FOR AI AGENTS");
     expect(copy).toContain("CREATE · AUTOMATE · SUPERVISE");
     expect(copy).toContain("compozy.com");
