@@ -60,6 +60,13 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
 
 ## PR review regression checks
 
+- After a successful Claude Keychain collection, replace the native login's account evidence and
+  credential. Background refresh discards the old account and requests local explicit Refresh.
+  Send that explicit request within 30 seconds of the old success: it must collect the replacement
+  immediately, publish its plan and usage, and support later background collection. Repeat with
+  provider route changes to `CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR`, and `HOME`.
+  `TestUsageService/Should_recover_Claude_usage_after_switching` exercises these branches with an
+  isolated filesystem, fake Keychain, and local HTTP provider; it does not certify the desktop walk.
 - Switch a file-backed native login from account A to B, then list usage before the refresh interval.
   Account A's values disappear immediately and background collection starts for B. Repeat with logout,
   unreadable credentials, and a Codex auth-store change; no read may touch the Keychain.

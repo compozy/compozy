@@ -64,6 +64,13 @@ Claude on macOS (no `.credentials.json`, login in the Keychain):
   with consent still on;
 - sign in to Claude Code with another account or sign out: the old numbers disappear instead of
   turning stale;
+- within 30 seconds of a successful collection, switch the native Claude login to another account
+  and let a background refresh discard the old usage. Click the row's **Refresh** immediately:
+  the new account's usage and plan appear without waiting for the previous collection's freshness
+  window. The next background interval refreshes that account without another Keychain read;
+- repeat with a provider route selecting another `CLAUDE_CONFIG_DIR`,
+  `CLAUDE_SECURESTORAGE_CONFIG_DIR`, or `HOME`. Usage follows the provider route, and other profiles
+  retain their own login. Missing or unreadable account evidence still forbids background token reuse;
 - turn **Claude Keychain access** off: the loaded login and snapshot are dropped immediately.
 
 Key-based providers and settings:
