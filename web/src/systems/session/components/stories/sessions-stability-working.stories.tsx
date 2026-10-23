@@ -18,6 +18,7 @@ import {
   settledTurnsTranscript,
   thinkingTranscript,
 } from "./sessions-stability-story-fixtures";
+import { STEER_WAKE_TURN, steeredWakesTranscript } from "./sessions-stability-steer-fixtures";
 import { stabilityHandlers, discardStabilityDraft } from "./sessions-stability-story-routes";
 import { StabilityThreadHost } from "./sessions-stability-story-host";
 
@@ -131,6 +132,33 @@ export const QuietTurn: Story = {
     />
   ),
 };
+
+function steeredWakesScene(wakeIds: readonly [string, string]): Story {
+  return {
+    parameters: storybookMswParameters({
+      session: stabilityHandlers(steeredWakesTranscript(wakeIds)),
+    }),
+    render: () => (
+      <StabilityThreadHost
+        isSessionRunning
+        statusSession={runningSession({
+          currentTool: "Bash",
+          startedAgoMs: 80_000,
+          turnId: STEER_WAKE_TURN,
+        })}
+      />
+    ),
+  };
+}
+
+/** Issue #923 — two subagent wakes steered into the live turn between a pending call and its result: one turn, the standard transcript rhythm, no empty gaps. */
+export const SteeredWakesMidTool: Story = steeredWakesScene([
+  "wake_01M5MV5SVJGJVBC5P1278DP0KA",
+  "wake_01M5MV6A9XKQ2RTB7W3HZC4D8E",
+]);
+
+/** Issue #923 — the same turn from older events whose wake identities were persisted as `[REDACTED]`. */
+export const SteeredWakesRedactedIdentity: Story = steeredWakesScene(["[REDACTED]", "[REDACTED]"]);
 
 /** task_07 VC-10 — the transcript ends at the operator's bubble; the status row reads "Thinking…" with the text shimmer. */
 export const Thinking: Story = {

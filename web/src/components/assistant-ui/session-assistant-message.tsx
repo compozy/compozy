@@ -4,11 +4,8 @@ import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Marker } from "@compozy/ui";
 import { isGoalCommandFailureGuidance } from "@/systems/session/lib/session-goal-chat-transport";
-import {
-  assistantMessageHasContent,
-  assistantMessageHasRenderableContent,
-} from "@/systems/session/lib/session-thinking-state";
-import { queueClearTraceCount } from "./session-queue-trace.logic";
+import { assistantMessageHasContent } from "@/systems/session/lib/session-thinking-state";
+import { useAssistantMessagePlacement } from "./hooks/use-assistant-message-placement";
 import { MessageActions } from "./message-actions";
 import { formatMessageError, providerDiagnosticOwnsError } from "./session-thread-error";
 import { SessionThreadErrorBoundary } from "./session-thread-error-boundary";
@@ -50,32 +47,31 @@ function SessionMessageErrorNotice() {
  * content mounts the error marker alone.
  */
 export function AssistantMessage() {
-  const traceCount = useAuiState(state =>
-    queueClearTraceCount(state.thread.messages, state.message.id)
-  );
-  const hasRenderableContent = useAuiState(state =>
-    assistantMessageHasRenderableContent(state.message.content)
-  );
+  const { traceCount, renders, hasRenderableContent, joinsPrevious, joinsNext } =
+    useAssistantMessagePlacement();
   const hasContent = useAuiState(state => assistantMessageHasContent(state.message.content));
-  const failed = useAuiState(state => {
-    const status = state.message.status;
-    return status?.type === "incomplete" && status.reason === "error";
-  });
   const isRunning = useAuiState(state => {
     const status = state.message.status;
     return status?.type === "running" || status?.type === "incomplete";
   });
 
-  if (traceCount === 0 || (!hasRenderableContent && !failed)) {
+  if (!renders) {
     return null;
   }
 
+  // One turn split across messages (a steer delivered mid-turn) keeps the turn's
+  // inline rhythm between its pieces; only the turn's last piece opens the gap.
   return (
     <MessagePrimitive.Root
       data-testid="assistant-message"
       className={cn(
-        "group/message flex w-full min-w-0 pt-1",
-        isRunning ? "pb-transcript-message-y" : "pb-transcript-turn-gap"
+        "group/message flex w-full min-w-0",
+        joinsPrevious ? null : "pt-1",
+        joinsNext
+          ? "pb-transcript-inline-gap"
+          : isRunning
+            ? "pb-transcript-message-y"
+            : "pb-transcript-turn-gap"
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-transcript-inline-gap">
