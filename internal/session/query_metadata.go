@@ -51,17 +51,7 @@ func (m *Manager) readMetaWithContext(ctx context.Context, id string) (store.Ses
 			err,
 		)
 	}
-	if m.hasPendingStopSettlement(target) {
-		return meta, nil
-	}
-	if restored, err := m.restoreRecoveredStopReceipt(&meta); err != nil || restored {
-		return meta, err
-	}
-	repaired, err := m.repairInactiveMeta(ctx, metaPath, &meta)
-	if err != nil {
-		return store.SessionMeta{}, err
-	}
-	return repaired, nil
+	return meta, nil
 }
 
 func requirePersistedProvider(meta *store.SessionMeta) error {
@@ -113,20 +103,7 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta *store.SessionMe
 	if info == nil {
 		return nil
 	}
-	if m != nil && m.transcriptEpochStore != nil {
-		epoch, err := m.transcriptEpochStore.SessionTranscriptEpoch(ctx, meta.ID)
-		if err != nil {
-			m.logger.Warn(
-				"session: read transcript epoch for metadata failed",
-				"session_id",
-				meta.ID,
-				"error",
-				err,
-			)
-		} else {
-			info.TranscriptEpoch = epoch
-		}
-	}
+	m.hydrateMetadataTranscriptEpoch(ctx, info)
 	if meta.WorkspaceID == "" {
 		return info
 	}
@@ -145,6 +122,23 @@ func (m *Manager) sessionInfoFromMeta(ctx context.Context, meta *store.SessionMe
 	}
 	info.Workspace = workspaceRoot
 	return info
+}
+
+func (m *Manager) hydrateMetadataTranscriptEpoch(ctx context.Context, info *Info) {
+	if m != nil && m.transcriptEpochStore != nil {
+		epoch, err := m.transcriptEpochStore.SessionTranscriptEpoch(ctx, info.ID)
+		if err != nil {
+			m.logger.Warn(
+				"session: read transcript epoch for metadata failed",
+				"session_id",
+				info.ID,
+				"error",
+				err,
+			)
+		} else {
+			info.TranscriptEpoch = epoch
+		}
+	}
 }
 
 func sessionInfoFromMeta(meta *store.SessionMeta) *Info {

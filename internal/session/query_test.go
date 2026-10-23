@@ -52,8 +52,8 @@ func TestManagerListForWorkspace(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if reads != 8 || !reflect.DeepEqual(got, want) {
-			t.Fatalf("ListForWorkspace() = %#v, reads=%d; want %#v, 8 reads", got, reads, want)
+		if reads != 0 || !reflect.DeepEqual(got, want) {
+			t.Fatalf("ListForWorkspace() = %#v, reads=%d; want %#v, 0 cached reads", got, reads, want)
 		}
 	})
 	t.Run("Should preserve active unpublished sessions and skip deleted or unreadable histories", func(t *testing.T) {
@@ -1846,7 +1846,7 @@ func exitedProcessLiveness(proc *AgentProcess) *store.SessionLivenessMeta {
 	return &store.SessionLivenessMeta{SubprocessPID: proc.PID, SubprocessStartedAt: new(proc.StartedAt)}
 }
 
-func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
+func TestManagerReconcileIncompleteStartMetadata(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should retry catalog projection after metadata recovery already committed", func(t *testing.T) {
@@ -1864,10 +1864,10 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 		}
 		projectionErr := errors.New("catalog unavailable")
 		catalog.setUpdateErr(projectionErr)
-		if _, err := h.manager.Status(t.Context(), target.ID); !errors.Is(err, projectionErr) {
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); !errors.Is(err, projectionErr) {
 			t.Fatalf("failed projection: %v", err)
 		}
-		if _, err := h.manager.ListAll(t.Context()); !errors.Is(err, projectionErr) {
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); !errors.Is(err, projectionErr) {
 			t.Fatalf("session inventory hid incomplete recovery: %v", err)
 		}
 		// Without recorded process identity the interrupted start cannot prove exit,
@@ -1876,6 +1876,9 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 			t.Fatalf("metadata recovery did not commit: %s", meta.State)
 		}
 		catalog.setUpdateErr(nil)
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 		info, err := h.manager.Status(t.Context(), target.ID)
 		if err != nil || info.StopReason != store.StopError {
 			t.Fatalf("recovery retry: %#v, %v", info, err)
@@ -1912,6 +1915,9 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 		info, err := h.manager.Status(testutil.Context(t), session.ID)
 		if err != nil {
 			t.Fatalf("Status(repaired) error = %v", err)
@@ -1960,7 +1966,7 @@ func TestManagerStatusRepairsIncompleteStartMetadata(t *testing.T) {
 	})
 }
 
-func TestManagerStatusRepairsInterruptedSessionAsStalledWhenLiveSubprocessIsStale(t *testing.T) {
+func TestManagerReconcileInterruptedSessionAsStalledWhenLiveSubprocessIsStale(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should retain stalled live process identity and reject resume", func(t *testing.T) {
@@ -1992,6 +1998,9 @@ func TestManagerStatusRepairsInterruptedSessionAsStalledWhenLiveSubprocessIsStal
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
 
+		if err := h.manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
 		info, err := h.manager.Status(testutil.Context(t), session.ID)
 		if err != nil {
 			t.Fatalf("Status(stalled) error = %v", err)
@@ -3803,4 +3812,162 @@ func (c *familyArchiveCatalog) SetSessionArchived(
 		c.mu.Unlock()
 	}
 	return c.pagedRecordingSessionCatalog.SetSessionArchived(ctx, workspaceID, sessionID, archived)
+}
+
+func TestManagerListAllMetadataCache(t *testing.T) {
+	t.Parallel()
+	t.Run("Should skip metadata removed during reading without an unreadable warning", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		var logs bytes.Buffer
+		manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			meta, err := store.ReadSessionMeta(path)
+			if err != nil {
+				return meta, err
+			}
+			return meta, os.Remove(path)
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil || len(infos) != 0 {
+			t.Fatalf("removed inventory = %#v, error = %v", infos, err)
+		}
+		if strings.Contains(logs.String(), "session: skip unreadable session metadata") {
+			t.Fatalf("removed metadata reported as unreadable: %s", logs.String())
+		}
+	})
+	t.Run("Should preserve fresh scoped metadata after replacement deletion and caller mutation", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 4, 2)
+		reads := 0
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			reads++
+			return store.ReadSessionMeta(path)
+		}
+		first, err := manager.ListAll(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		first[0].Name = "caller mutation"
+		second, err := manager.ListAll(t.Context())
+		if err != nil || len(second) != 4 || reads != 4 || second[0].Name == first[0].Name {
+			t.Fatalf("cached inventory: %#v reads=%d error=%v", second, reads, err)
+		}
+		path := store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, second[0].ID))
+		meta, err := store.ReadSessionMeta(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta.Name = "replacement"
+		if err := store.WriteSessionMeta(path, &meta); err != nil {
+			t.Fatal(err)
+		}
+		third, err := manager.ListAll(t.Context())
+		if err != nil || len(third) != 4 || reads != 5 || third[0].Name != "replacement" {
+			t.Fatalf("replaced inventory: %#v reads=%d error=%v", third, reads, err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		fourth, err := manager.ListAll(t.Context())
+		if err != nil || len(fourth) != 3 || fourth[0].ID == second[0].ID {
+			t.Fatalf("deleted inventory: %#v %v", fourth, err)
+		}
+	})
+	t.Run("Should refresh catalog epoch without rereading unchanged metadata", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		if _, err := manager.ListAll(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		manager.readSessionMeta = func(string) (store.SessionMeta, error) {
+			t.Fatal("unchanged metadata reread")
+			return store.SessionMeta{}, nil
+		}
+		epoch, err := manager.transcriptEpochStore.EnsureSessionTranscriptEpoch(
+			t.Context(), store.SessionTranscriptEpochUpdate{SessionID: "sess-read-000", Minimum: 7},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil || len(infos) != 1 || infos[0].TranscriptEpoch != epoch {
+			t.Fatalf("fresh epoch: %#v %v", infos, err)
+		}
+	})
+	t.Run("Should leave interrupted metadata unchanged until explicit reconciliation", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		path := store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, "sess-read-000"))
+		meta, err := store.ReadSessionMeta(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta.State, meta.StopReason = string(StateStarting), nil
+		if err := store.WriteSessionMeta(path, &meta); err != nil {
+			t.Fatal(err)
+		}
+		before, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			infos, err := manager.ListAll(t.Context())
+			if err != nil || len(infos) != 1 || infos[0].State != StateStarting {
+				t.Fatalf("read: %#v %v", infos, err)
+			}
+			if _, err := manager.Status(t.Context(), meta.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		after, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(before, after) {
+			t.Fatalf("read changed metadata: %v", err)
+		}
+		rows, err := manager.sessionCatalog.ListSessions(t.Context(), store.SessionListQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+		})
+		if err != nil || len(rows) != 1 || rows[0].State != string(StateStopped) {
+			t.Fatalf("read changed catalog: %#v %v", rows, err)
+		}
+		if err := manager.ReconcileInactiveSessions(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil || len(infos) != 1 || infos[0].State != StateStopping {
+			t.Fatalf("reconciled: %#v %v", infos, err)
+		}
+	})
+}
+
+func TestManagerListLive(t *testing.T) {
+	t.Parallel()
+	t.Run("Should include retained live sessions and exclude stopped history without parsing it", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 279, 1)
+		id := "sess-read-278"
+		path := store.SessionMetaFile(filepath.Join(manager.homePaths.SessionsDir, id))
+		meta, err := store.ReadSessionMeta(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		meta.State = string(StateActive)
+		if err := store.WriteSessionMeta(path, &meta); err != nil {
+			t.Fatal(err)
+		}
+		if err := manager.sessionCatalog.UpdateSessionState(t.Context(), store.SessionStateUpdate{
+			ID: id, State: string(StateActive),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		reads := 0
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			reads++
+			return store.ReadSessionMeta(path)
+		}
+		infos, err := manager.ListLive(t.Context())
+		if err != nil || len(infos) != 1 || infos[0].ID != id || reads != 1 {
+			t.Fatalf("live inventory=%#v reads=%d error=%v", infos, reads, err)
+		}
+	})
 }

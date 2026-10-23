@@ -137,6 +137,8 @@ type sessionResumeRun struct {
 
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
+	metadataCacheMu            sync.Mutex
+	metadataCache              map[string]cachedSessionMetadata
 	replyWatches               ReplyWatchService
 	subagents                  SubagentService
 	metadataWarnings           loggerpkg.FailureWarnings
