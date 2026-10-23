@@ -1672,6 +1672,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			"sess-child":      {ParentSessionID: "sess-parent", AutoStopOnParent: true},
 			"sess-continued":  {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
 			"sess-forked":     {ParentSessionID: "sess-parent", Kind: store.LineageKindFork},
+			// A corrupt subagent cycle must end the walk, not loop.
+			"sess-loop-a": {ParentSessionID: "sess-loop-b", SpawnRole: store.SubagentSpawnRole},
+			"sess-loop-b": {ParentSessionID: "sess-loop-a", SpawnRole: store.SubagentSpawnRole},
 		}
 		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
 			info, err := status(ctx, id)
@@ -1701,7 +1704,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("stop-first archive of an unrelated session = %v, calls=%d, want one archive", err, archived)
 		}
 		// Archiving a continue/fork source never stops the derived caller.
-		for _, caller := range []string{"sess-continued", "sess-forked"} {
+		for _, caller := range []string{"sess-continued", "sess-forked", "sess-loop-a"} {
 			derived := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: caller, AgentName: "coder"}
 			if _, err := registry.Call(t.Context(), derived, toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionArchive,
@@ -1710,8 +1713,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("stop-first archive of the source from %s = %v, want allowed", caller, err)
 			}
 		}
-		if archived != 3 {
-			t.Fatalf("archive calls = %d, want 3", archived)
+		if archived != 4 {
+			t.Fatalf("archive calls = %d, want 4", archived)
 		}
 	})
 

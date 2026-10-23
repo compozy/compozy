@@ -93,10 +93,6 @@ func (n *daemonNativeTools) setSessionArchived(
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
-// nativeArchiveLineageWalkLimit bounds the caller ancestry walk against corrupt
-// lineage cycles; real spawn trees are far shallower.
-const nativeArchiveLineageWalkLimit = 64
-
 // nativeCallerWithinSession reports whether stopping target would stop the
 // calling session: the caller is target, or reaches it through parent links a
 // parent stop cascades over (subagent children and auto-stop spawned children).
@@ -108,10 +104,17 @@ func (n *daemonNativeTools) nativeCallerWithinSession(
 ) (bool, error) {
 	target = strings.TrimSpace(target)
 	current := strings.TrimSpace(callerID)
-	for range nativeArchiveLineageWalkLimit {
+	// Spawn depth has no fixed bound, so walk the whole chain; the visited set
+	// ends a corrupt lineage cycle instead of a depth cutoff.
+	visited := make(map[string]struct{})
+	for {
 		if current == "" {
 			return false, nil
 		}
+		if _, seen := visited[current]; seen {
+			return false, nil
+		}
+		visited[current] = struct{}{}
 		if current == target {
 			return true, nil
 		}
@@ -127,7 +130,6 @@ func (n *daemonNativeTools) nativeCallerWithinSession(
 		}
 		current = strings.TrimSpace(info.Lineage.ParentSessionID)
 	}
-	return false, nil
 }
 
 func nativeLineageStopsWithParent(lineage *store.SessionLineage) bool {
