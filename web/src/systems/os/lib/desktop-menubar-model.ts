@@ -2,7 +2,6 @@ import {
   allProjectsTooltipOn,
   DESTINATION_COPY,
   focusLabel,
-  workspaceMonogram,
   type ActiveWorktreeSelection,
   type BreadthMode,
   type Focus,
@@ -27,20 +26,12 @@ function fallbackChip(
   activeWorkspace: WorkspacePayload | undefined
 ): WorkspaceChipIdentity {
   if (breadthMode === "all") {
-    return {
-      kind: "all",
-      name: DESTINATION_COPY.allProjects,
-      monogram: DESTINATION_COPY.allProjectsMonogram,
-    };
+    return { kind: "all", name: DESTINATION_COPY.allProjects };
   }
   if (!activeWorkspace) {
-    return { kind: "user", name: DESTINATION_COPY.user, monogram: DESTINATION_COPY.userMonogram };
+    return { kind: "user", name: DESTINATION_COPY.user };
   }
-  return {
-    kind: "project",
-    name: activeWorkspace.name,
-    monogram: workspaceMonogram(activeWorkspace.name),
-  };
+  return { kind: "project", name: activeWorkspace.name };
 }
 
 /**

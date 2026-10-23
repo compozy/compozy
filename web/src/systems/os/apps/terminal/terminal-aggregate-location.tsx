@@ -28,7 +28,6 @@ import {
   WINDOW_BINDING_SEARCH_KEY,
   WorkspaceBadge,
   workspaceBadgeIdentity,
-  workspaceMonogram,
   windowBindingValue,
   type CreateDestinationOption,
   type ProjectFilterModel,
@@ -64,13 +63,8 @@ function destinationOptions(
     ...workspaces.map(workspace => ({
       value: workspace.id,
       label: workspace.name,
-      monogram: workspaceMonogram(workspace.name),
     })),
-    {
-      value: USER_SCOPE_SELECTOR,
-      label: DESTINATION_COPY.user,
-      monogram: DESTINATION_COPY.userMonogram,
-    },
+    { value: USER_SCOPE_SELECTOR, label: DESTINATION_COPY.user },
   ];
 }
 

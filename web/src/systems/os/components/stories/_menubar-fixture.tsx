@@ -174,11 +174,9 @@ export const MISSING_WORKTREE = MENUBAR_WORKTREE_LISTING.worktrees.find(
 export const ALL_PROJECTS_CHIP: WorkspaceChipIdentity = {
   kind: "all",
   name: DESTINATION_COPY.allProjects,
-  monogram: DESTINATION_COPY.allProjectsMonogram,
 };
 
 export const USER_CHIP: WorkspaceChipIdentity = {
   kind: "user",
   name: DESTINATION_COPY.user,
-  monogram: DESTINATION_COPY.userMonogram,
 };

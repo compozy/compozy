@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useRef, type ComponentProps } from "react";
-import { fn } from "storybook/test";
+import { fn, userEvent, within } from "storybook/test";
 
 import { Popover, PopoverContent } from "@compozy/ui";
 
@@ -24,6 +24,16 @@ const NOW = Date.now();
 const STATUS = statusTargets(NOW);
 
 type PanelArgs = ComponentProps<typeof ProviderUsagePanel>;
+
+/** Rows start collapsed; detail stories open the named rows the way a person would. */
+function expandRows(...providerNames: string[]): NonNullable<Story["play"]> {
+  return async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    for (const name of providerNames) {
+      await userEvent.click(await body.findByRole("button", { name: new RegExp(`^${name}`) }));
+    }
+  };
+}
 
 function rowsOf(targets: ProviderUsageTarget[]) {
   return buildProviderUsageViewModel(usageEnvelope(targets, {}, NOW));
@@ -149,22 +159,36 @@ export const Unsupported: Story = {
  * currencies, reset text only, "Resetting…", a date beyond a week, above 100 %.
  */
 export const EdgeCasesExpanded: Story = {
-  args: { expandAll: true, viewModel: rowsOf([edgeCaseTarget(NOW)]) },
+  args: { viewModel: rowsOf([edgeCaseTarget(NOW)]) },
+  tags: ["play-fn"],
+  play: expandRows("OpenRouter"),
 };
 
 /** US-003.AC-1–AC-4: Claude expanded — three bars, extra usage, plan and source. */
 export const DetailExpanded: Story = {
-  args: { expandAll: true, viewModel: rowsOf([claudeOkTarget(NOW), codexOkTarget(NOW)]) },
+  args: { viewModel: rowsOf([claudeOkTarget(NOW), codexOkTarget(NOW)]) },
+  tags: ["play-fn"],
+  play: expandRows("Claude"),
+};
+
+/** A signed-out row opened: the reason sits under the row, never in it. */
+export const SignedOutExpanded: Story = {
+  args: SignedOut.args,
+  tags: ["play-fn"],
+  play: expandRows("Cursor"),
 };
 
 /** US-005.EC-3: daemon unreachable — cached rows under a banner, Refresh absent. */
 export const DaemonUnavailable: Story = { args: { daemonUnavailable: true } };
 
-/** US-002.EC-1: ten or more targets scroll under a fixed header. */
+/**
+ * US-002.EC-1: ten or more targets scroll under a fixed header. The overlay
+ * bar shows on hover or scroll, over a gutter that keeps it off the rows.
+ */
 export const ManyTargets: Story = {
   args: {
-    viewModel: rowsOf(
-      Array.from({ length: 12 }, (_, index) =>
+    viewModel: rowsOf([
+      ...Array.from({ length: 12 }, (_, index) =>
         usageTarget({
           provider_id: `provider-${index}`,
           provider_name: `Provider ${index + 1}`,
@@ -178,8 +202,11 @@ export const ManyTargets: Story = {
             }),
           ],
         })
-      )
-    ),
+      ),
+      STATUS.signedOut,
+      STATUS.codexAuthExpired,
+      STATUS.claudeAuthScope,
+    ]),
   },
 };
 
@@ -195,7 +222,7 @@ export const TurnedOff: Story = {
   },
 };
 
-/** S3 / US-010.AC-2: the Usage app — window chrome, every target expanded. */
+/** S3 / US-010.AC-2: the Usage app — window chrome, every target a collapsed row. */
 export const UsageAppWindow: Story = {
   render: args => (
     <PanelSurface className="p-4">
@@ -205,7 +232,6 @@ export const UsageAppWindow: Story = {
   args: {
     chrome: "window",
     title: "Usage",
-    expandAll: true,
     onOpenUsage: undefined,
     viewModel: rowsOf([claudeOkTarget(NOW), codexOkTarget(NOW), STATUS.unsupported]),
   },

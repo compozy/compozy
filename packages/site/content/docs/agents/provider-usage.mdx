@@ -61,21 +61,23 @@ Click the meter, or focus it and press Enter. A **Provider usage** popover opens
 ```text
 Provider usage                         Updated 1 min ago   ⟳
 ─────────────────────────────────────────────────────────────
-Claude Code    Max 20x   Weekly · Opus   ████████▉  88% used   3d 2h
-Codex          Pro       Weekly          ███████▏   72% used   2d 4h
-Cursor Agent             Signed out · Sign in with Cursor to read usage
+› Claude Code    Max 20x                          88% used
+› Codex          Pro                              72% used
+› Cursor Agent                                 • Signed out
 › 6 providers without usage data
 ─────────────────────────────────────────────────────────────
 Open Usage                                           Settings
 ```
 
-Each row shows the provider, its plan, its most used limit, and the time until that limit resets.
+Every row starts collapsed to one line: the provider, its plan, and how much of its most used limit
+you have used. A row without numbers says why in a word or two instead, such as `Signed out`.
 Providers you have not set up read `Signed out`; [Step 7](#step-7-choose-what-compozyos-collects)
 shows how to hide the ones you do not use. Providers CompozyOS cannot read usage for are folded into
 one closed group at the end, such as `6 providers without usage data`. Open it to see each name and
 its reason.
 
-Click a row to expand it. The detail lists every limit with its own bar and reset time, then
+Click a row to expand it. The detail starts with the full status message and its button, when the
+row has one, then lists every limit with its own bar and reset time, then
 balances and spending caps in their own units (`120 credits`, `$12.40`), the account, where the
 numbers came from (for example `Claude Code OAuth`), and when they were measured.
 
@@ -85,6 +87,8 @@ Things to know about the popover:
   they update.
 - A limit without a known percentage shows `Usage unknown`, never an empty bar or `0%`.
 - A countdown appears only when the provider reports an exact reset time.
+- When there are more rows than fit, the list scrolls. Its scroll bar appears only while you hover
+  or scroll the list.
 - Press Esc to close. Focus returns to the meter.
 
 ## Step 3: Refresh
@@ -94,13 +98,13 @@ results arrive. The daemon refreshes in the background every five minutes either
 need this button after something changed, such as signing in to a provider.
 
 A provider measured less than 30 seconds ago keeps its current numbers. A row that cannot
-refresh says why, and offers a button when you can fix it from here. See
+refresh says why when you expand it, and offers a button when you can fix it from here. See
 [statuses](#statuses-and-what-to-do).
 
 ## Step 4: Open the Usage app
 
-Click **Open Usage** in the popover footer. The **Usage** window opens with every provider expanded
-and its own **⟳** button. Providers without usage data stay in the same closed group at the end. It reads the same numbers as the popover and updates live. Use it when you
+Click **Open Usage** in the popover footer. The **Usage** window opens with every provider as a
+collapsed row and its own **⟳** button. Expand the rows you want to compare. Providers without usage data stay in the same closed group at the end. It reads the same numbers as the popover and updates live. Use it when you
 want all limits side by side, for example before starting a long run.
 
 ## Step 5: Allow Claude on macOS
@@ -108,10 +112,11 @@ want all limits side by side, for example before starting a long run.
 On macOS, Claude Code usually keeps its login in the macOS Keychain instead of a file. CompozyOS
 reads the Keychain only with your consent and only when you ask for it. The **Allow** button and the
 **Claude Keychain access** setting appear only when the daemon runs on macOS. Until you allow it, the
-Claude row reads:
+Claude row reads `Needs access`. Expand it to see:
 
 ```text
-Claude Code   Needs Keychain access                       [Allow]
+Claude Code                                    • Needs access
+  Needs Keychain access                               [Allow]
 ```
 
 1. Click **Allow**. CompozyOS saves your consent (the **Claude Keychain access** switch in Settings)
@@ -271,19 +276,20 @@ same numbers over HTTPS with the login in `auth.json`.
 
 ## Statuses and what to do
 
-Every provider row has one status. The CLI prints the status name; the popover prints the message.
+Every provider row has one status. The CLI prints the status name. The collapsed row shows a short
+cue; expanding the row shows the full message and its button.
 
-| Status          | Popover says                                                                                | What to do                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ok`            | The numbers                                                                                 | Nothing.                                                                                     |
-| `refreshing`    | `Loading…`                                                                                  | Wait. This is the first collection after a daemon start.                                     |
-| `stale`         | `Stale · updated 25 min ago`, old numbers kept                                              | Click **Retry** or **Refresh**. The last refresh failed or the numbers are old.              |
-| `signed_out`    | `Signed out · Sign in with Claude to read usage`                                            | Sign in with the provider's own CLI, then refresh.                                           |
-| `needs_consent` | `Needs Keychain access`, `Keychain access denied`, or `Refresh to reload your Claude login` | Click **Allow**, **Try again**, or **Refresh**. See [Step 5](#step-5-allow-claude-on-macos). |
-| `rate_limited`  | `Rate limited · retry in 4m`                                                                | Wait, or click **Retry** once.                                                               |
-| `error`         | `Couldn't load usage`                                                                       | Click **Retry**. The JSON `error.message` says what failed.                                  |
-| `unsupported`   | `Usage not available for this provider`, or the reason                                      | Nothing, or follow the reason (for example the Codex credential store).                      |
-| `disabled`      | `Turned off in settings`                                                                    | Turn the provider back on in Settings → Provider usage.                                      |
+| Status          | Collapsed row                                       | Expanded row says                                                                           | What to do                                                                                   |
+| --------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `ok`            | `72% used`                                          | The numbers                                                                                 | Nothing.                                                                                     |
+| `refreshing`    | `Loading…`                                          | `Loading…`                                                                                  | Wait. This is the first collection after a daemon start.                                     |
+| `stale`         | The old percent, with a ring                        | `Stale · updated 25 min ago`, old numbers kept                                              | Click **Retry** or **Refresh**. The last refresh failed or the numbers are old.              |
+| `signed_out`    | `Signed out`                                        | `Signed out · Sign in with Claude to read usage`                                            | Sign in with the provider's own CLI, then refresh.                                           |
+| `needs_consent` | `Needs access`, `Access denied`, or `Login expired` | `Needs Keychain access`, `Keychain access denied`, or `Refresh to reload your Claude login` | Click **Allow**, **Try again**, or **Refresh**. See [Step 5](#step-5-allow-claude-on-macos). |
+| `rate_limited`  | `Rate limited`                                      | `Rate limited · retry in 4m`                                                                | Wait, or click **Retry** once.                                                               |
+| `error`         | `Couldn't load`                                     | `Couldn't load usage`                                                                       | Click **Retry**. The JSON `error.message` says what failed.                                  |
+| `unsupported`   | In the closed group at the end                      | `Usage not available for this provider`, or the reason                                      | Nothing, or follow the reason (for example the Codex credential store).                      |
+| `disabled`      | In the closed group at the end                      | `Turned off in settings`                                                                    | Turn the provider back on in Settings → Provider usage.                                      |
 
 Numbers are kept when a refresh fails with the same login, marked stale with their original
 measurement time. They are dropped when the login changes, because they describe another account.

@@ -43,8 +43,6 @@ export interface ProviderUsagePanelProps {
   chrome?: "popover" | "window";
   /** Defaults to "Provider usage"; the Usage app passes "Usage". */
   title?: string;
-  /** Usage app: every target starts expanded. */
-  expandAll?: boolean;
   /** Header Refresh (explicit intent). Absent hides the button. */
   onRefresh?: () => void;
   /** An explicit header refresh is in flight. */
@@ -63,7 +61,7 @@ export interface ProviderUsagePanelProps {
 const NO_PENDING: ReadonlySet<string> = new Set();
 
 function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number }) {
-  const { viewModel, loading, errorMessage, expandAll, chrome = "popover" } = props;
+  const { viewModel, loading, errorMessage, chrome = "popover" } = props;
   if (!viewModel) {
     if (loading) return <SkeletonRows count={2} className="gap-4 px-2 py-2" aria-busy="true" />;
     if (errorMessage) {
@@ -113,7 +111,6 @@ function PanelBody({ props, now }: { props: ProviderUsagePanelProps; now: number
               now={now}
               isMacHost={props.isMacHost}
               remoteClient={props.remoteClient}
-              defaultOpen={expandAll}
               onAction={onAction}
               pending={pending.has(row.providerId)}
             />
@@ -175,9 +172,9 @@ function PanelFooter({
 }
 
 /**
- * Header (title, freshness, Refresh), one row per target in the daemon's
- * order, and the footer links. Serves the tray popover and, with `expandAll`
- * and `chrome="window"`, the Usage app.
+ * Header (title, freshness, Refresh), one collapsed row per target in the
+ * daemon's order, and the footer links. Serves the tray popover and, with
+ * `chrome="window"`, the Usage app.
  */
 export function ProviderUsagePanel(props: ProviderUsagePanelProps) {
   const {

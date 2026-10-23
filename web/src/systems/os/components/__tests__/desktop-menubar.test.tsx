@@ -394,6 +394,7 @@ describe("DesktopMenubar provider usage control", () => {
   ])(
     "Should offer Allow only when the daemon supports Keychain consent (%s)",
     async (keychain_supported, allowCount) => {
+      const user = userEvent.setup();
       renderMenubar({
         activeOverlay: "usage",
         usage: usageEnvelope(
@@ -404,6 +405,7 @@ describe("DesktopMenubar provider usage control", () => {
       });
 
       const popover = await screen.findByTestId("os-usage-popover");
+      await user.click(within(popover).getByRole("button", { name: "Claude, Needs access" }));
       expect(within(popover).getByText("Needs Keychain access")).toBeInTheDocument();
       expect(within(popover).queryAllByRole("button", { name: "Allow" })).toHaveLength(allowCount);
     }
@@ -478,6 +480,7 @@ describe("DesktopMenubar provider usage control", () => {
     );
 
     const popover = await screen.findByTestId("os-usage-popover");
+    await user.click(await within(popover).findByRole("button", { name: "Claude, Needs access" }));
     await user.click(await within(popover).findByRole("button", { name: "Allow" }));
 
     const requests = () =>

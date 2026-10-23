@@ -89,7 +89,7 @@ describe("automationRunProject", () => {
     );
     expect(
       automationRunProject({ attribution: "unknown", workspace_id: undefined }, names)
-    ).toEqual({ kind: "unknown", name: "Unknown project", monogram: "?" });
+    ).toEqual({ kind: "unknown", name: "Unknown project" });
     expect(automationRunProject({ attribution: "unknown", workspace_id: "" }, names).kind).toBe(
       "unknown"
     );

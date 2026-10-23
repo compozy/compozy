@@ -39,7 +39,7 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.dataScope).toEqual({ kind: "project", workspaceId: "ws_alpha" });
     expect(resolved.desktopWorkspaceId).toBe("ws_alpha");
     expect(resolved.runtimeWorkspaceId).toBe("ws_alpha");
-    expect(resolved.chip).toEqual({ kind: "project", name: "alpha", monogram: "AL" });
+    expect(resolved.chip).toEqual({ kind: "project", name: "alpha" });
   });
 
   it("Should bind the user partition and a User data scope with no runtime workspace", () => {
@@ -52,7 +52,7 @@ describe("resolveActiveWorkspace", () => {
     expect(resolved.dataScope).toEqual({ kind: "user" });
     expect(resolved.runtimeWorkspaceId).toBeNull();
     expect(resolved.activeWorkspace).toBeUndefined();
-    expect(resolved.chip).toEqual({ kind: "user", name: "User", monogram: "~" });
+    expect(resolved.chip).toEqual({ kind: "user", name: "User" });
   });
 
   it("Should bind the global desktop under All projects and remember the focused project", () => {

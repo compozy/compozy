@@ -14,6 +14,8 @@ export interface ProviderUsageStatusLineProps {
   onAction?: (providerId: string, action: ProviderUsageRowAction) => void;
   /** An explicit action for this row is in flight. */
   pending?: boolean;
+  /** Draw the tone dot; off where the row's collapsed cue already carries it. */
+  dot?: boolean;
   className?: string;
 }
 
@@ -28,6 +30,7 @@ export function ProviderUsageStatusLine({
   remoteClient = false,
   onAction,
   pending = false,
+  dot = true,
   className,
 }: ProviderUsageStatusLineProps) {
   const status = describeProviderUsageStatus(target, { now, isMacHost, remoteClient });
@@ -40,7 +43,7 @@ export function ProviderUsageStatusLine({
       className={cn("flex min-w-0 flex-col gap-1", className)}
     >
       <div className="flex min-h-6 min-w-0 items-center gap-2">
-        {status.tone ? (
+        {dot && status.tone ? (
           <StatusDot tone={status.tone} variant={status.dotVariant} size="sm" />
         ) : null}
         <span className="min-w-0 flex-1 text-meta text-pretty text-muted">{status.text}</span>

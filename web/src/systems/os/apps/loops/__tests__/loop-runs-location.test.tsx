@@ -221,9 +221,7 @@ describe("LoopRunsLocation", () => {
         field: { key: "project", label: "Project", type: "multiselect", options: [] },
       },
       projectOf: (id: string) =>
-        id === "ws_b"
-          ? { kind: "project", name: "beta", monogram: "BE" }
-          : { kind: "user", name: "User", monogram: "~" },
+        id === "ws_b" ? { kind: "project", name: "beta" } : { kind: "user", name: "User" },
       runsQuery: {
         data: {
           runs: [

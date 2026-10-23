@@ -47,7 +47,7 @@ export const Starting: Story = {
 /** All projects: the prompt still starts a session; New session asks for the project and agent. */
 export const AllProjects: Story = {
   render: () => (
-    <DesktopShell workspace={{ name: "All projects", monogram: "∗" }}>
+    <DesktopShell workspace={{ name: "All projects" }}>
       <EmptyDesktopPreview asksTarget />
     </DesktopShell>
   ),

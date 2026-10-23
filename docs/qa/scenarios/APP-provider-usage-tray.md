@@ -4,7 +4,7 @@ area: APP
 title: See provider limits from the topbar, popover, and Usage app, and grant Claude Keychain consent
 persona: Bruno
 journey: J-provider-usage
-expected: The topbar Provider usage meter shows the tightest known window with an accessible label; the popover and Usage app show one truthful row per provider with expandable detail; Refresh and Allow run explicit refreshes while popover open and the scheduler stay background; Claude Keychain consent on macOS prompts only after Allow or a local CLI refresh, and denial, token expiry, and daemon restart each show their recovery; settings changes apply live; CLI, HTTP, UDS, and native tools return the same profile-scoped envelope.
+expected: The topbar Provider usage meter shows the tightest known window with an accessible label; the popover and Usage app show one truthful row per provider, collapsed to a single line with a compact cue (percent used, or the status in a word or two) and detail only on expand, in an overlay scroll area whose bar appears only on hover or scroll; Refresh and Allow run explicit refreshes while popover open and the scheduler stay background; Claude Keychain consent on macOS prompts only after Allow or a local CLI refresh, and denial, token expiry, and daemon restart each show their recovery; settings changes apply live; CLI, HTTP, UDS, and native tools return the same profile-scoped envelope.
 entry_points: topbar Provider usage control; Provider usage popover; Usage app (/usage); Settings → Provider usage; compozy provider usage list|refresh; GET/POST /api/provider-usage*; compozy__provider_usage_list; compozy__provider_usage_refresh
 qa_status: untested
 bug_ids:
@@ -31,19 +31,22 @@ Codex end to end (file credential store, `codex login` done):
   ≥ 100 with "limit reached";
 - the popover lists providers in catalog order, with `unsupported`/`disabled` rows folded into one
   closed trailing group (`N providers without usage data`) that opens to each name and reason, in
-  the popover and the Usage app alike; Codex shows plan, tightest window,
-  percent, and countdown; expanding shows Session, Weekly, credits, account, source
-  `Codex app-server`, and measured time; Esc closes and focus returns to the meter;
+  the popover and the Usage app alike; every row starts collapsed to one line, and Codex reads
+  its plan and percent used (the accessible name adds the tightest window and countdown);
+  expanding shows Session, Weekly, credits, account, source `Codex app-server`, and measured
+  time; with more rows than fit, the scroll bar stays hidden until hover or scroll and never
+  covers a row; Esc closes and focus returns to the meter;
 - opening the popover refreshes only rows older than 60 s (background); ⟳ refreshes explicitly,
   keeps numbers visible while collecting, and a second ⟳ within 30 s does not re-collect;
-- **Open Usage** opens the Usage window with every row expanded and its own ⟳; it updates live
+- **Open Usage** opens the Usage window with every row collapsed and its own ⟳; it updates live
   while the popover refreshes;
 - set `cli_auth_credentials_store = "keyring"` in `$CODEX_HOME/config.toml`: the Codex row turns
   `unsupported` with the keyring message and no keyring prompt appears; restore `"file"`.
 
 Claude on macOS (no `.credentials.json`, login in the Keychain):
 
-- with consent off the row reads `Needs Keychain access` with **Allow**, and the CLI table ends
+- with consent off the collapsed row reads `Needs access`; expanding it shows
+  `Needs Keychain access` with **Allow**, and the CLI table ends
   with the `keychain_access true` hint; no macOS prompt appears from opening the popover or waiting
   through a background interval;
 - **Allow** saves the Settings switch; the daemon runs exactly one explicit collection and the web only invalidates its query (no follow-up refresh POST); macOS asks for
@@ -91,3 +94,11 @@ PR review regressions:
 - Fail an explicit Refresh or Try again request, then let the envelope read succeed. One error toast
   explains the rejected action while cached numbers remain visible. Background failures do not toast.
 - Fail Allow's settings save. One Keychain error toast appears, and no explicit refresh is sent.
+
+2026-10-22 qa-impact (#900 shell UI polish): every provider row, signed-out ones included, now
+starts collapsed to one line with a compact trailing cue (percent used, or a word such as
+`Signed out`, backed by its status dot); the reason line and its action (**Allow**, **Retry**,
+**Try again**, **Refresh**) and the per-window detail appear only after expanding the row. The
+Usage app no longer opens every row expanded. The shared `ScrollArea` bar now overlays a reserved
+gutter and shows only on hover, scroll, or keyboard focus. Re-walk the expand-then-act steps;
+status stays `untested`.

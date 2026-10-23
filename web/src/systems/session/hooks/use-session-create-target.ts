@@ -76,11 +76,7 @@ export function useSessionCreateTarget({
   const profileOptions = profileAxis
     ? (profiles.data ?? [])
         .filter(owner => owner.archived_at == null)
-        .map(owner => ({
-          value: owner.name,
-          label: owner.name,
-          monogram: owner.name.slice(0, 2).toUpperCase(),
-        }))
+        .map(owner => ({ value: owner.name, label: owner.name }))
     : [];
   const profile =
     profileOptions.find(option => option.value === current.profile)?.value ??

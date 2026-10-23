@@ -1,7 +1,6 @@
 import {
   DESTINATION_COPY,
   USER_SCOPE_SELECTOR,
-  workspaceMonogram,
   type FocusedDataScope,
   type WorkspacePayload,
 } from "@/systems/workspace";
@@ -13,7 +12,6 @@ export const LAST_SESSION_PROJECT_STORAGE_KEY = "compozy:new-session:last-projec
 export interface SessionTargetOption {
   value: string;
   label: string;
-  monogram: string;
 }
 
 /**
@@ -27,13 +25,8 @@ export function sessionProjectOptions(
     ...workspaces.map(workspace => ({
       value: workspace.id,
       label: workspace.name,
-      monogram: workspaceMonogram(workspace.name),
     })),
-    {
-      value: USER_SCOPE_SELECTOR,
-      label: DESTINATION_COPY.user,
-      monogram: DESTINATION_COPY.userMonogram,
-    },
+    { value: USER_SCOPE_SELECTOR, label: DESTINATION_COPY.user },
   ];
 }
 

@@ -55,11 +55,13 @@ export function GlobalScopeToggle({
               aria-disabled={locked || undefined}
               aria-label={accessibleName}
               className={cn(
-                // Tray icon button (shell-rail v2 `.ib`): chrome plates, pressed on
-                // the neutral rail-selected step — accent is reserved for needs-you.
-                "size-8.5 min-w-8.5 p-0 hover:bg-rail-hover aria-pressed:bg-rail-selected",
+                // Tray icon button (shell-rail v2 `.ib`): hover takes the chrome plate;
+                // pressed holds no plate and turns the globe accent, so the mode reads
+                // as a lit glyph rather than another selected chip beside the switcher.
+                "size-8.5 min-w-8.5 p-0 hover:bg-rail-hover",
+                "aria-pressed:bg-transparent aria-pressed:text-accent aria-pressed:hover:bg-rail-hover",
                 "aria-disabled:hover:bg-transparent aria-disabled:hover:text-muted",
-                "aria-disabled:aria-pressed:bg-rail-selected aria-disabled:aria-pressed:text-fg",
+                "aria-disabled:aria-pressed:hover:bg-transparent aria-disabled:aria-pressed:hover:text-accent",
                 locked && "opacity-50"
               )}
               data-testid="os-global-scope-toggle"

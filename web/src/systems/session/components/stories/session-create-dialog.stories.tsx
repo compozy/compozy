@@ -53,16 +53,16 @@ export const AllProjectsAndProfiles: Story = {
     destinationAxes: {
       project: {
         options: [
-          { value: "ws_alpha", label: "alpha", monogram: "AL" },
-          { value: "@user", label: "User", monogram: "~" },
+          { value: "ws_alpha", label: "alpha" },
+          { value: "@user", label: "User" },
         ],
         value: "ws_alpha",
         onChange: () => undefined,
       },
       profile: {
         options: [
-          { value: "default", label: "default", monogram: "DE" },
-          { value: "marketing", label: "marketing", monogram: "MA" },
+          { value: "default", label: "default" },
+          { value: "marketing", label: "marketing" },
         ],
         value: "default",
         onChange: () => undefined,
@@ -78,8 +78,8 @@ export const AllProjects: Story = {
     destinationAxes: {
       project: {
         options: [
-          { value: "ws_alpha", label: "alpha", monogram: "AL" },
-          { value: "@user", label: "User", monogram: "~" },
+          { value: "ws_alpha", label: "alpha" },
+          { value: "@user", label: "User" },
         ],
         value: "ws_alpha",
         onChange: () => undefined,

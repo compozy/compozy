@@ -1,9 +1,7 @@
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
-import { Check, ChevronRight, Layers } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 
 import {
-  Avatar,
-  AvatarFallback,
   MenubarContent,
   MenubarItem,
   MenubarMenu,
@@ -39,7 +37,6 @@ export interface WorkspaceMenuProps {
   /** All projects is checked while on; otherwise the focus is. */
   breadthMode: BreadthMode;
   focus: Focus;
-  monogram: (name: string) => string;
   onSelectWorkspace: (workspaceId: string) => void;
   onFocusUser?: () => void;
   onEnableAllProjects?: () => void;
@@ -48,7 +45,7 @@ export interface WorkspaceMenuProps {
   onAddWorkspace: () => void;
   /** Same query as the S1 switcher — the two surfaces must not diverge. */
   worktreesByWorkspace?: WorktreeListingByWorkspace;
-  /** Working-session counts by workspace id; drives the monogram's corner dot. */
+  /** Working-session counts by workspace id; drives the dot after each name. */
   workingSessionsByWorkspace?: Readonly<Record<string, number>>;
   userHomeDir?: string;
   selectedWorktreeId?: string | null;
@@ -63,25 +60,20 @@ export interface WorkspaceMenuProps {
   notice?: string | null;
 }
 
+/** The name alone, like the topbar chip, then what is working there. */
 function WorkspaceRowLabel({
-  monogram,
   name,
   runningAgents,
   workingSessions,
 }: {
-  monogram: string;
   name: string;
   runningAgents: number;
   workingSessions: number;
 }) {
   return (
     <>
-      {/* The same monogram well as the topbar's workspace chip. */}
-      <Avatar size="sm" className="size-5 shrink-0">
-        <AvatarFallback className="text-badge font-semibold">{monogram}</AvatarFallback>
-        <WorkspaceWorkingDot count={workingSessions} />
-      </Avatar>
-      {name}
+      <span className="min-w-0 truncate">{name}</span>
+      <WorkspaceWorkingDot count={workingSessions} placement="inline" />
       <WorktreeAggregate runningAgents={runningAgents} />
     </>
   );
@@ -104,20 +96,10 @@ function DestinationRows({
         data-testid="os-destination-all-projects"
         onClick={() => onEnableAllProjects?.()}
       >
-        <Avatar size="sm" className="size-5 shrink-0">
-          <AvatarFallback>
-            <Layers aria-hidden="true" className="size-3" />
-          </AvatarFallback>
-        </Avatar>
         {DESTINATION_COPY.allProjects}
         <ActiveCheck active={breadthMode === "all"} />
       </MenubarItem>
       <MenubarItem data-testid="os-destination-user" onClick={() => onFocusUser?.()}>
-        <Avatar size="sm" className="size-5 shrink-0">
-          <AvatarFallback className="text-badge font-semibold">
-            {DESTINATION_COPY.userMonogram}
-          </AvatarFallback>
-        </Avatar>
         {DESTINATION_COPY.user}
         <ActiveCheck active={breadthMode === "focused" && focus.kind === "user"} />
       </MenubarItem>
@@ -136,7 +118,6 @@ export function WorkspaceMenu({
   workspaces,
   breadthMode,
   focus,
-  monogram,
   onSelectWorkspace,
   onFocusUser,
   onEnableAllProjects,
@@ -204,7 +185,6 @@ export function WorkspaceMenu({
                       const isActive = workspace.id === focusedProjectId;
                       const rowLabel = (
                         <WorkspaceRowLabel
-                          monogram={monogram(workspace.name)}
                           name={workspace.name}
                           runningAgents={node?.runningAgents ?? 0}
                           workingSessions={workingSessionsByWorkspace?.[workspace.id] ?? 0}
