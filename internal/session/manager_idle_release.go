@@ -83,6 +83,7 @@ func (s *Session) detachIdleRuntime(progress time.Time, now time.Time) *runtimeR
 	if s.supervisionProgressAt != progress || !s.idleRuntimeReleasableLocked() {
 		return nil
 	}
+	s.captureProcessCapabilitiesLocked()
 	release := &runtimeRelease{
 		acpSessionID: strings.TrimSpace(s.ACPSessionID), process: s.process, done: make(chan struct{}),
 	}

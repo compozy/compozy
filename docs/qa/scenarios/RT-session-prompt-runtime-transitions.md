@@ -55,3 +55,7 @@ refuses restoring the prior model, keep the original requested selection and the
 The runtime becomes unbound and the altered process must exit before another prompt can bind.
 A failed stop blocks dispatch until exit is verified; the next prompt binds the original model.
 The canonical session transition and verified-release suites cover both stop outcomes.
+
+QA idle-release follow-up #914 (2026-10-23): revoke Fast and reduce confirmed effort before the
+automatic idle timeout. After release, readback must retain the latest normal/rejected speed and
+reduced effort, while durable intent remains unchanged. The supervision suite owns this regression.

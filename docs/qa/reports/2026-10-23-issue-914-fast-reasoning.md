@@ -105,6 +105,21 @@ lifecycle-transition suites pass as well. This failure injection is automated I/
 not an additional live-provider claim. CI's empty-loop lint finding now uses the existing event
 collector; focused `revive` with the pinned tool passes.
 
+## Idle-release observation follow-up
+
+The automatic idle-release path now captures current ACP capabilities before detaching, matching
+stop and failed-rollback ownership. The existing supervision suite reproduced stale max/Fast/applied
+after a provider reduced effort to high and revoked Fast. It now retains high/normal/rejected in
+readback, preserves requested max/Fast in durable metadata, and verifies process termination without
+restoring its PID. The accepted-binding detach sites were audited; activation rollback deliberately
+clears an unaccepted binding rather than preserving its capabilities.
+
+CodeRabbit's later suggestion to ignore a removed reasoning selector is declined: it would undo
+Astra finding 5 and the existing strict reasoning negotiation contract. An unavailable explicit
+effort returns `reasoning_option_missing`; speed separately has a nonfatal resolution contract.
+Known missing reasoning clears the effective claim and is revalidated once per new request without
+healthy-process replacement. Requested intent remains available for an explicit supported choice.
+
 ## Review re-walk
 
 A second isolated lab repeated two short Claude max/Fast prompts. Both completed; after each turn the provider advertised `effort=max` and `fast=off`, while HTTP returned requested max/Fast and effective max/normal/rejected. There was no durable `selected` value. Runtime generation remained 1 and the second transition was live configuration. This provider acknowledged then revoked Fast again; it did not exercise an immediate setter refusal, which is covered by deterministic configuration-attempt/process-start assertions. Manifest-scoped teardown reported clean with zero survivors. Its stop readback was captured while stopping; only the first lab claims a verified stopped-session readback.
