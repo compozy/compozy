@@ -1905,9 +1905,14 @@ func TestSessionUsageEndpoint(t *testing.T) {
 					t.Fatalf("context session=%q", id)
 				}
 				reads++
-				return session.ContextEvents{WorkTime: contextusage.WorkTime{ActiveDurationMS: 120000, TurnCount: 2, LastCompletedTurnID: "turn-a"}, Usage: []session.UsageEventEnvelope{{
-					Sequence: 7, TurnID: "turn-a", Usage: acp.TokenUsage{ContextUsed: new(int64(42))},
-				}}}, nil
+				return session.ContextEvents{
+					WorkTime: contextusage.WorkTime{
+						ActiveDurationMS: 120000, TurnCount: 2, LastCompletedTurnID: "turn-a",
+					},
+					Usage: []session.UsageEventEnvelope{{
+						Sequence: 7, TurnID: "turn-a", Usage: acp.TokenUsage{ContextUsed: new(int64(42))},
+					}},
+				}, nil
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})

@@ -2127,7 +2127,8 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 				t.Fatal(err)
 			}
 			work := snapshot.WorkTime
-			if work.ActiveDurationMS != (6*time.Minute).Milliseconds() || work.TurnCount != 3 || work.LastCompletedTurnID != "C" {
+			if work.ActiveDurationMS != (6*time.Minute).Milliseconds() ||
+				work.TurnCount != 3 || work.LastCompletedTurnID != "C" {
 				t.Fatalf("work time = %#v, want six minutes across three settled turns", work)
 			}
 		}
