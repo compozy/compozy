@@ -21,6 +21,9 @@ type SessionAttachmentRecord = contract.SessionAttachmentPayload
 // RenameSessionRequest changes one user session's durable display name.
 type RenameSessionRequest = contract.RenameSessionRequest
 
+// SetSessionParentRequest adopts a parentless session as a child of another session.
+type SetSessionParentRequest = contract.SetSessionParentRequest
+
 // SessionCommandsRecord is the unified session command catalog.
 type SessionCommandsRecord = contract.SessionCommandsResponse
 

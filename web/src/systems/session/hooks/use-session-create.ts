@@ -7,6 +7,7 @@ import { parseTerminalQuote } from "@/systems/terminal/parts";
 
 import { SessionCreateContext } from "../contexts/session-create-context-value";
 import { clearPendingTerminalQuote, holdPendingTerminalQuote } from "../lib/session-terminal-quote";
+import type { SessionCreateOpenOptions } from "../lib/session-create-target";
 import type { SessionCreateStore } from "../stores/session-create-store";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { useActiveWorkspace, useScopedWorktreeFilter } from "@/systems/workspace";
@@ -33,7 +34,7 @@ export function useSessionCreateActions() {
   const canStart = dataScope !== null;
   const scopeId = useWorktreeScopeId();
   const scopedWorktree = useScopedWorktreeFilter(runtimeWorkspaceId, scopeId);
-  const openForAgent = (agentName: string, options: { folderId?: string } = {}) => {
+  const openForAgent = (agentName: string, options: SessionCreateOpenOptions = {}) => {
     if (!canStart) {
       toast.error("Select an active workspace before starting a session.");
       return;
@@ -48,6 +49,9 @@ export function useSessionCreateActions() {
       agentName: agentName.trim() || runtimeWorkspace?.default_agent?.trim() || "",
       workspaceId: runtimeWorkspaceId ?? "",
       ...(options.folderId ? { folderId: options.folderId } : {}),
+      ...(options.workspaceId || options.profile
+        ? { target: { project: options.workspaceId, profile: options.profile } }
+        : {}),
       ...(scopedWorktree.worktreeId
         ? { environment: { kind: "worktree", worktreeId: scopedWorktree.worktreeId } }
         : {}),

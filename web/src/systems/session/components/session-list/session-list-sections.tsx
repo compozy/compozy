@@ -14,6 +14,7 @@ import {
   rowDropEdge,
   type SessionDropContainer,
   type SessionListDnd,
+  sessionRowNestTarget,
   type SessionSelectionDrag,
 } from "../../hooks/use-session-list-dnd";
 import type { SessionRowSelection } from "../../hooks/use-session-selection";
@@ -82,6 +83,12 @@ export function SessionListSections({
   emptyMessage,
 }: SessionListSectionsProps) {
   const folderIds = sections.folders.map(section => section.folder.id);
+  const roots = new Map(
+    [...sections.folders.flatMap(section => section.threads), ...sections.root].map(thread => [
+      thread.session.id,
+      thread.session,
+    ])
+  );
   const allFolderIds = layout.folders.map(folder => folder.id);
   const rootLayoutFor = (
     thread: SessionThreadModel,
@@ -100,7 +107,12 @@ export function SessionListSections({
         onMove: folderId => layout.moveSession(id, folderId),
         ...(orderable ? { onMoveUp: reorder(-1), onMoveDown: reorder(1) } : {}),
       },
-      drag: dnd?.sessionRow(id, container, selectionDrag),
+      drag: dnd?.sessionRow(
+        id,
+        container,
+        selectionDrag,
+        sessionRowNestTarget(roots, thread.session, sessionActions.onAdopt)
+      ),
       dropEdge: rowDropEdge(dnd?.indicator ?? null, id),
       dragging: rowDragged(dnd?.dragging ?? null, id),
     };

@@ -248,6 +248,114 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 	})
 }
 
+func TestGlobalDBUpdateSessionLineages(t *testing.T) {
+	t.Parallel()
+
+	register := func(t *testing.T, globalDB *GlobalDB, workspaceID string, id string, lineage *store.SessionLineage) {
+		t.Helper()
+		now := time.Date(2026, 10, 22, 9, 0, 0, 0, time.UTC)
+		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+			ProfileID:     store.DefaultProfileID,
+			ID:            id,
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			SessionType:   "user",
+			State:         "stopped",
+			Lineage:       lineage,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(%s) error = %v", id, err)
+		}
+	}
+	lineageOf := func(t *testing.T, globalDB *GlobalDB, id string) store.SessionLineage {
+		t.Helper()
+		rows, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ID:        id,
+		})
+		if err != nil || len(rows) != 1 || rows[0].Lineage == nil {
+			t.Fatalf("ListSessions(%s) = %#v, %v", id, rows, err)
+		}
+		return *rows[0].Lineage
+	}
+	setup := func(t *testing.T) (*GlobalDB, string) {
+		t.Helper()
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t, globalDB, "lineage-update", filepath.Join(t.TempDir(), "workspace-lineage-update"),
+		)
+		register(t, globalDB, workspaceID, "sess-parent", nil)
+		register(t, globalDB, workspaceID, "sess-source", nil)
+		register(t, globalDB, workspaceID, "sess-child", &store.SessionLineage{
+			ParentSessionID: "sess-source", RootSessionID: "sess-source", SpawnDepth: 1,
+			Kind: store.LineageKindProvenance,
+		})
+		return globalDB, workspaceID
+	}
+
+	t.Run("Should rewrite hierarchy columns for every session in the batch", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB, workspaceID := setup(t)
+		updatedAt := time.Date(2026, 10, 22, 10, 0, 0, 0, time.UTC)
+		err := globalDB.UpdateSessionLineages(testutil.Context(t), workspaceID, []store.SessionLineageUpdate{
+			{SessionID: "sess-source", UpdatedAt: updatedAt, Lineage: store.SessionLineage{
+				ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1,
+				Kind: store.LineageKindProvenance, NotifyCreator: true,
+			}},
+			{SessionID: "sess-child", UpdatedAt: updatedAt, Lineage: store.SessionLineage{
+				ParentSessionID: "sess-source", RootSessionID: "sess-parent", SpawnDepth: 2,
+				Kind: store.LineageKindProvenance,
+			}},
+		})
+		if err != nil {
+			t.Fatalf("UpdateSessionLineages() error = %v", err)
+		}
+		source := lineageOf(t, globalDB, "sess-source")
+		if source.ParentSessionID != "sess-parent" || source.RootSessionID != "sess-parent" ||
+			source.SpawnDepth != 1 || source.Kind != store.LineageKindProvenance {
+			t.Fatalf("source lineage = %#v, want adopted by sess-parent", source)
+		}
+		child := lineageOf(t, globalDB, "sess-child")
+		if child.ParentSessionID != "sess-source" || child.RootSessionID != "sess-parent" || child.SpawnDepth != 2 {
+			t.Fatalf("child lineage = %#v, want re-rooted at sess-parent depth 2", child)
+		}
+	})
+
+	t.Run("Should leave every row unchanged when one session is missing or invalid", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB, workspaceID := setup(t)
+		adopt := store.SessionLineageUpdate{SessionID: "sess-source", Lineage: store.SessionLineage{
+			ParentSessionID: "sess-parent", RootSessionID: "sess-parent", SpawnDepth: 1,
+			Kind: store.LineageKindProvenance,
+		}}
+		err := globalDB.UpdateSessionLineages(testutil.Context(t), workspaceID, []store.SessionLineageUpdate{
+			adopt,
+			{SessionID: "sess-missing", Lineage: store.SessionLineage{RootSessionID: "sess-missing"}},
+		})
+		if !errors.Is(err, store.ErrSessionNotFound) {
+			t.Fatalf("UpdateSessionLineages(missing) error = %v, want %v", err, store.ErrSessionNotFound)
+		}
+		err = globalDB.UpdateSessionLineages(testutil.Context(t), "ws-foreign", []store.SessionLineageUpdate{adopt})
+		if !errors.Is(err, store.ErrSessionNotFound) {
+			t.Fatalf("UpdateSessionLineages(foreign workspace) error = %v, want %v", err, store.ErrSessionNotFound)
+		}
+		err = globalDB.UpdateSessionLineages(testutil.Context(t), workspaceID, []store.SessionLineageUpdate{
+			{SessionID: "sess-source", Lineage: store.SessionLineage{ParentSessionID: "sess-parent"}},
+		})
+		if err == nil {
+			t.Fatal("UpdateSessionLineages(invalid lineage) error = nil, want validation failure")
+		}
+		if source := lineageOf(t, globalDB, "sess-source"); source.ParentSessionID != "" {
+			t.Fatalf("source lineage after failed batches = %#v, want unchanged root", source)
+		}
+	})
+}
+
 func TestGlobalDBSessionDerivationReceipts(t *testing.T) {
 	t.Parallel()
 

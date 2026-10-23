@@ -90,7 +90,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
 
@@ -388,6 +388,15 @@ remove their scoped attachment trees.
 `compozy__session_rename` changes the durable display name of a user session without changing its
 runtime or transcript identity. Pass `session_id` and a non-empty `name` of at most 64 characters;
 the CLI fallback is `compozy session rename <id> <name>`.
+`compozy__session_reparent` nests a top-level user session under another user session in the same
+workspace and profile (`parent_session_id`), or makes an adopted child top-level again
+(`top_level: true`); set exactly one. The session must have no parent to be adopted, the parent
+must be a user session that is not the session or one of its descendants, and neither may be
+archived. Subagent, spawned, continued, forked, and recovery sessions keep their lineage. The new
+lineage kind is `provenance`; the subtree's `root_session_id` and `spawn_depth` follow, and no
+governance field changes. Refusals carry a `session_reparent_*` code (`source_has_parent`,
+`source_not_user`, `parent_ineligible`, `cycle`, `archived`, `not_detachable`). The CLI fallback is
+`compozy session reparent <id> --parent <parent-id>` or `--top-level`.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 

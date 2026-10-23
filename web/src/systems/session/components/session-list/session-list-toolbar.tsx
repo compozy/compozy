@@ -1,11 +1,10 @@
-import { ArrowDownUp, FolderPlus, MessageSquarePlus, Plus } from "lucide-react";
+import { ArrowDownUp } from "lucide-react";
 
 import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -20,6 +19,7 @@ import {
   type SessionListGroupBy,
   type SessionListSort,
 } from "../../lib/session-list-preferences";
+import { SessionListCreateMenu } from "./session-list-create-menu";
 import { SessionArchivedToggle } from "./session-toolbar-toggles";
 
 const SORT_LABELS: Record<SessionListSort, string> = {
@@ -50,6 +50,8 @@ export interface SessionListToolbarProps {
   onNewSession: () => void;
   /** Present only where folders apply; turns (+) into a New session / New folder menu. */
   onNewFolder?: () => void;
+  /** Why this list cannot hold folders; New folder shows disabled with it. */
+  newFolderUnavailable?: string | null;
   testIdPrefix: string;
 }
 
@@ -75,6 +77,7 @@ export function SessionListToolbar({
   onGroupByChange,
   onNewSession,
   onNewFolder,
+  newFolderUnavailable,
   testIdPrefix,
 }: SessionListToolbarProps) {
   return (
@@ -142,59 +145,9 @@ export function SessionListToolbar({
       <SessionListCreateMenu
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
-        testIdPrefix={testIdPrefix}
+        newFolderUnavailable={newFolderUnavailable}
+        testId={testIdPrefix}
       />
     </div>
-  );
-}
-
-/**
- * The list's create control. Secondary, not the inverted primary: the composer's
- * send owns that (P4). Where folders apply it opens a menu; elsewhere it creates
- * a session directly.
- */
-function SessionListCreateMenu({
-  onNewSession,
-  onNewFolder,
-  testIdPrefix,
-}: Pick<SessionListToolbarProps, "onNewSession" | "onNewFolder" | "testIdPrefix">) {
-  if (!onNewFolder) {
-    return (
-      <Button
-        type="button"
-        variant="secondary"
-        size="icon-sm"
-        className="shrink-0"
-        aria-label="New session"
-        data-testid={`${testIdPrefix}-new-session`}
-        onClick={onNewSession}
-      >
-        <Icon as={Plus} size="sm" />
-      </Button>
-    );
-  }
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label="New session or folder"
-        data-testid={`${testIdPrefix}-new`}
-        render={<Button type="button" variant="secondary" size="icon-sm" className="shrink-0" />}
-      >
-        <Icon as={Plus} size="sm" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-44">
-        <DropdownMenuItem
-          data-testid={`${testIdPrefix}-new-session`}
-          onClick={() => onNewSession()}
-        >
-          <Icon as={MessageSquarePlus} size="sm" />
-          New session
-        </DropdownMenuItem>
-        <DropdownMenuItem data-testid={`${testIdPrefix}-new-folder`} onClick={onNewFolder}>
-          <Icon as={FolderPlus} size="sm" />
-          New folder
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

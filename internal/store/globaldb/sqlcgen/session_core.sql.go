@@ -262,6 +262,45 @@ func (q *Queries) SweepExpiredSessionAttachLocks(ctx context.Context, now string
 	return result.RowsAffected()
 }
 
+const updateSessionLineageHierarchy = `-- name: UpdateSessionLineageHierarchy :execrows
+UPDATE sessions
+SET parent_session_id = ?1,
+  root_session_id = ?2,
+  spawn_depth = ?3,
+  lineage_kind = ?4,
+  auto_stop_on_parent = ?5,
+  updated_at = ?6
+WHERE workspace_id = ?7 AND id = ?8
+`
+
+type UpdateSessionLineageHierarchyParams struct {
+	ParentSessionID  sql.NullString `json:"parent_session_id"`
+	RootSessionID    sql.NullString `json:"root_session_id"`
+	SpawnDepth       int64          `json:"spawn_depth"`
+	LineageKind      string         `json:"lineage_kind"`
+	AutoStopOnParent bool           `json:"auto_stop_on_parent"`
+	UpdatedAt        string         `json:"updated_at"`
+	WorkspaceID      string         `json:"workspace_id"`
+	ID               string         `json:"id"`
+}
+
+func (q *Queries) UpdateSessionLineageHierarchy(ctx context.Context, arg UpdateSessionLineageHierarchyParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateSessionLineageHierarchy,
+		arg.ParentSessionID,
+		arg.RootSessionID,
+		arg.SpawnDepth,
+		arg.LineageKind,
+		arg.AutoStopOnParent,
+		arg.UpdatedAt,
+		arg.WorkspaceID,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
  effective_workspace_access,

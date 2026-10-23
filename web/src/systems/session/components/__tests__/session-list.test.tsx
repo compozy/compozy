@@ -10,6 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { formatAbsoluteTime } from "@compozy/ui";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest } from "@/test/fetch-test-utils";
@@ -115,6 +116,7 @@ function renderList(
     currentSessionId?: string;
     collapsedThreadIds?: string[];
     view?: SessionListViewModel;
+    actions?: { onAdopt?: () => void; onMakeTopLevel?: () => void };
   } = {}
 ) {
   const onSelect = vi.fn();
@@ -130,6 +132,7 @@ function renderList(
     onArchiveMany: vi.fn(),
     onUnarchiveMany: vi.fn(),
     onDeleteMany: vi.fn(),
+    ...overrides.actions,
   };
   const props = {
     open: true,
@@ -741,6 +744,28 @@ describe("SessionList subagents", () => {
   });
 });
 
+// Invariant: both row menus copy the session's Compozy ID and its shown title, and say so.
+describe("SessionList row copy actions", () => {
+  it("Should copy the session ID from the … menu and the title from the context menu", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    const success = vi.spyOn(toast, "success");
+    renderList();
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    await user.click(await screen.findByTestId("session-row-copy-id-running"));
+    expect(writeText).toHaveBeenLastCalledWith("running");
+    await waitFor(() => expect(success).toHaveBeenLastCalledWith("Session ID copied"));
+
+    fireEvent.contextMenu(screen.getByTestId("session-sidebar-session-stopped"));
+    const menu = await screen.findByRole("menu");
+    expect(within(menu).getByRole("menuitem", { name: "Copy session ID" })).toBeInTheDocument();
+    await user.click(within(menu).getByRole("menuitem", { name: "Copy title" }));
+    expect(writeText).toHaveBeenLastCalledWith("Stopped work");
+    await waitFor(() => expect(success).toHaveBeenLastCalledWith("Title copied"));
+  });
+});
+
 // Invariant: every row, nested children included, names the runtime it is bound to in the
 // runtime catalog's display names (wire ids only where the catalog has none), repaints when a
 // re-read reports another runtime, shows no mark before the first bind, and adds no tab stop.
@@ -1077,6 +1102,21 @@ describe("SessionList folders and manual order", () => {
     expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
   });
 
+  // Invariant: where no single pair owns the list, New folder stays visible but
+  // disabled with the reason, instead of silently missing.
+  it("Should show New folder disabled with its reason in a flat aggregate", async () => {
+    const user = userEvent.setup();
+    const reason = "Folders live inside one project and profile. Group by project to add one.";
+    renderList({
+      sessions: [{ ...layoutRows[0]!, profile_id: "default" }],
+      view: { ...view, aggregate: true, scopeLabel: null, newFolderUnavailable: reason },
+    });
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    const item = await screen.findByTestId("session-sidebar-new-folder");
+    expect(item).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("session-sidebar-new-folder-unavailable")).toHaveTextContent(reason);
+  });
+
   it("Should explain an aggregate empty search", async () => {
     const rows = [{ ...layoutRows[0]!, profile_id: "default" }];
     renderList({ sessions: rows, view: { ...view, aggregate: true, scopeLabel: null } });
@@ -1287,6 +1327,68 @@ describe("SessionList folders and manual order", () => {
     fireEvent.drop(screen.getByTestId("session-sidebar-root"));
     expect(layout.moveSession).toHaveBeenCalledWith("f1", null);
     expect(layout.reorderSessions).not.toHaveBeenCalled();
+  });
+
+  // Invariant: dropping a top-level row onto another row (its middle while rows
+  // reorder, anywhere otherwise) adopts it as that row's child; a session that
+  // already has a parent never offers the drop.
+  it("Should adopt a top-level session by dropping it onto another row", () => {
+    const onAdopt = vi.fn();
+    const rows = [
+      ...layoutRows.map(session => ({ ...session, lineage: undefined })),
+      {
+        ...layoutRows[0]!,
+        id: "r3",
+        name: "Has parent",
+        lineage: { ...layoutRows[0]!.lineage!, parent_session_id: "elsewhere", kind: "provenance" },
+      },
+    ] as SessionPayload[];
+    renderList({
+      sessions: rows,
+      view: { ...view, sort: "created", layout: fakeLayout() },
+      actions: { onAdopt },
+    });
+    fireEvent.dragStart(rowContainer("r1"));
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(rowContainer("r2")).toHaveAttribute("data-drop", "into");
+    fireEvent.drop(rowContainer("r2"));
+    expect(onAdopt).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "r1" }),
+      expect.objectContaining({ id: "r2" })
+    );
+    expect(rowContainer("r2")).not.toHaveAttribute("data-drop");
+
+    fireEvent.dragStart(rowContainer("r3"));
+    fireEvent.dragOver(rowContainer("r2"));
+    expect(rowContainer("r2")).not.toHaveAttribute("data-drop");
+    fireEvent.drop(rowContainer("r2"));
+    expect(onAdopt).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should offer Make top-level only on a nested provenance child", async () => {
+    const user = userEvent.setup();
+    const onMakeTopLevel = vi.fn();
+    const parent = { ...layoutRows[0]!, lineage: undefined };
+    const child = {
+      ...layoutRows[2]!,
+      id: "c-prov",
+      name: "Nested child",
+      lineage: {
+        ...layoutRows[0]!.lineage!,
+        parent_session_id: parent.id,
+        root_session_id: parent.id,
+        spawn_depth: 1,
+        kind: "provenance",
+      },
+    } as SessionPayload;
+    renderList({ sessions: [parent, child], actions: { onMakeTopLevel } });
+
+    await user.click(screen.getByTestId("session-row-actions-r1"));
+    expect(screen.queryByTestId("session-row-make-top-level-r1")).not.toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByTestId("session-row-actions-c-prov"));
+    await user.click(await screen.findByTestId("session-row-make-top-level-c-prov"));
+    expect(onMakeTopLevel).toHaveBeenCalledWith(expect.objectContaining({ id: "c-prov" }));
   });
 
   // Invariant: a selection moves into a folder or the root through the bar's
@@ -1527,6 +1629,8 @@ describe("SessionList breadth and Group by", () => {
       state: "active",
       badge: "running",
       workspace_id: workspaceId,
+      profile_id: "default",
+      profile_name: "default",
       ...patch,
     }) as SessionPayload;
   const facet = (all: number, needsYou = 0) => ({
@@ -1537,7 +1641,48 @@ describe("SessionList breadth and Group by", () => {
     finished: 0,
     idle: all - needsYou,
   });
-  const ROWS = [row("a1", "ws-alpha"), row("b1", "ws-beta"), row("u1", "")];
+  const ROWS = [
+    row("a1", "ws-alpha"),
+    row("a2", "ws-alpha", { profile_id: "p-work", profile_name: "work" }),
+    row("b1", "ws-beta"),
+    row("u1", ""),
+  ];
+  const PROFILES = [
+    { id: "default", name: "default", color: "", icon: "", emoji: "", archived_at: null },
+    { id: "p-work", name: "work", color: "", icon: "", emoji: "", archived_at: null },
+  ];
+  const FOLDER = {
+    id: "fold-new",
+    name: "",
+    workspace_id: "ws-alpha",
+    profile_id: "p-work",
+    position: 0,
+    session_count: 0,
+    created_at: "2026-10-22T00:00:00Z",
+    updated_at: "2026-10-22T00:00:00Z",
+  };
+  /** Facets the daemon would count for one read: its scope and lens narrow the rows. */
+  function facetsFor(url: URL) {
+    const selector = url.searchParams.get("workspace_id");
+    const profile = url.searchParams.get("profile");
+    const rows = ROWS.filter(
+      session =>
+        (!selector || session.workspace_id === (selector === "@user" ? "" : selector)) &&
+        (!profile || session.profile_name === profile)
+    );
+    const count = (match: (session: SessionPayload) => boolean) => facet(rows.filter(match).length);
+    return {
+      facets: count(() => true),
+      by_workspace: [...new Set(rows.map(session => session.workspace_id))].map(id => ({
+        workspace_id: id,
+        facets: count(session => session.workspace_id === id),
+      })),
+      by_profile: [...new Set(rows.map(session => session.profile_id))].map(id => ({
+        profile_id: id,
+        facets: count(session => session.profile_id === id),
+      })),
+    };
+  }
   const badgeOf = (session: SessionPayload) => workspaceBadgeIdentity(session.workspace_id, NAMES);
   const projectGroups = () =>
     projectSessionGroups(
@@ -1573,12 +1718,23 @@ describe("SessionList breadth and Group by", () => {
           status,
           headers: { "content-type": "application/json" },
         });
-      if (url.pathname.endsWith("/session-folders")) return json({ folders: [] });
+      if (url.pathname.endsWith("/session-folders")) {
+        if ((input as Request).method === "POST") {
+          const body = (await (input as Request).json()) as { name: string };
+          return json({ folder: { ...FOLDER, name: body.name } }, 201);
+        }
+        return json({ folders: [] });
+      }
+      if (url.pathname === "/api/profiles") return json(PROFILES);
+      if (url.pathname === "/api/sessions/facets") return json(facetsFor(url));
       if (url.pathname !== "/api/sessions") return json({ error: "not found" }, 404);
       const selector = url.searchParams.get("workspace_id");
       if (selector && failing.has(selector)) return json({ error: "unreachable" }, 503);
+      const profile = url.searchParams.get("profile");
       const listed = ROWS.filter(
-        session => !selector || session.workspace_id === (selector === "@user" ? "" : selector)
+        session =>
+          (!selector || session.workspace_id === (selector === "@user" ? "" : selector)) &&
+          (!profile || session.profile_name === profile)
       );
       return json({ sessions: listed, page: { has_more: false, limit: 100 } });
     });
@@ -1594,7 +1750,7 @@ describe("SessionList breadth and Group by", () => {
   it("W-08: Should list All projects flat, naming each row's project before its agent", () => {
     const child = row("a1-child", "ws-alpha", { lineage: lineage("a1") });
     const { update } = renderList({
-      sessions: [ROWS[0]!, child, ROWS[2]!],
+      sessions: [ROWS[0]!, child, ROWS[3]!],
       view: { ...view, badgeOf },
     });
 
@@ -1610,7 +1766,7 @@ describe("SessionList breadth and Group by", () => {
     expect(catalogReads()).toEqual([]);
 
     // A focused project names no project on its rows.
-    update([ROWS[0]!, child, ROWS[2]!], view);
+    update([ROWS[0]!, child, ROWS[3]!], view);
     expect(screen.queryByTestId("session-row-project-a1")).not.toBeInTheDocument();
   });
 
@@ -1629,7 +1785,7 @@ describe("SessionList breadth and Group by", () => {
     expect(setGroupBy).toHaveBeenCalledWith("project");
   });
 
-  it("W-09: Should group by project from facets, each open group reading its own rows read-only", async () => {
+  it("W-09: Should group by project from facets, each open group reading its own rows", async () => {
     const user = userEvent.setup();
     const toggleGroup = vi.fn();
     renderList({
@@ -1641,7 +1797,7 @@ describe("SessionList breadth and Group by", () => {
     expect(await screen.findByTestId("session-sidebar-session-u1")).toBeVisible();
     const headers = [
       ...document.querySelectorAll<HTMLElement>(
-        "[data-testid^='session-sidebar-group-'][aria-expanded]"
+        "[data-testid^='session-sidebar-group-'][aria-expanded]:not([aria-haspopup])"
       ),
     ];
     expect(headers.map(header => header.dataset.testid)).toEqual([
@@ -1660,7 +1816,6 @@ describe("SessionList breadth and Group by", () => {
         .sort()
     ).toEqual(["@user", "ws-alpha"]);
     expect(screen.queryByTestId("session-row-project-a1")).not.toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 
     await user.click(beta);
     expect(toggleGroup).toHaveBeenCalledWith("project:ws-beta");
@@ -1695,11 +1850,11 @@ describe("SessionList breadth and Group by", () => {
   });
 
   it.each([
-    ["one project", { kind: "project", workspaceId: "ws-alpha" }, "manual"],
-    ["All projects", { kind: "all" }, "last_activity"],
+    ["one project", { kind: "project", workspaceId: "ws-alpha" }, ["ws-alpha"]],
+    ["All projects", { kind: "all" }, ["@user", "ws-alpha", "ws-beta"]],
   ] as const)(
-    "W-12: Should read a profile group in %s in %s order under a stored manual sort",
-    async (_case, scope: DataScope, served) => {
+    "W-12: Should read a profile group in %s in manual order, one project pair at a time",
+    async (_case, scope: DataScope, workspaces) => {
       const owner = { id: "default", name: "default", archived: false };
       const groups = profileSessionGroups(
         { by_profile: [{ profile_id: "default", facets: facet(1) }] },
@@ -1709,7 +1864,6 @@ describe("SessionList breadth and Group by", () => {
         sessions: [],
         view: grouped({
           sort: "manual",
-          sortNote: served === "manual" ? null : "Manual order applies inside one project",
           aggregate: true,
           scopeLabel: null,
           storedGroupBy: "profile",
@@ -1717,15 +1871,112 @@ describe("SessionList breadth and Group by", () => {
           groups,
         }),
       });
-      await waitFor(() => expect(catalogReads()).toHaveLength(1));
-      expect(catalogReads()[0]!.searchParams.get("sort")).toBe(served);
-      if (served === "manual") {
-        expect(screen.queryByTestId("session-sidebar-sort-note")).not.toBeInTheDocument();
-      } else {
-        expect(screen.getByTestId("session-sidebar-sort-note")).toHaveTextContent(
-          "Manual order applies inside one project"
-        );
-      }
+      // A profile group spanning projects splits into one group per project pair.
+      await waitFor(() => expect(catalogReads()).toHaveLength(workspaces.length));
+      const reads = catalogReads();
+      expect(reads.map(url => url.searchParams.get("workspace_id")).sort()).toEqual(workspaces);
+      expect(reads.every(url => url.searchParams.get("sort") === "manual")).toBe(true);
+      expect(reads.every(url => url.searchParams.get("profile") === "default")).toBe(true);
+      expect(screen.queryByTestId("session-sidebar-sort-note")).not.toBeInTheDocument();
     }
   );
+
+  // Invariant: under All projects and All profiles, a project group splits into one
+  // subgroup per profile — each one (workspace, profile) pair that owns folders and order.
+  it("Should split a project group under All profiles into profile pairs", async () => {
+    const groups = projectSessionGroups(
+      { by_workspace: [{ workspace_id: "ws-alpha", facets: facet(2) }] },
+      { workspaces: WORKSPACES, lens: { all_profiles: true } }
+    );
+    expect(groups[0]!.pair).toBeNull();
+    renderList({
+      sessions: [],
+      view: grouped({ sort: "manual", aggregate: true, scopeLabel: null, groups }),
+    });
+
+    expect(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha/profile:default")
+    ).toBeVisible();
+    expect(
+      screen.getByTestId("session-sidebar-group-project:ws-alpha/profile:p-work")
+    ).toBeVisible();
+    expect(await screen.findByTestId("session-sidebar-session-a1")).toBeVisible();
+    expect(await screen.findByTestId("session-sidebar-session-a2")).toBeVisible();
+    const reads = catalogReads();
+    expect(reads.map(url => url.searchParams.get("profile")).sort()).toEqual(["default", "work"]);
+    expect(reads.every(url => url.searchParams.get("sort") === "manual")).toBe(true);
+  });
+
+  // Invariant: a group header's + opens New session in the group's project (and
+  // profile, when the group settles one), as a sibling of the collapse toggle.
+  it("Should start a session from a group header + in that group's project and profile", async () => {
+    const user = userEvent.setup();
+    const onNewSession = vi.fn();
+    const toggleGroup = vi.fn();
+    renderList({ sessions: [], onNewSession, view: grouped({ toggleGroup }) });
+
+    const header = await screen.findByTestId("session-sidebar-group-project:ws-alpha");
+    expect(within(header).queryByRole("button", { name: /New session/ })).toBeNull();
+    await user.click(screen.getByTestId("session-sidebar-group-project:ws-alpha-new"));
+    await user.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-new-session")
+    );
+    expect(onNewSession).toHaveBeenCalledWith({ workspaceId: "ws-alpha", profile: "default" });
+    expect(toggleGroup).not.toHaveBeenCalled();
+  });
+
+  it("Should ask which profile a group + New folder belongs to under All profiles", async () => {
+    const user = userEvent.setup();
+    const groups = projectSessionGroups(
+      { by_workspace: [{ workspace_id: "ws-alpha", facets: facet(2) }] },
+      { workspaces: WORKSPACES, lens: { all_profiles: true } }
+    );
+    renderList({ sessions: [], view: grouped({ aggregate: true, scopeLabel: null, groups }) });
+
+    await user.click(await screen.findByTestId("session-sidebar-group-project:ws-alpha-new"));
+    await user.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-new-folder")
+    );
+    const picker = await screen.findByTestId(
+      "session-sidebar-group-project:ws-alpha-folder-profile"
+    );
+    await user.click(picker);
+    await user.click(
+      await screen.findByTestId("session-sidebar-group-project:ws-alpha-folder-profile-item-work")
+    );
+    await user.type(await screen.findByTestId("session-folder-name"), "Research");
+    await user.click(screen.getByTestId("session-folder-name-confirm"));
+
+    await waitFor(() => {
+      const create = fetcher.mock.calls
+        .map(([input]) => input as Request)
+        .find(request => request.method === "POST");
+      expect(create).toBeDefined();
+      const url = new URL(create!.url);
+      expect(url.pathname).toBe("/api/workspaces/ws-alpha/session-folders");
+      expect(url.searchParams.get("profile")).toBe("work");
+    });
+  });
+
+  // Invariant: a grouped list keeps one selection across its groups; lifecycle verbs
+  // route by owner, while a folder move needs the selection inside one pair.
+  it("Should select across groups, run bulk verbs, and refuse a cross-pair folder move", async () => {
+    const user = userEvent.setup();
+    const { actions } = renderList({ sessions: [], view: grouped() });
+
+    await user.click(await screen.findByRole("checkbox", { name: "Select Session a1" }));
+    await user.click(await screen.findByRole("checkbox", { name: "Select Session b1" }));
+    expect(screen.getByTestId("session-sidebar-selection-count")).toHaveTextContent("2 selected");
+    await user.click(screen.getByTestId("session-sidebar-selection-more"));
+    await user.click(await screen.findByTestId("session-sidebar-selection-stop"));
+    expect(actions.onStopMany).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "a1" }),
+      expect.objectContaining({ id: "b1" }),
+    ]);
+    await user.click(screen.getByTestId("session-sidebar-selection-more"));
+    await user.click(await screen.findByTestId("session-sidebar-selection-move"));
+    expect(await screen.findByTestId("session-sidebar-selection-move-blocked")).toHaveTextContent(
+      "Select sessions from one project and profile to move them."
+    );
+  });
 });

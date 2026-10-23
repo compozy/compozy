@@ -6977,6 +6977,10 @@ export type SetExtensionSecretsRequest = {
   bindings: Array<ExtensionSecretBindingInput>;
 };
 
+export type SetSessionParentRequest = {
+  parent_session_id: string;
+};
+
 export type SetSessionRuntimeRequest = {
   expected_revision: number | null;
   runtime: PromptRuntimeSelectionPayload;
@@ -33441,6 +33445,120 @@ export type MoveSessionResponses = {
 };
 
 export type MoveSessionResponse = MoveSessionResponses[keyof MoveSessionResponses];
+
+export type ClearSessionParentData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent";
+};
+
+export type ClearSessionParentErrors = {
+  /**
+   * Invalid reparent request
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Reparent refused by a lineage rule; code names the rule
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session reparent unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type ClearSessionParentError = ClearSessionParentErrors[keyof ClearSessionParentErrors];
+
+export type ClearSessionParentResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type ClearSessionParentResponse =
+  ClearSessionParentResponses[keyof ClearSessionParentResponses];
+
+export type SetSessionParentData = {
+  /**
+   * JSON request body
+   */
+  body: SetSessionParentRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/parent";
+};
+
+export type SetSessionParentErrors = {
+  /**
+   * Invalid reparent request
+   */
+  400: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Reparent refused by a lineage rule; code names the rule
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session reparent unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type SetSessionParentError = SetSessionParentErrors[keyof SetSessionParentErrors];
+
+export type SetSessionParentResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type SetSessionParentResponse = SetSessionParentResponses[keyof SetSessionParentResponses];
 
 export type UpdateSessionPresenceData = {
   /**

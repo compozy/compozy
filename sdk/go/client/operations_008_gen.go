@@ -9,6 +9,27 @@ import (
 	"strings"
 )
 
+// GetCmdPaletteRankSignals Get command palette rank signals
+func (c *Client) GetCmdPaletteRankSignals(ctx context.Context, params GetCmdPaletteRankSignalsParams) (*CmdPaletteRankSignalsResponse, error) {
+	path := "/api/cmd-palette/rank-signals"
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out CmdPaletteRankSignalsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetCmdPaletteViewParams carries the path, query, and header parameters.
 type GetCmdPaletteViewParams struct {
 	ID          string  `url:"id"`
@@ -423,14 +444,4 @@ func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) 
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetHookRunsParams carries the path, query, and header parameters.
-type GetHookRunsParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Session     string  `url:"session"`
-	Event       *string `url:"event"`
-	Outcome     *string `url:"outcome"`
-	Since       *string `url:"since"`
-	Last        *int    `url:"last"`
 }

@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// ForceFailTaskRunParams carries the path, query, and header parameters.
+type ForceFailTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// ForceFailTaskRun Force fail one queued or claimed task run
+func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/runs/{id}/fail"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ForceReleaseTaskRunParams carries the path, query, and header parameters.
 type ForceReleaseTaskRunParams struct {
 	ID      string  `url:"id"`
@@ -421,25 +445,4 @@ type GetCmdPaletteRankSignalsParams struct {
 	Workspace   string  `url:"workspace"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetCmdPaletteRankSignals Get command palette rank signals
-func (c *Client) GetCmdPaletteRankSignals(ctx context.Context, params GetCmdPaletteRankSignalsParams) (*CmdPaletteRankSignalsResponse, error) {
-	path := "/api/cmd-palette/rank-signals"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out CmdPaletteRankSignalsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

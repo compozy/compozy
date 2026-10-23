@@ -14,6 +14,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionInteractionsCommand(deps))
 	cmd.AddCommand(newSessionStopCommand(deps))
 	cmd.AddCommand(newSessionRenameCommand(deps))
+	cmd.AddCommand(newSessionReparentCommand(deps))
 	cmd.AddCommand(newSessionFolderCommand(deps))
 	cmd.AddCommand(newSessionMoveCommand(deps))
 	cmd.AddCommand(newSessionReorderCommand(deps))

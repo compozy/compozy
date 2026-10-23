@@ -55,7 +55,18 @@ interface SessionCreateStoreContext {
   pendingSubmit: SessionCreatePendingSubmit | null;
   /** Prompt already sent from the composer while the fallback waits for agent selection. */
   pendingPrompt: string | null;
+  /** The destination the opening surface named; the inline pickers start from it. */
+  target: SessionCreateTargetSeed;
 }
+
+/** A destination named by the surface that opened creation (a list group's `+`). */
+export interface SessionCreateTargetSeed {
+  /** Project picker value: a workspace id or `@user`. */
+  project: string | null;
+  profile: string | null;
+}
+
+const NO_TARGET_SEED: SessionCreateTargetSeed = { project: null, profile: null };
 
 type SessionCreateStoreEvents = {
   agentSelected: { agentName: string; workspaceId: string };
@@ -73,6 +84,8 @@ type SessionCreateStoreEvents = {
     environment?: SessionEnvironmentTarget;
     /** Files the new session into this folder; omitted creates it in the workspace root. */
     folderId?: string;
+    /** Starts the inline destination pickers on this project and profile. */
+    target?: Partial<SessionCreateTargetSeed>;
   };
   dialogOpenChanged: { open: boolean };
   modeSelected: { mode: EntityMode };
@@ -113,6 +126,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
     operation: { status: "idle" },
     pendingSubmit: null,
     pendingPrompt: null,
+    target: NO_TARGET_SEED,
   },
   on: {
     dialogOpened: (context, event) => {
@@ -124,6 +138,10 @@ export const sessionCreateStoreLogic = createStoreLogic<
         restoreFocusOnClose: true,
         pendingSubmit: null,
         pendingPrompt: event.pendingPrompt ?? null,
+        target: {
+          project: event.target?.project?.trim() || null,
+          profile: event.target?.profile?.trim() || null,
+        },
         // A preselected environment lives in Advanced, so opening there is the
         // only way the operator can see what was chosen for them.
         mode: event.environment ? "advanced" : "simple",

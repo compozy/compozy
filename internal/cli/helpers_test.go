@@ -145,6 +145,8 @@ type stubClient struct {
 	archiveSessionFn             func(context.Context, string) (SessionRecord, error)
 	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
 	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
+	setSessionParentFn           func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
+	clearSessionParentFn         func(context.Context, string) (SessionRecord, error)
 	deleteSessionFn              func(context.Context, string) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
 	uploadSessionAttachmentFn    func(context.Context, string, string) (SessionAttachmentRecord, error)
@@ -1332,6 +1334,24 @@ func (s *stubClient) RenameSession(
 		return s.renameSessionFn(ctx, id, request)
 	}
 	return SessionRecord{}, errors.New("unexpected RenameSession call")
+}
+
+func (s *stubClient) SetSessionParent(
+	ctx context.Context,
+	id string,
+	request SetSessionParentRequest,
+) (SessionRecord, error) {
+	if s.setSessionParentFn != nil {
+		return s.setSessionParentFn(ctx, id, request)
+	}
+	return SessionRecord{}, errors.New("unexpected SetSessionParent call")
+}
+
+func (s *stubClient) ClearSessionParent(ctx context.Context, id string) (SessionRecord, error) {
+	if s.clearSessionParentFn != nil {
+		return s.clearSessionParentFn(ctx, id)
+	}
+	return SessionRecord{}, errors.New("unexpected ClearSessionParent call")
 }
 
 func (s *stubClient) DeleteSession(ctx context.Context, id string) error {

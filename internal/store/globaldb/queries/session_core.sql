@@ -170,3 +170,13 @@ WHERE id = sqlc.arg(id);
 -- name: GetSessionArchivedAt :one
 SELECT archived_at FROM sessions
 WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);
+
+-- name: UpdateSessionLineageHierarchy :execrows
+UPDATE sessions
+SET parent_session_id = sqlc.narg(parent_session_id),
+  root_session_id = sqlc.narg(root_session_id),
+  spawn_depth = sqlc.arg(spawn_depth),
+  lineage_kind = sqlc.arg(lineage_kind),
+  auto_stop_on_parent = sqlc.arg(auto_stop_on_parent),
+  updated_at = sqlc.arg(updated_at)
+WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(id);

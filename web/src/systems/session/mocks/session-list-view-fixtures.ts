@@ -15,6 +15,7 @@ export function sessionListViewFixture(
     groupBy: "none",
     groupByOptions: ["none"],
     sortNote: null,
+    newFolderUnavailable: null,
     archived: false,
     saving: false,
     setSort: noop,

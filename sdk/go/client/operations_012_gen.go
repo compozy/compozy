@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// GetSettingsProvider Read one settings-backed provider
+func (c *Client) GetSettingsProvider(ctx context.Context, params GetSettingsProviderParams) (*SettingsProviderResponse, error) {
+	path := "/api/settings/providers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsProviderResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsProviderUsage Read the provider usage settings section
+func (c *Client) GetSettingsProviderUsage(ctx context.Context) (*SettingsProviderUsageResponse, error) {
+	path := "/api/settings/provider-usage"
+	var out SettingsProviderUsageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsRestartStatusParams carries the path, query, and header parameters.
+type GetSettingsRestartStatusParams struct {
+	OperationID string `url:"operation_id"`
+}
+
 // GetSettingsRestartStatus Get the persisted status for one daemon restart operation
 func (c *Client) GetSettingsRestartStatus(ctx context.Context, params GetSettingsRestartStatusParams) (*RestartActionStatus, error) {
 	path := "/api/settings/actions/restart/{operation_id}"

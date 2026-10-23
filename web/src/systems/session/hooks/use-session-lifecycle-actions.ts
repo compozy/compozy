@@ -12,6 +12,7 @@ import {
   useStopSession,
   useUnarchiveSession,
 } from "./use-session-actions";
+import { useSessionReparent } from "./use-session-reparent";
 
 export type SessionLifecycleAction = "rename" | "stop" | "archive" | "unarchive" | "delete";
 
@@ -30,6 +31,10 @@ export interface SessionLifecycleActionHandlers {
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void
   ) => void;
+  /** Nests a top-level session under `parent` (dropped onto its row); absent where unsupported. */
+  onAdopt?: (session: SessionPayload, parent: SessionPayload) => void;
+  /** Returns a nested child to the top level; the row menu's Make top-level. */
+  onMakeTopLevel?: (session: SessionPayload) => void;
 }
 
 export interface SessionDeleteConfirmation {
@@ -97,6 +102,7 @@ export function useSessionLifecycleActions(
   const unarchive = useUnarchiveSession();
   const remove = useDeleteSession(options);
   const rename = useRenameSession();
+  const reparent = useSessionReparent();
   const [deleteTarget, setDeleteTarget] = useState<{
     sessions: readonly SessionPayload[];
     bulk: boolean;
@@ -265,6 +271,8 @@ export function useSessionLifecycleActions(
       onUnarchiveMany: sessions => {
         void actOnMany("unarchive", sessions);
       },
+      onAdopt: reparent.adopt,
+      onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {
         if (pendingAction === null && !batchRunning.current && sessions.length > 0) {
           setBatchResults([]);

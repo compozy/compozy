@@ -218,7 +218,7 @@ function createWrapper(shell: OsShellHandle | null = null) {
 }
 
 interface TestSessionCreateDialogApi extends SessionCreateDialogApi {
-  openDialog: (agentName: string) => void;
+  openDialog: (agentName: string, target?: { project?: string; profile?: string }) => void;
   pendingPrompt: string | null;
   stageFallbackPrompt: (prompt: string) => void;
 }
@@ -236,10 +236,11 @@ function useSessionCreateDialog(context: {
   return {
     ...dialog,
     pendingPrompt,
-    openDialog: agentName => {
+    openDialog: (agentName, target) => {
       controller.store.trigger.dialogOpened({
         agentName,
         workspaceId: context.activeWorkspace?.id ?? "",
+        ...(target ? { target } : {}),
       });
     },
     stageFallbackPrompt: prompt => controller.store.trigger.fallbackPromptStaged({ prompt }),
@@ -912,6 +913,33 @@ describe("useSessionCreateDialog", () => {
       expect(mockMutateAsync).not.toHaveBeenCalledWith(
         expect.objectContaining({ workspace: "ws_c" })
       );
+    });
+
+    // Invariant: a list group's + names its project and profile; the pickers start there.
+    it("Should start the pickers on the project and profile the opener named", () => {
+      allProjects([activeWorkspace, betaWorkspace]);
+      window.localStorage.setItem(LAST_SESSION_PROJECT_STORAGE_KEY, "ws_alpha");
+      mockProfileScope.current = { aggregate: true, destination: "default" };
+      mockProfiles.current = [
+        { name: "default", archived_at: null },
+        { name: "marketing", archived_at: null },
+      ];
+      const { wrapper } = createWrapper();
+      const { result } = renderHook(
+        () =>
+          useSessionCreateDialog({
+            agents,
+            activeWorkspace: undefined,
+            dataScope: { kind: "all" },
+          }),
+        { wrapper }
+      );
+
+      act(() =>
+        result.current.openDialog("codex-agent", { project: "ws_beta", profile: "marketing" })
+      );
+      expect(result.current.destinationAxes.project?.value).toBe("ws_beta");
+      expect(result.current.destinationAxes.profile?.value).toBe("marketing");
     });
 
     it("W-14 Should prefer the last-used project over the first one", () => {

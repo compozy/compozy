@@ -6,13 +6,16 @@ import { Alert, AlertActions, AlertDescription, Button, SearchInput } from "@com
 
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
+import { SessionListGroupSelectionContext } from "../../contexts/session-list-group-selection-context-value";
 import type { SessionListViewModel } from "../../hooks/use-session-list-view";
+import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { emptyForScope } from "@/systems/profiles";
 import { SessionListBadgeContext } from "../../lib/session-list-row-badge";
 
-import { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
+import type { useSessionListBulkSelection } from "../../hooks/use-session-list-bulk-selection";
+import { useSessionListSelection } from "../../hooks/use-session-list-selection";
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListGroups } from "./session-list-groups";
@@ -34,7 +37,7 @@ export interface SessionListProps {
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
   /** Opens session creation; `folderId` files the new session into that folder. */
-  onNewSession: (options?: { folderId?: string }) => void;
+  onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
   testIdPrefix: string;
   /** Rendered above the controls (the modal's eyebrow + close chrome). */
@@ -95,15 +98,16 @@ export function SessionList({
   const filtering = normalizedFilter !== "";
   const folders = useSessionListFolderLayout(view, threads, filtering);
   const { layout, sections } = folders;
-  const bulk = useSessionListBulkSelection({
+  // A grouped list's groups each read their own page and publish their rows to it.
+  const { bulk, groupSelection } = useSessionListSelection({
     selectionKey: view.selectionKey,
-    readOnly: grouped,
     archived: view.archived,
+    grouped,
     sessions: listed,
-    threads: folders.visibleThreads,
+    visibleThreads: folders.visibleThreads,
     collapsedThreads,
+    layout,
     sessionActions,
-    folders: { layout },
   });
 
   return (
@@ -118,6 +122,7 @@ export function SessionList({
         view={view}
         onNewSession={() => onNewSession()}
         onNewFolder={layout ? () => folders.setDialog({ kind: "create" }) : undefined}
+        newFolderUnavailable={layout ? null : view.newFolderUnavailable}
         testIdPrefix={testIdPrefix}
       />
       <div className="px-3 pb-1.5">
@@ -135,17 +140,19 @@ export function SessionList({
           className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 pt-0.5"
           data-group-by={view.groupBy}
         >
-          <SessionListGroups
-            view={view}
-            filtering={filtering}
-            collapsedThreads={collapsedThreads}
-            currentSessionId={currentSessionId}
-            onToggleThread={onToggleThread}
-            onSelectSession={onSelectSession}
-            onNewSessionInFolder={folderId => onNewSession({ folderId })}
-            sessionActions={sessionActions}
-            testIdPrefix={testIdPrefix}
-          />
+          <SessionListGroupSelectionContext value={groupSelection}>
+            <SessionListGroups
+              view={view}
+              filtering={filtering}
+              collapsedThreads={collapsedThreads}
+              currentSessionId={currentSessionId}
+              onToggleThread={onToggleThread}
+              onSelectSession={onSelectSession}
+              onNewSession={onNewSession}
+              sessionActions={sessionActions}
+              testIdPrefix={testIdPrefix}
+            />
+          </SessionListGroupSelectionContext>
         </div>
       ) : sections && layout ? (
         <SessionListFolderBody
@@ -303,12 +310,14 @@ function SessionListControls({
   view,
   onNewSession,
   onNewFolder,
+  newFolderUnavailable,
   testIdPrefix,
 }: {
   bulk: ReturnType<typeof useSessionListBulkSelection>;
   view: SessionListViewModel;
   onNewSession: () => void;
   onNewFolder?: () => void;
+  newFolderUnavailable: string | null;
   testIdPrefix: string;
 }) {
   return bulk.active ? (
@@ -326,6 +335,7 @@ function SessionListControls({
         onGroupByChange={view.setGroupBy}
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
+        newFolderUnavailable={newFolderUnavailable}
         testIdPrefix={testIdPrefix}
       />
       {view.sortNote ? (

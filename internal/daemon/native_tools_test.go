@@ -7850,6 +7850,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		var archiveTarget string
 		var unarchiveTarget string
 		var renamedTarget string
+		var detachedTarget string
 		var renamedName string
 		renameCalls := 0
 		promptSubmitCalls := 0
@@ -7971,6 +7972,12 @@ func TestDaemonNativeTools(t *testing.T) {
 				renamed := *info
 				renamed.Name = name
 				return &renamed, nil
+			},
+			DetachSessionFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+				detachedTarget = workspaceID + "/" + id
+				detached := *info
+				detached.Lineage = &store.SessionLineage{RootSessionID: id}
+				return &detached, nil
 			},
 			SetRuntimeSelectionFn: func(
 				_ context.Context,
@@ -8966,6 +8973,36 @@ func TestDaemonNativeTools(t *testing.T) {
 		if archiveTarget != "ws-1/sess-1" || unarchiveTarget != "ws-1/sess-1" {
 			t.Fatalf("archive targets = %q/%q, want ws-1/sess-1", archiveTarget, unarchiveTarget)
 		}
+		t.Run("Should make a session top-level and refuse ambiguous reparent input", func(t *testing.T) {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionReparent,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","top_level":true}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(session_reparent) error = %v", callErr)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"root_session_id":"sess-1"`))
+			if detachedTarget != "ws-1/sess-1" {
+				t.Fatalf("detach target = %q, want ws-1/sess-1", detachedTarget)
+			}
+			for _, input := range []string{
+				`{"workspace":"ws-stable","session_id":"sess-1"}`,
+				`{"workspace":"ws-stable","session_id":"sess-1","parent_session_id":"sess-2","top_level":true}`,
+			} {
+				_, callErr = registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionReparent, Input: json.RawMessage(input)},
+				)
+				if !errors.Is(callErr, toolspkg.ErrToolInvalidInput) {
+					t.Fatalf("Registry.Call(session_reparent %s) error = %v, want invalid input", input, callErr)
+				}
+			}
+		})
 		if renamedTarget != "ws-1/sess-1" || renamedName != "Release review" {
 			t.Fatalf("rename request = %q/%q, want ws-1/sess-1 and Release review", renamedTarget, renamedName)
 		}

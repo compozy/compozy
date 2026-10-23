@@ -39,8 +39,9 @@ selection controls in the in-window sidebar and the dock's Sessions modal.
    select them, and Unarchive: successful rows leave that catalog and are pruned.
    A failed mutation leaves its row selected and exposes the daemon message.
 5. Switch between workspace and all-workspaces scope, or change the Archived view:
-   selection clears. All-workspaces groups have no checkboxes, bulk toolbar, or
-   select-all shortcut because their per-row lifecycle actions are unavailable.
+   selection clears. Grouped lists (Group by project or profile) keep one selection
+   across their expanded groups, with checkboxes, the bulk toolbar, and the keyboard
+   shortcuts; verbs route per owner (issue #904, ET-web-session-list-aggregate-parity).
 6. Select three sessions and Delete (toolbar, More, or Cmd/Ctrl+Backspace). The set
    dialog names the count, shows status rows, and notes the active count (daemon state; idle sessions count too). Cancel
    preserves selection. With one selected session the existing singular dialog is

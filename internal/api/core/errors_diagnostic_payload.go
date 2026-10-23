@@ -49,6 +49,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if code := DeriveErrorCode(err); code != "" {
 		payload.Code = code
 	}
+	if code := SessionReparentErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if errors.Is(err, workspace.ErrOperatorHomeWorkspace) {
 		payload.Code = "workspace_home_forbidden"
 	}

@@ -21,6 +21,7 @@ import {
   SessionDeleteDialog,
   SessionRenameDialog,
   type useSessionLifecycleActions,
+  type SessionCreateOpenOptions,
 } from "@/systems/session";
 
 export interface OsSessionsModalProps {
@@ -31,7 +32,7 @@ export interface OsSessionsModalProps {
   disconnected: boolean;
   /** Breadth, order, and widened workspace groups — owned by the shell, not fetched here. */
   view: SessionListViewModel;
-  onNewSession: (options?: { folderId?: string }) => void;
+  onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 

@@ -29,7 +29,8 @@ import { useSessionListPreferences } from "./use-session-list-preferences";
 import { useSessionSidebarState } from "./use-session-sidebar-state";
 
 /** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
-export const SESSION_LIST_MANUAL_SORT_NOTE = "Manual order applies inside one project";
+export const SESSION_LIST_MANUAL_SORT_NOTE =
+  "Manual order applies inside one project and profile. Group the list to use it.";
 
 const SESSION_LIST_PAGE_SIZE = 100;
 
@@ -48,6 +49,11 @@ export interface SessionListViewModel {
   groupByOptions: readonly SessionListGroupBy[];
   /** Muted toolbar note while `manual` falls back to `last_activity`. */
   sortNote: string | null;
+  /**
+   * Why the list's New folder is unavailable: a flat aggregate spans pairs, and
+   * a grouped list adds folders from each group's own `+`. `null` where it applies.
+   */
+  newFolderUnavailable: string | null;
   /** True while the list shows the archive instead of the active catalog. */
   archived: boolean;
   saving: boolean;
@@ -79,7 +85,7 @@ export interface SessionListViewModel {
   worktreeId?: string;
   /** The folder list failed to load; rows stay flat and unorderable until a retry loads it. */
   layoutError?: { retry: () => void };
-  /** Identity of the list's bulk selection; grouped lists are read-only. */
+  /** Identity of the list's bulk selection, shared by every group of a grouped list. */
   selectionKey: string;
 }
 
@@ -151,7 +157,9 @@ export function useSessionListView(
   const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
   const groupId = (key: string) => sessionListGroupCollapseId(foldLens, key);
   const collapsedGroupIds = new Set(sidebar.collapsedGroupIds);
-  const manualBlocked = flat ? pair === null : grouping.groups.some(group => group.pair === null);
+  // A group with no pair of its own splits along the other axis into pairs,
+  // so only a flat aggregate leaves manual order and folders with no owner.
+  const manualBlocked = flat && pair === null;
   const flatLayout = flat && pair !== null;
 
   return {
@@ -166,6 +174,7 @@ export function useSessionListView(
     groupBy,
     groupByOptions: availableSessionListGroupBys(breadth),
     sortNote: manualSortNote(preferences.sort, manualBlocked),
+    newFolderUnavailable: newFolderUnavailableReason(flat, pair !== null, breadth),
     archived,
     saving: preferences.saving,
     setSort: preferences.setSort,
@@ -240,6 +249,19 @@ function profileFoldIdentity(profile: {
 /** A group's collapse id: its key qualified by the list lens it renders under. */
 function sessionListGroupCollapseId(lens: string, groupKey: string): string {
   return `${lens}\u0000${groupKey}`;
+}
+
+function newFolderUnavailableReason(
+  flat: boolean,
+  paired: boolean,
+  breadth: { allProjects: boolean; allProfiles: boolean }
+): string | null {
+  if (!flat) return "Add a folder from a group's +.";
+  if (paired) return null;
+  const axes = availableSessionListGroupBys(breadth).filter(option => option !== "none");
+  return axes.length === 0
+    ? "Folders live inside one project and profile."
+    : `Folders live inside one project and profile. Group by ${axes.join(" or ")} to add one.`;
 }
 
 function sessionBadgeResolver(workspaces: readonly { id: string; name: string }[]) {

@@ -8,6 +8,18 @@ import {
 /** Last All-projects create target in this browser: a workspace id, or `@user` for User. */
 export const LAST_SESSION_PROJECT_STORAGE_KEY = "compozy:new-session:last-project";
 
+/**
+ * What a surface asks of session creation: a folder to file the session into
+ * and, under All projects or All profiles, the project and profile that folder
+ * (or list group) belongs to, so the inline pickers start there.
+ */
+export interface SessionCreateOpenOptions {
+  folderId?: string;
+  /** A workspace id, or `@user` for User. */
+  workspaceId?: string;
+  profile?: string;
+}
+
 /** One row of a destination picker. */
 export interface SessionTargetOption {
   value: string;
@@ -28,6 +40,18 @@ export function sessionProjectOptions(
     })),
     { value: USER_SCOPE_SELECTOR, label: DESTINATION_COPY.user },
   ];
+}
+
+/** Profile picker rows: every profile that can still own new work, in list order. */
+export function sessionProfileOptions(
+  profiles: readonly { name: string; archived_at?: string | null }[]
+): SessionTargetOption[] {
+  return profiles
+    .filter(owner => owner.archived_at == null)
+    .map(owner => ({
+      value: owner.name,
+      label: owner.name,
+    }));
 }
 
 /**

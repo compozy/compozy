@@ -11,6 +11,7 @@ import {
 import {
   prefillSessionProject,
   readLastSessionProject,
+  sessionProfileOptions,
   sessionProjectOptions,
   sessionTargetScope,
   type SessionTargetOption,
@@ -52,17 +53,21 @@ interface Picks {
 export function useSessionCreateTarget({
   resetKey,
   focusedBinding,
+  seed,
 }: {
   resetKey: unknown;
   focusedBinding?: string | null;
+  /** The destination the opening surface named; each opening starts its picks from it. */
+  seed?: { project: string | null; profile: string | null };
 }): SessionCreateTarget {
   const active = useActiveWorkspace();
   const profileScope = useProfileReadScope();
   const projectAxis = active.breadthMode === "all" && !active.pending;
   const profileAxis = profileScope.aggregate;
   const profiles = useProfiles(profileAxis);
-  const [picks, setPicks] = useState<Picks>({ key: resetKey, project: null, profile: null });
-  const current = picks.key === resetKey ? picks : { key: resetKey, project: null, profile: null };
+  const opening = { key: resetKey, project: seed?.project ?? null, profile: seed?.profile ?? null };
+  const [picks, setPicks] = useState<Picks>(opening);
+  const current = picks.key === resetKey ? picks : opening;
   if (current !== picks) setPicks(current);
 
   const projectOptions = projectAxis ? sessionProjectOptions(active.projectWorkspaces) : [];
@@ -73,11 +78,7 @@ export function useSessionCreateTarget({
         lastUsed: readLastSessionProject(),
       }))
     : null;
-  const profileOptions = profileAxis
-    ? (profiles.data ?? [])
-        .filter(owner => owner.archived_at == null)
-        .map(owner => ({ value: owner.name, label: owner.name }))
-    : [];
+  const profileOptions = profileAxis ? sessionProfileOptions(profiles.data ?? []) : [];
   const profile =
     profileOptions.find(option => option.value === current.profile)?.value ??
     profileScope.destination;

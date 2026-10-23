@@ -49,6 +49,8 @@ type StubSessionManager struct {
 	ArchiveFn               func(context.Context, string, string) (*session.Info, error)
 	UnarchiveFn             func(context.Context, string, string) (*session.Info, error)
 	RenameFn                func(context.Context, string, string, string) (*session.Info, error)
+	AdoptSessionFn          func(context.Context, string, string, string) (*session.Info, error)
+	DetachSessionFn         func(context.Context, string, string) (*session.Info, error)
 	StopWithCauseFn         func(context.Context, string, session.StopCause, string) error
 	ResumeFn                func(context.Context, string) (*session.Session, error)
 	AttachSessionFn         func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)

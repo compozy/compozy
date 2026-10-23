@@ -1411,7 +1411,7 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 // TestSessionLifecycleProfileScope verifies owner access and wrong-profile mutation refusal.
 func TestSessionLifecycleProfileScope(t *testing.T) {
 	t.Parallel()
-	for _, action := range []string{"archive", "unarchive", "rename"} {
+	for _, action := range []string{"archive", "unarchive", "rename", "adopt", "detach"} {
 		for _, selector := range []string{"", "?profile=default", "?profile=marketing", "?all_profiles=true"} {
 			t.Run("Should scope "+action+" with "+selector, func(t *testing.T) {
 				t.Parallel()
@@ -1438,16 +1438,27 @@ func TestSessionLifecycleProfileScope(t *testing.T) {
 					RenameFn: func(ctx context.Context, workspaceID, id, _ string) (*session.Info, error) {
 						return mutate(ctx, workspaceID, id)
 					},
+					AdoptSessionFn: func(ctx context.Context, workspaceID, id, _ string) (*session.Info, error) {
+						return mutate(ctx, workspaceID, id)
+					},
+					DetachSessionFn: mutate,
 				}
 				fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 				fixture.Handlers.Profiles = sessionProfileServiceStub{}
 				path := "/workspaces/ws-workspace/sessions/sess-profile/" + action
 				method := http.MethodPost
 				var body []byte
-				if action == "rename" {
+				switch action {
+				case "rename":
 					path, method, body = "/workspaces/ws-workspace/sessions/sess-profile", http.MethodPatch, []byte(
 						`{"name":"Renamed"}`,
 					)
+				case "adopt":
+					path, method, body = "/workspaces/ws-workspace/sessions/sess-profile/parent", http.MethodPut, []byte(
+						`{"parent_session_id":"sess-parent"}`,
+					)
+				case "detach":
+					path, method = "/workspaces/ws-workspace/sessions/sess-profile/parent", http.MethodDelete
 				}
 				response := performRequest(t, fixture.Engine, method, path+selector, body)
 				if selector != "?profile=marketing" {
@@ -1558,6 +1569,95 @@ func TestRenameSessionHandler(t *testing.T) {
 		assertAPIErrorResponse(t, response, http.StatusNotFound, "workspace-scoped resource not found")
 		if renameCalls != 1 {
 			t.Fatalf("Rename() calls = %d, want 1", renameCalls)
+		}
+	})
+}
+
+func TestSessionParentHandlers(t *testing.T) {
+	t.Parallel()
+
+	base := testutil.NewSessionInfo("sess-child")
+	base.ProfileID = store.DefaultProfileID
+	base.WorkspaceID = "ws-parent"
+	base.Type = session.SessionTypeUser
+	adoptCalls := 0
+	manager := testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{base}, nil
+		},
+		AdoptSessionFn: func(_ context.Context, workspaceID, sessionID, parentID string) (*session.Info, error) {
+			adoptCalls++
+			if workspaceID != base.WorkspaceID || sessionID != base.ID {
+				t.Fatalf("AdoptSession() target = %s/%s", workspaceID, sessionID)
+			}
+			if parentID == "sess-descendant" {
+				return nil, &session.ReparentError{
+					Reason: session.ReparentRefusalCycle, SessionID: parentID, Detail: "descendant",
+				}
+			}
+			updated := *base
+			updated.Lineage = &store.SessionLineage{
+				ParentSessionID: parentID, RootSessionID: parentID, SpawnDepth: 1, Kind: store.LineageKindProvenance,
+			}
+			return &updated, nil
+		},
+		DetachSessionFn: func(context.Context, string, string) (*session.Info, error) {
+			return nil, &session.ReparentError{
+				Reason: session.ReparentRefusalNotDetachable, SessionID: base.ID, Detail: "root",
+			}
+		},
+	}
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+	const path = "/workspaces/ws-parent/sessions/sess-child/parent"
+
+	t.Run("Should adopt the session and return its new lineage", func(t *testing.T) {
+		response := performRequest(t, fixture.Engine, http.MethodPut, path, []byte(`{"parent_session_id":"sess-top"}`))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.SessionResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Session.Lineage == nil || payload.Session.Lineage.ParentSessionID != "sess-top" || adoptCalls != 1 {
+			t.Fatalf("adopt response = %#v calls=%d", payload.Session, adoptCalls)
+		}
+	})
+
+	t.Run("Should map a lineage refusal to a coded conflict", func(t *testing.T) {
+		for _, test := range []struct {
+			name     string
+			method   string
+			body     []byte
+			wantCode string
+		}{
+			{
+				name: "cycle", method: http.MethodPut, body: []byte(`{"parent_session_id":"sess-descendant"}`),
+				wantCode: "session_reparent_cycle",
+			},
+			{name: "not detachable", method: http.MethodDelete, wantCode: "session_reparent_not_detachable"},
+		} {
+			t.Run("Should code "+test.name, func(t *testing.T) {
+				response := performRequest(t, fixture.Engine, test.method, path, test.body)
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("json.Unmarshal() error = %v", err)
+				}
+				if response.Code != http.StatusConflict || payload.Code != test.wantCode {
+					t.Fatalf("refusal = %d %#v, want 409 code %q", response.Code, payload, test.wantCode)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject unknown request fields before adopting", func(t *testing.T) {
+		before := adoptCalls
+		response := performRequest(
+			t, fixture.Engine, http.MethodPut, path, []byte(`{"parent_session_id":"sess-top","parent":"x"}`),
+		)
+		assertAPIErrorResponse(t, response, http.StatusBadRequest, "parent")
+		if adoptCalls != before {
+			t.Fatalf("AdoptSession() calls = %d, want %d", adoptCalls, before)
 		}
 	})
 }
