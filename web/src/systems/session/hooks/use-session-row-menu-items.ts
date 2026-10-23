@@ -50,6 +50,29 @@ function isStopEligible(session: SessionPayload): boolean {
   return session.state === "active" || session.state === "starting";
 }
 
+/** Archive or restore; a live session stops first, which cancels any active turn. */
+function sessionArchiveMenuItem(
+  session: SessionPayload,
+  actions: SessionLifecycleActionHandlers
+): SessionRowMenuItem | null {
+  // A subagent session archives with its parent (ADR-005): no standalone verb.
+  if (isSubagentSession(session)) return null;
+  if (session.archived_at !== null) {
+    return {
+      id: "unarchive",
+      label: "Unarchive session",
+      icon: RotateCcw,
+      onSelect: () => actions.onUnarchive(session),
+    };
+  }
+  return {
+    id: "archive",
+    label: session.state === "stopped" ? "Archive session" : "Stop and archive session",
+    icon: Archive,
+    onSelect: () => actions.onArchive(session),
+  };
+}
+
 /** State-gated lifecycle verbs for one session row, in menu order. */
 export function useSessionRowMenuItems(
   session: SessionPayload,
@@ -116,25 +139,8 @@ export function useSessionRowMenuItems(
       onSelect: () => actions.onStop(session),
     });
   }
-  // A subagent session archives with its parent (ADR-005): no standalone verb.
-  if (!isSubagentSession(session)) {
-    if (isArchived) {
-      items.push({
-        id: "unarchive",
-        label: "Unarchive session",
-        icon: RotateCcw,
-        onSelect: () => actions.onUnarchive(session),
-      });
-    } else {
-      // A live session stops first, which cancels any active turn.
-      items.push({
-        id: "archive",
-        label: session.state === "stopped" ? "Archive session" : "Stop and archive session",
-        icon: Archive,
-        onSelect: () => actions.onArchive(session),
-      });
-    }
-  }
+  const archiveItem = sessionArchiveMenuItem(session, actions);
+  if (archiveItem) items.push(archiveItem);
   items.push({
     id: "delete",
     label: "Delete session",
