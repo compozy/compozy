@@ -23,3 +23,20 @@ path; click it and confirm nothing opens. Click the session chip: session A open
 and confirm the chip still shows the old title. Select and copy the message: the clipboard holds the
 raw token text. Open a session with messages from before the upgrade and confirm their rendering is
 unchanged.
+
+Issue #921 regression: include a known `/skill` and an HTTPS URL after a Unicode prefix
+(`Olá 🧪`). While the prompt POST is still streaming, verify that the admitted file, folder,
+session, and skill occurrences become formatted without waiting for completion and the assistant
+continues streaming. Reload and load older history; the same metadata must retain its formatting.
+Unverified or mismatched historical offsets remain literal text. URLs use the link tone and globe
+icon, permit HTTP/HTTPS/mailto only, and open with `noopener noreferrer`. Inline/fenced code stays
+literal. Copy retains raw mention tokens and URLs. In the composer, paste and edit URLs (including
+query strings, fragments, and parentheses), undo, and send; the authored text must remain exact.
+No title/favicon unfurl or renderer fetch to the pasted destination occurs.
+
+2026-10-23 targeted evidence: reproduced loss of chips during a real Codex response in an isolated
+daemon; the durable transcript already contained correct UTF-16 offsets. After the fix, a real
+send displayed file and skill chips while the session was still Working. Reloaded history and
+composer URLs were visually inspected in Chrome. Focused runtime-provider and SessionThread
+regressions passed. Full browser/E2E and delivery gates are CI-owned per operator instruction to
+avoid excessive local machine load; pagination, queue/steer, and fork walks remain CI coverage.

@@ -20,9 +20,12 @@ import userEvent from "@testing-library/user-event";
 import {
   $getRoot,
   $getSelection,
+  $isRangeSelection,
   $isTextNode,
   $setSelection,
   getNearestEditorFromDOMNode,
+  CONTROLLED_TEXT_INSERTION_COMMAND,
+  UNDO_COMMAND,
   type ElementNode,
 } from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -2276,6 +2279,30 @@ describe("SessionThread transcript states", () => {
 
     await waitFor(() => expect(screen.getByTestId("user-message-fork")).toBeDisabled());
     expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
+  });
+
+  // Invariant: user prose links permit only safe external protocols and leave
+  // code literal. Owner: user-message rendering; canonical suite: SessionThread.
+  it("renders safe user links while preserving code and unsafe link labels", async () => {
+    const text =
+      "https://example.com/path?q=1#part [Email](mailto:hello@example.com) [unsafe](javascript:alert) `https://code.example`";
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([
+        { id: "user-links", role: "user", parts: [{ type: "text", text }] } as SessionMessage,
+      ]),
+    });
+    const bubble = await screen.findByTestId("user-message-bubble");
+    const links = within(bubble).getAllByRole("link");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", "https://example.com/path?q=1#part");
+    expect(links[1]).toHaveAttribute("href", "mailto:hello@example.com");
+    for (const link of links) {
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      expect(link).toHaveAttribute("target", "_blank");
+    }
+    expect(within(bubble).getByText("https://code.example").tagName).toBe("CODE");
+    expect(bubble).toHaveTextContent("unsafe");
   });
 
   it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
@@ -4892,15 +4919,21 @@ async function findComposerEditable(): Promise<HTMLElement> {
 async function placeComposerCursor(offset: number) {
   const editable = await findComposerEditable();
   const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
-  const textNode = walker.nextNode();
+  let textNode = walker.nextNode();
+  let localOffset = offset;
+  while (textNode && localOffset > (textNode.textContent?.length ?? 0)) {
+    localOffset -= textNode.textContent?.length ?? 0;
+    textNode = walker.nextNode();
+  }
   if (!textNode) {
     throw new Error("composer line has no rendered text node");
   }
+  const cursorNode = textNode;
   await act(async () => {
     editable.focus();
     const selection = document.getSelection();
     const range = document.createRange();
-    range.setStart(textNode, offset);
+    range.setStart(cursorNode, localOffset);
     range.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -4975,6 +5008,41 @@ describe("SessionThread composer running semantics", () => {
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
       sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     });
+  });
+
+  // Invariant: decorating URL text never changes the authored draft, including
+  // subsequent edits. Owner: composer; canonical suite: SessionThread composer.
+  it("preserves editable URL text through composer formatting and edits", async () => {
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-input");
+    const text = "Read https://example.com/a_(b)?q=1#hash, then mailto:a@example.com";
+    await setComposerText(text);
+    const editable = await findComposerEditable();
+    await waitFor(() => expect(editable).toHaveTextContent(text));
+    expect(composerText()).toBe(text);
+    const cursor = text.indexOf("_(b)");
+    await placeComposerCursor(cursor);
+    const editor = getNearestEditorFromDOMNode(editable);
+    if (!editor) throw new Error("composer editor is not mounted");
+    const readCursor = () =>
+      editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        return $isRangeSelection(selection) ? readCursorSnapshot(selection)?.cursor : null;
+      });
+    await act(async () => {
+      editor.dispatchCommand(CONTROLLED_TEXT_INSERTION_COMMAND, " ");
+    });
+    const edited = `${text.slice(0, cursor)} ${text.slice(cursor)}`;
+    await waitFor(() => expect(composerText()).toBe(edited));
+    expect(readCursor()).toBe(cursor + 1);
+    await act(async () => {
+      editor.dispatchCommand(UNDO_COMMAND, undefined);
+    });
+    await waitFor(() => expect(composerText()).toBe(text));
+    expect(readCursor()).toBe(cursor);
+    await setComposerText(text.replace("https://", "broken://"));
+    await waitFor(() => expect(editable).toHaveTextContent("broken://example.com"));
+    expect(composerText()).toBe(text.replace("https://", "broken://"));
   });
 
   it("Should restore the active session draft after the composer remounts", async () => {

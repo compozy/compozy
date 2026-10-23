@@ -36,6 +36,12 @@
   margin: 0;
 }
 
+.aui-lexical-input span[style*="--compozy-composer-link"]::before {
+  content: "🌐";
+  margin-inline-end: 0.25em;
+  font-size: 0.85em;
+}
+
 .aui-lexical-placeholder {
   position: absolute;
   inset-block-start: 0;

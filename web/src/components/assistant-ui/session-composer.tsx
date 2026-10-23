@@ -1,5 +1,6 @@
 import { ComposerPrimitive } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
+import { SessionComposerLinkPlugin } from "./session-composer-link-plugin";
 import type { ReactNode } from "react";
 
 import { InputGroup } from "@compozy/ui";
@@ -252,6 +253,7 @@ function SessionComposerInput() {
       />
       <SessionCommandScopePlugin setScope={actions.setCommandScope} />
       <SessionDirectiveBoundaryPlugin />
+      <SessionComposerLinkPlugin />
       <SessionMentionTriggerPlugin
         onTrigger={actions.observeMentionTrigger}
         onEscape={() => mentionsAvailable && actions.dismissMentionTrigger()}

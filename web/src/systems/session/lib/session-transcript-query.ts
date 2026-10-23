@@ -75,6 +75,24 @@ export function flattenTranscriptMessages(
   return projectTranscriptMessages(flattenTranscriptEntries(data).map(entry => entry.message));
 }
 
+/** Reconcile an admitted input without advancing past assistant events still owned by the POST. */
+export function reconcileAdmittedPrompt(
+  data: SessionTranscriptData | undefined,
+  response: NormalizedSessionTranscriptResponse,
+  messageId: string
+): SessionTranscriptData | undefined {
+  const head = data?.pages[0];
+  if (!data || !head || !transcriptFrameMatches(data, response)) return data;
+  const input = response.entries.find(
+    entry => entry.message.id === messageId && entry.message.role === "user"
+  );
+  if (!input) return data;
+  return withBoundedTranscriptHead(data, {
+    ...head,
+    entries: mergeTranscriptEntries(head.entries, [input]),
+  });
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

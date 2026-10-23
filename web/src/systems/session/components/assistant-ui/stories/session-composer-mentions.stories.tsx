@@ -269,5 +269,9 @@ export const PickedChip: Story = {
     await expect(await canvas.findByTestId("session-mention-chip")).toHaveTextContent(
       "client_prompt.go"
     );
+    await userEvent.type(
+      await canvas.findByLabelText("Session prompt"),
+      " alongside https://example.com/docs?mode=review#input"
+    );
   },
 };
