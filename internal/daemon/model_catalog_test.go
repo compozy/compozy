@@ -107,7 +107,6 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if !ok || time.Until(deadline) < 140*time.Second {
 			t.Fatalf("aggregate execution deadline = %v, want both sequential discovery budgets", deadline)
 		}
-
 	})
 
 	t.Run("Should give live HTTP discovery its provider deadline instead of the models dev client", func(t *testing.T) {
