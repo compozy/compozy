@@ -40,6 +40,7 @@ type Resolver struct {
 	logger              *slog.Logger
 	now                 func() time.Time
 	cacheTTL            time.Duration
+	snapshotTTL         time.Duration
 	idGenerator         idGenerator
 	changeHook          ChangeHook
 	operatorHomeDir     string
@@ -62,6 +63,7 @@ type cachedEntry struct {
 	snapshots    map[string]filesnap.Snapshot
 	skillSources map[string]workspaceSkillScan
 	lastAccess   time.Time
+	validatedAt  time.Time
 }
 
 const rollbackDeleteTimeout = 2 * time.Second
@@ -86,6 +88,7 @@ func NewResolver(store Store, opts ...Option) (*Resolver, error) {
 		logger:              resolvedOpts.logger,
 		now:                 resolvedOpts.now,
 		cacheTTL:            resolvedOpts.cacheTTL,
+		snapshotTTL:         resolvedOpts.snapshotTTL,
 		idGenerator:         resolvedOpts.idGenerator,
 		changeHook:          resolvedOpts.changeHook,
 		operatorHomeDir:     resolvedOpts.operatorHomeDir,
@@ -133,6 +136,13 @@ func (r *Resolver) resolve(
 	workspaceID = identity.WorkspaceID
 
 	cacheKey := workspaceProfileCacheKey(ws.ID, profileName)
+	if cached, ok := r.freshSnapshot(cacheKey, ws, identity.WorkspaceID, profileID); ok {
+		cacheHit = true
+		return cached, nil
+	}
+	r.mu.RLock()
+	generation := r.agentConfigGeneration
+	r.mu.RUnlock()
 	cfg, hadCachedConfig, err := r.configForSkillScan(ws, profileName, cacheKey)
 	if err != nil {
 		return ResolvedWorkspace{}, err
@@ -148,6 +158,7 @@ func (r *Resolver) resolve(
 	r.evictExpiredLocked(now)
 	if cached := r.cache[cacheKey]; cached != nil && cached.canReuse(ws, scan) {
 		cached.lastAccess = now
+		cached.validatedAt = now
 		cached.skillSources = scan.skillSources
 		cacheHit = true
 		resolved = cloneResolvedWorkspace(&cached.resolved)
@@ -173,12 +184,15 @@ func (r *Resolver) resolve(
 
 	r.mu.Lock()
 	r.evictExpiredLocked(now)
-	r.cache[cacheKey] = &cachedEntry{
-		workspace:    cloneWorkspace(ws),
-		resolved:     cloneResolvedWorkspace(&resolved),
-		snapshots:    cloneSnapshots(scan.snapshots),
-		skillSources: scan.skillSources,
-		lastAccess:   now,
+	if generation == r.agentConfigGeneration {
+		r.cache[cacheKey] = &cachedEntry{
+			workspace:    cloneWorkspace(ws),
+			resolved:     cloneResolvedWorkspace(&resolved),
+			snapshots:    cloneSnapshots(scan.snapshots),
+			skillSources: scan.skillSources,
+			lastAccess:   now,
+			validatedAt:  now,
+		}
 	}
 	r.mu.Unlock()
 

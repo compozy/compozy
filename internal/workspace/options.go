@@ -42,6 +42,7 @@ type resolverOptions struct {
 	logger              *slog.Logger
 	now                 func() time.Time
 	cacheTTL            time.Duration
+	snapshotTTL         time.Duration
 	idGenerator         idGenerator
 	changeHook          ChangeHook
 	operatorHomeDir     string
@@ -100,6 +101,13 @@ func withNow(now func() time.Time) Option {
 func WithCacheTTL(ttl time.Duration) Option {
 	return func(opts *resolverOptions) {
 		opts.cacheTTL = ttl
+	}
+}
+
+// WithSnapshotTTL bounds discovery staleness; zero retains synchronous filesystem validation.
+func WithSnapshotTTL(ttl time.Duration) Option {
+	return func(opts *resolverOptions) {
+		opts.snapshotTTL = max(0, ttl)
 	}
 }
 

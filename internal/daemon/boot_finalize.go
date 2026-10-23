@@ -12,7 +12,6 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 
 	"github.com/compozy/compozy/internal/skills"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	skillbundled "github.com/compozy/compozy/skills"
 )
@@ -89,10 +88,9 @@ func startSkillsWatcher(
 func workspaceSkillWatcherRoots(
 	homePaths compozyconfig.HomePaths,
 	registry workspaceRegistryReader,
-	resolver workspacepkg.RuntimeResolver,
 	profiles extensionProfileCatalog,
 ) func(context.Context) ([]string, error) {
-	if registry == nil || resolver == nil {
+	if registry == nil {
 		return nil
 	}
 
@@ -108,34 +106,23 @@ func workspaceSkillWatcherRoots(
 		}
 		roots := make([]string, 0, len(workspaces)*len(profileNames)*4)
 		seen := make(map[string]struct{}, cap(roots))
-		profileResolver, profileAware := resolver.(workspacepkg.ProfileRuntimeResolver)
 		for _, workspace := range workspaces {
 			for _, profileName := range profileNames {
-				var resolved workspacepkg.ResolvedWorkspace
-				var resolveErr error
-				switch {
-				case profileAware:
-					resolved, resolveErr = profileResolver.ResolveForProfile(ctx, workspace.ID, profileName)
-				case profileName == compozyconfig.DefaultProfileDirName:
-					resolved, resolveErr = resolver.Resolve(ctx, workspace.ID)
-				default:
-					continue
-				}
-				if resolveErr != nil {
+				cfg, err := compozyconfig.LoadForHome(homePaths,
+					compozyconfig.WithWorkspaceRoot(workspace.RootDir), compozyconfig.WithProfile(profileName))
+				if err != nil {
 					return nil, fmt.Errorf(
-						"daemon: resolve workspace %q profile %q for skill watcher: %w",
-						workspace.ID,
-						profileName,
-						resolveErr,
+						"daemon: load skill watcher roots for workspace %q profile %q: %w",
+						workspace.ID, profileName, err,
 					)
 				}
 				for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
-					resolved.RootDir, resolved.AdditionalDirs, homePaths, resolved.ProfileName,
+					workspace.RootDir, workspace.AdditionalDirs, homePaths, profileName,
 				) {
 					if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
 						continue
 					}
-					for _, skillRoot := range root.SkillsDirs(&resolved.Config.Skills) {
+					for _, skillRoot := range root.SkillsDirs(&cfg.Skills) {
 						if _, exists := seen[skillRoot.Dir]; exists {
 							continue
 						}

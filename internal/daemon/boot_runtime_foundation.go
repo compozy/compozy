@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -144,6 +145,7 @@ func (d *Daemon) newBootWorkspaceResolver(state *bootState, registry Registry) (
 		return nil, fmt.Errorf("daemon: resolve operator home: %w", err)
 	}
 	resolverOptions := []workspacepkg.Option{
+		workspacepkg.WithSnapshotTTL(time.Second),
 		workspacepkg.WithHomePaths(d.homePaths),
 		workspacepkg.WithOperatorHomeDir(operatorHome),
 		workspacepkg.WithLogger(state.logger),

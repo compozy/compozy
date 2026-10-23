@@ -237,6 +237,11 @@ Tool-gated skills re-evaluate on the next projection without a daemon restart.
 
 ## Skill Sources And Exposure
 
+The watcher checks skill and agent metadata on `skills.poll_interval` (default `3s`) and reuses
+unchanged directory discovery. Workspace/profile roots are derived from configuration without
+resolving every skill. Daemon workspace snapshots have a one-second maximum discovery age;
+successful watcher refreshes invalidate them immediately. Content reads still run `VerifyContent`.
+
 Scan roots beyond CompozyOS's own come from `skills.sources` (folder conventions) and
 `skills.custom_sources` (exact directories), resolved live through four config overlays.
 `compozy__config_set` and `compozy__config_unset` write both keys at user and workspace scope and

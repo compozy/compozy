@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 	"log/slog"
-	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/filesnap"
+	"github.com/compozy/compozy/internal/skillscan"
 )
 
 const (
@@ -47,9 +45,11 @@ type Watcher struct {
 	agentRootsProvider func(context.Context) ([]string, error)
 	configuredRoots    func() ([]string, []string)
 
-	mu          sync.Mutex
-	initialized bool
-	snapshots   map[string]filesnap.Snapshot
+	mu               sync.Mutex
+	initialized      bool
+	snapshots        map[string]filesnap.Snapshot
+	discoveries      map[string]skillscan.DirectoryResult
+	agentDiscoveries map[string]watcherAgentDiscovery
 }
 
 // NewWatcher constructs a watcher that polls the registry's global skill
@@ -224,107 +224,6 @@ func (w *Watcher) commitSnapshots(snapshots map[string]filesnap.Snapshot) {
 		w.snapshots = make(map[string]filesnap.Snapshot)
 	}
 	w.initialized = true
-}
-
-func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapshot, error) {
-	roots, agentRoots, err := w.currentRoots(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	snapshots := make(map[string]filesnap.Snapshot)
-	for _, root := range roots {
-		if err := checkRegistryContext(ctx); err != nil {
-			return nil, err
-		}
-
-		_, isAgentRoot := agentRoots[root]
-		rootSnapshots, err := watcherSnapshotRoot(root, isAgentRoot)
-		if err != nil {
-			return nil, fmt.Errorf("skills: scan watcher root %q: %w", root, err)
-		}
-		maps.Copy(snapshots, rootSnapshots)
-	}
-
-	return snapshots, nil
-}
-
-func watcherSnapshotRoot(root string, agentRoot bool) (map[string]filesnap.Snapshot, error) {
-	if !agentRoot {
-		paths, snapshots, err := scanDirectoryWithSnapshots(root)
-		if err != nil {
-			return nil, err
-		}
-		if err := recordSidecarSnapshots(paths, snapshots); err != nil {
-			return nil, err
-		}
-		return snapshots, nil
-	}
-
-	paths, err := watcherScanRoot(root, true)
-	if err != nil {
-		return nil, err
-	}
-
-	snapshots := make(map[string]filesnap.Snapshot, len(paths))
-	skillPaths := make([]string, 0, len(paths))
-	for _, watchedPath := range paths {
-		snapshot, err := filesnap.FromPath(watchedPath)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			return nil, fmt.Errorf("skills: snapshot watcher file %q: %w", watchedPath, err)
-		}
-
-		snapshots[watchedPath] = snapshot
-		if filepath.Base(watchedPath) == skillFileName {
-			skillPaths = append(skillPaths, watchedPath)
-		}
-	}
-
-	if err := recordSidecarSnapshots(skillPaths, snapshots); err != nil {
-		return nil, err
-	}
-	return snapshots, nil
-}
-
-func watcherScanRoot(root string, agentRoot bool) ([]string, error) {
-	if !agentRoot {
-		return scanDirectory(root)
-	}
-
-	trimmedRoot := strings.TrimSpace(root)
-	if trimmedRoot == "" {
-		return nil, nil
-	}
-
-	if _, err := os.Stat(trimmedRoot); err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
-		}
-		return nil, err
-	}
-
-	paths := make([]string, 0)
-	err := filepath.WalkDir(trimmedRoot, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		base := entry.Name()
-		if base == "AGENT.md" || base == skillFileName {
-			paths = append(paths, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	slices.Sort(paths)
-	return paths, nil
 }
 
 func (w *Watcher) currentRoots(ctx context.Context) ([]string, map[string]struct{}, error) {
