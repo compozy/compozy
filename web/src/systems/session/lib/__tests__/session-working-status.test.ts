@@ -1,3 +1,4 @@
+import { describeTotalWork } from "../session-activity-view";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -344,5 +345,38 @@ describe("working status", () => {
         first.startedAtMs === later.startedAtMs
     ).toBe(true);
     expect(later).toMatchObject({ elapsed: "2m 23s" });
+  });
+});
+
+describe("total session work", () => {
+  const work = {
+    active_duration_ms: 7_200_000,
+    turn_count: 20,
+    last_completed_turn_id: "previous",
+  };
+  it("adds only the live own turn and advances with the existing clock", () => {
+    expect(describeTotalWork(work, "current", NOW - 60_000, NOW)).toBe(
+      "Total work 2h 1m across 21 turns"
+    );
+    expect(describeTotalWork(work, "current", NOW - 60_000, NOW + 60_000)).toBe(
+      "Total work 2h 2m across 21 turns"
+    );
+  });
+  it("freezes settled work and does not count the terminal turn twice", () => {
+    expect(describeTotalWork(work, "previous", NOW - 60_000, NOW)).toBe(
+      "Total work 2h across 20 turns"
+    );
+    expect(describeTotalWork(work, undefined, null, NOW + 3_600_000)).toBe(
+      "Total work 2h across 20 turns"
+    );
+  });
+  it("keeps unknown and empty history absent and clamps clock skew", () => {
+    expect(describeTotalWork(undefined, "current", NOW, NOW)).toBeUndefined();
+    expect(
+      describeTotalWork({ active_duration_ms: 0, turn_count: 0 }, undefined, null, NOW)
+    ).toBeUndefined();
+    expect(
+      describeTotalWork({ active_duration_ms: 0, turn_count: 0 }, "current", NOW + 1000, NOW)
+    ).toBe("Total work 0s across 1 turn");
   });
 });

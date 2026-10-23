@@ -57,6 +57,7 @@ type SettledTurn struct {
 }
 
 type Input struct {
+	WorkTime           WorkTime
 	UsageEvents        []UsageEvent
 	Deliveries         []Delivery
 	Compactions        []Compaction
@@ -65,6 +66,12 @@ type Input struct {
 	CompactionBoundary *int64
 	ClearedBy          *ClearedBy
 	Available          bool
+}
+
+type WorkTime struct {
+	ActiveDurationMS    int64
+	TurnCount           int64
+	LastCompletedTurnID string
 }
 
 type State string

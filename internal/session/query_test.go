@@ -2082,6 +2082,62 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 
 func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	t.Parallel()
+	t.Run("Should sum settled own-turn work across idle gaps and recorder reopen", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		sess := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		at := time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC)
+		for _, turn := range []struct {
+			id              string
+			start, duration time.Duration
+			terminal        string
+		}{
+			{"A", 0, 2 * time.Minute, acp.EventTypeDone},
+			{"B", time.Hour, 3 * time.Minute, acp.EventTypeError},
+			{"C", 2 * time.Hour, time.Minute, events.SessionTurnQuiesced},
+			{"running", 3 * time.Hour, 0, ""},
+		} {
+			start := at.Add(turn.start)
+			delivery := acp.AgentEvent{Type: acp.EventTypePromptDelivery, TurnID: turn.id, Timestamp: start}.
+				WithDelivery(&acp.DeliveryManifest{TurnID: turn.id, SentAt: start})
+			if err := h.manager.recordEvent(t.Context(), sess, delivery); err != nil {
+				t.Fatal(err)
+			}
+			// A recovery delivery belongs to the same turn, not another interval.
+			if turn.id == "A" {
+				delivery.Timestamp = start.Add(time.Second)
+				delivery = delivery.WithDelivery(&acp.DeliveryManifest{TurnID: turn.id, SentAt: delivery.Timestamp})
+				if err := h.manager.recordEvent(t.Context(), sess, delivery); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if turn.terminal != "" {
+				if err := h.manager.recordEvent(t.Context(), sess, acp.AgentEvent{
+					Type: turn.terminal, TurnID: turn.id, Timestamp: start.Add(turn.duration),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		assertWork := func() {
+			t.Helper()
+			snapshot, err := h.manager.ContextEvents(t.Context(), sess.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			work := snapshot.WorkTime
+			if work.ActiveDurationMS != (6*time.Minute).Milliseconds() || work.TurnCount != 3 || work.LastCompletedTurnID != "C" {
+				t.Fatalf("work time = %#v, want six minutes across three settled turns", work)
+			}
+		}
+		assertWork()
+		if err := h.manager.Stop(t.Context(), sess.ID); err != nil {
+			t.Fatal(err)
+		}
+		assertWork()
+	})
+
 	t.Run("Should preserve event metadata for active and stopped session reads", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)

@@ -1905,7 +1905,7 @@ func TestSessionUsageEndpoint(t *testing.T) {
 					t.Fatalf("context session=%q", id)
 				}
 				reads++
-				return session.ContextEvents{Usage: []session.UsageEventEnvelope{{
+				return session.ContextEvents{WorkTime: contextusage.WorkTime{ActiveDurationMS: 120000, TurnCount: 2, LastCompletedTurnID: "turn-a"}, Usage: []session.UsageEventEnvelope{{
 					Sequence: 7, TurnID: "turn-a", Usage: acp.TokenUsage{ContextUsed: new(int64(42))},
 				}}}, nil
 			},
@@ -1919,6 +1919,9 @@ func TestSessionUsageEndpoint(t *testing.T) {
 				"/workspaces/ws-workspace/sessions/sess-a/"+suffix,
 				nil,
 			)
+			if suffix == "usage" && !strings.Contains(response.Body.String(), `"active_duration_ms":120000`) {
+				t.Fatalf("work time missing from usage: %s", response.Body.String())
+			}
 			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "42") {
 				t.Fatalf("%s status=%d, body=%s", suffix, response.Code, response.Body.String())
 			}

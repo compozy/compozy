@@ -10,6 +10,7 @@ import (
 )
 
 type ContextEvents struct {
+	WorkTime    contextusage.WorkTime
 	Usage       []UsageEventEnvelope
 	Deliveries  []DeliveryEventEnvelope
 	Compactions []CompactionEnvelope
@@ -21,6 +22,7 @@ type ContextEvents struct {
 func (m *Manager) ContextEvents(ctx context.Context, id string) (ContextEvents, error) {
 	rows, err := m.Events(ctx, id, store.EventQuery{Types: []string{
 		acp.EventTypeUsage, acp.EventTypeDone, acp.EventTypePromptDelivery,
+		acp.EventTypeError, events.SessionTurnQuiesced,
 		events.SessionCompactionFired, acp.EventTypeCompaction,
 	}})
 	if err != nil {
@@ -57,5 +59,6 @@ func contextEventsFromRows(rows []store.SessionEvent) (ContextEvents, error) {
 		}
 	}
 	result.Usage, result.Deliveries = usage, deliveries
+	result.WorkTime = sessionWorkTime(rows, deliveries)
 	return result, nil
 }

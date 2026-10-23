@@ -65,7 +65,8 @@ function SessionWindowInspector({
     source.running,
     source.live,
     source.queued,
-    source.goal
+    source.goal,
+    props.usage?.workTime
   );
   return <SessionInspector {...props} activity={activity} />;
 }

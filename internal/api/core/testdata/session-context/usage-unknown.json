@@ -6,6 +6,12 @@
         "turn_count": 1,
         "cost_status": "unknown",
         "cost_source": "none",
-        "context": { "state": "unknown" }
+        "context": {
+            "state": "unknown"
+        },
+        "work_time": {
+            "active_duration_ms": 0,
+            "turn_count": 0
+        }
     }
 }

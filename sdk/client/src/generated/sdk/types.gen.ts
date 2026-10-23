@@ -6929,6 +6929,7 @@ export type SessionUsagePayload = {
   total_cost?: number | null;
   total_tokens?: number | null;
   turn_count: number;
+  work_time?: SessionWorkTimePayload | null;
 };
 
 export type SessionUsageResponse = {
@@ -6962,6 +6963,12 @@ export type SessionWaitResponse = {
   state?: string;
   until?: Array<string>;
   waited_ms: number;
+};
+
+export type SessionWorkTimePayload = {
+  active_duration_ms: number;
+  last_completed_turn_id?: string;
+  turn_count: number;
 };
 
 export type SessionWorkspaceFacetsPayload = {

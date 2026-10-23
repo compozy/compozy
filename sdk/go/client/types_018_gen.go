@@ -4,6 +4,11 @@ package client
 
 import "time"
 
+// SettingsBusyInputPayload is a daemon API value.
+type SettingsBusyInputPayload struct {
+	DefaultMode string `json:"default_mode"`
+}
+
 // SettingsCmdPaletteResponse is a daemon API value.
 type SettingsCmdPaletteResponse struct {
 	Section              SettingsSectionName        `json:"section"`
@@ -442,6 +447,3 @@ type SettingsMarketplaceResponse struct {
 	AvailableScopes []SettingsUserScopeKind           `json:"available_scopes"`
 	Config          SettingsMarketplaceCatalogPayload `json:"config"`
 }
-
-// SettingsMutationBehavior is a daemon API value.
-type SettingsMutationBehavior string
