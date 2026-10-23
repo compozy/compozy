@@ -1,4 +1,4 @@
-import { describeTotalWork } from "../session-activity-view";
+import { describeTotalWork } from "@/systems/session/lib/session-activity-view";
 import { describe, expect, it } from "vitest";
 
 import {
