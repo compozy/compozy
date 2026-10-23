@@ -117,6 +117,7 @@ func TestClassForBadgeUsesCanonicalAttentionClasses(t *testing.T) {
 		{badge: BadgeFailed, want: AttentionNeedsYou},
 		{badge: BadgeDone, want: AttentionFinished},
 		{badge: BadgeRunning, want: AttentionNone},
+		{badge: BadgeWaiting, want: AttentionNone},
 		{badge: BadgeIdle, want: AttentionNone},
 		{badge: BadgeStopped, want: AttentionNone},
 		{badge: BadgeHung, want: AttentionNone},
@@ -187,4 +188,75 @@ func TestBoardColumnFor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWaitingBadgePrecedenceAndReasons(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		input BadgeInputs
+		want  Badge
+	}{
+		{"Should wait instead of completing unseen work", BadgeInputs{State: StateActive, Waiting: true, Unseen: true}, BadgeWaiting},
+		{"Should preserve authorization precedence", BadgeInputs{State: StateActive, Waiting: true, PendingAuth: true}, BadgeWaitingForAuth},
+		{"Should preserve running precedence", BadgeInputs{State: StateActive, Waiting: true, ActivePrompt: true}, BadgeRunning},
+		{"Should preserve stopped precedence", BadgeInputs{State: StateStopped, Waiting: true}, BadgeStopped},
+		{"Should preserve degraded precedence", BadgeInputs{State: StateActive, Waiting: true, Stalled: true}, BadgeHung},
+		{"Should keep an ineligible session unknown", BadgeInputs{Waiting: true}, BadgeUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := CanonicalBadge(tc.input); got != tc.want {
+				t.Fatalf("badge = %s, want %s", got, tc.want)
+			}
+		})
+	}
+	for _, kind := range WorkSignalKindValues() {
+		t.Run("Should derive the waiting reason for "+kind, func(t *testing.T) {
+			t.Parallel()
+			signals := []WorkSignal{{Kind: WorkSignalKind(kind)}}
+			want := WaitingOnSessions
+			switch WorkSignalKind(kind) {
+			case WorkSignalAgentProgress, WorkSignalToolRunning:
+				want = ""
+			case WorkSignalScheduledWait, WorkSignalActiveMonitor:
+				want = WaitingOnMonitor
+			}
+			if got := WaitingOnFor(signals); got != want {
+				t.Fatalf("reason = %q, want %q", got, want)
+			}
+			info := &Info{
+				State:               StateActive,
+				LastSettledRevision: 1,
+				Supervision:         &SupervisionState{WorkSignals: signals},
+			}
+			badge := BadgeDone
+			if want != "" {
+				badge = BadgeWaiting
+			}
+			if got := BadgeForInfo(info); got != badge {
+				t.Fatalf("info badge = %s, want %s", got, badge)
+			}
+			if got := BadgeForHealth(
+				info,
+				heartbeat.SessionHealth{State: heartbeat.SessionHealthStateIdle},
+			); got != badge {
+				t.Fatalf("health badge = %s, want %s", got, badge)
+			}
+		})
+	}
+	t.Run("Should prefer sessions over monitors regardless of order", func(t *testing.T) {
+		t.Parallel()
+		for _, signals := range [][]WorkSignal{
+			{{Kind: WorkSignalActiveMonitor}, {Kind: WorkSignalAwaitingReply}},
+			{{Kind: WorkSignalAwaitingReply}, {Kind: WorkSignalScheduledWait}},
+		} {
+			if got := WaitingOnFor(signals); got != WaitingOnSessions {
+				t.Fatalf("reason = %s", got)
+			}
+		}
+		if got := WaitingOnFor(nil); got != "" {
+			t.Fatalf("empty reason = %s", got)
+		}
+	})
 }

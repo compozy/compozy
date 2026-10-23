@@ -60,6 +60,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		State:               info.State,
 		Badge:               session.BadgeForInfo(info),
 		BoardColumn:         session.BoardColumnFor(session.BadgeForInfo(info), ""),
+		WaitingOn:           sessionPayloadWaitingOn(info, session.BadgeForInfo(info)),
 		Attachable:          session.AttachableForInfo(info, now),
 		AttachedTo:          strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:     cloneTimePtr(info.AttachExpiresAt),
@@ -325,4 +326,11 @@ func SessionPayloadsFromInfos(infos []*session.Info) []contract.SessionPayload {
 		payload = append(payload, SessionPayloadFromInfo(info))
 	}
 	return payload
+}
+
+func sessionPayloadWaitingOn(info *session.Info, badge session.Badge) session.WaitingOn {
+	if badge != session.BadgeWaiting || info == nil || info.Supervision == nil {
+		return ""
+	}
+	return session.WaitingOnFor(info.Supervision.WorkSignals)
 }

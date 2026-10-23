@@ -118,6 +118,7 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	supervisionInspectMu         sync.Mutex
 	supervisionState             *SupervisionState
 	supervisionWarningEvent      *acp.AgentEvent
 	supervisionStoppedEvent      *acp.AgentEvent

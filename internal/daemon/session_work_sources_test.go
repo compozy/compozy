@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspace"
@@ -76,6 +77,67 @@ func TestSessionWorkSourcesChildren(t *testing.T) {
 		}
 		if len(work) != 0 {
 			t.Fatalf("children() = %#v, want no child work", work)
+		}
+	})
+}
+
+func TestSessionWorkSourcesMonitors(t *testing.T) {
+	t.Parallel()
+	t.Run("Should project only the owning session live monitors without renewing their deadline", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+		service, err := monitor.NewService(
+			t.Context(),
+			nil,
+			&monitorSessionWaker{sessions: func() monitorSessionManager { return nil }},
+			monitor.WithClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Errorf("shutdown monitors: %v", err)
+			}
+		})
+		sources := sessionWorkSources{state: &bootState{sessionMonitors: service}}
+		item, err := service.Create(
+			t.Context(),
+			monitor.Spec{
+				WorkspaceID: "ws",
+				SessionID:   "owner",
+				Kind:        monitor.KindTimer,
+				Description: "wait",
+				Delay:       time.Hour,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		signals, err := sources.monitors(t.Context(), "owner")
+		if err != nil || len(signals) != 1 {
+			t.Fatalf("signals = %#v, %v", signals, err)
+		}
+		got := signals[0]
+		if got.Kind != session.WorkSignalActiveMonitor || got.Ref != item.ID || !got.Since.Equal(item.CreatedAt) ||
+			!got.ValidUntil.Equal(item.DeadlineAt) {
+			t.Fatalf("signal = %#v", got)
+		}
+		if signals, err := sources.monitors(t.Context(), "other"); err != nil || len(signals) != 0 {
+			t.Fatalf("foreign signals = %#v, %v", signals, err)
+		}
+		if _, err := service.Cancel("owner", item.ID); err != nil {
+			t.Fatal(err)
+		}
+		if signals, err := sources.monitors(t.Context(), "owner"); err != nil || len(signals) != 0 {
+			t.Fatalf("canceled signals = %#v, %v", signals, err)
+		}
+	})
+	t.Run("Should fail closed when the monitor service is unavailable", func(t *testing.T) {
+		t.Parallel()
+		sources := sessionWorkSources{state: &bootState{}}
+		if _, err := sources.monitors(t.Context(), "owner"); err == nil {
+			t.Fatal("missing monitor service was reported as no work")
 		}
 	})
 }

@@ -37,6 +37,7 @@ type BadgeInputs struct {
 	PendingClarify         bool
 	ActivePrompt           bool
 	Stalled                bool
+	Waiting                bool
 	Unseen                 bool
 	IneligibilityReason    string
 }
@@ -70,6 +71,9 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	}
 	if runningBadgeInput(input) {
 		return BadgeRunning
+	}
+	if idleEligibleBadgeInput(input) && input.Waiting {
+		return BadgeWaiting
 	}
 	if idleEligibleBadgeInput(input) && input.Unseen {
 		return BadgeDone
@@ -115,6 +119,7 @@ func BadgeForInfo(info *Info) Badge {
 			infoFailureNeedsAuth(info.Failure),
 		PendingClarify: info.PendingClarifyCount > 0,
 		Stalled:        infoHasDetectedStall(info),
+		Waiting:        waitingFromInfo(info),
 		Unseen:         info.LastSettledRevision > info.LastSeenRevision,
 		ActivePrompt: info.Liveness != nil &&
 			info.Liveness.Activity != nil &&
@@ -178,6 +183,7 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 		PendingClarify:         pendingClarify,
 		ActivePrompt:           health.ActivePrompt,
 		Unseen:                 unseen,
+		Waiting:                waitingFromInfo(info),
 		IneligibilityReason:    health.IneligibilityReason,
 	})
 }

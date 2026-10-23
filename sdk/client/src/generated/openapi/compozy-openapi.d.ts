@@ -15751,7 +15751,8 @@ export interface components {
         | "loop_run"
         | "task_lease"
         | "scheduled_wait"
-        | "awaiting_reply";
+        | "awaiting_reply"
+        | "active_monitor";
       ref?: string;
       state: string;
     };
@@ -19461,7 +19462,8 @@ export interface components {
         | "loop_run"
         | "task_lease"
         | "scheduled_wait"
-        | "awaiting_reply";
+        | "awaiting_reply"
+        | "active_monitor";
       ref?: string;
       /** Format: date-time */
       since: string;

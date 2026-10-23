@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -698,4 +699,147 @@ func awaitWaitTimerCount(t *testing.T, clock *waitTestClock, want int) {
 		}
 		runtime.Gosched()
 	}
+}
+
+func TestWaitingSignalsAtSettleAndClose(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		kind    WorkSignalKind
+		seen    bool
+		expired bool
+	}{
+		{name: "child closure", kind: WorkSignalActiveChild},
+		{name: "reply closure", kind: WorkSignalAwaitingReply},
+		{name: "monitor closure", kind: WorkSignalActiveMonitor},
+		{name: "monitor expiration", kind: WorkSignalActiveMonitor, expired: true},
+		{name: "already seen monitor closure", kind: WorkSignalActiveMonitor, seen: true},
+	} {
+		t.Run("Should revalidate before settle and publish one edge on "+tc.name, func(t *testing.T) {
+			kind := tc.kind
+			t.Parallel()
+			edges := make(chan hookspkg.SessionAttentionChangedPayload, 32)
+			h, target, _ := newWaitTestHarness(t, WithHookSet(HookSet{Attention: attentionHookFunc(
+				func(_ context.Context, event hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+					edges <- event
+					return event, nil
+				},
+			)}))
+			h.manager.attentionStore = newPresenceAttentionStore()
+			var open atomic.Bool
+			h.manager.SetWorkSignalSources(WorkSignalSource{Kind: kind, Source: SignalSourceFunc(
+				func(context.Context, string) ([]WorkSignal, error) {
+					if !open.Load() {
+						return nil, nil
+					}
+					now := h.manager.now()
+					return []WorkSignal{{Kind: kind, Ref: "pending", Since: now, ValidUntil: now.Add(time.Hour)}}, nil
+				},
+			)})
+			if err := h.manager.Supervise(t.Context(), h.manager.now()); err != nil {
+				t.Fatal(err)
+			}
+			for len(edges) > 0 {
+				<-edges
+			}
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				open.Store(true)
+				source := make(chan acp.AgentEvent, 1)
+				source <- acp.AgentEvent{Type: acp.EventTypeDone, StopReason: "end_turn"}
+				close(source)
+				return source, nil
+			}
+			output, err := h.manager.Prompt(t.Context(), target.ID, "Wait for the pending work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			collectEvents(t, output)
+			if got := BadgeForInfo(target.Info()); got != BadgeWaiting {
+				t.Fatalf("settled badge = %s", got)
+			}
+			outcome, err := h.manager.WaitForBadge(
+				t.Context(),
+				WaitRequest{SessionID: target.ID, Until: []Badge{BadgeIdle}, Timeout: time.Second},
+			)
+			if err != nil || outcome.State != BadgeWaiting || outcome.Outcome != WaitResultStateReached {
+				t.Fatalf("idle wait = %#v, %v", outcome, err)
+			}
+			for range 3 {
+				if err := h.manager.Supervise(t.Context(), h.manager.now()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for len(edges) > 0 {
+				if edge := <-edges; edge.To == string(BadgeDone) {
+					t.Fatal("finished while waiting")
+				}
+			}
+			if tc.seen {
+				lease, err := h.manager.SessionPresence(t.Context(), target.ID, "", true)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := h.manager.SessionPresence(t.Context(), target.ID, lease, false); err != nil {
+					t.Fatal(err)
+				}
+			}
+			now := h.manager.now()
+			if tc.expired {
+				now = now.Add(2 * time.Hour)
+			} else {
+				open.Store(false)
+			}
+			for range 3 {
+				if err := h.manager.Supervise(t.Context(), now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want, class := BadgeDone, AttentionFinished
+			if tc.seen {
+				want, class = BadgeIdle, AttentionNone
+			}
+			if got := BadgeForInfo(target.Info()); got != want {
+				t.Fatalf("closed badge = %s, want %s", got, want)
+			}
+			if len(edges) != 1 {
+				t.Fatalf("closing edges = %d, want one", len(edges))
+			}
+			edge := <-edges
+			if edge.From != string(BadgeWaiting) || edge.To != string(want) || edge.Class != string(class) {
+				t.Fatalf("closing edge = %#v", edge)
+			}
+		})
+	}
+	t.Run("Should retain unknown inspection as attention at settle", func(t *testing.T) {
+		t.Parallel()
+		edges := make(chan hookspkg.SessionAttentionChangedPayload, 16)
+		h, target, _ := newWaitTestHarness(t, WithHookSet(HookSet{Attention: attentionHookFunc(
+			func(_ context.Context, event hookspkg.SessionAttentionChangedPayload) (hookspkg.SessionAttentionChangedPayload, error) {
+				edges <- event
+				return event, nil
+			},
+		)}))
+		h.manager.attentionStore = newPresenceAttentionStore()
+		h.manager.SetWorkSignalSources(
+			WorkSignalSource{
+				Kind: WorkSignalAwaitingReply,
+				Source: SignalSourceFunc(
+					func(context.Context, string) ([]WorkSignal, error) { return nil, errors.New("inspection unavailable") },
+				),
+			},
+		)
+		output, err := h.manager.Prompt(t.Context(), target.ID, "Wait for a reply")
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, output)
+		if got := BadgeForInfo(target.Info()); got != BadgeNeedsAttention {
+			t.Fatalf("badge = %s", got)
+		}
+		for len(edges) > 0 {
+			if edge := <-edges; edge.To == string(BadgeDone) {
+				t.Fatal("failed inspection published finished")
+			}
+		}
+	})
 }

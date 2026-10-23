@@ -6,6 +6,7 @@ import (
 	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
@@ -214,4 +215,24 @@ func (s sessionWorkSources) replies(ctx context.Context, id string) ([]session.W
 		return nil, errors.New("reply watch service is unavailable")
 	}
 	return service.AwaitingReplySignals(ctx, id, s.now().Add(2*toolruntime.SweepInterval))
+}
+
+func (s sessionWorkSources) monitors(ctx context.Context, id string) ([]session.WorkSignal, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if s.state.sessionMonitors == nil {
+		return nil, errors.New("monitor service is unavailable")
+	}
+	result := make([]session.WorkSignal, 0)
+	for _, item := range s.state.sessionMonitors.List(id) {
+		if item.Status != monitor.StatusActive && item.Status != monitor.StatusDelivering {
+			continue
+		}
+		result = append(result, session.WorkSignal{
+			Kind: session.WorkSignalActiveMonitor, Since: item.CreatedAt,
+			Ref: item.ID, ValidUntil: item.DeadlineAt,
+		})
+	}
+	return result, nil
 }

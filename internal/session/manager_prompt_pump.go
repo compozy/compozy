@@ -187,6 +187,7 @@ func (m *Manager) finishPromptPump(
 ) {
 	var before *Info
 	if session != nil {
+		session.supervisionInspectMu.Lock()
 		before = session.Info()
 	}
 	identity, identityErr := promptRunIdentity(session, turnState)
@@ -200,22 +201,14 @@ func (m *Manager) finishPromptPump(
 	}
 	if activity != nil {
 		activity.stop()
+	}
+	m.revalidateSettledWorkSignals(lifecycleCtx, session)
+	if activity != nil {
 		activity.finish(m.now())
 	}
+	m.settlePromptAttention(lifecycleCtx, session, before, turnState)
 	if session != nil {
-		if err := m.settleSessionAttention(lifecycleCtx, session.ID, m.now().UTC()); err != nil {
-			m.sessionLogger(session).Error(
-				"session: persist terminal attention failed",
-				"error", err,
-			)
-		}
-		m.publishLifecycleAttentionTransitionWake(
-			lifecycleCtx,
-			before,
-			session.Info(),
-			!promptTurnWasCanceled(session, turnState),
-			promptTurnID(turnState),
-		)
+		session.supervisionInspectMu.Unlock()
 	}
 	if fatalPromptFailure == nil {
 		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
@@ -276,4 +269,30 @@ func closePromptOutput(out chan<- acp.AgentEvent) {
 	if out != nil {
 		close(out)
 	}
+}
+
+func (m *Manager) revalidateSettledWorkSignals(ctx context.Context, target *Session) {
+	if target == nil {
+		return
+	}
+	state := m.workSignals.Inspect(ctx, target.ID, m.now().UTC())
+	target.mu.Lock()
+	target.supervisionState = state
+	target.mu.Unlock()
+}
+
+func (m *Manager) settlePromptAttention(
+	ctx context.Context,
+	target *Session,
+	before *Info,
+	turnState *promptTurnDispatchState,
+) {
+	if target == nil {
+		return
+	}
+	if err := m.settleSessionAttention(ctx, target.ID, m.now().UTC()); err != nil {
+		m.sessionLogger(target).Error("session: persist terminal attention failed", "error", err)
+	}
+	m.publishLifecycleAttentionTransitionWake(ctx, before, target.Info(),
+		!promptTurnWasCanceled(target, turnState), promptTurnID(turnState))
 }

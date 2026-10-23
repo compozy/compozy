@@ -56,6 +56,10 @@ func (m *Manager) publishLifecycleAttentionTransitionWake(
 	if from == to {
 		return
 	}
+	if from == BadgeWaiting || to == BadgeWaiting {
+		m.logger.InfoContext(ctx, "waiting_transition", "component", "session", "session_id", after.ID,
+			"from", from, "to", to, "signals", CloneSupervisionState(after.Supervision).WorkSignals)
+	}
 	m.publishSubagentLifecycleEdge(ctx, before, after)
 	at := m.now().UTC()
 	if after.AttentionChangedAt != nil {

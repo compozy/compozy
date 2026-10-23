@@ -8648,7 +8648,8 @@ export type SignalSourceState = {
     | "loop_run"
     | "task_lease"
     | "scheduled_wait"
-    | "awaiting_reply";
+    | "awaiting_reply"
+    | "active_monitor";
   ref?: string;
   state: string;
 };
@@ -11682,7 +11683,8 @@ export type WorkSignal = {
     | "loop_run"
     | "task_lease"
     | "scheduled_wait"
-    | "awaiting_reply";
+    | "awaiting_reply"
+    | "active_monitor";
   ref?: string;
   since: string;
 };

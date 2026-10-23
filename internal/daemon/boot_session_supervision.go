@@ -50,6 +50,9 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 			Kind:   session.WorkSignalAwaitingReply,
 			Source: session.SignalSourceFunc(sources.replies),
 		},
+		session.WorkSignalSource{
+			Kind: session.WorkSignalActiveMonitor, Source: session.SignalSourceFunc(sources.monitors),
+		},
 	)
 	interval := toolruntime.SweepInterval
 	for _, bound := range []time.Duration{
@@ -73,8 +76,8 @@ func (d *Daemon) bootSessionSupervision(ctx context.Context, state *bootState, c
 		}
 		return errors.Join(registryErr, supervisionErr, sweepErr)
 	}, interval, func(err error) { state.logger.Error("session supervision failed", "error", err) })
-	if err := worker.Start(ctx); err != nil {
-		return fmt.Errorf("daemon: start session supervision: %w", err)
+	if startErr := worker.Start(ctx); startErr != nil {
+		return fmt.Errorf("daemon: start session supervision: %w", startErr)
 	}
 	cleanup.add(worker.Shutdown)
 	state.runtimeWorkers.supervision = worker

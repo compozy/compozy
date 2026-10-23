@@ -557,7 +557,15 @@ and the carried context was sent instead. A failed clone request yields `seed: r
 
 ### Session attention and pending interactions
 
-Session badges have one daemon-owned precedence order. `waiting-for-auth`, `waiting-for-input`, and
+Session badges have one daemon-owned precedence order. `waiting` means the session has no active
+prompt but still owns fresh child sessions, replies, Loop runs, task leases, scheduled waits, or
+active/delivering monitors. Its `waiting_on` reason is `sessions` for child/reply/Loop/task work,
+or `monitor` for monitors and scheduled waits; session work wins when both exist. Running,
+degraded health, pending interactions, and terminal states outrank `waiting`. Unknown supervision
+sources yield `needs-attention`, never a false completion. Closing the last waiting signal emits
+the normal finished transition once when the settled turn is unseen; already-seen work becomes idle.
+
+`waiting-for-auth`, `waiting-for-input`, and
 `failed` form the `needs-you` class together with `needs-attention` for unverified stop failures. `done` means the latest settled turn has not been seen; it forms
 the `finished` class. A new turn, terminal lifecycle state, or higher-priority pending interaction
 always outranks `done`. CLI and API reads never mark a session seen.
@@ -601,8 +609,9 @@ canonical attention change.
 ### Waiting for session state
 
 `compozy session wait <session-id>` blocks until the session settles or needs someone. The default
-target set is `waiting-for-input`, `waiting-for-auth`, `idle`, `stopped`, and `failed`; `done` also
-satisfies `idle`. Override it with `--until`, bound the request with `--timeout` (default 5 minutes),
+target set is `waiting-for-input`, `waiting-for-auth`, `idle`, `stopped`, and `failed`; `done` and `waiting` also
+satisfy `idle`; `waiting` still blocks idle runtime release while work signals remain open. Override
+it with `--until`, bound the request with `--timeout` (default 5 minutes),
 or use `--unbounded` to let the CLI transparently resume bounded server waits without a blind spot.
 Valid explicit targets also include `done`, `running`, `hung`, and `unhealthy`.
 
@@ -1399,7 +1408,8 @@ process, and old events can omit this additive object. No retry-after seconds ar
 
 Read `supervision.work_signals`, `supervision.sources`, and `supervision.quiet_warning` on the
 session resource/status or `compozy__session_describe`. Fresh agent progress, verified tools,
-active children, reconciled Loop runs, future task leases, future scheduled waits, and awaited
+active children, reconciled Loop runs, future task leases, future scheduled waits, active/delivering
+monitors until their deadline, and awaited
 replies (`awaiting_reply`: an armed `notify_on_complete` watch whose target is live, or a fired
 watch not yet delivered) prevent inactivity termination; an armed watch stops counting once it expires
 (`session.messaging.reply_watch_ttl`, default `24h`). A reply wakes an idle sender once, binding its
