@@ -24,7 +24,7 @@ func matcherFieldNames(matcher HookMatcher) []string {
 	appendIf("session_type", matcher.SessionType != "")
 	appendIf(matcherInputClassKey, matcher.InputClass != "")
 	appendIf("acp_event_type", matcher.ACPEventType != "")
-	appendIf("turn_id", matcher.TurnID != "")
+	appendIf(matcherTurnIDKey, matcher.TurnID != "")
 	appendIf("tool_id", matcher.ToolID != "")
 	appendIf("tool_name", matcher.ToolName != "")
 	appendIf("tool_read_only", matcher.ToolReadOnly != nil)
@@ -64,7 +64,7 @@ func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher)
 	appendIf(matcherLoopNameKey, matcher.LoopName != "")
 	appendIf(matcherNodeIDKey, matcher.NodeID != "")
 	appendIf(matcherWorkflowIDKey, matcher.WorkflowID != "")
-	appendIf("coordinator_session_id", matcher.CoordinatorSessionID != "")
+	appendIf(matcherCoordinatorSessionIDKey, matcher.CoordinatorSessionID != "")
 	appendIf("parent_session_id", matcher.ParentSessionID != "")
 	appendIf("root_session_id", matcher.RootSessionID != "")
 	appendIf("child_session_id", matcher.ChildSessionID != "")
@@ -85,7 +85,7 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		{field: "session_type", pattern: matcher.SessionType},
 		{field: matcherInputClassKey, pattern: matcher.InputClass},
 		{field: "acp_event_type", pattern: matcher.ACPEventType},
-		{field: "turn_id", pattern: matcher.TurnID},
+		{field: matcherTurnIDKey, pattern: matcher.TurnID},
 		{field: "tool_id", pattern: matcher.ToolID},
 		{field: "tool_name", pattern: matcher.ToolName},
 		{field: "decision_class", pattern: matcher.DecisionClass},
@@ -135,7 +135,7 @@ func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {
 		{field: matcherLoopNameKey, pattern: matcher.LoopName},
 		{field: matcherNodeIDKey, pattern: matcher.NodeID},
 		{field: matcherWorkflowIDKey, pattern: matcher.WorkflowID},
-		{field: "coordinator_session_id", pattern: matcher.CoordinatorSessionID},
+		{field: matcherCoordinatorSessionIDKey, pattern: matcher.CoordinatorSessionID},
 		{field: "parent_session_id", pattern: matcher.ParentSessionID},
 		{field: "root_session_id", pattern: matcher.RootSessionID},
 		{field: "child_session_id", pattern: matcher.ChildSessionID},

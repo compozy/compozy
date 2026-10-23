@@ -174,7 +174,8 @@ the parent when the child completes a turn, stops, fails, or enters a needs-you 
 child turn sends no completed wake. When the parent holds an open reply watch on the child (a spawn
 `prompt`, or `session_prompt` with `notify_on_complete`), the reply wake carries the child's final
 answer and the bare completed wake is skipped. Otherwise the completed wake points at
-`compozy__session_history` for the answer. Use CLI
+`compozy__session_history` for the answer; pass `type: "agent_message"` and the reply's `turn_id`
+to omit tool payloads. Use CLI
 `--no-notify-creator` or explicit `notify_creator: false` on the API/tool request for a child that
 must not wake its parent. The default is fixed in v1 and has no `config.toml` key. Delivery never
 interrupts the parent's active prompt, is suppressed when the parent is not live or the child would

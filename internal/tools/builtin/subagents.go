@@ -43,7 +43,7 @@ func subagentDescriptors() []toolspkg.Descriptor {
 			"Subagent Status",
 			"Read one subagent owned by this session. Reading a terminal result acknowledges its "+
 				"delivery (idempotent, not read-only). End your turn instead of polling: completion wakes "+
-				"this session. Use session_history on child_session_id for the full result.",
+				"this session. Use session_history on child_session_id with type=agent_message and limit=1 for the full answer.",
 			subagentStatusInputSchema,
 			subagentOutputSchema,
 			toolspkg.RiskMutating,

@@ -412,11 +412,12 @@ func TestReplyWatchQueueRetry(t *testing.T) {
 		}
 		wake := rows[1]
 		want := fmt.Sprintf(
-			"Session %q (%s) replied to your message %s: completed.\n---\n%s\n[Reply truncated at 12000 characters. Read the full turn with compozy__session_history.]",
+			"Session %q (%s) replied to your message %s: completed.\n---\n%s\n[Reply truncated at 12000 characters. Read compozy__session_history with session_id=%s, type=agent_message, turn_id=watched for the full reply.]",
 			target.Info().Name,
 			target.ID,
 			w.MessageID,
 			strings.Repeat("界", 12000),
+			target.ID,
 		)
 		if wake.Text != want || wake.MessageID != "prompt-reply:"+w.ID || wake.SyntheticPrompt == nil {
 			t.Fatalf("wake contract = %+v", wake)

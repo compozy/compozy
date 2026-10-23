@@ -37,6 +37,7 @@ import (
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/observe"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
@@ -1294,6 +1295,129 @@ func nativeTestSessionManager(workspaceID string, profileIDs ...string) apitest.
 // TestDaemonNativeTools exercises native tool dispatch, authorization, and resource ownership through the daemon registry.
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
+	t.Run("Should explain invalid monitor fields without creating a monitor or exposing input", func(t *testing.T) {
+		t.Parallel()
+		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeTestSessionManager("ws-1"),
+			Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+			Monitors:   func() *monitorpkg.Service { return service },
+		}, nativeApproveAllPolicyInputs())
+		for _, tc := range []struct{ name, input string }{
+			{"Should reject a missing monitor description", `{"kind":"timer","delay_seconds":5,"note":"secret-value"}`},
+			{"Should reject an overlong monitor description", `{"kind":"timer","delay_seconds":5,"description":"` + strings.Repeat("secret-value", 20) + `"}`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1"},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDMonitorCreate, Input: json.RawMessage(tc.input)})
+				detail, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || detail.Operator == nil || !strings.Contains(detail.Operator.Cause, "description") ||
+					strings.Contains(detail.Operator.Cause, "secret-value") {
+					t.Fatalf("monitor correction = %#v, want safe description guidance", detail)
+				}
+				encoded, marshalErr := json.Marshal(detail)
+				if marshalErr != nil {
+					t.Fatal(marshalErr)
+				}
+				if strings.Contains(string(encoded)+detail.Error(), "secret-value") {
+					t.Fatal("native monitor error exposed submitted input")
+				}
+				if len(service.List("sess-1")) != 0 {
+					t.Fatal("invalid input created a monitor")
+				}
+			})
+		}
+	})
+
+	t.Run("Should read assistant answers without hydrating tool payloads", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, err := sessiondb.OpenSessionDB(ctx, store.SessionDBOwner{
+			SessionID: "sess-answer", WorkspaceID: "ws-1",
+		}, filepath.Join(t.TempDir(), "events.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, turn := range []string{"turn-older", "turn-newer"} {
+			for _, event := range []store.SessionEvent{
+				{Type: acp.EventTypeToolResult, Content: `{"tool_call_id":"payload","raw":{"raw_output":"` + strings.Repeat("tool-output", 100000) + `"}}`},
+				{Type: acp.EventTypeAgentMessage, Content: `{"text":"Answer ` + turn + `: "}`},
+				{Type: acp.EventTypeAgentMessage, Content: `{"text":"café ready"}`},
+			} {
+				event.TurnID, event.AgentName = turn, "coder"
+				if err := db.Record(ctx, event); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		manager := &nativeSessionPageHealthManager{
+			StatusFn: nativeTestSessionManager("ws-1").StatusFn,
+			EventsFn: func(ctx context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if query.Type != acp.EventTypeAgentMessage {
+					t.Fatalf("answer read did not filter before storage: %#v", query)
+				}
+				return db.Query(ctx, query)
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+		}, nativeApproveAllPolicyInputs())
+		for _, tc := range []struct {
+			name, cursor, turn string
+			more               bool
+		}{
+			{"Should read the newest answer", "", "turn-newer", true},
+			{"Should read the previous answer", `,"before_sequence":5`, "turn-older", false},
+			{"Should page forward from the beginning", `,"after_sequence":0`, "turn-older", true},
+			{"Should page forward to the newest answer", `,"after_sequence":2`, "turn-newer", false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				result, err := registry.Call(ctx, toolspkg.Scope{SessionID: "sess-reader", WorkspaceID: "ws-1"},
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionHistory, Input: json.RawMessage(
+						`{"session_id":"sess-answer","type":"agent_message","limit":1` + tc.cursor + `}`)})
+				if err != nil {
+					t.Fatal(err)
+				}
+				var payload struct {
+					History []struct {
+						TurnID string `json:"turn_id"`
+						Events []struct {
+							Content struct {
+								Text string `json:"text"`
+							} `json:"content"`
+						} `json:"events"`
+					} `json:"history"`
+					Page nativeSessionPage `json:"page"`
+				}
+				if err := json.Unmarshal(result.Structured, &payload); err != nil {
+					t.Fatal(err)
+				}
+				if result.Truncated || len(result.Artifacts) != 0 || len(result.Structured) > 4096 ||
+					len(payload.History) != 1 || payload.History[0].TurnID != tc.turn ||
+					len(payload.History[0].Events) != 2 || payload.Page.HasMore != tc.more {
+					t.Fatalf("answer page = %s, want complete inline answer for %s", result.Structured, tc.turn)
+				}
+				answer := payload.History[0].Events[0].Content.Text + payload.History[0].Events[1].Content.Text
+				if answer != "Answer "+tc.turn+": café ready" {
+					t.Fatalf("answer = %q", answer)
+				}
+			})
+		}
+	})
+
 	bundledSkills := newLoadedNativeSkillRegistry(t)
 
 	t.Run("Should expose the session-bound profile through read-only native tools [UT-073]", func(t *testing.T) {

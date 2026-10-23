@@ -56,7 +56,9 @@ var sessionTools = []toolspkg.Descriptor{
 		"session_history",
 		"Session History",
 		"Read one bounded page of grouped turn history for one runtime session: the newest 10 turns by default; "+
-			"continue to older turns with page.next_before_sequence, or page forward from after_sequence.",
+			"continue to older turns with page.next_before_sequence, or page forward from after_sequence. "+
+			"To read an agent's answer without tool payloads, pass type=agent_message and limit=1. "+
+			"Keep the same type filter while paging; limit counts matching turns, not bytes.",
 		sessionEventQueryInputSchema,
 		toolspkg.RiskRead,
 		true,

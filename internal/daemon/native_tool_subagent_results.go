@@ -115,7 +115,7 @@ func subagentPayload(s *session.Subagent) map[string]any {
 		p["worktree"] = full.Worktree
 	}
 	if s.ResultTruncated {
-		p["hint"] = "Read the full answer with compozy__session_history on child_session_id."
+		p["hint"] = "Read the full answer with compozy__session_history on child_session_id, type=agent_message, limit=1."
 	}
 	return p
 }

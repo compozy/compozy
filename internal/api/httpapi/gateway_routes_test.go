@@ -1413,7 +1413,7 @@ func TestAppTokenRequestLogging(t *testing.T) {
 	t.Run("Should record the token identity without exposing its secret", func(t *testing.T) {
 		t.Parallel()
 		var logs bytes.Buffer
-		logger := slog.New(slog.NewJSONHandler(&logs, nil))
+		logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		auth := appTokenHTTPAuthenticatorStub{authenticate: func(context.Context, string) (gateway.AppToken, error) {
 			return gateway.AppToken{Session: gateway.DeviceSession{ID: "apt_logged"}}, nil
 		}}

@@ -2110,68 +2110,102 @@ func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
 		})
 	}
 	t.Run(
-		"Should let a root child query status and delegate through hosted MCP and publish the catalog stream",
+		"Should inherit native delegation through hosted MCP and publish the catalog stream",
 		func(t *testing.T) {
-			fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
-			h := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{
-				{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
-				{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
-			}})
-			ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
-			defer cancel()
-			parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Root native nesting")
-			stream, err := h.StartSessionCatalogHTTPStream(ctx, func(event e2etest.SSEEvent) bool {
-				if event.Event != string(session.CatalogEventNameChanged) {
-					return false
-				}
-				var payload compozycontract.SessionCatalogEventPayload
-				if json.Unmarshal(event.Data, &payload) != nil || payload.SessionID != parent.ID ||
-					payload.Kind != "upserted" {
-					return false
-				}
-				current, e := h.GetSession(ctx, parent.ID)
-				return e == nil && current.SubagentSummary != nil && current.SubagentSummary.Total > 0
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
-			if _, err := h.PromptSession(ctx, parent.ID, "delegate nested work"); err != nil {
-				t.Fatal(err)
-			}
-			awaitAttentionCatalogObservation(t, ctx, stream)
-			var children, grandchildren compozycontract.SubagentListPayload
-			waitForRuntimeCondition(t, "root child native delegation", 30*time.Second, func() bool {
-				children = readSubagentsHTTP(t, ctx, h, parent.ID)
-				if len(children.Subagents) != 1 || children.Subagents[0].ChildSessionID == nil {
-					return false
-				}
-				grandchildren = readSubagentsHTTP(t, ctx, h, *children.Subagents[0].ChildSessionID)
-				return len(grandchildren.Subagents) == 1 &&
-					grandchildren.Subagents[0].Status == store.SubagentStatusCompleted
-			})
-			if children.Subagents[0].Depth != 1 || grandchildren.Subagents[0].Depth != 2 {
-				t.Fatal(children, grandchildren)
-			}
-			page, err := h.SessionTranscript(ctx, *children.Subagents[0].ChildSessionID)
-			if err != nil {
-				t.Fatal(err)
-			}
-			statusObserved := false
-			delegateObserved := false
-			for _, entry := range page.Entries {
-				for _, part := range entry.Message.Parts {
-					if part.ToolCallID == "status-from-child" &&
-						strings.Contains(string(part.Output), "subagent_not_found") {
-						statusObserved = true
+			for _, origin := range []string{"root", "fork", "continue"} {
+				t.Run("Should delegate from "+origin+" origin", func(t *testing.T) {
+					fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
+					h := e2etest.StartRuntimeHarness(
+						t,
+						&e2etest.RuntimeHarnessOptions{MockAgents: []e2etest.MockAgentSpec{
+							{FixturePath: fixture, FixtureAgent: "subagent-delegator", AgentName: "subagent-delegator"},
+							{FixturePath: fixture, FixtureAgent: "subagent-worker", AgentName: "subagent-worker"},
+						}},
+					)
+					ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
+					defer cancel()
+					parent := createFixtureBackedSession(t, ctx, h, "subagent-delegator", "Root native nesting")
+					if origin != "root" {
+						var derived compozycontract.SessionDeriveResponse
+						args := []string{
+							"session",
+							origin,
+							parent.ID,
+							"--idempotency-key",
+							"idem_native_" + origin,
+							"-o",
+							"json",
+						}
+						if origin == "continue" {
+							args = append(args, "--agent", "subagent-delegator")
+						}
+						if err := h.CLI.RunJSONInDir(ctx, h.WorkspaceRoot, &derived, args...); err != nil {
+							t.Fatalf("derive native parent (%s): %v", origin, err)
+						}
+						if derived.Session == nil || derived.Derived.Kind != origin ||
+							derived.Derived.SourceSessionID != parent.ID {
+							t.Fatalf("derived native parent = %+v", derived)
+						}
+						parent = *derived.Session
 					}
-					if part.ToolCallID == "delegate-grandchild" &&
-						strings.Contains(string(part.Output), grandchildren.Subagents[0].SubagentID) {
-						delegateObserved = true
+					stream, err := h.StartSessionCatalogHTTPStream(ctx, func(event e2etest.SSEEvent) bool {
+						if event.Event != string(session.CatalogEventNameChanged) {
+							return false
+						}
+						var payload compozycontract.SessionCatalogEventPayload
+						if json.Unmarshal(event.Data, &payload) != nil || payload.SessionID != parent.ID ||
+							payload.Kind != "upserted" {
+							return false
+						}
+						current, e := h.GetSession(ctx, parent.ID)
+						return e == nil && current.SubagentSummary != nil && current.SubagentSummary.Total > 0
+					})
+					if err != nil {
+						t.Fatal(err)
 					}
-				}
-			}
-			if !statusObserved || !delegateObserved {
-				t.Fatal("child hosted MCP calls did not reach their native bindings", statusObserved, delegateObserved)
+					if _, err := h.PromptSession(ctx, parent.ID, "delegate nested work"); err != nil {
+						t.Fatal(err)
+					}
+					awaitAttentionCatalogObservation(t, ctx, stream)
+					var children, grandchildren compozycontract.SubagentListPayload
+					waitForRuntimeCondition(t, "root child native delegation", 30*time.Second, func() bool {
+						children = readSubagentsHTTP(t, ctx, h, parent.ID)
+						if len(children.Subagents) != 1 || children.Subagents[0].ChildSessionID == nil {
+							return false
+						}
+						grandchildren = readSubagentsHTTP(t, ctx, h, *children.Subagents[0].ChildSessionID)
+						return len(grandchildren.Subagents) == 1 &&
+							grandchildren.Subagents[0].Status == store.SubagentStatusCompleted
+					})
+					if children.Subagents[0].Depth != 1 || grandchildren.Subagents[0].Depth != 2 {
+						t.Fatal(children, grandchildren)
+					}
+					page, err := h.SessionTranscript(ctx, *children.Subagents[0].ChildSessionID)
+					if err != nil {
+						t.Fatal(err)
+					}
+					statusObserved := false
+					delegateObserved := false
+					for _, entry := range page.Entries {
+						for _, part := range entry.Message.Parts {
+							if part.ToolCallID == "status-from-child" &&
+								strings.Contains(string(part.Output), "subagent_not_found") {
+								statusObserved = true
+							}
+							if part.ToolCallID == "delegate-grandchild" &&
+								strings.Contains(string(part.Output), grandchildren.Subagents[0].SubagentID) {
+								delegateObserved = true
+							}
+						}
+					}
+					if !statusObserved || !delegateObserved {
+						t.Fatal(
+							"child hosted MCP calls did not reach their native bindings",
+							statusObserved,
+							delegateObserved,
+						)
+					}
+				})
 			}
 		},
 	)

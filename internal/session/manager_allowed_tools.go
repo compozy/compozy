@@ -98,7 +98,7 @@ func (s *sessionStartSpec) materializeRootDelegationTools(
 		return nil
 	}
 	lineage := store.NormalizeSessionLineage(s.sessionID, s.lineage)
-	if strings.TrimSpace(lineage.ParentSessionID) != "" || len(lineage.PermissionPolicy.Tools) > 0 {
+	if store.HierarchyParentSessionID(lineage) != "" || len(lineage.PermissionPolicy.Tools) > 0 {
 		return nil
 	}
 	tools, err := concreteDelegationTools(resolved, catalog, universe)

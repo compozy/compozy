@@ -1971,6 +1971,13 @@ LogSink, so operators do not need an external `logrotate` rule for the default f
 Changing any `[log]` key is `restart-required` in v1. The daemon applies the new rotation
 writer on the next start.
 
+At `info`, HTTP mutations, rejected requests, server failures, and background repairs remain
+visible. Successful HTTP reads, successful hook dispatches, and background sweeps that change
+nothing use `debug`. Enable `debug` when investigating those paths. Hook dispatch records carry
+the available session, workspace, turn, Task, run, and Loop run identifiers for correlation.
+Rotation retains whichever limit is reached first: a busy daemon can exhaust five backups long
+before the 30-day age limit. These file limits do not remove persisted session events.
+
 | Field              | Type    | Default | Valid values                     | Description                                                           |
 | ------------------ | ------- | ------- | -------------------------------- | --------------------------------------------------------------------- |
 | `level`            | string  | `info`  | `debug`, `info`, `warn`, `error` | Structured daemon log level.                                          |

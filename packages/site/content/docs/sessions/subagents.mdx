@@ -153,6 +153,8 @@ compozy session list --subagents exclude
 - **The subagent sees only the task.** It doesn't get the parent's conversation or attachments, so a
   good agent writes the task with everything the subagent needs.
 - **Permissions only narrow.** A subagent can do what its parent can do, or less. It never gets more.
+  Conversation forks and continued sessions can delegate the tools authorized by their own agent
+  definition. Their source-session link records provenance and does not remove that capability.
 - **No limits on depth or count.** A subagent can start its own subagents. Nothing expires on a timer.
 - **Shared files.** By default, subagents work in the same project and worktree as the parent. Two subagents
   editing the same file at once can step on each other, so ask for separate files or read-only work.
@@ -192,6 +194,10 @@ result_max_chars = 20000 # 1,000–1,000,000; default 60000
 ```
 
 When an answer is cut, `compozy session subagents show --json` reports `"result_truncated": true`.
+The parent can recover the complete assistant text with `compozy__session_history`, passing
+`session_id` from `child_session_id`, `type: "agent_message"`, and `limit: 1`. This filters out tool
+payloads before reading them. Include `turn_id` for a specific reply and keep the filter when
+paging. If the answer itself is too large, follow the returned artifact continuation to the end.
 See [`[subagents]`](/docs/configuration/config-toml#subagents) in the config reference.
 
 ## React when a subagent finishes

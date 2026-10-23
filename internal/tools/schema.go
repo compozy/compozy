@@ -3,6 +3,7 @@ package tools
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"unicode/utf8"
@@ -69,13 +70,20 @@ func (v schemaValidator) validateJSONSchemaValue(id ToolID, schema json.RawMessa
 		)
 	}
 	if err := v.validateSchemaNode("$", schemaValue, value); err != nil {
-		return NewToolError(
+		toolErr := NewToolError(
 			ErrorCodeInvalidInput,
 			id,
 			fmt.Sprintf("tool %q input failed schema validation", id),
 			fmt.Errorf("%w: %w", ErrToolInvalidInput, err),
 			ReasonSchemaInvalid,
 		)
+		if violation, ok := errors.AsType[*schemaValidationError](err); ok {
+			toolErr.Operator = &OperatorFailure{
+				Cause:    violation.Error(),
+				Recovery: "Correct the indicated field using the tool's input schema and retry.",
+			}
+		}
+		return toolErr
 	}
 	return nil
 }
@@ -86,7 +94,7 @@ func (v schemaValidator) validateSchemaNode(path string, schema map[string]json.
 		return fmt.Errorf("%s: %w", path, err)
 	}
 	if len(types) > 0 && !jsonValueMatchesAnyType(value, types) {
-		return fmt.Errorf("%s: expected %v, got %s", path, types, jsonValueType(value))
+		return schemaViolation(path, "expected %v, got %s", types, jsonValueType(value))
 	}
 	if err := validateSchemaEnum(path, schema["enum"], value); err != nil {
 		return err
@@ -126,7 +134,7 @@ func (v schemaValidator) validateSchemaStringNode(path string, schema map[string
 	}
 	stringLength := utf8.RuneCountInString(stringValue)
 	if ok && stringLength < minLength {
-		return fmt.Errorf("%s: string length %d is less than minLength %d", path, stringLength, minLength)
+		return schemaViolation(path, "string length %d is less than minLength %d", stringLength, minLength)
 	}
 	if !v.enforceMaxLength {
 		return nil
@@ -136,7 +144,7 @@ func (v schemaValidator) validateSchemaStringNode(path string, schema map[string
 		return fmt.Errorf("%s.maxLength: %w", path, err)
 	}
 	if ok && stringLength > maxLength {
-		return fmt.Errorf("%s: string length %d exceeds maxLength %d", path, stringLength, maxLength)
+		return schemaViolation(path, "string length %d exceeds maxLength %d", stringLength, maxLength)
 	}
 	return nil
 }
@@ -151,7 +159,7 @@ func (v schemaValidator) validateSchemaArrayNode(path string, schema map[string]
 		return fmt.Errorf("%s.minItems: %w", path, err)
 	}
 	if ok && len(arrayValue) < minItems {
-		return fmt.Errorf("%s: array length %d is less than minItems %d", path, len(arrayValue), minItems)
+		return schemaViolation(path, "array length %d is less than minItems %d", len(arrayValue), minItems)
 	}
 	items, ok, err := schemaNode(schema["items"])
 	if err != nil {
@@ -179,7 +187,7 @@ func (v schemaValidator) validateSchemaObjectNode(path string, schema map[string
 	}
 	for _, field := range required {
 		if _, ok := objectValue[field]; !ok {
-			return fmt.Errorf("%s.%s: required field missing", path, field)
+			return schemaViolation(path+"."+field, "required field missing")
 		}
 	}
 	properties, err := schemaProperties(schema["properties"])
@@ -200,7 +208,7 @@ func (v schemaValidator) validateSchemaObjectNode(path string, schema map[string
 	if additionalPropertiesFalse(schema["additionalProperties"]) {
 		for key := range objectValue {
 			if _, ok := properties[key]; !ok {
-				return fmt.Errorf("%s.%s: additional property is not allowed", path, key)
+				return schemaViolation(path, "additional property is not allowed")
 			}
 		}
 	}

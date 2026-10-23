@@ -96,3 +96,11 @@ Release integration verification (2026-10-18): the native busy-sender case keeps
 ahead of the reply wake, waits for dispatch before claiming delivery, and checks one reply with the
 original sender hop after restart. `TestReplyWatchNativeChainIntegration` checks nine delivered
 watches, nine target inputs and nine wakes with matching identities.
+
+QA impact 2026-10-23 (harness dogfood): a truncated reply points to its actual target session
+and reply turn with `type: "agent_message"`. Read all chronological answer chunks using the
+existing history cursors; if the answer itself is offloaded, follow artifact pages through EOF.
+This changes recovery guidance only, not reply-watch admission or delivery semantics. The
+native real-SQLite history suite verifies complete filtered answers and cursor direction;
+[focused verification](../reports/2026-10-23-harness-dogfood.md) distinguishes this from a new
+provider-backed recipient delivery walk.
