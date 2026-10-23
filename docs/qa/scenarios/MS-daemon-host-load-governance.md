@@ -33,3 +33,22 @@ failed acknowledgement or Stop remains durable and is retried on a later wake.
 The terminal manager uses real process groups for the priority regression; managed
 input and relay suites own cancellation, exact dispatch counts, and batch retry
 boundaries. The full multi-session CPU saturation walk above remains unverified.
+
+
+Hosted MCP fan-out regression: with multiple bound peers in the same profile/workspace and
+identical effective policies and native availability, one epoch change builds one shared
+projection. Each stream retains its own digest suppression and receives a private copy of
+changed tools. Repeat with different lineage grants, agent allowlists (including an explicitly
+empty grant), session-specific availability, profiles, and workspaces; views must remain isolated.
+Change a consuming peer's policy while another peer builds or supplies a cached result;
+the consumer must receive only its newly authorized tools. Release or cancel a peer during a
+build and confirm other peers continue. Unversioned state
+still refreshes at the existing fallback interval; providers without a declared projection scope
+retain per-bind isolation.
+
+Focused evidence: `TestHostedServiceProjectionGenerationCache` covers fan-out, policy and
+availability isolation, caller mutation, epoch changes, cancellation, and release;
+`TestHostedMCPProjectionStreamGenerationCache` and `TestHostedMCPProjectionStreamPush` exercise
+the existing UDS SSE path. `BenchmarkHostedStreamProjectionFanout` compares 1 and 16 streams
+with and without sharing. These checks do not certify the CPU-saturation journey above;
+its full walk remains unverified because local full/E2E execution is prohibited for this change.

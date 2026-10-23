@@ -53,6 +53,12 @@ type ExtensionToolProvider struct {
 
 var _ toolspkg.Provider = (*ExtensionToolProvider)(nil)
 var _ toolspkg.ProjectionAvailabilityProvider = (*ExtensionToolProvider)(nil)
+var _ toolspkg.ProjectionScopeProvider = (*ExtensionToolProvider)(nil)
+
+// ProjectionScope retains the installation boundaries used by listing and runtime availability.
+func (p *ExtensionToolProvider) ProjectionScope(scope toolspkg.Scope) toolspkg.Scope {
+	return toolspkg.Scope{ProfileID: scope.ProfileID, WorkspaceID: scope.WorkspaceID}
+}
 
 // WithToolProviderLogger injects the logger used when one invalid extension is
 // isolated from the aggregate tool catalog.
