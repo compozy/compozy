@@ -44,7 +44,8 @@ about the user's daemon CPU percentage or an exact kernel syscall count.
   receipts, or restore receipt state as a side effect.
 - The existing boot composition invokes `RecoverPendingStops`, which now explicitly
   reconciles inactive metadata before settling receipts. Explicit resume, repair,
-  health recovery, and recovered-stop preparation retain their required recovery.
+  health rebuilding/recovery, deletion preparation, and recovered-stop preparation
+  retain their required recovery.
 - The manager caches parsed metadata by file identity, mtime and size. Atomic
   replacement, modification, removal and corrupt replacement invalidate it. A full
   inventory evicts entries whose directories disappeared. Returned projections own
@@ -87,7 +88,7 @@ production calls, five unrelated MCP allocation calls, and three API test stubs.
 
 Focused session tests cover cache reuse/invalidation, caller mutation, fresh catalog
 epochs, scope/order, side-effect-free reads, explicit crash reconciliation, resume,
-repair, health recovery, and verified stop receipt replay. The canonical daemon
+repair, health recovery, deletion after restart, and verified stop receipt replay. The canonical daemon
 reaper cases cover TTL, orphan, parent-stop, system workers and subagent exceptions.
 `TestManagerIntegrationCrashRecoveryRejectsDeadRuntimeAttachment` passed with real
 ACP subprocess and SQLite boundaries in an isolated temporary home.

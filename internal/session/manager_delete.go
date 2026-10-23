@@ -95,7 +95,12 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 // prepareSessionDelete settles execution and owned Goals before reversible history removal.
 // The caller must own the conversation operation, without holding lifecycleMu.
 func (m *Manager) prepareSessionDelete(ctx context.Context, target string) (*Info, error) {
-	// Loading persisted status also restores any durable stop settlement receipt.
+	// Restore durable stop settlement before deciding whether deletion can proceed.
+	if _, active := m.Get(target); !active {
+		if _, err := m.reconcileInactiveSession(ctx, target); err != nil {
+			return nil, err
+		}
+	}
 	info, err := m.Status(ctx, target)
 	if err != nil {
 		return nil, err

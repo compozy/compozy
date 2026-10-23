@@ -62,7 +62,7 @@ func (m *Manager) GetSessionHealth(ctx context.Context, id string) (heartbeat.Se
 	if err != nil {
 		return heartbeat.SessionHealth{}, err
 	}
-	meta, err := m.readMetaWithContext(ctx, target)
+	meta, err := m.reconcileInactiveSession(ctx, target)
 	if err != nil {
 		return heartbeat.SessionHealth{}, err
 	}

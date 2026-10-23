@@ -53,22 +53,25 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 		return store.SessionMeta{}, err
 	}
 	path := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	m.metadataCacheMu.Lock()
-	defer m.metadataCacheMu.Unlock()
 	info, err := os.Stat(path)
 	if err != nil {
+		m.metadataCacheMu.Lock()
 		delete(m.metadataCache, target)
+		m.metadataCacheMu.Unlock()
 		if errors.Is(err, os.ErrNotExist) {
 			return store.SessionMeta{}, fmt.Errorf("%w: %s", ErrSessionNotFound, target)
 		}
 		return store.SessionMeta{}, err
 	}
+	m.metadataCacheMu.Lock()
 	cached, found := m.metadataCache[target]
 	if found && os.SameFile(cached.file, info) && cached.file.Size() == info.Size() &&
 		cached.file.ModTime().Equal(info.ModTime()) {
+		m.metadataCacheMu.Unlock()
 		return cached.meta, nil
 	}
 	delete(m.metadataCache, target)
+	m.metadataCacheMu.Unlock()
 	reader := m.readSessionMeta
 	if reader == nil {
 		reader = store.ReadSessionMeta
@@ -86,10 +89,12 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 		return store.SessionMeta{}, err
 	}
 	if os.SameFile(info, after) && info.Size() == after.Size() && info.ModTime().Equal(after.ModTime()) {
+		m.metadataCacheMu.Lock()
 		if m.metadataCache == nil {
 			m.metadataCache = make(map[string]cachedSessionMetadata)
 		}
 		m.metadataCache[target] = cachedSessionMetadata{file: info, meta: meta}
+		m.metadataCacheMu.Unlock()
 	}
 	return meta, nil
 }
@@ -124,7 +129,7 @@ func (m *Manager) inventorySessionInfo(
 			return nil, errors.Join(errInventoryHydration, err)
 		}
 	} else {
-		info = m.sessionInfoFromMeta(ctx, &meta)
+		m.hydrateMetadataTranscriptEpoch(ctx, info)
 		if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
 			return nil, errors.Join(errInventoryHydration, err)
 		}
