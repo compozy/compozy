@@ -187,18 +187,21 @@ func (s *Service) runWorktreeCommand(
 	cmd.Stdin = nil
 	cmd.Env = setupEnvironment(s.environ(), workspace, item, shell)
 	procutil.ConfigureCommandProcessGroup(cmd)
-	stdout := &gitOutputWriter{
-		buffer:   newCappedBuffer(setupDiagnosticLimit),
-		stream:   GitOutputStdout,
-		onOutput: onOutput,
-	}
-	stderr := &gitOutputWriter{
-		buffer:   newCappedBuffer(setupDiagnosticLimit),
-		stream:   GitOutputStderr,
-		onOutput: onOutput,
-	}
-	defer stdout.Flush()
-	defer stderr.Flush()
+	// Capture each bounded stream before publishing so multiline secrets are redacted together.
+	stdout := newCappedBuffer(setupDiagnosticLimit)
+	stderr := newCappedBuffer(setupDiagnosticLimit)
+	defer func() {
+		if onOutput != nil {
+			for _, output := range []GitOutput{
+				{Stream: GitOutputStdout, Chunk: []byte(stdout.String())},
+				{Stream: GitOutputStderr, Chunk: []byte(stderr.String())},
+			} {
+				if len(output.Chunk) > 0 {
+					onOutput(output)
+				}
+			}
+		}
+	}()
 	cmd.Stdout, cmd.Stderr = stdout, stderr
 	if err := cmd.Start(); err != nil {
 		return SetupFailed, diagnostics.RedactAndBound(err.Error(), setupDiagnosticLimit)

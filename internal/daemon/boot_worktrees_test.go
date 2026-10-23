@@ -40,6 +40,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	resolvedConfig := config.DefaultWithHome(homePaths)
 	resolvedConfig.Worktrees.Root = worktreesRoot
 	resolvedConfig.Worktrees.SetupCommand = "bun install"
+	resolvedConfig.Worktrees.TeardownCommand = "global-cleanup"
 	resolved := workspacepkg.ResolvedWorkspace{
 		ID: "ws-resolved", Name: "Resolved", RootDir: workspaceRoot,
 		Config: resolvedConfig,
@@ -53,7 +54,7 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 	}
 	resolver := daemonWorktreeWorkspaceResolver{resolver: stub, homePaths: homePaths}
 
-	got, err := resolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID)
+	got, err := resolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID, "")
 	if err != nil {
 		t.Fatalf("ResolveWorktreeWorkspace() error = %v", err)
 	}
@@ -69,8 +70,26 @@ func TestDaemonWorktreeWorkspaceResolver(t *testing.T) {
 		t.Fatalf("ListWorktreeWorkspaces() = %#v, want both registered roots", listed)
 	}
 
+	for _, command := range []string{"profile-cleanup", ""} {
+		t.Run("Should resolve owner profile teardown including explicit empty command "+command, func(t *testing.T) {
+			profileConfig := config.DefaultWithHome(homePaths)
+			profileConfig.Worktrees.TeardownCommand = command
+			profileConfig.Worktrees.TeardownTimeout = 3 * time.Second
+			profileStub := &daemonWorktreeResolverStub{resolved: resolved, profiled: workspacepkg.ResolvedWorkspace{
+				ID: resolved.ID, Name: resolved.Name, RootDir: workspaceRoot, Config: profileConfig,
+			}}
+			profileResolver := daemonWorktreeWorkspaceResolver{resolver: profileStub, homePaths: homePaths,
+				profileNames: loopProfileNameResolverStub{"profile-owner": "owner"}}
+			got, err := profileResolver.ResolveWorktreeWorkspace(t.Context(), resolved.ID, "profile-owner")
+			if err != nil || profileStub.profileName != "owner" || got.Root != workspaceRoot ||
+				got.Worktrees.TeardownCommand != command || got.Worktrees.TeardownTimeout != 3*time.Second {
+				t.Fatalf("owner profile workspace = %#v, profile = %q, error = %v", got, profileStub.profileName, err)
+			}
+		})
+	}
+
 	empty := daemonWorktreeWorkspaceResolver{homePaths: homePaths}
-	if _, err := empty.ResolveWorktreeWorkspace(t.Context(), "missing"); !errors.Is(
+	if _, err := empty.ResolveWorktreeWorkspace(t.Context(), "missing", ""); !errors.Is(
 		err, worktree.ErrNotFound,
 	) {
 		t.Fatalf("ResolveWorktreeWorkspace(nil) error = %v, want ErrNotFound", err)
@@ -275,8 +294,10 @@ func (f sessionWorktreeLookupFunc) Get(
 }
 
 type daemonWorktreeResolverStub struct {
-	resolved workspacepkg.ResolvedWorkspace
-	listed   []workspacepkg.Workspace
+	resolved    workspacepkg.ResolvedWorkspace
+	profiled    workspacepkg.ResolvedWorkspace
+	profileName string
+	listed      []workspacepkg.Workspace
 }
 
 func (r *daemonWorktreeResolverStub) Resolve(
@@ -284,6 +305,13 @@ func (r *daemonWorktreeResolverStub) Resolve(
 	string,
 ) (workspacepkg.ResolvedWorkspace, error) {
 	return r.resolved, nil
+}
+
+func (r *daemonWorktreeResolverStub) ResolveForProfile(
+	_ context.Context, _ string, profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	r.profileName = profileName
+	return r.profiled, nil
 }
 
 func (r *daemonWorktreeResolverStub) ResolveOrRegister(

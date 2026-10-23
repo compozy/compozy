@@ -187,6 +187,7 @@ func exitLifecycleEvent(name string, operation ExitOperation, value ExitEventPay
 		ProfileID:   operation.ProfileID,
 		WorkspaceID: operation.WorkspaceID,
 		WorktreeID:  operation.WorktreeID,
+		RunID:       operation.RunID,
 		Payload:     payload,
 	}, nil
 }

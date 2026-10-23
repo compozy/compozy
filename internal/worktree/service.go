@@ -19,7 +19,7 @@ type Workspace struct {
 }
 
 type WorkspaceResolver interface {
-	ResolveWorktreeWorkspace(context.Context, string) (Workspace, error)
+	ResolveWorktreeWorkspace(context.Context, string, string) (Workspace, error)
 	ListWorktreeWorkspaces(context.Context) ([]Workspace, error)
 }
 
@@ -152,10 +152,14 @@ func WithRepositoryLocks(locks *RepositoryLocks) Option {
 }
 
 func (s *Service) resolveWorkspace(ctx context.Context, workspaceID string) (Workspace, error) {
+	return s.resolveProfileWorkspace(ctx, workspaceID, "")
+}
+
+func (s *Service) resolveProfileWorkspace(ctx context.Context, workspaceID, profileID string) (Workspace, error) {
 	if s.resolver == nil {
 		return Workspace{}, refusal(ErrNotFound, "workspace is unavailable")
 	}
-	return s.resolver.ResolveWorktreeWorkspace(ctx, workspaceID)
+	return s.resolver.ResolveWorktreeWorkspace(ctx, workspaceID, profileID)
 }
 
 // Capability reports whether the Git dependency required by worktree mutations is ready.

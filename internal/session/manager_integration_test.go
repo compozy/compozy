@@ -453,6 +453,7 @@ type sessionWorktreeWorkspaceResolver struct {
 func (r sessionWorktreeWorkspaceResolver) ResolveWorktreeWorkspace(
 	_ context.Context,
 	workspaceID string,
+	_ string,
 ) (worktreepkg.Workspace, error) {
 	if workspaceID != r.workspace.ID {
 		return worktreepkg.Workspace{}, worktreepkg.ErrNotFound

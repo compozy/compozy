@@ -59,3 +59,11 @@ Dismiss a failed/missing record with an existing path: dismissal must remain met
 
 Validation ownership: focused real-Git lifecycle integration and canonical removal/config suites;
 public CLI/HTTP/SSE lab walk remains CI-owned under the issue's local machine constraint.
+
+Repeat removal for a worktree owned by a named profile with a different teardown command and
+shorter timeout. Confirm the owner profile wins over user/workspace defaults; an explicit empty
+profile command disables inherited cleanup. Print a registered multiline secret across separate
+writes to stdout and stderr: after completion, neither output event exposes either secret line.
+Have teardown create a new unpushed commit and confirm normal removal refuses and retains the
+checkout; explicit force follows the existing removal risk policy. Output and failure events for
+per-run worktrees retain their run attribution.

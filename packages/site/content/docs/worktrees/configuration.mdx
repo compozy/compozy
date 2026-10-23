@@ -84,7 +84,8 @@ repository-specific setup and teardown. See the complete
 Set `worktrees.teardown_command` to clean up resources started by setup, for example
 `docker compose down`. The default is empty (disabled); `teardown_timeout` defaults to `10m`
 and must be positive. Both keys merge independently across user, profile, workspace and
-workspace-profile layers. An explicit empty command disables an inherited command.
+workspace-profile layers. Removal resolves these settings for the worktree owner profile.
+An explicit empty command disables an inherited command.
 
 Teardown runs in the managed checkout after removal safety checks and `worktree.pre_remove`
 approval, before Git removes the directory. Hook denial skips teardown, including forced removal.
@@ -92,10 +93,11 @@ It uses the same shell and allowlisted environment as setup: `PATH`, `HOME`, `LA
 `LC_*`, `SHELL`, `COMPOZY_WORKSPACE_ROOT`, `COMPOZY_WORKTREE_PATH`, `COMPOZY_WORKTREE_ID`, and
 `COMPOZY_WORKTREE_BRANCH`. Load any project-specific environment from the checkout explicitly.
 
-The worktree event stream carries redacted stdout/stderr as `worktree.teardown_output` with
-`stream` and `chunk`. A launch failure, nonzero exit or timeout emits `worktree.teardown_failed`
+Each stdout/stderr stream is captured up to 16 KiB and redacted as a whole, including multiline
+secrets. When the command finishes, the worktree event stream publishes the captured output as
+`worktree.teardown_output` with `stream` and `chunk`. A launch failure, nonzero exit or timeout emits `worktree.teardown_failed`
 with a bounded diagnostic and continues removal. A timeout terminates the command's process group.
-Git removal can still refuse changes made by teardown; commands should be safe to retry.
+Removal rechecks checkout identity and unpushed-work risks after teardown; commands should be safe to retry.
 These events do not change the recorded setup result.
 
 Dismiss remains metadata-only and never runs teardown, even if a checkout reappears. Missing paths,

@@ -3,7 +3,6 @@ package worktree
 import (
 	"context"
 	"strings"
-	"sync"
 )
 
 const (
@@ -11,15 +10,18 @@ const (
 	EventTeardownFailed = "worktree.teardown_failed"
 )
 
-func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Worktree, commonDir string) error {
+func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Worktree) bool {
 	settings, _ := s.worktreeSettings(workspace)
 	command := strings.TrimSpace(settings.TeardownCommand)
 	if command == "" {
-		return nil
+		return false
 	}
-	operation := ExitOperation{ProfileID: item.ProfileID, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID}
-	var outputMu sync.Mutex
-	remaining := map[GitOutputStream]int{GitOutputStdout: setupDiagnosticLimit, GitOutputStderr: setupDiagnosticLimit}
+	operation := ExitOperation{
+		RunID:       item.RunID,
+		ProfileID:   item.ProfileID,
+		WorkspaceID: item.WorkspaceID,
+		WorktreeID:  item.ID,
+	}
 	state, detail := s.runWorktreeCommand(
 		ctx,
 		workspace,
@@ -27,12 +29,6 @@ func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Wor
 		command,
 		settings.TeardownTimeout,
 		func(output GitOutput) {
-			outputMu.Lock()
-			defer outputMu.Unlock()
-			if remaining[output.Stream] <= 0 {
-				return
-			}
-			remaining[output.Stream] -= len(output.Chunk)
 			s.emitExit(ctx, EventTeardownOutput, operation, ExitEventPayload{
 				Action: ExitAction(exitRemoveAction), Stream: string(output.Stream), Chunk: string(output.Chunk),
 			})
@@ -51,7 +47,18 @@ func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Wor
 			Action: ExitAction(exitRemoveAction), State: exitStepFailed, Message: detail,
 		})
 	}
-	// Teardown can change checkout identity; never remove a replacement checkout.
-	_, err := s.validateRemovalIdentity(ctx, item, commonDir)
-	return err
+	return true
+}
+
+func (s *Service) prepareFencedRemoval(
+	ctx context.Context, workspace Workspace, item Worktree, commonDir string, force bool,
+) (bool, RemovalRisk, *RemovalRefusal, error) {
+	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	if terminal || err != nil || refusalResult != nil {
+		return terminal, risk, refusalResult, err
+	}
+	if s.runTeardown(ctx, workspace, item) {
+		return s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	}
+	return false, risk, nil, nil
 }
