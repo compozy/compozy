@@ -1,4 +1,7 @@
+import { useSessionWindowViewState } from "@/systems/session";
+
 import { useSessionWindowController } from "./hooks/use-session-window-controller";
+import { SessionBoardWindow } from "./session-board-window";
 import { preloadSessionWindowModules } from "./session-window-module-loader";
 import { SessionProfileOwnerNotice } from "./session-profile-owner-notice";
 import { SessionWindowEmpty } from "./session-window-empty";
@@ -38,7 +41,11 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     sessionId,
     workspaceId,
   } = useSessionWindowController(windowId);
+  const { view } = useSessionWindowViewState();
 
+  if (view === "kanban") {
+    return <SessionBoardWindow windowId={windowId} sessionId={sessionId} />;
+  }
   if (deletedLocally || sessionId === null) {
     return <SessionWindowEmpty windowId={windowId} />;
   }

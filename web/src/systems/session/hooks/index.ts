@@ -79,8 +79,19 @@ export {
 export {
   pruneSessionSidebarScopes,
   useSessionSidebarState,
+  type SessionWindowViewMode,
   type UseSessionSidebarStateResult,
 } from "./use-session-sidebar-state";
+export {
+  useSessionWindowViewState,
+  type SessionWindowViewState,
+} from "./use-session-window-view-state";
+export {
+  SESSION_BOARD_COLUMNS,
+  useSessionsBoard,
+  type SessionsBoardColumnView,
+  type SessionsBoardView,
+} from "./use-sessions-board";
 export {
   useClearSessionConversation,
   useArchiveSession,

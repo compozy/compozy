@@ -29,6 +29,8 @@ import { SessionWorktreeBindingChip } from "../components/session-worktree-bindi
 import { SessionTransportContext } from "../lib/session-transcript-thread-context-value";
 import { useSessionTransportState } from "./use-session-transcript-thread-messages";
 import { SessionUnrestrictedBadge } from "../components/session-unrestricted-badge";
+import { SessionViewToggle } from "../components/session-board/session-view-toggle";
+import { useSessionWindowViewState } from "./use-session-window-view-state";
 import { sessionIsUnrestricted } from "../lib/session-unrestricted";
 
 interface SessionTopbarWorktreeBinding {
@@ -197,6 +199,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
   const { session, worktreeBinding, transportChip } = input;
   const actions = sessionTopbarActions(input);
   const overflow = useSessionTopbarOverflow(input, actions);
+  const view = useSessionWindowViewState();
   // The slot consumer (the OS head) renders outside this window's session
   // runtime provider, so a node that reads the transport — the chip — would
   // see the default live snapshot there. The publisher runs inside the
@@ -252,6 +255,12 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         />
       </>
     ),
-    overflow,
+    // The view toggle rides beside the "…" menu, so sessions without one still get it (US-011.AC-1).
+    overflow: (
+      <span className="flex items-center gap-1">
+        {overflow}
+        <SessionViewToggle onValueChange={view.setView} value={view.view} />
+      </span>
+    ),
   });
 }

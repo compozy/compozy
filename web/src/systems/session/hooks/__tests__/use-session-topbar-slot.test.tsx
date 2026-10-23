@@ -1,5 +1,6 @@
 // Suite: session document topbar publisher
-// Invariant: one session publisher exposes self-title, state mark and overflow, then the agent
+// Invariant: one session publisher exposes self-title, state mark, overflow and the List | Kanban
+// toggle (present even without the overflow), then the agent
 // chip (avatar, agent, bound provider) with the last-change time, then lifecycle controls and the
 // sidebar and inspector toggles.
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
@@ -173,6 +174,23 @@ describe("useSessionTopbarSlot", () => {
 
     fireEvent.click(toggle);
     expect(onInspectorToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should follow the overflow with the List | Kanban toggle, kept for sessions without one", () => {
+    const { unmount } = renderWithTopbar(<SessionPublisher onStop={vi.fn()} />);
+    const overflow = screen.getByTestId("session-topbar-overflow");
+    const viewToggle = screen.getByRole("group", { name: "View" });
+    expect(
+      overflow.compareDocumentPosition(viewToggle) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "List" })).toHaveAttribute("aria-pressed", "true");
+    unmount();
+
+    renderWithTopbar(
+      <SessionPublisher onStop={vi.fn()} session={{ ...primarySessionFixture, type: "spawned" }} />
+    );
+    expect(screen.queryByTestId("session-topbar-overflow")).toBeNull();
+    expect(screen.getByRole("group", { name: "View" })).toBeInTheDocument();
   });
 
   it.each([

@@ -46,12 +46,45 @@ export function sessionFacetsOptions(filters: SessionListFilters = {}) {
     sort: _sort,
     include_health: _health,
     search_fields: _fields,
+    board_column: _column,
     ...scope
   } = normalizeSessionListFilters(filters);
   return queryOptions({
     queryKey: [...sessionKeys.workspaceLists(scope.workspace_id ?? ""), "facets", scope],
     queryFn: ({ signal }) => fetchSessionFacets(scope, signal),
     staleTime: 5_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+  });
+}
+
+/** Cards per board column page (`_spec.md` §Assumptions: page size 50). */
+export const SESSION_BOARD_PAGE_SIZE = 50;
+
+/** Visible board surfaces re-read on this interval; TanStack pauses it while the document is hidden. */
+export const SESSION_BOARD_REFETCH_MS = 60_000;
+
+/**
+ * One board column (or the Archive bar): the catalog filtered by the daemon's
+ * `board_column` before pagination. "Load more" accumulates pages, so unlike the
+ * list there is no `maxPages`. The key sits under the workspace list family, so
+ * the catalog stream's wake re-reads it like every other catalog read.
+ */
+export function sessionBoardPageOptions(filters: SessionListFilters) {
+  const normalized = normalizeSessionListFilters({ ...filters, limit: SESSION_BOARD_PAGE_SIZE });
+  return infiniteQueryOptions({
+    queryKey: [
+      ...sessionKeys.workspaceLists(normalized.workspace_id ?? ""),
+      "board",
+      normalized,
+    ] as const,
+    queryFn: ({ pageParam, signal }) =>
+      fetchSessionCatalogPage({ ...normalized, cursor: pageParam }, signal),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: page =>
+      page.page.has_more && page.page.next_cursor ? page.page.next_cursor : undefined,
+    staleTime: 5_000,
+    refetchInterval: SESSION_BOARD_REFETCH_MS,
     refetchOnWindowFocus: false,
     retry: false,
   });

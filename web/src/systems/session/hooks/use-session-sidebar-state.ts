@@ -12,9 +12,12 @@ import {
   SESSION_SIDEBAR_DEFAULT_WIDTH,
 } from "../lib/session-sidebar-width";
 
+/** The session window body: the list + transcript, or the sessions board. */
+export type SessionWindowViewMode = "list" | "kanban";
+
 /**
- * One window's sessions-rail presentation. Per-window by design: two session
- * windows side by side open, close, collapse, and resize independently.
+ * One window's sessions presentation. Per-window by design: two session
+ * windows side by side open, close, collapse, resize, and switch views independently.
  */
 export interface SessionSidebarScopeState {
   /** The rail is open until the operator closes it in this window. */
@@ -39,6 +42,10 @@ export interface SessionSidebarScopeState {
    * follows the default, so a reset tracks it.
    */
   width: number | null;
+  /** List | Kanban (US-011). Window-only: new windows always open in List. */
+  view: SessionWindowViewMode;
+  /** The board's "Hide child sessions" filter, remembered per window. */
+  hideChildren: boolean;
 }
 
 interface SessionSidebarContext {
@@ -67,6 +74,8 @@ const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   collapsedFolders: {},
   collapsedGroups: {},
   width: null,
+  view: "list",
+  hideChildren: false,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -95,6 +104,8 @@ function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     collapsedFolders: normalizedCollapsedFlags(value.collapsedFolders),
     collapsedGroups: normalizedCollapsedFlags(value.collapsedGroups),
     width: normalizeSessionSidebarWidth(value.width),
+    view: value.view === "kanban" ? "kanban" : "list",
+    hideChildren: value.hideChildren === true,
   };
 }
 
@@ -131,16 +142,21 @@ function mergeSessionSidebarPreferences(
   return { byScope, partitionByScope };
 }
 
-/** Writes one scope and makes it the last-used state new windows inherit. */
+/**
+ * Writes one scope and makes it the last-used state new windows inherit. The
+ * board view and its filter stay with their window: a window opened to show a
+ * session must never land on another window's board.
+ */
 function withScopeState(
   context: SessionSidebarContext,
   scopeId: string,
   update: (state: SessionSidebarScopeState) => SessionSidebarScopeState
 ): SessionSidebarContext {
   const next = update(resolveSessionSidebarScope(context.byScope, scopeId));
+  const shell = { ...next, view: DEFAULT_SCOPE_STATE.view, hideChildren: false };
   return {
     ...context,
-    byScope: { ...context.byScope, [scopeId]: next, [SHELL_WORKTREE_SCOPE]: next },
+    byScope: { ...context.byScope, [SHELL_WORKTREE_SCOPE]: shell, [scopeId]: next },
   };
 }
 
@@ -227,6 +243,15 @@ export const sessionSidebarLogic = createStoreLogic({
         ),
       }));
     },
+    viewChanged: (context, event: { scopeId: string; view: SessionWindowViewMode }) => {
+      if (resolveSessionSidebarScope(context.byScope, event.scopeId).view === event.view) return;
+      return withScopeState(context, event.scopeId, state => ({ ...state, view: event.view }));
+    },
+    hideChildrenChanged: (context, event: { scopeId: string; hideChildren: boolean }) =>
+      withScopeState(context, event.scopeId, state => ({
+        ...state,
+        hideChildren: event.hideChildren,
+      })),
     widthChanged: (context, event: { scopeId: string; width: number }) => {
       const width = normalizeSessionSidebarWidth(event.width);
       if (width === null) {

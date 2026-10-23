@@ -10,6 +10,8 @@
 // and a pre-default blob's incidental `open: false` never masks the default.
 // A thread branch shows one list: opening its subagents folds its children,
 // and a stored blob without subagent flags reads as every subagent list closed.
+// The List | Kanban view and the board's "Hide child sessions" filter are
+// window-only (UT-067): they survive a reload but never seed another window.
 // Boundary IN: useSessionSidebarState + its persisted store + window.localStorage.
 // Boundary OUT: SessionSidebar layout, topbar toggle chrome, the session list query.
 
@@ -26,11 +28,12 @@ const PARTITION_B = "ws_b\u0000default";
 /** A reload: fresh store and fresh scope context from the same module graph. */
 async function loadFreshSidebarState() {
   vi.resetModules();
-  const [sidebar, { WindowScopeContext }] = await Promise.all([
+  const [sidebar, view, { WindowScopeContext }] = await Promise.all([
     import("../use-session-sidebar-state"),
+    import("../use-session-window-view-state"),
     import("@/hooks/use-window-scope"),
   ]);
-  return { ...sidebar, WindowScopeContext };
+  return { ...sidebar, ...view, WindowScopeContext };
 }
 
 type SidebarModule = Awaited<ReturnType<typeof loadFreshSidebarState>>;
@@ -178,6 +181,34 @@ describe("useSessionSidebarState", () => {
     });
     expect(one.current.open).toBe(true);
     expect(two.current.open).toBe(false);
+  });
+
+  it("UT-067: Should restore a window's Kanban view and child filter after a reload, never seeding a new window", async () => {
+    const before = await loadFreshSidebarState();
+    const renderView = (module: SidebarModule, scopeId: string) =>
+      renderHook(() => module.useSessionWindowViewState(), {
+        wrapper: ({ children }: { children: ReactNode }) =>
+          createElement(module.WindowScopeContext, { value: scopeId }, children),
+      }).result;
+    const one = renderView(before, WINDOW_ONE);
+    expect(one.current).toMatchObject({ view: "list", hideChildren: false });
+    act(() => {
+      one.current.setView("kanban");
+      one.current.setHideChildren(true);
+    });
+    expect(renderView(before, WINDOW_TWO).current).toMatchObject({
+      view: "list",
+      hideChildren: false,
+    });
+
+    const after = await loadFreshSidebarState();
+    await waitFor(() =>
+      expect(renderView(after, WINDOW_ONE).current).toMatchObject({
+        view: "kanban",
+        hideChildren: true,
+      })
+    );
+    expect(renderView(after, WINDOW_TWO).current.view).toBe("list");
   });
 
   it("Should prune closed windows and keep live windows and the shell", async () => {

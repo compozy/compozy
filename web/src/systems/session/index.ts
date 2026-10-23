@@ -405,6 +405,9 @@ export { SessionRowActions, type SessionRowActionsProps } from "./components/ses
 export { SessionList, type SessionListProps } from "./components/session-list/session-list";
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export { SessionSidebarLayout } from "./components/session-sidebar-layout";
+export { SessionViewToggle } from "./components/session-board/session-view-toggle";
+export { SessionsBoard } from "./components/session-board/sessions-board";
+export type { SessionBoardColumnId, SessionBoardPayload } from "./lib/session-board-contract";
 export {
   buildSessionTree,
   childSessionSignalState,
