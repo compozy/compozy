@@ -175,7 +175,13 @@ export function toRuntimeModelOptions(
       featured: model.featured,
       release_date: model.release_date,
       disabled,
-      disabled_reason: needsAuth ? "Sign in" : disabled ? "Unavailable" : undefined,
+      disabled_reason: needsAuth
+        ? "Sign in"
+        : disabled
+          ? model.availability_state === "unknown"
+            ? "Unconfirmed"
+            : "Unavailable"
+          : undefined,
     });
   }
   return result;

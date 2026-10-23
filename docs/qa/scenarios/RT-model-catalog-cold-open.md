@@ -142,3 +142,23 @@ provider handling, provider/display-name order, exact IDs, and unchanged Codex/C
 ranking. The daemon-served provider-override suite passed 4/4 with v1/v2 label assertions.
 1280×720 and 390×844 captures show the labels on one line without picker overflow. This is
 executable-fixture/browser evidence, not a new live-vendor inference claim.
+
+QA impact 2026-10-22, issue #549: force Claude or Cursor discovery to fail with no prior live
+rows, then with cached bindings. Curated rows must remain inspectable with `available=false`
+and `availability_state=unknown`; the selector must disable them and show
+`live catalog unavailable: <last refresh error>`. Direct curated-Claude session creation must
+report that diagnostic before launch. Recover discovery and verify the same logical model becomes
+selectable and resolves its private transport binding. Repeat with a Claude overlay to verify
+account isolation. Cold ACP discovery has its own 60-second default; a configured 90-second
+provider discovery timeout must not be truncated by the models.dev HTTP timeout.
+
+Focused unit coverage owns failure/recovery, picker mapping, and timeout wiring. The existing
+ACP subprocess/SQLite overlay integration scenario owns the real process/storage boundary.
+A new live-vendor Windows walk and rendered browser replay remain CI/QA-owned.
+
+Review follow-up: after restart, test bindings aged nine minutes, exactly ten minutes, one day,
+with a future timestamp, and with no timestamp. Only the nine-minute binding remains reusable.
+Claude aliases (`sonnet`, `haiku`), `default`, and raw IDs outside the built-in curated set remain
+selectable without a binding, including overlays. A long discovery error must remain in provider
+guidance while the row badge stays `Unconfirmed`. Verify aggregate refresh grants every sequential
+probe its complete deadline and live HTTP discovery never uses models.dev's shorter client timeout.

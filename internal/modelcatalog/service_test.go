@@ -1240,6 +1240,175 @@ func TestCatalogViews(t *testing.T) {
 func TestCatalogServiceRefresh(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve safely blocked rows when optional status diagnostics fail", func(t *testing.T) {
+		t.Parallel()
+		store := newMemoryStore()
+		store.rows[sourceProviderKey(SourceIDConfig, "claude")] = []ModelRow{
+			testRow(SourceIDConfig, SourceKindConfig, PriorityConfig, "claude", "claude-sonnet-5", testTime(0), nil),
+		}
+		failing := &failOnSourceStatusReadStore{Store: store, failAt: 1, failErr: errors.New("status read failed")}
+		service := newTestService(t, failing, nil)
+		models, err := service.ListModels(t.Context(), ListOptions{SkipRefreshIfEmpty: true, Now: testTime(1)})
+		if err != nil {
+			t.Fatal(err)
+		}
+		model := requireSingleModel(t, models)
+		if model.Available == nil || *model.Available || !strings.Contains(model.LastError, "status read failed") {
+			t.Fatalf("safe diagnostic fallback = %#v", model)
+		}
+	})
+
+	t.Run("Should apply admission freshness to persisted bindings after restart", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name      string
+			refreshed time.Time
+			startable bool
+		}{
+			{"Should reuse a binding between five and ten minutes old", testTime(991), true},
+			{"Should reject a binding at the ten minute boundary", testTime(990), false},
+			{"Should reject yesterday's binding", testTime(-440), false},
+			{"Should reject a future timestamp", testTime(1001), false},
+			{"Should reject an absent timestamp", time.Time{}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				store := newMemoryStore()
+				sourceID := SourceKindProviderLiveID("claude")
+				store.rows[sourceProviderKey(sourceID, "claude")] = []ModelRow{
+					testRow(
+						sourceID,
+						SourceKindProviderLive,
+						PriorityProviderLive,
+						"claude",
+						"claude-sonnet-5",
+						tc.refreshed,
+						func(row *ModelRow) {
+							row.Available = new(true)
+							row.TransportBindings = []ModelTransportBinding{{TransportModelID: "sonnet"}}
+						},
+					),
+				}
+				service := newTestService(t, store, []Source{&fakeSource{
+					id:        sourceID,
+					kind:      SourceKindProviderLive,
+					priority:  PriorityProviderLive,
+					providers: []string{"claude"},
+				}})
+				models, err := service.ListModels(
+					t.Context(),
+					ListOptions{ProviderID: "claude", Now: testTime(1000), SkipRefreshIfEmpty: true},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model := requireSingleModel(t, models)
+				if model.Available == nil || *model.Available != tc.startable {
+					t.Fatalf("persisted availability = %#v, want startable %t", model, tc.startable)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve Claude aliases defaults and raw ids without a binding", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range []string{"sonnet", "haiku", "default", "custom-deployment"} {
+			t.Run("Should preserve "+id, func(t *testing.T) {
+				t.Parallel()
+				store := newMemoryStore()
+				store.rows[sourceProviderKey(SourceIDConfig, "claude")] = []ModelRow{
+					testRow(SourceIDConfig, SourceKindConfig, PriorityConfig, "claude", id, testTime(0), nil),
+				}
+				service := newTestService(t, store, nil)
+				models, err := service.ListModels(
+					t.Context(),
+					ListOptions{ProviderID: "claude", Now: testTime(1), SkipRefreshIfEmpty: true},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model := requireSingleModel(t, models)
+				if model.Available != nil || model.LastError != "" || RequiresLiveTransportBinding("claude", id) {
+					t.Fatalf("exempt Claude selection blocked: %#v", model)
+				}
+				if !RequiresLiveTransportBinding("cursor", id) {
+					t.Fatal("Cursor binding requirement lost")
+				}
+			})
+		}
+	})
+
+	t.Run("Should require a fresh live binding and retain the refresh diagnostic", func(t *testing.T) {
+		t.Parallel()
+		for _, provider := range []string{"claude", "cursor"} {
+			t.Run("Should confirm "+provider+" only after successful discovery", func(t *testing.T) {
+				t.Parallel()
+				live := &fakeSource{
+					id: SourceKindProviderLiveID(provider), kind: SourceKindProviderLive,
+					priority: PriorityProviderLive, providers: []string{provider},
+					err: errors.New("context deadline exceeded"),
+				}
+				service := newTestService(t, newMemoryStore(), []Source{
+					&fakeSource{id: SourceIDConfig, kind: SourceKindConfig, priority: PriorityConfig,
+						providers: []string{provider}, rows: []ModelRow{
+							testRow(
+								SourceIDConfig,
+								SourceKindConfig,
+								PriorityConfig,
+								provider,
+								"claude-sonnet-5",
+								testTime(0),
+								nil,
+							),
+						}}, live,
+				})
+				opts := ListOptions{ProviderID: provider, Refresh: true, Now: testTime(10)}
+				models, err := service.ListModels(t.Context(), opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model := requireSingleModel(t, models)
+				if model.Available == nil || *model.Available || model.AvailabilityState != AvailabilityStateUnknown ||
+					!strings.Contains(model.LastError, "live catalog unavailable: context deadline exceeded") {
+					t.Fatalf("unconfirmed projection = %#v", model)
+				}
+				live.err = nil
+				live.rows = []ModelRow{
+					testRow(
+						live.id,
+						live.kind,
+						live.priority,
+						provider,
+						"claude-sonnet-5",
+						testTime(10),
+						func(row *ModelRow) {
+							row.Available = new(true)
+							row.TransportBindings = []ModelTransportBinding{{TransportModelID: "transport"}}
+						},
+					),
+				}
+				models, err = service.ListModels(t.Context(), opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model = requireSingleModel(t, models)
+				if model.Available == nil || !*model.Available ||
+					model.AvailabilityState != AvailabilityStateAvailableLive {
+					t.Fatalf("confirmed projection = %#v", model)
+				}
+				live.err = errors.New("refresh failed")
+				models, err = service.ListModels(t.Context(), opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model = requireSingleModel(t, models)
+				if model.Available == nil || *model.Available || !strings.Contains(model.LastError, "refresh failed") {
+					t.Fatalf("stale binding remained selectable: %#v", model)
+				}
+			})
+		}
+	})
+
 	t.Run("Should stop before the next source when refresh is canceled", func(t *testing.T) {
 		t.Parallel()
 

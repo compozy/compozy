@@ -144,6 +144,9 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 	mergeOptions := cloneMergeOptions(s.mergeOptions)
 	s.mergeMu.RUnlock()
 	models := MergeRows(rows, mergeOptions)
+	if err := s.applyBindingAvailability(ctx, models, listOpts); err != nil {
+		return nil, err
+	}
 	models, err = applyCatalogView(models, opts.View)
 	if err != nil {
 		return nil, err

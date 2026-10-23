@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -64,4 +66,27 @@ func recordedLiveRefreshFailure(statuses []modelcatalog.SourceStatus, providerID
 		}
 	}
 	return false
+}
+
+func (r *modelCatalogRuntime) refreshTimeout(providerID string) time.Duration {
+	timeout := r.timeout
+	r.liveSourcesMu.RLock()
+	defer r.liveSourcesMu.RUnlock()
+	for id, source := range r.liveSources {
+		if providerID == "" || id == providerID {
+			timeout += source.DiscoveryTimeout()
+		}
+	}
+	return timeout
+}
+
+func (d *Daemon) modelCatalogLiveSources(
+	state *bootState,
+	providers map[string]compozyconfig.ProviderConfig,
+	timeout time.Duration,
+) ([]modelcatalog.Source, error) {
+	return modelcatalog.NewLiveProviderSources(&modelcatalog.LiveProviderSourcesConfig{
+		Providers: providers, HomePaths: d.homePaths, BaseEnv: os.Environ(),
+		SecretResolver: d.modelCatalogSecretResolver(state), DefaultTimeout: timeout,
+	})
 }
