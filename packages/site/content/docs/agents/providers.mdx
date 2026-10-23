@@ -260,7 +260,7 @@ reasoning controls inside a running session.
 | `models.curated[].max_output_tokens`            | integer | no                          | Maximum output tokens.                                                                                                            |
 | `models.curated[].supports_tools`               | bool    | no                          | Whether the model supports tool calls.                                                                                            |
 | `models.curated[].supports_reasoning`           | bool    | no                          | Whether the model supports reasoning effort.                                                                                      |
-| `models.curated[].reasoning_efforts`            | array   | no                          | Model-specific subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blank entries are rejected.                  |
+| `models.curated[].reasoning_efforts`            | array   | no                          | Model-specific subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. Blank entries are rejected.         |
 | `models.curated[].default_reasoning_effort`     | string  | no                          | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                                          |
 | `models.curated[].default_speed`                | string  | no                          | Per-model default speed: `normal` or `fast`. Fast must be advertised by the live model when speed configurations are explicit.    |
 | `models.curated[].cost_input_per_million`       | number  | no                          | Input rate used for catalog-based usage estimates when the agent reports no actual cost.                                          |
@@ -319,7 +319,7 @@ active ACP adapter must still advertise or accept that exact ID; otherwise start
 `model_unavailable` instead of falling back.
 
 `modelcatalog.ReasoningEffort` is the single enum:
-`none | minimal | low | medium | high | xhigh | max`. Each model exposes only its actual subset.
+`none | minimal | low | medium | high | xhigh | max | ultra`. Each model exposes only its actual subset.
 Catalog/config/live observations are the only sources; model-name prefixes never fabricate effort
 levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
 
@@ -336,6 +336,13 @@ fail before the first prompt with stable diagnostics. Speed V1 writes only an un
 unsupported until the released ACP capability contract can advertise boolean writes. Missing or
 ambiguous speed options report a durable `unsupported` outcome, while provider rejection returns
 `speed_rejected` before the first prompt.
+
+Session reads separate `runtime.requested` (current or last binding intent) from
+`runtime.effective` (provider observations) and `runtime.selected` (a durable next-prompt override).
+A later provider notification can revoke Fast or remove a reasoning selector. The composer and
+managed Goal prompts preserve requested intent across these observations. A healthy provider's
+explicit configuration refusal is attempted once per new prompt request; CompozyOS does not replace
+the process just to retry the same refusal.
 
 See [Provider Model Catalog](/docs/agents/model-catalog) for the curated Claude/Codex seeds,
 curated/all views, curation surfaces, and error codes.

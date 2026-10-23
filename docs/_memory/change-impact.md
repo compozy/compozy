@@ -4188,3 +4188,31 @@ Go integration fixture changes are formatter-only and preserve their existing as
 The HTTP and UDS integration runtimes now inject the same real profile manager as daemon bootstrap
 and use isolated operator homes. Their existing automation and webhook assertions remain unchanged; this
 repairs fixture wiring for the accepted User scope contract, with no public behavior change.
+
+## Provider-confirmed Fast and reasoning — issue #914, 2026-10-23
+
+Owner: branch `fix/issue-914-fast-reasoning-apply`; evidence and research matrix:
+`docs/qa/reports/2026-10-23-issue-914-fast-reasoning.md`.
+
+- **Native tools:** additive `ultra` acceptance for session prompt/runtime selection, queued-input
+  output, agent/fallback authoring, Goal runtime, Loop runtime rules, and provider default-effort
+  curation. Subagent targets already accept provider effort identifiers. Descriptor catalog regenerated.
+- **HTTP/UDS/CLI and extensions:** requested values remain persisted unchanged. `runtime.effective`
+  and prompt events project the latest provider-confirmed effort/speed. Later ACP option updates
+  revoke stale applied Fast; unsupported speed does not populate effective speed. Extension host
+  reads share this projection. Additive `runtime.requested` exposes persisted intent separately;
+  OpenAPI, app clients, and extension TS/Go contracts are regenerated. CLI effort help and generated
+  reference include ultra; existing speed outcome enums suffice.
+- **Hooks/config:** existing runtime events/fields only; no hook IDs, config keys, permissions,
+  authentication policy. Equal-selection prompts recheck observed controls. A healthy provider refusal
+  is attempted once per new prompt without same-intent rollback or process replacement.
+- **Workspace data isolation/user state:** no schema migration, paths, scopes, or ownership changes.
+  Persisted `speed` continues to mean requested speed and matches `speed_resolution.requested`.
+  Public enum widening is additive; no compatibility shims or delete targets.
+- **Official skill:** agent effort vocabulary and runtime guidance explain exact model membership,
+  provider acknowledgement, later revocation, and requested versus effective values.
+- **Web/Docs/QA:** Web includes ultra and consumes model-specific efforts. Composer defaults now prefer
+  requested intent when selected is absent, preserving intent across observation refetches. Goal prompt
+  queueing also uses requested rather than applied runtime. Provider docs explain this distinction. RT-061, RT-session-prompt-runtime-transitions,
+  MS-057, and LP-runtime-provenance-observation receive scoped QA notes. Browser and live Loop/Goal
+  checks are outside the authorized minimal lab; source/focused automated evidence is labeled.

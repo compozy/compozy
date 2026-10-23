@@ -189,15 +189,20 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			payload.Runtime.Effective.ReasoningEffort != "high" {
 			t.Fatalf("payload runtime = %#v", payload.Runtime)
 		}
-		if payload.Runtime.Effective.Speed != contract.SpeedFast ||
+		if payload.Runtime.Effective.Speed != "" ||
 			payload.Runtime.Effective.SpeedResolution == nil ||
+			payload.Runtime.Effective.SpeedResolution.Requested != contract.SpeedFast ||
 			payload.Runtime.Effective.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
 			payload.Runtime.Effective.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent {
 			t.Fatalf(
-				"payload speed fields = %q, %#v, want fast unsupported capability_absent",
+				"payload speed fields = %q, %#v, want no effective speed and requested Fast unsupported capability_absent",
 				payload.Runtime.Effective.Speed,
 				payload.Runtime.Effective.SpeedResolution,
 			)
+		}
+		if payload.Runtime.Requested == nil || payload.Runtime.Requested.Speed != contract.SpeedFast ||
+			payload.Runtime.Requested.ReasoningEffort != "high" || payload.Runtime.Requested.Provider != "fake" {
+			t.Fatalf("binding intent = %#v, want retained fake/high/Fast", payload.Runtime.Requested)
 		}
 		if payload.Runtime.Selected == nil || payload.Runtime.Selected.Provider != "claude" ||
 			payload.Runtime.Selected.Model != "claude-fable-5" ||

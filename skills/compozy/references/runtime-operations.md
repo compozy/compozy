@@ -57,9 +57,9 @@ without starting a provider process: its nested status is `runtime.status="unbou
 `runtime.effective` selection. Send the first prompt to bind a provider. Read the nested `runtime`
 object from `session status -o json` (or any session read), rather than inferring process state from
 the top-level session state: it reports `status`, `transition`, redacted `failure`, `selected`,
-`selection_revision`, `effective`, `last_known`, ACP session ID, and advertised ACP capabilities.
-`selected` is durable next-prompt intent; `effective` is the runtime already bound to the current
-process. `last_known` retains recorded runtime identity after release, detachment or stop; it does
+`selection_revision`, `requested`, `effective`, `last_known`, ACP session ID, and advertised ACP capabilities.
+`selected` is durable next-prompt intent; `requested` retains the intent of the current or last binding;
+`effective` reports the provider-observed runtime bound to the current process. `last_known` retains recorded runtime identity after release, detachment or stop; it does
 not prove a live binding and is absent when no runtime identity has been recorded.
 Authenticated `/agent/context.self.model` and the fresh situation supplied with each prompt use
 the session's effective model when present, ahead of the configured agent default. A pending
@@ -445,7 +445,14 @@ select `--provider` (a released idle session keeps its selection and needs none)
 and repeatable `--acp-toggle id=true|false` refine that prompt's snapshot. `--speed` defaults to
 `normal`; live catalog descriptors and valid option combinations remain authoritative. Fast is applied
 only when the live descriptor exposes one unambiguous speed option; absent or ambiguous support is
-`unsupported`, and provider refusal is `rejected`.
+`unsupported`, and provider refusal is `rejected`. Provider configuration updates can revoke an earlier
+confirmation: if Fast becomes off, `runtime.effective.speed` becomes `normal` and the requested Fast
+resolution becomes `rejected`. The requested selection is retained in `runtime.requested` and rechecked
+before the next prompt. A known configuration snapshot that removes the reasoning selector also
+removes the effective effort claim. An explicit refusal on a healthy process is attempted once per
+new prompt request, without repeating the same intent as rollback or replacing the process.
+Reasoning is also read from the latest provider option; `max` and `ultra` are sent unchanged only when
+advertised by the selected model.
 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or
@@ -607,7 +614,7 @@ a normal `200` result, while a gone session returns `410`. Server waits are alwa
 the CLI uses `--unbounded`.
 
 Each accepted prompt records its immutable runtime snapshot with the authored user event. Omitting
-runtime flags uses the durable `selected` value first, then the current `effective` selection; both
+runtime flags uses the durable `selected` value first, then the persisted `requested` selection; both
 being absent is invalid while the session is unbound. A queued prompt retains its submitted snapshot
 until dispatch. An interrupt preserves every parked entry and applies the replacement prompt's
 snapshot after the current turn becomes idle. The replacement runs before parked follow-ups.

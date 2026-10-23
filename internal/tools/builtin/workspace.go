@@ -132,7 +132,7 @@ var agentCreateInputSchema = `{
 		"name":` + agentNameInputSchema + `,
 		"provider":{"type":"string"},
 		"model":{"type":"string"},
-		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max","ultra"]},
 		"speed":{"type":"string","enum":["normal","fast"]},
 		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
 		"command":{"type":"string"},
@@ -156,7 +156,7 @@ var agentFallbackRouteInputSchema = `{
 	"properties":{
 		"provider":{"type":"string","minLength":1},
 		"model":{"type":"string","minLength":1},
-		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max","ultra"]},
 		"speed":{"type":"string","enum":["normal","fast"]},
 		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
 		"command":{"type":"string"},

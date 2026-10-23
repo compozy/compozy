@@ -79,6 +79,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		UpdatedAt:           info.UpdatedAt,
 	}
 	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
+		requested := info.RequestedRuntime()
+		payload.Runtime.Requested = contract.PromptRuntimeSelectionPayloadFromSelection(&requested)
 		payload.Runtime.LastKnown = runtime
 		if runtimeHasEffectiveSelection(info) {
 			payload.Runtime.Effective = runtime
@@ -177,12 +179,13 @@ func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelect
 	if info == nil || strings.TrimSpace(info.Provider) == "" {
 		return nil
 	}
+	runtime := info.EffectiveRuntime()
 	return &contract.RuntimeSelectionPayload{
-		Provider:        strings.TrimSpace(info.Provider),
-		Model:           strings.TrimSpace(info.Model),
-		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
-		Speed:           info.Speed,
-		ACPOptions:      contract.ACPOptionSelectionPayloadsFromACP(info.ACPOptions),
+		Provider:        strings.TrimSpace(runtime.Provider),
+		Model:           strings.TrimSpace(runtime.Model),
+		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(runtime.ReasoningEffort)),
+		Speed:           runtime.Speed,
+		ACPOptions:      contract.ACPOptionSelectionPayloadsFromACP(runtime.ACPOptions),
 		SpeedResolution: speedpkg.CloneResolution(info.SpeedResolution),
 	}
 }

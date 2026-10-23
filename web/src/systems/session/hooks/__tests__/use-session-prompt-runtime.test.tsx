@@ -1,5 +1,5 @@
 // Suite: Session prompt runtime availability
-// Invariant: The composer only enables models allowed by the workspace whose provider is authenticated globally.
+// Invariants: Keep requested intent across provider observations; enable only workspace models with authenticated providers.
 // Boundary IN: Session runtime hook plus its real TanStack Query projections and model-catalog mapper.
 // Boundary OUT: HTTP adapters and rendered selector behavior, owned by adapter and RuntimeSelector suites.
 
@@ -92,6 +92,54 @@ describe("useSessionPromptRuntime", () => {
   beforeEach(() => {
     runtimeSelectionMutation.isPending = false;
     runtimeSelectionMutation.mutate.mockReset();
+  });
+
+  it("Should retain binding intent after provider revocation and refetch without a selected runtime", async () => {
+    const { queryClient } = createHarness();
+    const requested = {
+      provider: "claude",
+      model: "claude-opus-5-5",
+      reasoning_effort: "max" as const,
+      speed: "fast" as const,
+    };
+    let session: SessionPayload = {
+      ...primarySessionFixture,
+      runtime: {
+        ...primarySessionFixture.runtime,
+        selected: undefined,
+        requested,
+        effective: requested,
+        selection_revision: 0,
+      },
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <SessionPromptRuntimeProvider session={session} canPrompt={false}>
+          {children}
+        </SessionPromptRuntimeProvider>
+      </QueryClientProvider>
+    );
+    const { result, rerender } = renderHook(
+      () => {
+        const store = useSessionPromptRuntimeContext();
+        return { runtime: useSessionPromptRuntime(store), store };
+      },
+      { wrapper }
+    );
+    expect(result.current.runtime.getRuntimeSnapshot()).toEqual(requested);
+    session = {
+      ...session,
+      runtime: {
+        ...session.runtime,
+        effective: { ...requested, reasoning_effort: "high", speed: "normal" },
+      },
+    };
+    rerender();
+    await waitFor(() => expect(result.current.runtime.value.reasoning_effort).toBe("max"));
+    expect(result.current.runtime.speed).toBe("fast");
+    expect(getSessionPromptRuntimeSnapshot(result.current.store)).toEqual(requested);
+    expect(session.runtime.effective?.speed).toBe("normal");
+    expect(runtimeSelectionMutation.mutate).not.toHaveBeenCalled();
   });
 
   it("Should combine workspace scope with global provider authentication", async () => {

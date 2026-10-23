@@ -1012,6 +1012,18 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 	// A hook may return a process together with a refusal: the process is registered
 	// so the caller can stop it, and the refusal is returned alongside its handle.
 
+	// Successful driver startup confirms the requested effort, including hook-backed processes.
+	if err == nil && copied.ReasoningEffort != "" {
+		caps := proc.handle.CapsSnapshot()
+		if _, advertised := acp.ReasoningConfigOption(caps.ConfigOptions); !advertised {
+			caps.ConfigOptions = append(caps.ConfigOptions, acp.SessionConfigOption{
+				ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: copied.ReasoningEffort,
+				Values: []acp.SessionConfigOptionValue{{Value: copied.ReasoningEffort}},
+			})
+			proc.handle.setCaps(caps)
+		}
+	}
+
 	proc.handle.toolHost = copied.ToolHost
 	proc.handle.approvePermissionFn = func(ctx context.Context, req acp.ApproveRequest) error {
 		if err := ctx.Err(); err != nil {

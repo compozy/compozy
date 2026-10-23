@@ -10,7 +10,7 @@ import {
   SessionPromptRuntimePersistenceContext,
 } from "../contexts/session-prompt-runtime-context-value";
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
-import type { SessionRuntimeEffective, SessionRuntimePayload } from "../types";
+import type { SessionRuntimeSelection, SessionRuntimePayload } from "../types";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
 import {
   normalizeRuntimeSpeed,
@@ -36,22 +36,22 @@ import {
   workspaceProviderToOption,
 } from "@/systems/workspace";
 
-/** Convert acknowledged runtime fields to selector intent without inventing optional ACP values. */
-function runtimeValueFromEffective(
-  effective: SessionRuntimeEffective | undefined
+/** Convert the requested selection to picker intent without inventing optional ACP values. */
+function runtimeValueFromSelection(
+  selection: SessionRuntimeSelection | undefined
 ): RuntimeSelectorValue {
-  const acpOptions = normalizeRuntimeACPSelections(effective?.acp_options);
+  const acpOptions = normalizeRuntimeACPSelections(selection?.acp_options);
   return {
-    provider: effective?.provider?.trim() ?? "",
-    model: effective?.model?.trim() ?? "",
-    reasoning_effort: effective?.reasoning_effort ?? "",
+    provider: selection?.provider?.trim() ?? "",
+    model: selection?.model?.trim() ?? "",
+    reasoning_effort: selection?.reasoning_effort ?? "",
     ...(acpOptions ? { acp_options: acpOptions } : {}),
   };
 }
 
-/** Use normal speed when the effective runtime does not advertise a speed selection. */
-function runtimeSpeedFromEffective(effective: SessionRuntimeEffective | undefined): RuntimeSpeed {
-  return effective?.speed ?? "normal";
+/** Use normal speed when the requested selection omits speed. */
+function runtimeSpeedFromSelection(selection: SessionRuntimeSelection | undefined): RuntimeSpeed {
+  return selection?.speed ?? "normal";
 }
 
 /** Freeze only valid explicit selector fields for the prompt submission boundary. */
@@ -109,18 +109,19 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const globalProviders = useProviders();
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
   const agent = agents.data?.find(candidate => candidate.name === input.agentName);
-  const { defaultValue, defaultSpeed } = promptRuntimeDefaults(agent, input.effectiveRuntime);
+  const baseline = input.requestedRuntime ?? input.effectiveRuntime;
+  const { defaultValue, defaultSpeed } = promptRuntimeDefaults(agent, baseline);
   const value = selectedValue ?? defaultValue;
   const speed = selectedSpeed ?? defaultSpeed;
 
   useEffect(() => {
     // Synchronize server input changes into the external store used by prompt snapshots.
-    const defaults = promptRuntimeDefaults(agent, input.effectiveRuntime);
+    const defaults = promptRuntimeDefaults(agent, baseline);
     store.trigger.defaultRuntimeResolved({
       speed: defaults.defaultSpeed,
       value: defaults.defaultValue,
     });
-  }, [agent, input.effectiveRuntime, store]);
+  }, [agent, baseline, store]);
   useEffect(
     () => () => {
       runtimeSelectionController.current?.abort();
@@ -266,16 +267,16 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   };
 }
 
-/** Resolve agent defaults only until a session has an effective binding of its own. */
+/** Resolve agent defaults only until a session has binding intent of its own. */
 function promptRuntimeDefaults(
   agent: AgentPayload | undefined,
-  effective: SessionRuntimeEffective | undefined
+  selection: SessionRuntimeSelection | undefined
 ) {
-  const fallback = runtimeValueFromEffective(effective);
+  const fallback = runtimeValueFromSelection(selection);
   return {
     defaultValue: fallback.provider.length > 0 ? fallback : resolveAgentRuntimeValue(agent),
-    defaultSpeed: effective
-      ? runtimeSpeedFromEffective(effective)
+    defaultSpeed: selection
+      ? runtimeSpeedFromSelection(selection)
       : normalizeRuntimeSpeed(agent?.effective_runtime?.speed ?? agent?.speed) || "normal",
   };
 }

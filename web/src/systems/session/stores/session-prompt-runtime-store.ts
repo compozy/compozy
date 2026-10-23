@@ -12,6 +12,7 @@ import {
 interface SessionPromptRuntimeInput {
   canPrompt: boolean;
   effectiveRuntime: SessionRuntimeEffective | undefined;
+  requestedRuntime: SessionRuntimeSelection | undefined;
   selectedRuntime: SessionRuntimeSelection | undefined;
   selectionRevision: number;
   sessionId: string;
@@ -23,6 +24,7 @@ export interface SessionPromptRuntimeInputSource {
   agentName: string;
   canPrompt: boolean;
   effectiveRuntime: SessionRuntimeEffective | null | undefined;
+  requestedRuntime?: SessionRuntimeSelection | null;
   selectedRuntime: SessionRuntimeSelection | null | undefined;
   selectionRevision: number;
   sessionId: string;
@@ -135,6 +137,7 @@ export function sessionPromptRuntimeInput(
     agentName: source.agentName,
     canPrompt: source.canPrompt && workspaceId.length > 0,
     effectiveRuntime: source.effectiveRuntime ?? undefined,
+    requestedRuntime: source.requestedRuntime ?? undefined,
     selectedRuntime: source.selectedRuntime ?? undefined,
     selectionRevision: source.selectionRevision,
     sessionId: source.sessionId,
@@ -143,9 +146,10 @@ export function sessionPromptRuntimeInput(
 }
 
 function selectionContext(input: SessionPromptRuntimeInput): SessionPromptRuntimeStoreContext {
+  const baseline = input.requestedRuntime ?? input.effectiveRuntime;
   return {
-    defaultSpeed: input.effectiveRuntime?.speed ?? "normal",
-    defaultValue: runtimeValue(input.effectiveRuntime),
+    defaultSpeed: baseline?.speed ?? "normal",
+    defaultValue: runtimeValue(baseline),
     input,
     ...selectedContext(input.selectedRuntime),
   };
@@ -185,6 +189,7 @@ function sameInput(left: SessionPromptRuntimeInput, right: SessionPromptRuntimeI
       normalizeRuntimeACPSelections(right.effectiveRuntime?.acp_options)
     ) &&
     left.selectionRevision === right.selectionRevision &&
+    sameRuntimeSelection(left.requestedRuntime, right.requestedRuntime) &&
     sameRuntimeSelection(left.selectedRuntime, right.selectedRuntime)
   );
 }

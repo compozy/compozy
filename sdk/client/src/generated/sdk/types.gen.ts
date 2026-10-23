@@ -6819,6 +6819,7 @@ export type SessionRuntimePayload = {
   generation?: number;
   last_known?: RuntimeSelectionPayload | null;
   recovery?: SessionRuntimeRecoveryPayload | null;
+  requested?: PromptRuntimeSelectionPayload | null;
   selected?: PromptRuntimeSelectionPayload | null;
   selection_revision: number;
   status: string;

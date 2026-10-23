@@ -57,6 +57,9 @@ func (s *Session) metaLocked() store.SessionMeta {
 		CreatedAt:              s.CreatedAt,
 		UpdatedAt:              s.UpdatedAt,
 	}
+	if s.process != nil {
+		meta.SpeedResolution = s.speedResolutionForCapsLocked(s.process.CapsSnapshot())
+	}
 	meta.SetPendingResumeReplay(s.pendingResumeReplay)
 	meta.SetRuntimeFailure(s.RuntimeFailure)
 	meta.SetRuntimeSelection(store.NewSessionRuntimeSelectionState(

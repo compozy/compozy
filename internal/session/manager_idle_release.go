@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// runtimeRelease marks an agent process the supervisor released from an idle session.
+// runtimeRelease owns a detached process after idle release or failed configuration rollback.
 // The session stays active with an unbound runtime and keeps owning the released process
 // until its exit is verified: done closes when the release stop returns, and err keeps
 // a failed stop so neither a rebind nor a session stop treats the process as gone.
@@ -83,6 +83,7 @@ func (s *Session) detachIdleRuntime(progress time.Time, now time.Time) *runtimeR
 	if s.supervisionProgressAt != progress || !s.idleRuntimeReleasableLocked() {
 		return nil
 	}
+	s.captureProcessCapabilitiesLocked()
 	release := &runtimeRelease{
 		acpSessionID: strings.TrimSpace(s.ACPSessionID), process: s.process, done: make(chan struct{}),
 	}

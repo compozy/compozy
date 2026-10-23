@@ -25026,6 +25026,19 @@
               }
             ]
           },
+          "requested": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PromptRuntimeSelectionPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "selected": {
             "oneOf": [
               {

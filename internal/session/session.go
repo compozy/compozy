@@ -53,6 +53,7 @@ const (
 
 // Info is the external read model returned by session list/get operations.
 type Info struct {
+	runtimeStrategy          acp.RuntimeApplicationStrategy
 	VerdictOnly              bool `json:"-"`
 	Supervision              *SupervisionState
 	BusyInput                *BusyInputState
@@ -350,6 +351,7 @@ func (s *Session) clearProcess(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	s.captureProcessCapabilitiesLocked()
 	s.process = nil
 	if !now.IsZero() {
 		s.UpdatedAt = now

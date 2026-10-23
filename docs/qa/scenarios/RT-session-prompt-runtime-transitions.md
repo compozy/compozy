@@ -36,3 +36,26 @@ Stop a session while an independent reader retains an earlier snapshot. Close mu
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+QA impact #914 (2026-10-23): run Codex with max/normal, select ultra/Fast via the native runtime
+setter, prompt without overrides, then stop and prompt the same logical session. Compare selected
+intent, effective runtime, and ACP readback after each turn. Stopping after a provider disables Fast
+must preserve requested-speed metadata and succeed without claiming Fast is applied. Focused
+replacement/recovery suites also assert exact ultra/Fast forwarding. See
+[the scoped report](../reports/2026-10-23-issue-914-fast-reasoning.md); no new browser verdict is claimed.
+
+Review re-walk #914: repeat Claude max/Fast after account revocation with no `runtime.selected`.
+Both completed turns retain requested max/Fast and report max/normal/rejected; generation remains 1.
+The focused composer suite also refetches reduced observations and checks the next send snapshot.
+A separate session transition regression counts one attempt per explicit retry and no process starts
+for a permanent configuration refusal, while a wrapped transport failure retains recovery.
+
+QA follow-up #914 (2026-10-23): if a provider accepts a new model, rejects its effort, and also
+refuses restoring the prior model, keep the original requested selection and the full diagnostic.
+The runtime becomes unbound and the altered process must exit before another prompt can bind.
+A failed stop blocks dispatch until exit is verified; the next prompt binds the original model.
+The canonical session transition and verified-release suites cover both stop outcomes.
+
+QA idle-release follow-up #914 (2026-10-23): revoke Fast and reduce confirmed effort before the
+automatic idle timeout. After release, readback must retain the latest normal/rejected speed and
+reduced effort, while durable intent remains unchanged. The supervision suite owns this regression.
