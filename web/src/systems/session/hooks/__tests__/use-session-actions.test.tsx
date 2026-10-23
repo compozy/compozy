@@ -1555,7 +1555,8 @@ describe("session lifecycle batches", () => {
     const { result } = lifecycle();
     act(() => result.current.actions.onArchiveMany?.([createdSession, stopped, archived]));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("2 sessions archived"));
-    // The live row archives in one daemon-owned call that stops it first.
+    // Every row archives through the stop-first operation, so a stopped parent with a
+    // still-live subagent session archives too.
     expect(archiveSession).toHaveBeenCalledTimes(2);
     expect(archiveSession).toHaveBeenNthCalledWith(
       1,
@@ -1571,7 +1572,7 @@ describe("session lifecycle batches", () => {
       "stopped",
       createdSession.profile_name,
       expect.any(AbortSignal),
-      false
+      true
     );
     act(() => result.current.actions.onUnarchiveMany?.([createdSession, stopped, archived]));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("1 session unarchived"));
@@ -1613,7 +1614,7 @@ describe("session lifecycle batches", () => {
     expect(stopFlags).toEqual([
       [live.id, true],
       [failing.id, true],
-      [stopped.id, false],
+      [stopped.id, true],
     ]);
     // Successes are counted and each failure names its session.
     expect(toast.error).toHaveBeenCalledExactlyOnceWith("2 sessions archived, 1 failed", {

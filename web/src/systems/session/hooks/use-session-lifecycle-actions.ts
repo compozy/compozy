@@ -66,9 +66,13 @@ export interface UseSessionLifecycleActionsResult {
   renameDialog: SessionRenameConfirmation;
 }
 
-/** A live session archives in one daemon-owned action that stops it first. */
+/**
+ * Archive always uses the daemon's stop-first operation: a live session stops
+ * first, and a stopped parent whose subagent session is still live (until the
+ * reaper stops it) archives too. A fully stopped family archives as before.
+ */
 function archiveTarget(session: SessionPayload) {
-  return { ...session, stop: session.state !== "stopped" };
+  return { ...session, stop: true };
 }
 
 /** Preserve the daemon message, falling back only when the failure has no useful text. */

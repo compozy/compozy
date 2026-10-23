@@ -50,9 +50,16 @@ func (n *daemonNativeTools) setSessionArchived(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
-	// Stopping the caller would cancel the turn executing this call, as session_stop refuses.
-	if archived && input.Stop && strings.TrimSpace(input.SessionID) == strings.TrimSpace(scope.SessionID) {
-		return toolspkg.ToolResult{}, nativeSelfTargetError(req.ToolID)
+	if archived && input.Stop {
+		// Stopping the caller, or an ancestor whose stop cascades to it, would
+		// cancel the turn executing this call, as session_stop refuses for self.
+		within, err := n.nativeCallerWithinSession(ctx, scope.SessionID, input.SessionID)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		if within {
+			return toolspkg.ToolResult{}, nativeSelfTargetError(req.ToolID)
+		}
 	}
 	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, input.SessionID); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -83,4 +90,39 @@ func (n *daemonNativeTools) setSessionArchived(
 	}
 	payload := core.SessionPayloadFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
+}
+
+// nativeArchiveLineageWalkLimit bounds the caller ancestry walk against corrupt
+// lineage cycles; real spawn trees are far shallower.
+const nativeArchiveLineageWalkLimit = 64
+
+// nativeCallerWithinSession reports whether the calling session is target or
+// one of its descendants, walking the caller's durable parent lineage.
+func (n *daemonNativeTools) nativeCallerWithinSession(
+	ctx context.Context,
+	callerID string,
+	target string,
+) (bool, error) {
+	target = strings.TrimSpace(target)
+	current := strings.TrimSpace(callerID)
+	for range nativeArchiveLineageWalkLimit {
+		if current == "" {
+			return false, nil
+		}
+		if current == target {
+			return true, nil
+		}
+		info, err := n.deps.Sessions.Status(ctx, current)
+		if errors.Is(err, session.ErrSessionNotFound) {
+			return false, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if info == nil || info.Lineage == nil {
+			return false, nil
+		}
+		current = strings.TrimSpace(info.Lineage.ParentSessionID)
+	}
+	return false, nil
 }

@@ -1660,6 +1660,42 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deny a stop-first archive whose stop would cascade to the caller", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		status := manager.StatusFn
+		// sess-grandchild descends from sess-parent through sess-child.
+		parents := map[string]string{"sess-grandchild": "sess-child", "sess-child": "sess-parent"}
+		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil && parents[id] != "" {
+				info.Lineage = &store.SessionLineage{ParentSessionID: parents[id], RootSessionID: "sess-parent"}
+			}
+			return info, err
+		}
+		archived := 0
+		manager.ArchiveWithStopFn = func(context.Context, string, string) (*session.Info, error) {
+			archived++
+			return &session.Info{ID: "sess-other", State: session.StateStopped}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-grandchild", AgentName: "coder"}
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchive,
+			Input:  json.RawMessage(`{"session_id":"sess-parent","stop":true}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		if _, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchive,
+			Input:  json.RawMessage(`{"session_id":"sess-other","stop":true}`),
+		}); err != nil || archived != 1 {
+			t.Fatalf("stop-first archive of an unrelated session = %v, calls=%d, want one archive", err, archived)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
