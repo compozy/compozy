@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { createStoreLogic } from "@xstate/store";
+import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
@@ -20,6 +21,22 @@ export interface SessionGroupFolderAxis {
   onChange: (value: string) => void;
 }
 
+interface GroupFolderDialogState {
+  open: boolean;
+  project: string | null;
+  profile: string | null;
+}
+
+const groupFolderDialogLogic = createStoreLogic({
+  context: (): GroupFolderDialogState => ({ open: false, project: null, profile: null }),
+  on: {
+    opened: () => ({ open: true, project: null, profile: null }),
+    closed: context => ({ ...context, open: false }),
+    projectPicked: (context, event: { value: string }) => ({ ...context, project: event.value }),
+    profilePicked: (context, event: { value: string }) => ({ ...context, profile: event.value }),
+  },
+});
+
 /**
  * New folder from a list group's `+`. A folder belongs to one (workspace,
  * profile) pair; the group settles what it can — its project, its profile —
@@ -33,11 +50,9 @@ export function useSessionListGroupFolderCreate(target: {
   /** `null` when the group spans profiles. */
   profile: string | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const [picks, setPicks] = useState<{ project: string | null; profile: string | null }>({
-    project: null,
-    profile: null,
-  });
+  const store = useStore(groupFolderDialogLogic);
+  const picks = useSelector(store, snapshot => snapshot.context);
+  const { open } = picks;
   const profileScope = useProfileReadScope();
   const active = useActiveWorkspace();
   const profiles = useProfiles(open && target.profile === null);
@@ -57,17 +72,14 @@ export function useSessionListGroupFolderCreate(target: {
 
   return {
     open,
-    openDialog: () => {
-      setPicks({ project: null, profile: null });
-      setOpen(true);
-    },
-    close: () => setOpen(false),
+    openDialog: () => store.trigger.opened(),
+    close: () => store.trigger.closed(),
     project:
       target.workspaceId === null
         ? ({
             options: projectOptions,
             value: workspaceId ?? "",
-            onChange: value => setPicks(current => ({ ...current, project: value })),
+            onChange: value => store.trigger.projectPicked({ value }),
           } satisfies SessionGroupFolderAxis)
         : undefined,
     profile:
@@ -75,7 +87,7 @@ export function useSessionListGroupFolderCreate(target: {
         ? ({
             options: profileOptions,
             value: profile,
-            onChange: value => setPicks(current => ({ ...current, profile: value })),
+            onChange: value => store.trigger.profilePicked({ value }),
           } satisfies SessionGroupFolderAxis)
         : undefined,
     /** Creates the folder in the settled pair; refuses until that pair's folders loaded. */
