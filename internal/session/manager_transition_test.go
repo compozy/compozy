@@ -26,6 +26,81 @@ var errRecordingCatalogMissingSession = errors.New("recording catalog missing se
 
 func TestPromptRuntimeReappliesProviderDrift(t *testing.T) {
 	t.Parallel()
+	t.Run(
+		"Should preserve Fast intent and accept the next prompt after a failed change rolls back to normal",
+		func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+			h.manager.driver = driver
+			active := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+			snapshot := active.runtimeBindingSnapshot()
+			selection := snapshot.selection
+			selection.ReasoningEffort = "max"
+			selection.Speed = speedpkg.SpeedFast
+			active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+			caps := acp.Caps{
+				ConfigOptions: []acp.SessionConfigOption{
+					{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "max"},
+					{
+						ID:          "fast",
+						Category:    "model_config",
+						Kind:        acp.SessionConfigOptionKindBoolean,
+						CurrentBool: new(false),
+					},
+				},
+				SpeedResolution: &speedpkg.Resolution{
+					Requested: speedpkg.SpeedFast,
+					Status:    speedpkg.ResolutionRejected,
+					Reason:    speedpkg.ReasonProviderRejected,
+				},
+			}
+			snapshot.process.setCaps(caps)
+			refusal := &acp.NegotiationError{Code: acp.NegotiationCodeReasoningEffortUnsupported, Requested: "ultra"}
+			driver.configHook = func(process *AgentProcess, config acp.RuntimeConfig) error {
+				if config.ReasoningEffort == "ultra" {
+					return refusal
+				}
+				observed := acp.CloneCaps(caps)
+				observed.ConfigOptions[1].CurrentBool = new(config.Speed == speedpkg.SpeedFast)
+				observed.SpeedResolution = &speedpkg.Resolution{
+					Requested: config.Speed,
+					Status:    speedpkg.ResolutionApplied,
+				}
+				process.setCaps(observed)
+				return nil
+			}
+			changed := selection
+			changed.ReasoningEffort = "ultra"
+			_, err := h.manager.ensurePromptRuntime(t.Context(), active, &changed, snapshot.process)
+			if !errors.Is(err, refusal) {
+				t.Fatalf("failed change = %v, want provider refusal", err)
+			}
+			configs := driver.configSnapshots()
+			if len(configs) != 2 || configs[1].Speed != speedpkg.SpeedNormal {
+				t.Fatalf("rollback = %#v, want observed normal", configs)
+			}
+			info, meta := active.Info(), active.Meta()
+			if info.Speed != speedpkg.SpeedFast || info.SpeedResolution.Requested != speedpkg.SpeedFast ||
+				info.SpeedResolution.Status != speedpkg.ResolutionRejected || info.EffectiveRuntime().Speed != speedpkg.SpeedNormal ||
+				meta.SpeedResolution.Requested != meta.Speed {
+				t.Fatalf("rollback intent mismatch: info=%#v meta=%#v", info.SpeedResolution, meta.SpeedResolution)
+			}
+			events, err := h.manager.Prompt(t.Context(), active.ID, "retry the preserved request")
+			if err != nil {
+				t.Fatalf("next prompt after rollback = %v", err)
+			}
+			for range events {
+			}
+			if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if active.runtimeBindingSnapshot().process != snapshot.process || len(driver.configSnapshots()) != 3 {
+				t.Fatal("retry did not reconfigure the preserved process exactly once")
+			}
+		},
+	)
 	t.Run("Should replace a process after a transport failure wrapped by negotiation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -1535,20 +1610,24 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 
 type runtimeConfigRecordingDriver struct {
 	*fakeDriver
-	configMu  sync.Mutex
-	configs   []acp.RuntimeConfig
-	configErr error
+	configMu   sync.Mutex
+	configs    []acp.RuntimeConfig
+	configErr  error
+	configHook func(*AgentProcess, acp.RuntimeConfig) error
 }
 
 func (d *runtimeConfigRecordingDriver) ConfigureRuntime(
 	_ context.Context,
-	_ *AgentProcess,
+	process *AgentProcess,
 	config acp.RuntimeConfig,
 ) error {
 	d.configMu.Lock()
 	defer d.configMu.Unlock()
 	config.ACPOptions = acp.CloneSessionConfigOptionSelections(config.ACPOptions)
 	d.configs = append(d.configs, config)
+	if d.configHook != nil {
+		return d.configHook(process, config)
+	}
 	return d.configErr
 }
 

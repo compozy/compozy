@@ -69,6 +69,26 @@ CodeRabbit's additional unknown-current speed finding is fixed: an advertised wr
 
 CI found a separate stop regression: capturing the last capabilities also restored the old PID. Detach now captures only capabilities/resolution, with a regression asserting zero PID after exit. The existing daemon task E2E assertions now verify requested intent separately from unsupported effective speed and its exact resolution; production persistence validation remains unchanged. These E2E checks are rerun only in CI.
 
+## Second review follow-up
+
+Greptile identified a valid rollback mismatch: after Fast was revoked, changing to an unsupported
+effort restored observed normal but left the live resolution referring to the rollback request.
+Session metadata still requested Fast, so the existing store validation blocked subsequent writes.
+The canonical session transition suite reproduced this exact rejection before the fix. Session
+reads, metadata, and capability capture now resolve the persisted intent against the live options
+when the provider's last configuration request differs. The next prompt succeeds, reapplies Fast
+once on the same process, and preserves the store invariant. No provider setting is silently changed
+to match the rollback.
+
+CI also caught the retired product name in one provider-doc sentence and a contract fixture that
+expected confirmed high reasoning without advertising it. The sentence and fixture are corrected;
+the JSON shape assertions remain intact and the product-language check is unchanged. The shared
+native output schema now includes `runtime.requested`, and the historical OpenAPI compatibility
+suite explicitly permits that additive field. Successful driver fixtures advertise the effort they
+accepted; changing image support preserves other capabilities. Focused replay, cancellation,
+attachment, native output, and OpenAPI compatibility cases pass. Modern Go error inspection
+replaces the forbidden legacy helper.
+
 ## Review re-walk
 
 A second isolated lab repeated two short Claude max/Fast prompts. Both completed; after each turn the provider advertised `effort=max` and `fast=off`, while HTTP returned requested max/Fast and effective max/normal/rejected. There was no durable `selected` value. Runtime generation remained 1 and the second transition was live configuration. This provider acknowledged then revoked Fast again; it did not exercise an immediate setter refusal, which is covered by deterministic configuration-attempt/process-start assertions. Manifest-scoped teardown reported clean with zero survivors. Its stop readback was captured while stopping; only the first lab claims a verified stopped-session readback.

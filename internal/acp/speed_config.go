@@ -36,7 +36,8 @@ func CurrentSpeed(options []SessionConfigOption) speedpkg.Speed {
 	return ""
 }
 
-func resolveCurrentSpeed(requested speedpkg.Speed, options []SessionConfigOption) *speedpkg.Resolution {
+// ResolveCurrentSpeed compares a normalized request with the latest provider observation.
+func ResolveCurrentSpeed(requested speedpkg.Speed, options []SessionConfigOption) *speedpkg.Resolution {
 	match, reason := matchSpeedConfig(requested, options)
 	resolution := &speedpkg.Resolution{Requested: requested}
 	switch {

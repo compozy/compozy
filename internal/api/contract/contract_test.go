@@ -842,6 +842,13 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 							{Value: "gpt-test", Label: "GPT Test"},
 						},
 					},
+					{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+					{
+						ID:          "fast",
+						Category:    "model_config",
+						Kind:        acp.SessionConfigOptionKindBoolean,
+						CurrentBool: new(true),
+					},
 				},
 			},
 		})
@@ -903,7 +910,7 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			t.Fatalf("acp_caps JSON = %#v", acpCaps)
 		}
 		configOptions, ok := acpCaps["config_options"].([]any)
-		if !ok || len(configOptions) != 1 {
+		if !ok || len(configOptions) != 3 {
 			t.Fatalf("config_options JSON = %#v", acpCaps["config_options"])
 		}
 		configOption, ok := configOptions[0].(map[string]any)

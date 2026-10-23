@@ -80,6 +80,7 @@ const sessionRuntimeOutputSchema = `{
 			"additionalProperties":false
 		},
 		"selected":` + sessionRuntimeSelectionOutputSchema + `,
+		"requested":` + sessionRuntimeSelectionOutputSchema + `,
 		"selection_revision":{"type":"integer","minimum":0},
 		"effective":` + sessionRuntimeSelectionOutputSchema + `,
 		"last_known":` + sessionRuntimeSelectionOutputSchema + `,

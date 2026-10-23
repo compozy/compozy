@@ -195,7 +195,7 @@ func (p *AgentProcess) setConfigOptionsLocked(options []SessionConfigOption) {
 	p.configRevision++
 	p.caps.ConfigOptions = preserveSyntheticModelConfigOption(p.caps.ConfigOptions, options)
 	if resolution := p.caps.SpeedResolution; resolution != nil {
-		p.caps.SpeedResolution = resolveCurrentSpeed(resolution.Requested, p.caps.ConfigOptions)
+		p.caps.SpeedResolution = ResolveCurrentSpeed(resolution.Requested, p.caps.ConfigOptions)
 	}
 }
 
@@ -207,7 +207,7 @@ func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {
 	defer p.capsMu.Unlock()
 	p.caps.SpeedResolution = speedpkg.CloneResolution(resolution)
 	if resolution != nil && resolution.Status == speedpkg.ResolutionApplied {
-		p.caps.SpeedResolution = resolveCurrentSpeed(resolution.Requested, p.caps.ConfigOptions)
+		p.caps.SpeedResolution = ResolveCurrentSpeed(resolution.Requested, p.caps.ConfigOptions)
 	}
 }
 

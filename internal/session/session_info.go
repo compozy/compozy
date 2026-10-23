@@ -30,7 +30,7 @@ func (s *Session) infoLocked() *Info {
 	pendingPermission := s.process != nil && s.process.HasPendingPermission()
 	resolution := speedpkg.CloneResolution(s.SpeedResolution)
 	if acpCaps.SpeedResolution != nil {
-		resolution = speedpkg.CloneResolution(acpCaps.SpeedResolution)
+		resolution = s.speedResolutionForCapsLocked(acpCaps)
 	}
 
 	return &Info{

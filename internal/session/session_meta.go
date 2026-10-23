@@ -58,7 +58,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		UpdatedAt:              s.UpdatedAt,
 	}
 	if s.process != nil {
-		meta.SpeedResolution = speedpkg.CloneResolution(s.process.CapsSnapshot().SpeedResolution)
+		meta.SpeedResolution = s.speedResolutionForCapsLocked(s.process.CapsSnapshot())
 	}
 	meta.SetPendingResumeReplay(s.pendingResumeReplay)
 	meta.SetRuntimeFailure(s.RuntimeFailure)

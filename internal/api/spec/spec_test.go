@@ -3498,7 +3498,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		t.Fatal("approved tool error code addition: no historical tool error code enums found")
 	}
 	// #832: last_known has the existing optional RuntimeSelectionPayload contract.
-	if addLastKnownRuntimeSchema(baseline) == 0 {
+	// #914: requested has the existing optional PromptRuntimeSelectionPayload contract.
+	if addSessionRuntimeReadSchemas(baseline) == 0 {
 		t.Fatal("approved session runtime addition: no historical runtime schemas found")
 	}
 	// #804: optional additive field; no required/type/removal change.
@@ -3840,16 +3841,16 @@ func addToolErrorCode(value any, code string) int {
 	return count
 }
 
-func addLastKnownRuntimeSchema(value any) int {
+func addSessionRuntimeReadSchemas(value any) int {
 	count := 0
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			count += addLastKnownRuntimeSchema(child)
+			count += addSessionRuntimeReadSchemas(child)
 		}
 	case map[string]any:
 		for child := range maps.Values(node) {
-			count += addLastKnownRuntimeSchema(child)
+			count += addSessionRuntimeReadSchemas(child)
 		}
 		properties, ok := node["properties"].(map[string]any)
 		if !ok || properties["acp_session_id"] == nil || properties["selection_revision"] == nil {
@@ -3858,6 +3859,9 @@ func addLastKnownRuntimeSchema(value any) int {
 		if effective, exists := properties["effective"]; exists {
 			properties["last_known"] = effective
 			count++
+		}
+		if selected, exists := properties["selected"]; exists {
+			properties["requested"] = selected
 		}
 	}
 	return count

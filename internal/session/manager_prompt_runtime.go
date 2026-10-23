@@ -115,8 +115,7 @@ func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
 // Provider negotiation refusals are retried only by a subsequent prompt request;
 // replacing a healthy process cannot grant an unavailable capability or account tier.
 func runtimeConfigurationRefused(err error, process *AgentProcess) bool {
-	var negotiationErr *acp.NegotiationError
-	if !errors.As(err, &negotiationErr) || isProcessDone(process) {
+	if _, ok := errors.AsType[*acp.NegotiationError](err); !ok || isProcessDone(process) {
 		return false
 	}
 	if failure, ok := acp.FailureFromError(err, store.FailurePrompt); ok {
