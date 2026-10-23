@@ -4434,6 +4434,25 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
   });
 
+  // Invariant: pressing transcript content (selecting text, clicking a row
+  // control) at the end is not a scroll; following holds until the press
+  // actually drags the viewport.
+  it("Should keep following when a press on transcript content does not scroll", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("content-press") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    const row = screen.getByText("Message 0");
+    fireEvent.pointerDown(row);
+    fireEvent.pointerUp(document);
+
+    // Still following: a later non-gesture scroll off the end is pinned back.
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
   // Invariant: a key a focused control consumes (Shift+Space activating "Copy")
   // is not a scroll gesture, so following holds; the keys it does not consume
   // (ArrowUp on that same button) still hand the viewport to the reader.

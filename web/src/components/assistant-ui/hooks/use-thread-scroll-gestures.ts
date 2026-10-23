@@ -20,7 +20,8 @@ export function pinToEnd(viewport: HTMLDivElement, store: ThreadScrollStore): vo
  * back. A scroll event alone never does — measurement and clamping move the
  * viewport too — so while following, a scroll off the end re-pins it. A
  * pointer held on the scroller (scrollbar drag, selection autoscroll) reports
- * the direction its scrolls move, so dragging back down can re-arm following.
+ * the direction its scrolls move, so dragging back down can re-arm following;
+ * only a press on the scrollbar gutter takes the viewport before it moves.
  */
 export function useThreadScrollGestures(
   viewportRef: RefObject<HTMLDivElement | null>,
@@ -53,10 +54,15 @@ export function useThreadScrollGestures(
       lastTouchY = y;
       observeNavigation(direction);
     };
-    // A pointer on the scrollbar is the reader taking the viewport.
-    const handlePointerDown = () => {
+    // A press on the scrollbar gutter is the reader taking the viewport. Any
+    // other press (selecting text, a row control, an overlay scrollbar) takes
+    // it only once the scrolls it drives move the viewport.
+    const handlePointerDown = (event: PointerEvent) => {
       heldPointerScrollTop = viewport.scrollTop;
-      observeNavigation("up");
+      const onGutter =
+        event.target === viewport &&
+        event.clientX - viewport.getBoundingClientRect().left >= viewport.clientWidth;
+      if (onGutter) observeNavigation("up");
     };
     const handlePointerRelease = () => {
       heldPointerScrollTop = null;
