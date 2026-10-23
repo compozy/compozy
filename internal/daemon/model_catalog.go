@@ -226,7 +226,7 @@ func (r *modelCatalogRuntime) refresh(
 	}
 
 	refreshCtx := context.WithoutCancel(ctx)
-	refreshCtx, cancel := context.WithTimeout(refreshCtx, r.timeout)
+	refreshCtx, cancel := context.WithTimeout(refreshCtx, r.refreshTimeout(opts.ProviderID))
 	resultCh := make(chan modelCatalogRefreshResult, 1)
 	complete, admitted := r.workers.Begin()
 	if !admitted {
@@ -354,7 +354,7 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		return fmt.Errorf("daemon: parse model catalog source timeout: %w", err)
 	}
 	httpClient := &http.Client{Timeout: sourceTimeout}
-	sources, err := d.modelCatalogSources(state, httpClient, sourceTimeout)
+	sources, err := d.modelCatalogSources(state, httpClient, modelcatalog.DefaultLiveDiscoveryTimeout)
 	if err != nil {
 		return err
 	}
@@ -376,7 +376,7 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		service,
 		state.logger,
 		d.now,
-		sourceTimeout+modelCatalogRefreshCleanupGrace,
+		max(sourceTimeout, modelcatalog.DefaultLiveDiscoveryTimeout)+modelCatalogRefreshCleanupGrace,
 	)
 	if err != nil {
 		return err
@@ -402,8 +402,14 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 	}
 	runtime.liveSourceFactory = func(providers map[string]compozyconfig.ProviderConfig) ([]modelcatalog.Source, error) {
 		return modelcatalog.NewLiveProviderSources(&modelcatalog.LiveProviderSourcesConfig{
-			Providers: providers, HomePaths: d.homePaths, BaseEnv: os.Environ(),
-			SecretResolver: d.modelCatalogSecretResolver(state), HTTPClient: httpClient, DefaultTimeout: sourceTimeout,
+			Providers: providers,
+			HomePaths: d.homePaths,
+			BaseEnv:   os.Environ(),
+			SecretResolver: d.modelCatalogSecretResolver(
+				state,
+			),
+			HTTPClient:     httpClient,
+			DefaultTimeout: modelcatalog.DefaultLiveDiscoveryTimeout,
 		})
 	}
 	state.modelCatalog = runtime

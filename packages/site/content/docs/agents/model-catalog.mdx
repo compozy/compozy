@@ -55,8 +55,22 @@ Failed source status includes `failure_reason`: `auth_required` means sign in to
 provider, `timeout` means discovery exceeded its deadline, and `refresh_failed`
 means another discovery failure. CLI structured output, HTTP/UDS, native tools,
 and Settings share this classification. `last_error` retains redacted diagnostic
-detail. A provider failure does not remove cached or curated model choices; the
-session selector shows guidance attributed to that provider.
+detail. A provider failure preserves cached and curated rows. Claude and Cursor (including
+provider overlays) require a fresh live transport binding: unconfirmed rows report
+`available=false` with `availability_state=unknown` and are disabled in the session selector.
+Their `last_error` explains `live catalog unavailable: <last refresh error>`. A successful
+refresh restores selectable rows and their existing logical-to-transport mapping.
+
+Live discovery has a 60-second default deadline, independent of the models.dev HTTP timeout.
+Use the existing per-provider override for slower installations:
+
+```toml
+[providers.claude.models.discovery]
+timeout = "90s"
+```
+
+The enclosing refresh allows the configured discovery deadline plus cleanup time. Changing
+`model_catalog.sources.models_dev.timeout` only changes the models.dev HTTP request budget.
 
 ## Provider overlays
 

@@ -128,6 +128,22 @@ export function useRuntimeModelCatalog(
     }
   }
 
+  for (const [providerId, bucket] of Object.entries(payloadsByProvider)) {
+    if (allowed.get(providerId)) continue;
+    const unconfirmed = bucket.find(
+      model =>
+        model.available === false && model.last_error?.startsWith("live catalog unavailable:")
+    );
+    if (
+      unconfirmed?.last_error &&
+      !displayedSources.some(
+        source => source.provider_id === providerId && source.failure_reason === "auth_required"
+      )
+    ) {
+      providerIssues[providerId] = unconfirmed.last_error;
+    }
+  }
+
   return {
     models,
     payloadsByProvider,

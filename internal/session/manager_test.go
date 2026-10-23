@@ -601,6 +601,26 @@ func TestManagerWorkAdmission(t *testing.T) {
 
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should report live catalog failure before launching a curated Claude model", func(t *testing.T) {
+		t.Parallel()
+		const diagnostic = "live catalog unavailable: context deadline exceeded"
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID: "claude", ModelID: "claude-sonnet-5",
+			Available: new(false), AvailabilityState: modelcatalog.AvailabilityStateUnknown,
+			LastError: diagnostic,
+		}}}))
+		_, err := h.manager.Create(t.Context(), CreateOpts{
+			AgentName: "coder", Provider: "claude", Model: "claude-sonnet-5", Workspace: h.workspaceID,
+		})
+		if err == nil || !strings.Contains(err.Error(), diagnostic) {
+			t.Fatalf("Create() error = %v, want refresh diagnostic", err)
+		}
+		if len(h.driver.startCalls) != 0 {
+			t.Fatal("unconfirmed model launched")
+		}
+	})
+
 	for _, provider := range []string{"claude", "cursor"} {
 		t.Run("Should reuse fresh scoped "+provider+" catalog bindings", func(t *testing.T) {
 			t.Parallel()

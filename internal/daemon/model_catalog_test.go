@@ -34,6 +34,47 @@ import (
 
 func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep live discovery independent of the models dev deadline", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		daemon := newTestDaemon(t, home, &cfg)
+		sources, err := daemon.modelCatalogSources(
+			&bootState{cfg: cfg},
+			&http.Client{Timeout: time.Second},
+			modelcatalog.DefaultLiveDiscoveryTimeout,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime := &modelCatalogRuntime{
+			timeout:     time.Second,
+			liveSources: make(map[string]*modelcatalog.LiveProviderSource),
+		}
+		for _, source := range sources {
+			if live, ok := source.(*modelcatalog.LiveProviderSource); ok {
+				runtime.liveSources[live.ProviderIDs()[0]] = live
+			}
+		}
+		claude := runtime.liveSources["claude"]
+		if claude == nil || claude.DiscoveryTimeout() != 60*time.Second {
+			t.Fatalf("Claude discovery deadline = %#v", claude)
+		}
+		if got := runtime.refreshTimeout("claude"); got < claude.DiscoveryTimeout()+modelCatalogRefreshCleanupGrace {
+			t.Fatalf("outer refresh deadline %s truncates live discovery", got)
+		}
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Models.Discovery.Timeout = "90s"
+		custom, err := modelcatalog.NewLiveProviderSource("claude", provider, &modelcatalog.LiveProviderSourcesConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		runtime.liveSources["claude"] = custom
+		if got := runtime.refreshTimeout("claude"); got != 90*time.Second+modelCatalogRefreshCleanupGrace {
+			t.Fatalf("configured refresh deadline = %s", got)
+		}
+	})
+
 	t.Run("Should resolve only the selected provider model context window", func(t *testing.T) {
 		t.Parallel()
 		catalog := &recordingModelCatalogService{models: []modelcatalog.Model{

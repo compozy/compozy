@@ -31,7 +31,8 @@ const (
 )
 
 const (
-	defaultLiveDiscoveryTimeout = 10 * time.Second
+	// DefaultLiveDiscoveryTimeout allows cold ACP subprocess initialization.
+	DefaultLiveDiscoveryTimeout = 60 * time.Second
 	// DefaultLiveDiscoveryTTL is the refresh interval for dynamic provider and extension discovery.
 	DefaultLiveDiscoveryTTL     = 5 * time.Minute
 	maxLiveDiscoveryPayloadSize = 8 << 20
@@ -169,7 +170,7 @@ func NewLiveProviderSource(
 	}
 	timeout := cfg.DefaultTimeout
 	if timeout <= 0 {
-		timeout = defaultLiveDiscoveryTimeout
+		timeout = DefaultLiveDiscoveryTimeout
 	}
 	refreshTTL := cfg.RefreshTTL
 	if refreshTTL <= 0 {
@@ -251,6 +252,15 @@ func (s *LiveProviderSource) TTL() time.Duration {
 		return DefaultLiveDiscoveryTTL
 	}
 	return s.refreshTTL
+}
+
+// DiscoveryTimeout returns the configured deadline for this provider's live probe.
+func (s *LiveProviderSource) DiscoveryTimeout() time.Duration {
+	timeout, err := s.discoveryTimeout(s.providerSnapshot().Models.Discovery.Timeout)
+	if err != nil {
+		return s.defaultTimeout
+	}
+	return timeout
 }
 
 // BootstrapOnList reports whether the source should discover once before its first catalog projection.

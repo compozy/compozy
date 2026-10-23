@@ -1240,6 +1240,69 @@ func TestCatalogViews(t *testing.T) {
 func TestCatalogServiceRefresh(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should require a fresh live binding and retain the refresh diagnostic", func(t *testing.T) {
+		t.Parallel()
+		for _, provider := range []string{"claude", "cursor"} {
+			t.Run("Should confirm "+provider+" only after successful discovery", func(t *testing.T) {
+				t.Parallel()
+				live := &fakeSource{
+					id: SourceKindProviderLiveID(provider), kind: SourceKindProviderLive,
+					priority: PriorityProviderLive, providers: []string{provider},
+					err: errors.New("context deadline exceeded"),
+				}
+				service := newTestService(t, newMemoryStore(), []Source{
+					&fakeSource{id: SourceIDConfig, kind: SourceKindConfig, priority: PriorityConfig,
+						providers: []string{provider}, rows: []ModelRow{
+							testRow(
+								SourceIDConfig,
+								SourceKindConfig,
+								PriorityConfig,
+								provider,
+								"logical",
+								testTime(0),
+								nil,
+							),
+						}}, live,
+				})
+				opts := ListOptions{ProviderID: provider, Refresh: true, Now: testTime(10)}
+				models, err := service.ListModels(t.Context(), opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model := requireSingleModel(t, models)
+				if model.Available == nil || *model.Available || model.AvailabilityState != AvailabilityStateUnknown ||
+					!strings.Contains(model.LastError, "live catalog unavailable: context deadline exceeded") {
+					t.Fatalf("unconfirmed projection = %#v", model)
+				}
+				live.err = nil
+				live.rows = []ModelRow{
+					testRow(live.id, live.kind, live.priority, provider, "logical", testTime(10), func(row *ModelRow) {
+						row.Available = new(true)
+						row.TransportBindings = []ModelTransportBinding{{TransportModelID: "transport"}}
+					}),
+				}
+				models, err = service.ListModels(t.Context(), opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model = requireSingleModel(t, models)
+				if model.Available == nil || !*model.Available ||
+					model.AvailabilityState != AvailabilityStateAvailableLive {
+					t.Fatalf("confirmed projection = %#v", model)
+				}
+				live.err = errors.New("refresh failed")
+				models, err = service.ListModels(t.Context(), opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				model = requireSingleModel(t, models)
+				if model.Available == nil || *model.Available || !strings.Contains(model.LastError, "refresh failed") {
+					t.Fatalf("stale binding remained selectable: %#v", model)
+				}
+			})
+		}
+	})
+
 	t.Run("Should stop before the next source when refresh is canceled", func(t *testing.T) {
 		t.Parallel()
 

@@ -189,6 +189,13 @@ func (m *Manager) listLiveProviderModels(
 		}
 		live = append(live, model)
 	}
+	if len(live) == 0 {
+		for _, model := range models {
+			if model.ProviderID == providerID && strings.HasPrefix(model.LastError, "live catalog unavailable:") {
+				return nil, fmt.Errorf("session: %s %s", providerID, model.LastError)
+			}
+		}
+	}
 	return live, nil
 }
 

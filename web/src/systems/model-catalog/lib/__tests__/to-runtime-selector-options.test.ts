@@ -26,6 +26,29 @@ function payload(
 }
 
 describe("toRuntimeModelOptions", () => {
+  it("Should disable unconfirmed bindings and display the live refresh error", () => {
+    const model = payload({
+      provider_id: "claude",
+      model_id: "claude-sonnet-5",
+      available: false,
+      availability_state: "unknown",
+      last_error: "live catalog unavailable: context deadline exceeded",
+    });
+    expect(toRuntimeModelOptions([model])[0]).toMatchObject({
+      disabled: true,
+      availability: "unavailable",
+      disabled_reason: model.last_error,
+    });
+    expect(toRuntimeModelOptions([model], { providerNeedsAuth: true })[0].disabled_reason).toBe(
+      "Sign in"
+    );
+    expect(
+      toRuntimeModelOptions([
+        { ...model, available: true, availability_state: "available_live", last_error: "" },
+      ])[0].disabled
+    ).toBe(false);
+  });
+
   it("Should keep enrichment-only reasoning capability unknown until authoritative discovery", () => {
     const base = payload({
       model_id: "claude-fable-5-1",
