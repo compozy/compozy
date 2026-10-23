@@ -153,10 +153,20 @@ func (m *Manager) refreshStartLineage(ctx context.Context, spec *sessionStartSpe
 		spec.lineage = lineage
 		return store.ValidateSessionLineage(spec.sessionID, lineage)
 	}
-	parent, err := m.Status(ctx, spec.lineage.ParentSessionID)
-	if errors.Is(err, ErrSessionNotFound) && spec.sessionType == SessionTypeSystem {
-		return nil
+	if spec.sessionType == SessionTypeSystem {
+		lineage, _, err := m.prepareInternalSystemProvenance(
+			ctx, spec.sessionID, spec.sessionType, spec.workspace.ID, nil, spec.lineage.ParentSessionID,
+		)
+		if err != nil {
+			return err
+		}
+		refreshed := store.CloneSessionLineage(spec.lineage)
+		refreshed.RootSessionID = lineage.RootSessionID
+		refreshed.SpawnDepth = lineage.SpawnDepth
+		spec.lineage = refreshed
+		return store.ValidateSessionLineage(spec.sessionID, refreshed)
 	}
+	parent, err := m.Status(ctx, spec.lineage.ParentSessionID)
 	if err != nil {
 		return fmt.Errorf("session: refresh parent lineage: %w", err)
 	}

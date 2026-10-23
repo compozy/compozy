@@ -50,14 +50,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.GET("/:session_id/derive/preview", handlers.PreviewSessionDerive)
 	workspaceSessions.PUT("/:session_id/runtime", handlers.SetSessionRuntime)
 	workspaceSessions.DELETE("/:session_id/runtime", handlers.ClearSessionRuntime)
-	workspaceSessions.POST("/:session_id/prompt", handlers.promptSession)
-	workspaceSessions.POST("/:session_id/prompt/cancel", handlers.CancelSessionPrompt)
-	workspaceSessions.POST("/:session_id/steer", handlers.steerSessionPrompt)
-	workspaceSessions.GET("/:session_id/prompt/queue", handlers.listSessionInputs)
-	workspaceSessions.DELETE("/:session_id/prompt/queue", handlers.HandleClearSessionInputs)
-	workspaceSessions.PUT("/:session_id/prompt/queue/:queue_entry_id", handlers.replaceSessionInput)
-	workspaceSessions.POST("/:session_id/prompt/queue/:queue_entry_id/steer", handlers.promoteSessionInput)
-	workspaceSessions.DELETE("/:session_id/prompt/queue/:queue_entry_id", handlers.cancelQueuedSessionPrompt)
+	registerSessionPromptRoutes(workspaceSessions, handlers)
 	registerSessionReadRoutes(workspaceSessions, handlers)
 	workspaceSessions.GET("/:session_id/recap", handlers.SessionRecap)
 	workspaceSessions.GET("/:session_id/usage", handlers.SessionUsage)
@@ -98,4 +91,15 @@ func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers
 func registerSessionParentRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
 	workspaceSessions.PUT("/:session_id/parent", handlers.SetSessionParent)
 	workspaceSessions.DELETE("/:session_id/parent", handlers.ClearSessionParent)
+}
+
+func registerSessionPromptRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
+	workspaceSessions.POST("/:session_id/prompt", handlers.promptSession)
+	workspaceSessions.POST("/:session_id/prompt/cancel", handlers.CancelSessionPrompt)
+	workspaceSessions.POST("/:session_id/steer", handlers.steerSessionPrompt)
+	workspaceSessions.GET("/:session_id/prompt/queue", handlers.listSessionInputs)
+	workspaceSessions.DELETE("/:session_id/prompt/queue", handlers.HandleClearSessionInputs)
+	workspaceSessions.PUT("/:session_id/prompt/queue/:queue_entry_id", handlers.replaceSessionInput)
+	workspaceSessions.POST("/:session_id/prompt/queue/:queue_entry_id/steer", handlers.promoteSessionInput)
+	workspaceSessions.DELETE("/:session_id/prompt/queue/:queue_entry_id", handlers.cancelQueuedSessionPrompt)
 }

@@ -9037,7 +9037,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 				_, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDSessionReparent,
-					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","parent_session_id":"sess-parent"}`),
+					Input: json.RawMessage(
+						`{"workspace":"ws-stable","session_id":"sess-1","parent_session_id":"sess-parent"}`,
+					),
 				})
 				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 			}

@@ -68,7 +68,12 @@ func (h *BaseHandlers) reparentSession(c *gin.Context, adopt bool) {
 			)
 			return
 		}
-		info, err = manager.AdoptSession(c.Request.Context(), scope.SessionWorkspaceID(), sessionID, req.ParentSessionID)
+		info, err = manager.AdoptSession(
+			c.Request.Context(),
+			scope.SessionWorkspaceID(),
+			sessionID,
+			req.ParentSessionID,
+		)
 	} else {
 		info, err = manager.DetachSession(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
 	}
