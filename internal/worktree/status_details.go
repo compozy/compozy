@@ -1,12 +1,6 @@
 package worktree
 
-import (
-	"context"
-	"errors"
-	"fmt"
-
-	"github.com/compozy/compozy/internal/diagnostics"
-)
+import "context"
 
 type StatusDetails struct {
 	WorktreeID  string
@@ -14,66 +8,68 @@ type StatusDetails struct {
 	ForgeStatus *ForgeStatus
 }
 
-func (s *Service) StatusDetails(
-	ctx context.Context,
-	workspaceID string,
-	id string,
-	refresh bool,
-	refreshForge bool,
-) (*StatusDetails, error) {
+func (s *Service) StatusDetails(ctx context.Context, workspaceID, id string, refresh, refreshForge bool) (*StatusDetails, error) {
 	item, err := s.store.Get(ctx, workspaceID, id)
-	if err != nil || item == nil {
-		if err == nil {
-			err = ErrNotFound
-		}
+	if err != nil {
 		return nil, err
+	}
+	if item == nil {
+		return nil, ErrNotFound
 	}
 	status, err := s.Status(ctx, workspaceID, item.ID, refresh)
 	if err != nil {
 		return nil, err
 	}
-	forgeStatus, err := s.store.GetForgeStatus(ctx, workspaceID, item.ID)
-	if err != nil {
-		return nil, fmt.Errorf("worktree: read cached forge status: %w", err)
-	}
-	if !refreshForge {
-		return &StatusDetails{WorktreeID: item.ID, Status: status, ForgeStatus: forgeStatus}, nil
-	}
-	if s.forge == nil {
+	if refreshForge && s.pullRequests == nil {
 		return nil, ErrForgeUnavailable
 	}
-	remoteURLs, err := s.readOriginRemoteURLs(ctx, item.Path)
+	var facts *ForgeStatus
+	if refreshForge && s.pullRequests != nil {
+		key, keyErr := s.displayPullRequestKey(ctx, *item)
+		if keyErr != nil {
+			return nil, keyErr
+		}
+		entry, refreshErr := s.pullRequests.Refresh(ctx, key)
+		if refreshErr != nil && entry.Facts == nil {
+			return nil, refreshErr
+		}
+		facts = entry.Facts
+	} else {
+		facts, err = s.readDisplayPullRequest(ctx, *item)
+	}
 	if err != nil {
 		return nil, err
 	}
-	if len(remoteURLs) == 0 {
-		return nil, fmt.Errorf("%w: origin remote is unavailable", ErrForge)
-	}
-	forgeStatus, err = s.forge.Status(ctx, ForgeStatusRequest{
-		WorkspaceID: workspaceID,
-		WorktreeID:  item.ID,
-		RemoteURLs:  remoteURLs,
-		Branch:      item.Branch,
-	})
+	return &StatusDetails{WorktreeID: item.ID, Status: status, ForgeStatus: facts}, nil
+}
+
+func (s *Service) displayPullRequestKey(ctx context.Context, item Worktree) (PullRequestKey, error) {
+	workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID)
 	if err != nil {
-		kind := ErrForge
-		if errors.Is(err, ErrForgeUnavailable) {
-			kind = ErrForgeUnavailable
-		}
-		safeErr := errors.New(diagnostics.RedactAndBound(err.Error(), 2048))
-		return nil, NewForgeFailure(kind, ForgeFailureCause(err), safeErr)
+		return PullRequestKey{}, err
 	}
-	if forgeStatus == nil {
-		return nil, fmt.Errorf("%w: provider returned no status", ErrForge)
+	repo, err := s.pullRequests.RepoKey(ctx, workspace.Root)
+	return PullRequestKey{WorkspaceID: item.WorkspaceID, RepoKey: repo, Branch: item.Branch}, err
+}
+
+func (s *Service) readDisplayPullRequest(ctx context.Context, item Worktree) (*ForgeStatus, error) {
+	if s.pullRequests == nil || item.Branch == "" {
+		return nil, nil
 	}
-	if forgeStatus.PRURL != "" {
-		forgeStatus.PRURL, err = sanitizeForgeWebURL(forgeStatus.PRURL)
-		if err != nil {
-			return nil, fmt.Errorf("%w: provider returned an invalid pull request URL", ErrForge)
-		}
+	key, err := s.displayPullRequestKey(ctx, item)
+	if err != nil {
+		return nil, nil
 	}
-	if err := s.store.SaveForgeStatus(ctx, workspaceID, item.ID, *forgeStatus); err != nil {
-		return nil, fmt.Errorf("worktree: persist forge status: %w", err)
+	entry := s.pullRequests.Read(ctx, []PullRequestKey{key})[key]
+	return entry.Facts, nil
+}
+
+func (s *Service) requestPullRequestRefresh(ctx context.Context, item Worktree) {
+	if s.pullRequests == nil {
+		return
 	}
-	return &StatusDetails{WorktreeID: item.ID, Status: status, ForgeStatus: forgeStatus}, nil
+	key, err := s.displayPullRequestKey(ctx, item)
+	if err == nil {
+		s.pullRequests.RequestRefresh(key)
+	}
 }

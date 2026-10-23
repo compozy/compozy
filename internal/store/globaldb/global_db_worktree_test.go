@@ -16,6 +16,61 @@ import (
 func TestGlobalDBWorktreeStore(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: upgrades preserve every legacy row while copying only provable identities.
+	// Owner: global SQLite migration; canonical worktree store suite.
+	t.Run("Should migrate PR identities losslessly and retain the newest collision", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00153_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		const timestamp = "2026-10-01T12:00:00Z"
+		_, err = prior.ExecContext(ctx, `INSERT INTO workspaces(id,root_dir,add_dirs,name,created_at,updated_at) VALUES('ws-pr',?,'[]','PR',?,?)`, t.TempDir(), timestamp, timestamp)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, row := range []struct {
+			id, url, at string
+			number      int
+		}{{"a", "https://GitHub.com/Acme/Repo/pull/7", timestamp, 7}, {"b", "https://github.com/acme/repo/pull/8", "2026-10-02T12:00:00Z", 8}, {"c", "invalid", timestamp, 9}} {
+			_, err = prior.ExecContext(ctx, `INSERT INTO worktrees(id,profile_id,workspace_id,name,branch,path,state,origin,setup_state,created_at,updated_at) VALUES(?,?,'ws-pr',?,'topic',?,'ready','manual','none',?,?)`, row.id, store.DefaultProfileID, row.id, t.TempDir(), timestamp, timestamp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = prior.ExecContext(ctx, `INSERT INTO worktree_forge_status(worktree_id,provider,pr_number,pr_state,pr_url,merged,fetched_at) VALUES(?,'github',?,'merged',?,1,?)`, row.id, row.number, row.url, row.at)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err = prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		var count int
+		if err = upgraded.db.QueryRowContext(ctx, `SELECT count(*) FROM worktree_forge_status_legacy`).Scan(&count); err != nil || count != 3 {
+			t.Fatalf("legacy count=%d %v", count, err)
+		}
+		key := worktreepkg.PullRequestKey{WorkspaceID: "ws-pr", RepoKey: "github.com/acme/repo", Branch: "topic"}
+		rows, err := upgraded.Worktrees.ReadPullRequests(ctx, []worktreepkg.PullRequestKey{key})
+		if err != nil {
+			t.Fatal(err)
+		}
+		facts := rows[key].Facts
+		if facts == nil || facts.PRNumber == nil || *facts.PRNumber != 8 || facts.Merged == nil || !*facts.Merged {
+			t.Fatalf("migrated winner=%#v", facts)
+		}
+	})
+
 	// Invariant: expanding exit actions preserves released receipts and admits durable delivery.
 	// Owner: GlobalDB SQLite migration/persistence; canonical worktree store suite.
 	t.Run("Should preserve exit receipts and persist managed delivery across migration reopen", func(t *testing.T) {
@@ -277,14 +332,6 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		if status, err := globalDB.Worktrees.GetStatus(ctx, workspaceB, item.ID); err != nil || status != nil {
 			t.Fatalf("GetStatus(cross-workspace) = %#v, %v, want nil", status, err)
 		}
-		if err := globalDB.Worktrees.SaveForgeStatus(ctx, workspaceB, item.ID, worktreepkg.ForgeStatus{
-			WorktreeID: item.ID,
-		}); !errors.Is(err, worktreepkg.ErrNotFound) {
-			t.Fatalf("SaveForgeStatus(cross-workspace) error = %v, want ErrNotFound", err)
-		}
-		if forge, err := globalDB.Worktrees.GetForgeStatus(ctx, workspaceB, item.ID); err != nil || forge != nil {
-			t.Fatalf("GetForgeStatus(cross-workspace) = %#v, %v, want nil", forge, err)
-		}
 		exitOperation := worktreepkg.ExitOperation{
 			ID: "op-isolation", WorkspaceID: workspaceA, WorktreeID: item.ID,
 			Action: "push", State: "running", StartedAt: now,
@@ -311,16 +358,25 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			t.Fatalf("GetStatus() = %#v, %v, want dirty_files=2 and ahead_of_base=4", status, err)
 		}
 		provider, prState, merged, fetchedAt := "forge-test", "open", false, now.Add(time.Minute)
-		if err := globalDB.Worktrees.SaveForgeStatus(ctx, workspaceA, item.ID, worktreepkg.ForgeStatus{
-			WorktreeID: item.ID, Provider: provider, PRState: &prState, Merged: &merged, FetchedAt: &fetchedAt,
-		}); err != nil {
-			t.Fatalf("SaveForgeStatus() error = %v", err)
+		// Invariant: canonical PR facts are isolated by workspace and repository.
+		key := worktreepkg.PullRequestKey{WorkspaceID: workspaceA, RepoKey: "github.com/acme/repo", Branch: branch}
+		facts := &worktreepkg.ForgeStatus{Provider: provider, PRState: &prState, Merged: &merged, FetchedAt: &fetchedAt}
+		if err := globalDB.Worktrees.SavePullRequest(ctx, worktreepkg.PullRequestEntry{Key: key, Facts: facts, LookupState: "ok"}); err != nil {
+			t.Fatal(err)
 		}
-		forge, err := globalDB.Worktrees.GetForgeStatus(ctx, workspaceA, item.ID)
-		if err != nil || forge == nil || forge.Provider != provider || forge.PRState == nil ||
-			*forge.PRState != prState || forge.FetchedAt == nil || !forge.FetchedAt.Equal(fetchedAt) {
-			t.Fatalf("GetForgeStatus() = %#v, %v, want durable forge timestamp", forge, err)
+		other := key
+		other.WorkspaceID = workspaceB
+		changedOrigin := key
+		changedOrigin.RepoKey = "github.com/acme/other"
+		rows, err := globalDB.Worktrees.ReadPullRequests(ctx, []worktreepkg.PullRequestKey{key, other, changedOrigin})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("isolated PRs = %#v, %v", rows, err)
 		}
+		forge := rows[key].Facts
+		if forge == nil || forge.Provider != provider || forge.PRState == nil || *forge.PRState != prState || forge.FetchedAt == nil || !forge.FetchedAt.Equal(fetchedAt) {
+			t.Fatalf("durable PR = %#v", forge)
+		}
+
 	})
 
 	t.Run("Should persist lifecycle events with workspace and worktree correlation", func(t *testing.T) {

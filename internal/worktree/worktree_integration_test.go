@@ -1192,19 +1192,13 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 				if scenario == "wrong head" {
 					forge.HeadSHA = f.git(f.workspace.Root, "rev-parse", "HEAD")
 				}
-				if scenario == "persisted merge" || scenario == "provider unavailable" {
+				if scenario != "no forge" {
 					live := forge
 					provider := &recordingExitForge{status: &live}
 					if scenario == "provider unavailable" {
 						provider.statusErr = ErrForgeUnavailable
 					}
 					WithForge(provider)(f.service)
-					forge.HeadSHA = ""
-				}
-				if scenario != "no forge" {
-					if err := f.store.SaveForgeStatus(t.Context(), f.workspace.ID, item.ID, forge); err != nil {
-						t.Fatal(err)
-					}
 				}
 				if scenario == "no base" {
 					item.BaseRef = ""

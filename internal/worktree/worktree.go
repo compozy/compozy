@@ -98,18 +98,29 @@ func (s Status) IsStale(now time.Time, ttl time.Duration) bool {
 	return timestampIsStale(s.RefreshedAt, now, ttl)
 }
 
+type ForgeChecks struct {
+	State                   string
+	Passed, Failed, Pending int
+	FailedNames             []string
+}
+
 type ForgeStatus struct {
-	WorktreeID string
-	Provider   string
-	PRNumber   *int
-	PRState    *string
-	PRURL      string
-	Head       string
-	Base       string
-	HeadSHA    string
-	Draft      *bool
-	Merged     *bool
-	FetchedAt  *time.Time
+	Checks         *ForgeChecks
+	ReviewDecision string
+	Mergeable      string
+	UpdatedAt      *time.Time
+	Selection      string
+	WorktreeID     string
+	Provider       string
+	PRNumber       *int
+	PRState        *string
+	PRURL          string
+	Head           string
+	Base           string
+	HeadSHA        string
+	Draft          *bool
+	Merged         *bool
+	FetchedAt      *time.Time
 }
 
 // IsStale reports whether the cached forge snapshot is older than the
@@ -164,8 +175,6 @@ type Store interface {
 	SetState(context.Context, string, string, State, time.Time) error
 	SaveStatus(context.Context, string, string, Status) error
 	GetStatus(context.Context, string, string) (*Status, error)
-	SaveForgeStatus(context.Context, string, string, ForgeStatus) error
-	GetForgeStatus(context.Context, string, string) (*ForgeStatus, error)
 	InsertExitOperation(context.Context, ExitOperation) error
 	FinishExitOperation(context.Context, string, string, string, string, time.Time) (bool, error)
 	ListRunningExitOperations(context.Context) ([]ExitOperation, error)

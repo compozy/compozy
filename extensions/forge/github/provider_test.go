@@ -520,7 +520,11 @@ func TestProvider(t *testing.T) {
 	t.Run("Should report merged pull request status", func(t *testing.T) {
 		t.Parallel()
 		mergedAt := time.Date(2026, time.August, 12, 10, 0, 0, 0, time.UTC)
-		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/graphql" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			writeJSON(t, w, http.StatusOK, []pullPayload{{
 				Number: 43, HTMLURL: "https://github.com/acme/repo/pull/43", State: "closed", MergedAt: &mergedAt,
 			}})
@@ -531,6 +535,89 @@ func TestProvider(t *testing.T) {
 		})
 		if err != nil || got.PRState == nil || *got.PRState != "merged" || got.Merged == nil || !*got.Merged {
 			t.Fatalf("Status() = %#v, %v", got, err)
+		}
+	})
+}
+
+// Invariant: canonical selection uses origin identity and immutable-head aggregate facts.
+// Owner: GitHub provider; canonical httptest provider suite.
+func TestProviderGraphQL(t *testing.T) {
+	t.Parallel()
+	t.Run("Should skip forks and read complete checks for the selected immutable head", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var input struct {
+				Query     string
+				Variables map[string]any
+			}
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				w.WriteHeader(400)
+				return
+			}
+			calls.Add(1)
+			if strings.Contains(input.Query, "$oid") {
+				if input.Variables["oid"] != "head-a" {
+					t.Errorf("checks oid=%v", input.Variables["oid"])
+				}
+				_, _ = w.Write([]byte(`{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":102,"checkRunCountsByState":[{"state":"SUCCESS","count":100},{"state":"FAILURE","count":1}],"statusContextCountsByState":[{"state":"PENDING","count":1}],"nodes":[{"name":"lint","conclusion":"FAILURE"}]}}}}}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],"pageInfo":{"hasNextPage":false}}}}}`))
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"})
+		if err != nil || got.PRNumber == nil || *got.PRNumber != 2 || got.HeadSHA != "head-a" || got.Checks == nil || got.Checks.State != "failing" || got.Checks.Passed != 100 || got.Checks.Failed != 1 || got.Checks.Pending != 1 || got.ReviewDecision != "approved" || calls.Load() != 2 {
+			t.Fatalf("observation=%#v %v calls=%d", got, err, calls.Load())
+		}
+	})
+	t.Run("Should bound candidate pages without confirming an incomplete population", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`))
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"})
+		if err != nil || got.PRNumber != nil || got.Selection != "incomplete" || calls.Load() != 4 {
+			t.Fatalf("bounded=%#v %v calls=%d", got, err, calls.Load())
+		}
+	})
+	t.Run("Should reject checks returned for another head", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var input struct{ Query string }
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			if strings.Contains(input.Query, "$oid") {
+				_, _ = w.Write([]byte(`{"data":{"repository":{"object":{"oid":"head-b"}}}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`))
+		})
+		defer closeServer()
+		_, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"})
+		if err == nil {
+			t.Fatal("mismatched checks accepted")
+		}
+	})
+	t.Run("Should retain the rate limit reset without retrying", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Reset", "1800000000")
+			w.WriteHeader(403)
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"})
+		if err != nil || got.Cause != extensioncontract.ForgeCauseRateLimited || got.RetryAfter == nil || got.RetryAfter.Unix() != 1800000000 || calls.Load() != 1 {
+			t.Fatalf("rate limit=%#v %v", got, err)
 		}
 	})
 }

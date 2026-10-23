@@ -28,8 +28,9 @@ type githubClient struct {
 }
 
 type githubAPIError struct {
-	cause  string
-	status int
+	retryAfter *time.Time
+	cause      string
+	status     int
 }
 
 func (e *githubAPIError) Error() string {
@@ -93,7 +94,13 @@ func (c githubClient) request(
 		return errors.New("github forge: response exceeds size limit")
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
-		return classifyGitHubStatus(response.StatusCode)
+		failure := classifyGitHubStatus(response.StatusCode)
+		if apiErr, ok := errors.AsType[*githubAPIError](failure); ok && apiErr.cause == extensioncontract.ForgeCauseRateLimited {
+			if reset, parseErr := strconv.ParseInt(response.Header.Get("X-RateLimit-Reset"), 10, 64); parseErr == nil && reset > 0 {
+				apiErr.retryAfter = new(time.Unix(reset, 0).UTC())
+			}
+		}
+		return failure
 	}
 	if responseBody == nil || len(payload) == 0 {
 		return nil

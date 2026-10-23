@@ -56,7 +56,7 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 		return s.remoteUnreadableExitPlan(ctx, *item, status, scope)
 	}
 	forge := s.exitForgeCapabilities(ctx, remoteURLs)
-	forgeStatus, err := s.store.GetForgeStatus(ctx, workspaceID, item.ID)
+	forgeStatus, err := s.readDisplayPullRequest(ctx, *item)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
 	}
@@ -84,7 +84,7 @@ func (s *Service) ExitPlan(ctx context.Context, workspaceID, id string) (*ExitPl
 		status, forge, forgeStatus, baseAhead, len(remoteURLs) > 0, plan.BrowserURL, paused,
 	)
 	plan.Primary = selectExitPrimary(plan.Actions, status)
-	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, forgeStatus)
+	plan.Cleanup = s.exitCleanupEvidence(ctx, *item, s.cleanupForgeStatus(ctx, *item, nil))
 	return plan, nil
 }
 
@@ -94,7 +94,7 @@ func (s *Service) remoteUnreadableExitPlan(
 	status *Status,
 	scope ExitCommitScope,
 ) (*ExitPlan, error) {
-	forgeStatus, err := s.store.GetForgeStatus(ctx, item.WorkspaceID, item.ID)
+	forgeStatus, err := s.readDisplayPullRequest(ctx, item)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
 	}
@@ -118,7 +118,7 @@ func (s *Service) unreadableExitPlan(
 	item Worktree,
 	status *Status,
 ) (*ExitPlan, error) {
-	forgeStatus, err := s.store.GetForgeStatus(ctx, item.WorkspaceID, item.ID)
+	forgeStatus, err := s.readDisplayPullRequest(ctx, item)
 	if err != nil {
 		return nil, fmt.Errorf("worktree: read exit forge status: %w", err)
 	}

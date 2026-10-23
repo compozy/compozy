@@ -16,7 +16,6 @@ const (
 const exitForgeFreshness = 30 * time.Second
 
 func (s *Service) exitCleanupEvidence(ctx context.Context, item Worktree, forge *ForgeStatus) ExitCleanupEvidence {
-	forge = s.cleanupForgeStatus(ctx, item, forge)
 	evidence := ExitCleanupEvidence{}
 	if forge != nil && forge.PRState != nil {
 		evidence.ForgeState = *forge.PRState
@@ -80,30 +79,25 @@ func forgeMergeIsCurrent(
 }
 
 func (s *Service) removalMergeIsCurrent(ctx context.Context, item Worktree) (bool, error) {
-	forge, err := s.store.GetForgeStatus(ctx, item.WorkspaceID, item.ID)
-	if err != nil {
-		return false, fmt.Errorf("read removal forge evidence: %w", err)
-	}
-	forge = s.cleanupForgeStatus(ctx, item, forge)
+	forge := s.cleanupForgeStatus(ctx, item, nil)
 	return forge != nil && !forge.IsStale(s.now().UTC(), exitForgeFreshness) &&
 		forgeMergeIsCurrent(ctx, s.runner, item.Path, forge), nil
 }
 
 func (s *Service) cleanupForgeStatus(ctx context.Context, item Worktree, cached *ForgeStatus) *ForgeStatus {
-	if s.forge == nil || cached == nil || cached.HeadSHA != "" || cached.PRState == nil ||
-		*cached.PRState != forgePRMergedState || cached.IsStale(s.now().UTC(), exitForgeFreshness) {
-		return cached
+	// Display observations are never cleanup authority. Obtain action-local evidence.
+	if s.forge == nil {
+		return nil
 	}
-	// Persisted forge snapshots do not retain the PR head SHA.
 	remotes, err := s.readOriginRemoteURLs(ctx, item.Path)
 	if err != nil || len(remotes) == 0 {
-		return cached
+		return nil
 	}
 	status, err := s.forge.Status(ctx, ForgeStatusRequest{
 		WorkspaceID: item.WorkspaceID, WorktreeID: item.ID, RemoteURLs: remotes, Branch: item.Branch,
 	})
 	if err != nil || status == nil {
-		return cached
+		return nil
 	}
 	return status
 }

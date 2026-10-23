@@ -34,6 +34,7 @@ type ForgeRuntime interface {
 }
 
 type ForgeProviderError struct {
+	RetryAfter  *time.Time
 	cause       string
 	unavailable bool
 }
@@ -148,7 +149,11 @@ func (m *Manager) ForgeStatus(
 		response.Provider = name
 	}
 	if response.Cause != "" {
-		return extensioncontract.ForgeStatusResponse{}, forgeProviderFailure(response.Cause)
+		failure := forgeProviderFailure(response.Cause)
+		if typed, ok := errors.AsType[*ForgeProviderError](failure); ok {
+			typed.RetryAfter = response.RetryAfter
+		}
+		return extensioncontract.ForgeStatusResponse{}, failure
 	}
 	if err := validateForgeStatusResponse(response); err != nil {
 		return extensioncontract.ForgeStatusResponse{}, fmt.Errorf("extension: forge status via %q: %w", name, err)

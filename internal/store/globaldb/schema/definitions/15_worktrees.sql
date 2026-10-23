@@ -53,7 +53,7 @@ CREATE TABLE worktree_status (
 		refreshed_at TEXT
 	);
 
-CREATE TABLE worktree_forge_status (
+CREATE TABLE worktree_forge_status_legacy (
 		worktree_id TEXT PRIMARY KEY REFERENCES worktrees(id) ON DELETE CASCADE,
 		provider TEXT NOT NULL DEFAULT '',
 		pr_number INTEGER CHECK (pr_number IS NULL OR pr_number > 0),

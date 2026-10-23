@@ -28,6 +28,7 @@ type SessionGuard interface {
 }
 
 type Service struct {
+	pullRequests     *PullRequestService
 	store            Store
 	runner           GitRunner
 	capability       *CapabilityGate
@@ -185,4 +186,14 @@ func (s *Service) worktreeSettings(workspace Workspace) (config.WorktreesConfig,
 
 func WithManagedDeliverySessions(guard ManagedDeliverySessions) Option {
 	return func(s *Service) { s.deliverySessions = guard }
+}
+
+func WithPullRequests(service *PullRequestService) Option {
+	return func(s *Service) { s.pullRequests = service }
+}
+
+func (s *Service) Close() {
+	if s.pullRequests != nil {
+		s.pullRequests.Close()
+	}
 }

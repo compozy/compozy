@@ -398,17 +398,27 @@ func TestExitActions(t *testing.T) {
 		}}
 		provider := &recordingExitForge{status: &ForgeStatus{Provider: "github"}}
 		service := NewService(store, runner, WithForge(provider), WithClock(statusTestClock))
+		cache := attachTestPullRequests(t, service, item, provider)
 		service.refreshAfterExit(t.Context(), item)
 
+		service.pullRequests.mu.Lock()
+		flight := service.pullRequests.flights[PullRequestKey{item.WorkspaceID, "github.com/acme/repo", item.Branch}]
+		service.pullRequests.mu.Unlock()
+		if flight != nil {
+			<-flight.done
+		}
 		if provider.statusCalls != 1 || len(provider.lastStatus.RemoteURLs) != 1 ||
-			provider.lastStatus.RemoteURLs[0] != "git@github.com:acme/repo.git" ||
+			provider.lastStatus.RemoteURLs[0] != "https://github.com/acme/repo.git" ||
 			provider.lastStatus.Branch != item.Branch {
 			t.Fatalf("forge refresh calls/request = %d/%#v", provider.statusCalls, provider.lastStatus)
 		}
-		cached, err := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
+		key := PullRequestKey{item.WorkspaceID, "github.com/acme/repo", item.Branch}
+		entries, err := cache.ReadPullRequests(t.Context(), []PullRequestKey{key})
+		cached := entries[key].Facts
 		if err != nil || cached == nil || cached.Provider != "github" {
-			t.Fatalf("cached forge refresh = %#v, %v", cached, err)
+			t.Fatalf("cached refresh=%#v %v", cached, err)
 		}
+
 	})
 
 	t.Run("Should skip a push that is already up to date", func(t *testing.T) {
@@ -586,7 +596,7 @@ func TestExitActions(t *testing.T) {
 		}, ExitActionRequest{Action: ExitActionOpenPR, Title: "Exit", Body: "Ready", Draft: true})
 		cached, cacheErr := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
 		if err != nil || cacheErr != nil || step.PRStatus != "opened_existing" || step.PRNumber != 51 ||
-			step.URL != "https://github.com/acme/repo/pull/51" || cached == nil || cached.PRURL != step.URL || provider.createCalls != 1 ||
+			step.URL != "https://github.com/acme/repo/pull/51" || cached != nil || provider.createCalls != 1 ||
 			!provider.lastCreate.Draft || provider.lastCreate.Title != "Exit" || provider.lastCreate.Body != "Ready" ||
 			provider.lastCreate.Base != "main" {
 			t.Fatalf(

@@ -14,6 +14,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets *shutdownTa
 }
 
 func (d *Daemon) shutdownBackgroundWorkers(ctx context.Context, targets *shutdownTargets, errs *[]error) {
+	if targets.worktrees != nil {
+		targets.worktrees.Close()
+	}
 	if targets.backgroundUpdates != nil {
 		appendWrappedError(errs, "daemon: shutdown background updates", targets.backgroundUpdates.Shutdown(ctx))
 	}

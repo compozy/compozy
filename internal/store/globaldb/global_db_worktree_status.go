@@ -80,58 +80,6 @@ func (g *WorktreeRepo) GetStatus(
 	return status, nil
 }
 
-func (g *WorktreeRepo) SaveForgeStatus(
-	ctx context.Context,
-	workspaceID string,
-	id string,
-	status worktree.ForgeStatus,
-) error {
-	if err := g.checkReady(ctx, "save worktree forge status"); err != nil {
-		return err
-	}
-	count, err := g.queries.UpsertWorktreeForgeStatus(ctx, sqlcgen.UpsertWorktreeForgeStatusParams{
-		Provider: status.Provider, PrNumber: nullableInt(status.PRNumber),
-		PrState: nullableString(status.PRState), PrUrl: status.PRURL,
-		Merged: nullableBool(status.Merged), FetchedAt: nullableTime(status.FetchedAt),
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
-	if err != nil {
-		return fmt.Errorf("store: save worktree forge status: %w", err)
-	}
-	if count == 0 {
-		return worktree.ErrNotFound
-	}
-	return nil
-}
-
-func (g *WorktreeRepo) GetForgeStatus(
-	ctx context.Context,
-	workspaceID string,
-	id string,
-) (*worktree.ForgeStatus, error) {
-	if err := g.checkReady(ctx, "get worktree forge status"); err != nil {
-		return nil, err
-	}
-	row, err := g.queries.GetWorktreeForgeStatus(ctx, sqlcgen.GetWorktreeForgeStatusParams{
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, fmt.Errorf("store: get worktree forge status: %w", err)
-	}
-	fetchedAt, err := pointerTime(row.FetchedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &worktree.ForgeStatus{
-		WorktreeID: row.WorktreeID, Provider: row.Provider, PRNumber: pointerInt(row.PrNumber),
-		PRState: pointerString(row.PrState), PRURL: row.PrUrl, Merged: pointerBool(row.Merged),
-		FetchedAt: fetchedAt,
-	}, nil
-}
-
 func (g *WorktreeRepo) InsertExitOperation(ctx context.Context, operation worktree.ExitOperation) error {
 	if err := g.checkReady(ctx, "insert worktree exit operation"); err != nil {
 		return err

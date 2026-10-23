@@ -149,7 +149,7 @@ func worktreeHookContext(item worktree.HookWorktree) hookspkg.WorktreeContext {
 	}
 }
 
-func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
+func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
 	if state == nil || state.registry == nil || state.workspaceResolver == nil {
 		return nil
 	}
@@ -163,6 +163,11 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 		state.logger.Warn("daemon: Git unavailable for worktree operations", "error", err)
 		runner = nil
 	}
+	var pulls *worktree.PullRequestService
+	if cache, ok := registry.WorktreeStore().(worktree.PullRequestStore); ok && runner != nil {
+		pulls = worktree.NewPullRequestService(ctx, cache, daemonExtensionForgeProvider{runtime: state.currentExtensionRuntime}, runner, nil)
+		cleanup.add(func(context.Context) error { pulls.Close(); return nil })
+	}
 	root := state.cfg.Worktrees.ResolveRoot(d.homePaths)
 	service := worktree.NewService(
 		registry.WorktreeStore(),
@@ -171,6 +176,7 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 			resolver: state.workspaceResolver, homePaths: d.homePaths,
 			profileNames: bootProfileNameResolver{state: state},
 		}),
+		worktree.WithPullRequests(pulls),
 		worktree.WithConfig(state.cfg.Worktrees, root),
 		worktree.WithHooks(daemonWorktreeHookDispatcher{hooks: state.hookDispatcher, now: d.now}),
 		worktree.WithEvents(registry),

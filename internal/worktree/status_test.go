@@ -239,13 +239,14 @@ func TestServiceStatus(t *testing.T) {
 			t.Fatalf("seed cached status: %v", err)
 		}
 		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
-			if strings.Join(call.args, " ") == "remote get-url --all origin" {
+			if strings.Join(call.args, " ") == "remote get-url origin" {
 				return gitResponse{stdout: []byte("https://github.com/acme/repo.git\n")}
 			}
 			return gitResponse{err: errors.New("unexpected Git call")}
 		}}
 		forge := &recordingExitForge{statusErr: ErrForgeUnavailable}
 		service := NewService(store, runner, WithCapabilityGate(readyCapabilityGate()), WithForge(forge))
+		attachTestPullRequests(t, service, item, forge)
 		_, err := service.StatusDetails(t.Context(), item.WorkspaceID, item.ID, false, true)
 		if !errors.Is(err, ErrForgeUnavailable) || errors.Is(err, ErrForge) {
 			t.Fatalf("StatusDetails(forge unavailable) error = %v, want only ErrForgeUnavailable", err)
@@ -265,7 +266,7 @@ func TestServiceStatus(t *testing.T) {
 			t.Fatalf("seed cached status: %v", err)
 		}
 		runner := &recordingGitRunner{run: func(call gitInvocation) gitResponse {
-			if strings.Join(call.args, " ") == "remote get-url --all origin" {
+			if strings.Join(call.args, " ") == "remote get-url origin" {
 				return gitResponse{stdout: []byte("https://github.com/acme/repo.git\n")}
 			}
 			return gitResponse{err: errors.New("unexpected Git call")}
@@ -277,13 +278,16 @@ func TestServiceStatus(t *testing.T) {
 			WithCapabilityGate(readyCapabilityGate()),
 			WithForge(forge),
 		)
+		cache := attachTestPullRequests(t, service, item, forge)
 		details, err := service.StatusDetails(
 			t.Context(), item.WorkspaceID, item.Name, false, true,
 		)
-		cachedForge, cacheErr := store.GetForgeStatus(t.Context(), item.WorkspaceID, item.ID)
+		key := PullRequestKey{item.WorkspaceID, "github.com/acme/repo", item.Branch}
+		entries, cacheErr := cache.ReadPullRequests(t.Context(), []PullRequestKey{key})
+		cachedForge := entries[key].Facts
 		if err != nil || details == nil || details.WorktreeID != item.ID ||
-			forge.lastStatus.WorktreeID != item.ID || cacheErr != nil || cachedForge == nil ||
-			cachedForge.WorktreeID != item.ID {
+			forge.lastStatus.Branch != item.Branch || forge.lastStatus.WorkspaceID != item.WorkspaceID || cacheErr != nil || cachedForge == nil {
+
 			t.Fatalf("StatusDetails(name) = %#v, %v, want canonical id %q", details, err, item.ID)
 		}
 	})
@@ -300,4 +304,13 @@ func statusTestWorktree() Worktree {
 
 func statusTestClock() time.Time {
 	return time.Date(2026, 8, 12, 13, 0, 0, 0, time.UTC)
+}
+
+func attachTestPullRequests(t *testing.T, service *Service, item Worktree, forge ForgeProvider) *pullRequestMemoryStore {
+	t.Helper()
+	cache := newPullRequestMemoryStore()
+	service.pullRequests = NewPullRequestService(t.Context(), cache, forge, service.runner, nil)
+	service.resolver = staticWorkspaceResolver{workspaces: map[string]Workspace{item.WorkspaceID: {ID: item.WorkspaceID, Root: item.Path}}}
+	t.Cleanup(service.pullRequests.Close)
+	return cache
 }

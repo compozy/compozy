@@ -144,27 +144,6 @@ SELECT ws.* FROM worktree_status ws
 JOIN worktrees w ON w.id = ws.worktree_id
 WHERE w.workspace_id = sqlc.arg(workspace_id) AND w.id = sqlc.arg(worktree_id);
 
--- name: UpsertWorktreeForgeStatus :execrows
-INSERT INTO worktree_forge_status (
-  worktree_id, provider, pr_number, pr_state, pr_url, merged, fetched_at
-)
-SELECT id, sqlc.arg(provider), sqlc.narg(pr_number), sqlc.narg(pr_state),
-  sqlc.arg(pr_url), sqlc.narg(merged), sqlc.narg(fetched_at)
-FROM worktrees
-WHERE workspace_id = sqlc.arg(workspace_id) AND id = sqlc.arg(worktree_id)
-ON CONFLICT(worktree_id) DO UPDATE SET
-  provider = excluded.provider,
-  pr_number = excluded.pr_number,
-  pr_state = excluded.pr_state,
-  pr_url = excluded.pr_url,
-  merged = excluded.merged,
-  fetched_at = excluded.fetched_at;
-
--- name: GetWorktreeForgeStatus :one
-SELECT fs.* FROM worktree_forge_status fs
-JOIN worktrees w ON w.id = fs.worktree_id
-WHERE w.workspace_id = sqlc.arg(workspace_id) AND w.id = sqlc.arg(worktree_id);
-
 -- name: InsertWorktreeExitOperation :exec
 INSERT INTO worktree_exit_ops (
   op_id, workspace_id, worktree_id, action, state, started_at, finished_at
