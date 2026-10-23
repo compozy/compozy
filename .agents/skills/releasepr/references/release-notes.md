@@ -19,11 +19,11 @@ Force a release anyway with `pr-release pr-release --force`.
 
 When the next version is a product decision rather than a commit-type bump
 (for example, the first stable release after a beta line), add a
-`Release-As: X.Y.Z` footer to any commit after the nearest release tag
-(releasepr v0.0.30+). It must be strict SemVer, not lower than the computed
+`Release-As: X.Y.Z` footer to any commit after the nearest stable release tag
+(releasepr v0.0.31+). It must be strict SemVer, not lower than the computed
 `git-cliff` version, and agree with every other footer in the range. Squash
-merges keep it when the squash message includes commit messages. Once the
-declared version is tagged, the footer falls behind the tag and stops applying.
+merges keep it when the squash message includes commit messages. Prereleases cut
+after the footer keep it in range; the next stable tag retires it.
 Never fake a `BREAKING CHANGE` to force a version.
 
 Never hand-write a commit whose subject starts with `release:` or

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-readonly PR_RELEASE_MODULE="${1:-github.com/compozy/releasepr@v0.0.30}"
+readonly PR_RELEASE_MODULE="${1:-github.com/compozy/releasepr@v0.0.31}"
 readonly CONTRACT_VERSION="0.3.0-beta.1"
 readonly CONTRACT_TAG="v${CONTRACT_VERSION}"
 readonly RECOVERY_VERSION="0.3.0-beta.2"

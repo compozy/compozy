@@ -6,8 +6,9 @@ manual dispatch only. Legacy v0.2 maintenance ends.
 
 ## Success criteria
 
-- Merging the `release/v0.4.0` PR publishes stable v0.4.0 automatically: GitHub latest, npm
-  `latest`, Homebrew, and the desktop `channel-stable` feed mirrored to `channel-beta`.
+- A bridge beta `0.3.0-beta.39` (new updater, app reading `channel-stable`) ships before stable;
+  `channel-beta` stays frozen on it. Merging the `release/v0.4.0` PR then publishes stable v0.4.0
+  automatically: GitHub latest, npm `latest`, Homebrew, and the `channel-stable` desktop feed.
 - A desktop or CLI user on any `0.3.0-beta.N` sees v0.4.0 in the update pill and installs it
   in one click. After the update the desktop reads `channel-stable`.
 - The v0.4.0 GitHub Release and site page show only the delta since the latest tag, prereleases
@@ -31,8 +32,8 @@ manual dispatch only. Legacy v0.2 maintenance ends.
    option and contract asserts. Bump `PR_RELEASE_MODULE` to v0.0.30.
 2. `cliff.toml`: set `features_always_bump_minor = true`.
 3. Desktop: add the stable build channel and release config, and let `desktoprelease` publish
-   stable. Mirror each stable to `channel-beta`. Validate compatibility (`min_app_version`)
-   per feed.
+   stable. The `desktop_feed` dispatch input lets the bridge beta read `channel-stable`. Stable
+   publishes to `channel-stable` only, and `min_app_version` also serves the frozen beta channel.
 4. Updater (`internal/update`): the beta track accepts a stable release >= current from any
    line.
 5. npm: `latest` carries stable. CI cannot move the `beta` dist-tag, because trusted publishing
@@ -42,6 +43,11 @@ manual dispatch only. Legacy v0.2 maintenance ends.
 7. The PR carries the `Release-As: 0.4.0` footer commit.
 
 ## Ops (need Pedro)
+
+- The order matters: merge this PR while `RELEASE_AUTO_CHANNEL=beta`, dispatch the bridge
+  (`0.3.0-beta.39`, `release_channel=beta`, `desktop_feed=stable`), set the variable to `stable`,
+  then merge `release/v0.4.0`. `Release-As` applies from the last stable tag, so the bridge keeps
+  it in range (releasepr v0.0.31).
 
 - Set the `RELEASE_AUTO_CHANNEL` repo variable to `stable` after the PR merges. Close #894
   `release/v0.3.0`. Freeze `legacy/v0.2`.

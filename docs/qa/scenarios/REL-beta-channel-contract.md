@@ -4,7 +4,7 @@ area: REL
 title: Inspect one truthful beta channel contract before publication
 persona: Dora
 journey: J-approve-compozy-beta-candidate
-expected: The README, rendered site, official Compozy skill, installer source, update guidance, release workflow, and generated package metadata agree on per-architecture Electron packages, immutable GitHub Release assets, signed `compat.json` whose `min_app_version` is the oldest app live on any reached channel, one audited ref-CAS generation on `channel-stable` mirrored to `channel-beta` for each stable release, npm `@compozy/cli` on `latest`, Homebrew `compozy/compozy/compozy`, pinned github.com/compozy/compozy Go install, and Sigstore provenance, without claiming that an unpublished candidate is live.
+expected: The README, rendered site, official Compozy skill, installer source, update guidance, release workflow, and generated package metadata agree on per-architecture Electron packages, immutable GitHub Release assets, signed `compat.json` whose `min_app_version` is the oldest app live on any served channel, one audited ref-CAS generation on `channel-stable` per stable release, `channel-beta` frozen on the bridge beta whose app reads `channel-stable`, npm `@compozy/cli` on `latest`, Homebrew `compozy/compozy/compozy`, pinned github.com/compozy/compozy Go install, and Sigstore provenance, without claiming that an unpublished candidate is live.
 entry_points: README Installation; packages/site install and desktop routes; skills/compozy/SKILL.md; scripts/install.sh; compozy update --check fixture/local contract; .github/workflows/release.yml desktop compatibility/build/publish jobs; channel-stable and channel-beta desktop/generation.json and platform manifests; package metadata
 qa_status: untested
 bug_ids: BUG-20260817-explicit-release-web-assets-sync; BUG-20260817-macos-finalized-dmg-integrity-stale; BUG-20260817-macos-channel-manifest-includes-dmg; BUG-20260817-linux-channel-manifest-includes-deb
@@ -30,8 +30,10 @@ QA impact 2026-08-16: reset after the beta desktop contract moved to per-archite
 packages, signed `compat.json`, immutable GitHub Release URLs, and a ref-CAS `channel-beta` branch.
 Re-walk in the electron-shell QA tail.
 
-QA impact 2026-10-23: v0.4.0 introduces the stable desktop channel. `compozy-desktop-release channels`
-maps a stable release to `channel-stable` plus a `channel-beta` mirror, `min-app-version` keeps the
-oldest live beta app served, and the in-app updater offers a newer stable release to beta installs.
-npm `latest` and Homebrew carry the stable release; the npm `beta` dist-tag is not moved by CI
-(trusted publishing cannot change dist-tags). Re-walk before publication.
+QA impact 2026-10-23: v0.4.0 introduces the stable desktop channel. The bridge beta
+`0.3.0-beta.39` (dispatched with `desktop_feed=stable`) carries the updater that offers stable
+releases to beta installs and an app that reads `channel-stable`; `channel-beta` stays frozen on it.
+Stable releases publish to `channel-stable` only, and `min-app-version` over
+`compatibility-channels` keeps the bridge app served. npm `latest` and Homebrew carry the stable
+release; CI cannot move the npm `beta` dist-tag (trusted publishing authorizes `publish` only).
+Re-walk beta.38 → bridge → v0.4.0 before publication.

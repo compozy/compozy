@@ -30,6 +30,14 @@ on:
         options:
           - beta
           - stable
+      desktop_feed:
+        description: Update feed the desktop app reads; stable only for the bridge beta that moves beta installs onto channel-stable
+        required: false
+        default: release
+        type: choice
+        options:
+          - release
+          - stable
       desktop_artifacts_run_id:
         description: Optional prior release run for the same source commit; reuse completed desktop artifacts
         required: false
@@ -49,7 +57,7 @@ env:
   NPM_VERSION: "11.9.0"
   COSIGN_VERSION: "v3.1.3"
   INITIAL_VERSION: "v0.0.2"
-  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.30
+  PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.31
 
 permissions:
   actions: read
@@ -788,6 +796,7 @@ jobs:
       github_make_latest: ${{ steps.plan.outputs.github_make_latest }}
       npm_tag: ${{ steps.plan.outputs.npm_tag }}
       homebrew_skip_upload: ${{ steps.plan.outputs.homebrew_skip_upload }}
+      desktop_channel: ${{ steps.desktop-feed.outputs.desktop_channel }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -922,6 +931,25 @@ jobs:
             exit 1
           fi
           cat "${plan_output}" >>"${GITHUB_OUTPUT}"
+
+      # The desktop app reads its own release channel's feed. The bridge beta reads the stable feed so
+      # installed betas reach stable releases while channel-beta stays frozen on that bridge.
+      - name: Resolve desktop update feed
+        id: desktop-feed
+        env:
+          DESKTOP_FEED_INPUT: ${{ inputs.desktop_feed }}
+          RELEASE_CHANNEL: ${{ steps.plan.outputs.release_channel }}
+        run: |
+          set -euo pipefail
+          case "${DESKTOP_FEED_INPUT:-release}" in
+            release) desktop_channel="${RELEASE_CHANNEL}" ;;
+            stable) desktop_channel="stable" ;;
+            *)
+              echo "::error::desktop_feed must be release or stable"
+              exit 1
+              ;;
+          esac
+          printf 'desktop_channel=%s\n' "${desktop_channel}" >>"${GITHUB_OUTPUT}"
 
   # Publish only from an explicit, validated plan.
   release:
@@ -1207,8 +1235,8 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
-      # The runtime must keep serving the oldest app live on any feed this release reaches.
-      - name: Resolve the oldest live app across the release feeds
+      # The runtime must keep serving the oldest app live on any channel this release serves.
+      - name: Resolve the oldest live app across the compatibility channels
         id: compatibility
         env:
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
@@ -1216,7 +1244,10 @@ jobs:
         run: |
           set -euo pipefail
           live_args=()
-          channels="$(go run ./cmd/compozy-desktop-release channels --channel "${RELEASE_CHANNEL}" | jq -er '.channels[]')"
+          channels="$(
+            go run ./cmd/compozy-desktop-release compatibility-channels --channel "${RELEASE_CHANNEL}" |
+              jq -er '.channels[]'
+          )"
           while IFS= read -r channel; do
             generation_file="${RUNNER_TEMP}/desktop-generation-${channel}.json"
             generation_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/channel-${channel}/desktop/generation.json"
@@ -1340,7 +1371,7 @@ jobs:
         run: |
           bun run --cwd desktop release:config -- \
             --version "${{ needs.release-plan.outputs.release_version }}" \
-            --channel "${{ needs.release-plan.outputs.release_channel }}" \
+            --channel "${{ needs.release-plan.outputs.desktop_channel }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
             --notarize ${{ matrix.platform == 'mac' }} \
@@ -1360,7 +1391,7 @@ jobs:
         env:
           COMPOZY_RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
-          COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main
@@ -1391,7 +1422,7 @@ jobs:
           bun run --cwd desktop release:collect -- \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
-            --channel "${{ needs.release-plan.outputs.release_channel }}" \
+            --channel "${{ needs.release-plan.outputs.desktop_channel }}" \
             --version "${{ needs.release-plan.outputs.release_version }}" \
             --source .artifacts/builder \
             --output ".artifacts/release/${{ matrix.id }}"
@@ -1492,38 +1523,29 @@ jobs:
             ../.artifacts/channel \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}"
 
-      # Stable releases also advance the beta feed, so installed beta apps update in place.
-      - name: Verify payloads then advance every release channel ref
+      - name: Verify payloads then advance the channel ref
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
-          channels="$(go run ./cmd/compozy-desktop-release channels --channel "${RELEASE_CHANNEL}" | jq -er '.channels[]')"
-          while IFS= read -r channel; do
-            operation_id="desktop-release-${RELEASE_VERSION}-publish"
-            if [[ "${channel}" != "${RELEASE_CHANNEL}" ]]; then
-              operation_id="desktop-release-${RELEASE_VERSION}-mirror-${channel}"
-            fi
-            result=".artifacts/channel-publish-result-${channel}.json"
-            go run ./cmd/compozy-desktop-release publish \
-              --operation-id "${operation_id}" \
-              --channel "${channel}" \
-              --version "${RELEASE_VERSION}" \
-              --repository "${GITHUB_REPOSITORY}" \
-              --asset-dir .artifacts/authority \
-              --channel-dir .artifacts/channel \
-              -o json \
-              | tee "${result}"
-            jq -e '
-              .operation == "publish" and
-              (.channel_ref_after | length > 0) and
-              (.audit_commit == .channel_ref_after) and
-              (.verified_inventory | length == 7) and
-              (.outcome == "published" or .outcome == "already_completed")
-            ' "${result}" >/dev/null
-          done <<<"${channels}"
+          go run ./cmd/compozy-desktop-release publish \
+            --operation-id "desktop-release-${RELEASE_VERSION}-publish" \
+            --channel "${RELEASE_CHANNEL}" \
+            --version "${RELEASE_VERSION}" \
+            --repository "${GITHUB_REPOSITORY}" \
+            --asset-dir .artifacts/authority \
+            --channel-dir .artifacts/channel \
+            -o json \
+            | tee .artifacts/channel-publish-result.json
+          jq -e '
+            .operation == "publish" and
+            (.channel_ref_after | length > 0) and
+            (.audit_commit == .channel_ref_after) and
+            (.verified_inventory | length == 7) and
+            (.outcome == "published" or .outcome == "already_completed")
+          ' .artifacts/channel-publish-result.json >/dev/null
 
   desktop-smoke:
     name: Smoke Packaged Desktop ${{ matrix.name }}

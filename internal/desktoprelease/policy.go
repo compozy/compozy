@@ -16,9 +16,9 @@ func ValidateDesktopChannel(channel string) error {
 	}
 }
 
-// ReleaseChannels returns the feeds a release on channel publishes to, primary feed first.
-// Stable releases also reach the beta feed so every installed beta app updates in place.
-func ReleaseChannels(channel string) ([]string, error) {
+// CompatibilityChannels returns the channels whose live apps a release on channel must keep serving.
+// Stable releases also serve the frozen beta channel, whose final bridge release reads the stable feed.
+func CompatibilityChannels(channel string) ([]string, error) {
 	switch channel {
 	case ChannelStable:
 		return []string{ChannelStable, ChannelBeta}, nil
@@ -29,8 +29,8 @@ func ReleaseChannels(channel string) ([]string, error) {
 	}
 }
 
-// MinAppVersion returns the lowest live app version across the release feeds, which the new
-// runtime must keep serving. Without a live feed the release version is its own minimum.
+// MinAppVersion returns the lowest live app version across the compatibility channels, which the new
+// runtime must keep serving. Without a live channel the release version is its own minimum.
 func MinAppVersion(releaseVersion string, liveVersions []string) (string, error) {
 	if err := ValidateVersion(releaseVersion); err != nil {
 		return "", err

@@ -3,7 +3,7 @@
 ## Stable release line v0.4.0 — 2026-10-23
 
 Owner: plan `.claude/plans/stable-release-040.md`, branch `feat/stable-release-040`, with
-`compozy/releasepr` v0.0.30 (stable predecessor includes prereleases; `Release-As` footer).
+`compozy/releasepr` v0.0.31 (stable predecessor includes prereleases; `Release-As` footer from the last stable tag).
 
 - **Release surfaces (public, SD-013):** automatic releases follow the `RELEASE_AUTO_CHANNEL`
   variable (`stable` or `beta`) through `scripts/resolve-auto-release-identity.sh`; stable publishes
@@ -13,9 +13,9 @@ Owner: plan `.claude/plans/stable-release-040.md`, branch `feat/stable-release-0
   feature releases. npm `latest` and Homebrew carry stable; CI cannot move the npm `beta` dist-tag
   (trusted publishing authorizes `publish` only).
 - **Desktop:** builds accept `stable` (`COMPOZY_RELEASE_CHANNEL`, `release:config`/`release:collect
-  --channel`). `compozy-desktop-release channels` maps stable to `channel-stable` plus a
-  `channel-beta` mirror; `min-app-version` keeps the oldest live app on any reached channel. Beta apps
-  update in place through `channel-beta` and the installed stable build reads `channel-stable`.
+  --channel`). The `desktop_feed` dispatch input lets the bridge beta `0.3.0-beta.39` read
+  `channel-stable`; `channel-beta` stays frozen on it. Stable publishes to `channel-stable` only;
+  `compatibility-channels` plus `min-app-version` keep the bridge app served.
 - **Native tools / extensibility / hooks / config:** no tool, hook, extension, or config-key change.
 - **Update and CLI:** the beta track offers any newer stable release; desktop provenance accepts
   `stable`; npm guidance is `npm install -g @compozy/cli`. No persisted state shape changes.

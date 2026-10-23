@@ -4,10 +4,10 @@ description: Publish or repair the Electron update channels through verified Git
 ---
 
 Stable desktop builds read manifests from the `channel-stable` branch; builds from the v0.3 beta
-line read `channel-beta`. A stable release publishes to `channel-stable` and mirrors the same
-generation to `channel-beta`, so an installed beta app updates in place and the stable build it
-installs reads `channel-stable` from then on. Each version's app packages remain immutable GitHub
-release assets. Publishing or repairing a channel creates one audit commit, then moves the branch
+line read `channel-beta`. `channel-beta` is frozen on the bridge beta (`0.3.0-beta.39`), whose app
+reads `channel-stable`, so every older beta reaches stable through that bridge. Stable releases
+publish to `channel-stable` only. Each version's app packages remain immutable GitHub release
+assets. Publishing or repairing a channel creates one audit commit, then moves the branch
 with a compare-and-swap (CAS): the move succeeds only if the branch still has the revision the
 operation inspected.
 
@@ -36,16 +36,6 @@ The authority directory must contain these exact versioned names:
 
 ## Publish a generation
 
-List the channels a release reaches, primary first:
-
-```bash
-go run ./cmd/compozy-desktop-release channels --channel stable
-# {"channels":["stable","beta"]}
-```
-
-Publish each channel in that order. The primary channel uses `desktop-release-<version>-publish`;
-each mirror uses `desktop-release-<version>-mirror-<channel>`.
-
 ```bash
 go run ./cmd/compozy-desktop-release publish \
   --operation-id "desktop-release-<version>-publish" \
@@ -66,9 +56,31 @@ Keep the operation ID stable when retrying an interrupted publish. The same ID c
 `already_completed` instead of creating another channel flip.
 
 The release's `compat.json` carries `min_app_version`: the oldest app live on any channel the
-release reaches. The workflow computes it with
-`go run ./cmd/compozy-desktop-release min-app-version --version <version> --live <live-version>`,
-passing one `--live` per channel, empty when the channel has never been published.
+release serves. A stable release also serves the frozen `channel-beta`, because the bridge app
+installed from it reads `channel-stable`:
+
+```bash
+go run ./cmd/compozy-desktop-release compatibility-channels --channel stable
+# {"channels":["stable","beta"]}
+go run ./cmd/compozy-desktop-release min-app-version --version <version> \
+  --live <channel-stable version, empty when unpublished> --live <channel-beta version>
+```
+
+## Leave the beta line through the bridge
+
+An installed beta runs an updater that only accepts newer betas of its own line, and its app reads
+`channel-beta`. The bridge release moves those installs onto `channel-stable` once:
+
+1. Merge the stable tooling to `main` while `RELEASE_AUTO_CHANNEL` is still `beta`.
+2. Dispatch the release workflow with `release_version=0.3.0-beta.39`, `release_channel=beta`,
+   and `desktop_feed=stable`. It publishes a beta prerelease and its `channel-beta` generation,
+   and its app reads `channel-stable`.
+3. Set `RELEASE_AUTO_CHANNEL=stable` and merge the stable release PR. Its generation lands on
+   `channel-stable`.
+
+Older betas update to the bridge, and the bridge updates to stable. Never publish to
+`channel-beta` again; a later generation there would break the bridge for installs that have not
+reached it yet.
 
 ## Select a known-good generation
 

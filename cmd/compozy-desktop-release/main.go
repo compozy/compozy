@@ -33,7 +33,7 @@ func execute(args []string) int {
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
 		return fmt.Errorf(
-			"usage: compozy-desktop-release <publish|repair|channels|min-app-version|assert-inventory|assert-version>",
+			"usage: compozy-desktop-release <publish|repair|compatibility-channels|min-app-version|assert-inventory|assert-version>",
 		)
 	}
 	switch args[0] {
@@ -41,8 +41,8 @@ func run(ctx context.Context, args []string) error {
 		return runPublish(ctx, args[1:])
 	case "repair":
 		return runRepair(ctx, args[1:])
-	case "channels":
-		return runChannels(args[1:])
+	case "compatibility-channels":
+		return runCompatibilityChannels(args[1:])
 	case "min-app-version":
 		return runMinAppVersion(args[1:])
 	case "assert-inventory":
@@ -137,13 +137,13 @@ func newAuthority(values *authorityFlags) (*desktoprelease.Authority, error) {
 	return desktoprelease.NewAuthority(backend)
 }
 
-func runChannels(args []string) error {
-	flags := newFlagSet("channels")
+func runCompatibilityChannels(args []string) error {
+	flags := newFlagSet("compatibility-channels")
 	channel := flags.String("channel", "", "release channel")
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
-	channels, err := desktoprelease.ReleaseChannels(*channel)
+	channels, err := desktoprelease.CompatibilityChannels(*channel)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func runMinAppVersion(args []string) error {
 	flags := newFlagSet("min-app-version")
 	version := flags.String("version", "", "release version")
 	var live repeatedFlag
-	flags.Var(&live, "live", "live app version of one release feed; repeat per feed, empty when the feed is new")
+	flags.Var(&live, "live", "live app version of one compatibility channel; repeat per channel, empty when unpublished")
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
