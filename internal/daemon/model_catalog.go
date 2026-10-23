@@ -376,7 +376,7 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		service,
 		state.logger,
 		d.now,
-		max(sourceTimeout, modelcatalog.DefaultLiveDiscoveryTimeout)+modelCatalogRefreshCleanupGrace,
+		sourceTimeout+modelCatalogRefreshCleanupGrace,
 	)
 	if err != nil {
 		return err
@@ -401,16 +401,7 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		}
 	}
 	runtime.liveSourceFactory = func(providers map[string]compozyconfig.ProviderConfig) ([]modelcatalog.Source, error) {
-		return modelcatalog.NewLiveProviderSources(&modelcatalog.LiveProviderSourcesConfig{
-			Providers: providers,
-			HomePaths: d.homePaths,
-			BaseEnv:   os.Environ(),
-			SecretResolver: d.modelCatalogSecretResolver(
-				state,
-			),
-			HTTPClient:     httpClient,
-			DefaultTimeout: modelcatalog.DefaultLiveDiscoveryTimeout,
-		})
+		return d.modelCatalogLiveSources(state, providers, modelcatalog.DefaultLiveDiscoveryTimeout)
 	}
 	state.modelCatalog = runtime
 	runtime.startDynamicRefreshLoop()
@@ -439,14 +430,7 @@ func (d *Daemon) modelCatalogSources(
 		modelcatalog.NewConfigSource(state.cfg.Providers),
 		modelsDev,
 	}
-	liveSources, err := modelcatalog.NewLiveProviderSources(&modelcatalog.LiveProviderSourcesConfig{
-		Providers:      state.cfg.Providers,
-		HomePaths:      d.homePaths,
-		BaseEnv:        os.Environ(),
-		SecretResolver: d.modelCatalogSecretResolver(state),
-		HTTPClient:     httpClient,
-		DefaultTimeout: defaultTimeout,
-	})
+	liveSources, err := d.modelCatalogLiveSources(state, state.cfg.Providers, defaultTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create live provider model catalog sources: %w", err)
 	}

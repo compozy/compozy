@@ -178,7 +178,9 @@ export function toRuntimeModelOptions(
       disabled_reason: needsAuth
         ? "Sign in"
         : disabled
-          ? model.last_error?.trim() || "Unavailable"
+          ? model.availability_state === "unknown"
+            ? "Unconfirmed"
+            : "Unavailable"
           : undefined,
     });
   }

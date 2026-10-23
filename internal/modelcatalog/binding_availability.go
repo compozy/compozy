@@ -2,23 +2,30 @@ package modelcatalog
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
+	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 func (s *CatalogService) applyBindingAvailability(ctx context.Context, models []Model, opts ListOptions) error {
-	required := map[string]bool{"claude": true, "cursor": true}
+	runtimes := map[string]string{
+		liveSourcesClaudeKey: liveSourcesClaudeKey,
+		liveSourcesCursorKey: liveSourcesCursorKey,
+	}
 	for _, source := range s.sourcesSnapshot() {
 		if live, ok := source.(*LiveProviderSource); ok {
 			provider := live.providerSnapshot()
 			runtime := provider.RuntimeProviderName(live.providerID)
-			required[live.providerID] = runtime == "claude" || runtime == "cursor"
+			runtimes[live.providerID] = runtime
 		}
 	}
 	var blocked []*Model
 	for i := range models {
 		model := &models[i]
-		if !required[model.ProviderID] || hasFreshTransportBinding(*model) ||
+		if !RequiresLiveTransportBinding(runtimes[model.ProviderID], model.ModelID) ||
+			HasFreshTransportBinding(*model, opts.Now) ||
 			model.AvailabilityState == AvailabilityStateUnavailableLive ||
 			model.AvailabilityState == AvailabilityStateUnavailableStale {
 			continue
@@ -35,7 +42,16 @@ func (s *CatalogService) applyBindingAvailability(ctx context.Context, models []
 		ProviderID: opts.ProviderID, ExecutionContext: opts.ExecutionContext,
 	})
 	if err != nil {
-		return fmt.Errorf("model catalog: read binding availability: %w", err)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return err
+		}
+		for _, model := range blocked {
+			model.LastError += "; source status unavailable: " + RedactString(err.Error())
+		}
+		return nil
 	}
 	for _, model := range blocked {
 		sourceID := SourceKindProviderLiveID(model.ProviderID)
@@ -50,7 +66,24 @@ func (s *CatalogService) applyBindingAvailability(ctx context.Context, models []
 	return nil
 }
 
-func hasFreshTransportBinding(model Model) bool {
+// RequiresLiveTransportBinding keeps catalog selection aligned with session admission.
+func RequiresLiveTransportBinding(runtimeProvider, modelID string) bool {
+	if runtimeProvider == liveSourcesCursorKey {
+		return true
+	}
+	if runtimeProvider != liveSourcesClaudeKey {
+		return false
+	}
+	for _, model := range compozyconfig.BuiltinProviders()[liveSourcesClaudeKey].Models.Curated {
+		if strings.TrimSpace(model.ID) == strings.TrimSpace(modelID) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasFreshTransportBinding applies the admission cache's ten-minute reuse window.
+func HasFreshTransportBinding(model Model, now time.Time) bool {
 	if model.AvailabilityState != AvailabilityStateAvailableLive {
 		return false
 	}
@@ -58,7 +91,9 @@ func hasFreshTransportBinding(model Model) bool {
 		return false
 	}
 	for _, source := range model.Sources {
-		if source.SourceID == SourceKindProviderLiveID(model.ProviderID) && !source.Stale {
+		age := now.Sub(source.RefreshedAt)
+		if source.SourceID == SourceKindProviderLiveID(model.ProviderID) && !source.Stale &&
+			!source.RefreshedAt.IsZero() && age >= 0 && age < 10*time.Minute {
 			return true
 		}
 	}

@@ -48,7 +48,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatal(err)
 		}
 		runtime := &modelCatalogRuntime{
-			timeout:     time.Second,
+			timeout:     modelCatalogRefreshCleanupGrace,
 			liveSources: make(map[string]*modelcatalog.LiveProviderSource),
 		}
 		for _, source := range sources {
@@ -69,10 +69,88 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		runtime.liveSources["claude"] = custom
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"claude": custom, "cursor": claude}
+		if got := runtime.refreshTimeout(""); got != 150*time.Second+modelCatalogRefreshCleanupGrace {
+			t.Fatalf("aggregate refresh deadline = %s, want both sequential probe budgets", got)
+		}
+
 		if got := runtime.refreshTimeout("claude"); got != 90*time.Second+modelCatalogRefreshCleanupGrace {
 			t.Fatalf("configured refresh deadline = %s", got)
 		}
+		service := newManuallyReleasedModelCatalogService()
+		running, err := newModelCatalogRuntime(
+			t.Context(),
+			service,
+			discardLogger(),
+			nil,
+			modelCatalogRefreshCleanupGrace,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		running.liveSources = runtime.liveSources
+		result := make(chan error, 1)
+		go func() {
+			_, err := running.Refresh(t.Context(), modelcatalog.RefreshOptions{Force: true})
+			result <- err
+		}()
+		waitForCatalogTestSignal(t, service.started, "aggregate refresh start")
+		refreshCtx := <-service.refreshCtx
+		deadline, ok := refreshCtx.Deadline()
+		close(service.release)
+		if err := waitForCatalogTestError(t, result, "aggregate refresh completion"); err != nil {
+			t.Error(err)
+		}
+		if err := running.Shutdown(t.Context()); err != nil {
+			t.Error(err)
+		}
+		if !ok || time.Until(deadline) < 140*time.Second {
+			t.Fatalf("aggregate execution deadline = %v, want both sequential discovery budgets", deadline)
+		}
+
+	})
+
+	t.Run("Should give live HTTP discovery its provider deadline instead of the models dev client", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(`{"models":[{"name":"confirmed"}]}`)); err != nil {
+				t.Error(err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		provider := compozyconfig.BuiltinProviders()["ollama"]
+		provider.Command = "ollama-acp"
+		provider.AuthMode = compozyconfig.ProviderAuthModeNone
+		provider.Models.Discovery.Endpoint = server.URL
+		provider.Models.Discovery.Enabled = new(true)
+		provider.Models.Discovery.Timeout = "1s"
+		cfg.Providers["ollama"] = provider
+		daemon := newTestDaemon(t, home, &cfg)
+		sources, err := daemon.modelCatalogSources(
+			&bootState{cfg: cfg},
+			&http.Client{Timeout: time.Nanosecond},
+			modelcatalog.DefaultLiveDiscoveryTimeout,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, source := range sources {
+			if source.ID() != modelcatalog.SourceKindProviderLiveID("ollama") {
+				continue
+			}
+			rows, err := source.ListModels(t.Context(), modelcatalog.ListOptions{ProviderID: "ollama"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(rows) != 1 || rows[0].ModelID != "confirmed" {
+				t.Fatalf("live HTTP rows = %#v", rows)
+			}
+			return
+		}
+		t.Fatal("live HTTP source missing")
 	})
 
 	t.Run("Should resolve only the selected provider model context window", func(t *testing.T) {

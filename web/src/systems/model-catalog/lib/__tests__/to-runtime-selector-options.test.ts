@@ -26,7 +26,7 @@ function payload(
 }
 
 describe("toRuntimeModelOptions", () => {
-  it("Should disable unconfirmed bindings and display the live refresh error", () => {
+  it("Should disable unconfirmed bindings with a bounded label", () => {
     const model = payload({
       provider_id: "claude",
       model_id: "claude-sonnet-5",
@@ -37,7 +37,7 @@ describe("toRuntimeModelOptions", () => {
     expect(toRuntimeModelOptions([model])[0]).toMatchObject({
       disabled: true,
       availability: "unavailable",
-      disabled_reason: model.last_error,
+      disabled_reason: "Unconfirmed",
     });
     expect(toRuntimeModelOptions([model], { providerNeedsAuth: true })[0].disabled_reason).toBe(
       "Sign in"

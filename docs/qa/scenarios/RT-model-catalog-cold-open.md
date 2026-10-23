@@ -155,3 +155,10 @@ provider discovery timeout must not be truncated by the models.dev HTTP timeout.
 Focused unit coverage owns failure/recovery, picker mapping, and timeout wiring. The existing
 ACP subprocess/SQLite overlay integration scenario owns the real process/storage boundary.
 A new live-vendor Windows walk and rendered browser replay remain CI/QA-owned.
+
+Review follow-up: after restart, test bindings aged nine minutes, exactly ten minutes, one day,
+with a future timestamp, and with no timestamp. Only the nine-minute binding remains reusable.
+Claude aliases (`sonnet`, `haiku`), `default`, and raw IDs outside the built-in curated set remain
+selectable without a binding, including overlays. A long discovery error must remain in provider
+guidance while the row badge stays `Unconfirmed`. Verify aggregate refresh grants every sequential
+probe its complete deadline and live HTTP discovery never uses models.dev's shorter client timeout.

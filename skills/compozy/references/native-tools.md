@@ -458,7 +458,8 @@ the inherited launch prefers an installed `opencode acp` and uses the `npx -y op
 runner only when no native executable exists. Explicit commands keep their installation selector and
 never gain an npm fallback; refresh re-detects the version and never replaces an active session.
 Live sources refresh periodically and after their five-minute TTL; failed refreshes keep the last
-successful rows as stale data. Claude/Cursor rows without a fresh live transport binding remain
+successful rows as stale data. Built-in curated Claude IDs and all Cursor IDs without a live transport binding less than ten
+minutes old remain
 listed but report `available=false`, `availability_state=unknown`, and a `last_error` beginning
 `live catalog unavailable:`; do not select those rows for a session. Live discovery defaults to
 60 seconds independently of models.dev; `providers.<id>.models.discovery.timeout` overrides it.
