@@ -659,6 +659,11 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 					})
 				}
 				wg.Wait()
+				probe := streams - 1
+				cached, err := service.StreamProjection(t.Context(), binds[probe].BindID, peers[probe], "")
+				if err != nil || len(cached.Tools) != 1 || !json.Valid(cached.Tools[0].Descriptor.InputSchema) {
+					t.Fatalf("cached peer response = %#v, error = %v", cached, err)
+				}
 				if got := provider.calls.Load() - baseline; got != int64(change+1) {
 					t.Fatalf("projection builds = %d, want %d independent of stream count", got, change+1)
 				}
