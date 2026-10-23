@@ -4379,21 +4379,27 @@ describe("SessionThread transcript states", () => {
   // Invariant: a reader gesture that starts at the end keeps the viewport through
   // small deltas inside the 40px band (slow trackpads, the first key repeat, a
   // scrollbar drag); following re-arms only when the reader comes back down.
+  // Chromium applies the wheel's scroll before the wheel event runs, so each step
+  // moves the viewport, then dispatches the gesture, then the scroll event.
   it("Should let a gesture leave the end in small steps and re-arm only on the way back", async () => {
     renderThreadState({ status: "success", messages: settlingTranscript("small-steps") });
     expect(await screen.findByText("Message 0")).toBeInTheDocument();
 
     const viewport = screen.getByTestId("chat-view");
     primeViewportAtEnd(viewport);
-    fireEvent.wheel(viewport, { deltaY: -10 });
+    fireEvent.scroll(viewport);
     for (const scrollTop of [1_490, 1_480, 1_470]) {
-      scrollViewportTo(viewport, scrollTop);
+      viewport.scrollTop = scrollTop;
+      fireEvent.wheel(viewport, { deltaY: -10 });
+      fireEvent.scroll(viewport);
       expect(viewport.scrollTop).toBe(scrollTop);
     }
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
 
     // Heading back into the band re-arms following, which pins the true end.
+    viewport.scrollTop = 1_495;
     fireEvent.wheel(viewport, { deltaY: 25 });
-    scrollViewportTo(viewport, 1_495);
+    fireEvent.scroll(viewport);
     expect(viewport.scrollTop).toBe(1_500);
     expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
   });

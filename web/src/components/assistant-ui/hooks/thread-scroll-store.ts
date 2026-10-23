@@ -20,8 +20,15 @@ interface ThreadScrollState {
   /** Measured overlap of the composer over the scroller (0 in the stacked layout), never assumed. */
   composerOverlayHeight: number;
   historyAnchor: ThreadHistoryAnchor | null;
-  /** The last scrollTop a scroll event reported, so a reader heading up through the band is told apart from one coming back. */
+  /** The last scrollTop observed, so a reader coming back down is told apart from one still leaving. */
   lastScrollTop: number | null;
+  /**
+   * An upward gesture's intent: the reader is leaving the end, so the bottom
+   * band does not re-arm following until the viewport moves back down. Engines
+   * may move the viewport before the gesture event runs, so intent, not the
+   * gesture's starting position, decides.
+   */
+  leavingEnd: boolean;
   lastUserId: string | null;
   ownership: ScrollOwnershipState;
   previousCount: number;
@@ -64,6 +71,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     composerOverlayHeight: 0,
     historyAnchor: null,
     lastScrollTop: null,
+    leavingEnd: false,
     lastUserId: null,
     ownership: INITIAL_SCROLL_OWNERSHIP,
     previousCount: 0,
@@ -100,6 +108,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     scrollToEndRequested: context => ({
       ...context,
       anchorIndex: null,
+      leavingEnd: false,
       ownership: scrollOwnershipTransition(context.ownership, { type: "jump-to-latest" }),
       showScrollToBottom: false,
     }),
@@ -114,15 +123,17 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
         anchorIndex: ownership.mode === "anchoring-new-turn" ? context.anchorIndex : null,
         historyAnchor: null,
         lastScrollTop: event.scrollTop,
+        leavingEnd: event.direction === "up",
         ownership,
         programmaticScrollTop: null,
         showScrollToBottom: event.awayFromEnd,
       };
     },
     scrollObserved: (context, event) => {
-      const movedUp =
-        context.lastScrollTop !== null && event.scrollTop < context.lastScrollTop - 0.5;
-      const observed = { ...context, lastScrollTop: event.scrollTop };
+      const movedDown =
+        context.lastScrollTop !== null && event.scrollTop > context.lastScrollTop + 0.5;
+      const leavingEnd = context.leavingEnd && !movedDown;
+      const observed = { ...context, lastScrollTop: event.scrollTop, leavingEnd };
       if (
         context.programmaticScrollTop !== null &&
         Math.abs(event.scrollTop - context.programmaticScrollTop) <= 1
@@ -131,11 +142,11 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
       }
       // A reader who took the viewport and is still heading up keeps it while
       // crossing the bottom band; following re-arms only on the way back down.
-      const leavingEnd = movedUp && context.ownership.mode === "free-scrolling";
-      if (event.atEnd && !leavingEnd) {
+      if (event.atEnd && !(leavingEnd && context.ownership.mode === "free-scrolling")) {
         return {
           ...observed,
           anchorIndex: null,
+          leavingEnd: false,
           ownership: scrollOwnershipTransition(context.ownership, { type: "reached-end" }),
           programmaticScrollTop: null,
           showScrollToBottom: false,
@@ -174,6 +185,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     navigationJumpRequested: context => ({
       ...context,
       anchorIndex: null,
+      leavingEnd: false,
       historyAnchor: null,
       ownership: scrollOwnershipTransition(context.ownership, {
         type: "user-scroll",
