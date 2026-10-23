@@ -237,6 +237,9 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
   ],
   sessions: [
     {
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
@@ -257,6 +260,9 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:14:00Z",
     },
     {
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
@@ -277,6 +283,9 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:09:00Z",
     },
     {
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
@@ -297,6 +306,9 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:11:00Z",
     },
     {
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
@@ -317,6 +329,9 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:13:00Z",
     },
     {
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
@@ -337,6 +352,9 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T17:58:00Z",
     },
     {
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
@@ -357,6 +375,9 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       updated_at: "2026-04-17T18:06:00Z",
     },
     {
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",

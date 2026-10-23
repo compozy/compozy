@@ -68,6 +68,9 @@ function createWrapper() {
 
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
     effective_workspace_access: "",
@@ -295,6 +298,9 @@ function createWrapperWithClient(queryClient: QueryClient) {
 describe("useSession", () => {
   it("loads a single session detail", async () => {
     vi.mocked(fetchSessionById).mockResolvedValue({
+      board_column: "done",
+      pull_request: null,
+      pull_request_lookup: null,
       supervision: null,
       profile_id: "00000000000000000000000000",
       profile_name: "default",
@@ -608,7 +614,15 @@ describe("bounded session catalog", () => {
   it("Should share exact population facets across differently filtered visible pages", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     vi.mocked(fetchSessionFacets).mockResolvedValue({
-      facets: { terminal_approvals: 0, all: 201, needs_you: 1, working: 0, finished: 0, idle: 200 },
+      facets: {
+        terminal_approvals: 0,
+        all: 201,
+        needs_you: 1,
+        working: 0,
+        finished: 0,
+        idle: 200,
+        board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+      },
       by_workspace: [],
       by_profile: [],
     });
@@ -667,7 +681,15 @@ describe("bounded session catalog", () => {
   it("Should keep one visible page on invalidation and navigate older history explicitly", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     vi.mocked(fetchSessionFacets).mockResolvedValue({
-      facets: { terminal_approvals: 0, all: 201, needs_you: 0, working: 0, finished: 0, idle: 201 },
+      facets: {
+        terminal_approvals: 0,
+        all: 201,
+        needs_you: 0,
+        working: 0,
+        finished: 0,
+        idle: 201,
+        board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+      },
       by_workspace: [],
       by_profile: [],
     });

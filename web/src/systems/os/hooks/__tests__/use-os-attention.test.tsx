@@ -154,6 +154,9 @@ function sessionsQuery({
 /** `badge` is what puts a session in the needs-you class (see session-badge.ts). */
 function waitingSession(id: string): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     profile_id: "00000000000000000000000000",
     profile_name: "default",
@@ -507,7 +510,15 @@ describe("useOsAttention", () => {
     realFacetQueries = true;
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     vi.mocked(fetchSessionFacets).mockResolvedValue({
-      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 1 },
+      facets: {
+        all: 600,
+        needs_you: 0,
+        working: 0,
+        finished: 0,
+        idle: 600,
+        terminal_approvals: 1,
+        board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+      },
       by_workspace: [],
       by_profile: [],
     });
@@ -526,7 +537,15 @@ describe("useOsAttention", () => {
     });
     expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
     vi.mocked(fetchSessionFacets).mockResolvedValue({
-      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 2 },
+      facets: {
+        all: 600,
+        needs_you: 0,
+        working: 0,
+        finished: 0,
+        idle: 600,
+        terminal_approvals: 2,
+        board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+      },
       by_workspace: [],
       by_profile: [],
     });
@@ -581,7 +600,15 @@ describe("useOsAttention", () => {
     expect(fetchSessionFacets).toHaveBeenCalledTimes(1);
     expect(result.current.badges.terminal).toBeUndefined();
     vi.mocked(fetchSessionFacets).mockResolvedValue({
-      facets: { all: 600, needs_you: 0, working: 0, finished: 0, idle: 600, terminal_approvals: 3 },
+      facets: {
+        all: 600,
+        needs_you: 0,
+        working: 0,
+        finished: 0,
+        idle: 600,
+        terminal_approvals: 3,
+        board: { needs_you: 0, working: 0, in_review: 0, done: 0 },
+      },
       by_workspace: [],
       by_profile: [],
     });

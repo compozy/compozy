@@ -48,6 +48,9 @@ function session(
   >
 ): SessionPayload {
   return {
+    board_column: "done",
+    pull_request: null,
+    pull_request_lookup: null,
     supervision: null,
     ...owner,
     id,
