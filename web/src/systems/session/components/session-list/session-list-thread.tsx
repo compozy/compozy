@@ -139,15 +139,28 @@ function SessionListThreadView({
         <div className={BRANCH_RAIL}>
           {revealed.map(child => (
             <div key={child.id} className={BRANCH_NODE}>
-              <SessionListRow
-                {...layoutFor?.(child)}
+              <SessionListBranchRow
                 session={child}
-                inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
-                current={child.id === currentSessionId}
-                onSelect={() => onSelectSession(child)}
-                selection={selection}
-                sessionActions={sessionActions}
+                childSessions={[]}
+                collapsed
+                subagentThreads={subagentThreads}
+                onThreadBranchChange={onThreadBranchChange}
+                currentSessionId={currentSessionId}
+                onSelectSession={onSelectSession}
                 testIdPrefix={testIdPrefix}
+                row={trailing => (
+                  <SessionListRow
+                    {...layoutFor?.(child)}
+                    session={child}
+                    inheritsProject={(child.workspace_id ?? "") === (session.workspace_id ?? "")}
+                    current={child.id === currentSessionId}
+                    onSelect={() => onSelectSession(child)}
+                    selection={selection}
+                    sessionActions={sessionActions}
+                    testIdPrefix={testIdPrefix}
+                    trailing={trailing}
+                  />
+                )}
               />
             </div>
           ))}

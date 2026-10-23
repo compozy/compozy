@@ -1,6 +1,7 @@
 "use client";
 
 import { m } from "motion/react";
+import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
@@ -30,14 +31,16 @@ function SegmentPill({
   index,
   duration = SEGMENT_PILL_DURATION,
   className,
+  ref: callerRef,
   ...props
 }: SegmentPillProps) {
   const { ref, opacity, left, cap, bodyX, bodyScale, rightCapX } = useSegmentPill(index, duration);
+  const mergedRef = useMergedRefs(ref, callerRef);
 
   const part = cn("absolute inset-y-0 left-0 bg-surface-2", className);
   return (
     <span
-      ref={ref}
+      ref={mergedRef}
       aria-hidden="true"
       data-slot="segment-pill"
       data-state={index === null ? "hidden" : "shown"}

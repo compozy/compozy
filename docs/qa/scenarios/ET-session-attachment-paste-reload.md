@@ -49,3 +49,7 @@ agent): before the fix the text returned and every tile was gone
 after it the draft returned whole
 (https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-922/03-session-a-draft-restored.png)
 with three uploads total, and the removal and send checks above held.
+
+QA impact 2026-10-23 (merge train): deleting a session after switching away must release its
+retained unsent files and upload handles. Verify the deleted draft cannot restore attachments;
+other sessions' drafts remain available. Covered in the existing session deletion hook suite.

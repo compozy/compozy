@@ -91,6 +91,14 @@ export function useSegmentPill(index: number | null, duration: number) {
           duration: duration * (1 - TRAIL_DELAY_SHARE),
           delay: duration * TRAIL_DELAY_SHARE,
           ease: EASE_SETTLE,
+          onComplete: () => {
+            // Live counts can resize the target while travel is in progress.
+            const edges = measure();
+            if (edges === null) return;
+            shown.current = edges;
+            left.jump(edges.left);
+            right.jump(edges.right);
+          },
         }),
         animate(opacity, 1, { duration: duration / 2 }),
       ];

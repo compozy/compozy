@@ -125,3 +125,8 @@ subagent rows that open their session, and a persisted subagent-list choice. Ver
 (`SessionSidebar/Branches`: `BranchIndicators`, `SubagentBranchOpen`, `ManySubagents`, `SegmentedSwitch`).
 Flag only — a live daemon walk was not run on this machine per operator instruction (heavy local
 runs moved to CI); walk it in the next QA cycle.
+
+QA impact 2026-10-23 (merge train): a revealed subagent keeps its own delegated-work control
+outside its parent's fold. Open that control and navigate its subagents. During segment travel,
+change a live count and confirm the selection plate settles on the new bounds. Disabled branch
+reads must not show an indefinite first-page loading state.

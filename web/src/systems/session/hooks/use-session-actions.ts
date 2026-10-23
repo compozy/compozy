@@ -19,6 +19,7 @@ import {
 
 import { sessionStore } from "../stores/session-store";
 import { sessionKeys } from "../lib/query-keys";
+import { discardComposerDraftAttachments } from "../lib/session-composer-attachment-drafts";
 import {
   invalidateSessionMutationQueries,
   invalidateWorkspaceSessionCatalog,
@@ -190,6 +191,7 @@ export function useDeleteSession(
       const { id, workspace_id } = session;
       const successWorkspaceId = requireWorkspace(workspace_id);
       await options.onDeleteSuccess?.(session);
+      discardComposerDraftAttachments(id);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });

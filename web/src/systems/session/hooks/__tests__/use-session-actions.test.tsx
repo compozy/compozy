@@ -3,6 +3,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  composerDraftAttachmentFiles,
+  recordComposerDraftAttachments,
+  retainComposerDraftUpload,
+  retainedComposerDraftUpload,
+} from "../../lib/session-composer-attachment-drafts";
 import { sessionStore } from "../../stores/session-store";
 import {
   useClearSessionConversation,
@@ -503,6 +509,9 @@ describe("session actions", () => {
       createdSession
     );
     sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "remove me" });
+    const file = new File(["draft"], "draft.txt");
+    recordComposerDraftAttachments(createdSession.id, [file]);
+    retainComposerDraftUpload(WORKSPACE_ID, createdSession.id, file, new Promise(() => {}));
 
     const { result } = renderHook(() => useDeleteSession({ onDeleteSuccess }), {
       wrapper: createWrapper(queryClient),
@@ -512,6 +521,8 @@ describe("session actions", () => {
       await result.current.mutateAsync(createdSession);
     });
 
+    expect(composerDraftAttachmentFiles(createdSession.id)).toEqual([]);
+    expect(retainedComposerDraftUpload(WORKSPACE_ID, createdSession.id, file)).toBeUndefined();
     expect(deleteSession).toHaveBeenCalledWith(
       WORKSPACE_ID,
       createdSession.id,

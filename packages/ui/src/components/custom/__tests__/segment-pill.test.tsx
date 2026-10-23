@@ -1,3 +1,4 @@
+import { createRef, type Ref } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,7 +15,7 @@ function stubBox(prop: "offsetLeft" | "offsetWidth" | "offsetHeight", attr: stri
   });
 }
 
-function Segments({ index }: { index: number | null }) {
+function Segments({ index, pillRef }: { index: number | null; pillRef?: Ref<HTMLSpanElement> }) {
   return (
     <div className="relative inline-flex">
       <button type="button" {...{ [SEGMENT_PILL_TARGET]: "" }} data-l="4" data-w="40" data-h="20">
@@ -23,7 +24,7 @@ function Segments({ index }: { index: number | null }) {
       <button type="button" {...{ [SEGMENT_PILL_TARGET]: "" }} data-l="48" data-w="56" data-h="20">
         Subagents
       </button>
-      <SegmentPill index={index} data-testid="pill" />
+      <SegmentPill ref={pillRef} index={index} data-testid="pill" />
     </div>
   );
 }
@@ -61,6 +62,34 @@ describe("SegmentPill", () => {
     // Left cap at the segment's left edge; right cap one radius inside its right edge.
     await waitFor(() => expect(edges()).toEqual(["translateX(48px)", "translateX(94px)"]));
     expect(parts()[1]!.style.transform).toContain("scaleX(37)");
+  });
+
+  it("Should measure the selected target while forwarding the caller ref", async () => {
+    const ref = createRef<HTMLSpanElement>();
+    render(
+      <UIProvider reducedMotion="always">
+        <Segments index={1} pillRef={ref} />
+      </UIProvider>
+    );
+    expect(ref.current).toBe(screen.getByTestId("pill"));
+    await waitFor(() => expect(edges()).toEqual(["translateX(48px)", "translateX(94px)"]));
+  });
+
+  it("Should settle on the current target bounds after a resize during travel", async () => {
+    const { rerender } = render(
+      <UIProvider reducedMotion="never">
+        <Segments index={0} />
+      </UIProvider>
+    );
+    await waitFor(() => expect(edges()).toEqual(["translateX(4px)", "translateX(34px)"]));
+    rerender(
+      <UIProvider reducedMotion="never">
+        <Segments index={1} />
+      </UIProvider>
+    );
+    // Layout is the I/O boundary: the target narrows while the real motion runs.
+    screen.getByRole("button", { name: "Subagents" }).dataset.w = "40";
+    await waitFor(() => expect(edges()).toEqual(["translateX(48px)", "translateX(78px)"]));
   });
 
   it("Should hide without a selection", () => {

@@ -31,6 +31,7 @@ import {
 } from "../../mocks/session-list-view-fixtures";
 import type { SessionThreadSegment } from "../../lib/session-thread-branch";
 import type { SessionPayload } from "../../types";
+import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { useSubagentRoster } from "../../hooks/use-subagent-roster";
 import { sessionKeys } from "../../lib/query-keys";
 import { subagentViewFromPayload } from "../../lib/subagent-payload";
@@ -529,6 +530,36 @@ describe("SessionList subagents", () => {
     // A folded list does not mount; the viewed subagent stays outside the fold.
     expect(screen.queryByTestId("session-sidebar-session-plain")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
+  });
+
+  it("Should browse delegated work on a revealed subagent outside its parent fold", async () => {
+    const user = userEvent.setup();
+    const parent = row("parent", summary(1, 3));
+    const viewed = row("viewed-sub", {
+      ...summary(1, 1),
+      lineage: lineage("parent", "subagent"),
+    });
+    vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 1));
+    const { onBranch } = renderList({
+      sessions: [parent],
+      revealedSession: viewed,
+      collapsedThreadIds: ["parent"],
+    });
+    await user.click(screen.getByRole("button", { name: "1 of 1 subagent running" }));
+    expect(onBranch).toHaveBeenLastCalledWith("viewed-sub", "subagents");
+    expect(await screen.findByTestId("session-sidebar-subagents-viewed-sub")).toBeVisible();
+    expect(screen.getByTestId("session-sidebar-session-viewed-sub")).toBeVisible();
+  });
+
+  it("Should not report first-page loading when the branch query is disabled", () => {
+    const queryClient = new QueryClient();
+    const { result } = renderHook(() => useSessionSubagentBranch("", "unscoped", 0), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+    expect(result.current.loading).toBe(false);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
   const detailResponse = (sessionsById: Record<string, SessionPayload>) =>

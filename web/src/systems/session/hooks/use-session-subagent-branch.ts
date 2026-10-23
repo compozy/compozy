@@ -55,7 +55,7 @@ export function useSessionSubagentBranch(
   return {
     rows,
     remaining: Math.max(0, known - rows.length),
-    loading: live === null && query.isPending && !failed,
+    loading: live === null && query.isLoading && !failed,
     loadingMore: query.isFetchingNextPage,
     failed,
     showMore: () => {
