@@ -171,16 +171,19 @@ func (r *spawnReaper) Sweep(ctx context.Context) (spawnReaperReport, error) {
 	if ctx == nil {
 		return spawnReaperReport{}, errors.New("daemon: spawn reaper sweep context is required")
 	}
-	infos, err := r.sessions.ListAll(ctx)
-	if err != nil {
-		return spawnReaperReport{}, fmt.Errorf("daemon: list sessions for spawn reaper: %w", err)
-	}
-	parents := make(map[string]*session.Info, len(infos))
-	for _, info := range infos {
-		if info == nil {
-			continue
+	var infos []*session.Info
+	if inventory, ok := r.sessions.(spawnReaperLiveInventory); ok {
+		var err error
+		infos, err = inventory.ListLive(ctx)
+		if err != nil {
+			return spawnReaperReport{}, fmt.Errorf("daemon: list live sessions for spawn reaper: %w", err)
 		}
-		parents[strings.TrimSpace(info.ID)] = info
+	} else {
+		infos = r.sessions.List()
+	}
+	parents, err := r.readParents(ctx, infos)
+	if err != nil {
+		return spawnReaperReport{}, err
 	}
 
 	report := spawnReaperReport{}
@@ -356,4 +359,41 @@ func (r *spawnReaper) stopChild(
 		return nil
 	}
 	return err
+}
+
+type spawnReaperLiveInventory interface {
+	ListLive(context.Context) ([]*session.Info, error)
+}
+
+var _ spawnReaperLiveInventory = (*session.Manager)(nil)
+
+func (r *spawnReaper) readParents(ctx context.Context, infos []*session.Info) (map[string]*session.Info, error) {
+	parents := make(map[string]*session.Info, len(infos))
+	for _, info := range infos {
+		if info == nil {
+			continue
+		}
+		parents[strings.TrimSpace(info.ID)] = info
+	}
+
+	for _, info := range infos {
+		if info == nil || !spawnReaperLiveState(info.State) || info.Type != session.SessionTypeSpawned {
+			continue
+		}
+		lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+		parentID := lineage.ParentSessionID
+		if parentID == "" {
+			continue
+		}
+		if _, found := parents[parentID]; found {
+			continue
+		}
+		parent, err := r.sessions.Status(ctx, parentID)
+		if err != nil && !errors.Is(err, session.ErrSessionNotFound) {
+			return nil, fmt.Errorf("daemon: read spawn parent %q: %w", parentID, err)
+		}
+		parents[parentID] = parent
+	}
+
+	return parents, nil
 }

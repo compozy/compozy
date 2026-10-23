@@ -54,7 +54,7 @@ func (m *Manager) prepareRecoveredStopRun(
 		}
 		return
 	}
-	meta, err := m.readMetaWithContext(operationCtx, id)
+	meta, err := m.reconcileInactiveSession(operationCtx, id)
 	if err != nil {
 		unlock()
 		m.failRecoveredStopPreparation(run, err)

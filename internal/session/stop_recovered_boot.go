@@ -10,6 +10,9 @@ import (
 
 // RecoverPendingStops settles verified exits and terminates recovered orphans before boot admits work.
 func (m *Manager) RecoverPendingStops(ctx context.Context) error {
+	if err := m.ReconcileInactiveSessions(ctx); err != nil {
+		return err
+	}
 	infos, err := m.ListAll(ctx)
 	if err != nil {
 		return err

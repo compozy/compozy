@@ -130,7 +130,7 @@ func (m *Manager) RecoverSessionHealth(ctx context.Context) (HealthRecoveryResul
 		if _, ok := m.Get(row.SessionID); ok {
 			continue
 		}
-		meta, readErr := m.readMetaWithContext(ctx, row.SessionID)
+		meta, readErr := m.reconcileInactiveSession(ctx, row.SessionID)
 		if readErr != nil {
 			if errors.Is(readErr, ErrSessionNotFound) {
 				next := staleRecoveredSessionHealth(row, now)

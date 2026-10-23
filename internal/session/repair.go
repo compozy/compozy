@@ -127,7 +127,7 @@ func (m *Manager) RepairSession(
 	}
 	defer unlockConversation()
 
-	meta, err := m.readMetaWithContext(ctx, target)
+	meta, err := m.reconcileInactiveSession(ctx, target)
 	if err != nil {
 		return nil, err
 	}

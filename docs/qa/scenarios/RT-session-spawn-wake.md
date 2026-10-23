@@ -113,3 +113,10 @@ instead. Needs-you, failure, and stop wakes are unchanged. A completed wake with
 points at `compozy__session_history`. Walk: spawn with `prompt`, let the child finish, and confirm
 exactly one parent wake that contains the answer text. Owning automated evidence: the
 reply-watch suppression case in `internal/session/spawn_wake_test.go`.
+
+Issue #933 backend acceptance: a reaper tick must ignore stopped history while
+retaining live sessions not yet rebound after restart. Expired spawned/system
+sessions, stopped parents, missing parents and subagent restart exceptions must
+retain their existing stop/wake behavior. A parent lookup failure must abort the
+sweep rather than classify that child as orphaned. Backend evidence and limits:
+[session inventory performance](../reports/2026-10-23-session-inventory.md).

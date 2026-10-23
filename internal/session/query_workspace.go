@@ -37,10 +37,12 @@ func (m *Manager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*
 		return nil, fmt.Errorf("session: list workspace catalog: %w", err)
 	}
 	ids := make([]string, 0, len(stored))
+	rows := make(sessionInventory, len(stored))
 	for _, info := range stored {
 		ids = append(ids, info.ID)
+		rows[info.ID] = info
 	}
-	infos, err := m.mergePersistedSessionInfos(ctx, ids, activeByID)
+	infos, err := m.mergePersistedSessionInfos(ctx, ids, activeByID, rows)
 	if err != nil {
 		return nil, err
 	}
