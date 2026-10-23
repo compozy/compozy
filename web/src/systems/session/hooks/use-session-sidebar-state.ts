@@ -229,6 +229,28 @@ export const sessionSidebarLogic = createStoreLogic({
         collapsedGroups: toggledGroup(state.collapsedGroups, event.groupId),
       }));
     },
+    groupLensResolved: (context, event: { from: string; to: string }) => {
+      if (event.from === event.to) return;
+      const prefix = `${event.from}\u0000`;
+      const byScope = { ...context.byScope };
+      let changed = false;
+      // Resolve each window independently, including the default new windows inherit.
+      for (const [scopeId, state] of Object.entries(byScope)) {
+        const entries = Object.entries(state.collapsedGroups).filter(([id]) =>
+          id.startsWith(prefix)
+        );
+        if (entries.length === 0) continue;
+        const collapsedGroups = { ...state.collapsedGroups };
+        for (const [id, collapsed] of entries) {
+          const resolved = `${event.to}\u0000${id.slice(prefix.length)}`;
+          collapsedGroups[resolved] ??= collapsed;
+          delete collapsedGroups[id];
+        }
+        byScope[scopeId] = { ...state, collapsedGroups };
+        changed = true;
+      }
+      return changed ? { ...context, byScope } : undefined;
+    },
     /**
      * Pins a window to the state it opened with. Without its own entry a window
      * would keep following the shell, i.e. every other window's gestures.

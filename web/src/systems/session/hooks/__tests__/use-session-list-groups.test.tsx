@@ -20,7 +20,12 @@ vi.mock("../../adapters/session-catalog-api", () => ({
 }));
 
 import { WindowScopeContext } from "@/hooks/use-window-scope";
-import { profilesListOptions, resetProfileViews, setProfileView } from "@/systems/profiles";
+import {
+  profilesListOptions,
+  resetProfileViews,
+  setProfileView,
+  useProfileReadScope,
+} from "@/systems/profiles";
 import { defaultProfileFixture, marketingProfileFixture } from "@/systems/profiles/mocks";
 import {
   USER_SCOPE_SELECTOR,
@@ -401,6 +406,56 @@ describe("useSessionListView", () => {
     act(() => remounted.result.current.toggleGroup(key));
     expect(remounted.result.current.collapsedGroupKeys.has(key)).toBe(false);
     expect(settingsWrites()).toEqual([]);
+  });
+
+  it("W-15: Should preserve each window's folds when a provisional profile resolves", async () => {
+    shell.group_by = "project";
+    const profile = { ...marketingProfileFixture, id: "profile-resolving", name: "resolving" };
+    act(() => {
+      enableAllProjects();
+      setProfileView({ kind: "profile", profile: profile.name });
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(profilesListOptions().queryKey, []);
+    const inWindow = (scopeId: string) => {
+      const withClient = clientWrapper(client);
+      return ({ children }: { children: ReactNode }) =>
+        createElement(
+          WindowScopeContext,
+          { value: scopeId },
+          createElement(withClient, null, children)
+        );
+    };
+    const other = renderHook(() => useSessionListView(), { wrapper: inWindow("w-resolve-other") });
+    const first = renderHook(() => useSessionListView(), { wrapper: inWindow("w-resolve-main") });
+    await waitFor(() => expect(first.result.current.groups).toHaveLength(1));
+    const key = first.result.current.groups[0]!.key;
+    act(() => first.result.current.toggleGroup(key));
+
+    const identity = renderHook(() => useProfileReadScope(), {
+      wrapper: inWindow("w-resolve-main"),
+    });
+    act(() => client.setQueryData(profilesListOptions().queryKey, [profile]));
+    await waitFor(() => expect(identity.result.current.destinationOwner?.id).toBe(profile.id));
+    await waitFor(() => expect(first.result.current.collapsedGroupKeys.has(key)).toBe(true));
+    expect(other.result.current.collapsedGroupKeys.has(key)).toBe(false);
+    const inherited = renderHook(() => useSessionListView(), {
+      wrapper: inWindow("w-resolve-new"),
+    });
+    await waitFor(() => expect(inherited.result.current.collapsedGroupKeys.has(key)).toBe(true));
+
+    act(() => {
+      client.setQueryData(profilesListOptions().queryKey, [
+        { ...profile, name: "resolved-renamed" },
+      ]);
+      setProfileView({ kind: "profile", profile: "resolved-renamed" });
+    });
+    await waitFor(() =>
+      expect(identity.result.current.destinationOwner?.name).toBe("resolved-renamed")
+    );
+    await waitFor(() => expect(first.result.current.collapsedGroupKeys.has(key)).toBe(true));
+    expect(other.result.current.collapsedGroupKeys.has(key)).toBe(false);
+    act(() => resetProfileViews());
   });
 
   // A persisted fold names its profile by id, so renaming the profile keeps it.

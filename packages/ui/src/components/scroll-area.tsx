@@ -1,4 +1,5 @@
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
+import { useReducedMotionConfig } from "motion/react";
 
 import { cn } from "../lib/utils";
 
@@ -43,13 +44,15 @@ function ScrollBar({
   orientation = "vertical",
   ...props
 }: ScrollAreaPrimitive.Scrollbar.Props) {
+  const reduced = useReducedMotionConfig();
   return (
     <ScrollAreaPrimitive.Scrollbar
       data-slot="scroll-area-scrollbar"
       data-orientation={orientation}
       orientation={orientation}
       className={cn(
-        "flex touch-none p-0.5 opacity-0 transition-opacity delay-300 duration-base select-none motion-reduce:transition-none data-horizontal:h-2.5 data-horizontal:flex-col data-vertical:h-full data-vertical:w-2.5",
+        "flex touch-none p-0.5 opacity-0 select-none data-horizontal:h-2.5 data-horizontal:flex-col data-vertical:h-full data-vertical:w-2.5",
+        reduced ? "transition-none" : "transition-opacity delay-300 duration-base",
         "data-hovering:opacity-100 data-hovering:delay-0 data-scrolling:opacity-100 data-scrolling:delay-0",
         "group-has-[>[data-slot=scroll-area-viewport]:focus-visible]/scroll-area:opacity-100 group-has-[>[data-slot=scroll-area-viewport]:focus-visible]/scroll-area:delay-0",
         className
@@ -58,7 +61,10 @@ function ScrollBar({
     >
       <ScrollAreaPrimitive.Thumb
         data-slot="scroll-area-thumb"
-        className="relative flex-1 rounded-full bg-line transition-colors hover:bg-line-strong"
+        className={cn(
+          "relative flex-1 rounded-full bg-line hover:bg-line-strong",
+          reduced ? "transition-none" : "transition-colors"
+        )}
       />
     </ScrollAreaPrimitive.Scrollbar>
   );

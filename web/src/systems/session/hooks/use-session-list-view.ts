@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
@@ -26,7 +26,7 @@ import { useSessionCatalog } from "./use-session-catalog";
 import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import { useSessionListGroups } from "./use-session-list-groups";
 import { useSessionListPreferences } from "./use-session-list-preferences";
-import { useSessionSidebarState } from "./use-session-sidebar-state";
+import { sessionSidebarStore, useSessionSidebarState } from "./use-session-sidebar-state";
 
 /** Shown in the toolbar while the stored `manual` sort cannot apply to what is listed. */
 export const SESSION_LIST_MANUAL_SORT_NOTE =
@@ -155,6 +155,13 @@ export function useSessionListView(
   });
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
   const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
+  const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
+  const resolvedProfile = !profile.aggregate && profile.destinationOwner !== null;
+  useEffect(() => {
+    if (resolvedProfile) {
+      sessionSidebarStore.trigger.groupLensResolved({ from: fallbackLens, to: foldLens });
+    }
+  }, [resolvedProfile, fallbackLens, foldLens]);
   const groupId = (key: string) => sessionListGroupCollapseId(foldLens, key);
   const collapsedGroupIds = new Set(sidebar.collapsedGroupIds);
   // A group with no pair of its own splits along the other axis into pairs,

@@ -97,3 +97,14 @@ Release review regression (#887): search while sessions are grouped. The modal h
 unfiltered total while a search is active; clearing the search restores the complete facets total.
 
 Issue #903 regression: in a session window under All projects with Group by project, collapse a workspace group and select sessions in other groups, then reload. The group stays collapsed and opens only on its toggle. Per-window rules: ET-web-session-sidebar-per-window.
+
+### Deferred profile identity and per-window folds
+
+With project grouping enabled, delay the profile catalog response and collapse a group in one
+window while a second window remains expanded. Resolve the profile catalog: both windows must
+keep their own choice. A newly opened window inherits the last-used folds. Rename that profile
+without changing its ID and verify the first window remains collapsed. Reusing the old profile
+name for a different ID must not transfer the old folds.
+
+Focused hook coverage: `use-session-list-groups.test.tsx`, W-15. Browser execution remains part
+of the owning scenario run; the focused hook test does not claim browser verification.
