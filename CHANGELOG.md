@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-10-22
+## 0.3.0 - 2026-10-23
 
 ### ♻️ Refactoring
 
@@ -123,6 +123,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move selected sessions into folders by drag or menu (#881)
 - Bind spawned workers to worktrees and inherit parent permissions (#885)
 - Work across all projects and in a User scope without a project (#887)
+- Bring session list organization to All projects and All profiles and allow nesting sessions
+- Archive a running session in one action
 
 ### 🐛 Bug Fixes
 
@@ -403,6 +405,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Render supervised terminal calls as compact tool rows (#893)
 - Keep skill_view source a string and expose command_source for command_id reads (#892)
 - Address terminal and session release review findings
+- Let session transcript messages use the full pane width on large screens
+- Resolve session agent catalogs in their bound profile
+- Keep an assistant reply as one prose block when subagent work streams between its deltas
+- Collapse provider usage rows, overlay scrollbars, name-only workspace identity, accent All projects globe
+- Keep session list group collapse across session selection
+- Resolve session organization CI lint and formatting failures
+- Preserve session lineage and profile boundaries during reparenting
+- Preserve profile folds and honor reduced motion
+- Enable accessible nesting across session list views
+- Own group folder interaction state in a store
+- Preserve missing-root recovery during lineage refresh
+- Preserve standalone agent slash commands
+- Keep a long transcript at its end while it settles on open
+- Require live bindings for curated model selection
+- Authenticate Windows hosted MCP peers
+- Preserve model negotiation errors after discovery failure
+- Keep transcript following through held-pointer layout clamps
+- Reconcile provider Fast state and accept ultra reasoning
+- Repair delegation and runtime recovery from dogfood evidence (#915)
 
 ### 🔧 Miscellaneous Tasks
 
@@ -442,6 +463,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Assert desktop runtime retry before and after replacement
 - Align UDS integration runtime with user scope
 - Align HTTP integration runtime with user scope
+- Open session creation through the catalog menu
 
 ## 0.2.15 - 2026-07-17
 
