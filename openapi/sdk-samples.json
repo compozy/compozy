@@ -100,8 +100,8 @@
             "app_access": "denied"
         },
         "archiveSession": {
-            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.archiveSession({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
-            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ArchiveSession(ctx, client.ArchiveSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.ArchiveSessionRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.archiveSession({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.ArchiveSession(ctx, client.ArchiveSessionParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"

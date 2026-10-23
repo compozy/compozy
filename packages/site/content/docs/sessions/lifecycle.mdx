@@ -722,11 +722,10 @@ Pass `--stop` to archive a session that is still running:
 compozy session archive sess-1234 --stop
 ```
 
-The HTTP and UDS operation takes an optional JSON body:
+The HTTP and UDS operation takes an optional `stop` query parameter:
 
 ```bash
-curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/archive \
-  -H 'Content-Type: application/json' -d '{"stop":true}'
+curl -X POST "http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/archive?stop=true"
 ```
 
 The native tool `compozy__session_archive` accepts the same `stop: true` input. The daemon stops

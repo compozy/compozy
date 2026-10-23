@@ -2750,12 +2750,9 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"session_id":"sess-1","status":"stopping","state":"stopping","verified":false,"escalated":false}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/archive":
-					// The default archive sends no body; only the stop opt-in sends one.
-					if req.Body != nil && req.Body != http.NoBody {
-						var input contract.ArchiveSessionRequest
-						if err := json.NewDecoder(req.Body).Decode(&input); err != nil || !input.Stop {
-							t.Fatalf("archive request = %#v, %v, want stop opt-in", input, err)
-						}
+					// The default archive sends no stop query; only the opt-in does.
+					if stop, present := req.URL.Query()["stop"]; present && (len(stop) != 1 || stop[0] != "true") {
+						t.Fatalf("archive stop query = %#v, want absent or true", stop)
 					}
 					return newHTTPResponse(
 						http.StatusOK,

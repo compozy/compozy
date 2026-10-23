@@ -76,6 +76,7 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeSessionMessageHopLimit),
 		string(tools.ErrorCodeSessionMessageRateLimited),
 		string(tools.ErrorCodeCompactionUnsupported),
+		string(tools.ErrorCodeSessionArchiveStopFailed),
 		string(tools.ErrorCodeUnavailable),
 		string(tools.ErrorCodeDenied),
 		string(tools.ErrorCodeApprovalRequired),

@@ -555,8 +555,7 @@ describe("session archive", () => {
     ).resolves.toEqual(archivedSession);
     await expectFetchRequest({
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive?profile=design",
-      body: { stop: true },
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/archive?profile=design&stop=true",
     });
   });
 

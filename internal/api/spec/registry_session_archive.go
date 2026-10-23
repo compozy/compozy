@@ -8,8 +8,15 @@ func archiveSessionOperationSpec() OperationSpec {
 		"archiveSession",
 		"Archive a stopped session, or stop and archive a live session with stop=true",
 	)
-	spec.RequestBody = contract.ArchiveSessionRequest{}
-	spec.RequestBodyOptional = true
+	// A query opt-in keeps the generated SDK archive signatures unchanged.
+	spec.Parameters = withProfileSelector(
+		pathParam("workspace_id", "Workspace id"),
+		pathParam("session_id", "Session id"),
+		boolQueryParam(
+			"stop",
+			"Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived",
+		),
+	)
 	spec.Responses = append(spec.Responses,
 		ResponseSpec{Status: 400, Description: "Invalid archive request", Body: contract.ErrorPayload{}},
 		ResponseSpec{

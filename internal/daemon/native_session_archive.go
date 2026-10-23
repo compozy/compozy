@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"errors"
+	"strings"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
@@ -49,6 +50,10 @@ func (n *daemonNativeTools) setSessionArchived(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, err)
 	}
+	// Stopping the caller would cancel the turn executing this call, as session_stop refuses.
+	if archived && input.Stop && strings.TrimSpace(input.SessionID) == strings.TrimSpace(scope.SessionID) {
+		return toolspkg.ToolResult{}, nativeSelfTargetError(req.ToolID)
+	}
 	if _, err := n.nativeSessionInWorkspace(ctx, scope, req.ToolID, workspaceID, input.SessionID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -64,6 +69,14 @@ func (n *daemonNativeTools) setSessionArchived(
 		info, err = manager.Archive(ctx, workspaceID, input.SessionID)
 	default:
 		info, err = manager.Unarchive(ctx, workspaceID, input.SessionID)
+	}
+	if errors.Is(err, session.ErrSessionArchiveStopFailed) {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeSessionArchiveStopFailed,
+			req.ToolID,
+			err.Error(),
+			err,
+		)
 	}
 	if err != nil {
 		return toolspkg.ToolResult{}, err

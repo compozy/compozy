@@ -934,7 +934,7 @@ output committed before the stop remains in history.
 
 `compozy session stop` preserves durable history and ends attach eligibility; a later normal prompt
 restarts the same logical session. `compozy session archive` hides a stopped session from the
-default catalog without deleting it; `--stop` (HTTP/UDS body `{"stop":true}`) first stops a live
+default catalog without deleting it; `--stop` (HTTP/UDS query `?stop=true`) first stops a live
 session through the normal stop path, canceling any active turn, and leaves it unarchived with
 code `session_archive_stop_failed` when that stop fails. Archived sessions keep their history and remain directly
 readable, but cannot resume, attach, or accept a prompt until `compozy session unarchive` clears the

@@ -48,5 +48,5 @@ list updates without a reload. Select a mix of running and stopped sessions and 
 them: the selection menu reads "Stop and archive", every session ends stopped and archived, and a
 session whose stop fails stays unarchived with its own error while the rest succeed. Through the
 CLI, `compozy session archive <id>` still refuses a live session with `409`, and
-`compozy session archive <id> --stop` stops and archives it; HTTP/UDS `{"stop":true}` and native
+`compozy session archive <id> --stop` stops and archives it; HTTP/UDS `?stop=true` and native
 tool `stop: true` behave the same.

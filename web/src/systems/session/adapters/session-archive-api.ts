@@ -20,9 +20,8 @@ export async function archiveSession(
     {
       params: {
         path: { workspace_id: sessionWorkspacePath(workspaceId), session_id: id },
-        query: { profile },
+        query: stop ? { profile, stop: true } : { profile },
       },
-      ...(stop ? { body: { stop: true } } : {}),
       signal,
     }
   );

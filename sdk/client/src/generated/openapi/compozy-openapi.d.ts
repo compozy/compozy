@@ -7385,9 +7385,6 @@ export interface components {
       paused_automations: string[];
       state: string;
     };
-    ArchiveSessionRequest: {
-      stop?: boolean;
-    };
     Argument: {
       name: string;
       options?: string[];
@@ -17658,6 +17655,7 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "session_archive_stop_failed"
         | "session_busy"
         | "slow_consumer"
         | "subscriber_limit_reached"
@@ -17850,6 +17848,7 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "session_archive_stop_failed"
         | "session_busy"
         | "slow_consumer"
         | "subscriber_limit_reached"
@@ -45940,6 +45939,8 @@ export interface operations {
   archiveSession: {
     parameters: {
       query?: {
+        /** @description Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived */
+        stop?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -45952,12 +45953,7 @@ export interface operations {
       };
       cookie?: never;
     };
-    /** @description JSON request body */
-    requestBody?: {
-      content: {
-        "application/json": components["schemas"]["ArchiveSessionRequest"];
-      };
-    };
+    requestBody?: never;
     responses: {
       /** @description OK */
       200: {

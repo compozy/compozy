@@ -8885,10 +8885,6 @@ export class sessions extends HeyApiClient {
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/archive",
       ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
     });
   }
 

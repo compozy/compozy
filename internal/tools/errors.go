@@ -77,6 +77,9 @@ const (
 	ErrorCodeSessionBusy ErrorCode = "session_busy"
 	// ErrorCodeCompactionUnsupported reports a missing native compaction capability.
 	ErrorCodeCompactionUnsupported ErrorCode = "compaction_unsupported"
+	// ErrorCodeSessionArchiveStopFailed reports a stop-first archive whose stop
+	// failed, leaving the session unarchived.
+	ErrorCodeSessionArchiveStopFailed ErrorCode = "session_archive_stop_failed"
 )
 
 // ToolError carries stable reason codes with a wrapped cause.

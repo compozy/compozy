@@ -372,15 +372,19 @@ func (c *Client) ArchiveProfile(ctx context.Context, params ArchiveProfileParams
 type ArchiveSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
+	Stop        *bool   `url:"stop"`
 	Profile     *string `url:"profile"`
 }
 
 // ArchiveSession Archive a stopped session, or stop and archive a live session with stop=true
-func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams, body ArchiveSessionRequest) (*SessionResponse, error) {
+func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams) (*SessionResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/archive"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
+	if params.Stop != nil {
+		query.Set("stop", strconv.FormatBool(*params.Stop))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
@@ -388,7 +392,7 @@ func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams
 		path += "?" + query.Encode()
 	}
 	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

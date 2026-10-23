@@ -549,10 +549,6 @@ export type ArchiveProfileResponse = {
   state: string;
 };
 
-export type ArchiveSessionRequest = {
-  stop?: boolean;
-};
-
 export type Argument = {
   name: string;
   options?: Array<string>;
@@ -10531,6 +10527,7 @@ export type ToolCallEventPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "session_archive_stop_failed"
     | "session_busy"
     | "slow_consumer"
     | "subscriber_limit_reached"
@@ -10718,6 +10715,7 @@ export type ToolErrorPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "session_archive_stop_failed"
     | "session_busy"
     | "slow_consumer"
     | "subscriber_limit_reached"
@@ -32157,10 +32155,7 @@ export type ApproveSessionResponses = {
 export type ApproveSessionResponse = ApproveSessionResponses[keyof ApproveSessionResponses];
 
 export type ArchiveSessionData = {
-  /**
-   * JSON request body
-   */
-  body?: ArchiveSessionRequest;
+  body?: never;
   path: {
     /**
      * Workspace id
@@ -32172,6 +32167,10 @@ export type ArchiveSessionData = {
     session_id: string;
   };
   query?: {
+    /**
+     * Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived
+     */
+    stop?: boolean;
     /**
      * Act as this profile by name
      */

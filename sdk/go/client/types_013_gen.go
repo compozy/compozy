@@ -7,38 +7,6 @@ import (
 	"time"
 )
 
-// ProviderUsageRefreshRequest is a daemon API value.
-type ProviderUsageRefreshRequest struct {
-	Profile       string   `json:"profile,omitempty"`
-	ProviderIDs   []string `json:"provider_ids,omitempty"`
-	MaxAgeSeconds int64    `json:"max_age_seconds,omitempty"`
-	WaitMS        *int64   `json:"wait_ms,omitempty"`
-	Intent        string   `json:"intent,omitempty"`
-}
-
-// ProviderUsageSource is a daemon API value.
-type ProviderUsageSource struct {
-	Kind  string `json:"kind"`
-	Label string `json:"label"`
-}
-
-// ProviderUsageSpendCap is a daemon API value.
-type ProviderUsageSpendCap struct {
-	ID          string               `json:"id"`
-	Label       string               `json:"label"`
-	Used        ProviderUsageAmount  `json:"used"`
-	Limit       *ProviderUsageAmount `json:"limit"`
-	UsedPercent *float64             `json:"used_percent"`
-	ResetsAt    *time.Time           `json:"resets_at"`
-	Enabled     *bool                `json:"enabled"`
-}
-
-// ProviderUsageStreamEvent is a daemon API value.
-type ProviderUsageStreamEvent struct {
-	Revision uint64 `json:"revision"`
-	BootID   string `json:"boot_id"`
-}
-
 // ProviderUsageTarget is a daemon API value.
 type ProviderUsageTarget struct {
 	ProviderID    string                  `json:"provider_id"`
@@ -444,3 +412,35 @@ type RestartActionStatus struct {
 
 // RestartOperationStatus is a daemon API value.
 type RestartOperationStatus string
+
+// ResultContract is a daemon API value.
+type ResultContract struct {
+	FailureField string `json:"failure_field"`
+	MessageField string `json:"message_field,omitempty"`
+}
+
+// ResultTrust is a daemon API value.
+type ResultTrust string
+
+// ResumeTaskRequest is a daemon API value.
+type ResumeTaskRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryConfig is a daemon API value.
+type RetryConfig struct {
+	Strategy   RetryStrategy `json:"strategy"`
+	MaxRetries int           `json:"max_retries"`
+	BaseDelay  string        `json:"base_delay"`
+}
+
+// RetrySpec is a daemon API value.
+type RetrySpec struct {
+	MaxAttempts  int          `json:"max_attempts,omitzero"`
+	OnFailure    string       `json:"on_failure,omitempty"`
+	Backoff      *BackoffSpec `json:"backoff,omitzero"`
+	NonRetryable []string     `json:"non_retryable,omitempty"`
+}
+
+// RetryStrategy is a daemon API value.
+type RetryStrategy string

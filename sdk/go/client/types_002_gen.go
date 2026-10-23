@@ -209,11 +209,6 @@ type ArchiveProfileResponse struct {
 	FrozenQueuedRuns  int      `json:"frozen_queued_runs"`
 }
 
-// ArchiveSessionRequest is a daemon API value.
-type ArchiveSessionRequest struct {
-	Stop bool `json:"stop,omitempty"`
-}
-
 // Argument is a daemon API value.
 type Argument struct {
 	Name        string       `json:"name"`
@@ -437,3 +432,15 @@ type BlockedReason struct {
 
 // BlockedSource is a daemon API value.
 type BlockedSource string
+
+// Blocker is a daemon API value.
+type Blocker struct {
+	Kind         string     `json:"kind"`
+	NodeID       NodeID     `json:"node_id,omitempty"`
+	GateID       NodeID     `json:"gate_id,omitempty"`
+	ItemIndex    int        `json:"item_index,omitzero"`
+	WaitingSince time.Time  `json:"waiting_since"`
+	ExpiresAt    *time.Time `json:"expires_at,omitempty"`
+	Expired      bool       `json:"expired,omitzero"`
+	Unblocker    string     `json:"unblocker"`
+}

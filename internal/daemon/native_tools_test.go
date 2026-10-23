@@ -1630,6 +1630,36 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report a failed stop-first archive as a structured conflict", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		stopErr := fmt.Errorf(
+			"%w: sess-123: %w",
+			session.ErrSessionArchiveStopFailed,
+			session.ErrStopVerificationFailed,
+		)
+		manager.ArchiveWithStopFn = func(context.Context, string, string) (*session.Info, error) {
+			return nil, stopErr
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-caller", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionArchive,
+				Input:  json.RawMessage(`{"session_id":"sess-123","stop":true}`),
+			},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeSessionArchiveStopFailed ||
+			!errors.Is(err, session.ErrSessionArchiveStopFailed) {
+			t.Fatalf("error = %#v, want session_archive_stop_failed wrapping the stop failure", err)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
@@ -1656,6 +1686,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self","wait":false}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{
+				toolspkg.ToolIDSessionArchive,
+				`{"session_id":"sess-self","stop":true}`,
+				toolspkg.ReasonSelfTargetDenied,
+			},
 			{
 				toolspkg.ToolIDSessionApprove,
 				`{"session_id":"sess-self","request_id":"perm-1","decision":"allow-once"}`,

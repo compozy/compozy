@@ -933,8 +933,8 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodPost,
-			"/workspaces/ws-workspace/sessions/sess-a/archive",
-			[]byte(`{"stop":true}`),
+			"/workspaces/ws-workspace/sessions/sess-a/archive?stop=true",
+			nil,
 		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("archive(stop) status = %d body=%s, want %d", resp.Code, resp.Body.String(), http.StatusOK)

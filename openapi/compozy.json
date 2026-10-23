@@ -1966,14 +1966,6 @@
         ],
         "type": "object"
       },
-      "ArchiveSessionRequest": {
-        "properties": {
-          "stop": {
-            "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
       "Argument": {
         "properties": {
           "name": {
@@ -37688,6 +37680,7 @@
               "recording_already_started",
               "recording_not_active",
               "recording_unavailable",
+              "session_archive_stop_failed",
               "session_busy",
               "slow_consumer",
               "subscriber_limit_reached",
@@ -38037,6 +38030,7 @@
               "recording_already_started",
               "recording_not_active",
               "recording_unavailable",
+              "session_archive_stop_failed",
               "session_busy",
               "slow_consumer",
               "subscriber_limit_reached",
@@ -83595,6 +83589,14 @@
             }
           },
           {
+            "description": "Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived",
+            "in": "query",
+            "name": "stop",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -83603,16 +83605,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ArchiveSessionRequest"
-              }
-            }
-          },
-          "description": "JSON request body"
-        },
         "responses": {
           "200": {
             "content": {

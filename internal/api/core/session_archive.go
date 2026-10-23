@@ -49,13 +49,14 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 	}
 	var info *session.Info
 	if archived {
-		var req contract.ArchiveSessionRequest
-		if err := decodeOptionalJSONBody(c, &req); err != nil {
+		var stop bool
+		stop, err = parseBoolQuery(c, "stop")
+		if err != nil {
 			h.respondError(c, http.StatusBadRequest, err)
 			return
 		}
 		archive := archiver.Archive
-		if req.Stop {
+		if stop {
 			archive = archiver.ArchiveWithStop
 		}
 		info, err = archive(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
