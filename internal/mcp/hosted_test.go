@@ -819,6 +819,100 @@ func TestHostedServiceProjectionGenerationCache(t *testing.T) {
 		}
 	})
 
+	for _, cached := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should revalidate a consuming peer after its policy changes with cached=%t", cached),
+			func(t *testing.T) {
+				t.Parallel()
+				executable := hostedTestExecutable(t, "compozy")
+				native, err := tools.NewNativeProvider(tools.BuiltinSource(),
+					hostedRuntimeNativeTool("compozy__alpha", tools.RiskRead, true),
+					hostedRuntimeNativeTool("compozy__beta", tools.RiskRead, true))
+				if err != nil {
+					t.Fatal(err)
+				}
+				classified, resume := make(chan struct{}), make(chan struct{})
+				var restricted, classifiedOnce, armed atomic.Bool
+				resolver := hostedPolicyResolver(
+					func(ctx context.Context, scope tools.Scope) (tools.PolicyInputs, error) {
+						inputs := tools.DefaultPolicyInputs()
+						if scope.SessionID != "sess-changing" {
+							return inputs, nil
+						}
+						if restricted.Load() {
+							inputs.Session = tools.SessionToolPolicy{
+								Enforced: true,
+								Tools:    []tools.ToolID{"compozy__alpha"},
+							}
+						}
+						if armed.Load() && classifiedOnce.CompareAndSwap(false, true) {
+							close(classified)
+							select {
+							case <-resume:
+							case <-ctx.Done():
+								return tools.PolicyInputs{}, ctx.Err()
+							}
+						}
+						return inputs, nil
+					},
+				)
+				provider := &hostedCountingProvider{Provider: native}
+				registry, err := tools.NewRegistry(tools.WithProviders(provider),
+					tools.WithPolicyInputResolver(resolver, tools.ToolsetCatalog{}))
+				if err != nil {
+					t.Fatal(err)
+				}
+				service := newHostedTestServiceWithProjectionGeneration(t, executable, registry, nil)
+				peer := hostedTestPeer(executable)
+				leader := hostedTestBind(t, service, "sess-stable", peer)
+				follower := hostedTestBind(t, service, "sess-changing", peer)
+				armed.Store(true)
+				started := make(chan struct{})
+				var first atomic.Bool
+				provider.beforeList = func(ctx context.Context) error {
+					if cached || !first.CompareAndSwap(false, true) {
+						return nil
+					}
+					close(started)
+					select {
+					case <-resume:
+						return nil
+					case <-ctx.Done():
+						return ctx.Err()
+					}
+				}
+				leaderDone := make(chan error, 1)
+				go func() { _, err := service.StreamProjection(t.Context(), leader.BindID, peer, ""); leaderDone <- err }()
+				if cached {
+					if err := <-leaderDone; err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					<-started
+				}
+				followerDone := make(chan error, 1)
+				go func() {
+					response, err := service.StreamProjection(t.Context(), follower.BindID, peer, "")
+					if err == nil && !slices.Equal(hostedToolIDs(response.Tools), []string{"compozy__alpha"}) {
+						err = fmt.Errorf("consumer received stale tools: %v", hostedToolIDs(response.Tools))
+					}
+					followerDone <- err
+				}()
+				<-classified
+				restricted.Store(true)
+				close(resume)
+				if err := <-followerDone; err != nil {
+					t.Fatal(err)
+				}
+				if !cached {
+					if err := <-leaderDone; err != nil {
+						t.Fatal(err)
+					}
+				}
+			},
+		)
+	}
+
 	for _, action := range []string{"cancel", "release", "advance epoch"} {
 		t.Run("Should preserve other peers when a shared builder must "+action, func(t *testing.T) {
 			t.Parallel()

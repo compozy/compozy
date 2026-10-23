@@ -42,6 +42,9 @@ func (s *HostedService) sharedStreamProjection(
 		key := hostedSharedFlightKey{hostedVisibilityKey{registry, class}, epoch}
 		cached, flight, leader := s.sharedProjections.begin(key, s.now(), s.StreamRefreshInterval())
 		if cached != nil {
+			if !s.sharedProjectionMatches(ctx, record, key) {
+				continue
+			}
 			return s.checkedSharedProjection(ctx, record, *cached)
 		}
 		if !leader {
@@ -52,7 +55,7 @@ func (s *HostedService) sharedStreamProjection(
 			if err != nil {
 				return HostedProjectionResponse{}, true, err
 			}
-			if retry {
+			if retry || !s.sharedProjectionMatches(ctx, record, key) {
 				continue
 			}
 			return s.checkedSharedProjection(ctx, record, response)
@@ -63,8 +66,7 @@ func (s *HostedService) sharedStreamProjection(
 		}
 		stable := false
 		if err == nil {
-			after, stillKnown := registry.ProjectionVisibility(ctx, record.scope())
-			stable = stillKnown && after == class && s.currentProjectionEpoch() == epoch
+			stable = s.sharedProjectionMatches(ctx, record, key)
 		}
 		s.mu.Lock()
 		owned := s.ownsBindRecord(record)
@@ -82,6 +84,15 @@ func (s *HostedService) sharedStreamProjection(
 	}
 	// Churning inputs keep the existing uncached path rather than publishing an uncertain class.
 	return HostedProjectionResponse{}, false, nil
+}
+
+func (s *HostedService) sharedProjectionMatches(
+	ctx context.Context,
+	record *hostedBindRecord,
+	key hostedSharedFlightKey,
+) bool {
+	class, known := key.registry.ProjectionVisibility(ctx, record.scope())
+	return known && class == key.class && s.currentProjectionEpoch() == key.epoch
 }
 
 func (s *HostedService) checkedSharedProjection(

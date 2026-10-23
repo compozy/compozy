@@ -40,7 +40,9 @@ identical effective policies and native availability, one epoch change builds on
 projection. Each stream retains its own digest suppression and receives a private copy of
 changed tools. Repeat with different lineage grants, agent allowlists (including an explicitly
 empty grant), session-specific availability, profiles, and workspaces; views must remain isolated.
-Release or cancel a peer during a build and confirm other peers continue. Unversioned state
+Change a consuming peer's policy while another peer builds or supplies a cached result;
+the consumer must receive only its newly authorized tools. Release or cancel a peer during a
+build and confirm other peers continue. Unversioned state
 still refreshes at the existing fallback interval; providers without a declared projection scope
 retain per-bind isolation.
 
