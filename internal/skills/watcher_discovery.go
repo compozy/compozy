@@ -79,31 +79,16 @@ func (w *Watcher) snapshotAgentRoot(root string) (map[string]filesnap.Snapshot, 
 	unchanged := ok && len(previous.dependencies) > 0
 	for path, expected := range previous.dependencies {
 		current, err := filesnap.FromPath(path)
+		if errors.Is(err, fs.ErrNotExist) && expected.Size == -1 {
+			continue
+		}
 		if err != nil || !current.Equal(expected) {
 			unchanged = false
 			break
 		}
 	}
 	if !unchanged {
-		current := watcherAgentDiscovery{dependencies: make(map[string]filesnap.Snapshot)}
-		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			definition := entry.Name() == "AGENT.md" || entry.Name() == skillFileName
-			if !entry.IsDir() && !definition {
-				return nil
-			}
-			snapshot, err := filesnap.FromPath(path)
-			if err != nil {
-				return err
-			}
-			current.dependencies[path] = snapshot
-			if definition && !entry.IsDir() {
-				current.paths = append(current.paths, path)
-			}
-			return nil
-		})
+		current, err := scanWatcherAgentRoot(root)
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				delete(w.agentDiscoveries, root)
@@ -129,4 +114,35 @@ func (w *Watcher) snapshotAgentRoot(root string) (map[string]filesnap.Snapshot, 
 		return nil, err
 	}
 	return snapshots, nil
+}
+
+func scanWatcherAgentRoot(root string) (watcherAgentDiscovery, error) {
+	current := watcherAgentDiscovery{dependencies: make(map[string]filesnap.Snapshot)}
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if errors.Is(walkErr, fs.ErrNotExist) && path != root {
+			current.dependencies[path] = filesnap.Snapshot{Size: -1}
+			return nil
+		}
+		if walkErr != nil {
+			return walkErr
+		}
+		definition := entry.Name() == "AGENT.md" || entry.Name() == skillFileName
+		if !entry.IsDir() && !definition {
+			return nil
+		}
+		snapshot, err := filesnap.FromPath(path)
+		if errors.Is(err, fs.ErrNotExist) && path != root {
+			current.dependencies[path] = filesnap.Snapshot{Size: -1}
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		current.dependencies[path] = snapshot
+		if definition && !entry.IsDir() {
+			current.paths = append(current.paths, path)
+		}
+		return nil
+	})
+	return current, err
 }

@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/filesnap"
 )
 
 func BenchmarkWatcherIdle(b *testing.B) {
@@ -363,6 +365,54 @@ func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 
 func TestWatcherUsesExplicitAgentRootIdentity(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve healthy siblings and detect repaired dangling definitions", func(t *testing.T) {
+		t.Parallel()
+		root, target := t.TempDir(), filepath.Join(t.TempDir(), "definition.md")
+		link := filepath.Join(root, "AGENT.md")
+		if err := os.Symlink(target, link); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		healthy := filepath.Join(root, "healthy", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(healthy), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(healthy, []byte("first"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		w := newTestWatcher(nil, time.Second)
+		w.SetAgentRootsProvider(func(context.Context) ([]string, error) { return []string{root}, nil })
+		assertSnapshots := func(want int) {
+			t.Helper()
+			if err := w.pollOnce(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(w.snapshots) != want {
+				t.Fatalf("snapshots = %v, want %d definitions", w.snapshots, want)
+			}
+			expected, err := filesnap.FromPath(healthy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !w.snapshots[healthy].Equal(expected) {
+				t.Fatal("healthy sibling was not refreshed")
+			}
+		}
+		assertSnapshots(1)
+		assertSnapshots(1)
+		if err := os.WriteFile(healthy, []byte("edited"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		assertSnapshots(1)
+		if err := os.WriteFile(target, []byte("repaired"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		assertSnapshots(2)
+		if err := os.Remove(target); err != nil {
+			t.Fatal(err)
+		}
+		assertSnapshots(1)
+	})
 
 	t.Run("Should detect agent additions edits and deletions after a cached poll", func(t *testing.T) {
 		t.Parallel()
