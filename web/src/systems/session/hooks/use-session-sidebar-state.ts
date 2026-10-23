@@ -22,6 +22,11 @@ export interface SessionSidebarScopeState {
   /** Folders start expanded; a collapse is remembered per folder id. */
   collapsedFolders: Record<string, boolean>;
   /**
+   * Group-by groups start expanded; a collapse is remembered per group id,
+   * which the list qualifies with its scope, profile lens, and grouping.
+   */
+  collapsedGroups: Record<string, boolean>;
+  /**
    * The rail width the operator dragged to in this window, in pixels. `null`
    * follows the default, so a reset tracks it.
    */
@@ -51,6 +56,7 @@ const DEFAULT_SCOPE_STATE: SessionSidebarScopeState = {
   open: true,
   collapsedThreads: {},
   collapsedFolders: {},
+  collapsedGroups: {},
   width: null,
 };
 
@@ -77,6 +83,7 @@ function normalizedScopeState(value: unknown): SessionSidebarScopeState {
     open: typeof value.open === "boolean" ? value.open : DEFAULT_SCOPE_STATE.open,
     collapsedThreads: normalizedCollapsedFlags(value.collapsedThreads),
     collapsedFolders: normalizedCollapsedFlags(value.collapsedFolders),
+    collapsedGroups: normalizedCollapsedFlags(value.collapsedGroups),
     width: normalizeSessionSidebarWidth(value.width),
   };
 }
@@ -129,6 +136,16 @@ function withScopeState(
 
 function toggledFlag(flags: Record<string, boolean>, id: string): Record<string, boolean> {
   return { ...flags, [id]: !(flags[id] ?? false) };
+}
+
+/**
+ * Group ids carry their whole lens, so every scope, profile, and grouping the
+ * operator ever toggled would pile up if an expand kept a `false` flag. Groups
+ * start expanded, so an expand just drops the entry: only folds are stored.
+ */
+function toggledGroup(flags: Record<string, boolean>, id: string): Record<string, boolean> {
+  if (!flags[id]) return { ...flags, [id]: true };
+  return Object.fromEntries(Object.entries(flags).filter(([key]) => key !== id));
 }
 
 /**
@@ -201,6 +218,15 @@ export const sessionSidebarLogic = createStoreLogic({
       return withScopeState(context, event.scopeId, state => ({
         ...state,
         collapsedFolders: toggledFlag(state.collapsedFolders, event.folderId),
+      }));
+    },
+    groupToggled: (context, event: { scopeId: string; groupId: string }) => {
+      if (!event.groupId) {
+        return;
+      }
+      return withScopeState(context, event.scopeId, state => ({
+        ...state,
+        collapsedGroups: toggledGroup(state.collapsedGroups, event.groupId),
       }));
     },
     /**
@@ -335,6 +361,8 @@ export interface UseSessionSidebarStateResult {
   toggleThread: (sessionId: string) => void;
   collapsedFolderIds: string[];
   toggleFolder: (folderId: string) => void;
+  collapsedGroupIds: string[];
+  toggleGroup: (groupId: string) => void;
   /** Rail width in pixels: the operator's choice in this window, else the default. */
   width: number;
   setWidth: (width: number) => void;
@@ -373,6 +401,9 @@ export function useSessionSidebarState(): UseSessionSidebarStateResult {
     collapsedFolderIds: collapsedIds(state.collapsedFolders),
     toggleFolder: (folderId: string) =>
       sessionSidebarStore.trigger.folderToggled({ scopeId, folderId }),
+    collapsedGroupIds: collapsedIds(state.collapsedGroups),
+    toggleGroup: (groupId: string) =>
+      sessionSidebarStore.trigger.groupToggled({ scopeId, groupId }),
     width: state.width ?? SESSION_SIDEBAR_DEFAULT_WIDTH,
     setWidth: (nextWidth: number) =>
       sessionSidebarStore.trigger.widthChanged({ scopeId, width: nextWidth }),

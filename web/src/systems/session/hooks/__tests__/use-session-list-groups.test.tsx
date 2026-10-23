@@ -3,7 +3,9 @@
 // loaded page — so an off-page group still shows; each group carries its own scope, lens, and
 // (only for one workspace × profile pair) the pair that owns folders and manual order. The view
 // model renders an inapplicable stored grouping as none and serves a stored `manual` sort as
-// `last_activity` outside one pair, without rewriting either preference. Workspace working marks
+// `last_activity` outside one pair, without rewriting either preference. A collapsed group stays
+// collapsed when the list remounts (selecting a session remounts the window's content) and opens
+// only on the operator's toggle. Workspace working marks
 // read the same all-workspaces aggregate instead of one catalog read per workspace.
 // Owning layer: session-list query hooks; session catalog I/O is the mocked boundary.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,7 +19,8 @@ vi.mock("../../adapters/session-catalog-api", () => ({
   fetchSessionFacets: vi.fn(),
 }));
 
-import { profilesListOptions } from "@/systems/profiles";
+import { WindowScopeContext } from "@/hooks/use-window-scope";
+import { profilesListOptions, resetProfileViews, setProfileView } from "@/systems/profiles";
 import { defaultProfileFixture, marketingProfileFixture } from "@/systems/profiles/mocks";
 import {
   USER_SCOPE_SELECTOR,
@@ -359,6 +362,70 @@ describe("useSessionListView", () => {
       )
     );
     expect(settingsWrites()).toEqual([]);
+  });
+  // Issue #903: selecting a session retargets the window, which remounts its content and the
+  // list view with it (`SessionPromptRuntimeProvider key={sessionId}`); the collapse is the
+  // window's rail state, so the remounted list keeps it while another window keeps its own.
+  it("W-13: Should keep a window's collapsed group across a selection remount", async () => {
+    shell.group_by = "project";
+    act(() => enableAllProjects());
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const inWindow = (scopeId: string) => {
+      const withClient = clientWrapper(client);
+      return ({ children }: { children: ReactNode }) =>
+        createElement(
+          WindowScopeContext,
+          { value: scopeId },
+          createElement(withClient, null, children)
+        );
+    };
+    const other = renderHook(() => useSessionListView(), { wrapper: inWindow("w-903-other") });
+    const first = renderHook(() => useSessionListView(), { wrapper: inWindow("w-903-main") });
+    await waitFor(() => expect(first.result.current.groups).toHaveLength(1));
+    const key = first.result.current.groups[0]!.key;
+
+    act(() => first.result.current.toggleGroup(key));
+    expect(first.result.current.collapsedGroupKeys.has(key)).toBe(true);
+    first.unmount();
+
+    const remounted = renderHook(() => useSessionListView(), { wrapper: inWindow("w-903-main") });
+    await waitFor(() => expect(remounted.result.current.groups).toHaveLength(1));
+    expect(remounted.result.current.collapsedGroupKeys.has(key)).toBe(true);
+    // The window that was already open keeps its own rail (#843).
+    await waitFor(() => expect(other.result.current.groups).toHaveLength(1));
+    expect(other.result.current.collapsedGroupKeys.has(key)).toBe(false);
+
+    act(() => remounted.result.current.toggleGroup(key));
+    expect(remounted.result.current.collapsedGroupKeys.has(key)).toBe(false);
+    expect(settingsWrites()).toEqual([]);
+  });
+
+  // A persisted fold names its profile by id, so renaming the profile keeps it.
+  it("W-14: Should keep a collapsed group when its profile is renamed", async () => {
+    shell.group_by = "project";
+    act(() => enableAllProjects());
+    act(() => setProfileView({ kind: "profile", profile: marketingProfileFixture.name }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(profilesListOptions().queryKey, [marketingProfileFixture]);
+    const { result } = renderHook(() => useSessionListView(), {
+      wrapper: clientWrapper(client),
+    });
+    await waitFor(() => expect(result.current.groups).toHaveLength(1));
+    const key = result.current.groups[0]!.key;
+    act(() => result.current.toggleGroup(key));
+    expect(result.current.collapsedGroupKeys.has(key)).toBe(true);
+
+    act(() => {
+      client.setQueryData(profilesListOptions().queryKey, [
+        { ...marketingProfileFixture, name: "growth" },
+      ]);
+      setProfileView({ kind: "profile", profile: "growth" });
+    });
+    await waitFor(() => expect(result.current.groups).toHaveLength(1));
+    expect(result.current.collapsedGroupKeys.has(key)).toBe(true);
+
+    act(() => result.current.toggleGroup(key));
+    resetProfileViews();
   });
 });
 

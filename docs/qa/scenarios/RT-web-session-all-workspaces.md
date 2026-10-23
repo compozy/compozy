@@ -95,3 +95,5 @@ by the frontend slice and integrated journey.
 
 Release review regression (#887): search while sessions are grouped. The modal header must omit the
 unfiltered total while a search is active; clearing the search restores the complete facets total.
+
+Issue #903 regression: in a session window under All projects with Group by project, collapse a workspace group and select sessions in other groups, then reload. The group stays collapsed and opens only on its toggle. Per-window rules: ET-web-session-sidebar-per-window.
