@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -48,6 +49,7 @@ type toolCallProjection struct {
 	hasInput         bool
 	prechecked       bool
 	hasResult        bool
+	syntheticResult  bool
 	// async records the provider's background-launch marker. It does not make an
 	// update visible on its own: it stamps the call's result (see sendEventLocked).
 	async bool
@@ -218,6 +220,8 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 		status := event.ToolStatus()
 		if !projection.hasResult &&
 			(status == string(acpsdk.ToolCallStatusCompleted) || status == string(acpsdk.ToolCallStatusFailed)) {
+			projection.syntheticResult = true
+			active.seenToolCalls[strings.TrimSpace(event.ToolCallID)] = projection
 			event.Type = EventTypeToolResult
 			active.sendEventLocked(event)
 		}
@@ -370,6 +374,15 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 		return
 	}
 	event = a.stampAsyncToolResultLocked(event)
+	if event.Type == EventTypeToolResult {
+		projection := a.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
+		if projection.syntheticResult && projection.hasResult {
+			if !toolResultHasOutput(event) {
+				return
+			}
+			event = event.WithToolResultUpdate()
+		}
+	}
 	if err := a.ingest.Admit(event); err != nil {
 		a.failIngest(err)
 		return
@@ -384,6 +397,23 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	case a.activity <- struct{}{}:
 	default:
 	}
+}
+
+func toolResultHasOutput(event AgentEvent) bool {
+	const jsonNull = "null"
+	if event.Text != "" || event.Error != "" {
+		return true
+	}
+	var raw struct {
+		Output  json.RawMessage `json:"rawOutput"`
+		Content json.RawMessage `json:"content"`
+	}
+	if json.Unmarshal(event.Raw, &raw) != nil {
+		return false
+	}
+	output := strings.TrimSpace(string(raw.Output))
+	content := strings.TrimSpace(string(raw.Content))
+	return (output != "" && output != jsonNull) || (content != "" && content != jsonNull && content != "[]")
 }
 
 // stampAsyncToolResultLocked carries a background-launch marker that arrived on

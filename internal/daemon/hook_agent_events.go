@@ -92,7 +92,7 @@ func dispatchToolHookEvent(
 	event acp.AgentEvent,
 	defaultTimestamp time.Time,
 ) {
-	if hookAgentToolIsNative(event.ToolName()) || hookAgentToolIsNative(event.Title) {
+	if event.ToolResultUpdate() || hookAgentToolIsNative(event.ToolName()) || hookAgentToolIsNative(event.Title) {
 		return
 	}
 	raw, ok := decodeHookAgentToolPayload(event.Raw)

@@ -113,6 +113,11 @@ func TestWindowsPeerIdentity(t *testing.T) {
 				if tc.sysErr != nil && !errors.Is(err, ErrWindowsPeerCredentialsUnsupported) {
 					t.Fatalf("ioctl failure = %v, want actionable unsupported error", err)
 				}
+				if tc.wantErr && tc.sysErr == nil &&
+					(errors.Is(err, ErrWindowsPeerCredentialsUnsupported) ||
+						!strings.Contains(err.Error(), "invalid Windows AF_UNIX peer pid response")) {
+					t.Fatalf("validateWindowsPeerPID() error = %v, want invalid peer PID response", err)
+				}
 			})
 		}
 	})

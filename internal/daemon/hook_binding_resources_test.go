@@ -51,6 +51,16 @@ func TestDispatchACPAgentHookEventDispatchesToolAndPermissionFamilies(t *testing
 						acp.AgentEvent{Type: eventType, ToolCallID: "startup", Raw: raw},
 						time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC))
 				}
+				for range 2 {
+					dispatchACPAgentHookEvent(
+						t.Context(),
+						discardLogger(),
+						runtime,
+						hookspkg.SessionContext{},
+						(acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "startup", Raw: raw}).WithToolResultUpdate(),
+						time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC),
+					)
+				}
 				want := hookspkg.HookToolPostCall
 				if status == "failed" {
 					want = hookspkg.HookToolPostError

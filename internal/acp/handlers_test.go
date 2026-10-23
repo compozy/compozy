@@ -1195,6 +1195,44 @@ func TestHandleReleaseTerminalReleasesExternalTerminal(t *testing.T) {
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
+	t.Run("Should preserve late startup diagnostics without completing the tool twice", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-startup-late", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for _, raw := range []string{
+			`{"sessionUpdate":"tool_call","toolCallId":"startup","title":"Compozy hosted tools","kind":"other","status":"failed"}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":{"error":"late startup diagnostic"}}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":{"error":"late startup diagnostic"}}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed"}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":null,"content":[]}`,
+		} {
+			if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{
+				SessionID: "sess-direct", Update: json.RawMessage(raw),
+			})); err != nil {
+				t.Fatal(err)
+			}
+		}
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-startup-late"})
+		events := collectEventsUntilCount(t, active.events, 5)
+		if events[0].Type != EventTypeToolCall || events[1].Type != EventTypeToolResult ||
+			events[1].ToolResultUpdate() {
+			t.Fatalf("initial startup events = %#v, want call and first completion", events[:2])
+		}
+		for _, event := range events[2:4] {
+			if event.Type != EventTypeToolResult || !event.ToolResultUpdate() || !event.ToolError() ||
+				!strings.Contains(string(event.Raw), "late startup diagnostic") {
+				t.Fatalf("late diagnostic = %#v, want output update without a repeated completion", event)
+			}
+		}
+		if events[4].Type != EventTypeDone {
+			t.Fatalf("last event = %#v, want done without empty output update", events[4])
+		}
+	})
+
 	t.Run("Should preserve terminal output and avoid repeated startup results", func(t *testing.T) {
 		t.Parallel()
 		for _, resultFirst := range []bool{true, false} {
