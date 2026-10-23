@@ -1,0 +1,49 @@
+name: Peer convergence diagnostic
+
+on:
+  push:
+    branches: [fix/issue-941-e2e023-peer-convergence]
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        revision: [d68ba8f1c, bd23b8b0a, 271a49aac]
+    env:
+      CGO_ENABLED: 0
+      CI: "true"
+      COMPOZY_PEER_PROFILE: "1"
+      COMPOZY_TEST_DAEMON_BIN: /tmp/compozy-peer-diagnostic
+    steps:
+      - uses: actions/checkout@v7
+      - name: Retain identical measurement instrumentation
+        run: cp web/e2e/__tests__/os-shell.spec.ts /tmp/peer-spec.ts
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.revision }}
+      - name: Apply identical measurement instrumentation
+        run: cp /tmp/peer-spec.ts web/e2e/__tests__/os-shell.spec.ts
+      - uses: ./.github/actions/setup-go
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "true"
+      - name: Build production web and daemon
+        run: |
+          bunx turbo run build --filter=./web
+          go build -o /tmp/compozy-peer-diagnostic ./cmd/compozy
+      - name: Measure ten consecutive peer convergence runs
+        working-directory: web
+        run: bunx playwright test --grep E2E-023 --repeat-each 10
+      - name: Upload measurements and profiles
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: peer-convergence-${{ matrix.revision }}
+          path: .tmp/playwright
+          retention-days: 7
