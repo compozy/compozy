@@ -13,6 +13,8 @@ import {
   getRowBottom,
   INITIAL_SCROLL_OWNERSHIP,
   measuredComposerOverlay,
+  navigationKeyDirection,
+  type NavigationKeyTarget,
   NEW_TURN_ANCHOR_OFFSET_PX,
   nextScrollMode,
   prependScrollTop,
@@ -203,6 +205,30 @@ describe("timeline scroll mode machine", () => {
     expect(metrics?.anchorTop).toBe(120);
     expect(metrics?.lastBottom).toBe(680);
     expect(metrics?.overflowsUsableViewport).toBe(false);
+  });
+
+  it("Should read only keys that scroll the transcript as a keyboard gesture", () => {
+    const key = (
+      value: string,
+      { shiftKey = false, defaultPrevented = false, target = "content" as NavigationKeyTarget } = {}
+    ) => navigationKeyDirection({ key: value, shiftKey, defaultPrevented, target });
+    for (const up of ["ArrowUp", "PageUp", "Home"]) expect(key(up)).toBe("up");
+    for (const down of ["ArrowDown", "PageDown", "End"]) expect(key(down)).toBe("down");
+    expect(key(" ")).toBe("down");
+    expect(key(" ", { shiftKey: true })).toBe("up");
+    expect(key("a")).toBeNull();
+    // Typing in an inline editor moves its caret, not the transcript.
+    expect(key("ArrowUp", { target: "editable" })).toBeNull();
+    // A focused button takes Space to activate; its arrows and Home/End still scroll.
+    expect(key(" ", { shiftKey: true, target: "activation" })).toBeNull();
+    expect(key("ArrowUp", { target: "activation" })).toBe("up");
+    expect(key("Home", { target: "activation" })).toBe("up");
+    // A composite widget moves its own selection; paging still scrolls past it.
+    expect(key("ArrowUp", { target: "composite" })).toBeNull();
+    expect(key(" ", { target: "composite" })).toBeNull();
+    expect(key("PageUp", { target: "composite" })).toBe("up");
+    // A widget that already handled the key did not scroll the transcript.
+    expect(key("PageUp", { defaultPrevented: true })).toBeNull();
   });
 
   it("Should resume following-end when the live edge is reached or the pill is clicked", () => {

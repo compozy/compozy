@@ -20,6 +20,13 @@ interface ThreadScrollState {
   /** Measured overlap of the composer over the scroller (0 in the stacked layout), never assumed. */
   composerOverlayHeight: number;
   historyAnchor: ThreadHistoryAnchor | null;
+  /**
+   * An upward gesture's intent: the reader is leaving the end, so the bottom
+   * band does not re-arm following until a downward gesture (or the pill).
+   * Positions cannot decide it: engines move the viewport before the gesture
+   * event runs, and layout compensation moves it with no reader at all.
+   */
+  leavingEnd: boolean;
   lastUserId: string | null;
   ownership: ScrollOwnershipState;
   previousCount: number;
@@ -38,6 +45,7 @@ type ThreadScrollEvents = {
   frameElapsed: Record<never, never>;
   historyAnchorApplied: Record<never, never>;
   historyPageRequested: ThreadHistoryAnchor;
+  /** A wheel / touch / pointer / navigation-key gesture: the only input that detaches following. */
   manualNavigationObserved: { awayFromEnd: boolean; direction: "up" | "down" };
   messagesCommitted: { count: number; lastUserId: string | null; lastUserIndex: number };
   /** Find/trail jump: the reader takes the viewport before the landing scroll (free mode). */
@@ -60,6 +68,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     anchorIndex: null,
     composerOverlayHeight: 0,
     historyAnchor: null,
+    leavingEnd: false,
     lastUserId: null,
     ownership: INITIAL_SCROLL_OWNERSHIP,
     previousCount: 0,
@@ -96,6 +105,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     scrollToEndRequested: context => ({
       ...context,
       anchorIndex: null,
+      leavingEnd: false,
       ownership: scrollOwnershipTransition(context.ownership, { type: "jump-to-latest" }),
       showScrollToBottom: false,
     }),
@@ -109,6 +119,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
         ...context,
         anchorIndex: ownership.mode === "anchoring-new-turn" ? context.anchorIndex : null,
         historyAnchor: null,
+        leavingEnd: event.direction === "up",
         ownership,
         programmaticScrollTop: null,
         showScrollToBottom: event.awayFromEnd,
@@ -121,26 +132,28 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
       ) {
         return { ...context, programmaticScrollTop: null };
       }
-      if (event.atEnd) {
+      // A reader who took the viewport heading up keeps it while crossing the
+      // bottom band; following re-arms after a downward gesture or the pill.
+      if (event.atEnd && !(context.leavingEnd && context.ownership.mode === "free-scrolling")) {
         return {
           ...context,
           anchorIndex: null,
+          leavingEnd: false,
           ownership: scrollOwnershipTransition(context.ownership, { type: "reached-end" }),
           programmaticScrollTop: null,
           showScrollToBottom: false,
         };
       }
-      // Away from the band with no gesture of ours: the reader owns the viewport.
+      // No gesture behind this scroll, or a reader still inside the band:
+      // layout moved the viewport (measured rows replacing their estimates, a
+      // clamp, the virtualizer's own compensation). Only a gesture hands the
+      // viewport to the reader, so the owner keeps it; while following, the
+      // controller re-pins the end.
       return {
         ...context,
-        anchorIndex: null,
-        ownership: scrollOwnershipTransition(context.ownership, {
-          type: "user-scroll",
-          direction: "up",
-          atEnd: false,
-        }),
         programmaticScrollTop: null,
-        showScrollToBottom: true,
+        showScrollToBottom:
+          context.ownership.mode === "free-scrolling" ? !event.atEnd : context.showScrollToBottom,
       };
     },
     messagesCommitted: (context, event) => {
@@ -164,6 +177,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     navigationJumpRequested: context => ({
       ...context,
       anchorIndex: null,
+      leavingEnd: false,
       historyAnchor: null,
       ownership: scrollOwnershipTransition(context.ownership, {
         type: "user-scroll",

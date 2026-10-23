@@ -4,8 +4,11 @@
  * yields in free mode, so a landing writes the offset directly, frame by
  * frame, until the mounted row — or the located content inside it — rests
  * `offsetTop` under the viewport's top edge. Unmounted rows are approached by
- * the virtualizer's estimate first.
+ * the virtualizer's estimate first. Also classifies keydown targets for the
+ * owner's keyboard-gesture detection.
  */
+
+import type { NavigationKeyTarget } from "../timeline-scroll-anchoring";
 
 /** Frames a landing waits for the row to mount and settle before giving up. */
 const NAVIGATION_LANDING_MAX_FRAMES = 30;
@@ -153,4 +156,17 @@ export function landMessageRow({
     };
     land();
   });
+}
+
+const EDITABLE_SELECTOR = "input, textarea, select";
+const COMPOSITE_SELECTOR =
+  '[role="menu"], [role="menubar"], [role="listbox"], [role="tablist"], [role="radiogroup"], [role="grid"], [role="tree"], [role="slider"], [role="spinbutton"], [role="menuitem"], [role="option"], [role="tab"], [role="radio"]';
+const ACTIVATION_SELECTOR = 'button, summary, [role="button"], [role="checkbox"], [role="switch"]';
+
+/** Classifies a keydown target for `navigationKeyDirection`. */
+export function navigationKeyTarget(target: EventTarget | null): NavigationKeyTarget {
+  if (!(target instanceof HTMLElement)) return "content";
+  if (target.isContentEditable || target.closest(EDITABLE_SELECTOR)) return "editable";
+  if (target.closest(COMPOSITE_SELECTOR)) return "composite";
+  return target.closest(ACTIVATION_SELECTOR) ? "activation" : "content";
 }

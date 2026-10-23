@@ -4137,34 +4137,344 @@ describe("SessionThread transcript states", () => {
     viewport.scrollTop = 300;
   }
 
-  it("Should reveal the scroll-to-bottom pill when the reader scrolls away and return to the live edge on click", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+  it.each([
+    ["a wheel", (viewport: HTMLElement) => fireEvent.wheel(viewport, { deltaY: -120 })],
+    ["a navigation key", (viewport: HTMLElement) => fireEvent.keyDown(viewport, { key: "PageUp" })],
+  ])(
+    "Should reveal the scroll-to-bottom pill when the reader scrolls away with %s and return to the live edge on click",
+    async (_gesture, scrollAway) => {
+      const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+      renderThreadState({ status: "success", messages });
+
+      expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
+      expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
+      expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
+      const viewport = screen.getByTestId("chat-view");
+      const pill = screen.getByTestId("scroll-to-bottom-pill");
+      // Following the live edge: the pill is hidden and non-interactive.
+      expect(pill).toHaveAttribute("data-visible", "false");
+      expect(pill).toBeDisabled();
+
+      // The reader's gesture hands the viewport over; the scroll it causes keeps it there.
+      primeScrolledAwayViewport(viewport);
+      scrollAway(viewport);
+      fireEvent.scroll(viewport);
+      await waitFor(() => {
+        expect(pill).toHaveAttribute("data-visible", "true");
+        expect(pill).toBeEnabled();
+      });
+      expect(viewport.scrollTop).toBe(300);
+
+      // Clicking the pill returns to the live edge and hides the affordance again.
+      fireEvent.click(pill);
+      await waitFor(() => {
+        expect(pill).toHaveAttribute("data-visible", "false");
+      });
+    }
+  );
+
+  // Invariant (#907): only a reader gesture detaches live-follow. Opening a long
+  // transcript lands on estimated row heights; as rows measure, the virtualizer's
+  // own compensation moves the viewport off the end with no gesture. Following
+  // must hold and re-pin the true end instead of reading that as the reader.
+  it("Should hold the live edge when the viewport leaves it without a reader gesture", async () => {
+    const messages = toReadonlyThreadMessages(
+      Array.from({ length: 40 }, (_, index) => ({
+        id: `settling-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
 
     renderThreadState({ status: "success", messages });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
 
-    expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
-    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
-    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     const viewport = screen.getByTestId("chat-view");
     const pill = screen.getByTestId("scroll-to-bottom-pill");
-    // Following the live edge: the pill is hidden and non-interactive.
-    expect(pill).toHaveAttribute("data-visible", "false");
-    expect(pill).toBeDisabled();
-
-    // A viewport change away from the live edge opts out of live-follow even when
-    // the platform does not expose a preceding wheel/touch/pointer event.
     primeScrolledAwayViewport(viewport);
     fireEvent.scroll(viewport);
-    await waitFor(() => {
-      expect(pill).toHaveAttribute("data-visible", "true");
-      expect(pill).toBeEnabled();
+
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
+
+    // Late row measurement grows the content after the first re-pin.
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 3000 });
+    fireEvent.scroll(viewport);
+
+    expect(viewport.scrollTop).toBe(2_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
+  });
+
+  function settlingTranscript(prefix: string, length = 40) {
+    return toReadonlyThreadMessages(
+      Array.from({ length }, (_, index) => ({
+        id: `${prefix}-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
+  }
+
+  function primeViewportAtEnd(viewport: HTMLElement) {
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 500 });
+    viewport.scrollTop = 1_500;
+  }
+
+  function scrollViewportTo(viewport: HTMLElement, scrollTop: number) {
+    viewport.scrollTop = scrollTop;
+    fireEvent.scroll(viewport);
+  }
+
+  // Invariant (#907): opening a long transcript whose mounted rows measure
+  // differently from their estimates lands on, and stays at, the true end. jsdom has no
+  // layout, so this simulates the browser contract the virtualizer relies on:
+  // rows report a measured height, the scroller's height follows the rendered
+  // sizer, writes clamp to the scrollable range, and each move dispatches an
+  // asynchronous scroll event (no gesture behind any of them).
+  it("Should land at the true end when measured rows differ from their estimates", async () => {
+    // Real transcripts mix rows far taller than estimated with rows that render
+    // nothing (operational markers measure 0px): both move the viewport.
+    const measuredRowHeight = (index: number) => (index % 3 === 2 ? 0 : 360);
+    const viewportHeight = 500;
+    const isViewport = (element: Element) =>
+      element instanceof HTMLElement && element.dataset.testid === "chat-view";
+    const scrollHeightOf = (viewport: Element) => {
+      const sizer = viewport.querySelector<HTMLElement>('[data-testid="thread-messages"]');
+      if (!sizer) return viewportHeight;
+      const rows = [...sizer.querySelectorAll<HTMLElement>("[data-index]")].reduce(
+        (total, row) => total + measuredRowHeight(Number(row.dataset.index)),
+        0
+      );
+      const padding =
+        Number.parseFloat(sizer.style.paddingTop || "0") +
+        Number.parseFloat(sizer.style.paddingBottom || "0");
+      return Math.max(viewportHeight, padding + rows);
+    };
+    const offsets = new WeakMap<Element, number>();
+    const restore: Array<() => void> = [];
+    const patch = <T extends object>(target: T, key: string, descriptor: PropertyDescriptor) => {
+      const original = Object.getOwnPropertyDescriptor(target, key);
+      Object.defineProperty(target, key, { configurable: true, ...descriptor });
+      restore.push(() => {
+        if (original) Object.defineProperty(target, key, original);
+        else delete (target as Record<string, unknown>)[key];
+      });
+      return original;
+    };
+    const originalOffsetHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "offsetHeight"
+    );
+    patch(HTMLElement.prototype, "offsetHeight", {
+      get(this: HTMLElement) {
+        if (this.hasAttribute("data-index")) return measuredRowHeight(Number(this.dataset.index));
+        return originalOffsetHeight?.get?.call(this) ?? 0;
+      },
+    });
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, "scrollHeight");
+    patch(Element.prototype, "scrollHeight", {
+      get(this: Element) {
+        return isViewport(this)
+          ? scrollHeightOf(this)
+          : (originalScrollHeight?.get?.call(this) ?? 0);
+      },
+    });
+    const originalClientHeight = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight");
+    patch(Element.prototype, "clientHeight", {
+      get(this: Element) {
+        return isViewport(this) ? viewportHeight : (originalClientHeight?.get?.call(this) ?? 0);
+      },
+    });
+    const originalScrollTop = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    const writeScrollTop = (element: Element, value: number) => {
+      const max = Math.max(0, scrollHeightOf(element) - viewportHeight);
+      const next = Math.min(max, Math.max(0, value));
+      if (next === (offsets.get(element) ?? 0)) return;
+      offsets.set(element, next);
+      setTimeout(() => element.dispatchEvent(new Event("scroll")), 0);
+    };
+    patch(Element.prototype, "scrollTop", {
+      get(this: Element) {
+        return isViewport(this)
+          ? (offsets.get(this) ?? 0)
+          : (originalScrollTop?.get?.call(this) ?? 0);
+      },
+      set(this: Element, value: number) {
+        if (isViewport(this)) writeScrollTop(this, value);
+        else originalScrollTop?.set?.call(this, value);
+      },
+    });
+    // Layout changes notify every observer of its observed boxes, as the
+    // browser does after a size change (the setup mock never fires).
+    const observers = new Set<{ fire: () => void }>();
+    let notifyQueued = false;
+    const notifyObservers = () => {
+      if (notifyQueued) return;
+      notifyQueued = true;
+      setTimeout(() => {
+        notifyQueued = false;
+        for (const observer of observers) observer.fire();
+      }, 0);
+    };
+    class LayoutResizeObserver {
+      private readonly targets = new Set<Element>();
+      private readonly handle = {
+        fire: () => {
+          if (this.targets.size === 0) return;
+          this.callback(
+            [...this.targets].map(target => ({ target }) as ResizeObserverEntry),
+            this as unknown as ResizeObserver
+          );
+        },
+      };
+      constructor(private readonly callback: ResizeObserverCallback) {
+        observers.add(this.handle);
+      }
+      observe(target: Element) {
+        this.targets.add(target);
+        notifyObservers();
+      }
+      unobserve(target: Element) {
+        this.targets.delete(target);
+      }
+      disconnect() {
+        this.targets.clear();
+        observers.delete(this.handle);
+      }
+    }
+    patch(window, "ResizeObserver", { value: LayoutResizeObserver, writable: true });
+    const layoutChanges = new MutationObserver(notifyObservers);
+    layoutChanges.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+      subtree: true,
+    });
+    restore.push(() => layoutChanges.disconnect());
+    const originalScrollTo = Element.prototype.scrollTo;
+    patch(Element.prototype, "scrollTo", {
+      value(this: Element, optionsOrX?: ScrollToOptions | number, y?: number) {
+        const top = typeof optionsOrX === "number" ? y : optionsOrX?.top;
+        if (isViewport(this)) writeScrollTop(this, top ?? offsets.get(this) ?? 0);
+        else Reflect.apply(originalScrollTo, this, [optionsOrX, y]);
+      },
+      writable: true,
     });
 
-    // Clicking the pill returns to the live edge and hides the affordance again.
-    fireEvent.click(pill);
-    await waitFor(() => {
-      expect(pill).toHaveAttribute("data-visible", "false");
-    });
+    try {
+      renderThreadState({ status: "success", messages: settlingTranscript("measured", 60) });
+      expect(await screen.findByText("Message 59")).toBeInTheDocument();
+      const viewport = screen.getByTestId("chat-view");
+      const distanceFromEnd = () =>
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+
+      await waitFor(() => {
+        expect(viewport.scrollTop).toBeGreaterThan(0);
+        expect(distanceFromEnd()).toBe(0);
+      });
+      // Let the late measurement and scroll events settle, then check again.
+      await act(() => new Promise(resolve => setTimeout(resolve, 100)));
+      expect(distanceFromEnd()).toBe(0);
+      expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+    } finally {
+      for (const undo of restore.reverse()) undo();
+    }
+  });
+
+  // Invariant: a reader gesture that starts at the end keeps the viewport through
+  // small deltas inside the 40px band (slow trackpads, the first key repeat, a
+  // scrollbar drag); following re-arms only when the reader comes back down.
+  // Chromium applies the wheel's scroll before the wheel event runs, so each step
+  // moves the viewport, then dispatches the gesture, then the scroll event.
+  it("Should let a gesture leave the end in small steps and re-arm only on the way back", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("small-steps") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    fireEvent.scroll(viewport);
+    for (const scrollTop of [1_490, 1_480, 1_470]) {
+      viewport.scrollTop = scrollTop;
+      fireEvent.wheel(viewport, { deltaY: -10 });
+      fireEvent.scroll(viewport);
+      expect(viewport.scrollTop).toBe(scrollTop);
+    }
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+
+    // Layout compensation moving the viewport down is not the reader coming back.
+    scrollViewportTo(viewport, 1_478);
+    expect(viewport.scrollTop).toBe(1_478);
+
+    // Heading back into the band re-arms following, which pins the true end.
+    viewport.scrollTop = 1_495;
+    fireEvent.wheel(viewport, { deltaY: 25 });
+    fireEvent.scroll(viewport);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: a scrollbar drag is one held pointer; dragging back down into the
+  // band re-arms following even though no wheel or key event says "down".
+  it("Should re-arm following when a held pointer drags the viewport back to the end", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("scrollbar-drag") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    fireEvent.pointerDown(viewport);
+    scrollViewportTo(viewport, 1_200);
+    expect(viewport.scrollTop).toBe(1_200);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "true");
+
+    scrollViewportTo(viewport, 1_480);
+    expect(viewport.scrollTop).toBe(1_500);
+    fireEvent.pointerUp(document);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: pressing transcript content (selecting text, clicking a row
+  // control) at the end is not a scroll; following holds until the press
+  // actually drags the viewport.
+  it("Should keep following when a press on transcript content does not scroll", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("content-press") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    const row = screen.getByText("Message 0");
+    fireEvent.pointerDown(row);
+    fireEvent.pointerUp(document);
+
+    // Still following: a later non-gesture scroll off the end is pinned back.
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: a key a focused control consumes (Shift+Space activating "Copy")
+  // is not a scroll gesture, so following holds; the keys it does not consume
+  // (ArrowUp on that same button) still hand the viewport to the reader.
+  it("Should tell keys a focused control consumes from keys that scroll past it", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("control-key") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    const pill = screen.getByTestId("scroll-to-bottom-pill");
+    primeViewportAtEnd(viewport);
+    const control = within(viewport).getAllByRole("button")[0]!;
+    fireEvent.keyDown(control, { key: " ", shiftKey: true });
+
+    // Still following: a later non-gesture scroll off the end is pinned back.
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
+
+    fireEvent.keyDown(control, { key: "ArrowUp" });
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(300);
+    expect(pill).toHaveAttribute("data-visible", "true");
   });
 
   it("Should not apply a stale live-edge reconciliation after the reader scrolls away", async () => {
@@ -4187,6 +4497,7 @@ describe("SessionThread transcript states", () => {
 
       const viewport = screen.getByTestId("chat-view");
       primeScrolledAwayViewport(viewport);
+      fireEvent.wheel(viewport, { deltaY: -120 });
       fireEvent.scroll(viewport);
       const scrollTo = vi.fn((optionsOrX?: ScrollToOptions | number, y?: number) => {
         const top = typeof optionsOrX === "number" ? y : optionsOrX?.top;

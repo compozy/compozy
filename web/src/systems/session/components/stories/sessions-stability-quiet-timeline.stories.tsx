@@ -101,6 +101,8 @@ export const SteerProvenanceTop: Story = {
     const canvas = within(canvasElement);
     await canvas.findAllByTestId("user-message-steer-meta");
     const viewport = await canvas.findByTestId("chat-view");
+    // The reader scrolls up: only a gesture detaches the live edge.
+    viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -120 }));
     viewport.scrollTop = 0;
     viewport.dispatchEvent(new Event("scroll"));
     await waitFor(() => {
