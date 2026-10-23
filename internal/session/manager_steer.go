@@ -40,6 +40,10 @@ func (m *Manager) activateSteeringInputText(
 	if err != nil {
 		return err
 	}
+	commandRequest := promptRequest{target: session.ID, authoredMessage: entry.Text, humanIngress: entry.HumanIngress}
+	if err := m.prepareAgentCommandDelivery(ctx, &commandRequest, entry.Text); err != nil {
+		return err
+	}
 	superseded := entry.SupersededIDs
 	reserved, claimed, err := m.inputQueue.ReserveSteer(ctx, session.ID, entry.ID)
 	if err != nil {
@@ -59,7 +63,8 @@ func (m *Manager) activateSteeringInputText(
 	var completion <-chan error
 	// Live injection carries text and attachments only; guidance with mentions takes the prompt path so
 	// its resource links and session references reach the agent.
-	if steerer, ok := m.injectedSteerer(proc); ok && !hasStoredMentions(entry.MentionsJSON) &&
+	if steerer, ok := m.injectedSteerer(proc); ok && commandRequest.delivery != PromptDeliveryAgentCommand &&
+		!hasStoredMentions(entry.MentionsJSON) &&
 		session.CurrentTurnID() == entry.TargetTurnID &&
 		!m.agentSteerYieldsToOperator(ctx, session, entry) {
 		steerCtx, cancel := context.WithTimeout(m.fallbackLifecycleContext(), defaultLifecycleTimeout)

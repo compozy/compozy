@@ -6506,3 +6506,42 @@ func mentionTargets(mentions []mention.Mention) []string {
 	}
 	return targets
 }
+
+func TestQueuedAgentCommandDelivery(t *testing.T) {
+	t.Parallel()
+	t.Run("Should retain command delivery through durable queue reconstruction", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		session := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, session)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
+		inserted, _, err := database.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "queued-command", SessionID: session.ID, Text: "/compact keep decisions", HumanIngress: true, QueueCap: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, err := h.manager.inputQueue.Get(t.Context(), session.ID, inserted.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req, err := h.manager.newQueuedInputPromptRequest(session.ID, queuedInputFromEntry(&entry))
+		if err != nil {
+			t.Fatal(err)
+		}
+		stream, err := h.manager.submitPromptRequest(t.Context(), req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		collectEvents(t, stream)
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		request := h.driver.promptCalls[0]
+		if request.Message != "/compact keep decisions" || !request.AgentCommand || request.Maintenance {
+			t.Fatalf("queued command = %#v", request)
+		}
+	})
+}
