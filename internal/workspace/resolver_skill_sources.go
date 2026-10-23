@@ -57,7 +57,7 @@ func (r *Resolver) refreshSkillScanConfig(
 }
 
 func (r *Resolver) loadWorkspaceConfig(workspaceRoot string, profileName string) (compozyconfig.Config, error) {
-	if err := validatePersonalProfileRoot(
+	if err := ValidatePersonalProfileRoot(
 		workspaceRoot,
 		r.homePaths.HomeDir,
 		r.homePaths.ProfilesDir,

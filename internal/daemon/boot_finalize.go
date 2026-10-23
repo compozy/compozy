@@ -12,6 +12,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 
 	"github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	skillbundled "github.com/compozy/compozy/skills"
 )
@@ -108,6 +109,11 @@ func workspaceSkillWatcherRoots(
 		seen := make(map[string]struct{}, cap(roots))
 		for _, workspace := range workspaces {
 			for _, profileName := range profileNames {
+				if err := workspacepkg.ValidatePersonalProfileRoot(
+					workspace.RootDir, homePaths.HomeDir, homePaths.ProfilesDir, profileName,
+				); err != nil {
+					return nil, err
+				}
 				cfg, err := compozyconfig.LoadForHome(homePaths,
 					compozyconfig.WithWorkspaceRoot(workspace.RootDir), compozyconfig.WithProfile(profileName))
 				if err != nil {
@@ -158,6 +164,11 @@ func workspaceAgentWatcherRoots(
 		seen := make(map[string]struct{}, cap(roots))
 		for _, workspace := range workspaces {
 			for _, profileName := range profileNames {
+				if err := workspacepkg.ValidatePersonalProfileRoot(
+					workspace.RootDir, homePaths.HomeDir, homePaths.ProfilesDir, profileName,
+				); err != nil {
+					return nil, err
+				}
 				for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
 					workspace.RootDir,
 					workspace.AdditionalDirs,

@@ -112,7 +112,7 @@ func (r *Resolver) scanWorkspaceDependencies(
 	profileName string,
 	snapshots map[string]filesnap.Snapshot,
 ) ([]ProfileDeclaration, error) {
-	if err := validatePersonalProfileRoot(
+	if err := ValidatePersonalProfileRoot(
 		ws.RootDir,
 		r.homePaths.HomeDir,
 		r.homePaths.ProfilesDir,
@@ -195,7 +195,8 @@ func canonicalWorkspaceSkillRoot(path string) string {
 	return filepath.Clean(path)
 }
 
-func validatePersonalProfileRoot(workspaceRoot, homeRoot, profilesRoot, profileName string) error {
+// ValidatePersonalProfileRoot prevents personal resource layers from aliasing workspace data.
+func ValidatePersonalProfileRoot(workspaceRoot, homeRoot, profilesRoot, profileName string) error {
 	trimmedName := strings.TrimSpace(profileName)
 	if trimmedName == "" || strings.TrimSpace(workspaceRoot) == "" {
 		return nil
