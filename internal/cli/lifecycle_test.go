@@ -183,7 +183,7 @@ func TestManagedRecommendationReportsNPMCommands(t *testing.T) {
 		t.Parallel()
 
 		update := managedRecommendation("npm", "update CompozyOS")
-		if !strings.Contains(update, "npm install -g @compozy/cli@beta") {
+		if !strings.Contains(update, "npm install -g @compozy/cli`") {
 			t.Fatalf("managedRecommendation(update) = %q, want npm update command", update)
 		}
 

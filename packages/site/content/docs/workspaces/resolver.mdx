@@ -309,11 +309,11 @@ not-found state.
 
 ### What This Boundary Covers Today
 
-CompozyOS is in beta, and this boundary is honest about its limits. It constrains agent requests at the
+This boundary is honest about its limits. It constrains agent requests at the
 runtime boundaries listed above and attempts a best-effort audit append for every policy evaluation.
 It is not a sandbox around the agent process.
 
-These gaps are known and accepted for the beta:
+These gaps are known and accepted today:
 
 - An agent with shell access can edit config files on disk, including a `permissions` mode. That
   exposure covers the whole permission setting and is not specific to workspaces; the event history

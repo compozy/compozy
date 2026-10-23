@@ -561,6 +561,52 @@ func TestManagerCheck(t *testing.T) {
 		}
 	})
 
+	t.Run("Should move a beta install onto a newer stable release", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
+		manager, _ := newManagerWithExecutable(t, &Config{
+			CurrentVersion: "v0.3.0-beta.38",
+			Now:            func() time.Time { return now },
+			HTTPClient: &http.Client{
+				Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+					return jsonHTTPResponse(t, http.StatusOK, []githubReleaseResponse{
+						{
+							TagName:     "v0.4.0",
+							HTMLURL:     "https://github.com/compozy/compozy/releases/tag/v0.4.0",
+							PublishedAt: now.Add(-time.Hour),
+							Assets:      testGitHubAssets(t, nil),
+						},
+						{
+							TagName:     "v0.3.0-beta.38",
+							Prerelease:  true,
+							PublishedAt: now.Add(-24 * time.Hour),
+						},
+						{
+							TagName:     "v0.2.15",
+							PublishedAt: now.Add(-48 * time.Hour),
+						},
+					}), nil
+				}),
+			},
+		})
+
+		state, release, err := manager.Check(t.Context(), CheckOptions{ForceRefresh: true})
+		if err != nil {
+			t.Fatalf("Check() error = %v", err)
+		}
+		if release == nil || release.Version != "v0.4.0" {
+			t.Fatalf("release = %#v, want stable v0.4.0", release)
+		}
+		if state.Status != StatusAvailable || !state.Available {
+			t.Fatalf("state = %#v, want available stable update", state)
+		}
+		npmState := manager.composeState(installInfo{Method: string(InstallMethodNPM), Managed: true}, release, nil)
+		if !strings.Contains(npmState.Recommendation, "npm install -g @compozy/cli`") {
+			t.Fatalf("npm recommendation = %q, want the plain stable package", npmState.Recommendation)
+		}
+	})
+
 	t.Run("Should mark Windows direct-binary installs as manual-only", func(t *testing.T) {
 		t.Parallel()
 
@@ -651,7 +697,7 @@ func TestManagerCheck(t *testing.T) {
 			forbidden string
 		}{
 			{
-				name:   "Should recommend the npm beta tag",
+				name:   "Should keep a selected beta on the npm beta tag",
 				method: InstallMethodNPM,
 				want:   "npm install -g @compozy/cli@beta",
 			},

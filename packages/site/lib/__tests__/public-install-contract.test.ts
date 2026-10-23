@@ -729,7 +729,7 @@ exit 23
     expect(launchPost).toContain("[installation guide](/docs/getting-started/installation)");
   });
 
-  it("keeps release collateral on the CompozyOS beta identity", () => {
+  it("keeps release collateral on the stable CompozyOS identity", () => {
     const readme = readSiteFile(readmePath);
     const header = readSiteFile(releaseHeaderPath);
     const footer = readSiteFile(releaseFooterPath);
@@ -739,8 +739,9 @@ exit 23
       expect(content).toContain(NPM_INSTALL_COMMAND);
       expect(content).toContain("go install github.com/compozy/compozy@");
       expect(content).toContain(VERIFIED_INSTALLER_COMMAND);
-      expect(content).not.toContain("brew install");
     }
+    expect(readme).toContain("brew install compozy/compozy/compozy");
+    expect(readme).not.toContain("@compozy/cli@beta");
     expect(header).toContain(goInstallCommand("{{ .Tag }}"));
     expect(footer).toContain("github\\.com/compozy/compozy/");
     expect(cliff).toContain("github.com/compozy/compozy/compare/");

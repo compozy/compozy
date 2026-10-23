@@ -1,6 +1,9 @@
 # CompozyOS Migration Guide
 
-For an existing v0.3 installation, follow [User scope and All projects](#user-scope-and-all-projects) when upgrading to v0.4.0. Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a release that predates them. The numbered sections below describe the separate v0.2.15-to-v0.3 clean-state transition.
+v0.4.0 is the first stable CompozyOS release. It follows the v0.3.0 beta line, and Homebrew and npm `latest` move from v0.2.15 to v0.4.0.
+
+- **From any v0.3.0 beta:** update in place from the app's Update action or with `compozy update`; no reinstall is needed. The first start applies [User scope and All projects](#user-scope-and-all-projects). Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a beta that predates them.
+- **From v0.2:** v0.2 has reached end of life and receives no further releases. The numbered sections below describe the v0.2.15 clean-state transition.
 
 CompozyOS v0.3 is a hard cut, not an in-place compatibility release. It keeps the `compozy` binary
 and the `.compozy/tasks/` task format, but replaces the workflow runner with a daemon-owned
@@ -280,20 +283,20 @@ stdio adapters, and the Herdr hook IPC bridge are independent of the removed pro
 
 ## 1. Command map
 
-Install the current v0.3 beta through one of the beta paths. Homebrew still serves v0.2 during the
-beta window and is therefore not an upgrade path.
+Install the current release through one of these paths:
 
 ```bash
-npm install -g @compozy/cli@beta
+brew install compozy/compozy/compozy
+
+npm install -g @compozy/cli
 
 curl -fsSL https://compozy.com/install.sh | sh
 
 go install github.com/compozy/compozy@<release-tag>
 ```
 
-The hosted installer pins the latest published beta for you. For `go install`, copy the exact
-pinned tag from the [latest release](https://github.com/compozy/compozy/releases/latest) notes;
-Go's `@latest` still resolves the deprecated v0.2 line during the beta.
+The hosted installer pins the latest published release for you. For `go install`, copy the exact
+pinned tag from the [latest release](https://github.com/compozy/compozy/releases/latest) notes.
 
 Workspace-scoped v0.3 commands infer the active workspace in this order: positional workspace ref,
 `--workspace`, `COMPOZY_WORKSPACE`, validated session identity, then the current working directory.
@@ -302,7 +305,7 @@ override that context.
 
 The primary delivery mappings are:
 
-| v0.2.15                                                                             | v0.3 beta                                                                         | Notes                                                                                                                                                                                                           |
+| v0.2.15                                                                             | v0.4                                                                              | Notes                                                                                                                                                                                                           |
 | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `compozy tasks run demo`                                                            | `compozy loop run --name implement-tasks --input slug=demo`                       | Run from the project tree. Uses the bundled task implementation Loop and the existing `.compozy/tasks/demo/` tree.                                                                                              |
 | `--task-runtime type=frontend,ide=codex,model=gpt-5.5-codex,reasoning-effort=xhigh` | `--runtime type=frontend:codex/gpt-5.5-codex@xhigh`                               | `--runtime` is repeatable. It also accepts `worker=`, `judge=`, `id=`, and `complexity=` selectors.                                                                                                             |
@@ -316,7 +319,7 @@ The primary delivery mappings are:
 | `compozy workspaces list/show/register/unregister`                                  | `compozy workspace list/info/add/remove`                                          | Use IDs or explicit roots returned by the daemon. The old `resolve` verb has no direct command replacement.                                                                                                     |
 | `compozy daemon start`                                                              | `compozy install` once, then `compozy daemon start`                               | `install` bootstraps config and the default agent; it does not start the daemon. Use `compozy status` after startup.                                                                                            |
 | `compozy daemon status/stop`                                                        | `compozy status` / `compozy daemon stop`                                          | Structured output is available with `-o json`.                                                                                                                                                                  |
-| `compozy upgrade`                                                                   | `compozy update`                                                                  | A beta build tracks newer v0.3 beta releases, never the v0.2 stable line.                                                                                                                                       |
+| `compozy upgrade`                                                                   | `compozy update`                                                                  | Installs the latest stable release; it never returns to the v0.2 line.                                                                                                                                          |
 | `compozy ext list/install/enable/disable/doctor`                                    | `compozy extension list/install/enable/disable/status` plus `compozy doctor`      | Extension manifests and SDK contracts are API-incompatible; reinstall or port extensions instead of reusing old directories.                                                                                    |
 | `compozy runs watch <id>`                                                           | `compozy loop status --run-id <id>` or the printed `/loop-runs/<id>` URL          | Run from the project tree. Legacy run IDs do not exist in the new database; for sessions use `status`, `events`, and `wait`.                                                                                    |
 | `compozy runs attach <id>`                                                          | No TUI replacement                                                                | Use structured status/events and the web run page.                                                                                                                                                              |
@@ -351,7 +354,7 @@ The complete v0.2 flag-family disposition is:
 
 ## 2. Configuration translation contract
 
-No live config migrator ships in the current v0.3 beta. This section is the manual translation
+No live config migrator ships in the current release. This section is the manual translation
 contract. Apply global and workspace changes separately. v0.3 precedence is per-run value, then
 workspace `[loops.inputs.<loop>]`, then global input default, then the Loop definition default.
 Explicit `false`, `0`, and valid empty strings remain present values.
@@ -413,10 +416,10 @@ the named Loop only during dry-run or submission, because Loops can enroll dynam
 
 ## 3. Config migrator status
 
-`compozy migrate config` does **not** ship in the current v0.3 beta. Do not run that command, build
+`compozy migrate config` does **not** ship in the current release. Do not run that command, build
 automation around it, or assume the daemon will read v0.2 config as a fallback.
 
-For v0.3 beta:
+To move from v0.2:
 
 1. Back up `~/.compozy/` and each `<workspace>/.compozy/` directory.
 2. Translate the config manually with the table above into a fresh v0.3 config.
@@ -424,7 +427,7 @@ For v0.3 beta:
    namespace. Do not let v0.3 enroll their old formats.
 4. Start v0.3 with clean runtime state; do not copy `global.db`, daemon sockets, locks, logs, run
    directories, or other v0.2 state into the new runtime.
-5. Keep the backup until the beta journey and required task evidence have been verified.
+5. Keep the backup until the new journey and required task evidence have been verified.
 
 The old v0.2 `compozy migrate` command is unrelated. It converts XML-tagged task and review
 artifacts into frontmatter. If your task tree still contains `<task_context>` or `<review_context>`,
@@ -485,7 +488,7 @@ loader, or hidden fallback ships in v0.3.
 | Reusable-agent `setup` assets                                                                  | Removed                       | Re-author runtime agent definitions through `compozy agent`; do not copy legacy setup state.             |
 | `compozy ext` command and old manifest API                                                     | Replaced incompatibly         | Port to the v0.3 manifest/SDK and manage with `compozy extension`.                                       |
 | `compozy migrate` XML converter                                                                | Legacy-only                   | Run v0.2.15 before upgrading when XML-era artifacts exist.                                               |
-| `compozy migrate config`                                                                       | Not available in v0.3 beta    | Use the manual matrix and clean-state procedure in this guide.                                           |
+| `compozy migrate config`                                                                       | Not available                 | Use the manual matrix and clean-state procedure in this guide.                                           |
 | `sync` / `archive`                                                                             | Removed                       | Runtime owners ingest their own resources; archive task folders manually when safe.                      |
 | `runs watch` / `runs purge`                                                                    | Removed                       | Use Loop/session-specific lifecycle surfaces; legacy run history restarts cleanly.                       |
 | `exec` ad-hoc runner                                                                           | Replaced by explicit sessions | Use `session new` plus `session prompt` and lifecycle commands.                                          |
@@ -517,9 +520,9 @@ pipeline-era sections have no empty heading stub; their disposition is explicit 
 | ----------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------ |
 | Highlights                    | `#-highlights`                | Preserved at README **Highlights**.                                                        |
 | Installation                  | `#-installation`              | Preserved at README **Installation**.                                                      |
-| Homebrew                      | `#homebrew`                   | **No successor during beta.** Homebrew remains on deprecated v0.2 until v0.3.0 stable.     |
-| NPM                           | `#npm`                        | Preserved at README **NPM**, now `@compozy/cli@beta`.                                      |
-| Go                            | `#go`                         | Preserved at README **Go**, with the explicit v0.3 beta version.                           |
+| Homebrew                      | `#homebrew`                   | Preserved at README **Homebrew**; the formula serves the current stable release.           |
+| NPM                           | `#npm`                        | Preserved at README **NPM**, now `@compozy/cli`.                                           |
+| Go                            | `#go`                         | Preserved at README **Go**, with the explicit release tag.                                 |
 | From Source                   | `#from-source`                | Preserved at README **From Source**, using the root build target.                          |
 | How It Works                  | `#-how-it-works`              | Preserved at README **How It Works**.                                                      |
 | Daemon Runtime Model          | `#daemon-runtime-model`       | Preserved at the daemon-owned runtime explanation.                                         |
@@ -576,15 +579,15 @@ projects with `compozy extension init`.
 ## 8. Domain, channels, and clean state
 
 `https://compozy.com` serves the v0.3 site from the single cut. The former domain retires without a
-redirect layer. Legacy source and release collateral remain on the `legacy/v0.2` branch.
+redirect layer. Legacy source and release collateral remain frozen on the `legacy/v0.2` branch;
+v0.2 has reached end of life and receives no further releases.
 
-During the beta window:
+Release channels:
 
-- use `@compozy/cli@beta`, the hosted installer with an explicit v0.3 beta, or versioned
-  `go install`;
-- do not use Homebrew for v0.3 — the formula remains on the deprecated v0.2 stable line until the
-  post-beta 0.3.0 stable release;
-- a beta self-update follows newer v0.3 prereleases, not npm `latest` or the v0.2 stable line.
+- Homebrew (`compozy/compozy/compozy`), npm `@compozy/cli`, the hosted installer, and versioned
+  `go install` all serve the current stable release, starting with v0.4.0;
+- an install on any v0.3.0 beta updates in place to the latest stable release from the app's
+  Update action or `compozy update`.
 
 Start runtime history clean. Preserve committable task artifacts under `.compozy/tasks/`, translate
 configuration manually, and do not carry daemon databases or legacy extension/setup directories

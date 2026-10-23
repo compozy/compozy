@@ -9,7 +9,7 @@ export function FinalCta() {
     <SectionFrame background="surface" padY="lg" className="border-b border-line">
       <div className="grid gap-8 rounded-diagram border border-line bg-canvas px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
-          <Eyebrow className="text-accent">CompozyOS beta</Eyebrow>
+          <Eyebrow className="text-accent">CompozyOS</Eyebrow>
           <h2 className="mt-4 max-w-[18ch] font-display text-site-cta-title leading-none font-normal tracking-tight text-fg">
             Install CompozyOS. Put agents to work continuously.
           </h2>
@@ -25,7 +25,7 @@ export function FinalCta() {
             variant="primary"
             className="w-full justify-center sm:w-auto"
           >
-            Install the beta
+            Install CompozyOS
           </CtaButton>
           <CtaButton
             href="/docs/getting-started/installation"

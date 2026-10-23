@@ -496,6 +496,10 @@ describe("app update consumer", () => {
     try {
       watcher.start();
       await expect.poll(() => current.app?.phase).toBe("failed");
+      await expect
+        .poll(() => errors.map(error => error.message))
+        .toEqual(["transient acquire failure", "download unavailable"]);
+      // Further polls must not reinstall the journaled failure.
       await new Promise(resolve => setTimeout(resolve, 80));
       expect(acquisitions).toBe(2);
       expect(downloads).toBe(1);

@@ -1,15 +1,15 @@
 ---
 id: REL-beta-self-update
 area: REL
-title: Keep self-update on the running beta line
+title: Move a beta install to the latest stable release
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: A v0.3 beta direct binary selects the newest non-draft v0.3 beta, verifies and extracts its official archive within the runtime artifact policy, replaces only the isolated executable, and reports the installed beta version.
+expected: A v0.3.0 beta direct binary selects the newest non-draft stable release (v0.4.0 or later), verifies and extracts its official archive within the runtime artifact policy, replaces only the isolated executable, and reports the installed stable version; a stable install keeps selecting newer stable releases.
 entry_points: compozy update; compozy update --check -o json; GitHub releases API; managed install detection
-qa_status: blocked-decision
+qa_status: untested
 bug_ids: BUG-20260812-successful-update-recommends-retry
 fix_status: fixed
-retest_status: pass
+retest_status: 
 fix_commits: working-tree
 evidence: docs/qa/reports/2026-08-17-electron-shell.md
 last_report: docs/qa/reports/2026-08-17-electron-shell.md
@@ -32,3 +32,6 @@ executable, and reported beta.13. The final JSON cleared the completed update re
 QA impact 2026-08-16: this scenario owns the direct-binary runtime-only branch of the durable
 runtime-first operation. Installed-app targets belong to `APP-single-command-multi-target-update`.
 Reset for the Task 07 release walk.
+
+QA impact 2026-10-23: leaving beta. A beta install must move to the latest stable release in place, without a
+reinstall, and never strand on the last beta. Reset to `untested` until beta.38 is walked to the published v0.4.0.

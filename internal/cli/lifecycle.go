@@ -97,7 +97,7 @@ func managedRecommendation(manager string, action string) string {
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
 			return "Use `npm uninstall -g @compozy/cli`."
 		}
-		return "Use `npm install -g @compozy/cli@beta`."
+		return "Use `npm install -g @compozy/cli`."
 	case strings.Contains(normalizedManager, "scoop"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
 			return "Use `scoop uninstall compozy`."

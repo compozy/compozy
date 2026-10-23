@@ -1,12 +1,12 @@
 ---
 id: REL-beta-install-paths
 area: REL
-title: Install CompozyOS through a documented beta channel
+title: Install CompozyOS through a documented stable channel
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: The hosted installer, `npm install -g @compozy/cli@beta`, and the pinned `go install` command from the latest release notes each install the same latest published v0.3 beta binary; `https://compozy.com/install.sh` and the site install surfaces resolve that tag dynamically (no hand-maintained version literal anywhere); the hosted installer opens bootstrap when it has an interactive terminal, npm and Go require `compozy install`, and the README and site offer no Homebrew path before v0.3.0 stable.
+expected: The hosted installer, `brew install compozy/compozy/compozy`, `npm install -g @compozy/cli`, and the pinned `go install` command from the latest release notes each install the same latest published stable release (v0.4.0 or later); `https://compozy.com/install.sh` and the site install surfaces resolve that tag dynamically (no hand-maintained version literal anywhere); the hosted installer opens bootstrap when it has an interactive terminal, while Homebrew, npm, and Go require `compozy install`.
 entry_points: README Installation; compozy.com install section; compozy.com/docs/getting-started/installation; npm registry; Go module proxy
-qa_status: blocked-decision
+qa_status: untested
 bug_ids: BUG-20260814-go-install-replace-directives
 fix_status: deferred
 retest_status: 
@@ -50,3 +50,8 @@ installation, the npm `beta` channel, and both hosted public-asset install jobs.
 path reported `compozy 0.3.0-beta.16`. The pinned Go path remains blocked because the published
 module contains forbidden `replace` directives; deciding between removing that advertised channel
 or cutting a corrected beta is tracked by BUG-20260814-go-install-replace-directives.
+
+QA impact 2026-10-23: v0.4.0 is the first stable release and every later release is stable. README, the
+installation page, the landing install section, and both migration guides now offer Homebrew and plain
+`@compozy/cli` instead of the beta channel. Reset to `untested` until the published v0.4.0 is walked on
+all four channels.

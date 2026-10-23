@@ -7,7 +7,7 @@ import { COLORS, FONTS, SIZE } from "../tokens";
 const HEADLINE = "The system around the agent, already built.";
 const SUBHEAD =
   "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks.";
-const EYEBROW = "COMPOZYOS / BETA";
+const EYEBROW = "COMPOZYOS";
 
 const FOOTER_RAIL = [
   { label: "OPERATING SYSTEM FOR AI AGENTS", color: COLORS.accent, lowercase: false },
