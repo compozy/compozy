@@ -23,6 +23,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Session context (active · for approval) | [`session-context/`](session-context/) | [`session-context/index.html`](session-context/index.html) · contract [`DESIGN-NOTES.md`](session-context/DESIGN-NOTES.md) |
 | Session continue & fork (active · for approval) | [`session-continue-fork/`](session-continue-fork/) | [`session-continue-fork/index.html`](session-continue-fork/index.html) · contract [`DESIGN-NOTES.md`](session-continue-fork/DESIGN-NOTES.md) |
 | Sessions bulk actions (active · for approval) | [`sessions-bulk-actions/`](sessions-bulk-actions/) | [`sessions-bulk-actions/index.html`](sessions-bulk-actions/index.html) · single board, contract block inline |
+| Sessions Kanban (active · for approval) | [`sessions-kanban/`](sessions-kanban/) | [`sessions-kanban/index.html`](sessions-kanban/index.html) · single board, contract block inline · spec `.compozy/tasks/sessions-kanban` |
 | Session (retired → `_done/session/`) | [`_done/session/`](_done/session/) | [`_done/session/index.html`](_done/session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](_done/session/SESSION-REDESIGN-SPEC.md) |
 | Systems (vault) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
 | Shipped archives | [`_done/`](_done/) | agents · loops · marketplace · shell |
