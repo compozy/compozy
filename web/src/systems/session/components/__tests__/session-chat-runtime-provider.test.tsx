@@ -39,6 +39,7 @@ import {
   sessionPromptRuntimeStoreLogic,
 } from "../../stores/session-prompt-runtime-store";
 import {
+  discardComposerDraftAttachments,
   sessionKeys,
   useClearSessionConversation,
   useSessionTranscriptThreadState,
@@ -48,10 +49,11 @@ import { toast } from "sonner";
 
 const SESSION_STREAM_QUERY = "frames=transcript";
 
-// The recovery owner and sonner's toast list are app-scoped: nothing one test leaves
-// pending may reach the next.
+// The recovery owner, retained composer attachments, and sonner's toast list are
+// app-scoped: nothing one test leaves pending may reach the next.
 afterEach(() => {
   sessionPromptRecovery.reset();
+  discardComposerDraftAttachments(primarySessionFixture.id);
   toast.dismiss();
 });
 

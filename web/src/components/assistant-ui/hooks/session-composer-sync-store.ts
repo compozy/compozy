@@ -5,9 +5,23 @@ interface SessionComposerSyncState {
   hydratedSessionId: string | null;
   suppressedComposerText: string | null;
   preHydrationComposerText: string | null;
+  /** The draft owner whose retained attachments this composer already took back. */
+  attachmentsMountedSessionId: string | null;
+  /** True while restored attachments are re-entering the runtime; observations are partial. */
+  restoringAttachments: boolean;
 }
 
 type SessionComposerSyncEvents = {
+  attachmentDraftMounted: {
+    sessionId: string;
+    /** Retained files of this draft, in composer order. */
+    retainedFiles: readonly File[];
+    /** Attachments the rebuilt composer already holds (a recovered send, a first prompt). */
+    composerAttachmentCount: number;
+    restore: (files: readonly File[]) => Promise<unknown>;
+    settled: () => void;
+  };
+  attachmentRestoreSettled: {};
   composerObserved: {
     composerText: string;
     draftText: string;
@@ -38,8 +52,34 @@ export const sessionComposerSyncLogic = createStoreLogic<
     hydratedSessionId: null,
     suppressedComposerText: null,
     preHydrationComposerText: null,
+    attachmentsMountedSessionId: null,
+    restoringAttachments: false,
   },
   on: {
+    attachmentDraftMounted: (context, event, enqueue) => {
+      // A re-run effect for the same composer must not add the files twice.
+      if (context.attachmentsMountedSessionId === event.sessionId) return;
+      const restore = event.retainedFiles.length > 0 && event.composerAttachmentCount === 0;
+      if (restore) {
+        enqueue.effect(() => {
+          void Promise.resolve()
+            .then(() => event.restore(event.retainedFiles))
+            .catch(error =>
+              console.error("Failed to restore the session composer attachments", error)
+            )
+            .finally(event.settled);
+        });
+      }
+      return {
+        ...context,
+        attachmentsMountedSessionId: event.sessionId,
+        restoringAttachments: restore,
+      };
+    },
+    attachmentRestoreSettled: context => {
+      if (!context.restoringAttachments) return;
+      return { ...context, restoringAttachments: false };
+    },
     draftObserved: (context, event, enqueue) => {
       const sameSession = context.hydratedSessionId === event.sessionId;
       if (sameSession && event.composerText !== context.hydratedDraftText) return;
@@ -48,6 +88,7 @@ export const sessionComposerSyncLogic = createStoreLogic<
         invoke(() => event.hydrate(event.draftText), "Failed to hydrate the session composer")
       );
       return {
+        ...context,
         hydratedDraftText: event.draftText,
         hydratedSessionId: event.sessionId,
         suppressedComposerText: event.draftText,

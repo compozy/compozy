@@ -83,7 +83,7 @@ import {
   peekPendingTerminalQuote,
   takePendingTerminalQuote,
 } from "@/systems/terminal/parts";
-import { resetSessionPromptRecovery } from "@/systems/session";
+import { discardComposerDraftAttachments, resetSessionPromptRecovery } from "@/systems/session";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -568,6 +568,7 @@ function renderThreadState(
 // The recovery owner is app-scoped: a draft one test leaves pending must not reach the next.
 afterEach(() => {
   resetSessionPromptRecovery();
+  discardComposerDraftAttachments(primarySessionFixture.id);
 });
 
 describe("SessionThread transcript states", () => {
@@ -7103,6 +7104,123 @@ describe("SessionThread composer attachments", () => {
     }
   });
 
+  it("Should restore unsent attachments in order after the session runtime rebuilds", async () => {
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+    const MockURL = class extends URL {};
+    MockURL.createObjectURL = vi.fn(() => "blob:restored-preview");
+    MockURL.revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", MockURL);
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() =>
+      expect(
+        screen.getAllByTestId("composer-attachment-tile").map(tile => tile.dataset.state)
+      ).toEqual(["ready", "ready"])
+    );
+    expect(attachmentRequests(fetchMock)).toEqual({ uploads: 2, deletes: 0 });
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+
+    await waitFor(() => {
+      const tiles = screen.getAllByTestId("composer-attachment-tile");
+      expect(tiles.map(tile => tile.textContent)).toEqual([
+        expect.stringContaining("shot.png"),
+        expect.stringContaining("report.pdf"),
+      ]);
+      expect(tiles.map(tile => tile.dataset.state)).toEqual(["ready", "ready"]);
+    });
+    expect(screen.getByRole("button", { name: "Preview shot.png" })).toBeInTheDocument();
+    // The rebuilt composer reuses the daemon uploads; nothing is sent or deleted again.
+    expect(attachmentRequests(fetchMock)).toEqual({ uploads: 2, deletes: 0 });
+  });
+
+  it("Should finish an upload left in flight on the restored composer without uploading again", async () => {
+    let releaseUpload!: () => void;
+    const uploadGate = new Promise<void>(resolve => {
+      releaseUpload = resolve;
+    });
+    const fetchMock = createFetchMock({ beforeAttachmentUpload: () => uploadGate });
+    vi.stubGlobal("fetch", fetchMock);
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    act(() => {
+      void requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute(
+        "data-state",
+        "uploading"
+      )
+    );
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-attachment-tile");
+    await act(async () => releaseUpload());
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1);
+    expect(attachmentRequests(fetchMock)).toEqual({ uploads: 1, deletes: 0 });
+  });
+
+  it("Should not restore an attachment removed from the draft", async () => {
+    const user = userEvent.setup();
+    const fetchMock = createFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+      await requireComposerAui().composer.addAttachment(pdfFile());
+    });
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(2));
+    await user.click(screen.getByRole("button", { name: "Remove shot.png" }));
+    await waitFor(() => expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1));
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    expect(screen.getAllByTestId("composer-attachment-tile")).toHaveLength(1);
+    expect(screen.getByTestId("composer-attachment-tile")).toHaveTextContent("report.pdf");
+  });
+
+  it("Should not restore attachments that were sent", async () => {
+    const promptCalls: string[] = [];
+    const user = userEvent.setup();
+    vi.stubGlobal("fetch", createPromptRecordingFetchMock(promptCalls));
+    const firstView = renderComposer({ promptImageCapability: "supported" });
+    await screen.findByTestId("composer-input");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(pngFile());
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
+    );
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(promptCalls).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument()
+    );
+
+    firstView.unmount();
+    renderComposer({ promptImageCapability: "supported" });
+
+    await screen.findByTestId("composer-input");
+    await act(async () => {});
+    expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
+  });
+
   it("Should summarize queued attachments and steer their complete queue entry", async () => {
     const user = userEvent.setup();
     const onSteerQueuedPrompt = vi.fn();
@@ -7144,6 +7262,16 @@ describe("SessionThread composer attachments", () => {
     });
   });
 });
+
+/** Daemon attachment traffic a composer caused: uploads and deletions. */
+function attachmentRequests(fetchMock: ReturnType<typeof createFetchMock>) {
+  const base = `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/attachments`;
+  const paths = fetchMock.mock.calls.map(([input]) => getPathname(input));
+  return {
+    uploads: paths.filter(path => path === base).length,
+    deletes: paths.filter(path => path.startsWith(`${base}/`)).length,
+  };
+}
 
 function renderComposerRerenderable(overrides: Partial<ComponentProps<typeof SessionThread>>) {
   const queryClient = createQueryClient();
