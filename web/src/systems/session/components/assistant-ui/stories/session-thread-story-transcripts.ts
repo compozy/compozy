@@ -316,3 +316,47 @@ export function transcriptPayload(messages: TranscriptMessage[]) {
     max_sequence: messages.length,
   };
 }
+
+/** Long user and agent prose with a wide table and code line: the transcript width on large panes (#897). */
+export const wideProseTranscript: TranscriptMessage[] = [
+  {
+    id: "story_user_wide",
+    role: "user",
+    parts: [
+      {
+        type: "text",
+        text: [
+          "The release candidate passed the smoke run, but the dashboard still reports two stale workers from the previous deploy and the queue latency chart jumps every few minutes.",
+          "Can you check whether the stale workers are holding leases, compare the latency spikes with the scheduler logs, and tell me if anything blocks the rollout tonight?",
+        ].join(" "),
+        state: "done",
+      },
+    ],
+  },
+  {
+    id: "story_assistant_wide",
+    role: "assistant",
+    parts: [
+      {
+        type: "text",
+        text: [
+          "Both stale workers still hold leases from the previous deploy. Their heartbeats stopped at the cutover, so the scheduler keeps their slots reserved until the lease timeout expires, which is why the queue looks shorter than it is and latency jumps whenever a lease finally lapses and its work is requeued.",
+          "",
+          "The spikes line up with lease expiry in the scheduler log, not with traffic. Nothing else in the window points at the new build: error rates, retries, and memory stay flat across the deploy.",
+          "",
+          "| Worker | Last heartbeat | Leases held | Lease expires | Queue impact | Action |",
+          "| --- | --- | --- | --- | --- | --- |",
+          "| worker-7f3a | 18:02:11 (previous deploy) | 4 | 18:32:11 | Slots reserved, work delayed | Release leases now |",
+          "| worker-9c21 | 18:02:14 (previous deploy) | 3 | 18:32:14 | Slots reserved, work delayed | Release leases now |",
+          "",
+          "```sh",
+          "compozy task recover --workspace release --worker worker-7f3a --worker worker-9c21 --reason 'stale lease after deploy cutover' --requeue",
+          "```",
+          "",
+          "Releasing both leases clears the blocker. After that, the rollout can go ahead tonight.",
+        ].join("\n"),
+        state: "done",
+      },
+    ],
+  },
+];

@@ -87,6 +87,13 @@ describe("StreamMarkdown", () => {
     expect(proseRoot(container)).not.toHaveAttribute("data-rhythm");
   });
 
+  it("Should leave the reading measure to the caller", () => {
+    const { container, rerender } = render(<StreamMarkdown># Title</StreamMarkdown>);
+    expect(proseRoot(container)?.className).not.toMatch(/(^|\s)max-w-/);
+    rerender(<StreamMarkdown className="max-w-prose"># Title</StreamMarkdown>);
+    expect(proseRoot(container)).toHaveClass("max-w-prose");
+  });
+
   it("Should mark the prose root compact so parts select the dense tier", () => {
     const { container } = render(<StreamMarkdown compact># Title</StreamMarkdown>);
     expect(proseRoot(container)).toHaveAttribute("data-compact", "true");

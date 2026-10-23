@@ -130,6 +130,8 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
  * Streaming wrapper around `<Markdown />` for chat threads. Reuses the canonical
  * prose grammar but swaps in the Compozy `<CodeBlock>` for fenced code blocks (with
  * copy + syntax highlighting). Inline code uses the shared Markdown recipe.
+ * It carries no reading measure: prose, tables, and code fill the container, so
+ * a surface that wants a measure sets it through `className`.
  */
 function StreamMarkdown({
   children,
@@ -147,7 +149,7 @@ function StreamMarkdown({
       compact={compact}
       components={{ ...(slots ? SLOT_COMPONENTS : STREAM_MARKDOWN_COMPONENTS), ...components }}
       plugins={slots ? SLOT_PLUGINS : undefined}
-      className={cn("max-w-[72ch]", className)}
+      className={className}
       {...props}
     >
       {children}
