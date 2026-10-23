@@ -215,17 +215,19 @@ const NAVIGATION_KEYS_DOWN = new Set(["ArrowDown", "PageDown", "End"]);
 const PAGE_KEYS = new Set(["PageUp", "PageDown"]);
 
 /**
- * Where a keydown landed: an editable field moves its caret, a focused control
- * (button, link, composite widget) consumes Space/arrows/Home/End itself, and
- * plain transcript content lets every navigation key scroll the viewport.
+ * Where a keydown landed, by which keys that target consumes itself: an
+ * editable field moves its caret with every key; an activation control
+ * (button, summary, checkbox, switch) takes Space; a composite widget (menu,
+ * listbox, tabs, radio group, slider, grid, tree) takes arrows, Home/End and
+ * Space; links and plain transcript content consume none, so their navigation
+ * keys scroll the viewport.
  */
-export type NavigationKeyTarget = "editable" | "control" | "content";
+export type NavigationKeyTarget = "editable" | "activation" | "composite" | "content";
 
 /**
  * The direction a keyboard scroll gesture moves the transcript, or `null` when
  * the key does not scroll it: any other key, a key the target already handled,
- * typing inside an editable field, or a key a focused control consumes (only
- * PageUp/PageDown still scroll past a control).
+ * or a key the focused target consumes itself.
  */
 export function navigationKeyDirection(event: {
   readonly key: string;
@@ -234,8 +236,11 @@ export function navigationKeyDirection(event: {
   readonly target: NavigationKeyTarget;
 }): "up" | "down" | null {
   if (event.defaultPrevented || event.target === "editable") return null;
-  if (event.target === "control" && !PAGE_KEYS.has(event.key)) return null;
-  if (event.key === " ") return event.shiftKey ? "up" : "down";
+  if (event.target === "composite" && !PAGE_KEYS.has(event.key)) return null;
+  if (event.key === " ") {
+    if (event.target === "activation") return null;
+    return event.shiftKey ? "up" : "down";
+  }
   if (NAVIGATION_KEYS_UP.has(event.key)) return "up";
   if (NAVIGATION_KEYS_DOWN.has(event.key)) return "down";
   return null;

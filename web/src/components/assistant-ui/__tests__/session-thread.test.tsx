@@ -4197,6 +4197,13 @@ describe("SessionThread transcript states", () => {
 
     expect(viewport.scrollTop).toBe(1_500);
     expect(pill).toHaveAttribute("data-visible", "false");
+
+    // Late row measurement grows the content after the first re-pin.
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 3000 });
+    fireEvent.scroll(viewport);
+
+    expect(viewport.scrollTop).toBe(2_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
   });
 
   function settlingTranscript(prefix: string, length = 40) {
@@ -4405,12 +4412,14 @@ describe("SessionThread transcript states", () => {
   });
 
   // Invariant: a key a focused control consumes (Shift+Space activating "Copy")
-  // is not a scroll gesture, so following holds.
-  it("Should keep following when a focused control consumes a navigation key", async () => {
+  // is not a scroll gesture, so following holds; the keys it does not consume
+  // (ArrowUp on that same button) still hand the viewport to the reader.
+  it("Should tell keys a focused control consumes from keys that scroll past it", async () => {
     renderThreadState({ status: "success", messages: settlingTranscript("control-key") });
     expect(await screen.findByText("Message 0")).toBeInTheDocument();
 
     const viewport = screen.getByTestId("chat-view");
+    const pill = screen.getByTestId("scroll-to-bottom-pill");
     primeViewportAtEnd(viewport);
     const control = within(viewport).getAllByRole("button")[0]!;
     fireEvent.keyDown(control, { key: " ", shiftKey: true });
@@ -4418,7 +4427,12 @@ describe("SessionThread transcript states", () => {
     // Still following: a later non-gesture scroll off the end is pinned back.
     scrollViewportTo(viewport, 300);
     expect(viewport.scrollTop).toBe(1_500);
-    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+    expect(pill).toHaveAttribute("data-visible", "false");
+
+    fireEvent.keyDown(control, { key: "ArrowUp" });
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(300);
+    expect(pill).toHaveAttribute("data-visible", "true");
   });
 
   it("Should not apply a stale live-edge reconciliation after the reader scrolls away", async () => {

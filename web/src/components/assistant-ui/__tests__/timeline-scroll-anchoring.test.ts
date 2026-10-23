@@ -219,10 +219,14 @@ describe("timeline scroll mode machine", () => {
     expect(key("a")).toBeNull();
     // Typing in an inline editor moves its caret, not the transcript.
     expect(key("ArrowUp", { target: "editable" })).toBeNull();
-    // A focused control consumes Space (activation) and arrows; paging still scrolls past it.
-    expect(key(" ", { shiftKey: true, target: "control" })).toBeNull();
-    expect(key("ArrowUp", { target: "control" })).toBeNull();
-    expect(key("PageUp", { target: "control" })).toBe("up");
+    // A focused button takes Space to activate; its arrows and Home/End still scroll.
+    expect(key(" ", { shiftKey: true, target: "activation" })).toBeNull();
+    expect(key("ArrowUp", { target: "activation" })).toBe("up");
+    expect(key("Home", { target: "activation" })).toBe("up");
+    // A composite widget moves its own selection; paging still scrolls past it.
+    expect(key("ArrowUp", { target: "composite" })).toBeNull();
+    expect(key(" ", { target: "composite" })).toBeNull();
+    expect(key("PageUp", { target: "composite" })).toBe("up");
     // A widget that already handled the key did not scroll the transcript.
     expect(key("PageUp", { defaultPrevented: true })).toBeNull();
   });

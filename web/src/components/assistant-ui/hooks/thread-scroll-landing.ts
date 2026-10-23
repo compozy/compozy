@@ -159,12 +159,14 @@ export function landMessageRow({
 }
 
 const EDITABLE_SELECTOR = "input, textarea, select";
-const CONTROL_SELECTOR =
-  'button, a[href], summary, [role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="menuitem"], [role="option"], [role="tab"], [role="radio"], [role="slider"]';
+const COMPOSITE_SELECTOR =
+  '[role="menu"], [role="menubar"], [role="listbox"], [role="tablist"], [role="radiogroup"], [role="grid"], [role="tree"], [role="slider"], [role="spinbutton"], [role="menuitem"], [role="option"], [role="tab"], [role="radio"]';
+const ACTIVATION_SELECTOR = 'button, summary, [role="button"], [role="checkbox"], [role="switch"]';
 
 /** Classifies a keydown target for `navigationKeyDirection`. */
 export function navigationKeyTarget(target: EventTarget | null): NavigationKeyTarget {
   if (!(target instanceof HTMLElement)) return "content";
   if (target.isContentEditable || target.closest(EDITABLE_SELECTOR)) return "editable";
-  return target.closest(CONTROL_SELECTOR) ? "control" : "content";
+  if (target.closest(COMPOSITE_SELECTOR)) return "composite";
+  return target.closest(ACTIVATION_SELECTOR) ? "activation" : "content";
 }
