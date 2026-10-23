@@ -360,19 +360,21 @@ func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emit
 	if proc == nil {
 		return nil
 	}
-	stopCtx, cancel := m.lifecycleCleanupContext()
-	defer cancel()
 	exited, err := m.processExitVerified(proc)
 	if err != nil {
 		return err
 	}
 	if !exited {
+		stopCtx, cancel := m.runtimeStopContext()
+		defer cancel()
 		if err := m.driver.Stop(stopCtx, proc); err != nil {
 			return err
 		}
 	}
 	if emitHook {
-		m.dispatchAgentStopped(stopCtx, session, proc, nil)
+		hookCtx, cancel := m.lifecycleCleanupContext()
+		defer cancel()
+		m.dispatchAgentStopped(hookCtx, session, proc, nil)
 	}
 	return nil
 }
@@ -434,6 +436,9 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err
+	}
+	if err := spec.materializeRootDelegationTools(runtime.agent, m.toolsetCatalog, m.toolUniverse); err != nil {
+		return nil, fmt.Errorf("session: materialize delegation tools for %q: %w", spec.sessionID, err)
 	}
 	if err := acp.ValidateACPModePermissions(
 		spec.acpOptions,

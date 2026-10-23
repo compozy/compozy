@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -20,6 +21,7 @@ var _ ForkDriver = (*ACPDriverAdapter)(nil)
 var _ AgentExitVerifier = (*ACPDriverAdapter)(nil)
 var _ AgentKiller = (*ACPDriverAdapter)(nil)
 var _ AgentCooperativeCanceler = (*ACPDriverAdapter)(nil)
+var _ AgentStopBudgeter = (*ACPDriverAdapter)(nil)
 
 // NewACPDriverAdapter wraps the provided ACP driver for use by the session manager.
 func NewACPDriverAdapter(driver *acp.Driver) *ACPDriverAdapter {
@@ -127,6 +129,11 @@ func (a *ACPDriverAdapter) Stop(ctx context.Context, proc *AgentProcess) error {
 		return err
 	}
 	return a.driver.Stop(ctx, native)
+}
+
+// StopBudget reports how long a Stop of the wrapped ACP runtime may run.
+func (a *ACPDriverAdapter) StopBudget() time.Duration {
+	return a.driver.StopBudget()
 }
 
 // VerifyExit asks the ACP process owner for termination evidence.

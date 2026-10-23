@@ -8,18 +8,20 @@ import (
 )
 
 const (
-	matcherAgentNameKey     = "agent_name"
-	matcherInputClassKey    = "input_class"
-	matcherLoopNameKey      = "loop_name"
-	matcherLoopRunIDKey     = "loop_run_id"
-	matcherNodeIDKey        = "node_id"
-	matcherReleaseReasonKey = "release_reason"
-	matcherRunIDKey         = "run_id"
-	matcherTaskIDKey        = "task_id"
-	matcherWorkflowIDKey    = "workflow_id"
-	matcherWorkspaceIDKey   = "workspace_id"
-	matcherWorkspaceRootKey = "workspace_root"
-	matcherWorktreeIDKey    = "worktree_id"
+	matcherTurnIDKey               = "turn_id"
+	matcherCoordinatorSessionIDKey = "coordinator_session_id"
+	matcherAgentNameKey            = "agent_name"
+	matcherInputClassKey           = "input_class"
+	matcherLoopNameKey             = "loop_name"
+	matcherLoopRunIDKey            = "loop_run_id"
+	matcherNodeIDKey               = "node_id"
+	matcherReleaseReasonKey        = "release_reason"
+	matcherRunIDKey                = "run_id"
+	matcherTaskIDKey               = "task_id"
+	matcherWorkflowIDKey           = "workflow_id"
+	matcherWorkspaceIDKey          = "workspace_id"
+	matcherWorkspaceRootKey        = "workspace_root"
+	matcherWorktreeIDKey           = "worktree_id"
 )
 
 type matcherFunc[P any] func(HookMatcher, P) bool
@@ -50,7 +52,7 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherAgentNameKey:  {},
 		matcherWorktreeIDKey: {},
 		"acp_event_type":     {},
-		"turn_id":            {},
+		matcherTurnIDKey:     {},
 	},
 	HookEventFamilyAutomation: {
 		matcherAgentNameKey:   {},
@@ -95,13 +97,13 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"compaction_trigger": {},
 	},
 	HookEventFamilyCoordinator: {
-		matcherAgentNameKey:      {},
-		matcherWorkspaceIDKey:    {},
-		matcherWorkspaceRootKey:  {},
-		matcherTaskIDKey:         {},
-		matcherRunIDKey:          {},
-		matcherWorkflowIDKey:     {},
-		"coordinator_session_id": {},
+		matcherAgentNameKey:            {},
+		matcherWorkspaceIDKey:          {},
+		matcherWorkspaceRootKey:        {},
+		matcherTaskIDKey:               {},
+		matcherRunIDKey:                {},
+		matcherWorkflowIDKey:           {},
+		matcherCoordinatorSessionIDKey: {},
 	},
 	HookEventFamilyTask: {
 		matcherAgentNameKey:     {},

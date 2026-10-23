@@ -104,7 +104,11 @@ func replyWakeText(w store.ReplyWatch, title string) string {
 		w.ReplyText,
 	)
 	if w.ReplyTruncated {
-		text += "\n[Reply truncated at 12000 characters. Read the full turn with compozy__session_history.]"
+		text += fmt.Sprintf(
+			"\n[Reply truncated at 12000 characters. Read compozy__session_history with session_id=%s, "+
+				"type=agent_message, turn_id=%s for the full reply.]",
+			w.TargetSessionID, w.TurnID,
+		)
 	}
 	return text
 }

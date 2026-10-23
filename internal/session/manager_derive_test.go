@@ -1605,6 +1605,77 @@ func TestDeriveReceiptScope(t *testing.T) {
 func TestDeriveLineageReadModel(t *testing.T) {
 	t.Parallel()
 
+	// Derivation provenance must not remove a user session's delegable native tools.
+	for _, kind := range []store.LineageKind{store.LineageKindFork, store.LineageKindContinue} {
+		t.Run("Should retain delegation tools after "+string(kind), func(t *testing.T) {
+			t.Parallel()
+			options := []func(*globaldb.GlobalDB) Option{func(*globaldb.GlobalDB) Option {
+				return WithToolUniverse([]toolspkg.ToolID{toolspkg.ToolIDSkillView, toolspkg.ToolIDToolSearch})
+			}, func(*globaldb.GlobalDB) Option {
+				return WithHostedMCPLauncher(&recordingHostedMCPLauncher{server: compozyconfig.MCPServer{
+					Name: "hosted", Transport: compozyconfig.MCPServerTransportStdio, Command: "/bin/compozy",
+				}})
+			}}
+			h := newDeriveHarness(t, options...)
+			source := h.newDeriveSource(t)
+			var childID string
+			if kind == store.LineageKindFork {
+				result, err := h.manager.ForkSession(t.Context(), h.forkOpts(source, "delegation-fork"))
+				if err != nil {
+					t.Fatalf("ForkSession() error = %v", err)
+				}
+				childID = result.Child.ID
+			} else {
+				result, err := h.manager.ContinueSession(t.Context(), h.continueOpts(source, "delegation-continue"))
+				if err != nil {
+					t.Fatalf("ContinueSession() error = %v", err)
+				}
+				childID = result.Child.ID
+			}
+			events, err := h.manager.Prompt(t.Context(), childID, "Delegate the next slice")
+			if err != nil {
+				t.Fatalf("Prompt(child) error = %v", err)
+			}
+			collectEvents(t, events)
+			info, err := h.manager.Status(t.Context(), childID)
+			if err != nil {
+				t.Fatalf("Status(child) error = %v", err)
+			}
+			want := []string{toolspkg.ToolIDSkillView.String(), toolspkg.ToolIDToolSearch.String()}
+			if got := info.Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, want) {
+				t.Fatalf("derived delegation budget = %v, want %v", got, want)
+			}
+			_, policy, err := subagentPermissions(info, SubagentRequest{})
+			if err != nil || !testutil.EqualStringSlices(policy.Tools, want) {
+				t.Fatalf("inherited subagent policy = %+v, error = %v", policy, err)
+			}
+			if got := h.childMeta(t, childID).Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, want) {
+				t.Fatalf("durable delegation budget = %v, want %v", got, want)
+			}
+			if err := h.manager.Stop(t.Context(), childID); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			// Older derived sessions have no materialized delegation tools on disk.
+			metaPath := store.SessionMetaFile(filepath.Join(h.homePaths.SessionsDir, childID))
+			meta := readMeta(t, metaPath)
+			meta.Lineage.PermissionPolicy.Tools = nil
+			if err := store.WriteSessionMeta(metaPath, &meta); err != nil {
+				t.Fatal(err)
+			}
+			h.restartManager(t, options...)
+			resumed, err := h.manager.Resume(t.Context(), childID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := resumed.Info().Lineage.PermissionPolicy.Tools; !testutil.EqualStringSlices(got, want) {
+				t.Fatalf("resumed legacy delegation budget = %v, want %v", got, want)
+			}
+		})
+	}
+
 	for _, kind := range []store.LineageKind{store.LineageKindFork, store.LineageKindContinue} {
 		t.Run("Should derive "+string(kind)+" after the root ancestor was deleted", func(t *testing.T) {
 			t.Parallel()

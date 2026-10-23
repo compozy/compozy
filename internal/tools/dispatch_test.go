@@ -216,37 +216,64 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 
 	t.Run("Should reject invalid input before provider invocation", func(t *testing.T) {
 		t.Parallel()
+		for _, tc := range []struct{ name, input, cause string }{
+			{"Should identify the declared field type", `{"query":42,"token":"secret-value"}`, `"$.query": expected [string]`},
+			{"Should identify a missing required field", `{"token":"secret-value"}`, `"$.query": required field missing`},
+			{"Should omit unexpected property names and values", `{"query":"ok","secret-key":"secret-value"}`, `"$": additional property is not allowed`},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		descriptor := validDispatchDescriptor()
-		called := false
-		events := &recordingToolEventSink{}
-		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
-			descriptor:   descriptor,
-			availability: availableDispatchHandle(),
-			call: func(context.Context, CallRequest) (ToolResult, error) {
-				called = true
-				return ToolResult{}, nil
-			},
-		})
-		registry := mustDispatchRegistry(t, provider, WithToolEventSink(events))
+				descriptor := validDispatchDescriptor()
+				called := false
+				events := &recordingToolEventSink{}
+				provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+					descriptor:   descriptor,
+					availability: availableDispatchHandle(),
+					call: func(context.Context, CallRequest) (ToolResult, error) {
+						called = true
+						return ToolResult{}, nil
+					},
+				})
+				registry := mustDispatchRegistry(t, provider, WithToolEventSink(events))
 
-		_, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"}, CallRequest{
-			ToolID: descriptor.ID,
-			Input:  json.RawMessage(`{"query":42}`),
-		})
-		if !errors.Is(err, ErrToolInvalidInput) {
-			t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolInvalidInput", err)
-		}
-		if called {
-			t.Fatal("provider handle was called for invalid input")
-		}
-		if got, want := events.kinds(), []ToolCallEventKind{ToolCallStarted, ToolCallFailed}; !slices.Equal(got, want) {
-			t.Fatalf("event kinds = %#v, want %#v", got, want)
-		}
-		for _, event := range events.snapshot() {
-			if event.ProfileID != "profile-a" {
-				t.Fatalf("event profile id = %q, want profile-a", event.ProfileID)
-			}
+				_, err := registry.Call(t.Context(), Scope{ProfileID: "profile-a"}, CallRequest{
+					ToolID: descriptor.ID,
+					Input:  json.RawMessage(tc.input),
+				})
+				if !errors.Is(err, ErrToolInvalidInput) {
+					t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolInvalidInput", err)
+				}
+				if called {
+					t.Fatal("provider handle was called for invalid input")
+				}
+				detail, ok := errors.AsType[*ToolError](err)
+				if !ok ||
+					detail.Code != ErrorCodeInvalidInput ||
+					!slices.Contains(detail.ReasonCodes, ReasonSchemaInvalid) ||
+					detail.Operator == nil ||
+					!strings.Contains(detail.Operator.Cause, tc.cause) ||
+					detail.Operator.Recovery == "" {
+					t.Fatalf("invalid input detail = %#v, want safe correction for %s", detail, tc.cause)
+				}
+				if strings.Contains(detail.Operator.Cause+detail.Operator.Recovery, "secret-") {
+					t.Fatal("operator correction exposed submitted input")
+				}
+				if got, want := events.kinds(), []ToolCallEventKind{
+					ToolCallStarted,
+					ToolCallFailed,
+				}; !slices.Equal(
+					got,
+					want,
+				) {
+					t.Fatalf("event kinds = %#v, want %#v", got, want)
+				}
+				for _, event := range events.snapshot() {
+					if event.ProfileID != "profile-a" {
+						t.Fatalf("event profile id = %q, want profile-a", event.ProfileID)
+					}
+				}
+			})
 		}
 	})
 

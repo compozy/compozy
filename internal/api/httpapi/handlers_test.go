@@ -1404,7 +1404,7 @@ func TestMCPAuthCallbackHonorsLoopbackBindAndReturnsStaticPages(t *testing.T) {
 		t.Parallel()
 
 		var logs bytes.Buffer
-		logger := slog.New(slog.NewTextHandler(&logs, nil))
+		logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 		engine := gin.New()
 		engine.Use(requestLoggingMiddleware(logger))
 		engine.GET("/api/mcp/oauth/callback", func(c *gin.Context) {
@@ -3748,7 +3748,9 @@ func TestRequestLoggingClientIdentity(t *testing.T) {
 			t.Parallel()
 			var logs bytes.Buffer
 			engine := gin.New()
-			engine.Use(requestLoggingMiddleware(slog.New(slog.NewJSONHandler(&logs, nil))))
+			engine.Use(requestLoggingMiddleware(slog.New(slog.NewJSONHandler(
+				&logs, &slog.HandlerOptions{Level: slog.LevelDebug},
+			))))
 			engine.GET("/api/sessions", func(c *gin.Context) { c.Status(http.StatusOK) })
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/sessions", http.NoBody)
 			request.Header.Set("X-Compozy-Client-ID", tc.value)
@@ -3756,6 +3758,52 @@ func TestRequestLoggingClientIdentity(t *testing.T) {
 			engine.ServeHTTP(response, request)
 			if response.Code != http.StatusOK || !strings.Contains(logs.String(), `"client_id":"`+tc.want+`"`) {
 				t.Fatalf("status=%d log=%s", response.Code, logs.String())
+			}
+		})
+	}
+}
+
+func TestRequestLoggingLevels(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, method, wantLevel string
+		status                  int
+		configured              slog.Level
+	}{
+		{"Should omit successful polling at info", http.MethodGet, "", http.StatusOK, slog.LevelInfo},
+		{"Should retain successful polling at debug", http.MethodGet, "DEBUG", http.StatusOK, slog.LevelDebug},
+		{"Should omit successful preflights at info", http.MethodOptions, "", http.StatusOK, slog.LevelInfo},
+		{"Should retain mutations at info", http.MethodPost, "INFO", http.StatusOK, slog.LevelInfo},
+		{"Should retain rejected reads at warn", http.MethodGet, "WARN", http.StatusForbidden, slog.LevelInfo},
+		{"Should retain failed reads at error", http.MethodGet, "ERROR", http.StatusServiceUnavailable, slog.LevelInfo},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: tc.configured}))
+			engine := gin.New()
+			engine.Use(requestLoggingMiddleware(logger))
+			engine.Handle(tc.method, "/api/sessions", func(c *gin.Context) {
+				c.JSON(tc.status, gin.H{"observed": true})
+			})
+			response := performRequest(t, engine, tc.method, "/api/sessions?token=private-query", nil)
+			if response.Code != tc.status || response.Body.String() != `{"observed":true}` {
+				t.Fatalf("response = %d %s", response.Code, response.Body.String())
+			}
+			if tc.wantLevel == "" {
+				if logs.Len() != 0 {
+					t.Fatalf("routine read consumed the info log: %s", logs.String())
+				}
+				return
+			}
+			var entry map[string]any
+			if err := json.Unmarshal(logs.Bytes(), &entry); err != nil {
+				t.Fatalf("decode request log: %v", err)
+			}
+			if entry["level"] != tc.wantLevel || entry["method"] != tc.method ||
+				entry["status"] != float64(tc.status) || entry["path"] != "/api/sessions" ||
+				strings.Contains(logs.String(), "private-query") {
+				t.Fatalf("request log = %s", logs.String())
 			}
 		})
 	}

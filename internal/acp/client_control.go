@@ -144,7 +144,7 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 	if ctx == nil {
 		return errors.New("acp: context is required")
 	}
-	stopCtx, cancel := context.WithTimeout(ctx, d.stopTimeout+defaultStopDrainTimeout)
+	stopCtx, cancel := context.WithTimeout(ctx, d.StopBudget())
 	defer cancel()
 	stopErr := d.stop(stopCtx, proc, false)
 	if stopCtx.Err() != nil && proc != nil && proc.done != nil {
@@ -158,6 +158,11 @@ func (d *Driver) Stop(ctx context.Context, proc *AgentProcess) error {
 		return stopErr
 	}
 	return d.verifyStoppedProcess(proc)
+}
+
+// StopBudget is how long Stop runs its stop and drain protocol before forcing the exit.
+func (d *Driver) StopBudget() time.Duration {
+	return d.stopTimeout + defaultStopDrainTimeout
 }
 
 func (d *Driver) stop(ctx context.Context, proc *AgentProcess, inspection bool) error {

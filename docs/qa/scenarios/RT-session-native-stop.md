@@ -251,3 +251,12 @@ restart restore the original user-cancel or agent-crash classification, and resu
 another parent-stop cascade. Metadata/catalog failures and unverified exits retain their existing
 recovery obligations. These focused runs do not claim a fresh Web, CLI/HTTP/UDS, or real-provider
 persona walk; the broader scenario status above remains unchanged. No live user data was accessed.
+
+QA impact and focused verification 2026-10-23 (harness dogfood): idle release and runtime
+replacement grant the driver its complete bounded stop/drain budget. A stop lasting beyond the
+generic five-second lifecycle cleanup period must finish normally when still inside that driver
+budget. Retain process identity until exit verification, preserve actual stop failures, and load
+the same ACP session on the next prompt. The process-stopped hook has a separate bounded context.
+Existing idle-release regressions, the real ACP subprocess suite and the daemon late-reply
+integration pass. This is not a fresh live-Codex timing or browser walk; see
+[focused verification](../reports/2026-10-23-harness-dogfood.md).

@@ -19,11 +19,13 @@ If a reference result is truncated and includes an artifact, resolve `compozy__t
 
 ## Required Reading Router
 
-Match the task to the row. Read the listed files in full before producing output unless the bounded descriptor fallback in Error Handling applies. They are not appendices. Inline reminders in this file are only tripwires.
+Match the CompozyOS operation to the row and read its listed references before that operation, unless the bounded descriptor fallback in Error Handling applies.
+
+A delegated coding, research, or review assignment can use its authorized provider tools without first loading CompozyOS manuals. Being called a worker, coordinator, or reviewer does not itself create a daemon Task claim, lease, or review authority. If native tools or their references are unavailable, continue independent provider work and report only the dependent CompozyOS operation as blocked. Never bypass a withheld native capability through CLI, filesystem access, or direct state edits.
 
 | Task                                                                                                                           | MUST read                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Delegate code changes on an isolated branch, inspect subagent Git/PR facts, or deliver its work                                | references/native-tools.md; references/worktrees.md                |
+| Use CompozyOS to delegate code changes on an isolated branch, inspect subagent Git/PR facts, or deliver its work               | references/native-tools.md; references/worktrees.md                |
 | Start, inspect, prompt, stop, resume, compact, or debug CompozyOS sessions and daemon state                                    | references/runtime-operations.md                                   |
 | Work in the User scope (`@user`, no project) or read All projects aggregates (`--all-workspaces`, `all_workspaces=true`)       | references/runtime-operations.md + references/native-tools.md      |
 | Open, inspect, retry, diagnose, or recover the desktop app; update the host runtime and app                                    | references/desktop.md                                              |
@@ -37,7 +39,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Create or review CompozyOS agent definitions, provider defaults, permissions, workspace access, or MCP sidecars                | references/agent-definitions.md + references/tools-and-skills.md   |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
 | List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
-| Work as a coordinator, task worker, or task reviewer; block or recover a task; or wake a task creator                          | references/tasks-and-orchestration.md                              |
+| Claim, run, review, block, recover, or coordinate daemon Tasks; or wake a Task creator                                         | references/tasks-and-orchestration.md                              |
 | Delegate a task to a subagent on another agent, provider, or model; read, list, or cancel subagents                            | references/native-tools.md + references/tasks-and-orchestration.md |
 | Author, configure, run, observe, approve, or stop a CompozyOS Loop or Goal; use `/goal`; read Loop terminal outcomes or events | references/loops.md + references/native-tools.md                   |
 | Install, enable, update, dev-link, build, publish, or remove an extension; manage extension kits, secrets, or hooks            | references/extensions.md + references/native-tools.md              |
@@ -69,7 +71,7 @@ Match the task to the row. Read the listed files in full before producing output
 
 ## Operating Loop
 
-1. Read every reference selected by the router before acting, or qualify for the bounded descriptor fallback below.
+1. Read the references for the intended CompozyOS operation, or qualify for the bounded descriptor fallback below.
 2. Prefer CompozyOS-native tools and structured outputs over prose, logs, or direct internal access when managing CompozyOS.
 3. Keep authority with the daemon: task state, review verdicts, session lifecycle, extension lifecycle, hooks, and tool calls must use CompozyOS public surfaces. Never edit SQLite databases, process internals, or generated projections directly.
 4. After a mutation, confirm the result through a structured read instead of assuming success.
@@ -85,6 +87,6 @@ for a one-command terminal demonstration; multi-step terminal interaction still 
 the affected operation and report the exact path. Preserve structured runtime errors, follow the
 diagnostic order in `references/runtime-operations.md`, and keep daemon-owned state authoritative.
 
-**Read references/tools-and-skills.md and references/native-tools.md in full before operational tool calls or tool/skill mutations.** Discovery, descriptor inspection, reference reads, and their retained-result continuations may run first to load that guidance. The catalog in this file is only a router.
+**Read references/tools-and-skills.md and references/native-tools.md in full before CompozyOS-native operational tool calls or tool/skill mutations.** Discovery, descriptor inspection, reference reads, and their retained-result continuations may run first to load that guidance. Provider-owned repository tools do not trigger this prerequisite.
 
-**STOP. Read references/tasks-and-orchestration.md in full before acting as a coordinator, worker, or reviewer.** Task authority and review verdicts are runtime contracts, not prompt conventions.
+**Read references/tasks-and-orchestration.md in full before exercising daemon Task authority or submitting a Task review verdict.** A general delegated assignment does not confer that authority.

@@ -430,7 +430,7 @@ func TestSubagentLifecycle(t *testing.T) {
 			synctest.Wait()
 			got, err := s.Get(t.Context(), "ws", row.ID)
 			if err != nil || !got.ResultTruncated || *got.Result != "界界界" ||
-				got.Hint != "Read the full answer with compozy__session_history on child_session_id." ||
+				got.Hint != "Read the full answer with compozy__session_history on child_session_id, type=agent_message, limit=1." ||
 				hook.calls != 1 ||
 				db.rows[row.ID].Delivery != "claimed" {
 				t.Fatal(got, err, hook.calls)

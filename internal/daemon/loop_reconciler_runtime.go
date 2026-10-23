@@ -95,7 +95,11 @@ func (r *loopReconcilerRuntime) sweep(ctx context.Context) {
 		r.logger.Error("daemon: Loop reconciliation cycle failed", attrs...)
 		return
 	}
-	r.logger.Info("daemon: Loop reconciliation cycle complete", attrs...)
+	level := slog.LevelDebug
+	if report.RecordsSettled > 0 || report.OrphansRepaired > 0 || provenanceBackfilled > 0 {
+		level = slog.LevelInfo
+	}
+	r.logger.Log(ctx, level, "daemon: Loop reconciliation cycle complete", attrs...)
 }
 
 func (r *loopReconcilerRuntime) Shutdown(ctx context.Context) error {

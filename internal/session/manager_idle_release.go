@@ -28,8 +28,8 @@ func (r *runtimeRelease) finish(err error) {
 	close(r.done)
 }
 
-// unverifiedProcess waits for the release stop, which is bounded by the lifecycle
-// cleanup deadline, and returns the released process while its exit is unverified.
+// unverifiedProcess waits for the release stop, which is bounded by the driver's
+// stop budget, and returns the released process while its exit is unverified.
 func (r *runtimeRelease) unverifiedProcess() *AgentProcess {
 	if r == nil {
 		return nil
@@ -164,6 +164,20 @@ func (m *Manager) releaseIdleRuntime(ctx context.Context, session *Session, prog
 		"idle_release_after", m.supervision.IdleReleaseAfter,
 	)
 	return nil
+}
+
+// AgentStopBudgeter is the optional driver surface reporting how long one Stop may run.
+type AgentStopBudgeter interface {
+	StopBudget() time.Duration
+}
+
+// runtimeStopContext grants a replaced or released process at least the driver's stop budget.
+func (m *Manager) runtimeStopContext() (context.Context, context.CancelFunc) {
+	budget := defaultLifecycleTimeout
+	if budgeter, ok := m.driver.(AgentStopBudgeter); ok {
+		budget = max(budget, budgeter.StopBudget())
+	}
+	return context.WithTimeout(context.WithoutCancel(m.lifecycleCtx), budget)
 }
 
 // stopReleasedRuntime stops the released process and settles the release outcome; a

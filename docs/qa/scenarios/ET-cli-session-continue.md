@@ -59,3 +59,11 @@ registered cwd or `--workspace` although the session id identifies the workspace
 ## 2026-09-29 re-walk (review round 1) — PASS
 
 Rafa, isolated lab `compozy-session-continue-fork-r1-rewalk-20260929-041438-936027-lab`, branch head `62bdd8054`, acpmock. Golden Path re-checked (`alpha` → `beta` with `--message`: `First prompt admitted`). Step 8: `--agent` missing, `--route 2 --speed fast`, and a partial fence exit 2 with the documented messages. `--agent nope` prints `error: agent_not_found: no agent named "nope"` and exits 1; `-o json` has `code: agent_not_found`. A missing source prints `error: session_not_found: …` and exits 1. The CLI renderer prefixes errors with lowercase `error:`; `_dx.md` examples show `Error:`, which is illustrative only. Post-commit failure (`bad-model`, `--message`): exit 1, the daemon error, then `session sess-… was already created; open it with `compozy session status sess-…`, or rerun with --idempotency-key qa-r1-committed to get it back`. `-o json` carries `child_session_id`, and the same key reuses that one child. Paper cut: the 422 has no top-level `code` (only `diagnostic.code: model_unavailable`), so the human line has no `<code>:` prefix and shows the raw internal chain. Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-errors.txt`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-committed-child.txt`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/cli-continue.txt`.
+
+QA impact and focused verification 2026-10-23 (harness dogfood): after creating the continued
+user session, delegate work requiring an authorized native tool. Its child must retain that
+ceiling and be able to use the tool; the source's provenance does not make the continued user a
+governed child. The same check applies to `session fork`. The existing CLI/daemon/hosted-MCP
+journey passes for root, fork and continue, with manager regressions for legacy resume.
+[Focused verification](../reports/2026-10-23-harness-dogfood.md) records this bounded branch;
+the earlier full cross-provider verdict remains historical.

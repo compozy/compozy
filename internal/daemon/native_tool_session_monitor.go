@@ -155,7 +155,14 @@ func (n *daemonNativeTools) monitorScope(
 func monitorToolError(id toolspkg.ToolID, err error) error {
 	switch {
 	case errors.Is(err, monitorpkg.ErrInvalid):
-		return nativeInputError(id, err)
+		// Monitor spec validation authors static field guidance; it never includes input values.
+		return toolspkg.NewOperatorToolError(
+			toolspkg.ErrorCodeInvalidInput, id, "invalid monitor request",
+			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+			strings.TrimSpace(strings.TrimPrefix(err.Error(), monitorpkg.ErrInvalid.Error())),
+			"Correct the indicated monitor field using the tool's input schema and retry.",
+			toolspkg.ReasonSchemaInvalid,
+		)
 	case errors.Is(err, monitorpkg.ErrLimit):
 		return toolspkg.NewToolError(toolspkg.ErrorCodeConflict, id, err.Error(), err)
 	case errors.Is(err, monitorpkg.ErrNotFound):

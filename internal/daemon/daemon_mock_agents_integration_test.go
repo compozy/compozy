@@ -848,6 +848,9 @@ matcher = {tool_id = "compozy__task_list"}
 		}{
 			{tool: toolspkg.ToolIDWorkspaceInfo, input: map[string]any{}, reason: "hook_denied"},
 			{tool: toolspkg.ToolIDTaskList, input: map[string]any{"status": "queued"}, reason: "schema_invalid"},
+			{tool: toolspkg.ToolIDMonitorCreate, input: map[string]any{
+				"kind": "timer", "description": strings.Repeat("PRIVATE_SENTINEL", 20), "delay_seconds": 10,
+			}, reason: "schema_invalid"},
 		} {
 			result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: call.tool.String(), Arguments: call.input})
 			if err != nil || result == nil || !result.IsError {
@@ -859,6 +862,16 @@ matcher = {tool_id = "compozy__task_list"}
 			}
 			if !strings.Contains(string(encoded), call.reason) {
 				t.Fatalf("CallTool(%s) = %s, want %s", call.tool, encoded, call.reason)
+			}
+			if call.tool == toolspkg.ToolIDMonitorCreate {
+				for _, field := range []string{"operator_cause", "description", "200", "operator_recovery"} {
+					if !strings.Contains(string(encoded), field) {
+						t.Fatalf("hosted monitor refusal = %s, missing safe correction %q", encoded, field)
+					}
+				}
+				if strings.Contains(string(encoded), "PRIVATE_SENTINEL") {
+					t.Fatal("hosted monitor refusal leaked submitted content")
+				}
 			}
 		}
 		var hookRuns []compozycontract.HookRunPayload
@@ -2983,7 +2996,7 @@ func TestDaemonE2ESubagentResultLimitReload(t *testing.T) {
 			row.ChildSessionID == nil {
 			t.Fatalf("limited result = %#v", row)
 		}
-		if row.Hint != "Read the full answer with compozy__session_history on child_session_id." {
+		if row.Hint != "Read the full answer with compozy__session_history on child_session_id, type=agent_message, limit=1." {
 			t.Errorf("truncated hint = %q", row.Hint)
 		}
 		fixture, err := acpmock.LoadFixture(mockFixturePath(t, "subagent_cli_fixture.json"))

@@ -361,7 +361,11 @@ func (s *Scheduler) sweepExpiredLeases(ctx context.Context, now time.Time, resul
 	result.RecoveredLeases = len(recovered)
 	result.RecoveredRunIDs = recoveredRunIDs(recovered)
 	s.recordRecovered(len(recovered), now)
-	s.logger.Info("scheduler.lease_sweep", "recovered_leases", len(recovered))
+	level := slog.LevelDebug
+	if len(recovered) > 0 {
+		level = slog.LevelInfo
+	}
+	s.logger.Log(ctx, level, "scheduler.lease_sweep", "recovered_leases", len(recovered))
 	return nil
 }
 
@@ -374,7 +378,11 @@ func (s *Scheduler) sweepExpiredTaskBlocks(ctx context.Context, now time.Time, r
 	result.ExpiredBlocks = len(expired.Blocks)
 	result.ExpiredBlockIDs = expiredBlockIDs(expired.Blocks)
 	s.recordExpiredBlocks(len(expired.Blocks), now)
-	s.logger.Info("scheduler.task_block_sweep", "expired_blocks", len(expired.Blocks))
+	level := slog.LevelDebug
+	if len(expired.Blocks) > 0 {
+		level = slog.LevelInfo
+	}
+	s.logger.Log(ctx, level, "scheduler.task_block_sweep", "expired_blocks", len(expired.Blocks))
 	return nil
 }
 

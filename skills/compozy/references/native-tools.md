@@ -107,6 +107,14 @@ interleaved beyond the cursor. `before_sequence`
 cannot be combined with `after_sequence`. `compozy__session_describe` applies the same defaults and
 returns `events_page` and `history_page`; page further through the dedicated tools.
 
+For an agent's answer, call `compozy__session_history` with `session_id`,
+`type: "agent_message"`, and `limit: 1`; include `turn_id` when recovering a specific reply.
+This existing filter applies before content is read, so tool calls, tool results, and thoughts
+are excluded. Concatenate the matching text chunks in sequence order. Keep `type` and other
+filters unchanged when following page cursors; cursors refer to the first matching event in a
+turn. Omit `type` when the full execution history is needed. A turn limit is not a byte limit:
+if the answer itself exceeds the result budget, page its returned artifact normally to `eof`.
+
 `compozy__notify` sends one operator notification from the bound session and workspace. Pass a
 required `title` of at most 80 characters and an optional `body` of at most 240 characters. The
 daemon sanitizes and redacts both fields before delivery, then returns exactly one provable outcome:
@@ -272,7 +280,8 @@ by another agent, provider, or model while you keep working:
    PR; `unknown` means unavailable or failed lookup. Shared subagents omit worktree facts.
 5. `compozy__subagent_status {subagent_id}` returns the status, `work_state`, `result` (the child's last
    assistant message, capped at `[subagents].result_max_chars`, with `result_truncated` and a hint to read
-   the rest through `compozy__session_history` on `child_session_id`), `error`, and `delivery`. Reading a
+   the rest through `compozy__session_history` on `child_session_id` with `type: "agent_message"`
+   and `limit: 1`), `error`, and `delivery`. Reading a
    terminal result acknowledges it and removes it from a queued wake, so the tool is idempotent but not
    read-only.
 

@@ -402,6 +402,10 @@ transcript and ACP session ID and shows the normal `idle` badge. The release rec
 warning or stop event and dispatches no `session.post_stop` hook. The process-level `agent.stopped`
 hook fires, as it does for any runtime replacement.
 
+Release allows the driver its bounded stop and drain time. The process identity remains recorded
+until exit is verified; a failed stop remains visible for recovery instead of being treated as a
+successful release.
+
 The next prompt from any surface (composer, CLI, HTTP/UDS, a reply delivery, or a wake) binds a
 runtime again without a Resume step:
 

@@ -127,7 +127,8 @@ const sessionEventQueryInputSchema = `{
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string"},
-		"type":{"type":"string"},
+		"type":{"type":"string","description":"Filter event type before reading content. ` +
+	`Use agent_message to read assistant text without tool payloads."},
 		"agent_name":{"type":"string"},
 		"turn_id":{"type":"string"},
 		"after_sequence":{"type":"integer",

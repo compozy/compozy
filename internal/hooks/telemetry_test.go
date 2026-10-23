@@ -1,13 +1,87 @@
 package hooks
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+func TestHookDispatchLogging(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name       string
+		level      slog.Level
+		fail       bool
+		wantRecord bool
+	}{
+		{"Should keep routine dispatch out of info logs", slog.LevelInfo, false, false},
+		{"Should correlate successful dispatch in debug logs", slog.LevelDebug, false, true},
+		{"Should correlate dispatch failures in info logs", slog.LevelInfo, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var logs bytes.Buffer
+			hooks := NewHooks(
+				WithLogger(slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: tc.level}))),
+				WithNativeDeclarations([]HookDecl{{
+					Name: "observe-message", Event: HookPromptPostAssemble,
+					Mode: HookModeSync, ExecutorKind: HookExecutorNative, Required: true,
+				}}),
+				WithExecutorResolver(func(HookDecl) (Executor, error) {
+					return NewTypedNativeExecutor(
+						func(context.Context, RegisteredHook, PromptPayload) (PromptPatch, error) {
+							if tc.fail {
+								return PromptPatch{}, errors.New("unavailable")
+							}
+							return PromptPatch{}, nil
+						},
+					), nil
+				}),
+			)
+			t.Cleanup(hooks.Close)
+			if err := hooks.Rebuild(t.Context()); err != nil {
+				t.Fatalf("Rebuild() error = %v", err)
+			}
+			logs.Reset()
+			_, err := hooks.DispatchPromptPostAssemble(t.Context(), PromptPayload{
+				Event: HookPromptPostAssemble, SessionID: "sess-log", WorkspaceID: "ws-log", TurnID: "turn-log",
+			})
+			if (err != nil) != tc.fail {
+				t.Fatalf("DispatchPromptPostAssemble() error = %v", err)
+			}
+			found := false
+			for line := range strings.SplitSeq(strings.TrimSpace(logs.String()), "\n") {
+				if line == "" {
+					continue
+				}
+				var entry map[string]any
+				if err := json.Unmarshal([]byte(line), &entry); err != nil {
+					t.Fatalf("decode hook log: %v", err)
+				}
+				if entry["msg"] != "hook.dispatch.completed" && entry["msg"] != "hook.dispatch.failed" {
+					continue
+				}
+				found = true
+				if entry["session_id"] != "sess-log" || entry["workspace_id"] != "ws-log" ||
+					entry["turn_id"] != "turn-log" {
+					t.Fatalf("hook log lacks correlation: %s", line)
+				}
+				if tc.fail && entry["level"] != "WARN" {
+					t.Fatalf("hook failure log = %s, want WARN", line)
+				}
+			}
+			if found != tc.wantRecord {
+				t.Fatalf("dispatch log present = %t, want %t: %s", found, tc.wantRecord, logs.String())
+			}
+		})
+	}
+}
 
 func TestHookTelemetrySecurityPatchPersistsAllFields(t *testing.T) {
 	t.Parallel()

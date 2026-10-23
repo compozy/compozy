@@ -1369,6 +1369,48 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			t.Fatalf("rebound runtime = %s, ACP session = %q", info.RuntimeStatus, info.ACPSessionID)
 		}
 	})
+	t.Run("Should let the driver finish a stop that outlasts the cleanup deadline", func(t *testing.T) {
+		t.Parallel()
+		h, target, clock, advance := idleReleaseHarness(t, nil)
+		acpSessionID := target.Info().ACPSessionID
+		// Like the ACP driver, the fake forces the exit when the caller's deadline cuts it short.
+		const budget, cooperativeExit = 8 * time.Second, 6 * time.Second
+		var granted atomic.Int64
+		h.driver.mu.Lock()
+		h.driver.stopBudget = budget
+		h.driver.stopWithContextHook = func(ctx context.Context, proc *fakeProcess) error {
+			deadline, bounded := ctx.Deadline()
+			remaining := time.Until(deadline)
+			granted.Store(int64(remaining))
+			proc.exit()
+			if !bounded || remaining < cooperativeExit {
+				return context.DeadlineExceeded
+			}
+			return nil
+		}
+		h.driver.mu.Unlock()
+		if err := superviseUntilReleaseError(h, clock, advance); err != nil {
+			t.Fatalf("Supervise() error = %v, want the release to wait for the cooperative exit", err)
+		}
+		if got := time.Duration(granted.Load()); got < cooperativeExit || got > budget {
+			t.Fatalf("release stop deadline = %s, want the advertised %s stop budget", got, budget)
+		}
+		if stops, _ := driverCounts(h); stops != 1 {
+			t.Fatalf("driver stop calls = %d, want one bounded stop", stops)
+		}
+		if meta := readMeta(t, target.MetaPath()); meta.Liveness == nil || meta.Liveness.SubprocessPID != 0 {
+			t.Fatalf("released liveness = %#v, want the verified exit recorded", meta.Liveness)
+		}
+		events, err := h.manager.Prompt(testutil.Context(t), target.ID, "next")
+		if err != nil {
+			t.Fatalf("Prompt() after the release error = %v", err)
+		}
+		drainPromptEvents(t, events)
+		_, starts := driverCounts(h)
+		if last := starts[len(starts)-1]; last.ResumeSessionID != acpSessionID {
+			t.Fatalf("rebind ResumeSessionID = %q, want session/load of %q", last.ResumeSessionID, acpSessionID)
+		}
+	})
 	t.Run("Should keep the released process identity durable until its exit is verified", func(t *testing.T) {
 		h, target, clock, advance := idleReleaseHarness(t, nil)
 		pid := readMeta(t, target.MetaPath()).Liveness.SubprocessPID

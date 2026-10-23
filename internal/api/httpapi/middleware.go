@@ -46,7 +46,8 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 		started := time.Now()
 		c.Next()
 
-		logger.Info(
+		logger.Log(
+			c.Request.Context(), requestLogLevel(c.Request.Method, c.Writer.Status()),
 			"httpapi: request",
 			"method", c.Request.Method,
 			"path", c.FullPath(),
@@ -56,6 +57,19 @@ func requestLoggingMiddleware(logger *slog.Logger) gin.HandlerFunc {
 			"client_id", requestClientID(c.GetHeader("X-Compozy-Client-ID")),
 			"app_token_id", c.GetString(appTokenIDKey),
 		)
+	}
+}
+
+func requestLogLevel(method string, status int) slog.Level {
+	switch {
+	case status >= http.StatusInternalServerError:
+		return slog.LevelError
+	case status >= http.StatusBadRequest:
+		return slog.LevelWarn
+	case method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions:
+		return slog.LevelDebug
+	default:
+		return slog.LevelInfo
 	}
 }
 

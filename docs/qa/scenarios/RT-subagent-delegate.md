@@ -134,3 +134,14 @@ session resolver also owns prompt selections, Loop workers, and fallback routes.
 A real Claude Opus parent with medium effort delegated Haiku 4.5 successfully;
 the child's public effective runtime omitted effort and reported no failure.
 Evidence: [issues 851–854 report](../reports/2026-10-19-issues-851-854.md).
+
+QA impact and focused verification 2026-10-23 (harness dogfood): repeat step 7 with both a
+forked and a continued user parent. Each must delegate an authorized native tool, and the child
+must be able to delegate a grandchild; governed-child narrowing and explicit denies still apply.
+Resume a legacy derived user session whose stored delegation tools are empty and repeat. For
+step 11, recover a tool-heavy child's answer using `compozy__session_history` with
+`type: "agent_message"`, `limit: 1` and the result's child/turn identity. Combine all answer chunks,
+keep filters when advancing cursors, and use artifact continuation if the answer itself is large.
+The existing manager, native real-SQLite and hosted-MCP daemon journeys pass these changed
+branches; this does not replace the broader real-provider walk. See
+[focused verification](../reports/2026-10-23-harness-dogfood.md).

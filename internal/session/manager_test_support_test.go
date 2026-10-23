@@ -615,6 +615,8 @@ type fakeDriver struct {
 	notifyCalls           []agentExtensionNotifyCall
 	notifyHook            func(proc *AgentProcess, method string, params any) error
 	stopHook              func(proc *fakeProcess) error
+	stopWithContextHook   func(context.Context, *fakeProcess) error
+	stopBudget            time.Duration
 	verifyExitHook        func(*AgentProcess) (bool, error)
 	killHook              func(*fakeProcess) error
 	startHook             func(opts acp.StartOpts, sequence int) (*fakeProcess, error)
@@ -1176,21 +1178,33 @@ func (d *fakeDriver) NotifyExtension(
 	return nil
 }
 
-func (d *fakeDriver) Stop(_ context.Context, proc *AgentProcess) error {
+func (d *fakeDriver) Stop(ctx context.Context, proc *AgentProcess) error {
 	d.mu.Lock()
 	fakeProc := d.processes[proc]
 	d.stopCalls++
 	hook := d.stopHook
+	contextHook := d.stopWithContextHook
 	d.mu.Unlock()
 
 	if fakeProc == nil {
 		return errors.New("test: unknown fake process")
+	}
+	if contextHook != nil {
+		return contextHook(ctx, fakeProc)
 	}
 	if hook != nil {
 		return hook(fakeProc)
 	}
 	fakeProc.exit()
 	return nil
+}
+
+var _ AgentStopBudgeter = (*fakeDriver)(nil)
+
+func (d *fakeDriver) StopBudget() time.Duration {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.stopBudget
 }
 
 func (d *fakeDriver) VerifyExit(proc *AgentProcess) (bool, error) {

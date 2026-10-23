@@ -4216,3 +4216,37 @@ Owner: branch `fix/issue-914-fast-reasoning-apply`; evidence and research matrix
   queueing also uses requested rather than applied runtime. Provider docs explain this distinction. RT-061, RT-session-prompt-runtime-transitions,
   MS-057, and LP-runtime-provenance-observation receive scoped QA notes. Browser and live Loop/Goal
   checks are outside the authorized minimal lab; source/focused automated evidence is labeled.
+
+## Harness dogfood corrections (2026-10-23)
+
+Owner: `fix/harness-dogfood-2026-10-22`;
+[findings and dispositions](../research/harness-dogfood/analysis/summary.md).
+
+- **Native tools / public surfaces:** forked and continued user sessions materialize the existing
+  delegation ceiling after lineage refresh, including legacy resume. Governed-child restrictions
+  and runtime authorization remain authoritative. No tool IDs, routes, input/output shapes or
+  stable error codes are removed. Validation uses existing optional operator-safe detail fields;
+  submitted values, unknown keys and arbitrary backend errors remain masked. `session_history`
+  answer guidance selects its existing `type=agent_message` filter; full history and artifact
+  continuation are preserved. Native descriptors and their generated catalog co-ship.
+- **Extensibility/hooks/config:** successful hook dispatch logs move to DEBUG and gain available
+  correlation IDs; failures/denials, persisted hook runs, events and metrics retain their meaning.
+  Successful read access and empty sweeps move to DEBUG; mutations/repairs remain INFO and errors
+  visible. Existing `[log]` controls restore detailed tracing; no config key/default or hook
+  payload changes. No extension or SDK protocol change.
+- **Runtime process ownership:** idle release/replacement uses an optional internal driver stop
+  budget, forwarded by the ACP adapter; verified exit and pending ownership remain authoritative.
+  Stopped hooks get their own bounded context. This is an internal contract, with no public timeout
+  knob or state schema change. Lifecycle docs and `RT-session-native-stop` co-ship.
+- **Workspace/user state:** no SQL/config shape change, migration or historical transcript rewrite.
+  Derived lineage repair occurs through the existing session lifecycle persistence owner, within
+  the session's workspace/profile. Source sessions and governed-child budgets remain unchanged.
+  Investigation reads of the operator home were read-only; tests use disposable homes.
+- **Official skill:** `skills/compozy/SKILL.md` distinguishes ordinary delegated provider work from
+  daemon Task authority and still forbids native-capability bypass. Native/task references describe
+  filtered answer retrieval and exact continuation rather than pasting full manuals or raw history.
+- **Web/Docs/QA:** no Web rendering change; existing safe error details remain consumable through
+  current contracts. Site subagents and logging docs co-ship. Affected subagent, continuation,
+  native-call, reply and observation scenarios link the focused automated verification record.
+  No new live-provider/browser verdict or measured model/latency improvement is claimed. Final
+  local gate and exact-head CI are PR delivery requirements.
