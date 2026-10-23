@@ -122,6 +122,6 @@ branches: per-kind indicators with one chevron, a segmented control with a trave
 has both kinds, slide-left/right list switching, bounded subagent lists (8 rows, "Show 8 more"),
 subagent rows that open their session, and a persisted subagent-list choice. Verified by the owning
 `SessionList subagents` and `useSessionSidebarState` suites and rendered Storybook evidence
-(`SessionSidebar/BranchIndicators`, `SubagentBranchOpen`, `ManySubagents`, `SegmentedSwitch`).
+(`SessionSidebar/Branches`: `BranchIndicators`, `SubagentBranchOpen`, `ManySubagents`, `SegmentedSwitch`).
 Flag only — a live daemon walk was not run on this machine per operator instruction (heavy local
 runs moved to CI); walk it in the next QA cycle.
