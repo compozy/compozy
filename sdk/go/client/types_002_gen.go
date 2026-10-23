@@ -444,3 +444,6 @@ type Blocker struct {
 	Expired      bool       `json:"expired,omitzero"`
 	Unblocker    string     `json:"unblocker"`
 }
+
+// BoardColumn is a daemon API value.
+type BoardColumn string

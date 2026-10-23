@@ -95,6 +95,7 @@ func sessionCatalogListOperation() OperationSpec {
 				"Subagent session visibility (default include)",
 				[]string{specIncludeKey, specExcludeKey, specOnlyKey},
 			),
+			enumQueryParam("children", "Managed child visibility", []string{"include", "exclude"}),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
 			queryParam("worktree", "Filter by exact bound worktree id", false),
@@ -110,6 +111,7 @@ func sessionCatalogListOperation() OperationSpec {
 			),
 			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
 			boolQueryParam("attention", "Only list sessions in the needs-you attention class"),
+			ParameterSpec{Name: "board_column", In: specParameterInQuery, Kind: specArrayKind, Description: "Repeatable board column filter: needs_you, working, in_review, done"},
 			queryParam("badge", "Filter by comma-separated exact session badges", false),
 			enumQueryParam(
 				"archive",
@@ -275,6 +277,7 @@ func sessionCatalogFacetsOperation() OperationSpec {
 				"Subagent session visibility (default include)",
 				[]string{specIncludeKey, specExcludeKey, specOnlyKey},
 			),
+			enumQueryParam("children", "Managed child visibility", []string{"include", "exclude"}),
 			queryParam("parent", "Filter by exact parent session id", false),
 			queryParam("root", "Filter by exact root session id (includes the root itself)", false),
 			boolQueryParam("resumable", "Only count sessions eligible for explicit attach"),

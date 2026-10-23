@@ -59,6 +59,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		Type:                info.Type,
 		State:               info.State,
 		Badge:               session.BadgeForInfo(info),
+		BoardColumn:         session.BoardColumnFor(session.BadgeForInfo(info), ""),
 		Attachable:          session.AttachableForInfo(info, now),
 		AttachedTo:          strings.TrimSpace(info.AttachedTo),
 		AttachExpiresAt:     cloneTimePtr(info.AttachExpiresAt),

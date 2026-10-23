@@ -1779,7 +1779,21 @@ export interface ForgeStatusRequest {
   head_sha?: string;
 }
 
+export interface ForgeChecks {
+  state: string;
+  passed: number;
+  failed: number;
+  pending: number;
+  failed_names: string[];
+}
+
 export interface ForgeStatusResponse {
+  checks?: ForgeChecks;
+  review_decision?: string;
+  mergeable?: string;
+  updated_at?: ISODateTime;
+  selection?: string;
+  retry_after?: ISODateTime;
   provider: string;
   pr_number?: number;
   pr_state?: string;
@@ -3945,7 +3959,19 @@ export interface SessionQueueSummaryPayload {
   cap: number;
 }
 
-export type Badge = string;
+export type Badge =
+  | "running"
+  | "idle"
+  | "unhealthy"
+  | "hung"
+  | "waiting-for-auth"
+  | "waiting-for-input"
+  | "done"
+  | "stopped"
+  | "failed"
+  | "unknown"
+  | "needs-attention"
+  | "waiting";
 
 export interface PendingInteractionPayload {
   interaction_id: string;

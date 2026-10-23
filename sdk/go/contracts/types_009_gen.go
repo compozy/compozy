@@ -4,6 +4,21 @@ package contracts
 
 import "time"
 
+type HeartbeatConfigSubsetPayload struct {
+	Enabled                      bool   `json:"enabled"`
+	MaxBodyBytes                 int64  `json:"max_body_bytes"`
+	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
+	MinInterval                  string `json:"min_interval"`
+	DefaultInterval              string `json:"default_interval"`
+	WakeCooldown                 string `json:"wake_cooldown"`
+	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
+	ActiveSessionOnly            bool   `json:"active_session_only"`
+	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
+	WakeEventRetention           string `json:"wake_event_retention"`
+	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
+	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
+}
+
 type HeartbeatContextProjectionPayload struct {
 	Include []string `json:"include,omitempty"`
 }
@@ -200,5 +215,3 @@ type HeartbeatWakeRequest struct {
 type HeartbeatWakeResponse struct {
 	Decision HeartbeatWakeDecisionPayload `json:"decision"`
 }
-
-type HeartbeatWakeResult string

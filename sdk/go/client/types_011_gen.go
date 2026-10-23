@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+// MetaField is a daemon API value.
+type MetaField struct {
+	Label    string            `json:"label"`
+	Value    string            `json:"value"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+// MetricDirection is a daemon API value.
+type MetricDirection string
+
+// MetricSpec is a daemon API value.
+type MetricSpec struct {
+	Direction MetricDirection `json:"direction"`
+	MinDelta  *float64        `json:"min_delta,omitzero"`
+}
+
+// MissingPolicy is a daemon API value.
+type MissingPolicy string
+
+// ModelCatalogCostPayload is a daemon API value.
+type ModelCatalogCostPayload struct {
+	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
+	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
+	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
+	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
+	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
+}
+
+// ModelCatalogSourceRefPayload is a daemon API value.
+type ModelCatalogSourceRefPayload struct {
+	SourceID    string `json:"source_id"`
+	SourceKind  string `json:"source_kind"`
+	Priority    int    `json:"priority"`
+	RefreshedAt string `json:"refreshed_at,omitempty"`
+	Stale       bool   `json:"stale"`
+	LastError   string `json:"last_error,omitempty"`
+}
+
 // ModelCatalogSourceStatusPayload is a daemon API value.
 type ModelCatalogSourceStatusPayload struct {
 	FailureReason string `json:"failure_reason,omitempty"`
@@ -409,39 +448,3 @@ type OverviewUsagePayload struct {
 
 // OwnerKind is a daemon API value.
 type OwnerKind string
-
-// Ownership is a daemon API value.
-type Ownership struct {
-	Kind OwnerKind `json:"kind"`
-	Ref  string    `json:"ref"`
-}
-
-// Pagination is a daemon API value.
-type Pagination struct {
-	HasMore  bool `json:"has_more"`
-	PageSize int  `json:"page_size,omitempty"`
-}
-
-// ParentClosePolicy is a daemon API value.
-type ParentClosePolicy string
-
-// ParticipantPolicy is a daemon API value.
-type ParticipantPolicy struct {
-	AllowedAgentNames     []string `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string `json:"preferred_capabilities,omitempty"`
-}
-
-// PatchLoopRequest is a daemon API value.
-type PatchLoopRequest struct {
-	ExpectedVersion *int                   `json:"expected_version,omitzero"`
-	Definition      LoopDefinitionDocument `json:"definition"`
-}
-
-// PatchOp is a daemon API value.
-type PatchOp struct {
-	Op    string          `json:"op"`
-	Path  string          `json:"path"`
-	Value json.RawMessage `json:"value,omitempty"`
-}

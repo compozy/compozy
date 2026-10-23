@@ -1026,6 +1026,35 @@ func TestBaseHandlersStatusProjectsWorkspaceMCPDeadState(t *testing.T) {
 func TestBaseHandlersListSessionsPageContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject invalid board and child selectors", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		for _, query := range []string{"board_column=blocked", "children=only"} {
+			resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&"+query, nil)
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if resp.Code != http.StatusBadRequest || payload.Code != "session_list_query_invalid" {
+				t.Fatalf("selector %s: status=%d body=%s", query, resp.Code, resp.Body.String())
+			}
+		}
+	})
+	t.Run("Should pass board and child selectors to the catalog owner", func(t *testing.T) {
+		t.Parallel()
+		manager := testutil.StubSessionManager{ListPageFn: func(_ context.Context, query session.ListQuery) (session.ListPage, error) {
+			if len(query.Columns) != 2 || query.Columns[0] != "working" || query.Columns[1] != "in_review" || !query.HideChildren {
+				t.Fatalf("query=%#v", query)
+			}
+			return session.ListPage{Sessions: []*session.Info{}, Limit: 50}, nil
+		}}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true&board_column=working&board_column=in_review&children=exclude", nil)
+		var payload contract.SessionCatalogResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if resp.Code != http.StatusOK || payload.Page.Limit != 50 {
+			t.Fatalf("status=%d body=%s", resp.Code, resp.Body.String())
+		}
+	})
+
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	workerLineage := &store.SessionLineage{

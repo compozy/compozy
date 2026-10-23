@@ -4,6 +4,49 @@ package client
 
 import "time"
 
+// RuntimeMatch is a daemon API value.
+type RuntimeMatch struct {
+	ID         string `json:"id,omitempty"`
+	Type       string `json:"type,omitempty"`
+	Complexity string `json:"complexity,omitempty"`
+}
+
+// RuntimeMode is a daemon API value.
+type RuntimeMode string
+
+// RuntimePolicy is a daemon API value.
+type RuntimePolicy struct {
+	Mode RuntimeMode `json:"mode"`
+}
+
+// RuntimeRule is a daemon API value.
+type RuntimeRule struct {
+	Match   RuntimeMatch `json:"match"`
+	Runtime RuntimeSpec  `json:"runtime"`
+}
+
+// RuntimeSelectionPayload is a daemon API value.
+type RuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *Resolution               `json:"speed_resolution,omitempty"`
+}
+
+// RuntimeSpec is a daemon API value.
+type RuntimeSpec struct {
+	Provider   string      `json:"provider,omitempty"`
+	Model      string      `json:"model,omitempty"`
+	Reasoning  string      `json:"reasoning,omitempty"`
+	Speed      Speed       `json:"speed,omitempty"`
+	ACPOptions []Selection `json:"acp_options,omitempty"`
+}
+
+// ScheduleMode is a daemon API value.
+type ScheduleMode string
+
 // ScheduleSpec is a daemon API value.
 type ScheduleSpec struct {
 	Mode                ScheduleMode           `json:"mode"`
@@ -256,6 +299,14 @@ type SessionAttentionSummaryPayload struct {
 	ByWorkspace []WorkspaceAttentionSummaryPayload `json:"by_workspace"`
 }
 
+// SessionBoardCountsPayload is a daemon API value.
+type SessionBoardCountsPayload struct {
+	NeedsYou int `json:"needs_you"`
+	Working  int `json:"working"`
+	InReview int `json:"in_review"`
+	Done     int `json:"done"`
+}
+
 // SessionCatalogEventPayload is a daemon API value.
 type SessionCatalogEventPayload struct {
 	Kind        string `json:"kind"`
@@ -267,12 +318,13 @@ type SessionCatalogEventPayload struct {
 
 // SessionCatalogFacetsPayload is a daemon API value.
 type SessionCatalogFacetsPayload struct {
-	All               int `json:"all"`
-	NeedsYou          int `json:"needs_you"`
-	Working           int `json:"working"`
-	Finished          int `json:"finished"`
-	Idle              int `json:"idle"`
-	TerminalApprovals int `json:"terminal_approvals"`
+	Board             SessionBoardCountsPayload `json:"board"`
+	All               int                       `json:"all"`
+	NeedsYou          int                       `json:"needs_you"`
+	Working           int                       `json:"working"`
+	Finished          int                       `json:"finished"`
+	Idle              int                       `json:"idle"`
+	TerminalApprovals int                       `json:"terminal_approvals"`
 }
 
 // SessionCatalogFacetsResponse is a daemon API value.
@@ -294,6 +346,15 @@ type SessionCatalogPagePayload struct {
 type SessionCatalogResponse struct {
 	Sessions []SessionPayload          `json:"sessions"`
 	Page     SessionCatalogPagePayload `json:"page"`
+}
+
+// SessionChildrenPayload is a daemon API value.
+type SessionChildrenPayload struct {
+	Total    int `json:"total"`
+	NeedsYou int `json:"needs_you"`
+	Working  int `json:"working"`
+	InReview int `json:"in_review"`
+	Done     int `json:"done"`
 }
 
 // SessionCommandPayload is a daemon API value.
@@ -381,60 +442,4 @@ type SessionConfigOptionValuePayload struct {
 	Description string `json:"description,omitempty"`
 	GroupID     string `json:"group_id,omitempty"`
 	GroupLabel  string `json:"group_label,omitempty"`
-}
-
-// SessionConsumerDegradedPayload is a daemon API value.
-type SessionConsumerDegradedPayload struct {
-	SessionID       string `json:"session_id"`
-	AfterSequence   int64  `json:"after_sequence"`
-	ThroughSequence int64  `json:"through_sequence"`
-	Refresh         bool   `json:"refresh"`
-}
-
-// SessionContextClearedByPayload is a daemon API value.
-type SessionContextClearedByPayload struct {
-	CompactionID string `json:"compaction_id"`
-	Sequence     int64  `json:"sequence"`
-}
-
-// SessionContextInjectedPayload is a daemon API value.
-type SessionContextInjectedPayload struct {
-	Estimate string                     `json:"estimate"`
-	Tokens   int64                      `json:"tokens"`
-	Stale    bool                       `json:"stale"`
-	Rows     []SessionContextRowPayload `json:"rows"`
-}
-
-// SessionContextPayload is a daemon API value.
-type SessionContextPayload struct {
-	ClearedBy      *SessionContextClearedByPayload `json:"cleared_by,omitzero"`
-	State          SessionContextState             `json:"state"`
-	Used           *int64                          `json:"used,omitzero"`
-	Size           *int64                          `json:"size,omitzero"`
-	Ratio          *float64                        `json:"ratio,omitzero"`
-	SizeSource     string                          `json:"size_source,omitempty"`
-	Stale          *bool                           `json:"stale,omitzero"`
-	Sequence       *int64                          `json:"sequence,omitzero"`
-	ReportedTurnID string                          `json:"reported_turn_id,omitempty"`
-	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
-	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
-}
-
-// SessionContextRowPayload is a daemon API value.
-type SessionContextRowPayload struct {
-	Key              string    `json:"key"`
-	Label            string    `json:"label"`
-	Kind             string    `json:"kind"`
-	OwnerKind        string    `json:"owner_kind"`
-	Bytes            int64     `json:"bytes"`
-	Tokens           *int64    `json:"tokens,omitzero"`
-	DeliveredTurnID  string    `json:"delivered_turn_id"`
-	DeliverySequence int64     `json:"delivery_sequence"`
-	SentAt           time.Time `json:"sent_at"`
-	LastSeenTurnID   string    `json:"last_seen_turn_id,omitempty"`
-	Unchanged        bool      `json:"unchanged"`
-	Stale            bool      `json:"stale"`
-	Delivery         string    `json:"delivery,omitempty"`
-	HookModified     bool      `json:"hook_modified,omitzero"`
-	Name             string    `json:"name,omitempty"`
 }

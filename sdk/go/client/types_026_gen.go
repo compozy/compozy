@@ -7,6 +7,85 @@ import (
 	"time"
 )
 
+// Type is a daemon API value.
+type Type string
+
+// UIMessage is a daemon API value.
+type UIMessage struct {
+	ID       string          `json:"id"`
+	Role     string          `json:"role"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+	Parts    []UIMessagePart `json:"parts"`
+}
+
+// UIMessagePart is a daemon API value.
+type UIMessagePart struct {
+	ParentToolCallID string          `json:"parentToolCallId,omitempty"`
+	Type             string          `json:"type"`
+	ID               string          `json:"id,omitempty"`
+	Text             string          `json:"text,omitempty"`
+	MediaType        string          `json:"mediaType,omitempty"`
+	URL              string          `json:"url,omitempty"`
+	Filename         string          `json:"filename,omitempty"`
+	State            string          `json:"state,omitempty"`
+	ToolName         string          `json:"toolName,omitempty"`
+	ToolCallID       string          `json:"toolCallId,omitempty"`
+	Title            string          `json:"title,omitempty"`
+	Input            json.RawMessage `json:"input,omitempty"`
+	RawInput         json.RawMessage `json:"rawInput,omitempty"`
+	Output           json.RawMessage `json:"output,omitempty"`
+	ErrorText        string          `json:"errorText,omitempty"`
+	Data             json.RawMessage `json:"data,omitempty"`
+	Preliminary      bool            `json:"preliminary,omitzero"`
+}
+
+// UnarchiveProfileRequest is a daemon API value.
+type UnarchiveProfileRequest struct{}
+
+// UnarchiveProfileResponse is a daemon API value.
+type UnarchiveProfileResponse struct {
+	State             string   `json:"state"`
+	PausedAutomations []string `json:"paused_automations"`
+}
+
+// UpdateAgentRequest is a daemon API value.
+type UpdateAgentRequest struct {
+	Workspace      string             `json:"workspace,omitempty"`
+	Agent          CreateAgentPayload `json:"agent"`
+	ExpectedDigest string             `json:"expected_digest"`
+}
+
+// UpdateAppTokenRequest is a daemon API value.
+type UpdateAppTokenRequest struct {
+	Name    *string   `json:"name,omitempty"`
+	Origins *[]string `json:"origins,omitempty"`
+}
+
+// UpdateExtensionRequest is a daemon API value.
+type UpdateExtensionRequest struct {
+	Scope                string           `json:"scope,omitempty"`
+	WorkspaceID          string           `json:"workspace_id,omitempty"`
+	Profile              string           `json:"profile,omitempty"`
+	Inputs               map[string]Value `json:"inputs,omitempty"`
+	Version              string           `json:"version,omitempty"`
+	CheckOnly            bool             `json:"check_only,omitzero"`
+	AllowUnverified      bool             `json:"allow_unverified,omitzero"`
+	ConfirmGatewayDigest string           `json:"confirm_gateway_digest,omitempty"`
+}
+
+// UpdateExtensionsRequest is a daemon API value.
+type UpdateExtensionsRequest struct {
+	Scope           string           `json:"scope,omitempty"`
+	WorkspaceID     string           `json:"workspace_id,omitempty"`
+	Profile         string           `json:"profile,omitempty"`
+	Inputs          map[string]Value `json:"inputs,omitempty"`
+	Names           []string         `json:"names,omitempty"`
+	All             bool             `json:"all,omitzero"`
+	Version         string           `json:"version,omitempty"`
+	CheckOnly       bool             `json:"check_only,omitzero"`
+	AllowUnverified bool             `json:"allow_unverified,omitzero"`
+}
+
 // UpdateJobRequest is a daemon API value.
 type UpdateJobRequest struct {
 	Name       *string          `json:"name,omitempty"`
@@ -250,6 +329,9 @@ type WaitExpiry struct {
 	Route    NodeID       `json:"route,omitempty"`
 }
 
+// WaitingOn is a daemon API value.
+type WaitingOn string
+
 // WebhookDeliveryPayload is a daemon API value.
 type WebhookDeliveryPayload struct {
 	Matched int          `json:"matched"`
@@ -361,87 +443,4 @@ type WindowManagerCommandRequest struct {
 	Origin           string                    `json:"origin"`
 	Rebase           *WindowManagerRebaseGuard `json:"rebase,omitzero"`
 	Payload          json.RawMessage           `json:"payload"`
-}
-
-// WindowManagerDesktop is a daemon API value.
-type WindowManagerDesktop struct {
-	ID             DesktopID                    `json:"id"`
-	Name           string                       `json:"name"`
-	Order          int                          `json:"order"`
-	Groups         []WindowManagerLayoutGroup   `json:"groups"`
-	Floating       []WindowID                   `json:"floating"`
-	FloatingStacks []WindowManagerFloatingStack `json:"floating_stacks"`
-}
-
-// WindowManagerFloatingStack is a daemon API value.
-type WindowManagerFloatingStack struct {
-	ID        WindowmanagerNodeID `json:"id"`
-	WindowIDs []WindowID          `json:"window_ids"`
-	ActiveID  *WindowID           `json:"active_id,omitzero"`
-	Rect      NormalizedRect      `json:"rect"`
-	Minimized bool                `json:"minimized"`
-}
-
-// WindowManagerLayoutDocument is a daemon API value.
-type WindowManagerLayoutDocument struct {
-	Version     uint32                         `json:"version"`
-	WorkspaceID WindowmanagerWorkspaceID       `json:"workspace_id"`
-	Desktops    []WindowManagerDesktop         `json:"desktops"`
-	Windows     map[string]WindowManagerWindow `json:"windows"`
-	Overrides   WorkspaceConfig                `json:"overrides"`
-}
-
-// WindowManagerLayoutGroup is a daemon API value.
-type WindowManagerLayoutGroup struct {
-	ID    GroupID                 `json:"id"`
-	Frame NormalizedRect          `json:"frame"`
-	Root  WindowManagerLayoutNode `json:"root"`
-}
-
-// WindowManagerLayoutNode is a daemon API value.
-type WindowManagerLayoutNode struct {
-	ID        WindowmanagerNodeID       `json:"id"`
-	Kind      NodeKind                  `json:"kind"`
-	WindowID  *WindowID                 `json:"window_id,omitzero"`
-	Axis      *Axis                     `json:"axis,omitzero"`
-	Children  []WindowManagerLayoutNode `json:"children,omitempty"`
-	Weights   []float64                 `json:"weights,omitempty"`
-	WindowIDs []WindowID                `json:"window_ids,omitempty"`
-	ActiveID  *WindowID                 `json:"active_id,omitzero"`
-}
-
-// WindowManagerLayoutReplaceRequest is a daemon API value.
-type WindowManagerLayoutReplaceRequest struct {
-	WorkspaceID      WindowmanagerWorkspaceID    `json:"workspace_id"`
-	ExpectedRevision *WindowManagerRevision      `json:"expected_revision"`
-	ClientID         *WindowmanagerClientID      `json:"client_id,omitzero"`
-	Actor            WindowManagerActor          `json:"actor"`
-	Origin           string                      `json:"origin"`
-	Document         WindowManagerLayoutDocument `json:"document"`
-}
-
-// WindowManagerLayoutValidationRequest is a daemon API value.
-type WindowManagerLayoutValidationRequest struct {
-	WorkspaceID WindowmanagerWorkspaceID    `json:"workspace_id"`
-	Document    WindowManagerLayoutDocument `json:"document"`
-}
-
-// WindowManagerLayoutValidationResponse is a daemon API value.
-type WindowManagerLayoutValidationResponse struct {
-	WorkspaceID WindowmanagerWorkspaceID `json:"workspace_id"`
-	Valid       bool                     `json:"valid"`
-	Diagnostics []Diagnostic             `json:"diagnostics,omitempty"`
-}
-
-// WindowManagerPaletteContext is a daemon API value.
-type WindowManagerPaletteContext struct {
-	WindowFocused       bool         `json:"window_focused"`
-	WindowFloating      bool         `json:"window_floating"`
-	WindowStacked       bool         `json:"window_stacked"`
-	DesktopWindowCount  int          `json:"desktop_window_count"`
-	ScopeGlobal         bool         `json:"scope_global"`
-	ShellDesktop        bool         `json:"shell_desktop"`
-	FocusedSessionState string       `json:"focused_session_state,omitempty"`
-	WorkspaceTrusted    bool         `json:"workspace_trusted"`
-	DestinationIntent   *RouteIntent `json:"destination_intent,omitzero"`
 }

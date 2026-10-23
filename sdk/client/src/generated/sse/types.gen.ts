@@ -481,11 +481,35 @@ export type Section = {
 export type SessionAttentionEventPayload = {
   at: string;
   class: string;
-  from: string;
+  from:
+    | "running"
+    | "idle"
+    | "unhealthy"
+    | "hung"
+    | "waiting-for-auth"
+    | "waiting-for-input"
+    | "done"
+    | "stopped"
+    | "failed"
+    | "unknown"
+    | "needs-attention"
+    | "waiting";
   profile_id: string;
   profile_name: string;
   session_id: string;
-  to: string;
+  to:
+    | "running"
+    | "idle"
+    | "unhealthy"
+    | "hung"
+    | "waiting-for-auth"
+    | "waiting-for-input"
+    | "done"
+    | "stopped"
+    | "failed"
+    | "unknown"
+    | "needs-attention"
+    | "waiting";
   workspace_id: string;
 };
 

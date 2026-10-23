@@ -47,6 +47,8 @@ var (
 
 // ListQuery describes one public session catalog page.
 type ListQuery struct {
+	Columns         []string
+	HideChildren    bool
 	Subagents       string
 	ReadScope       store.ReadScope
 	WorkspaceID     string
@@ -181,6 +183,8 @@ func sessionCatalogPageQuery(
 	activeIDs []string,
 ) store.SessionCatalogPageQuery {
 	query := store.SessionCatalogPageQuery{
+		Columns:           normalized.Columns,
+		HideChildren:      normalized.HideChildren,
 		Subagents:         normalized.Subagents,
 		SkipTotal:         normalized.SkipTotal,
 		ReadScope:         normalized.ReadScope,

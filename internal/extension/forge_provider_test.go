@@ -19,6 +19,27 @@ import (
 func TestManagerForgeProvider(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should validate optional display facts without requiring them", func(t *testing.T) {
+		t.Parallel()
+		base := extensioncontract.ForgeStatusResponse{Provider: "github", FetchedAt: time.Unix(1, 0)}
+		if err := validateForgeStatusResponse(base); err != nil {
+			t.Fatal(err)
+		}
+		for _, value := range []extensioncontract.ForgeStatusResponse{
+			{ReviewDecision: "approved_by_author"},
+			{Mergeable: "yes"},
+			{Selection: "partial"},
+			{RetryAfter: new(time.Unix(2, 0))},
+			{Checks: &extensioncontract.ForgeChecks{State: "passing", Passed: -1}},
+			{Checks: &extensioncontract.ForgeChecks{State: "passing", FailedNames: []string{"a", "b", "c", "d", "e", "f"}}},
+		} {
+			value.Provider, value.FetchedAt = base.Provider, base.FetchedAt
+			if err := validateForgeStatusResponse(value); err == nil {
+				t.Fatalf("accepted invalid facts: %#v", value)
+			}
+		}
+	})
+
 	t.Run("Should select the first enabled provider that serves the remote", func(t *testing.T) {
 		t.Parallel()
 		var mu sync.Mutex

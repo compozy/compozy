@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type TaskReferencePayload struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          Status     `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitempty"`
+	EffectivePaused bool       `json:"effective_paused,omitempty"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
 type TaskRun struct {
 	ID                   string                 `json:"id"`
 	ProfileID            string                 `json:"profile_id,omitempty"`
@@ -466,15 +481,4 @@ type TaskRunReleasedPayload struct {
 	PreviousSessionID string    `json:"previous_session_id,omitempty"`
 	RecoveryAction    string    `json:"recovery_action,omitempty"`
 	RecoveryReason    string    `json:"recovery_reason,omitempty"`
-}
-
-type TaskRunResultPage struct {
-	RunID      string `json:"run_id"`
-	ResultRef  string `json:"result_ref,omitempty"`
-	Offset     int64  `json:"offset"`
-	Bytes      int64  `json:"bytes"`
-	TotalBytes int64  `json:"total_bytes"`
-	DataBase64 string `json:"data_base64"`
-	NextOffset *int64 `json:"next_offset,omitempty"`
-	EOF        bool   `json:"eof"`
 }

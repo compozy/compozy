@@ -1101,6 +1101,9 @@ import type {
   RefreshProviderUsageData,
   RefreshProviderUsageErrors,
   RefreshProviderUsageResponses,
+  RefreshSessionPullRequestData,
+  RefreshSessionPullRequestErrors,
+  RefreshSessionPullRequestResponses,
   RefreshSessionSoulData,
   RefreshSessionSoulErrors,
   RefreshSessionSoulResponses,
@@ -8542,6 +8545,29 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/sessions/{session_id}/owner",
+      ...options,
+    });
+  }
+
+  /**
+   * Refresh a session pull request
+   */
+  public refreshSessionPullRequest<ThrowOnError extends boolean = true>(
+    options: Options<RefreshSessionPullRequestData, ThrowOnError>
+  ): RequestResult<
+    RefreshSessionPullRequestResponses,
+    RefreshSessionPullRequestErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RefreshSessionPullRequestResponses,
+      RefreshSessionPullRequestErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/sessions/{session_id}/pull-request/refresh",
       ...options,
     });
   }

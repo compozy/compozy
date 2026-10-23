@@ -401,6 +401,9 @@ type DrainStatusResponse struct {
 	SafeToStop                 bool       `json:"safe_to_stop"`
 }
 
+// DslReviewDecision is a daemon API value.
+type DslReviewDecision string
+
 // DslTerminalState is a daemon API value.
 type DslTerminalState string
 
@@ -437,14 +440,4 @@ type DuplicateAgentRequest struct {
 type Edge struct {
 	From NodeID `json:"from"`
 	To   NodeID `json:"to"`
-}
-
-// Effect is a daemon API value.
-type Effect struct {
-	ID        string           `json:"id"`
-	Toast     *ToastEffect     `json:"toast,omitempty"`
-	Copy      *CopyEffect      `json:"copy,omitempty"`
-	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
-	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
-	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
 }

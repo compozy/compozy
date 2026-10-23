@@ -264,6 +264,7 @@ type ListSessionFacetsParams struct {
 	Worktree      *string   `url:"worktree"`
 	Agent         *string   `url:"agent"`
 	Subagents     *string   `url:"subagents"`
+	Children      *string   `url:"children"`
 	Parent        *string   `url:"parent"`
 	Root          *string   `url:"root"`
 	Resumable     *bool     `url:"resumable"`
@@ -297,6 +298,9 @@ func (c *Client) ListSessionFacets(ctx context.Context, params ListSessionFacets
 	}
 	if params.Subagents != nil {
 		query.Set("subagents", *params.Subagents)
+	}
+	if params.Children != nil {
+		query.Set("children", *params.Children)
 	}
 	if params.Parent != nil {
 		query.Set("parent", *params.Parent)

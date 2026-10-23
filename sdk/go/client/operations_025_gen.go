@@ -9,6 +9,14 @@ import (
 	"strings"
 )
 
+// RepairSessionParams carries the path, query, and header parameters.
+type RepairSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+	DryRun      *bool  `url:"dry_run"`
+	Force       *bool  `url:"force"`
+}
+
 // RepairSession Inspect and repair an interrupted session transcript
 func (c *Client) RepairSession(ctx context.Context, params RepairSessionParams) (*SessionRepairResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/repair"

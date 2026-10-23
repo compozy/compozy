@@ -19,6 +19,7 @@ type ForgeStatusRequest = contracts.ForgeStatusRequest
 
 // ForgeStatusResponse reports the current pull-request state.
 type ForgeStatusResponse = contracts.ForgeStatusResponse
+type ForgeChecks = contracts.ForgeChecks
 
 // ForgePRCreateRequest asks a provider to create or find one pull request.
 type ForgePRCreateRequest = contracts.ForgePRCreateRequest

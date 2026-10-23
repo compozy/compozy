@@ -10,6 +10,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		sessions.GET("/catalog-stream", handlers.StreamSessionCatalog)
 		sessions.GET("/attention-summary", handlers.SessionAttentionSummary)
 		sessions.GET("/:session_id", handlers.GetSessionByID)
+		sessions.POST("/:session_id/pull-request/refresh", handlers.RefreshSessionPullRequest)
 		sessions.GET("/:session_id/owner", handlers.GetSessionOwner)
 		registerSessionReadRoutes(sessions, handlers)
 		sessions.POST("", handlers.CreateSession)

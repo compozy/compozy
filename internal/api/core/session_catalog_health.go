@@ -69,6 +69,7 @@ func SessionPayloadsWithPageHealth(
 			)
 		}
 		payload.Badge = session.BadgeForHealth(info, health)
+		payload.BoardColumn = session.BoardColumnFor(payload.Badge, "")
 		converted, err := contract.SessionHealthPayloadFromDomain(health)
 		if err != nil {
 			return nil, err

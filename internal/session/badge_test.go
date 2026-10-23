@@ -158,3 +158,33 @@ func TestParseBadgeFiltersUsesThePublicVocabulary(t *testing.T) {
 		}
 	})
 }
+
+func TestBoardColumnFor(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		badge Badge
+		state PullRequestState
+		want  BoardColumn
+	}{
+		{"Should prioritize input over an open PR", BadgeWaitingForInput, PullRequestOpen, BoardNeedsYou},
+		{"Should prioritize running over an open PR", BadgeRunning, PullRequestOpen, BoardWorking},
+		{"Should keep waiting sessions working", BadgeWaiting, "", BoardWorking},
+		{"Should place idle sessions with an open PR in review", BadgeIdle, PullRequestOpen, BoardInReview},
+		{"Should place merged sessions in done", BadgeDone, PullRequestMerged, BoardDone},
+		{"Should place stopped sessions without a PR in done", BadgeStopped, "", BoardDone},
+		{"Should place unknown sessions with an open PR in review", BadgeUnknown, PullRequestOpen, BoardInReview},
+		{"Should prioritize failure over an open PR", BadgeFailed, PullRequestOpen, BoardNeedsYou},
+		{"Should prioritize failure without a PR", BadgeFailed, "", BoardNeedsYou},
+		{"Should keep hung sessions working", BadgeHung, PullRequestOpen, BoardWorking},
+		{"Should keep unhealthy sessions working", BadgeUnhealthy, "", BoardWorking},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := BoardColumnFor(tt.badge, tt.state); got != tt.want {
+				t.Fatalf("BoardColumnFor(%q, %q) = %q, want %q", tt.badge, tt.state, got, tt.want)
+			}
+		})
+	}
+}

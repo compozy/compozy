@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+type ResourceRecord struct {
+	Kind      ResourceKind    `json:"kind"`
+	ID        string          `json:"id"`
+	Version   int64           `json:"version"`
+	Scope     ResourceScope   `json:"scope"`
+	Owner     ResourceOwner   `json:"owner"`
+	Source    ResourceSource  `json:"source"`
+	Spec      json.RawMessage `json:"spec"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
 type ResourceScope struct {
 	Kind ResourceScopeKind `json:"kind"`
 	ID   string            `json:"id,omitempty"`
@@ -149,8 +161,3 @@ type SchedulerCatchUpPolicy string
 type SchedulerSkipReason string
 
 type Scope string
-
-type Section struct {
-	Title string `json:"title,omitempty"`
-	Rows  []Row  `json:"rows"`
-}

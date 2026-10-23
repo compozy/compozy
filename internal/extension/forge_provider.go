@@ -330,6 +330,9 @@ func validForgeProviderCause(value string) bool {
 }
 
 func validateForgeStatusResponse(value extensioncontract.ForgeStatusResponse) error {
+	if err := validateForgeStatusFacts(value); err != nil {
+		return err
+	}
 	if strings.TrimSpace(value.Provider) == "" || value.FetchedAt.IsZero() {
 		return errors.New("provider and fetched_at are required")
 	}

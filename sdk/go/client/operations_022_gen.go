@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// PauseTaskParams carries the path, query, and header parameters.
+type PauseTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // PauseTask Pause one task for future scheduler claims
 func (c *Client) PauseTask(ctx context.Context, params PauseTaskParams, body PauseTaskRequest) (*TaskResponse, error) {
 	path := "/api/tasks/{id}/pause"

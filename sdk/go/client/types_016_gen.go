@@ -7,6 +7,62 @@ import (
 	"time"
 )
 
+// SessionConsumerDegradedPayload is a daemon API value.
+type SessionConsumerDegradedPayload struct {
+	SessionID       string `json:"session_id"`
+	AfterSequence   int64  `json:"after_sequence"`
+	ThroughSequence int64  `json:"through_sequence"`
+	Refresh         bool   `json:"refresh"`
+}
+
+// SessionContextClearedByPayload is a daemon API value.
+type SessionContextClearedByPayload struct {
+	CompactionID string `json:"compaction_id"`
+	Sequence     int64  `json:"sequence"`
+}
+
+// SessionContextInjectedPayload is a daemon API value.
+type SessionContextInjectedPayload struct {
+	Estimate string                     `json:"estimate"`
+	Tokens   int64                      `json:"tokens"`
+	Stale    bool                       `json:"stale"`
+	Rows     []SessionContextRowPayload `json:"rows"`
+}
+
+// SessionContextPayload is a daemon API value.
+type SessionContextPayload struct {
+	ClearedBy      *SessionContextClearedByPayload `json:"cleared_by,omitzero"`
+	State          SessionContextState             `json:"state"`
+	Used           *int64                          `json:"used,omitzero"`
+	Size           *int64                          `json:"size,omitzero"`
+	Ratio          *float64                        `json:"ratio,omitzero"`
+	SizeSource     string                          `json:"size_source,omitempty"`
+	Stale          *bool                           `json:"stale,omitzero"`
+	Sequence       *int64                          `json:"sequence,omitzero"`
+	ReportedTurnID string                          `json:"reported_turn_id,omitempty"`
+	ReportedAt     *time.Time                      `json:"reported_at,omitempty"`
+	Injected       *SessionContextInjectedPayload  `json:"injected,omitzero"`
+}
+
+// SessionContextRowPayload is a daemon API value.
+type SessionContextRowPayload struct {
+	Key              string    `json:"key"`
+	Label            string    `json:"label"`
+	Kind             string    `json:"kind"`
+	OwnerKind        string    `json:"owner_kind"`
+	Bytes            int64     `json:"bytes"`
+	Tokens           *int64    `json:"tokens,omitzero"`
+	DeliveredTurnID  string    `json:"delivered_turn_id"`
+	DeliverySequence int64     `json:"delivery_sequence"`
+	SentAt           time.Time `json:"sent_at"`
+	LastSeenTurnID   string    `json:"last_seen_turn_id,omitempty"`
+	Unchanged        bool      `json:"unchanged"`
+	Stale            bool      `json:"stale"`
+	Delivery         string    `json:"delivery,omitempty"`
+	HookModified     bool      `json:"hook_modified,omitzero"`
+	Name             string    `json:"name,omitempty"`
+}
+
 // SessionContextSpanPayload is a daemon API value.
 type SessionContextSpanPayload struct {
 	Key          string `json:"key"`
@@ -391,11 +447,4 @@ type SessionMonitorSummaryPayload struct {
 // SessionMonitorsResponse is a daemon API value.
 type SessionMonitorsResponse struct {
 	Monitors []SessionMonitorPayload `json:"monitors"`
-}
-
-// SessionOwner is a daemon API value.
-type SessionOwner struct {
-	SessionID     string `json:"session_id"`
-	WorkspaceID   string `json:"workspace_id"`
-	WorkspaceName string `json:"workspace_name"`
 }
