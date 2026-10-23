@@ -3098,7 +3098,9 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	t.Run("Should set and clear a session parent through the workspace route", func(t *testing.T) {
 		t.Parallel()
 
-		adopted, adoptErr := client.SetSessionParent(ctx, "sess-1", SetSessionParentRequest{ParentSessionID: "sess-parent"})
+		adopted, adoptErr := client.SetSessionParent(
+			ctx, "sess-1", SetSessionParentRequest{ParentSessionID: "sess-parent"},
+		)
 		if adoptErr != nil || adopted.Lineage == nil || adopted.Lineage.ParentSessionID != "sess-parent" {
 			t.Fatalf("SetSessionParent() = %#v, %v", adopted, adoptErr)
 		}

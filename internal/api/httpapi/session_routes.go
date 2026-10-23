@@ -23,8 +23,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.POST("/:session_id/monitors/:monitor_id/cancel", handlers.CancelSessionMonitor)
 	workspaceSessions.GET("/:session_id", handlers.GetSession)
 	workspaceSessions.PATCH("/:session_id", handlers.RenameSession)
-	workspaceSessions.PUT("/:session_id/parent", handlers.SetSessionParent)
-	workspaceSessions.DELETE("/:session_id/parent", handlers.ClearSessionParent)
+	registerSessionParentRoutes(workspaceSessions, handlers)
 	workspaceSessions.GET("/:session_id/goal", handlers.GetSessionGoal)
 	workspaceSessions.POST("/:session_id/goal", handlers.MutateSessionGoal)
 	workspaceSessions.GET("/:session_id/commands", handlers.GetSessionCommands)
@@ -94,4 +93,9 @@ func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers
 	workspaceSessions.POST("/:session_id/attachments", handlers.UploadSessionAttachment)
 	workspaceSessions.GET("/:session_id/attachments/:attachment_id/bytes", handlers.ReadSessionAttachmentBytes)
 	workspaceSessions.DELETE("/:session_id/attachments/:attachment_id", handlers.DeleteSessionAttachment)
+}
+
+func registerSessionParentRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
+	workspaceSessions.PUT("/:session_id/parent", handlers.SetSessionParent)
+	workspaceSessions.DELETE("/:session_id/parent", handlers.ClearSessionParent)
 }

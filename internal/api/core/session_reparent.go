@@ -15,7 +15,9 @@ const sessionReparentCodePrefix = "session_reparent_"
 
 // SessionReparentManager owns adopting and detaching user session provenance parents.
 type SessionReparentManager interface {
-	AdoptSession(ctx context.Context, workspaceID string, sessionID string, parentSessionID string) (*session.Info, error)
+	AdoptSession(
+		ctx context.Context, workspaceID string, sessionID string, parentSessionID string,
+	) (*session.Info, error)
 	DetachSession(ctx context.Context, workspaceID string, sessionID string) (*session.Info, error)
 }
 

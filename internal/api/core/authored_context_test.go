@@ -1666,7 +1666,7 @@ type replyWatchStatusManager struct {
 	watches session.ReplyWatchService
 }
 
-func (m replyWatchStatusManager) ReplyWatches() session.ReplyWatchService { return m.watches }
+func (m *replyWatchStatusManager) ReplyWatches() session.ReplyWatchService { return m.watches }
 
 type replyWatchStatusService struct {
 	session.ReplyWatchService
@@ -1702,7 +1702,7 @@ func TestSessionStatusReplyWatches(t *testing.T) {
 			},
 		}
 		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces)
-		fixture.Handlers.Sessions = replyWatchStatusManager{
+		fixture.Handlers.Sessions = &replyWatchStatusManager{
 			StubSessionManager: manager,
 			watches: replyWatchStatusService{
 				list: func(_ context.Context, workspace, sender string) ([]store.ReplyWatch, error) {

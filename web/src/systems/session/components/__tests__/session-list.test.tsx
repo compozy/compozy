@@ -744,7 +744,7 @@ describe("SessionList subagents", () => {
   });
 });
 
-// Invariant: both row menus copy the session's Compozy ID and its shown title, and say so.
+// Invariant: both row menus copy the session's CompozyOS ID and its shown title, and say so.
 describe("SessionList row copy actions", () => {
   it("Should copy the session ID from the … menu and the title from the context menu", async () => {
     const user = userEvent.setup();

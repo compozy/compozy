@@ -132,8 +132,8 @@ func (m *Manager) applyReparent(
 	now := m.now()
 	rollbacks := make([]func() error, 0, len(changes))
 	rollback := func(cause error) error {
-		for i := len(rollbacks) - 1; i >= 0; i-- {
-			if rollbackErr := rollbacks[i](); rollbackErr != nil {
+		for _, undo := range slices.Backward(rollbacks) {
+			if rollbackErr := undo(); rollbackErr != nil {
 				cause = errors.Join(cause, fmt.Errorf("session: roll back reparent: %w", rollbackErr))
 			}
 		}
@@ -204,8 +204,8 @@ func lockReparentActiveSessions(changes []reparentChange) func() {
 		session.persistMu.Lock()
 	}
 	return func() {
-		for i := len(active) - 1; i >= 0; i-- {
-			active[i].persistMu.Unlock()
+		for _, session := range slices.Backward(active) {
+			session.persistMu.Unlock()
 		}
 	}
 }

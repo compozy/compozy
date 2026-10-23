@@ -35,7 +35,7 @@ func TestSearchSessionFilesHTTPUDSTransportParityIT005(t *testing.T) {
 	}
 	worktreeRoot := newSessionFilesGitRepo(t, runner)
 	removedDir := filepath.Join(t.TempDir(), "removed-worktree")
-	sessions := sessionFilesSessionManager{
+	sessions := &sessionFilesSessionManager{
 		infos: map[string]*session.Info{
 			"sess-wt":      {ID: "sess-wt", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID},
 			"sess-gone":    {ID: "sess-gone", WorkspaceID: "ws-registry", ProfileID: store.DefaultProfileID},
@@ -138,7 +138,7 @@ type sessionFilesSessionManager struct {
 	dirs  map[string]string
 }
 
-func (m sessionFilesSessionManager) Status(_ context.Context, id string) (*session.Info, error) {
+func (m *sessionFilesSessionManager) Status(_ context.Context, id string) (*session.Info, error) {
 	info, ok := m.infos[id]
 	if !ok {
 		return nil, session.ErrSessionNotFound
@@ -146,7 +146,7 @@ func (m sessionFilesSessionManager) Status(_ context.Context, id string) (*sessi
 	return info, nil
 }
 
-func (m sessionFilesSessionManager) WorkingDir(_ context.Context, id string) (string, error) {
+func (m *sessionFilesSessionManager) WorkingDir(_ context.Context, id string) (string, error) {
 	return m.dirs[id], nil
 }
 

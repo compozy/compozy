@@ -56,11 +56,11 @@ type sessionStopManagerStub struct {
 	await   func(context.Context, string) (session.StopOutcome, error)
 }
 
-func (s sessionStopManagerStub) RequestStop(ctx context.Context, id string, cause session.StopCause) error {
+func (s *sessionStopManagerStub) RequestStop(ctx context.Context, id string, cause session.StopCause) error {
 	return s.request(ctx, id, cause)
 }
 
-func (s sessionStopManagerStub) AwaitStopped(ctx context.Context, id string) (session.StopOutcome, error) {
+func (s *sessionStopManagerStub) AwaitStopped(ctx context.Context, id string) (session.StopOutcome, error) {
 	return s.await(ctx, id)
 }
 
@@ -825,7 +825,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 					testutil.StubObserver{},
 					testutil.StubWorkspaceService{},
 				)
-				fixture.Handlers.Sessions = sessionStopManagerStub{StubSessionManager: base,
+				fixture.Handlers.Sessions = &sessionStopManagerStub{StubSessionManager: base,
 					request: func(_ context.Context, id string, cause session.StopCause) error {
 						requests++
 						if id != "sess-a" || cause != session.CauseUserRequested {
@@ -5385,7 +5385,7 @@ func TestDaemonStatusProjectsSubprocessHealth(t *testing.T) {
 	t.Run("Should project workspace-scoped redacted subprocess health", func(t *testing.T) {
 		t.Parallel()
 
-		manager := subprocessHealthSessionManager{
+		manager := &subprocessHealthSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				return []*session.Info{
 					{ID: "sess-health-a", WorkspaceID: "ws-a", State: session.StateActive},
@@ -5547,7 +5547,7 @@ type subprocessHealthSessionManager struct {
 	snapshots []session.SubprocessHealthSnapshot
 }
 
-func (m subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.SubprocessHealthSnapshot {
+func (m *subprocessHealthSessionManager) SubprocessHealthSnapshots() []session.SubprocessHealthSnapshot {
 	return append([]session.SubprocessHealthSnapshot(nil), m.snapshots...)
 }
 
