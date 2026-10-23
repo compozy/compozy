@@ -1,15 +1,14 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { AnimatePresence, m, useReducedMotionConfig, type Variants } from "motion/react";
 
 import { SEGMENT_PILL_DURATION, cn } from "@compozy/ui";
 
+import { useSessionListBranchPanel } from "../../hooks/use-session-list-branch-panel";
 import type { SessionThreadSegment } from "../../lib/session-thread-branch";
 
 // The token ease-out; the slide shares the segment pill's duration so both land together.
 const SLIDE_TRANSITION = { duration: SEGMENT_PILL_DURATION, ease: [0.22, 1, 0.36, 1] as const };
 const INSTANT = { duration: 0 };
-// The fold's `duration-base` plus a frame: past it the folded list is out of sight.
-const FOLD_SETTLE_MS = 200;
 
 /** `direction` 1 reveals the list to the right (subagents), -1 the one to the left. */
 const SLIDE: Variants = {
@@ -33,25 +32,8 @@ export interface SessionListBranchProps {
  */
 export function SessionListBranch({ segment, render }: SessionListBranchProps) {
   const reduced = useReducedMotionConfig() ?? false;
-  const [shown, setShown] = useState(segment);
-  const [direction, setDirection] = useState(0);
-  if (segment !== null && segment !== shown) {
-    setDirection(shown === null ? 0 : segment === "subagents" ? 1 : -1);
-    setShown(segment);
-  } else if (segment === null && shown !== null && reduced) {
-    setDirection(0);
-    setShown(null);
-  }
+  const { shown, direction } = useSessionListBranchPanel(segment, reduced);
   const open = segment !== null;
-  const settling = segment === null && shown !== null;
-  useEffect(() => {
-    if (!settling) return;
-    const timer = setTimeout(() => {
-      setDirection(0);
-      setShown(null);
-    }, FOLD_SETTLE_MS);
-    return () => clearTimeout(timer);
-  }, [settling]);
 
   return (
     <div
