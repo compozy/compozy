@@ -1469,9 +1469,9 @@ config scope.
 | `run_branch_namespace` | string       | `run/`                    | Lowercase slash-terminated namespace. | Prefix for per-run branches.                                             |
 | `copy_list`            | string array | empty                     | Non-empty relative Git pathspecs.     | Matching ignored, untracked files copied without overwriting files.      |
 | `setup_command`        | string       | empty                     | Shell command or empty.               | Bootstrap command run inside a new managed Worktree.                     |
-| `teardown_command`        | string       | empty                     | Shell command or empty.               | Cleanup command before removing a managed Worktree.                     |
+| `teardown_command`     | string       | empty                     | Shell command or empty.               | Cleanup command before removing a managed Worktree.                      |
 | `setup_timeout`        | duration     | `10m`                     | Positive Go duration.                 | Deadline for `setup_command`.                                            |
-| `teardown_timeout`        | duration     | `10m`                     | Positive Go duration.                 | Deadline for `teardown_command`.                                            |
+| `teardown_timeout`     | duration     | `10m`                     | Positive Go duration.                 | Deadline for `teardown_command`.                                         |
 | `discovery_cache_ttl`  | duration     | `30s`                     | Positive Go duration.                 | Freshness window for Git discovery and cached local status.              |
 
 The section applies live. New creation and later discovery read the active generation; accepted

@@ -32,16 +32,16 @@ default_worktree_mode = "inherit"
 
 ## Worktree fields
 
-| Field                  | Default                   | Validation                         |
-| ---------------------- | ------------------------- | ---------------------------------- |
-| `root`                 | `$COMPOZY_HOME/worktrees` | Empty or absolute path.            |
-| `run_branch_namespace` | `run/`                    | Lowercase namespace ending in `/`. |
-| `copy_list`            | empty                     | Non-empty relative Git pathspecs.  |
-| `setup_command`        | empty                     | Shell command; empty skips setup.  |
-| `teardown_command`        | empty                     | Shell command; empty skips teardown.  |
-| `setup_timeout`        | `10m`                     | Positive Go duration.              |
-| `teardown_timeout`        | `10m`                     | Positive Go duration.              |
-| `discovery_cache_ttl`  | `30s`                     | Positive Go duration.              |
+| Field                  | Default                   | Validation                           |
+| ---------------------- | ------------------------- | ------------------------------------ |
+| `root`                 | `$COMPOZY_HOME/worktrees` | Empty or absolute path.              |
+| `run_branch_namespace` | `run/`                    | Lowercase namespace ending in `/`.   |
+| `copy_list`            | empty                     | Non-empty relative Git pathspecs.    |
+| `setup_command`        | empty                     | Shell command; empty skips setup.    |
+| `teardown_command`     | empty                     | Shell command; empty skips teardown. |
+| `setup_timeout`        | `10m`                     | Positive Go duration.                |
+| `teardown_timeout`     | `10m`                     | Positive Go duration.                |
+| `discovery_cache_ttl`  | `30s`                     | Positive Go duration.                |
 
 Changing `root` affects new managed Worktrees only; it does not move existing checkouts. The copy
 list and setup command apply only during managed creation, not adoption. Only ignored, untracked
