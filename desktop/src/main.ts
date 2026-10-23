@@ -18,6 +18,7 @@ import {
 } from "electron";
 
 import { BootstrapRunner } from "./bootstrap/bootstrap-runner";
+import type { DesktopBuildChannel } from "./release/build-channel";
 import { verifyRuntimeBundle } from "./bootstrap/bundle-integrity";
 import { RuntimeHealthMonitor } from "./bootstrap/runtime-health-monitor";
 import { bootstrapSnapshot } from "./boot/bootstrap-state";
@@ -55,7 +56,7 @@ import { applyDefaultDenyPermissions } from "./window/security";
 import { installApplicationMenu } from "./window/application-menu";
 
 declare const __COMPOZY_DESKTOP_E2E_BUILD__: boolean;
-declare const __COMPOZY_RELEASE_CHANNEL__: "beta" | "development";
+declare const __COMPOZY_RELEASE_CHANNEL__: DesktopBuildChannel;
 
 const paths = resolveDesktopPaths();
 const bootId = randomUUID();

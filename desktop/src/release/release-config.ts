@@ -1,9 +1,10 @@
 export type ReleaseArch = "arm64" | "x64";
 export type ReleasePlatform = "linux" | "mac";
+export type ReleaseChannel = "stable" | "beta";
 
 export interface ReleaseConfigInput {
   readonly arch: ReleaseArch;
-  readonly channel: "beta";
+  readonly channel: ReleaseChannel;
   readonly notarize: boolean;
   readonly platform: ReleasePlatform;
   readonly version: string;
@@ -15,6 +16,9 @@ const strictSemver =
 export function validateReleaseConfig(input: ReleaseConfigInput): void {
   if (!strictSemver.test(input.version)) {
     throw new Error("Release version must be strict unprefixed SemVer.");
+  }
+  if (input.channel !== "stable" && input.channel !== "beta") {
+    throw new Error("Release channel must be stable or beta.");
   }
   if (input.platform !== "mac" && input.platform !== "linux") {
     throw new Error("Release platform must be mac or linux.");

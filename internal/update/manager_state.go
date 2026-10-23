@@ -160,13 +160,13 @@ func (m *Manager) updateRecommendation(installMethod string, release *Release) s
 	if m.releaseTrack == releaseTrackBeta {
 		switch installMethod {
 		case string(InstallMethodNPM):
-			return "Use `npm install -g @compozy/cli@beta`."
+			return "Use `npm install -g @compozy/cli`."
 		case string(InstallMethodGoInstall):
 			return "Use `go install " + goInstallModulePath + "@" + releaseVersion + "`."
 		case string(InstallMethodDirectBinary):
 			return ManualDirectBinaryRecommendation(releaseURL, m.runtimeOS)
 		default:
-			return "Install the v0.3 beta with `curl -fsSL https://compozy.com/install.sh | sh`."
+			return "Install the latest release with `curl -fsSL https://compozy.com/install.sh | sh`."
 		}
 	}
 

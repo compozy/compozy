@@ -1,5 +1,30 @@
 # Compozy Change Impact
 
+## Stable release line v0.4.0 — 2026-10-23
+
+Owner: plan `.claude/plans/stable-release-040.md`, branch `feat/stable-release-040`, with
+`compozy/releasepr` v0.0.30 (stable predecessor includes prereleases; `Release-As` footer).
+
+- **Release surfaces (public, SD-013):** automatic releases follow the `RELEASE_AUTO_CHANNEL`
+  variable (`stable` or `beta`) through `scripts/resolve-auto-release-identity.sh`; stable publishes
+  the release PR version. The manual `legacy` dispatch option and its runbook are removed — v0.2 is
+  end-of-life. The beta path stays available for explicit dispatch. GitHub/site release bodies cover
+  only the range since the nearest tag, prereleases included. `cliff.toml` bumps the minor for
+  feature releases. npm `latest` and Homebrew carry stable; CI cannot move the npm `beta` dist-tag
+  (trusted publishing authorizes `publish` only).
+- **Desktop:** builds accept `stable` (`COMPOZY_RELEASE_CHANNEL`, `release:config`/`release:collect
+  --channel`). `compozy-desktop-release channels` maps stable to `channel-stable` plus a
+  `channel-beta` mirror; `min-app-version` keeps the oldest live app on any reached channel. Beta apps
+  update in place through `channel-beta` and the installed stable build reads `channel-stable`.
+- **Native tools / extensibility / hooks / config:** no tool, hook, extension, or config-key change.
+- **Update and CLI:** the beta track offers any newer stable release; desktop provenance accepts
+  `stable`; npm guidance is `npm install -g @compozy/cli`. No persisted state shape changes.
+- **Workspace data isolation:** not applicable — release tooling only.
+- **Official skill / Web / Docs / QA:** `skills/compozy/references/runtime-operations.md`, README,
+  site install/landing/migration/desktop-release pages, `MIGRATION_GUIDE.md`, and
+  `REL-beta-channel-contract`, `REL-beta-install-paths`, `REL-beta-self-update` co-ship; the
+  scenarios need a re-walk before the v0.4.0 publication.
+
 ## User scope work — `user-scope-work`, 2026-10-21
 
 Owner: spec `.compozy/tasks/user-scope-work/` (prerequisite of `all-projects`), branch

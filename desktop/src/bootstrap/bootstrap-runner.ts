@@ -10,6 +10,7 @@ import {
 } from "./bootstrap-event";
 import { verifyRuntimeBundle } from "./bundle-integrity";
 import { ensurePrivateDirectory } from "../files/private-directory";
+import type { DesktopBuildChannel } from "../release/build-channel";
 
 const MAXIMUM_STDERR_BYTES = 64 * 1024;
 
@@ -23,7 +24,7 @@ export class BootstrapRunner {
   readonly #logPath: string;
   readonly #minimumRuntime: string;
   readonly #appVersion: string;
-  readonly #channel: "beta" | "development";
+  readonly #channel: DesktopBuildChannel;
   readonly #bootId: string;
   readonly #environment: NodeJS.ProcessEnv;
   #running: Promise<BootstrapResult> | null = null;
@@ -34,7 +35,7 @@ export class BootstrapRunner {
     logPath: string;
     minimumRuntime: string;
     appVersion: string;
-    channel: "beta" | "development";
+    channel: DesktopBuildChannel;
     bootId: string;
     environment?: NodeJS.ProcessEnv;
   }) {

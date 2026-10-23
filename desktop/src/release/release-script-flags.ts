@@ -1,4 +1,4 @@
-import type { ReleaseArch, ReleasePlatform } from "./release-config";
+import type { ReleaseArch, ReleaseChannel, ReleasePlatform } from "./release-config";
 
 export function parseReleaseScriptFlags(
   argv: readonly string[],
@@ -25,6 +25,11 @@ export function parseReleaseScriptFlags(
 
 export function parseReleasePlatform(value: string | undefined): ReleasePlatform {
   if (value !== "mac" && value !== "linux") throw new Error("Platform must be mac or linux.");
+  return value;
+}
+
+export function parseReleaseChannel(value: string | undefined): ReleaseChannel {
+  if (value !== "stable" && value !== "beta") throw new Error("Channel must be stable or beta.");
   return value;
 }
 

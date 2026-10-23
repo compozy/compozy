@@ -40,6 +40,15 @@ func isBetaVersionForLine(candidate *semver.Version, current *semver.Version) bo
 		candidate.Minor() == current.Minor()
 }
 
+// isBetaTrackCandidate accepts newer betas of the current line and any newer stable release,
+// so beta installs move onto the stable track through their normal update.
+func isBetaTrackCandidate(prerelease bool, candidate *semver.Version, current *semver.Version) bool {
+	if prerelease {
+		return isBetaVersionForLine(candidate, current)
+	}
+	return candidate != nil && current != nil && candidate.Prerelease() == "" && candidate.GreaterThan(current)
+}
+
 func prereleaseTrack(prerelease string) releaseTrack {
 	track, _, _ := strings.Cut(prerelease, ".")
 	return releaseTrack(track)

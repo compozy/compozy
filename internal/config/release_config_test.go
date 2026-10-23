@@ -441,7 +441,12 @@ func TestReleaseTemplatesStayAlignedWithPublicInstallMethods(t *testing.T) {
 		} {
 			assertContainsText(t, "GoReleaser release header", header, snippet)
 		}
-		assertNotContainsText(t, "GoReleaser release header", header, "brew install")
+		assertContainsText(
+			t,
+			"GoReleaser release header",
+			header,
+			"{{- if eq .Env.HOMEBREW_SKIP_UPLOAD \"true\" }}\nHomebrew is intentionally unavailable for this prerelease.\n{{- else }}\n\n#### Homebrew\n```bash\nbrew install compozy/compozy/compozy\n```",
+		)
 		assertNotContainsText(t, "GoReleaser release header", header, "github.com/pedronauck/compozy")
 	})
 
@@ -488,7 +493,8 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		"allow_existing_tag_args+=(--allow-existing-tag)",
 		"\"${allow_existing_tag_args[@]}\"",
 		"render-and-validate-release-body.sh",
-		"scripts/resolve-auto-beta-version.sh",
+		`scripts/resolve-auto-release-identity.sh "${RELEASE_AUTO_CHANNEL}"`,
+		"vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'",
 		"validate-release-body.sh",
 		"PR_RELEASE_LOG_LEVEL: error",
 		"scripts/release-plan-contract.sh",
@@ -713,6 +719,50 @@ esac
 					assertContainsText(t, "beta resolver failure", string(output), testCase.want)
 				} else if got := strings.TrimSpace(string(output)); got != testCase.want {
 					t.Fatalf("resolved beta version = %q, want %q", got, testCase.want)
+				}
+			})
+		}
+	})
+
+	t.Run("Should publish automatic stable releases at the release PR version", func(t *testing.T) {
+		t.Parallel()
+
+		for _, testCase := range []struct {
+			name      string
+			version   string
+			channel   string
+			want      string
+			wantError bool
+		}{
+			{name: "Should publish the plain release PR version", version: "0.4.0", channel: "stable",
+				want: "release_version=0.4.0\nrelease_channel=stable"},
+			{name: "Should refuse a prerelease package version on the stable channel", version: "0.4.0-beta.1",
+				channel: "stable", wantError: true, want: "is not plain SemVer"},
+			{name: "Should refuse an unknown automatic channel", version: "0.4.0", channel: "legacy",
+				wantError: true, want: "must be stable or beta"},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				repo := t.TempDir()
+				manifest := fmt.Sprintf("{\"version\":%q}\n", testCase.version)
+				if err := os.WriteFile(filepath.Join(repo, "package.json"), []byte(manifest), 0o600); err != nil {
+					t.Fatalf("os.WriteFile(package.json) error = %v", err)
+				}
+				cmd := exec.CommandContext(
+					t.Context(),
+					"bash",
+					filepath.Join(root, "scripts", "resolve-auto-release-identity.sh"),
+					testCase.channel,
+				)
+				cmd.Dir = repo
+				output, err := cmd.CombinedOutput()
+				if (err != nil) != testCase.wantError {
+					t.Fatalf("resolve-auto-release-identity.sh error = %v, output = %s", err, output)
+				}
+				if testCase.wantError {
+					assertContainsText(t, "automatic identity failure", string(output), testCase.want)
+				} else if got := strings.TrimSpace(string(output)); got != testCase.want {
+					t.Fatalf("automatic identity = %q, want %q", got, testCase.want)
 				}
 			})
 		}
@@ -1010,14 +1060,15 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		}
 	})
 
-	t.Run("Should stamp dry-run desktop bundles with the prospective beta identity", func(t *testing.T) {
+	t.Run("Should stamp dry-run desktop bundles with the prospective release identity", func(t *testing.T) {
 		t.Parallel()
 
 		identityJob := workflowJobSection(t, workflow, "dry-run-identity", "dry-run")
 		for _, required := range []string{
 			"release_version: ${{ steps.identity.outputs.release_version }}",
-			"release_version=\"$(scripts/resolve-auto-beta-version.sh)\"",
-			`printf 'release_version=%s\n' "${release_version}" >>"${GITHUB_OUTPUT}"`,
+			"release_channel: ${{ steps.identity.outputs.release_channel }}",
+			"RELEASE_AUTO_CHANNEL: ${{ vars.RELEASE_AUTO_CHANNEL }}",
+			`scripts/resolve-auto-release-identity.sh "${RELEASE_AUTO_CHANNEL}" >>"${GITHUB_OUTPUT}"`,
 		} {
 			assertContainsText(t, "dry-run release identity", identityJob, required)
 		}
@@ -1121,7 +1172,11 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}",
 			"go run ./cmd/compozy-desktop-release publish",
 			"-o json",
-			"--operation-id \"desktop-release-${RELEASE_VERSION}-publish\"",
+			"go run ./cmd/compozy-desktop-release channels --channel \"${RELEASE_CHANNEL}\"",
+			"operation_id=\"desktop-release-${RELEASE_VERSION}-publish\"",
+			"operation_id=\"desktop-release-${RELEASE_VERSION}-mirror-${channel}\"",
+			"--operation-id \"${operation_id}\"",
+			"--channel \"${channel}\"",
 			".operation == \"publish\"",
 			".audit_commit == .channel_ref_after",
 			".verified_inventory | length == 7",

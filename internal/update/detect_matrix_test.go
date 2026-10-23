@@ -173,6 +173,18 @@ func runDesktopProvenanceCases(t *testing.T) {
 			wantManaged: false,
 		},
 		{
+			name: "Should detect stable desktop app provenance",
+			marker: func(digest string) []byte {
+				return fmt.Appendf(
+					nil,
+					`{"installed_by":"desktop-app","binary_sha256":"%s","app_version":"1.0.0","channel":"stable","runtime_version":"1.0.0"}`,
+					digest,
+				)
+			},
+			wantMethod:  InstallMethodDesktopApp,
+			wantManaged: false,
+		},
+		{
 			name: "Should fall through when desktop provenance metadata is incomplete",
 			marker: func(digest string) []byte {
 				return []byte(`{"installed_by":"desktop-app","binary_sha256":"` + digest + `"}`)

@@ -144,7 +144,11 @@ expect_failure "release tag \"${RECOVERY_TAG}\" already exists" \
 assert_plan HEAD "$RECOVERY_VERSION" beta true false beta true "$CONTRACT_TAG" false true
 git tag --delete "$CONTRACT_TAG" >/dev/null
 
-assert_plan HEAD 9.9.9 stable false true latest false v0.2.15 false
-assert_plan HEAD 0.2.999 legacy false true latest false v0.2.15 false
+# A stable release that follows a beta line publishes only the changes since the last beta.
+printf 'fourth\n' >> contract.txt
+git add contract.txt
+git commit -m "test: advance past the last beta" >/dev/null
+git push origin main >/dev/null
+assert_plan HEAD 9.9.9 stable false true latest false "$RECOVERY_TAG" false
 
 printf 'release plan contract: PASS (%s)\n' "$PR_RELEASE_MODULE"

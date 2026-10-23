@@ -22,9 +22,42 @@ import (
 func TestReleasePolicy(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should refuse the reserved stable channel", func(t *testing.T) {
+	t.Run("Should publish stable releases to the stable feed and mirror them to the beta feed", func(t *testing.T) {
 		t.Parallel()
-		assertErrorContains(t, ValidateDesktopChannel(ChannelStable), "stable channel is reserved")
+		if err := ValidateDesktopChannel(ChannelStable); err != nil {
+			t.Fatalf("ValidateDesktopChannel(stable) error = %v", err)
+		}
+		stable, err := ReleaseChannels(ChannelStable)
+		if err != nil || !slices.Equal(stable, []string{ChannelStable, ChannelBeta}) {
+			t.Fatalf("ReleaseChannels(stable) = %v, %v", stable, err)
+		}
+		beta, err := ReleaseChannels(ChannelBeta)
+		if err != nil || !slices.Equal(beta, []string{ChannelBeta}) {
+			t.Fatalf("ReleaseChannels(beta) = %v, %v", beta, err)
+		}
+		_, err = ReleaseChannels("nightly")
+		assertErrorContains(t, err, "unsupported channel")
+	})
+
+	t.Run("Should keep serving the oldest live app across every release feed", func(t *testing.T) {
+		t.Parallel()
+		minimum, err := MinAppVersion("0.4.0", []string{"", "0.3.0-beta.38"})
+		if err != nil || minimum != "0.3.0-beta.38" {
+			t.Fatalf("MinAppVersion(bridge) = %q, %v", minimum, err)
+		}
+		if err := AssertCompatibleWithPrevious(minimum, "0.3.0-beta.38"); err != nil {
+			t.Fatalf("AssertCompatibleWithPrevious(beta mirror) error = %v", err)
+		}
+		minimum, err = MinAppVersion("0.4.1", []string{"0.4.0", "0.4.0"})
+		if err != nil || minimum != "0.4.0" {
+			t.Fatalf("MinAppVersion(steady) = %q, %v", minimum, err)
+		}
+		minimum, err = MinAppVersion("0.4.0", nil)
+		if err != nil || minimum != "0.4.0" {
+			t.Fatalf("MinAppVersion(first) = %q, %v", minimum, err)
+		}
+		_, err = MinAppVersion("0.4.0", []string{"latest"})
+		assertErrorContains(t, err, "live feed version")
 	})
 
 	t.Run("Should require candidates to cross strict prerelease boundaries", func(t *testing.T) {

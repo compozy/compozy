@@ -30,7 +30,6 @@ on:
         options:
           - beta
           - stable
-          - legacy
       desktop_artifacts_run_id:
         description: Optional prior release run for the same source commit; reuse completed desktop artifacts
         required: false
@@ -115,7 +114,7 @@ jobs:
         run: |
           go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
-  # Resolve one prospective beta identity for every release-PR validation lane.
+  # Resolve one prospective release identity for every release-PR validation lane.
   dry-run-identity:
     name: Resolve Dry-Run Release Identity
     if: |
@@ -126,6 +125,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       release_version: ${{ steps.identity.outputs.release_version }}
+      release_channel: ${{ steps.identity.outputs.release_channel }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -136,12 +136,11 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Resolve prospective beta version
+      - name: Resolve prospective release identity
         id: identity
-        run: |
-          set -euo pipefail
-          release_version="$(scripts/resolve-auto-beta-version.sh)"
-          printf 'release_version=%s\n' "${release_version}" >>"${GITHUB_OUTPUT}"
+        env:
+          RELEASE_AUTO_CHANNEL: ${{ vars.RELEASE_AUTO_CHANNEL }}
+        run: scripts/resolve-auto-release-identity.sh "${RELEASE_AUTO_CHANNEL}" >>"${GITHUB_OUTPUT}"
 
   # Run the GoReleaser dry-run on every release PR.
   dry-run:
@@ -315,9 +314,11 @@ jobs:
           scripts/publish-sdk-package.sh --dry-run sdk/typescript 0.0.0-beta.0 beta
           scripts/publish-sdk-package.sh --dry-run sdk/client 0.0.0-beta.0 beta
 
-      - name: Validate prospective beta release body
+      - name: Validate prospective release body
+        id: prospective
         env:
           DRY_RUN_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
+          DRY_RUN_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}
           PR_RELEASE_LOG_LEVEL: error
         run: |
           set -euo pipefail
@@ -325,7 +326,7 @@ jobs:
           go run "${PR_RELEASE_MODULE}" plan \
             --ref HEAD \
             --version "${DRY_RUN_VERSION}" \
-            --channel beta \
+            --channel "${DRY_RUN_CHANNEL}" \
             --format github >"${plan_output}"
 
           expected_keys=(
@@ -354,6 +355,8 @@ jobs:
             "${release_initial}" \
             "${RUNNER_TEMP}/PROSPECTIVE_RELEASE_BODY.md"
           head -1 "${RUNNER_TEMP}/PROSPECTIVE_RELEASE_BODY.md"
+          grep -E '^(github_prerelease|github_make_latest|npm_tag|homebrew_skip_upload)=' \
+            "${plan_output}" >>"${GITHUB_OUTPUT}"
 
       - &run-release-preflight
         name: Run release preflight
@@ -377,10 +380,10 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
-          GITHUB_PRERELEASE: "true"
-          GITHUB_MAKE_LATEST: "false"
-          NPM_TAG: beta
-          HOMEBREW_SKIP_UPLOAD: "true"
+          GITHUB_PRERELEASE: ${{ steps.prospective.outputs.github_prerelease }}
+          GITHUB_MAKE_LATEST: ${{ steps.prospective.outputs.github_make_latest }}
+          NPM_TAG: ${{ steps.prospective.outputs.npm_tag }}
+          HOMEBREW_SKIP_UPLOAD: ${{ steps.prospective.outputs.homebrew_skip_upload }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
@@ -443,6 +446,7 @@ jobs:
         run: |
           bun run --cwd desktop release:config -- \
             --version ${{ needs.dry-run-identity.outputs.release_version }} \
+            --channel ${{ needs.dry-run-identity.outputs.release_channel }} \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
             --notarize false \
@@ -451,7 +455,7 @@ jobs:
       - name: Build desktop bundle without publishing
         env:
           COMPOZY_RELEASE_VERSION: ${{ needs.dry-run-identity.outputs.release_version }}
-          COMPOZY_RELEASE_CHANNEL: beta
+          COMPOZY_RELEASE_CHANNEL: ${{ needs.dry-run-identity.outputs.release_channel }}
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main
@@ -768,7 +772,7 @@ jobs:
        github.ref == 'refs/heads/main' &&
        (startsWith(github.event.head_commit.message, 'build: release ') ||
         startsWith(github.event.head_commit.message, 'build: prepare release ')) &&
-       vars.RELEASE_AUTO_CHANNEL == 'beta')
+       (vars.RELEASE_AUTO_CHANNEL == 'stable' || vars.RELEASE_AUTO_CHANNEL == 'beta'))
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
@@ -863,6 +867,7 @@ jobs:
           RELEASE_REF_INPUT: ${{ inputs.release_ref }}
           RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
           RELEASE_CHANNEL_INPUT: ${{ inputs.release_channel }}
+          RELEASE_AUTO_CHANNEL: ${{ vars.RELEASE_AUTO_CHANNEL }}
         run: |
           set -euo pipefail
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
@@ -873,10 +878,11 @@ jobs:
             } >>"${GITHUB_OUTPUT}"
             exit 0
           fi
+          identity="$(scripts/resolve-auto-release-identity.sh "${RELEASE_AUTO_CHANNEL}")"
           {
             echo "ref=${GITHUB_SHA}"
-            echo "version=$(scripts/resolve-auto-beta-version.sh)"
-            echo "channel=beta"
+            echo "version=$(sed -n 's/^release_version=//p' <<<"${identity}")"
+            echo "channel=$(sed -n 's/^release_channel=//p' <<<"${identity}")"
           } >>"${GITHUB_OUTPUT}"
 
       - name: Plan explicit release
@@ -1193,28 +1199,42 @@ jobs:
     outputs:
       min_app_version: ${{ steps.compatibility.outputs.min_app_version }}
     steps:
-      - name: Resolve the previous complete channel generation
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-plan.outputs.release_ref }}
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # The runtime must keep serving the oldest app live on any feed this release reaches.
+      - name: Resolve the oldest live app across the release feeds
         id: compatibility
         env:
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
-          generation_file="${RUNNER_TEMP}/desktop-generation.json"
-          generation_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/channel-${RELEASE_CHANNEL}/desktop/generation.json"
-          status="$(curl --silent --show-error --output "${generation_file}" --write-out '%{http_code}' "${generation_url}")"
-          case "${status}" in
-            200) min_app_version="$(jq -er '.version' "${generation_file}")" ;;
-            404) min_app_version="${RELEASE_VERSION}" ;;
-            *)
-              echo "::error::Could not read the channel generation (HTTP ${status})"
-              exit 1
-              ;;
-          esac
-          if [[ ! "${min_app_version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::Channel generation returned invalid SemVer: ${min_app_version}"
-            exit 1
-          fi
+          live_args=()
+          channels="$(go run ./cmd/compozy-desktop-release channels --channel "${RELEASE_CHANNEL}" | jq -er '.channels[]')"
+          while IFS= read -r channel; do
+            generation_file="${RUNNER_TEMP}/desktop-generation-${channel}.json"
+            generation_url="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/channel-${channel}/desktop/generation.json"
+            status="$(curl --silent --show-error --output "${generation_file}" --write-out '%{http_code}' "${generation_url}")"
+            case "${status}" in
+              200) live_args+=(--live "$(jq -er '.version' "${generation_file}")") ;;
+              404) live_args+=(--live "") ;;
+              *)
+                echo "::error::Could not read the ${channel} channel generation (HTTP ${status})"
+                exit 1
+                ;;
+            esac
+          done <<<"${channels}"
+          min_app_version="$(
+            go run ./cmd/compozy-desktop-release min-app-version \
+              --version "${RELEASE_VERSION}" \
+              "${live_args[@]}" | jq -er '.min_app_version'
+          )"
           printf 'min_app_version=%s\n' "${min_app_version}" >>"${GITHUB_OUTPUT}"
 
   desktop-build:
@@ -1320,6 +1340,7 @@ jobs:
         run: |
           bun run --cwd desktop release:config -- \
             --version "${{ needs.release-plan.outputs.release_version }}" \
+            --channel "${{ needs.release-plan.outputs.release_channel }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
             --notarize ${{ matrix.platform == 'mac' }} \
@@ -1370,6 +1391,7 @@ jobs:
           bun run --cwd desktop release:collect -- \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
+            --channel "${{ needs.release-plan.outputs.release_channel }}" \
             --version "${{ needs.release-plan.outputs.release_version }}" \
             --source .artifacts/builder \
             --output ".artifacts/release/${{ matrix.id }}"
@@ -1470,29 +1492,38 @@ jobs:
             ../.artifacts/channel \
             "https://github.com/${GITHUB_REPOSITORY}/releases/download/v${version}"
 
-      - name: Verify payloads then advance the channel ref
+      # Stable releases also advance the beta feed, so installed beta apps update in place.
+      - name: Verify payloads then advance every release channel ref
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           set -euo pipefail
-          go run ./cmd/compozy-desktop-release publish \
-            --operation-id "desktop-release-${RELEASE_VERSION}-publish" \
-            --channel "${RELEASE_CHANNEL}" \
-            --version "${RELEASE_VERSION}" \
-            --repository "${GITHUB_REPOSITORY}" \
-            --asset-dir .artifacts/authority \
-            --channel-dir .artifacts/channel \
-            -o json \
-            | tee .artifacts/channel-publish-result.json
-          jq -e '
-            .operation == "publish" and
-            (.channel_ref_after | length > 0) and
-            (.audit_commit == .channel_ref_after) and
-            (.verified_inventory | length == 7) and
-            (.outcome == "published" or .outcome == "already_completed")
-          ' .artifacts/channel-publish-result.json >/dev/null
+          channels="$(go run ./cmd/compozy-desktop-release channels --channel "${RELEASE_CHANNEL}" | jq -er '.channels[]')"
+          while IFS= read -r channel; do
+            operation_id="desktop-release-${RELEASE_VERSION}-publish"
+            if [[ "${channel}" != "${RELEASE_CHANNEL}" ]]; then
+              operation_id="desktop-release-${RELEASE_VERSION}-mirror-${channel}"
+            fi
+            result=".artifacts/channel-publish-result-${channel}.json"
+            go run ./cmd/compozy-desktop-release publish \
+              --operation-id "${operation_id}" \
+              --channel "${channel}" \
+              --version "${RELEASE_VERSION}" \
+              --repository "${GITHUB_REPOSITORY}" \
+              --asset-dir .artifacts/authority \
+              --channel-dir .artifacts/channel \
+              -o json \
+              | tee "${result}"
+            jq -e '
+              .operation == "publish" and
+              (.channel_ref_after | length > 0) and
+              (.audit_commit == .channel_ref_after) and
+              (.verified_inventory | length == 7) and
+              (.outcome == "published" or .outcome == "already_completed")
+            ' "${result}" >/dev/null
+          done <<<"${channels}"
 
   desktop-smoke:
     name: Smoke Packaged Desktop ${{ matrix.name }}

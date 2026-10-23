@@ -9,13 +9,48 @@ import (
 
 func ValidateDesktopChannel(channel string) error {
 	switch channel {
-	case ChannelBeta:
+	case ChannelStable, ChannelBeta:
 		return nil
-	case ChannelStable:
-		return fmt.Errorf("desktop release: stable channel is reserved and cannot publish")
 	default:
 		return fmt.Errorf("desktop release: unsupported channel %q", channel)
 	}
+}
+
+// ReleaseChannels returns the feeds a release on channel publishes to, primary feed first.
+// Stable releases also reach the beta feed so every installed beta app updates in place.
+func ReleaseChannels(channel string) ([]string, error) {
+	switch channel {
+	case ChannelStable:
+		return []string{ChannelStable, ChannelBeta}, nil
+	case ChannelBeta:
+		return []string{ChannelBeta}, nil
+	default:
+		return nil, fmt.Errorf("desktop release: unsupported channel %q", channel)
+	}
+}
+
+// MinAppVersion returns the lowest live app version across the release feeds, which the new
+// runtime must keep serving. Without a live feed the release version is its own minimum.
+func MinAppVersion(releaseVersion string, liveVersions []string) (string, error) {
+	if err := ValidateVersion(releaseVersion); err != nil {
+		return "", err
+	}
+	lowest := ""
+	for _, live := range liveVersions {
+		if live == "" {
+			continue
+		}
+		if err := ValidateVersion(live); err != nil {
+			return "", fmt.Errorf("desktop release: live feed version: %w", err)
+		}
+		if lowest == "" || semver.Compare("v"+live, "v"+lowest) < 0 {
+			lowest = live
+		}
+	}
+	if lowest == "" {
+		return releaseVersion, nil
+	}
+	return lowest, nil
 }
 
 func ValidateVersion(version string) error {
