@@ -32,11 +32,13 @@ function runtimeInputFromValues(
   selectedSpeed: SessionRuntimeSelection["speed"] | undefined,
   selectionRevision: number,
   effectiveACPOptions: SessionRuntimeEffective["acp_options"],
-  selectedACPOptions: SessionRuntimeSelection["acp_options"]
+  selectedACPOptions: SessionRuntimeSelection["acp_options"],
+  requestedRuntime: SessionRuntimeSelection | undefined
 ) {
   return sessionPromptRuntimeInput({
     agentName,
     canPrompt,
+    requestedRuntime,
     effectiveRuntime:
       provider === undefined
         ? undefined
@@ -82,6 +84,7 @@ export function SessionPromptRuntimeProvider({
   const selectionRevision = session.runtime.selection_revision;
   const effectiveACPOptions = session.runtime?.effective?.acp_options;
   const selectedACPOptions = session.runtime?.selected?.acp_options;
+  const requestedRuntime = session.runtime.requested ?? undefined;
   const { store } = useStoreBinding(session.id, () =>
     sessionPromptRuntimeStoreLogic.createStore(
       runtimeInputFromValues(
@@ -99,7 +102,8 @@ export function SessionPromptRuntimeProvider({
         selectedSpeed,
         selectionRevision,
         effectiveACPOptions,
-        selectedACPOptions
+        selectedACPOptions,
+        requestedRuntime
       )
     )
   );
@@ -121,7 +125,8 @@ export function SessionPromptRuntimeProvider({
         selectedSpeed,
         selectionRevision,
         effectiveACPOptions,
-        selectedACPOptions
+        selectedACPOptions,
+        requestedRuntime
       )
     );
   }, [
@@ -137,6 +142,7 @@ export function SessionPromptRuntimeProvider({
     selectionRevision,
     effectiveACPOptions,
     selectedACPOptions,
+    requestedRuntime,
     session.agent_name,
     session.id,
     session.workspace_id,

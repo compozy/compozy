@@ -13837,6 +13837,7 @@ export interface components {
       generation?: number;
       last_known?: components["schemas"]["RuntimeSelectionPayload"] | null;
       recovery?: components["schemas"]["SessionRuntimeRecoveryPayload"] | null;
+      requested?: components["schemas"]["PromptRuntimeSelectionPayload"] | null;
       selected?: components["schemas"]["PromptRuntimeSelectionPayload"] | null;
       /** Format: int64 */
       selection_revision: number;

@@ -168,6 +168,30 @@ func TestMatchSpeedConfig(t *testing.T) {
 func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve a provider downgrade against a delayed configuration response", func(t *testing.T) {
+		t.Parallel()
+		options := []SessionConfigOption{{
+			ID: "fast", Category: "model_config", Kind: SessionConfigOptionKindBoolean, CurrentBool: new(true),
+		}}
+		process := &AgentProcess{}
+		process.setConfigOptions(options)
+		process.setSpeedResolution(
+			&speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
+		)
+		response, revision := process.configOptionsSnapshot()
+		options[0].CurrentBool = new(false)
+		process.setConfigOptions(options)
+		process.setConfigOptionsResponse(response, revision)
+		process.setSpeedResolution(
+			&speedpkg.Resolution{Requested: speedpkg.SpeedFast, Status: speedpkg.ResolutionApplied},
+		)
+		caps := process.CapsSnapshot()
+		if CurrentSpeed(caps.ConfigOptions) != speedpkg.SpeedNormal ||
+			caps.SpeedResolution.Status != speedpkg.ResolutionRejected {
+			t.Fatalf("delayed response restored Fast: %#v", caps)
+		}
+	})
+
 	t.Run("Should invalidate speed when the provider removes the capability", func(t *testing.T) {
 		t.Parallel()
 		process := &AgentProcess{}

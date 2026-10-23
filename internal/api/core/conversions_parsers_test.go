@@ -200,6 +200,10 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				payload.Runtime.Effective.SpeedResolution,
 			)
 		}
+		if payload.Runtime.Requested == nil || payload.Runtime.Requested.Speed != contract.SpeedFast ||
+			payload.Runtime.Requested.ReasoningEffort != "high" || payload.Runtime.Requested.Provider != "fake" {
+			t.Fatalf("binding intent = %#v, want retained fake/high/Fast", payload.Runtime.Requested)
+		}
 		if payload.Runtime.Selected == nil || payload.Runtime.Selected.Provider != "claude" ||
 			payload.Runtime.Selected.Model != "claude-fable-5" ||
 			payload.Runtime.Selected.ReasoningEffort != "max" ||

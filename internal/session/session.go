@@ -351,7 +351,7 @@ func (s *Session) clearProcess(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.updateFromProcessLocked(s.process, now, false)
+	s.captureProcessCapabilitiesLocked()
 	s.process = nil
 	if !now.IsZero() {
 		s.UpdatedAt = now

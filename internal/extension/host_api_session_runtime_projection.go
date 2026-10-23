@@ -25,6 +25,10 @@ func hostAPISessionRuntimePayloadFromInfo(info *session.Info) apicontract.Sessio
 		SelectionRevision: info.RuntimeSelectionRevision,
 		ACPSessionID:      strings.TrimSpace(info.ACPSessionID),
 	}
+	if strings.TrimSpace(info.Provider) != "" {
+		requested := info.RequestedRuntime()
+		payload.Requested = apicontract.PromptRuntimeSelectionPayloadFromSelection(&requested)
+	}
 	if hostAPIRuntimeHasEffectiveSelection(info) {
 		runtime := info.EffectiveRuntime()
 		payload.Effective = &apicontract.RuntimeSelectionPayload{

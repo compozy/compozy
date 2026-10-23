@@ -148,6 +148,7 @@ type SessionRuntimePayload struct {
 	Selected          *PromptRuntimeSelectionPayload `json:"selected,omitempty"`
 	SelectionRevision int64                          `json:"selection_revision"`
 	Effective         *RuntimeSelectionPayload       `json:"effective,omitempty"`
+	Requested         *PromptRuntimeSelectionPayload `json:"requested,omitempty"`
 	LastKnown         *RuntimeSelectionPayload       `json:"last_known,omitempty"`
 	ACPSessionID      string                         `json:"acp_session_id,omitempty"`
 	ACPCaps           *ACPCapsPayload                `json:"acp_caps,omitempty"`

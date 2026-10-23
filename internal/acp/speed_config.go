@@ -20,6 +20,12 @@ type speedConfigMatch struct {
 	selection SessionConfigOptionSelection
 }
 
+// SupportsSpeed reports whether an unambiguous advertised option accepts the requested speed.
+func SupportsSpeed(requested speedpkg.Speed, options []SessionConfigOption) bool {
+	match, _ := matchSpeedConfig(requested, options)
+	return match != nil
+}
+
 // CurrentSpeed returns the speed confirmed by the latest unambiguous ACP option.
 func CurrentSpeed(options []SessionConfigOption) speedpkg.Speed {
 	for _, speed := range []speedpkg.Speed{speedpkg.SpeedNormal, speedpkg.SpeedFast} {
@@ -59,7 +65,8 @@ func (d *Driver) applySessionSpeed(
 		return false, err
 	}
 
-	match, reason := matchSpeedConfig(parsed, process.CapsSnapshot().ConfigOptions)
+	options, revision := process.configOptionsSnapshot()
+	match, reason := matchSpeedConfig(parsed, options)
 	if match == nil {
 		process.setSpeedResolution(&speedpkg.Resolution{
 			Requested: parsed,
@@ -92,8 +99,7 @@ func (d *Driver) applySessionSpeed(
 		})
 		return true, rejectedSpeedNegotiation(parsed, match.option.ID, err)
 	}
-	options := sessionConfigOptionsFromSDK(response.ConfigOptions)
-	process.setConfigOptions(options)
+	options = process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
 	if !match.confirmed(options) {
 		process.setSpeedResolution(&speedpkg.Resolution{
 			Requested: parsed,

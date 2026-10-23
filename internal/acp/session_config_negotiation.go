@@ -177,7 +177,7 @@ func (d *Driver) applySessionReasoningEffort(
 	return true, nil
 }
 
-// applySessionConfigOption publishes new capabilities only after the response confirms the requested value.
+// applySessionConfigOption requires confirmation without replacing a concurrent provider observation.
 func (d *Driver) applySessionConfigOption(
 	ctx context.Context,
 	process *AgentProcess,
@@ -187,6 +187,7 @@ func (d *Driver) applySessionConfigOption(
 	if err != nil {
 		return err
 	}
+	_, revision := process.configOptionsSnapshot()
 	response, err := process.sendControlRequest[acpsdk.SetSessionConfigOptionResponse](ctx,
 		acpsdk.AgentMethodSessionSetConfigOption,
 		request,
@@ -194,12 +195,11 @@ func (d *Driver) applySessionConfigOption(
 	if err != nil {
 		return err
 	}
-	options := sessionConfigOptionsFromSDK(response.ConfigOptions)
+	options := process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
 	confirmed, ok := findConfigOptionByID(options, selection.ID)
 	if !ok || !selection.matches(confirmed) {
 		return fmt.Errorf("acp: provider did not confirm config option %q", selection.ID)
 	}
-	process.setConfigOptions(options)
 	return nil
 }
 

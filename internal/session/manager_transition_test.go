@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -25,47 +26,136 @@ var errRecordingCatalogMissingSession = errors.New("recording catalog missing se
 
 func TestPromptRuntimeReappliesProviderDrift(t *testing.T) {
 	t.Parallel()
-	h := newHarness(t)
-	driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
-	h.manager.driver = driver
-	active := createSession(t, h)
-	t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
-	snapshot := active.runtimeBindingSnapshot()
-	selection := snapshot.selection
-	selection.Speed = speedpkg.SpeedFast
-	selection.ReasoningEffort = "max"
-	active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
-	snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
-		{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
-		{
-			ID:             "fast",
-			Category:       "model_config",
-			Kind:           acp.SessionConfigOptionKindSelect,
-			CurrentValueID: "off",
-			Values:         []acp.SessionConfigOptionValue{{Value: "on"}, {Value: "off"}},
-		},
-	}})
-	process, err := h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
-	if err != nil {
-		t.Fatal(err)
-	}
-	configs := driver.configSnapshots()
-	if process != snapshot.process || len(configs) != 1 || configs[0].Speed != speedpkg.SpeedFast ||
-		configs[0].ReasoningEffort != "max" {
-		t.Fatalf("runtime configuration = %#v, want same-process reapplication of max and Fast", configs)
-	}
-	// Cursor aliases apply these controls in the launch model, not ACP selectors.
-	active.setProviderRouting(
-		compozyconfig.ResolvedAgent{Provider: selection.Provider, RuntimeProvider: cursorRuntimeProvider},
-	)
-	process, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
-	if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 1 {
-		t.Fatalf("launch-bound runtime = %p, %v, want unchanged process without ACP reconfiguration", process, err)
-	}
-	got := active.Info().EffectiveRuntime()
-	if got.Speed != selection.Speed || got.ReasoningEffort != selection.ReasoningEffort {
-		t.Fatalf("launch-bound effective runtime = %#v, want selected launch configuration", got)
-	}
+	t.Run("Should replace a process after a transport failure wrapped by negotiation", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.Speed = speedpkg.SpeedFast
+		driver.configErr = &acp.NegotiationError{
+			Code: acp.NegotiationCodeSpeedRejected, Stage: "speed", Requested: "fast", Cause: io.EOF,
+		}
+		h.driver.mu.Lock()
+		startsBefore := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		process, err := h.manager.ensurePromptRuntime(t.Context(), active, &selection, snapshot.process)
+		h.driver.mu.Lock()
+		startsAfter := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if err != nil || process == snapshot.process || startsAfter != startsBefore+1 {
+			t.Fatalf("transport recovery = %p, %v, starts %d -> %d", process, err, startsBefore, startsAfter)
+		}
+	})
+	t.Run("Should reapply advertised speed with no confirmed current value", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.ReasoningEffort = "high"
+		selection.Speed = speedpkg.SpeedFast
+		active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+			{
+				ID: "fast", Category: "model_config", Kind: acp.SessionConfigOptionKindSelect,
+				Values: []acp.SessionConfigOptionValue{{Value: "on"}, {Value: "off"}},
+			},
+		}})
+		process, err := h.manager.ensurePromptRuntime(t.Context(), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 1 {
+			t.Fatalf("unconfirmed speed = %p, %v, configs = %#v", process, err, driver.configSnapshots())
+		}
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+		}})
+		process, err = h.manager.ensurePromptRuntime(t.Context(), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 1 {
+			t.Fatalf("unsupported speed retried: %p, %v, configs = %#v", process, err, driver.configSnapshots())
+		}
+	})
+	t.Run("Should reapply provider drift while preserving launch-bound controls", func(t *testing.T) {
+		h := newHarness(t)
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.Speed = speedpkg.SpeedFast
+		selection.ReasoningEffort = "max"
+		active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+			{
+				ID:             "fast",
+				Category:       "model_config",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: "off",
+				Values:         []acp.SessionConfigOptionValue{{Value: "on"}, {Value: "off"}},
+			},
+		}})
+		process, err := h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+		if err != nil {
+			t.Fatal(err)
+		}
+		configs := driver.configSnapshots()
+		if process != snapshot.process || len(configs) != 1 || configs[0].Speed != speedpkg.SpeedFast ||
+			configs[0].ReasoningEffort != "max" {
+			t.Fatalf("runtime configuration = %#v, want same-process reapplication of max and Fast", configs)
+		}
+		snapshot.process.setCaps(acp.Caps{})
+		process, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 2 {
+			t.Fatalf("missing selector runtime = %p, %v, want renegotiation of requested effort", process, err)
+		}
+		// Invariant: a permanent refusal gets one attempt per prompt, with no process replacement.
+		snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "max"},
+			{ID: "fast", Category: "model_config", Kind: acp.SessionConfigOptionKindBoolean, CurrentBool: new(false)},
+		}})
+		refusal := &acp.NegotiationError{Code: acp.NegotiationCodeSpeedRejected, Stage: "speed", Requested: "fast"}
+		driver.configErr = refusal
+		h.driver.mu.Lock()
+		startsBefore := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		for attempt := range 2 {
+			_, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+			if !errors.Is(err, refusal) || len(driver.configSnapshots()) != 3+attempt {
+				t.Fatalf("refused attempt %d = %v, configs = %#v", attempt, err, driver.configSnapshots())
+			}
+		}
+		h.driver.mu.Lock()
+		startsAfter := len(h.driver.startCalls)
+		h.driver.mu.Unlock()
+		if startsAfter != startsBefore || active.runtimeBindingSnapshot().process != snapshot.process ||
+			active.Info().Speed != speedpkg.SpeedFast || active.Info().RuntimeFailure == "" {
+			t.Fatalf(
+				"refusal replaced process, lost intent, or lost diagnostic: starts %d -> %d",
+				startsBefore,
+				startsAfter,
+			)
+		}
+		// Cursor aliases apply these controls in the launch model, not ACP selectors.
+		active.setProviderRouting(
+			compozyconfig.ResolvedAgent{Provider: selection.Provider, RuntimeProvider: cursorRuntimeProvider},
+		)
+		process, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+		if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 4 {
+			t.Fatalf("launch-bound runtime = %p, %v, want unchanged process without ACP reconfiguration", process, err)
+		}
+		got := active.Info().EffectiveRuntime()
+		if got.Speed != selection.Speed || got.ReasoningEffort != selection.ReasoningEffort {
+			t.Fatalf("launch-bound effective runtime = %#v, want selected launch configuration", got)
+		}
+	})
 }
 
 func TestPromptRuntimeKeepsRestrictedSessionAfterRuntimeChange(t *testing.T) {
@@ -1445,8 +1535,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 
 type runtimeConfigRecordingDriver struct {
 	*fakeDriver
-	configMu sync.Mutex
-	configs  []acp.RuntimeConfig
+	configMu  sync.Mutex
+	configs   []acp.RuntimeConfig
+	configErr error
 }
 
 func (d *runtimeConfigRecordingDriver) ConfigureRuntime(
@@ -1458,7 +1549,7 @@ func (d *runtimeConfigRecordingDriver) ConfigureRuntime(
 	defer d.configMu.Unlock()
 	config.ACPOptions = acp.CloneSessionConfigOptionSelections(config.ACPOptions)
 	d.configs = append(d.configs, config)
-	return nil
+	return d.configErr
 }
 
 func (d *runtimeConfigRecordingDriver) configSnapshots() []acp.RuntimeConfig {

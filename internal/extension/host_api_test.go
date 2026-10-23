@@ -731,6 +731,10 @@ func TestHostAPIHandlerSessionRuntime(t *testing.T) {
 				PromptAudio:           true,
 				PromptEmbeddedContext: true,
 				SupportedModes:        []string{"edit"},
+				ConfigOptions: []acp.SessionConfigOption{
+					{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+					{ID: "fast", Kind: acp.SessionConfigOptionKindBoolean, CurrentBool: new(true)},
+				},
 			},
 			CreatedAt: time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: time.Date(2026, 7, 30, 12, 1, 0, 0, time.UTC),

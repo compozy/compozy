@@ -97,15 +97,23 @@ func (s *Session) infoLocked() *Info {
 	}
 }
 
+// RequestedRuntime returns the persisted intent of the current or last binding.
+func (info *Info) RequestedRuntime() RuntimeSelection {
+	if info == nil {
+		return RuntimeSelection{}
+	}
+	return RuntimeSelection{
+		Provider: info.Provider, Model: info.Model, ReasoningEffort: info.ReasoningEffort,
+		Speed: info.Speed, ACPOptions: acp.CloneSessionConfigOptionSelections(info.ACPOptions),
+	}
+}
+
 // EffectiveRuntime projects the latest provider observations while Info retains persisted intent.
 func (info *Info) EffectiveRuntime() RuntimeSelection {
 	if info == nil {
 		return RuntimeSelection{}
 	}
-	runtime := RuntimeSelection{
-		Provider: info.Provider, Model: info.Model, ReasoningEffort: info.ReasoningEffort,
-		Speed: info.Speed, ACPOptions: acp.CloneSessionConfigOptionSelections(info.ACPOptions),
-	}
+	runtime := info.RequestedRuntime()
 	strategy := info.runtimeStrategy
 	if strategy == "" {
 		strategy = RuntimeStrategyForProvider(info.Provider)
@@ -115,6 +123,8 @@ func (info *Info) EffectiveRuntime() RuntimeSelection {
 	}
 	if option, ok := acp.ReasoningConfigOption(info.ACPCaps.ConfigOptions); ok {
 		runtime.ReasoningEffort = strings.TrimSpace(option.CurrentValueID)
+	} else if info.ACPCapsKnown {
+		runtime.ReasoningEffort = ""
 	}
 	if current := acp.CurrentSpeed(info.ACPCaps.ConfigOptions); current != "" {
 		runtime.Speed = current

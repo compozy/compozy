@@ -4200,16 +4200,19 @@ Owner: branch `fix/issue-914-fast-reasoning-apply`; evidence and research matrix
 - **HTTP/UDS/CLI and extensions:** requested values remain persisted unchanged. `runtime.effective`
   and prompt events project the latest provider-confirmed effort/speed. Later ACP option updates
   revoke stale applied Fast; unsupported speed does not populate effective speed. Extension host
-  reads share this projection. CLI effort help and generated reference include ultra. No DTO or
-  OpenAPI/SDK type changes; existing speed outcome enums suffice.
+  reads share this projection. Additive `runtime.requested` exposes persisted intent separately;
+  OpenAPI, app clients, and extension TS/Go contracts are regenerated. CLI effort help and generated
+  reference include ultra; existing speed outcome enums suffice.
 - **Hooks/config:** existing runtime events/fields only; no hook IDs, config keys, permissions,
-  authentication policy, or new fallback behavior. Equal-selection prompts recheck observed controls.
+  authentication policy. Equal-selection prompts recheck observed controls. A healthy provider refusal
+  is attempted once per new prompt without same-intent rollback or process replacement.
 - **Workspace data isolation/user state:** no schema migration, paths, scopes, or ownership changes.
   Persisted `speed` continues to mean requested speed and matches `speed_resolution.requested`.
   Public enum widening is additive; no compatibility shims or delete targets.
 - **Official skill:** agent effort vocabulary and runtime guidance explain exact model membership,
   provider acknowledgement, later revocation, and requested versus effective values.
-- **Web/Docs/QA:** Web already includes ultra and consumes model-specific efforts; no picker/cache
-  changes. Provider docs explain truthful effective runtime. RT-061, RT-session-prompt-runtime-transitions,
+- **Web/Docs/QA:** Web includes ultra and consumes model-specific efforts. Composer defaults now prefer
+  requested intent when selected is absent, preserving intent across observation refetches. Goal prompt
+  queueing also uses requested rather than applied runtime. Provider docs explain this distinction. RT-061, RT-session-prompt-runtime-transitions,
   MS-057, and LP-runtime-provenance-observation receive scoped QA notes. Browser and live Loop/Goal
   checks are outside the authorized minimal lab; source/focused automated evidence is labeled.

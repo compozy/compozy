@@ -31,3 +31,7 @@ speed when the session resolution is unsupported. This is covered in the existin
 suite. Goal/Loop rules now accept ultra and retain exact provider validation. Live Loop/Goal and
 browser journeys were not repeated under this assignment's machine-load restriction; see
 [the scoped report](../reports/2026-10-23-issue-914-fast-reasoning.md).
+
+Review regression #914: after a Fast revocation, adopt/revalidate the Goal binding and prepare its
+next prompt. Report applied normal while the actual queued runtime still requests Fast. The existing
+managed Goal integration suite owns this queue assertion; no live Goal was started.

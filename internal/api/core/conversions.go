@@ -79,6 +79,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		UpdatedAt:           info.UpdatedAt,
 	}
 	if runtime := runtimeSelectionPayloadFromInfo(info); runtime != nil {
+		requested := info.RequestedRuntime()
+		payload.Runtime.Requested = contract.PromptRuntimeSelectionPayloadFromSelection(&requested)
 		payload.Runtime.LastKnown = runtime
 		if runtimeHasEffectiveSelection(info) {
 			payload.Runtime.Effective = runtime

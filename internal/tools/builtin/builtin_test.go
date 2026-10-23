@@ -57,15 +57,17 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			},
 		}
 		for _, tc := range cases {
-			descriptor := descriptors[tc.id]
-			schema := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
-			var input any
-			if err := json.Unmarshal([]byte(tc.input), &input); err != nil {
-				t.Fatal(err)
-			}
-			if err := schema.Validate(input); err != nil {
-				t.Fatalf("%s rejects ultra: %v", tc.id, err)
-			}
+			t.Run("Should accept ultra for "+string(tc.id), func(t *testing.T) {
+				descriptor := descriptors[tc.id]
+				schema := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
+				var input any
+				if err := json.Unmarshal([]byte(tc.input), &input); err != nil {
+					t.Fatal(err)
+				}
+				if err := schema.Validate(input); err != nil {
+					t.Fatalf("%s rejects ultra: %v", tc.id, err)
+				}
+			})
 		}
 	})
 

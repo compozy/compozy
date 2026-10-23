@@ -1005,6 +1005,12 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 		}
 		proc = newFakeProcess(copied.AgentName, copied.Command, copied.Cwd, sessionID)
 		proc.handle.caps.SupportsForkSession = d.advertiseFork
+		if copied.ReasoningEffort != "" {
+			proc.handle.caps.ConfigOptions = append(proc.handle.caps.ConfigOptions, acp.SessionConfigOption{
+				ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: copied.ReasoningEffort,
+				Values: []acp.SessionConfigOptionValue{{Value: copied.ReasoningEffort}},
+			})
+		}
 	}
 	if err != nil && proc == nil {
 		return nil, err

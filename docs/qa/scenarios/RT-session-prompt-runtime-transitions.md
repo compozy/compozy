@@ -43,3 +43,9 @@ intent, effective runtime, and ACP readback after each turn. Stopping after a pr
 must preserve requested-speed metadata and succeed without claiming Fast is applied. Focused
 replacement/recovery suites also assert exact ultra/Fast forwarding. See
 [the scoped report](../reports/2026-10-23-issue-914-fast-reasoning.md); no new browser verdict is claimed.
+
+Review re-walk #914: repeat Claude max/Fast after account revocation with no `runtime.selected`.
+Both completed turns retain requested max/Fast and report max/normal/rejected; generation remains 1.
+The focused composer suite also refetches reduced observations and checks the next send snapshot.
+A separate session transition regression counts one attempt per explicit retry and no process starts
+for a permanent configuration refusal, while a wrapped transport failure retains recovery.

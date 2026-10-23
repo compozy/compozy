@@ -258,7 +258,7 @@ func (s *Session) markRuntimeUnbound(now time.Time) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.updateFromProcessLocked(s.process, now, false)
+	s.captureProcessCapabilitiesLocked()
 	s.process = nil
 	s.RuntimeStatus = RuntimeStatusUnbound
 	s.RuntimeFailure = ""

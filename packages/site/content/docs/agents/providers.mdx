@@ -319,7 +319,7 @@ active ACP adapter must still advertise or accept that exact ID; otherwise start
 `model_unavailable` instead of falling back.
 
 `modelcatalog.ReasoningEffort` is the single enum:
-`none | minimal | low | medium | high | xhigh | max`. Each model exposes only its actual subset.
+`none | minimal | low | medium | high | xhigh | max | ultra`. Each model exposes only its actual subset.
 Catalog/config/live observations are the only sources; model-name prefixes never fabricate effort
 levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
 
@@ -336,6 +336,13 @@ fail before the first prompt with stable diagnostics. Speed V1 writes only an un
 unsupported until the released ACP capability contract can advertise boolean writes. Missing or
 ambiguous speed options report a durable `unsupported` outcome, while provider rejection returns
 `speed_rejected` before the first prompt.
+
+Session reads separate `runtime.requested` (current or last binding intent) from
+`runtime.effective` (provider observations) and `runtime.selected` (a durable next-prompt override).
+A later provider notification can revoke Fast or remove a reasoning selector. The composer and
+managed Goal prompts preserve requested intent across these observations. A healthy provider's
+explicit configuration refusal is attempted once per new prompt request; Compozy does not replace
+the process just to retry the same refusal.
 
 See [Provider Model Catalog](/docs/agents/model-catalog) for the curated Claude/Codex seeds,
 curated/all views, curation surfaces, and error codes.

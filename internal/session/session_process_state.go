@@ -12,6 +12,15 @@ import (
 
 const sessionModelConfigKey = "model"
 
+func (s *Session) captureProcessCapabilitiesLocked() {
+	if s.process == nil {
+		return
+	}
+	s.ACPCaps = s.process.CapsSnapshot()
+	s.ACPCapsKnown = true
+	s.SpeedResolution = speedpkg.CloneResolution(s.ACPCaps.SpeedResolution)
+}
+
 func (s *Session) retainStoppingProcess(proc *AgentProcess, now time.Time) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -88,7 +88,7 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 			Speed:           speedpkg.SpeedFast,
 			SpeedResolution: applied,
 		}
-		proc := NewAgentProcess(AgentProcessOptions{Caps: acp.Caps{SpeedResolution: applied}})
+		proc := NewAgentProcess(AgentProcessOptions{PID: 42, Caps: acp.Caps{SpeedResolution: applied}})
 		session.updateFromProcessLocked(proc, time.Now(), false)
 		proc.setCaps(acp.Caps{
 			SpeedResolution: &speedpkg.Resolution{
@@ -132,8 +132,12 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 			catalog.Speed != speedpkg.SpeedFast || catalog.SpeedResolution.Requested != catalog.Speed {
 			t.Fatalf("persisted intent = %#v/%#v, want requested Fast with rejected outcome", meta, catalog)
 		}
+		session.markExited(time.Now())
 		session.clearProcess(time.Now())
 		last := session.Info()
+		if last.Liveness.SubprocessPID != 0 || last.Liveness.SubprocessStartedAt != nil {
+			t.Fatalf("released runtime restored stopped process liveness: %#v", last.Liveness)
+		}
 		if last.EffectiveRuntime().Speed != speedpkg.SpeedNormal ||
 			last.SpeedResolution.Status != speedpkg.ResolutionRejected ||
 			session.Meta().SpeedResolution.Status != speedpkg.ResolutionRejected {
@@ -146,12 +150,14 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 
 		now := time.Now().UTC()
 		session := &Session{
-			ID:        "sess-1",
-			AgentName: "coder",
-			Workspace: t.TempDir(),
-			State:     StateStarting,
-			CreatedAt: now,
-			UpdatedAt: now,
+			ID:              "sess-1",
+			AgentName:       "coder",
+			Provider:        "claude",
+			ReasoningEffort: "max",
+			Workspace:       t.TempDir(),
+			State:           StateStarting,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		proc := NewAgentProcess(AgentProcessOptions{Caps: acp.Caps{}})
 		if err := session.activateWithProcess(proc, now, false, false); err != nil {
@@ -161,6 +167,9 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 		info := session.Info()
 		if !info.ACPCapsKnown {
 			t.Fatal("Info().ACPCapsKnown = false, want true for negotiated empty capabilities")
+		}
+		if info.EffectiveRuntime().ReasoningEffort != "" || info.ReasoningEffort != "max" {
+			t.Fatalf("missing selector = %#v, want unknown effective effort with max intent retained", info)
 		}
 		if info.ACPCaps.PromptImage ||
 			info.ACPCaps.PromptAudio ||

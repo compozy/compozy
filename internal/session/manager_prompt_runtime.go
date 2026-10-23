@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type promptRuntimePlan struct {
@@ -66,20 +67,33 @@ func (m *Manager) ensurePromptRuntime(
 		}
 		if RuntimeStrategyForProvider(runtimeProvider) == acp.RuntimeApplicationSessionConfig {
 			if configurator, ok := m.driver.(RuntimeConfigurator); ok {
-				liveErr := m.configurePromptRuntime(ctx, session, configurator, &snapshot, plan)
-				if liveErr == nil {
-					return snapshot.process, nil
-				}
-				proc, replacementErr := m.replacePromptRuntime(ctx, session, &snapshot, plan)
-				if replacementErr == nil {
-					return proc, nil
-				}
-				return nil, errors.Join(liveErr, replacementErr)
+				return m.configureOrReplacePromptRuntime(ctx, session, configurator, &snapshot, plan)
 			}
 		}
 	}
 
 	return m.replacePromptRuntime(ctx, session, &snapshot, plan)
+}
+
+func (m *Manager) configureOrReplacePromptRuntime(
+	ctx context.Context,
+	session *Session,
+	configurator RuntimeConfigurator,
+	snapshot *runtimeBindingSnapshot,
+	plan *promptRuntimePlan,
+) (*AgentProcess, error) {
+	liveErr := m.configurePromptRuntime(ctx, session, configurator, snapshot, plan)
+	if liveErr == nil {
+		return snapshot.process, nil
+	}
+	if runtimeConfigurationRefused(liveErr, snapshot.process) {
+		return nil, liveErr
+	}
+	proc, replacementErr := m.replacePromptRuntime(ctx, session, snapshot, plan)
+	if replacementErr == nil {
+		return proc, nil
+	}
+	return nil, errors.Join(liveErr, replacementErr)
 }
 
 func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
@@ -88,13 +102,30 @@ func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
 	}
 	caps, selection := snapshot.process.CapsSnapshot(), snapshot.selection
 	if selection.ReasoningEffort != "" {
-		if option, ok := acp.ReasoningConfigOption(caps.ConfigOptions); ok &&
+		if option, ok := acp.ReasoningConfigOption(caps.ConfigOptions); !ok ||
 			strings.TrimSpace(option.CurrentValueID) != selection.ReasoningEffort {
 			return true
 		}
 	}
 	currentSpeed := acp.CurrentSpeed(caps.ConfigOptions)
-	return selection.Speed != "" && currentSpeed != "" && currentSpeed != selection.Speed
+	return selection.Speed != "" && acp.SupportsSpeed(selection.Speed, caps.ConfigOptions) &&
+		currentSpeed != selection.Speed
+}
+
+// Provider negotiation refusals are retried only by a subsequent prompt request;
+// replacing a healthy process cannot grant an unavailable capability or account tier.
+func runtimeConfigurationRefused(err error, process *AgentProcess) bool {
+	var negotiationErr *acp.NegotiationError
+	if !errors.As(err, &negotiationErr) || isProcessDone(process) {
+		return false
+	}
+	if failure, ok := acp.FailureFromError(err, store.FailurePrompt); ok {
+		switch failure.Kind {
+		case store.FailureTransport, store.FailureProcess, store.FailureCanceled, store.FailureTimeout:
+			return false
+		}
+	}
+	return true
 }
 
 // bindUnboundPromptRuntime owns the binds that differ for a session without a process:
@@ -136,8 +167,8 @@ func (m *Manager) configurePromptRuntime(
 	selection := plan.selection
 	requestedConfig := runtimeConfigForSelection(selection, plan.spec.transportModel)
 	rollbackConfig := runtimeConfigForSelection(
-		snapshot.selection,
-		currentTransportModel(snapshot.acpCaps),
+		session.Info().EffectiveRuntime(),
+		currentTransportModel(snapshot.process.CapsSnapshot()),
 	)
 	if err := session.beginRuntimeTransition(
 		RuntimeStatusReconfiguring,
@@ -157,11 +188,11 @@ func (m *Manager) configurePromptRuntime(
 	if err != nil {
 		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
-		rollbackErr := configurator.ConfigureRuntime(
-			cleanupCtx,
-			snapshot.process,
-			rollbackConfig,
-		)
+		var rollbackErr error
+		if !runtimeSelectionsEqual(snapshot.selection, selection) ||
+			!runtimeConfigurationRefused(err, snapshot.process) {
+			rollbackErr = configurator.ConfigureRuntime(cleanupCtx, snapshot.process, rollbackConfig)
+		}
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		persistErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
 		return errors.Join(fmt.Errorf("session: configure runtime: %w", err), rollbackErr, persistErr)

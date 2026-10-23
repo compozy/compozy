@@ -352,6 +352,7 @@ type ActionSessionBinding struct {
 	State              string
 	Ownership          string
 	Isolated           bool
+	RequestedRuntime   RuntimeSpec
 	AppliedRuntime     RuntimeSpec
 	SpeedResolution    *speedpkg.Resolution
 }

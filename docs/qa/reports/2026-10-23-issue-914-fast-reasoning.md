@@ -40,8 +40,8 @@ A re-walk found that publishing observed speed through the persistence-facing `I
 | Codex, stop then prompt same session | Stored ultra/Fast retained | Reapplied on provider bind/load | ultra/on after completed turn | Live readback agrees; the logical session remains the same. |
 | Claude, CLI prompt: max/Fast | Yes | `effort=max`, `fast=on` acknowledged initially | Provider later reports max/off | Fixed readback and assistant/done events: max/normal, Fast rejected/provider_rejected. Account does not permit Fast. |
 | Claude, CLI prompt: ultra | Accepted by public input validation | Not sent as a supported option | Not advertised | Explicit `reasoning_effort_unsupported` with live valid choices; no false ultra claim. |
-| Codex/Claude, Web composer and HTTP/UDS prompt | Model-specific catalog/selector; ultra already supported by Web vocabulary | Shared session runtime path | Same provider acknowledgement and notification handling | Source audit; no browser run under the machine-load restriction. |
-| Codex/Claude, native prompt, agent/fallback defaults, Goal, Loop rules | Canonical schema widened additively to ultra; exact provider membership still required | Shared Start/ConfigureRuntime path; Goal/Loop intent is carried by the binder | ACP wire and runtime propagation suites | Schema tests cover native inputs; binder regression removes falsely applied unsupported speed. No live Goal/Loop was started. |
+| Codex/Claude, Web composer and HTTP/UDS prompt | Model-specific catalog/selector; ultra already supported by Web vocabulary | Shared session runtime path | Same provider acknowledgement and notification handling | Focused composer refetch/send-snapshot regression retains requested max/Fast while effective becomes high/normal. No browser run under the machine-load restriction. |
+| Codex/Claude, native prompt, agent/fallback defaults, Goal, Loop rules | Canonical schema widened additively to ultra; exact provider membership still required | Shared Start/ConfigureRuntime path; Goal/Loop intent is carried by the binder | ACP wire and runtime propagation suites | Schema tests cover native inputs; binder regressions remove falsely applied unsupported speed and verify that the next queued Goal prompt retains Fast after revocation. No live Goal/Loop was started. |
 | Codex/Claude, replacement and automatic recovery | Existing selection retained | Exact ultra/Fast forwarded to the replacement Start call | Start negotiates against fresh capabilities | Existing replacement/recovery suites extended; live providers were not deliberately crashed. |
 | Subagent targets | Existing unconstrained effort string accepts ultra | Target selection uses the same session creation/runtime path | Shared ACP negotiation | Source audit; no child agent created. |
 | Cursor, all runtime entry surfaces | Exact advertised logical model configuration | Compiled to the CLI launch-model variant, not ACP effort/Fast setters | Existing launch strategy is unchanged | Focused launch-bound regression including a Cursor alias with conflicting ACP controls; no live Cursor turn. |
@@ -54,6 +54,26 @@ A re-walk found that publishing observed speed through the persistence-facing `I
 - Recheck provider effort/speed changes before taking the equal-selection prompt shortcut.
 - Preserve the existing nonfatal unsupported-speed behavior. Unsupported speed has no claimed effective value; provider-observed off is normal with a rejected Fast request.
 - Preserve every existing enum value and add ultra. Regenerate the native descriptor catalog and CLI reference; update official runtime guidance and provider docs.
+
+## Astra high review and follow-up
+
+All five findings on the initial PR head were valid and addressed:
+
+1. **Response freshness:** capability revisions guard every full configuration response. A notification processed during a request cannot be overwritten by its delayed response waiter, including sibling option setters. The deterministic ACP regression publishes response `on`, notification `off`, then the delayed response and asserts normal/rejected. The SDK exposes no response receive sequence, so overlapping notifications conservatively win; conflicting observations fail confirmation rather than claim success.
+2. **Goal prompt intent:** `ActionSessionBinding.RequestedRuntime` supplies the next prompt, independently of `AppliedRuntime`. The existing managed Goal integration suite verifies the actual queued Fast selection after the reported speed becomes normal.
+3. **Composer intent:** additive `runtime.requested` exposes persisted current/last-binding intent. With no durable `selected` value, the composer uses requested intent before effective observations. The existing hook suite refetches a max/Fast session as high/normal and verifies the send snapshot still contains max/Fast. OpenAPI and all TS/Go client and extension contracts are regenerated.
+4. **Permanent refusal:** a healthy process returns its negotiation diagnostic after one attempt per new prompt. An unchanged intent is not retried as rollback; no process is replaced to retry the same refusal. Changed selections roll back to the observed prior runtime. Existing ACP failure classification preserves replacement for transport/process failures, cancellation, and timeout. The session transition suite counts configuration attempts and process starts.
+5. **Removed reasoning capability:** a known full snapshot without the selector clears the effective effort and invalidates the equal-selection shortcut. Unknown persisted capabilities remain distinguishable. Session projection and transition regressions cover removal and revalidation.
+
+CodeRabbit's additional unknown-current speed finding is fixed: an advertised writable option is retried when its current value is missing; absent/unsupported options remain nonfatal. Both requested Should-style test changes are applied. Greptile's two findings are covered by items 1 and 5.
+
+CI found a separate stop regression: capturing the last capabilities also restored the old PID. Detach now captures only capabilities/resolution, with a regression asserting zero PID after exit. The existing daemon task E2E assertions now verify requested intent separately from unsupported effective speed and its exact resolution; production persistence validation remains unchanged. These E2E checks are rerun only in CI.
+
+## Review re-walk
+
+A second isolated lab repeated two short Claude max/Fast prompts. Both completed; after each turn the provider advertised `effort=max` and `fast=off`, while HTTP returned requested max/Fast and effective max/normal/rejected. There was no durable `selected` value. Runtime generation remained 1 and the second transition was live configuration. This provider acknowledged then revoked Fast again; it did not exercise an immediate setter refusal, which is covered by deterministic configuration-attempt/process-start assertions. Manifest-scoped teardown reported clean with zero survivors. Its stop readback was captured while stopping; only the first lab claims a verified stopped-session readback.
+
+The focused Web hook file passed (7 tests), Web package typecheck passed, and React Doctor on the changed files scored 100/100. The managed Goal queue regression passed with the integration tag. No browser or E2E test was run locally.
 
 ## Validation
 

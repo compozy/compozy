@@ -807,21 +807,21 @@ func assertImplementTasksPerTaskRuntimes(t testing.TB, detail contract.LoopRunRe
 	}
 	want := map[int]contract.LoopResolvedRuntime{
 		0: {
-			Provider: "claude", Model: "opus", Reasoning: "high", Speed: speed.SpeedNormal,
+			Provider: "claude", Model: "opus", Reasoning: "high",
 			SpeedResolution: unsupportedNormalSpeedResolution(),
 			Source: contract.LoopRuntimeProvenance{
 				Provider: "input", Model: "input", Reasoning: "input", Speed: "input",
 			},
 		},
 		1: {
-			Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high", Speed: speed.SpeedNormal,
+			Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high",
 			SpeedResolution: unsupportedNormalSpeedResolution(),
 			Source: contract.LoopRuntimeProvenance{
 				Provider: "frontmatter", Model: "frontmatter", Reasoning: "frontmatter", Speed: "input",
 			},
 		},
 		2: {
-			Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "high", Speed: speed.SpeedFast,
+			Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "high",
 			SpeedResolution: unsupportedSpeedResolution(speed.SpeedFast),
 			Source: contract.LoopRuntimeProvenance{
 				Provider: "input", Model: "input", Reasoning: "input", Speed: "input",
@@ -855,10 +855,10 @@ func assertImplementTasksOrchestratorRuntimeFallback(t testing.TB, detail contra
 		t.Fatalf("implement-tasks orchestrator resolved runtimes = %#v, want exactly one", got)
 	}
 	want := contract.LoopResolvedRuntime{
-		Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "low", Speed: speed.SpeedNormal,
+		Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "low",
 		SpeedResolution: unsupportedNormalSpeedResolution(),
 		Source: contract.LoopRuntimeProvenance{
-			Provider: "agent", Model: "agent", Reasoning: "agent", Speed: "agent",
+			Provider: "agent", Model: "agent", Reasoning: "agent",
 		},
 	}
 	loopRuntimeAssertJSONEqual(t, "implement-tasks orchestrator runtime", got[0], want)
@@ -896,7 +896,7 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 	); err != nil {
 		t.Fatalf("CLI spawned worker list error = %v", err)
 	}
-	want := map[string]contract.RuntimeSelectionPayload{
+	want := map[string]contract.PromptRuntimeSelectionPayload{
 		"orchestrate-implement-tasks-task_01": {
 			Provider: "claude", Model: "opus", ReasoningEffort: "high", Speed: speed.SpeedNormal,
 		},
@@ -944,10 +944,20 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 				)
 			}
 		}
-		got := *worker.Runtime.Effective
-		got.SpeedResolution = nil
-		if !reflect.DeepEqual(got, expected) {
-			t.Fatalf("spawned worker %q runtime = %#v, want %#v", worker.Name, got, expected)
+		if worker.Runtime.Requested == nil || !reflect.DeepEqual(*worker.Runtime.Requested, expected) {
+			t.Fatalf("spawned worker %q intent = %#v, want %#v", worker.Name, worker.Runtime.Requested, expected)
+		}
+		wantEffective := contract.RuntimeSelectionPayload{
+			Provider: expected.Provider, Model: expected.Model, ReasoningEffort: expected.ReasoningEffort,
+			SpeedResolution: unsupportedSpeedResolution(expected.Speed),
+		}
+		if !reflect.DeepEqual(*worker.Runtime.Effective, wantEffective) {
+			t.Fatalf(
+				"spawned worker %q effective = %#v, want %#v",
+				worker.Name,
+				worker.Runtime.Effective,
+				wantEffective,
+			)
 		}
 	}
 	for _, state := range []string{"starting", "active", "stopping"} {

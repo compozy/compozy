@@ -415,6 +415,9 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		session := createSession(t, h)
 		session.ReasoningEffort = "ultra"
 		session.Speed = "fast"
+		session.processHandle().setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+			{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "ultra"},
+		}})
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
 				!errors.Is(err, ErrSessionNotFound) {
