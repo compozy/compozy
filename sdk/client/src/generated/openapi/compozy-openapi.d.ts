@@ -5309,7 +5309,7 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Archive a stopped session */
+    /** Archive a stopped session, or stop and archive a live session with stop=true */
     post: operations["archiveSession"];
     delete?: never;
     options?: never;
@@ -17655,6 +17655,7 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "session_archive_stop_failed"
         | "session_busy"
         | "slow_consumer"
         | "subscriber_limit_reached"
@@ -17847,6 +17848,7 @@ export interface components {
         | "recording_already_started"
         | "recording_not_active"
         | "recording_unavailable"
+        | "session_archive_stop_failed"
         | "session_busy"
         | "slow_consumer"
         | "subscriber_limit_reached"
@@ -45937,6 +45939,8 @@ export interface operations {
   archiveSession: {
     parameters: {
       query?: {
+        /** @description Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived */
+        stop?: boolean;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -45960,6 +45964,15 @@ export interface operations {
           "application/json": components["schemas"]["SessionResponse"];
         };
       };
+      /** @description Invalid archive request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Session not found */
       404: {
         headers: {
@@ -45969,7 +45982,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description Session must be stopped before archiving */
+      /** @description Session must be stopped before archiving, or the requested stop failed */
       409: {
         headers: {
           [name: string]: unknown;

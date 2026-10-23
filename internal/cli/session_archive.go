@@ -12,12 +12,13 @@ func newSessionUnarchiveCommand(deps commandDeps) *cobra.Command {
 
 func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Command {
 	action := "archive"
-	short := "Archive a stopped session"
+	short := "Archive a stopped session, or stop and archive a live one with --stop"
 	if !archived {
 		action = "unarchive"
 		short = "Restore an archived session"
 	}
-	return &cobra.Command{
+	var stop bool
+	command := &cobra.Command{
 		Use:   action + " <id>",
 		Short: short,
 		Args:  exactOneNonBlankArg(),
@@ -28,7 +29,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 			}
 			var record SessionRecord
 			if archived {
-				record, err = client.ArchiveSession(cmd.Context(), args[0])
+				record, err = client.ArchiveSession(cmd.Context(), args[0], stop)
 			} else {
 				record, err = client.UnarchiveSession(cmd.Context(), args[0])
 			}
@@ -38,4 +39,13 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 			return writeCommandOutput(cmd, sessionBundle(&record, deps.now))
 		},
 	}
+	if archived {
+		command.Flags().BoolVar(
+			&stop,
+			"stop",
+			false,
+			"Stop a live session through the normal stop path (canceling any active turn) before archiving it",
+		)
+	}
+	return command
 }

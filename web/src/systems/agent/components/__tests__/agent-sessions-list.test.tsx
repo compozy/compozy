@@ -374,7 +374,10 @@ describe("AgentSessionsList", () => {
 
     fireEvent.click(screen.getByTestId("session-row-actions-sess_active"));
     expect(screen.getByTestId("session-row-stop-sess_active")).toBeInTheDocument();
-    expect(screen.queryByTestId("session-row-archive-sess_active")).toBeNull();
+    // A running session archives in one action that stops it first (#908).
+    expect(screen.getByTestId("session-row-archive-sess_active")).toHaveTextContent(
+      "Stop and archive session"
+    );
     await user.keyboard("{Escape}");
 
     fireEvent.click(screen.getByTestId("session-row-actions-sess_stopped"));

@@ -279,7 +279,10 @@ describe("SessionList selection", () => {
     expect(await screen.findByTestId("session-sidebar-selection-stop")).toHaveTextContent(
       "1 active"
     );
-    expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent("1 stopped");
+    // A running row in the selection archives too, after the daemon stops it.
+    expect(screen.getByTestId("session-sidebar-selection-archive")).toHaveTextContent(
+      "Stop and archive2 sessions"
+    );
     expect(screen.getByTestId("session-sidebar-selection-unarchive")).toHaveAttribute(
       "aria-disabled",
       "true"
@@ -365,6 +368,17 @@ describe("SessionList selection", () => {
     expect(screen.getByTestId("session-sidebar-session-running")).not.toHaveAttribute(
       "aria-pressed"
     );
+  });
+
+  it("offers stop and archive on a running session row in one action", async () => {
+    const user = userEvent.setup();
+    const { actions } = renderList();
+
+    await user.click(screen.getByTestId("session-row-actions-running"));
+    const archive = await screen.findByTestId("session-row-archive-running");
+    expect(archive).toHaveTextContent("Stop and archive session");
+    await user.click(archive);
+    expect(actions.onArchive).toHaveBeenCalledExactlyOnceWith(sessions[0]);
   });
 });
 

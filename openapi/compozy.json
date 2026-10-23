@@ -37680,6 +37680,7 @@
               "recording_already_started",
               "recording_not_active",
               "recording_unavailable",
+              "session_archive_stop_failed",
               "session_busy",
               "slow_consumer",
               "subscriber_limit_reached",
@@ -38029,6 +38030,7 @@
               "recording_already_started",
               "recording_not_active",
               "recording_unavailable",
+              "session_archive_stop_failed",
               "session_busy",
               "slow_consumer",
               "subscriber_limit_reached",
@@ -83587,6 +83589,14 @@
             }
           },
           {
+            "description": "Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived",
+            "in": "query",
+            "name": "stop",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -83606,6 +83616,16 @@
             },
             "description": "OK"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid archive request"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -83624,7 +83644,7 @@
                 }
               }
             },
-            "description": "Session must be stopped before archiving"
+            "description": "Session must be stopped before archiving, or the requested stop failed"
           },
           "500": {
             "content": {
@@ -83647,7 +83667,7 @@
             "description": "Service unavailable - dependent service missing"
           }
         },
-        "summary": "Archive a stopped session",
+        "summary": "Archive a stopped session, or stop and archive a live session with stop=true",
         "tags": [
           "sessions"
         ],

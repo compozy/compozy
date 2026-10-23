@@ -1630,6 +1630,94 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report a failed stop-first archive as a structured conflict", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		stopErr := fmt.Errorf(
+			"%w: sess-123: %w",
+			session.ErrSessionArchiveStopFailed,
+			session.ErrStopVerificationFailed,
+		)
+		manager.ArchiveWithStopFn = func(context.Context, string, string) (*session.Info, error) {
+			return nil, stopErr
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-caller", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionArchive,
+				Input:  json.RawMessage(`{"session_id":"sess-123","stop":true}`),
+			},
+		)
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeSessionArchiveStopFailed ||
+			!errors.Is(err, session.ErrSessionArchiveStopFailed) {
+			t.Fatalf("error = %#v, want session_archive_stop_failed wrapping the stop failure", err)
+		}
+	})
+
+	t.Run("Should deny a stop-first archive whose stop would cascade to the caller", func(t *testing.T) {
+		t.Parallel()
+
+		manager := nativeTestSessionManager("ws-native")
+		status := manager.StatusFn
+		// sess-grandchild descends from sess-parent through a subagent and an auto-stop
+		// spawn link; sess-continued and sess-forked only name sess-parent as their source.
+		lineages := map[string]*store.SessionLineage{
+			"sess-grandchild": {ParentSessionID: "sess-child", SpawnRole: store.SubagentSpawnRole},
+			"sess-child":      {ParentSessionID: "sess-parent", AutoStopOnParent: true},
+			"sess-continued":  {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
+			"sess-forked":     {ParentSessionID: "sess-parent", Kind: store.LineageKindFork},
+			// A corrupt subagent cycle must end the walk, not loop.
+			"sess-loop-a": {ParentSessionID: "sess-loop-b", SpawnRole: store.SubagentSpawnRole},
+			"sess-loop-b": {ParentSessionID: "sess-loop-a", SpawnRole: store.SubagentSpawnRole},
+		}
+		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil {
+				info.Lineage = lineages[id]
+			}
+			return info, err
+		}
+		archived := 0
+		manager.ArchiveWithStopFn = func(context.Context, string, string) (*session.Info, error) {
+			archived++
+			return &session.Info{ID: "sess-other", State: session.StateStopped}, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: manager, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-grandchild", AgentName: "coder"}
+		_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchive,
+			Input:  json.RawMessage(`{"session_id":"sess-parent","stop":true}`),
+		})
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		if _, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionArchive,
+			Input:  json.RawMessage(`{"session_id":"sess-other","stop":true}`),
+		}); err != nil || archived != 1 {
+			t.Fatalf("stop-first archive of an unrelated session = %v, calls=%d, want one archive", err, archived)
+		}
+		// Archiving a continue/fork source never stops the derived caller.
+		for _, caller := range []string{"sess-continued", "sess-forked", "sess-loop-a"} {
+			derived := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: caller, AgentName: "coder"}
+			if _, err := registry.Call(t.Context(), derived, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionArchive,
+				Input:  json.RawMessage(`{"session_id":"sess-parent","stop":true}`),
+			}); err != nil {
+				t.Fatalf("stop-first archive of the source from %s = %v, want allowed", caller, err)
+			}
+		}
+		if archived != 4 {
+			t.Fatalf("archive calls = %d, want 4", archived)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
@@ -1656,6 +1744,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-self","wait":false}`, toolspkg.ReasonSelfTargetDenied},
 			{toolspkg.ToolIDSessionPromptCancel, `{"session_id":"sess-self"}`, toolspkg.ReasonSelfTargetDenied},
+			{
+				toolspkg.ToolIDSessionArchive,
+				`{"session_id":"sess-self","stop":true}`,
+				toolspkg.ReasonSelfTargetDenied,
+			},
 			{
 				toolspkg.ToolIDSessionApprove,
 				`{"session_id":"sess-self","request_id":"perm-1","decision":"allow-once"}`,
@@ -7848,6 +7941,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		var selectedRuntimeRevision int64
 		var clearedRuntimeRevision int64
 		var archiveTarget string
+		var archiveWithStopTarget string
 		var unarchiveTarget string
 		var renamedTarget string
 		var detachedTarget string
@@ -7953,6 +8047,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
 				archiveTarget = workspaceID + "/" + id
+				archived := *info
+				archived.State = session.StateStopped
+				archivedAt := now.Add(time.Minute)
+				archived.ArchivedAt = &archivedAt
+				return &archived, nil
+			},
+			ArchiveWithStopFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+				archiveWithStopTarget = workspaceID + "/" + id
 				archived := *info
 				archived.State = session.StateStopped
 				archivedAt := now.Add(time.Minute)
@@ -8916,6 +9018,23 @@ func TestDaemonNativeTools(t *testing.T) {
 				t.Fatalf("Registry.Call(session_archive) error = %v", callErr)
 			}
 			requireNativeStructuredContains(t, result, []byte(`"archived_at":"`))
+		})
+		t.Run("Should stop and archive a live session when the input opts in", func(t *testing.T) {
+			result, callErr := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionArchive,
+					Input:  json.RawMessage(`{"workspace":"ws-stable","session_id":"sess-1","stop":true}`),
+				},
+			)
+			if callErr != nil {
+				t.Fatalf("Registry.Call(session_archive stop) error = %v", callErr)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"state":"stopped"`))
+			if archiveWithStopTarget != "ws-1/sess-1" {
+				t.Fatalf("archive-with-stop target = %q, want ws-1/sess-1", archiveWithStopTarget)
+			}
 		})
 		t.Run("Should unarchive a session", func(t *testing.T) {
 			result, callErr := registry.Call(

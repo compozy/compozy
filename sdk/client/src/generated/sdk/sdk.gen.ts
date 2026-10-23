@@ -8871,7 +8871,7 @@ export class sessions extends HeyApiClient {
   }
 
   /**
-   * Archive a stopped session
+   * Archive a stopped session, or stop and archive a live session with stop=true
    */
   public archiveSession<ThrowOnError extends boolean = true>(
     options: Options<ArchiveSessionData, ThrowOnError>

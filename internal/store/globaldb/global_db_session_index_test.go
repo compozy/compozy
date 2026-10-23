@@ -2185,6 +2185,9 @@ func TestGlobalDBSubagentArchive(t *testing.T) {
 			); !errors.Is(err, store.ErrSessionArchiveRequiresStopped) ||
 				!strings.Contains(err.Error(), "grandchild") {
 				t.Fatalf("live descendant=%v", err)
+			} else if live, ok := errors.AsType[*store.SessionArchiveLiveMemberError](err); !ok ||
+				live.SessionID != "grandchild" {
+				t.Fatalf("live descendant member = %#v, want grandchild", live)
 			}
 			for _, id := range []string{parent, "child", "grandchild", "plain"} {
 				at, err := db.SessionArchivedAt(ctx, workspace, id)

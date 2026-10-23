@@ -10527,6 +10527,7 @@ export type ToolCallEventPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "session_archive_stop_failed"
     | "session_busy"
     | "slow_consumer"
     | "subscriber_limit_reached"
@@ -10714,6 +10715,7 @@ export type ToolErrorPayload = {
     | "recording_already_started"
     | "recording_not_active"
     | "recording_unavailable"
+    | "session_archive_stop_failed"
     | "session_busy"
     | "slow_consumer"
     | "subscriber_limit_reached"
@@ -32166,6 +32168,10 @@ export type ArchiveSessionData = {
   };
   query?: {
     /**
+     * Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived
+     */
+    stop?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -32175,11 +32181,15 @@ export type ArchiveSessionData = {
 
 export type ArchiveSessionErrors = {
   /**
+   * Invalid archive request
+   */
+  400: ErrorPayload;
+  /**
    * Session not found
    */
   404: ErrorPayload;
   /**
-   * Session must be stopped before archiving
+   * Session must be stopped before archiving, or the requested stop failed
    */
   409: ErrorPayload;
   /**

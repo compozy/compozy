@@ -1285,3 +1285,29 @@ func materializedApprovalGrant(
 		LastUsedAt:       now,
 	}
 }
+
+func TestToolApprovalKind(t *testing.T) {
+	t.Parallel()
+
+	archive := toolspkg.Descriptor{ID: toolspkg.ToolIDSessionArchive, Risk: toolspkg.RiskMutating}
+	cases := []struct {
+		name  string
+		input string
+		want  acpsdk.ToolKind
+	}{
+		{"Should present a plain archive as an execute action", `{"session_id":"sess-1"}`, acpsdk.ToolKindExecute},
+		{
+			"Should present a stop-first archive as a delete action like session_stop",
+			`{"session_id":"sess-1","stop":true}`,
+			acpsdk.ToolKindDelete,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			if got := toolApprovalKind(archive, json.RawMessage(tc.input)); got != tc.want {
+				t.Fatalf("toolApprovalKind(%s) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}

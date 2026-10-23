@@ -111,25 +111,31 @@ func (c *daemonClient) StopSession(ctx context.Context, id string, wait bool) (S
 	return result, nil
 }
 
-func (c *daemonClient) ArchiveSession(ctx context.Context, id string) (SessionRecord, error) {
-	return c.setSessionArchived(ctx, id, "/archive")
+// ArchiveSession archives a stopped session, or stops and archives a live one when stop is set.
+func (c *daemonClient) ArchiveSession(ctx context.Context, id string, stop bool) (SessionRecord, error) {
+	var query url.Values
+	if stop {
+		query = url.Values{"stop": []string{strconv.FormatBool(stop)}}
+	}
+	return c.setSessionArchived(ctx, id, "/archive", query)
 }
 
 func (c *daemonClient) UnarchiveSession(ctx context.Context, id string) (SessionRecord, error) {
-	return c.setSessionArchived(ctx, id, "/unarchive")
+	return c.setSessionArchived(ctx, id, "/unarchive", nil)
 }
 
 func (c *daemonClient) setSessionArchived(
 	ctx context.Context,
 	id string,
 	suffix string,
+	query url.Values,
 ) (SessionRecord, error) {
 	var response contract.SessionResponse
 	path, err := c.sessionScopedPath(ctx, id, suffix)
 	if err != nil {
 		return SessionRecord{}, err
 	}
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, path, query, nil, &response); err != nil {
 		return SessionRecord{}, err
 	}
 	return response.Session, nil

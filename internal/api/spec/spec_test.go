@@ -3493,6 +3493,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// Spawn orchestration: optional worktree, inheritance, toolset, and first-prompt fields on the
 	// agent spawn request and payload, plus the spawn_budget_exhausted tool reason code.
 	addSpawnOrchestrationSchemas(t, baseline)
+	// #908: tool error code for a failed stop-first archive; existing codes stay unchanged.
+	if addToolErrorCode(baseline, string(tools.ErrorCodeSessionArchiveStopFailed)) == 0 {
+		t.Fatal("approved tool error code addition: no historical tool error code enums found")
+	}
 	// #832: last_known has the existing optional RuntimeSelectionPayload contract.
 	if addLastKnownRuntimeSchema(baseline) == 0 {
 		t.Fatal("approved session runtime addition: no historical runtime schemas found")
@@ -3568,6 +3572,8 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	}{
 		{worktreePath, "delete", []any{boolQuery("delete_branch")}},
 		{worktreePath + "/dismiss", "post", []any{boolQuery("delete_branch"), boolQuery("force")}},
+		// #908: optional stop-first opt-in on session archive.
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/archive", "post", []any{boolQuery("stop")}},
 	} {
 		operation := paths[change.path].(map[string]any)[change.method].(map[string]any)
 		parameters := operation["parameters"].([]any)
@@ -3809,6 +3815,29 @@ func insertReasonCode(values []any, code string) []any {
 	}
 	index, _ := slices.BinarySearch(codes, code)
 	return slices.Insert(slices.Clone(values), index, any(code))
+}
+
+// addToolErrorCode inserts code into every tool error code enum, identified by
+// the compaction_unsupported member only tool error codes carry.
+func addToolErrorCode(value any, code string) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addToolErrorCode(child, code)
+		}
+	case map[string]any:
+		for key, child := range node {
+			if values, ok := child.([]any); ok &&
+				slices.Contains(values, any(string(tools.ErrorCodeCompactionUnsupported))) {
+				node[key] = insertReasonCode(values, code)
+				count++
+				continue
+			}
+			count += addToolErrorCode(child, code)
+		}
+	}
+	return count
 }
 
 func addLastKnownRuntimeSchema(value any) int {

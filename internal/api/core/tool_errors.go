@@ -69,6 +69,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 	case toolspkg.ErrorCodeConflict,
 		toolspkg.ErrorCodeSessionBusy,
 		toolspkg.ErrorCodeCompactionUnsupported,
+		toolspkg.ErrorCodeSessionArchiveStopFailed,
 		toolspkg.ErrorCodeSessionMessageHopLimit:
 		return http.StatusConflict
 	case toolspkg.ErrorCodeSessionMessageRateLimited:
@@ -276,6 +277,8 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 		return "Message rate limit reached. Send fewer, milestone-level messages."
 	case toolspkg.ErrorCodeCompactionUnsupported:
 		return "session compaction is unsupported"
+	case toolspkg.ErrorCodeSessionArchiveStopFailed:
+		return "session could not be stopped before archiving"
 	}
 	return ""
 }

@@ -2750,6 +2750,10 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"session_id":"sess-1","status":"stopping","state":"stopping","verified":false,"escalated":false}`,
 					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/archive":
+					// The default archive sends no stop query; only the opt-in does.
+					if stop, present := req.URL.Query()["stop"]; present && (len(stop) != 1 || stop[0] != "true") {
+						t.Fatalf("archive stop query = %#v, want absent or true", stop)
+					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"session":{"id":"sess-1","agent_name":"coder","workspace_id":"ws-1","state":"stopped","archived_at":"2026-04-03T12:01:00Z","created_at":"2026-04-03T12:00:00Z","updated_at":"2026-04-03T12:01:00Z"}}`,
@@ -3112,9 +3116,13 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {
 		t.Parallel()
 
-		archived, archiveErr := client.ArchiveSession(ctx, "sess-1")
+		archived, archiveErr := client.ArchiveSession(ctx, "sess-1", false)
 		if archiveErr != nil || archived.ArchivedAt == nil {
 			t.Fatalf("ArchiveSession() = %#v, %v, want archived session", archived, archiveErr)
+		}
+		stopped, stopArchiveErr := client.ArchiveSession(ctx, "sess-1", true)
+		if stopArchiveErr != nil || stopped.ArchivedAt == nil {
+			t.Fatalf("ArchiveSession(stop) = %#v, %v, want archived session", stopped, stopArchiveErr)
 		}
 		restored, unarchiveErr := client.UnarchiveSession(ctx, "sess-1")
 		if unarchiveErr != nil || restored.ArchivedAt != nil {

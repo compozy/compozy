@@ -709,9 +709,31 @@ The matching HTTP and UDS operation is:
 curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/archive
 ```
 
-Archive is catalog metadata, separate from the session lifecycle state. Only a `stopped` session can
-be archived. Its metadata, events, runtime selection, and direct read operations remain
-available. Attach, prompt, and resume operations are rejected while it is archived.
+Archive is catalog metadata, separate from the session lifecycle state. By default only a `stopped`
+session can be archived; a live session returns `409`. Its metadata, events, runtime selection, and
+direct read operations remain available. Attach, prompt, and resume operations are rejected while it
+is archived.
+
+### Stopping and archiving in one step
+
+Pass `--stop` to archive a session that is still running:
+
+```bash
+compozy session archive sess-1234 --stop
+```
+
+The HTTP and UDS operation takes an optional `stop` query parameter:
+
+```bash
+curl -X POST "http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/archive?stop=true"
+```
+
+The native tool `compozy__session_archive` accepts the same `stop: true` input. The daemon stops
+the session through the normal stop path, which cancels any active turn and stops its subagent
+sessions, and then archives it. An already stopped session is archived as usual. If the stop fails,
+the session stays unarchived and the request returns `409` with code `session_archive_stop_failed`.
+In the web app, **Archive** on a running session reads **Stop and archive** and makes the same call.
+Bulk archive accepts a mix of running and stopped sessions and reports each result separately.
 
 Restore the session to the default catalog before restarting it:
 

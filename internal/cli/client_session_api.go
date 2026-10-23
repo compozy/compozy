@@ -25,7 +25,7 @@ type sessionClientAPI interface {
 	InspectSession(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	RefreshSessionSoul(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(context.Context, string, bool) (SessionStopRecord, error)
-	ArchiveSession(context.Context, string) (SessionRecord, error)
+	ArchiveSession(context.Context, string, bool) (SessionRecord, error)
 	UnarchiveSession(context.Context, string) (SessionRecord, error)
 	RenameSession(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	SetSessionParent(context.Context, string, SetSessionParentRequest) (SessionRecord, error)

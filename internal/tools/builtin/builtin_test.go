@@ -295,11 +295,20 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertSessionReparentMutationSchema(t, descriptors[toolspkg.ToolIDSessionReparent])
 		t.Run("Should validate the session archive schema", func(t *testing.T) {
 			t.Parallel()
-			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionArchive])
+			// Archive alone carries the stop-first opt-in for live sessions.
+			assertSessionTargetMutationSchema(
+				t,
+				descriptors[toolspkg.ToolIDSessionArchive],
+				[]string{"profile", "session_id", "stop", "workspace"},
+			)
 		})
 		t.Run("Should validate the session unarchive schema", func(t *testing.T) {
 			t.Parallel()
-			assertSessionTargetMutationSchema(t, descriptors[toolspkg.ToolIDSessionUnarchive])
+			assertSessionTargetMutationSchema(
+				t,
+				descriptors[toolspkg.ToolIDSessionUnarchive],
+				[]string{"profile", "session_id", "workspace"},
+			)
 		})
 		assertSessionPromptMutationSchema(t, descriptors[toolspkg.ToolIDSessionPrompt])
 		assertSessionClarifyAnswerSchema(t, descriptors[toolspkg.ToolIDSessionClarifyAnswer])
@@ -1771,13 +1780,13 @@ func assertSessionCreateMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 	assertSessionMutationEnvelopeSchema(t, descriptor.ID.String()+" output", descriptor.OutputSchema, "session")
 }
 
-func assertSessionTargetMutationSchema(t *testing.T, descriptor toolspkg.Descriptor) {
+func assertSessionTargetMutationSchema(t *testing.T, descriptor toolspkg.Descriptor, properties []string) {
 	t.Helper()
 	var input nativeObjectSchema
 	if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
 		t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 	}
-	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, []string{"profile", "session_id", "workspace"})
+	assertClosedObjectSchema(t, descriptor.ID.String()+" input", input, properties)
 	if !slices.Equal(input.Required, []string{"session_id"}) {
 		t.Fatalf("%s input required = %#v, want [session_id]", descriptor.ID, input.Required)
 	}

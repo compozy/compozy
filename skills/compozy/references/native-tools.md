@@ -381,8 +381,12 @@ zero-based `{choice,text,fallback}`. It is not approval. CLI: `compozy session c
 session `type`, exact agent, exact `parent` (direct children) or `root` (whole tree, root included),
 search, resumability, health, archive visibility, sort, cursor, and limit inputs. Archive visibility defaults to `exclude`; use `only` or `include` when the workflow needs
 archived rows. Use `type: "user"` when a workflow needs operator-created sessions without
-daemon-managed system, coordinator, or spawned sessions. Archive only stopped sessions;
-unarchive before prompting or resuming one. Archive and conversation clear preserve attachments;
+daemon-managed system, coordinator, or spawned sessions. `compozy__session_archive` archives a
+stopped session; a live session is refused unless the input sets `stop: true`, which stops it
+through the normal stop path (canceling any active turn and cascading to subagents) and then
+archives it. A failed stop leaves the session unarchived with code `session_archive_stop_failed`.
+The CLI fallback is `compozy session archive <id> [--stop]`. Unarchive before prompting or
+resuming a session. Archive and conversation clear preserve attachments;
 conversation clear preserves attachments. `compozy session remove` and `compozy workspace remove`
 remove their scoped attachment trees.
 `compozy__session_rename` changes the durable display name of a user session without changing its

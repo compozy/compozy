@@ -327,6 +327,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	var createCalled atomic.Bool
 	var attachCalls atomic.Int32
+	var archiveWithStopCalls atomic.Int32
 	var attachResult store.SessionAttach
 	var attachTTL time.Duration
 	var repairSeen session.RepairOpts
@@ -388,6 +389,18 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		ArchiveFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
 			if workspaceID != "ws-workspace" || id != "sess-a" {
 				t.Fatalf("Archive target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
+			}
+			info := testutil.NewSessionInfo(id)
+			info.ProfileID = store.DefaultProfileID
+			info.State = session.StateStopped
+			archivedAt := now.Add(time.Minute)
+			info.ArchivedAt = &archivedAt
+			return info, nil
+		},
+		ArchiveWithStopFn: func(_ context.Context, workspaceID string, id string) (*session.Info, error) {
+			archiveWithStopCalls.Add(1)
+			if workspaceID != "ws-workspace" || id != "sess-a" {
+				t.Fatalf("ArchiveWithStop target = %q/%q, want ws-workspace/sess-a", workspaceID, id)
 			}
 			info := testutil.NewSessionInfo(id)
 			info.ProfileID = store.DefaultProfileID
@@ -908,6 +921,35 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 		if restored.Session.ArchivedAt != nil {
 			t.Fatalf("unarchive response = %#v, want archive marker cleared", restored.Session)
+		}
+		if got := archiveWithStopCalls.Load(); got != 0 {
+			t.Fatalf("archive without stop opt-in used ArchiveWithStop %d times, want 0", got)
+		}
+	})
+
+	t.Run("Should stop and archive a live session when the archive request opts in", func(t *testing.T) {
+		before := archiveWithStopCalls.Load()
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/sessions/sess-a/archive?stop=true",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("archive(stop) status = %d body=%s, want %d", resp.Code, resp.Body.String(), http.StatusOK)
+		}
+		var archived contract.SessionResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &archived); err != nil {
+			t.Fatalf("json.Unmarshal(archive stop response) error = %v", err)
+		}
+		if archiveWithStopCalls.Load() != before+1 || archived.Session.ArchivedAt == nil ||
+			archived.Session.State != session.StateStopped {
+			t.Fatalf(
+				"archive(stop) = %#v, calls=%d, want one stopped archive",
+				archived.Session,
+				archiveWithStopCalls.Load(),
+			)
 		}
 	})
 

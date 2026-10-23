@@ -1958,6 +1958,16 @@ func TestNewHostAPISessionManagerAdapter(t *testing.T) {
 		}); got != want {
 			t.Fatalf("Archive() call = %#v, want %#v", got, want)
 		}
+		if _, err := archiveManager.ArchiveWithStop(testutil.Context(t), "ws-archive", "sess-live"); err != nil {
+			t.Fatalf("ArchiveWithStop() error = %v", err)
+		}
+		if got, want := source.archiveCall, (fakeSessionArchiveCall{
+			workspaceID: "ws-archive",
+			sessionID:   "sess-live",
+			stop:        true,
+		}); got != want {
+			t.Fatalf("ArchiveWithStop() call = %#v, want %#v", got, want)
+		}
 
 		unarchived, err := archiveManager.Unarchive(testutil.Context(t), "ws-unarchive", "sess-unarchive")
 		if err != nil {
@@ -7482,6 +7492,7 @@ type fakeAcceptingSessionManager struct {
 type fakeSessionArchiveCall struct {
 	workspaceID string
 	sessionID   string
+	stop        bool
 }
 
 type fakeArchivingSessionManager struct {
@@ -7496,6 +7507,15 @@ func (f *fakeArchivingSessionManager) Archive(
 	sessionID string,
 ) (*session.Info, error) {
 	f.archiveCall = fakeSessionArchiveCall{workspaceID: workspaceID, sessionID: sessionID}
+	return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
+}
+
+func (f *fakeArchivingSessionManager) ArchiveWithStop(
+	_ context.Context,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	f.archiveCall = fakeSessionArchiveCall{workspaceID: workspaceID, sessionID: sessionID, stop: true}
 	return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
 }
 
