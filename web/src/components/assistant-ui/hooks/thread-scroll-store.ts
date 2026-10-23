@@ -20,13 +20,11 @@ interface ThreadScrollState {
   /** Measured overlap of the composer over the scroller (0 in the stacked layout), never assumed. */
   composerOverlayHeight: number;
   historyAnchor: ThreadHistoryAnchor | null;
-  /** The last scrollTop observed, so a reader coming back down is told apart from one still leaving. */
-  lastScrollTop: number | null;
   /**
    * An upward gesture's intent: the reader is leaving the end, so the bottom
-   * band does not re-arm following until the viewport moves back down. Engines
-   * may move the viewport before the gesture event runs, so intent, not the
-   * gesture's starting position, decides.
+   * band does not re-arm following until a downward gesture (or the pill).
+   * Positions cannot decide it: engines move the viewport before the gesture
+   * event runs, and layout compensation moves it with no reader at all.
    */
   leavingEnd: boolean;
   lastUserId: string | null;
@@ -48,7 +46,7 @@ type ThreadScrollEvents = {
   historyAnchorApplied: Record<never, never>;
   historyPageRequested: ThreadHistoryAnchor;
   /** A wheel / touch / pointer / navigation-key gesture: the only input that detaches following. */
-  manualNavigationObserved: { awayFromEnd: boolean; direction: "up" | "down"; scrollTop: number };
+  manualNavigationObserved: { awayFromEnd: boolean; direction: "up" | "down" };
   messagesCommitted: { count: number; lastUserId: string | null; lastUserIndex: number };
   /** Find/trail jump: the reader takes the viewport before the landing scroll (free mode). */
   navigationJumpRequested: Record<never, never>;
@@ -70,7 +68,6 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     anchorIndex: null,
     composerOverlayHeight: 0,
     historyAnchor: null,
-    lastScrollTop: null,
     leavingEnd: false,
     lastUserId: null,
     ownership: INITIAL_SCROLL_OWNERSHIP,
@@ -122,7 +119,6 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
         ...context,
         anchorIndex: ownership.mode === "anchoring-new-turn" ? context.anchorIndex : null,
         historyAnchor: null,
-        lastScrollTop: event.scrollTop,
         leavingEnd: event.direction === "up",
         ownership,
         programmaticScrollTop: null,
@@ -130,21 +126,17 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
       };
     },
     scrollObserved: (context, event) => {
-      const movedDown =
-        context.lastScrollTop !== null && event.scrollTop > context.lastScrollTop + 0.5;
-      const leavingEnd = context.leavingEnd && !movedDown;
-      const observed = { ...context, lastScrollTop: event.scrollTop, leavingEnd };
       if (
         context.programmaticScrollTop !== null &&
         Math.abs(event.scrollTop - context.programmaticScrollTop) <= 1
       ) {
-        return { ...observed, programmaticScrollTop: null };
+        return { ...context, programmaticScrollTop: null };
       }
-      // A reader who took the viewport and is still heading up keeps it while
-      // crossing the bottom band; following re-arms only on the way back down.
-      if (event.atEnd && !(leavingEnd && context.ownership.mode === "free-scrolling")) {
+      // A reader who took the viewport heading up keeps it while crossing the
+      // bottom band; following re-arms after a downward gesture or the pill.
+      if (event.atEnd && !(context.leavingEnd && context.ownership.mode === "free-scrolling")) {
         return {
-          ...observed,
+          ...context,
           anchorIndex: null,
           leavingEnd: false,
           ownership: scrollOwnershipTransition(context.ownership, { type: "reached-end" }),
@@ -158,7 +150,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
       // viewport to the reader, so the owner keeps it; while following, the
       // controller re-pins the end.
       return {
-        ...observed,
+        ...context,
         programmaticScrollTop: null,
         showScrollToBottom:
           context.ownership.mode === "free-scrolling" ? !event.atEnd : context.showScrollToBottom,
@@ -197,7 +189,6 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     }),
     programmaticScrollApplied: (context, event) => ({
       ...context,
-      lastScrollTop: event.scrollTop,
       programmaticScrollTop: event.scrollTop,
     }),
     snapApplied: context => ({

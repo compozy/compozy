@@ -7,19 +7,14 @@ import {
   FOLLOW_REARM_BAND_PX,
   getAnchoredTurnMetrics,
   measuredComposerOverlay,
-  navigationKeyDirection,
   NEW_TURN_ANCHOR_OFFSET_PX,
   shouldMaintainEnd,
 } from "../timeline-scroll-anchoring";
 import { estimateMessageSize, VIRTUAL_MESSAGE_ESTIMATE } from "../timeline-row-estimates";
 import { useOptionalThreadScrollStore, type ThreadScrollStore } from "./thread-scroll-context";
-import {
-  firstVisibleRow,
-  landMessageRow,
-  lastVisibleRow,
-  navigationKeyTarget,
-} from "./thread-scroll-landing";
+import { firstVisibleRow, landMessageRow, lastVisibleRow } from "./thread-scroll-landing";
 import { threadScrollLogic, threadScrollMode } from "./thread-scroll-store";
+import { pinToEnd, useThreadScrollGestures } from "./use-thread-scroll-gestures";
 
 const LOAD_OLDER_CONTROL_ESTIMATE = 48;
 const VIRTUAL_OVERSCAN = 6;
@@ -114,11 +109,6 @@ function observeViewportRect(
   const observer = new ResizeObserver(measure);
   observer.observe(viewport);
   return () => observer.disconnect();
-}
-
-function pinToEnd(viewport: HTMLDivElement, store: ThreadScrollStore): void {
-  viewport.scrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-  store.trigger.programmaticScrollApplied({ scrollTop: viewport.scrollTop });
 }
 
 /**
@@ -315,69 +305,7 @@ export function useThreadScrollController(
     return () => cancelAnimationFrame(animationFrame);
   }, [historyAnchor, leadingItemCount, messageCount, messages, store, viewportRef, virtualizer]);
 
-  useEffect(() => {
-    const viewport = viewportRef.current;
-    if (!viewport) return undefined;
-    const distanceFromBottom = () =>
-      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-    const observeNavigation = (direction: "up" | "down") => {
-      store.trigger.manualNavigationObserved({
-        awayFromEnd: distanceFromBottom() > FOLLOW_REARM_BAND_PX,
-        direction,
-        scrollTop: viewport.scrollTop,
-      });
-    };
-    let lastTouchY: number | null = null;
-    const handleWheel = (event: WheelEvent) => {
-      observeNavigation(event.deltaY < 0 ? "up" : "down");
-    };
-    const handleTouchStart = (event: TouchEvent) => {
-      lastTouchY = event.touches[0]?.clientY ?? null;
-    };
-    const handleTouchMove = (event: TouchEvent) => {
-      const y = event.touches[0]?.clientY ?? null;
-      // A finger moving down drags the content down: the reader is heading up.
-      const direction = lastTouchY !== null && y !== null && y > lastTouchY ? "up" : "down";
-      lastTouchY = y;
-      observeNavigation(direction);
-    };
-    // A pointer on the scrollbar is the reader taking the viewport.
-    const handlePointerDown = () => observeNavigation("up");
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const direction = navigationKeyDirection({
-        key: event.key,
-        shiftKey: event.shiftKey,
-        defaultPrevented: event.defaultPrevented,
-        target: navigationKeyTarget(event.target),
-      });
-      if (direction) observeNavigation(direction);
-    };
-    const handleScroll = () => {
-      store.trigger.scrollObserved({
-        atEnd: distanceFromBottom() <= FOLLOW_REARM_BAND_PX,
-        scrollTop: viewport.scrollTop,
-      });
-      // No gesture moved the viewport off the end (estimates replaced by real
-      // heights while a long transcript opens): following holds the end.
-      if (shouldMaintainEnd(store.getSnapshot().context.ownership) && distanceFromBottom() > 1) {
-        pinToEnd(viewport, store);
-      }
-    };
-    viewport.addEventListener("wheel", handleWheel, { passive: true });
-    viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
-    viewport.addEventListener("touchmove", handleTouchMove, { passive: true });
-    viewport.addEventListener("pointerdown", handlePointerDown, { passive: true });
-    viewport.addEventListener("keydown", handleKeyDown);
-    viewport.addEventListener("scroll", handleScroll, { passive: true });
-    return () => {
-      viewport.removeEventListener("wheel", handleWheel);
-      viewport.removeEventListener("touchstart", handleTouchStart);
-      viewport.removeEventListener("touchmove", handleTouchMove);
-      viewport.removeEventListener("pointerdown", handlePointerDown);
-      viewport.removeEventListener("keydown", handleKeyDown);
-      viewport.removeEventListener("scroll", handleScroll);
-    };
-  }, [store, viewportRef]);
+  useThreadScrollGestures(viewportRef, store);
 
   // End-maintenance: streaming growth (content) and composer growth (viewport
   // shrink) keep the pin while following, and only then; a disclosure holds it

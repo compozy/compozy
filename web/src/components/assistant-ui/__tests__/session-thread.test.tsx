@@ -4403,11 +4403,34 @@ describe("SessionThread transcript states", () => {
     }
     expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
 
+    // Layout compensation moving the viewport down is not the reader coming back.
+    scrollViewportTo(viewport, 1_478);
+    expect(viewport.scrollTop).toBe(1_478);
+
     // Heading back into the band re-arms following, which pins the true end.
     viewport.scrollTop = 1_495;
     fireEvent.wheel(viewport, { deltaY: 25 });
     fireEvent.scroll(viewport);
     expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: a scrollbar drag is one held pointer; dragging back down into the
+  // band re-arms following even though no wheel or key event says "down".
+  it("Should re-arm following when a held pointer drags the viewport back to the end", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("scrollbar-drag") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    fireEvent.pointerDown(viewport);
+    scrollViewportTo(viewport, 1_200);
+    expect(viewport.scrollTop).toBe(1_200);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "true");
+
+    scrollViewportTo(viewport, 1_480);
+    expect(viewport.scrollTop).toBe(1_500);
+    fireEvent.pointerUp(document);
     expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
   });
 
