@@ -351,6 +351,9 @@ describe("useSessionListView", () => {
       )
     );
     expect(result.current.layout).toBeUndefined();
+    expect(result.current.newFolderUnavailable).toBe(
+      "Folders live inside one project and profile. Group by project to add one."
+    );
 
     // One project under one profile is a pair: manual order applies and the note leaves.
     act(() => setActiveWorkspaceId("ws-alpha"));

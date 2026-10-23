@@ -47,6 +47,8 @@ vi.mock("../../adapters/session-api", async importOriginal => ({
   fetchSessionInputs: vi.fn(),
   repairSession: vi.fn(),
   renameSession: vi.fn(),
+  setSessionParent: vi.fn(),
+  clearSessionParent: vi.fn(),
   promoteSessionInputToSteer: vi.fn(),
   replaceSessionInput: vi.fn(),
   rewindSession: vi.fn(),
@@ -78,6 +80,8 @@ import {
   fetchSessionInputs,
   repairSession,
   renameSession,
+  setSessionParent,
+  clearSessionParent,
   promoteSessionInputToSteer,
   replaceSessionInput,
   rewindSession,
@@ -875,6 +879,39 @@ describe("session actions", () => {
     await act(async () => resolveRename({ ...createdSession, name: "Release review" }));
     await waitFor(() => expect(result.current.renameDialog.open).toBe(false));
     expect(result.current.renameDialog.session).toBeNull();
+  });
+
+  // Invariant: a drop adopts the row's session under its new parent through the
+  // session's own profile, and the confirmation's Undo makes it top-level again.
+  it("adopts a session under a parent and undoes it from the toast", async () => {
+    const parent = { ...createdSession, id: "sess-parent", name: "Parent" };
+    const owned = { ...createdSession, profile_name: "work" };
+    vi.mocked(setSessionParent).mockResolvedValue(owned);
+    vi.mocked(clearSessionParent).mockResolvedValue(owned);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries").mockResolvedValue(undefined);
+    const { result } = renderHook(() => useSessionLifecycleActions(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    act(() => result.current.actions.onAdopt?.(owned, parent));
+    await waitFor(() =>
+      expect(setSessionParent).toHaveBeenCalledWith(WORKSPACE_ID, owned.id, "work", "sess-parent")
+    );
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
+    });
+    const options = vi.mocked(toast.success).mock.calls.at(-1)?.[1] as {
+      action: { label: string; onClick: () => void };
+    };
+    expect(options.action.label).toBe("Undo");
+    act(() => options.action.onClick());
+    await waitFor(() =>
+      expect(clearSessionParent).toHaveBeenCalledWith(WORKSPACE_ID, owned.id, "work")
+    );
   });
 
   it("updates the detail cache and invalidates session views after rename", async () => {

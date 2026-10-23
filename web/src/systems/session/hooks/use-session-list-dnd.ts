@@ -2,9 +2,23 @@ import { useState, type DragEvent } from "react";
 import { toast } from "sonner";
 
 import { placeId } from "../lib/session-folders";
+import { sessionAdoptRefusal } from "../lib/session-reparent";
+import type { SessionPayload } from "../types";
 import type { SessionListLayout } from "./use-session-folders";
 
 export type SessionDropPosition = "before" | "after";
+
+/** Where a dragged session lands on a row: between rows (reorder) or onto it (adopt). */
+export type SessionRowDropEdge = SessionDropPosition | "into";
+
+/**
+ * Dropping a session onto this row makes it the row's child. `accepts` says
+ * whether the dragged session may become one; refused sources never show it.
+ */
+export interface SessionRowNestTarget {
+  accepts: (sourceId: string) => boolean;
+  adopt: (sourceId: string) => void;
+}
 
 /** What the operator is dragging: a root session row, the selection, or a folder header. */
 export type SessionDragItem =
@@ -28,12 +42,14 @@ export interface SessionSelectionDrag {
   disabled: boolean;
   /** The off-screen count preview the browser shows under the pointer. */
   preview: HTMLElement | null;
+  /** The pair whose layout the selection moves within; a grouped list wires only that group. */
+  pairKey?: string | null;
   move: (folderId: string | null) => void;
 }
 
 /** Where the dragged item would land; drives the visible drop indicator. */
 export type SessionDropIndicator =
-  | { kind: "row"; targetId: string; position: SessionDropPosition }
+  | { kind: "row"; targetId: string; position: SessionRowDropEdge }
   | { kind: "folder"; folderId: string; position: SessionDropPosition | "into" }
   | { kind: "root" };
 
@@ -58,7 +74,8 @@ export interface SessionListDnd {
   sessionRow: (
     sessionId: string,
     container: SessionDropContainer,
-    selection?: SessionSelectionDrag
+    selection?: SessionSelectionDrag,
+    nest?: SessionRowNestTarget
   ) => SessionDragHandlers;
   /** Drag source for folder reorder and drop target for "move into folder". */
   folderHeader: (folderId: string) => SessionDragHandlers;
@@ -83,6 +100,9 @@ const DRAG_MIME = "application/x-compozy-session-layout";
  * Every drop resolves to one layout verb; the menu items expose the same verbs
  * for keyboard use. A dragged selection only moves: it drops anywhere on a
  * folder or on the root, never between rows.
+ *
+ * A single session dropped onto another row's middle — or anywhere on the row
+ * while rows cannot reorder — becomes that row's child, when the row accepts it.
  */
 export function useSessionListDnd(
   layout: SessionListLayout | undefined,
@@ -136,26 +156,43 @@ export function useSessionListDnd(
   return {
     dragging,
     indicator,
-    sessionRow: (sessionId, container, selection) => ({
-      draggable: true,
-      onDragStart: selection?.selectedIds.has(sessionId)
-        ? startSelection(selection)
-        : start({ kind: "session", id: sessionId, folderId: container.folderId }),
-      onDragEnd: end,
-      onDragOver: event => {
-        if (dragging?.kind !== "session" || dragging.id === sessionId || !rowReorder) return;
-        accept(event, { kind: "row", targetId: sessionId, position: dropPosition(event) });
-      },
-      onDrop: event => {
-        if (dragging?.kind !== "session" || !rowReorder) return;
-        const moved = dragging.id;
-        const position = dropPosition(event);
-        finish(event, () => {
-          const next = placeId(container.ids, moved, sessionId, position);
-          if (next) layout.reorderSessions(container.folderId, next);
-        });
-      },
-    }),
+    sessionRow: (sessionId, container, selection, nest) => {
+      const edge = (event: DragEvent<HTMLElement>): SessionRowDropEdge | null => {
+        if (dragging?.kind !== "session" || dragging.id === sessionId) return null;
+        return rowDropZone(event, rowReorder, nest?.accepts(dragging.id) ?? false);
+      };
+      return {
+        draggable: true,
+        onDragStart: selection?.selectedIds.has(sessionId)
+          ? startSelection(selection)
+          : start({ kind: "session", id: sessionId, folderId: container.folderId }),
+        onDragEnd: end,
+        onDragOver: event => {
+          const position = edge(event);
+          if (position !== null) accept(event, { kind: "row", targetId: sessionId, position });
+        },
+        onDragLeave: event => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setIndicator(current =>
+              current?.kind === "row" && current.targetId === sessionId ? null : current
+            );
+          }
+        },
+        onDrop: event => {
+          const position = edge(event);
+          if (position === null || dragging?.kind !== "session") return;
+          const moved = dragging.id;
+          finish(event, () => {
+            if (position === "into") {
+              nest?.adopt(moved);
+              return;
+            }
+            const next = placeId(container.ids, moved, sessionId, position);
+            if (next) layout.reorderSessions(container.folderId, next);
+          });
+        },
+      };
+    },
     folderHeader: folderId => ({
       draggable: true,
       onDragStart: start({ kind: "folder", id: folderId }),
@@ -260,10 +297,50 @@ function selectionDrops(
   );
 }
 
+/**
+ * The nest target of one row: a listed top-level row dropped onto `target`
+ * becomes its child through `onAdopt`. Absent where the host cannot adopt.
+ */
+export function sessionRowNestTarget(
+  roots: ReadonlyMap<string, SessionPayload>,
+  target: SessionPayload,
+  onAdopt: ((session: SessionPayload, parent: SessionPayload) => void) | undefined
+): SessionRowNestTarget | undefined {
+  if (!onAdopt) return undefined;
+  return {
+    accepts: sourceId => {
+      const source = roots.get(sourceId);
+      return source !== undefined && sessionAdoptRefusal(source, target) === null;
+    },
+    adopt: sourceId => {
+      const source = roots.get(sourceId);
+      if (source) onAdopt(source, target);
+    },
+  };
+}
+
 /** This row is being dragged, alone or as part of the selection. */
 export function rowDragged(dragging: SessionDragItem | null, sessionId: string): boolean {
   if (dragging?.kind === "session") return dragging.id === sessionId;
   return dragging?.kind === "selection" && dragging.ids.includes(sessionId);
+}
+
+/**
+ * The row zone under the pointer: the middle third nests while rows reorder,
+ * the whole row nests while they cannot, and the halves otherwise reorder.
+ */
+function rowDropZone(
+  event: DragEvent<HTMLElement>,
+  reorder: boolean,
+  nests: boolean
+): SessionRowDropEdge | null {
+  if (nests && !reorder) return "into";
+  if (nests) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const offset = event.clientY - bounds.top;
+    if (offset > bounds.height / 3 && offset < (bounds.height * 2) / 3) return "into";
+  }
+  return reorder ? dropPosition(event) : null;
 }
 
 function dropPosition(event: DragEvent<HTMLElement>): SessionDropPosition {
@@ -286,7 +363,7 @@ function sameIndicator(left: SessionDropIndicator | null, right: SessionDropIndi
 export function rowDropEdge(
   indicator: SessionDropIndicator | null,
   sessionId: string
-): SessionDropPosition | null {
+): SessionRowDropEdge | null {
   return indicator?.kind === "row" && indicator.targetId === sessionId ? indicator.position : null;
 }
 

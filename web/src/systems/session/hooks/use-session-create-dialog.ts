@@ -100,7 +100,11 @@ export function useSessionCreateDialogViewModel(
   const { pendingSubmit } = flow;
   // Each opening starts from the prefill; under All projects the picked project
   // (or User) is the destination, otherwise the menubar destination is.
-  const target = useSessionCreateTarget({ resetKey: flow.open, focusedBinding });
+  const target = useSessionCreateTarget({
+    resetKey: flow.open,
+    focusedBinding,
+    seed: flow.target,
+  });
   const destination = resolveSessionCreateDestination(
     target.projectAxis
       ? {

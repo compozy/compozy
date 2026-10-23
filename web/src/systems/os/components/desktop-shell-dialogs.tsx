@@ -1,4 +1,4 @@
-import type { SessionListViewModel } from "@/systems/session";
+import type { SessionCreateOpenOptions, SessionListViewModel } from "@/systems/session";
 import {
   useWorkspaceSetupContent,
   WorkspaceSetupDialog,
@@ -16,7 +16,7 @@ export interface DesktopSessionDialogsProps {
   disconnected: boolean;
   /** Breadth, order, catalog, and widened workspace groups — owned by the shell. */
   view: SessionListViewModel;
-  onNewSession: (options?: { folderId?: string }) => void;
+  onNewSession: (options?: SessionCreateOpenOptions) => void;
 }
 
 /**

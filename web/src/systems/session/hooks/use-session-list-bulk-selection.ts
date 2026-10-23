@@ -1,12 +1,7 @@
 import type { KeyboardEvent } from "react";
 
 import { isEditableTarget } from "../lib/editable-target";
-import {
-  sessionListShortcut,
-  threadVisibleOrder,
-  type SessionListShortcut,
-  type SessionThreadModel,
-} from "../lib/session-list-threads";
+import { sessionListShortcut, type SessionListShortcut } from "../lib/session-list-threads";
 import type { SessionPayload } from "../types";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import {
@@ -18,12 +13,11 @@ import { sessionSelectionCounts, useSessionSelection } from "./use-session-selec
 interface SessionListBulkSelectionInput {
   /** The list's identity: a new breadth, lens, or grouping is a new selection. */
   selectionKey: string;
-  /** Grouped lists select nothing: each group pages on its own. */
-  readOnly: boolean;
   archived: boolean;
+  /** Every listed session; a grouped list joins what each expanded group reads. */
   sessions: readonly SessionPayload[];
-  threads: readonly SessionThreadModel[];
-  collapsedThreads: ReadonlySet<string>;
+  /** The ids of the rows on screen, in order; ranges and select-all follow it. */
+  visibleOrder: readonly string[];
   sessionActions: SessionLifecycleActionHandlers;
   /** The list's folder layouts; absent while the list has no folders to move into. */
   folders: SessionBulkFolderSource;
@@ -39,23 +33,20 @@ function bindToSelection(handler: ManyHandler, selected: readonly SessionPayload
 /**
  * The list's bulk selection: the visible row order, the per-row selection
  * contract, the selection bar's counts and verbs, folder moves by menu and
- * drag, and the list keyboard shortcuts. A grouped list is read-only, so it
- * selects nothing.
+ * drag, and the list keyboard shortcuts. A grouped list keeps one selection
+ * across its groups: lifecycle verbs route each session to its owner, and a
+ * folder move needs the selection inside one group's pair.
  */
 export function useSessionListBulkSelection({
   selectionKey,
-  readOnly,
   archived,
   sessions,
-  threads,
-  collapsedThreads,
+  visibleOrder,
   sessionActions,
   folders,
 }: SessionListBulkSelectionInput) {
   const selection = useSessionSelection(selectionKey, archived, sessions);
-  const catalog = readOnly ? [] : sessions;
-  const visibleOrder = readOnly ? [] : threadVisibleOrder(threads, collapsedThreads);
-  const sessionsById = new Map(catalog.map(session => [session.id, session]));
+  const sessionsById = new Map(sessions.map(session => [session.id, session]));
   const selectedSessions = selection.selectedIds.flatMap(id => {
     const session = sessionsById.get(id);
     return session ? [session] : [];
@@ -63,8 +54,8 @@ export function useSessionListBulkSelection({
   const selectedIdSet = new Set(selection.selectedIds);
   const lifecyclePending = sessionActions.pendingAction !== null;
   const folderMove = useSessionListBulkFolders({
-    source: readOnly ? {} : folders,
-    sessions: catalog,
+    source: folders,
+    sessions,
     selectedIds: selectedIdSet,
     visibleOrder,
     busy: lifecyclePending,
@@ -86,7 +77,7 @@ export function useSessionListBulkSelection({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
-    if (readOnly || event.defaultPrevented || isEditableTarget(event.target)) return;
+    if (event.defaultPrevented || isEditableTarget(event.target)) return;
     if (!event.currentTarget.contains(event.target as Node)) return;
     const shortcut = sessionListShortcut(event, selection.mode, actionPending);
     if (shortcut === null) return;
@@ -97,7 +88,7 @@ export function useSessionListBulkSelection({
 
   return {
     /** The selection bar replaces the toolbar while rows are selected. */
-    active: !readOnly && selection.mode,
+    active: selection.mode,
     rowSelection: {
       ...selection,
       selectedIds: selectedIdSet,

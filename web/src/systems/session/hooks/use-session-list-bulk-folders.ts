@@ -8,8 +8,10 @@ import {
   sessionCountLabel,
   sessionFolderId,
 } from "../lib/session-folders";
+import type { SessionListPair } from "../lib/session-list-groups";
+import { sessionListPairKey } from "../lib/session-list-group-rows";
 import type { SessionFolderPayload, SessionPayload } from "../types";
-import type { SessionListLayout } from "./use-session-folders";
+import { useSessionFolders, type SessionListLayout } from "./use-session-folders";
 import type { SessionSelectionDrag } from "./use-session-list-dnd";
 
 /** The selection bar's Move to folder submenu. */
@@ -34,10 +36,19 @@ export interface SessionBulkFolderDialog {
   onCreate: (name: string) => Promise<void>;
 }
 
-/** Where the list's folders live: the one (workspace, profile) pair's layout, when the list is one. */
+/**
+ * Where the list's folders live: the one (workspace, profile) pair's layout of
+ * a flat list, or — in a grouped list — the pair each listed session's group
+ * owns, so the selection moves within the pair it sits in.
+ */
 export interface SessionBulkFolderSource {
   layout?: SessionListLayout;
+  pairOf?: (sessionId: string) => SessionListPair | null;
 }
+
+/** A selection spanning groups names no single layout to move into. */
+export const SESSION_BULK_MOVE_MIXED_PAIRS =
+  "Select sessions from one project and profile to move them.";
 
 /**
  * Moves the list selection into a folder from the selection bar menu or by
@@ -62,9 +73,27 @@ export function useSessionListBulkFolders(options: {
   const [pending, setPending] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [preview, setPreview] = useState<HTMLElement | null>(null);
-  const layout = source.layout;
-  if (!layout) return null;
-  const blockedReason = sessionBulkMoveBlockedReason(move);
+  const pairs = selectionPairs(move.sessions, source.pairOf);
+  const selectionPair = pairs.length === 1 ? (pairs[0] ?? null) : null;
+  const owned = useSessionFolders({
+    workspaceId: selectionPair?.workspaceId ?? null,
+    profile: selectionPair?.profile ?? "",
+    enabled: source.layout === undefined && selectionPair !== null,
+  });
+  const layout = source.layout ?? owned.layout;
+  const mixed = source.pairOf !== undefined && pairs.length > 1;
+  const blockedReason = mixed ? SESSION_BULK_MOVE_MIXED_PAIRS : sessionBulkMoveBlockedReason(move);
+  if (!layout) {
+    // A grouped list still says why a selection across groups cannot move.
+    return mixed
+      ? blockedFolderMove(
+          SESSION_BULK_MOVE_MIXED_PAIRS,
+          options.selectedIds,
+          move.sessions.length,
+          setPreview
+        )
+      : null;
+  }
   const folderIds = move.sessions.map(sessionFolderId);
   /** Writes the move of every selected root not already in `folderId`; resolves once settled. */
   const run = (target: SessionListLayout, folderId: string | null, name?: string) => {
@@ -107,6 +136,7 @@ export function useSessionListBulkFolders(options: {
     blockedReason,
     disabled: pending || options.busy,
     preview,
+    pairKey: sessionListPairKey(selectionPair),
     move: moveTo,
   };
   const dialog: SessionBulkFolderDialog = {
@@ -122,7 +152,63 @@ export function useSessionListBulkFolders(options: {
       await run(layout, folder.id, folder.name);
     },
   };
-  return { menu, drag, dialog, pending, previewCount: move.sessions.length, setPreview };
+  return {
+    menu,
+    drag,
+    dialog: dialog as SessionBulkFolderDialog | null,
+    pending,
+    previewCount: move.sessions.length,
+    setPreview,
+  };
+}
+
+/** The distinct pairs of the movable selection; an unowned row counts as its own pair. */
+function selectionPairs(
+  sessions: readonly SessionPayload[],
+  pairOf: SessionBulkFolderSource["pairOf"]
+): (SessionListPair | null)[] {
+  if (!pairOf) return [];
+  const byKey = new Map<string | null, SessionListPair | null>();
+  for (const session of sessions) {
+    const pair = pairOf(session.id);
+    byKey.set(sessionListPairKey(pair) ?? `unowned:${session.id}`, pair);
+  }
+  return [...byKey.values()];
+}
+
+/** Move to folder for a selection no one layout owns: the reason, and nothing to move into. */
+function blockedFolderMove(
+  blockedReason: string,
+  selectedIds: ReadonlySet<string>,
+  count: number,
+  setPreview: (element: HTMLElement | null) => void
+) {
+  const noop = () => undefined;
+  const menu: SessionBulkFolderMenu = {
+    folders: [],
+    blockedReason,
+    sharedFolderId: undefined,
+    canUnfile: false,
+    onMove: noop,
+    onNewFolder: noop,
+  };
+  const drag: SessionSelectionDrag = {
+    selectedIds,
+    sessions: [],
+    blockedReason,
+    disabled: false,
+    preview: null,
+    pairKey: null,
+    move: noop,
+  };
+  return {
+    menu,
+    drag,
+    dialog: null as SessionBulkFolderDialog | null,
+    pending: false,
+    previewCount: count,
+    setPreview,
+  };
 }
 
 export type SessionListBulkFolders = NonNullable<ReturnType<typeof useSessionListBulkFolders>>;

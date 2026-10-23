@@ -1,3 +1,4 @@
+import type { SessionCreateOpenOptions } from "../lib/session-create-target";
 import type { SessionPayload } from "../types";
 import { SESSION_SIDEBAR_MIN_WIDTH } from "../lib/session-sidebar-width";
 import { SessionList } from "./session-list/session-list";
@@ -15,7 +16,7 @@ export interface SessionSidebarProps {
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;
-  onNewSession: (options?: { folderId?: string }) => void;
+  onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
 }
 

@@ -23,6 +23,7 @@ import {
   useSessionTransportState,
   useTransportGraceElapsed,
   type SessionListViewModel,
+  type SessionCreateOpenOptions,
 } from "@/systems/session";
 
 /** A session to open by id; the agent name lets this window retarget in place. */
@@ -44,7 +45,7 @@ export interface SessionWindowSidebarModel {
   onSelectSession: (session: SessionPayload) => void;
   /** Drill-in by id (subagent rows): this window, or a split with `newWindow`. */
   openSession: (target: SessionWindowSidebarTarget, options: { newWindow: boolean }) => void;
-  onNewSession: (options?: { folderId?: string }) => void;
+  onNewSession: (options?: SessionCreateOpenOptions) => void;
   sessionActions: SessionLifecycleActionHandlers;
   rowDeleteDialog: ReturnType<typeof useSessionListLifecycleActions>["deleteDialog"];
   rowRenameDialog: ReturnType<typeof useSessionListLifecycleActions>["renameDialog"];

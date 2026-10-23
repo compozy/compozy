@@ -15,7 +15,11 @@ import type { SessionPayload } from "../../types";
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu, type SessionRowLayoutMenu } from "../session-row-context-menu";
-import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-session-list-dnd";
+import type {
+  SessionDragHandlers,
+  SessionDropPosition,
+  SessionRowDropEdge,
+} from "../../hooks/use-session-list-dnd";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import { SessionListRowWho } from "./session-list-row-meta";
 import { SessionUnrestrictedBadge } from "../session-unrestricted-badge";
@@ -52,7 +56,7 @@ export interface SessionListRowProps {
   /** Drag source/target wiring for a root row in the workspace list. */
   drag?: SessionDragHandlers;
   /** The pending drop lands on this edge of the row. */
-  dropEdge?: SessionDropPosition | null;
+  dropEdge?: SessionRowDropEdge | null;
   /** This row is the one being dragged. */
   dragging?: boolean;
 }
@@ -383,7 +387,7 @@ function SessionRowDragFrame({
   ...rest
 }: React.ComponentProps<"div"> & {
   drag: SessionDragHandlers | undefined;
-  dropEdge: SessionDropPosition | null;
+  dropEdge: SessionRowDropEdge | null;
   dragging: boolean;
   dropTestId: string;
 }) {
@@ -392,9 +396,18 @@ function SessionRowDragFrame({
       {...rest}
       {...drag}
       data-dragging={dragging || undefined}
-      className={cn(dragging && "opacity-50", className)}
+      data-drop={dropEdge ?? undefined}
+      className={cn(
+        dragging && "opacity-50",
+        // Dropping onto the row nests the dragged session under it.
+        dropEdge === "into" && "rounded-md bg-accent-tint ring-1 ring-accent ring-inset",
+        className
+      )}
     >
-      {dropEdge !== null ? <SessionRowDropLine edge={dropEdge} testId={dropTestId} /> : null}
+      {dropEdge === "before" || dropEdge === "after" ? (
+        <SessionRowDropLine edge={dropEdge} testId={dropTestId} />
+      ) : null}
+
       {children}
     </div>
   );

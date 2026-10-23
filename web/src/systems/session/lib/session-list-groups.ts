@@ -3,6 +3,7 @@ import {
   ownerDataScope,
   workspaceBadgeIdentity,
   workspaceSelectorForScope,
+  workspaceSelectorOrAll,
   type DataScope,
   type FocusedDataScope,
   type WorkspaceBadgeIdentity,
@@ -130,4 +131,17 @@ export function sessionListGroupFilters(
   group: Pick<SessionListGroupSpec, "pair">
 ): SessionListFilters {
   return { ...view.groupFilters, sort: sessionListSortParam(view.sort, group.pair !== null) };
+}
+
+/**
+ * The project (a workspace id or `@user`) and profile a group settles; an axis
+ * the group spans — All projects or All profiles — stays `null`.
+ */
+export function sessionListGroupTarget(
+  group: Pick<SessionListGroupSpec, "pair" | "scope" | "lens">
+) {
+  return {
+    workspaceId: group.pair?.workspaceId ?? workspaceSelectorOrAll(group.scope),
+    profile: group.pair?.profile ?? ("profile" in group.lens ? group.lens.profile : null) ?? null,
+  };
 }
