@@ -46,3 +46,6 @@ Record the session slice separately from this scenario's broader coverage in
 
 
 Issue #832 extension verified on 2026-10-19: focused E2E-032 proves owner-grouped folders, cross-profile drop rejection, owner-bound rename and reload persistence. Real Codex QA proves runtime/agent metadata for root and child rows, including never-bound, idle-released and stopped/unbound after daemon restart. Ordering and collapsed-folder navigation are covered by the owning unit suites. Evidence and exact scope: [issue #832 report](../reports/2026-10-19-issue-832-session-list.md).
+
+QA impact 2026-10-22 (issue #904): both row menus add Copy session ID and Copy title, and a
+nested provenance child adds Make top-level. Walked in ET-web-session-list-aggregate-parity.

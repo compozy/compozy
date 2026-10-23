@@ -146,8 +146,21 @@ and **New folder…**, which names a new folder and moves the selection into it.
 change: either every selected session moves or none does, and a refused move keeps the selection so
 you can retry. Sessions already in the target stay where they are, and the moved sessions keep their
 on-screen order at the top of the target in **Manual** sort. Child sessions follow their parent, so
-a selected child moves only with its selected parent. A folder belongs to one profile, so a
-selection that spans profiles in the all-profiles view can't move until you narrow it to one.
+a selected child moves only with its selected parent. A folder belongs to one project and profile,
+so a selection that spans both can't move until you narrow it to one.
+
+### Folders under All projects and All profiles
+
+Folders and Manual order live inside one project and profile. When the list shows several, use
+**Group by** in the sort menu: every group that is one project and profile keeps its folders,
+Manual order, and drag. A project group under All profiles splits into one group per profile, and
+a profile group under All projects splits into one group per project. Each group header has its own
+**+** after the session count: **New session** or **New folder** in that group's project and
+profile. If the group spans profiles (or projects), **New folder** asks which one. You can select
+sessions across groups; Stop, Archive, and Delete act on each session in its own profile.
+
+The flat list under All projects or All profiles has no single owner for folders, so **New folder**
+stays disabled there with the reason, and **Manual** sort shows a note until you group the list.
 
 Which folders and threads are expanded is a view choice, not shared data. Each session window keeps
 its own sessions sidebar: whether it is open and which folders and threads are collapsed. A new
@@ -168,6 +181,33 @@ Native tools mirror the CLI: `compozy__session_folder_list`, `compozy__session_f
 `compozy__session_folder_rename`, `compozy__session_folder_delete`, `compozy__session_folder_reorder`,
 `compozy__session_move`, and `compozy__session_reorder`. Subagent sessions always stay under their
 parent and cannot be moved on their own. Archived sessions keep their folder when unarchived.
+
+## Nest a session under another session
+
+A session started without a parent can become another session's child, so work an agent started
+on its own sits under the session it belongs to. In the sessions sidebar, drag a top-level session
+onto the middle of another session's row (anywhere on the row outside **Manual** sort); the row
+highlights when the drop is allowed. The confirmation offers **Undo**, and **Make top-level** in a
+nested session's row menu returns it later.
+
+The daemon checks every request. Both sessions must be user sessions in the same project and
+profile, neither can be archived, and the new parent can't be the session itself or one of its
+descendants. Subagents, spawned workers, and continued or forked sessions keep their lineage. Only
+the parent link changes: the session's children move with it, and its runtime, permissions, and
+spawn limits stay as they were.
+
+```bash
+compozy session reparent sess_child --parent sess_parent   # nest
+compozy session reparent sess_child --top-level            # undo
+```
+
+Agents use `compozy__session_reparent` with `parent_session_id` or `top_level: true`. A refused
+request returns HTTP 409 with a `session_reparent_*` error code naming the rule.
+
+## Copy a session's ID or title
+
+Open a row's **…** menu or right-click it and choose **Copy session ID** (the `sess-…` ID that
+the CLI and native tools take) or **Copy title**.
 
 ## Find sessions that need attention
 
