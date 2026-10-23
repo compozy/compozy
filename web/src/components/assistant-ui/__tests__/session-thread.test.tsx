@@ -66,7 +66,10 @@ import {
   type SessionForkRequest,
 } from "@/systems/session/contexts/session-fork-context-value";
 import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
-import { steeredWakesTranscript } from "@/systems/session/components/stories/sessions-stability-steer-fixtures";
+import {
+  STEER_WAKE_TURN,
+  steeredWakesTranscript,
+} from "@/systems/session/components/stories/sessions-stability-steer-fixtures";
 import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
 import { readCursorSnapshot } from "../session-composer-cursor-snapshot";
@@ -1605,6 +1608,32 @@ describe("SessionThread transcript states", () => {
       expect(pieces.at(-1)).toHaveTextContent("5 tools · 1 thought · 1 running");
     }
   );
+
+  it("Should join a text-only continuation that names its turn only in message metadata", async () => {
+    // The daemon names the turn of a `-N` continuation in its metadata when no
+    // event part carries it (a reply that resumes right after the steer).
+    const transcript = [
+      ...steeredWakesTranscript([
+        "wake_01M5MV5SVJGJVBC5P1278DP0KA",
+        "wake_01M5MV6A9XKQ2RTB7W3HZC4D8E",
+      ]).slice(0, 4),
+      {
+        id: `${STEER_WAKE_TURN}-2`,
+        role: "assistant",
+        metadata: { turn_id: STEER_WAKE_TURN },
+        parts: [{ type: "text", text: "Resumed the pending work.", state: "done" }],
+      },
+    ] as unknown as SessionMessage[];
+    const normalized = await normalizeTranscriptMessages(transcript);
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+    await screen.findByText("Resumed the pending work.");
+    const pieces = screen.getAllByTestId("assistant-message");
+    expect(pieces).toHaveLength(4);
+    expect(pieces.at(-2)).toHaveClass("pb-transcript-inline-gap");
+    expect(pieces.at(-1)).not.toHaveClass("pt-1");
+    expect(pieces.at(-1)).toHaveClass("pb-transcript-turn-gap");
+  });
 
   it("Should hide the pending receipt once the real message is loaded and carry the newer marker's truth", async () => {
     const pendingMarker = {

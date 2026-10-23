@@ -61,21 +61,72 @@ function messageFailed(message: AssistantThreadMessage): boolean {
   return isRecord(status) && status.type === "incomplete" && status.reason === "error";
 }
 
-/** Whether `AssistantMessage` mounts a row for this message (no shell without content). */
-export function assistantMessageRenders(
-  messages: readonly AssistantThreadMessage[],
-  message: AssistantThreadMessage,
-  provenance: SteerProvenanceIndex
-): boolean {
-  if (queueClearTraceCount(messages, message.id) === 0) return false;
-  return (
-    assistantMessageHasRenderableContent(visibleAssistantContent(message.content, provenance)) ||
-    messageFailed(message)
-  );
+interface AssistantMessageFacts {
+  traceCount: number | null;
+  hasRenderableContent: boolean;
+  /** Whether `AssistantMessage` mounts a row (no shell without content). */
+  renders: boolean;
+  turnId: string | undefined;
 }
 
-function assistantTurnId(message: AssistantThreadMessage): string | undefined {
-  return toTimelineParts(message).find(part => part.turnId)?.turnId;
+export interface AssistantMessagePlacement {
+  traceCount: number | null;
+  renders: boolean;
+  hasRenderableContent: boolean;
+  /** A drawn assistant message of the same turn sits directly above. */
+  joinsPrevious: boolean;
+  /** A drawn assistant message of the same turn sits directly below. */
+  joinsNext: boolean;
+}
+
+// One index per loaded thread version and provenance: every mounted message
+// reads its neighbours' facts from it instead of re-deriving them, and gets a
+// stable placement object back while the thread is unchanged.
+interface ThreadPlacementIndex {
+  provenance: SteerProvenanceIndex;
+  positions: Map<string, number>;
+  facts: Map<number, AssistantMessageFacts>;
+  placements: Map<string, AssistantMessagePlacement>;
+}
+
+const placementIndexes = new WeakMap<readonly AssistantThreadMessage[], ThreadPlacementIndex>();
+
+function placementIndex(
+  messages: readonly AssistantThreadMessage[],
+  provenance: SteerProvenanceIndex
+): ThreadPlacementIndex {
+  const cached = placementIndexes.get(messages);
+  if (cached?.provenance === provenance) return cached;
+  const index: ThreadPlacementIndex = {
+    provenance,
+    positions: new Map(messages.map((message, position) => [message.id, position])),
+    facts: new Map(),
+    placements: new Map(),
+  };
+  placementIndexes.set(messages, index);
+  return index;
+}
+
+function messageFacts(
+  messages: readonly AssistantThreadMessage[],
+  index: ThreadPlacementIndex,
+  position: number
+): AssistantMessageFacts {
+  const cached = index.facts.get(position);
+  if (cached) return cached;
+  const message = messages[position]!;
+  const traceCount = queueClearTraceCount(messages, message.id);
+  const hasRenderableContent = assistantMessageHasRenderableContent(
+    visibleAssistantContent(message.content, index.provenance)
+  );
+  const facts: AssistantMessageFacts = {
+    traceCount,
+    hasRenderableContent,
+    renders: traceCount !== 0 && (hasRenderableContent || messageFailed(message)),
+    turnId: toTimelineParts(message).find(part => part.turnId)?.turnId,
+  };
+  index.facts.set(position, facts);
+  return facts;
 }
 
 // The nearest drawn neighbour in one direction continues this turn when it is an
@@ -83,41 +134,52 @@ function assistantTurnId(message: AssistantThreadMessage): string | undefined {
 // bubble, another session's card, a wake — ends the run.
 function joinsNeighbour(
   messages: readonly AssistantThreadMessage[],
-  index: number,
+  index: ThreadPlacementIndex,
+  position: number,
   step: 1 | -1,
-  turnId: string,
-  provenance: SteerProvenanceIndex
+  turnId: string
 ): boolean {
-  for (let at = index + step; at >= 0 && at < messages.length; at += step) {
-    const neighbour = messages[at]!;
-    if (neighbour.role !== "assistant") return false;
-    if (!assistantMessageRenders(messages, neighbour, provenance)) continue;
-    return assistantTurnId(neighbour) === turnId;
+  for (let at = position + step; at >= 0 && at < messages.length; at += step) {
+    if (messages[at]!.role !== "assistant") return false;
+    const neighbour = messageFacts(messages, index, at);
+    if (!neighbour.renders) continue;
+    return neighbour.turnId === turnId;
   }
   return false;
 }
 
-export interface AssistantTurnContinuity {
-  /** A drawn assistant message of the same turn sits directly above. */
-  joinsPrevious: boolean;
-  /** A drawn assistant message of the same turn sits directly below. */
-  joinsNext: boolean;
-}
+const UNPLACED: AssistantMessagePlacement = {
+  traceCount: null,
+  renders: false,
+  hasRenderableContent: false,
+  joinsPrevious: false,
+  joinsNext: false,
+};
 
-const UNJOINED: AssistantTurnContinuity = { joinsPrevious: false, joinsNext: false };
-
-/** How a message sits inside its turn's run of assistant messages. */
-export function assistantTurnContinuity(
+/**
+ * Whether an assistant message draws, what it draws, and how it sits inside
+ * its turn's run of assistant messages. Referentially stable for an unchanged
+ * thread, so a selector can return it directly.
+ */
+export function assistantMessagePlacement(
   messages: readonly AssistantThreadMessage[],
   id: string,
   provenance: SteerProvenanceIndex
-): AssistantTurnContinuity {
-  const index = messages.findIndex(message => message.id === id);
-  const message = messages[index];
-  if (!message) return UNJOINED;
-  const turnId = assistantTurnId(message);
-  if (turnId === undefined) return UNJOINED;
-  const joinsPrevious = joinsNeighbour(messages, index, -1, turnId, provenance);
-  const joinsNext = joinsNeighbour(messages, index, 1, turnId, provenance);
-  return joinsPrevious || joinsNext ? { joinsPrevious, joinsNext } : UNJOINED;
+): AssistantMessagePlacement {
+  const index = placementIndex(messages, provenance);
+  const cached = index.placements.get(id);
+  if (cached) return cached;
+  const position = index.positions.get(id);
+  if (position === undefined) return UNPLACED;
+  const facts = messageFacts(messages, index, position);
+  const turnId = facts.renders ? facts.turnId : undefined;
+  const placement: AssistantMessagePlacement = {
+    traceCount: facts.traceCount,
+    renders: facts.renders,
+    hasRenderableContent: facts.hasRenderableContent,
+    joinsPrevious: turnId !== undefined && joinsNeighbour(messages, index, position, -1, turnId),
+    joinsNext: turnId !== undefined && joinsNeighbour(messages, index, position, 1, turnId),
+  };
+  index.placements.set(id, placement);
+  return placement;
 }

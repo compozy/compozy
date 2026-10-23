@@ -644,6 +644,57 @@ func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
 		}
 	})
 
+	t.Run("Should name the turn of a text-only continuation split by a steer marker", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 10, 23, 17, 3, 0, 0, time.UTC)
+		marker, err := NewMarker(MarkerPromptSteered, "Subagent finished.", timestamp.Add(time.Second),
+			map[string]any{"kind": "subagent_wake", "message_id": "wake_01M5MV5SVJGJVBC5P1278DP0KA"})
+		if err != nil {
+			t.Fatalf("NewMarker() error = %v", err)
+		}
+		markerEvent, err := marker.AgentEvent("sess-split", "turn-split")
+		if err != nil {
+			t.Fatalf("AgentEvent() error = %v", err)
+		}
+		events := []store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-text-1", 1, timestamp, acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: "sess-split", TurnID: "turn-split",
+				Timestamp: timestamp, Text: "before the steer",
+			}),
+			mustUIAgentSessionEvent(t, "ev-marker", 2, markerEvent.Timestamp, markerEvent),
+			mustUIAgentSessionEvent(t, "ev-text-3", 3, timestamp.Add(2*time.Second), acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage, SessionID: "sess-split", TurnID: "turn-split",
+				Timestamp: timestamp.Add(2 * time.Second), Text: "after the steer",
+			}),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 3; got != want {
+			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
+		}
+		if messages[0].ID != "turn-split" || len(messages[0].Metadata) != 0 {
+			t.Fatalf(
+				"first chunk = %q metadata %s, want turn-split without metadata",
+				messages[0].ID,
+				messages[0].Metadata,
+			)
+		}
+		continuation := messages[2]
+		if continuation.ID == "turn-split" {
+			t.Fatalf("continuation id = %q, want a distinct projected id", continuation.ID)
+		}
+		var metadata struct {
+			TurnID string `json:"turn_id"`
+		}
+		if err := json.Unmarshal(continuation.Metadata, &metadata); err != nil || metadata.TurnID != "turn-split" {
+			t.Fatalf("continuation metadata = %s (err %v), want turn_id turn-split", continuation.Metadata, err)
+		}
+	})
+
 	t.Run("ShouldPreserveTextToolTextOrderInsideOneAssistantMessage", func(t *testing.T) {
 		t.Parallel()
 
