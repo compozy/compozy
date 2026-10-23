@@ -1870,49 +1870,55 @@ func TestConfigProfileLayerWriteTargetsIT043E2E006(t *testing.T) {
 func TestConfigSetSupportsWorktreeLifecyclePaths(t *testing.T) {
 	t.Parallel()
 
-	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("resolveHome() error = %v", err)
-	}
-	workspaceRoot := t.TempDir()
-	deps.getwd = func() (string, error) { return workspaceRoot, nil }
-
-	for _, mutation := range []struct {
-		path  string
-		value string
-	}{
-		{path: "worktrees.root", value: filepath.Join(t.TempDir(), "checkouts")},
-		{path: "worktrees.run_branch_namespace", value: "qa/run/"},
-		{path: "worktrees.copy_list", value: `[".env", ".secrets/*"]`},
-		{path: "worktrees.setup_command", value: "bun install"},
-		{path: "worktrees.setup_timeout", value: "45s"},
-		{path: "worktrees.discovery_cache_ttl", value: "5s"},
-	} {
-		if _, _, err := executeRootCommand(
-			t,
-			deps,
-			"config",
-			"set",
-			mutation.path,
-			mutation.value,
-			"--scope",
-			"workspace",
-			"-o",
-			"json",
-		); err != nil {
-			t.Fatalf("config set %s error = %v", mutation.path, err)
+	t.Run("Should persist typed worktree lifecycle values", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("resolveHome() error = %v", err)
 		}
-	}
+		workspaceRoot := t.TempDir()
+		deps.getwd = func() (string, error) { return workspaceRoot, nil }
 
-	loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
-	if err != nil {
-		t.Fatalf("LoadForHome() error = %v", err)
-	}
-	if loaded.Worktrees.SetupCommand != "bun install" || loaded.Worktrees.SetupTimeout != 45*time.Second ||
-		loaded.Worktrees.DiscoveryCacheTTL != 5*time.Second || len(loaded.Worktrees.CopyList) != 2 {
-		t.Fatalf("Worktrees config = %#v, want typed lifecycle values", loaded.Worktrees)
-	}
+		for _, mutation := range []struct {
+			path  string
+			value string
+		}{
+			{path: "worktrees.root", value: filepath.Join(t.TempDir(), "checkouts")},
+			{path: "worktrees.run_branch_namespace", value: "qa/run/"},
+			{path: "worktrees.copy_list", value: `[".env", ".secrets/*"]`},
+			{path: "worktrees.setup_command", value: "bun install"},
+			{path: "worktrees.setup_timeout", value: "45s"},
+			{path: "worktrees.teardown_command", value: "cleanup"},
+			{path: "worktrees.teardown_timeout", value: "3s"},
+			{path: "worktrees.discovery_cache_ttl", value: "5s"},
+		} {
+			if _, _, err := executeRootCommand(
+				t,
+				deps,
+				"config",
+				"set",
+				mutation.path,
+				mutation.value,
+				"--scope",
+				"workspace",
+				"-o",
+				"json",
+			); err != nil {
+				t.Fatalf("config set %s error = %v", mutation.path, err)
+			}
+		}
+
+		loaded, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if loaded.Worktrees.SetupCommand != "bun install" || loaded.Worktrees.SetupTimeout != 45*time.Second ||
+			loaded.Worktrees.TeardownCommand != "cleanup" || loaded.Worktrees.TeardownTimeout != 3*time.Second ||
+			loaded.Worktrees.DiscoveryCacheTTL != 5*time.Second || len(loaded.Worktrees.CopyList) != 2 {
+			t.Fatalf("Worktrees config = %#v, want typed lifecycle values", loaded.Worktrees)
+		}
+	})
 }
 
 func TestConfigCommandsResolveContextBeforeSelectingOverlays(t *testing.T) {

@@ -191,6 +191,8 @@ const (
 	WorktreeDismissed           = "worktree.dismissed"
 	WorktreeCreationCanceled    = "worktree.creation_canceled"
 	WorktreeSetupFailed         = "worktree.setup_failed"
+	WorktreeTeardownOutput      = "worktree.teardown_output"
+	WorktreeTeardownFailed      = "worktree.teardown_failed"
 	WorktreeStatusRefreshed     = "worktree.status_refreshed"
 	WorktreeBranchReclaimed     = "worktree.branch_reclaimed"
 	WorktreeExitActionStarted   = "worktree.exit_action_started"

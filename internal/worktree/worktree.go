@@ -126,6 +126,7 @@ func timestampIsStale(observedAt *time.Time, now time.Time, ttl time.Duration) b
 }
 
 type ExitOperation struct {
+	RunID       string
 	ID          string
 	ProfileID   string
 	WorkspaceID string

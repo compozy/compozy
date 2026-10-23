@@ -50,6 +50,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassLive,
 		},
 		{
+			name:          "Should classify worktree teardown changes as live",
+			path:          "worktrees.teardown_command",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:          "Should classify task worktree default changes as live",
 			path:          "task.orchestration.profile.default_worktree_mode",
 			wantLifecycle: Live,

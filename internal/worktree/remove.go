@@ -103,7 +103,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 		}
 	}()
 
-	workspace, err := s.resolveWorkspace(ctx, item.WorkspaceID)
+	workspace, err := s.resolveProfileWorkspace(ctx, item.WorkspaceID, item.ProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +140,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	if err != nil {
 		return nil, err
 	}
-	terminal, _, refusalResult, err = s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	terminal, _, refusalResult, err = s.prepareFencedRemoval(ctx, workspace, item, commonDir, force)
 	if terminal {
 		restoreReady = false
 	}

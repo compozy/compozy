@@ -20,6 +20,8 @@ copy_list = [".env", ".npmrc"]
 # Runs inside the new checkout after copy. Empty skips setup.
 setup_command = "bun install --frozen-lockfile"
 setup_timeout = "10m"
+teardown_command = ""
+teardown_timeout = "10m"
 # Git discovery and cached status freshness.
 discovery_cache_ttl = "30s"
 
@@ -30,14 +32,16 @@ default_worktree_mode = "inherit"
 
 ## Worktree fields
 
-| Field                  | Default                   | Validation                         |
-| ---------------------- | ------------------------- | ---------------------------------- |
-| `root`                 | `$COMPOZY_HOME/worktrees` | Empty or absolute path.            |
-| `run_branch_namespace` | `run/`                    | Lowercase namespace ending in `/`. |
-| `copy_list`            | empty                     | Non-empty relative Git pathspecs.  |
-| `setup_command`        | empty                     | Shell command; empty skips setup.  |
-| `setup_timeout`        | `10m`                     | Positive Go duration.              |
-| `discovery_cache_ttl`  | `30s`                     | Positive Go duration.              |
+| Field                  | Default                   | Validation                           |
+| ---------------------- | ------------------------- | ------------------------------------ |
+| `root`                 | `$COMPOZY_HOME/worktrees` | Empty or absolute path.              |
+| `run_branch_namespace` | `run/`                    | Lowercase namespace ending in `/`.   |
+| `copy_list`            | empty                     | Non-empty relative Git pathspecs.    |
+| `setup_command`        | empty                     | Shell command; empty skips setup.    |
+| `teardown_command`     | empty                     | Shell command; empty skips teardown. |
+| `setup_timeout`        | `10m`                     | Positive Go duration.                |
+| `teardown_timeout`     | `10m`                     | Positive Go duration.                |
+| `discovery_cache_ttl`  | `30s`                     | Positive Go duration.                |
 
 Changing `root` affects new managed Worktrees only; it does not move existing checkouts. The copy
 list and setup command apply only during managed creation, not adoption. Only ignored, untracked
@@ -66,11 +70,36 @@ Expected apply records report:
 }
 ```
 
-Later creates and enqueues read the new values. Existing Worktree placement and already-enqueued run
+Later creates, removals and enqueues read the new values. Existing Worktree placement and already-enqueued run
 snapshots do not change.
 
-Agents can read all fields through `compozy__config_get`. The scalar config mutation surface accepts
-the default Task mode, but `[worktrees]` remains operator-owned through `config.toml`; use a workspace
-overlay for repository-specific bootstrap settings. See the complete
+Agents can read and mutate the worktree keys through `compozy__config_get`, `compozy__config_set`
+and `compozy__config_unset`, or `compozy config get|set|unset`. Use a workspace overlay for
+repository-specific setup and teardown. See the complete
 [config.toml reference](/docs/configuration/config-toml) and
 [lifecycle matrix](/docs/configuration/lifecycle-matrix).
+
+## Teardown on removal
+
+Set `worktrees.teardown_command` to clean up resources started by setup, for example
+`docker compose down`. The default is empty (disabled); `teardown_timeout` defaults to `10m`
+and must be positive. Both keys merge independently across user, profile, workspace and
+workspace-profile layers. Removal resolves these settings for the worktree owner profile.
+An explicit empty command disables an inherited command.
+
+Teardown runs in the managed checkout after removal safety checks and `worktree.pre_remove`
+approval, before Git removes the directory. Hook denial skips teardown, including forced removal.
+It uses the same shell and allowlisted environment as setup: `PATH`, `HOME`, `LANG`, `TMPDIR`,
+`LC_*`, `SHELL`, `COMPOZY_WORKSPACE_ROOT`, `COMPOZY_WORKTREE_PATH`, `COMPOZY_WORKTREE_ID`, and
+`COMPOZY_WORKTREE_BRANCH`. Load any project-specific environment from the checkout explicitly.
+
+Each stdout/stderr stream is captured up to 16 KiB and redacted as a whole, including multiline
+secrets. When the command finishes, the worktree event stream publishes the captured output as
+`worktree.teardown_output` with `stream` and `chunk`. A launch failure, nonzero exit or timeout emits `worktree.teardown_failed`
+with a bounded diagnostic and continues removal. A timeout terminates the command's process group.
+Removal rechecks checkout identity and unpushed-work risks after teardown; commands should be safe to retry.
+These events do not change the recorded setup result.
+
+Dismiss remains metadata-only and never runs teardown, even if a checkout reappears. Missing paths,
+already removed records and discovered, unregistered worktrees also skip teardown. Adopted records
+use the configured teardown when removed. Unset teardown preserves existing removal behavior.

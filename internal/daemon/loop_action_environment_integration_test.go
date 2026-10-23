@@ -190,6 +190,7 @@ type loopEnvironmentWorkspaceResolver struct {
 func (r loopEnvironmentWorkspaceResolver) ResolveWorktreeWorkspace(
 	_ context.Context,
 	workspaceID string,
+	_ string,
 ) (worktreepkg.Workspace, error) {
 	if strings.TrimSpace(workspaceID) != r.workspace.ID {
 		return worktreepkg.Workspace{}, worktreepkg.ErrNotFound

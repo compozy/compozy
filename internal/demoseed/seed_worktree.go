@@ -26,6 +26,7 @@ type demoWorktreeResolver struct {
 func (r demoWorktreeResolver) ResolveWorktreeWorkspace(
 	_ context.Context,
 	workspaceID string,
+	_ string,
 ) (worktree.Workspace, error) {
 	if workspaceID != r.workspace.ID {
 		return worktree.Workspace{}, worktree.ErrNotFound

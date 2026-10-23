@@ -7,7 +7,9 @@ type worktreesOverlay struct {
 	RunBranchNamespace *string        `toml:"run_branch_namespace"`
 	CopyList           *[]string      `toml:"copy_list"`
 	SetupCommand       *string        `toml:"setup_command"`
+	TeardownCommand    *string        `toml:"teardown_command"`
 	SetupTimeout       *time.Duration `toml:"setup_timeout"`
+	TeardownTimeout    *time.Duration `toml:"teardown_timeout"`
 	DiscoveryCacheTTL  *time.Duration `toml:"discovery_cache_ttl"`
 }
 
@@ -26,6 +28,12 @@ func (o worktreesOverlay) Apply(dst *WorktreesConfig) {
 	}
 	if o.SetupTimeout != nil {
 		dst.SetupTimeout = *o.SetupTimeout
+	}
+	if o.TeardownCommand != nil {
+		dst.TeardownCommand = *o.TeardownCommand
+	}
+	if o.TeardownTimeout != nil {
+		dst.TeardownTimeout = *o.TeardownTimeout
 	}
 	if o.DiscoveryCacheTTL != nil {
 		dst.DiscoveryCacheTTL = *o.DiscoveryCacheTTL

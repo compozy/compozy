@@ -224,13 +224,18 @@ Loop-specific key or Settings control.
 ## Autonomy Scheduler
 
 `[worktrees]` controls the parent-workspace Worktree lifecycle. `root` defaults to
-`$COMPOZY_HOME/worktrees`; `run_branch_namespace` defaults to `run/`; `copy_list` and
-`setup_command` default empty; `setup_timeout` defaults to `10m`; and `discovery_cache_ttl` defaults
-to `30s`. Root must be empty or absolute, the namespace must be lowercase and slash-terminated,
-copy entries must be non-empty relative Git pathspecs, and both durations must be positive. The copy
+`$COMPOZY_HOME/worktrees`; `run_branch_namespace` defaults to `run/`; `copy_list`,
+`setup_command` and `teardown_command` default empty; `setup_timeout` and `teardown_timeout` default
+to `10m`; and `discovery_cache_ttl` defaults to `30s`. Root must be empty or absolute, the namespace must be lowercase and slash-terminated,
+copy entries must be non-empty relative Git pathspecs, and all durations must be positive. The copy
 candidate set is limited to ignored, untracked files matched by those pathspecs. Workspace overlays
-merge each field independently. `worktrees.*` applies live to later creation and discovery without
-moving existing paths or changing an accepted creation.
+merge each field independently. `worktrees.*` applies live to later creation, removal and discovery
+without moving existing paths or changing an accepted creation.
+
+Teardown runs after `worktree.pre_remove` approval and before managed checkout removal, with the
+setup environment. Failure or timeout emits a redacted `worktree.teardown_failed` event and removal
+continues; stdout/stderr use `worktree.teardown_output`. Dismiss never executes commands. See
+`references/worktrees.md` for ordering, retries and missing-checkout behavior.
 
 `task.orchestration.profile.default_worktree_mode` resolves an inherited task worktree policy before
 enqueue and accepts `inherit`, `none`, or `per_run`. It defaults to `inherit`, which has root

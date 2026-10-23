@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
@@ -36,17 +37,18 @@ type daemonWorktreeWorkspaceResolver struct {
 		workspacepkg.RuntimeResolver
 		List(context.Context) ([]workspacepkg.Workspace, error)
 	}
-	homePaths config.HomePaths
+	homePaths    config.HomePaths
+	profileNames session.ProfileNameResolver
 }
 
 func (r daemonWorktreeWorkspaceResolver) ResolveWorktreeWorkspace(
 	ctx context.Context,
-	workspaceID string,
+	workspaceID, profileID string,
 ) (worktree.Workspace, error) {
 	if r.resolver == nil {
 		return worktree.Workspace{}, worktree.ErrNotFound
 	}
-	resolved, err := r.resolver.Resolve(ctx, workspaceID)
+	resolved, err := resolveRuntimeProfileWorkspace(ctx, r.resolver, r.profileNames, workspaceID, profileID)
 	if err != nil {
 		return worktree.Workspace{}, fmt.Errorf("daemon: resolve worktree workspace: %w", err)
 	}
@@ -167,6 +169,7 @@ func (d *Daemon) bootWorktrees(ctx context.Context, state *bootState) error {
 		runner,
 		worktree.WithWorkspaceResolver(daemonWorktreeWorkspaceResolver{
 			resolver: state.workspaceResolver, homePaths: d.homePaths,
+			profileNames: bootProfileNameResolver{state: state},
 		}),
 		worktree.WithConfig(state.cfg.Worktrees, root),
 		worktree.WithHooks(daemonWorktreeHookDispatcher{hooks: state.hookDispatcher, now: d.now}),

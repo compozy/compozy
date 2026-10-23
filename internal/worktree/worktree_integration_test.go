@@ -26,6 +26,32 @@ import (
 func TestWorktreeLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should tear down external resources before removing the real checkout", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		f.settings.TeardownCommand = `test -f .setup-marker && printf '%s' "$COMPOZY_WORKTREE_ID" > "$COMPOZY_WORKSPACE_ROOT/teardown-marker"`
+		f.service = f.newService(f.runner)
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		item, err := f.service.Create(
+			t.Context(),
+			f.workspace.ID,
+			CreateOptions{ProfileID: testWorktreeProfileID, Name: "Teardown"},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		assertFileContent(t, filepath.Join(f.workspace.Root, "teardown-marker"), item.ID)
+		if _, err := os.Stat(item.Path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("checkout remains: %v", err)
+		}
+		if f.item(item.ID).State != StateRemoved || f.events.count(EventTeardownFailed) != 0 {
+			t.Fatal("teardown or removal failed")
+		}
+	})
+
 	// Invariant: replay recognizes only the authorized selected tree and parent,
 	// preserving outsiders and blocking hook-expanded commits before publication.
 	// Owner: worktree delivery; canonical real Git lifecycle integration suite.
@@ -1548,7 +1574,12 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if err := os.WriteFile(lostPath, []byte("lost\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile(lost) error = %v", err)
 		}
-		refusalResult, err := f.service.RemoveDiscovered(t.Context(), f.workspace.ID, liveListed, RemoveDiscoveredOptions{})
+		refusalResult, err := f.service.RemoveDiscovered(
+			t.Context(),
+			f.workspace.ID,
+			liveListed,
+			RemoveDiscoveredOptions{},
+		)
 		if !errors.Is(err, ErrDirtyRequiresForce) || refusalResult == nil || refusalResult.Risk.ChangedFiles != 1 {
 			t.Fatalf("RemoveDiscovered(dirty) = (%#v, %v), want one-file refusal", refusalResult, err)
 		}
