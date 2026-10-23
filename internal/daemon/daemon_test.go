@@ -5268,6 +5268,34 @@ args = ["-c", "printf '{}'"]
 func TestBootResourceWatchersStartAndSkillsWatcherRefreshes(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject personal profile roots inside a workspace before watching skills", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		root := t.TempDir()
+		if err := os.MkdirAll(home.ProfilesDir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		profileRoot := filepath.Join(home.ProfilesDir, compozyconfig.DefaultProfileDirName)
+		if err := os.Rename(profileRoot, profileRoot+".original"); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(root, profileRoot); err != nil {
+			t.Fatal(err)
+		}
+		registry := &recordingRegistry{workspaces: map[string]workspacepkg.Workspace{
+			"ws_containment": {ID: "ws_containment", Name: "repo", RootDir: root},
+		}}
+		for _, provider := range []func(context.Context) ([]string, error){
+			workspaceSkillWatcherRoots(home, registry, nil),
+			workspaceAgentWatcherRoots(home, registry, nil),
+		} {
+			roots, err := provider(t.Context())
+			if err == nil || !strings.Contains(err.Error(), "cannot be inside registered workspace") {
+				t.Fatalf("roots = %v, error = %v; want personal profile containment refusal", roots, err)
+			}
+		}
+	})
+
 	t.Run("Should refresh skills and stop resource watchers before sessions", func(t *testing.T) {
 		t.Parallel()
 

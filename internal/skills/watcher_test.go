@@ -3,6 +3,7 @@ package skills
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -12,7 +13,42 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/filesnap"
 )
+
+func BenchmarkWatcherIdle(b *testing.B) {
+	root := b.TempDir()
+	for i := range 100 {
+		dir := filepath.Join(root, fmt.Sprintf("skill-%03d", i))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			b.Fatal(err)
+		}
+		for j := range 20 {
+			name := fmt.Sprintf("resource-%02d.md", j)
+			if j == 0 {
+				name = skillFileName
+			}
+			if err := os.WriteFile(
+				filepath.Join(dir, name),
+				[]byte("---\nname: example\ndescription: Example\n---\nBody\n"),
+				0o600,
+			); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+	w := newTestWatcher(nil, time.Second, root)
+	if err := w.pollOnce(b.Context()); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := w.pollOnce(b.Context()); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
 
 func TestWatcherDetectChangesAddedSkill(t *testing.T) {
 	t.Parallel()
@@ -90,6 +126,44 @@ func TestWatcherDetectChangesModifiedSkillByMTime(t *testing.T) {
 
 func TestWatcherMetadataPreservedChanges(t *testing.T) {
 	t.Parallel()
+	t.Run("Should observe edits deletion and retargeting below a cached symlink root", func(t *testing.T) {
+		t.Parallel()
+		first, second := t.TempDir(), t.TempDir()
+		link := filepath.Join(t.TempDir(), "skills")
+		if err := os.Symlink(first, link); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		writeSkillFile(t, first, filepath.Join("one", skillFileName), skillWithDescription("one", "First"))
+		w := newTestWatcher(nil, time.Second, link)
+		if err := w.pollOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := w.pollOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		assertChanged := func() {
+			t.Helper()
+			changed, snapshots, _, err := w.detectChanges(t.Context())
+			if err != nil || !changed {
+				t.Fatalf("changed = %v, error = %v", changed, err)
+			}
+			w.commitSnapshots(snapshots)
+		}
+		writeSkillFile(t, first, filepath.Join("one", skillFileName), skillWithDescription("one", "Edited"))
+		assertChanged()
+		if err := os.Remove(filepath.Join(first, "one", skillFileName)); err != nil {
+			t.Fatal(err)
+		}
+		assertChanged()
+		writeSkillFile(t, second, filepath.Join("two", skillFileName), skillWithDescription("two", "Second"))
+		if err := os.Remove(link); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(second, link); err != nil {
+			t.Fatal(err)
+		}
+		assertChanged()
+	})
 
 	t.Run("Should publish invalid to valid and valid to invalid in-place edits", func(t *testing.T) {
 		t.Parallel()
@@ -291,6 +365,91 @@ func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 
 func TestWatcherUsesExplicitAgentRootIdentity(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve healthy siblings and detect repaired dangling definitions", func(t *testing.T) {
+		t.Parallel()
+		root, target := t.TempDir(), filepath.Join(t.TempDir(), "definition.md")
+		link := filepath.Join(root, "AGENT.md")
+		if err := os.Symlink(target, link); err != nil {
+			t.Skipf("symlinks unavailable: %v", err)
+		}
+		healthy := filepath.Join(root, "healthy", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(healthy), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(healthy, []byte("first"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		w := newTestWatcher(nil, time.Second)
+		w.SetAgentRootsProvider(func(context.Context) ([]string, error) { return []string{root}, nil })
+		assertSnapshots := func(want int) {
+			t.Helper()
+			if err := w.pollOnce(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if len(w.snapshots) != want {
+				t.Fatalf("snapshots = %v, want %d definitions", w.snapshots, want)
+			}
+			expected, err := filesnap.FromPath(healthy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !w.snapshots[healthy].Equal(expected) {
+				t.Fatal("healthy sibling was not refreshed")
+			}
+		}
+		assertSnapshots(1)
+		assertSnapshots(1)
+		if err := os.WriteFile(healthy, []byte("edited"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		assertSnapshots(1)
+		if err := os.WriteFile(target, []byte("repaired"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		assertSnapshots(2)
+		if err := os.Remove(target); err != nil {
+			t.Fatal(err)
+		}
+		assertSnapshots(1)
+	})
+
+	t.Run("Should detect agent additions edits and deletions after a cached poll", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		spy := newRefreshSpy()
+		w := newTestWatcher(spy, time.Second)
+		w.SetAgentRootsProvider(func(context.Context) ([]string, error) { return []string{root}, nil })
+		poll := func(want int) {
+			t.Helper()
+			if err := w.pollOnce(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if got := spy.calls(); got != want {
+				t.Fatalf("refreshes = %d, want %d", got, want)
+			}
+		}
+		poll(0)
+		poll(0)
+		dir := filepath.Join(root, "nested", "coder")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		definition := filepath.Join(dir, "AGENT.md")
+		if err := os.WriteFile(definition, []byte("first"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		poll(1)
+		poll(1)
+		if err := os.WriteFile(definition, []byte("other"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		poll(2)
+		if err := os.Remove(definition); err != nil {
+			t.Fatal(err)
+		}
+		poll(3)
+	})
 
 	t.Run("Should treat a custom skill root named agents as a skill root", func(t *testing.T) {
 		t.Parallel()

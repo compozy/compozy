@@ -370,7 +370,7 @@ servers keep their existing configuration and credentials.
 | Case                          | Behavior                                                                                                                                                |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `skills.enabled = false`      | The registry, catalog provider, skill MCP resolver, watcher, and skill hooks are not wired.                                                             |
-| Global skill edit             | The watcher refreshes global skills on `skills.poll_interval`, default `3s`.                                                                            |
+| Global skill edit             | The watcher checks metadata on `skills.poll_interval`, default `3s`, and refreshes changed skills. Unchanged trees reuse discovery.                     |
 | Workspace skill edit          | Workspace skill cache uses file snapshots and is rechecked when a workspace is resolved. Cache entries expire after 10 minutes.                         |
 | Agent-local skill edit        | Agent-local resolution is rechecked when the winning `AGENT.md` or its `skills/` tree changes. Invalid agent-local state is fail-closed for that agent. |
 | Source configuration change   | `skills.sources` and `skills.custom_sources` apply live: roots are re-resolved and rescanned without a daemon restart.                                  |

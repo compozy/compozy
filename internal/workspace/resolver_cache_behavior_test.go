@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,8 +12,65 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
+func BenchmarkResolveWarmWorkspace(b *testing.B) {
+	home := newTestHomePaths(b)
+	ws := Workspace{ID: "ws_bench", Name: "bench", RootDir: b.TempDir()}
+	for i := range 100 {
+		writeSkill(
+			b,
+			filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.SkillsDirName, fmt.Sprintf("skill-%03d", i)),
+		)
+	}
+	r := newTestResolver(b, newMockWorkspaceStore(ws), WithHomePaths(home), WithSnapshotTTL(time.Second))
+	if _, err := r.Resolve(b.Context(), ws.ID); err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := r.Resolve(b.Context(), ws.ID); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func TestResolveCacheHitInvalidateAndEviction(t *testing.T) {
 	t.Parallel()
+	t.Run("Should bound cached discovery age without extending it on cache hits", func(t *testing.T) {
+		t.Parallel()
+		home := newTestHomePaths(t)
+		ws := Workspace{ID: "ws_snapshot_ttl", Name: "repo", RootDir: t.TempDir()}
+		dir := filepath.Join(ws.RootDir, compozyconfig.DirName, compozyconfig.SkillsDirName, "alpha")
+		writeSkill(t, dir)
+		now := time.Unix(1_700_000_000, 0)
+		r := newTestResolver(t, newMockWorkspaceStore(ws), WithHomePaths(home),
+			WithSnapshotTTL(time.Second), withNow(func() time.Time { return now }))
+		assertSkills := func(want ...string) {
+			t.Helper()
+			resolved, err := r.Resolve(t.Context(), ws.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := skillNames(resolved.Skills); !slices.Equal(got, want) {
+				t.Fatalf("skills = %v, want %v", got, want)
+			}
+		}
+		assertSkills("alpha")
+		if err := os.Remove(filepath.Join(dir, skillDefinitionFile)); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(500 * time.Millisecond)
+		assertSkills("alpha")
+		now = now.Add(500 * time.Millisecond)
+		assertSkills()
+		writeSkill(t, dir)
+		r.Invalidate(ws.ID)
+		assertSkills("alpha")
+		if err := os.Remove(filepath.Join(dir, skillDefinitionFile)); err != nil {
+			t.Fatal(err)
+		}
+		r.InvalidateAll()
+		assertSkills()
+	})
 	t.Run("Should isolate cached config and invalidate every watched input", func(t *testing.T) {
 		t.Parallel()
 		runResolveCacheHitInvalidateAndEviction(t)

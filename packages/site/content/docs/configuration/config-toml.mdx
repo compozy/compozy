@@ -2017,7 +2017,7 @@ If `enabled = false`, local skill discovery and polling are disabled.
 | `sources`                   | string array | `["agents"]` | `agents`, `claude`.                                   | Folder conventions scanned besides CompozyOS's own. Applies live. An unknown name is rejected.    |
 | `custom_sources`            | string array | empty        | Absolute or `~/` paths; workspace-relative paths too. | Extra directories scanned as skill roots. Applies live. Workspace-relative needs workspace scope. |
 | `disabled_skills`           | string array | empty        | Skill names.                                          | Replaces the disabled-skill list in overlays.                                                     |
-| `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Filesystem poll interval for skill catalog refresh.                                               |
+| `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Skill metadata check interval; unchanged trees reuse discovery instead of being walked again.     |
 | `allowed_marketplace_hooks` | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for hooks declared by marketplace skills.                                         |
 
 `sources` and `custom_sources` pass through all four config layers — user, personal profile,

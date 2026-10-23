@@ -156,15 +156,6 @@ func parseSkillDocument(filePath string, dir string, content []byte, source Skil
 	return skill, body, nil
 }
 
-// scanDirectory returns every SKILL.md file discovered under dir.
-func scanDirectory(dir string) ([]string, error) {
-	result, err := skillscan.ScanDirectory(dir)
-	if err != nil {
-		return nil, fmt.Errorf("skills: scan directory %q: %w", dir, err)
-	}
-	return result.Paths, nil
-}
-
 func scanDirectoryWithSnapshots(dir string) ([]string, map[string]filesnap.Snapshot, error) {
 	result, err := skillscan.ScanDirectory(dir)
 	if err != nil {
