@@ -1665,12 +1665,18 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		manager := nativeTestSessionManager("ws-native")
 		status := manager.StatusFn
-		// sess-grandchild descends from sess-parent through sess-child.
-		parents := map[string]string{"sess-grandchild": "sess-child", "sess-child": "sess-parent"}
+		// sess-grandchild descends from sess-parent through a subagent and an auto-stop
+		// spawn link; sess-continued and sess-forked only name sess-parent as their source.
+		lineages := map[string]*store.SessionLineage{
+			"sess-grandchild": {ParentSessionID: "sess-child", SpawnRole: store.SubagentSpawnRole},
+			"sess-child":      {ParentSessionID: "sess-parent", AutoStopOnParent: true},
+			"sess-continued":  {ParentSessionID: "sess-parent", Kind: store.LineageKindContinue},
+			"sess-forked":     {ParentSessionID: "sess-parent", Kind: store.LineageKindFork},
+		}
 		manager.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
 			info, err := status(ctx, id)
-			if err == nil && parents[id] != "" {
-				info.Lineage = &store.SessionLineage{ParentSessionID: parents[id], RootSessionID: "sess-parent"}
+			if err == nil {
+				info.Lineage = lineages[id]
 			}
 			return info, err
 		}
@@ -1693,6 +1699,19 @@ func TestDaemonNativeTools(t *testing.T) {
 			Input:  json.RawMessage(`{"session_id":"sess-other","stop":true}`),
 		}); err != nil || archived != 1 {
 			t.Fatalf("stop-first archive of an unrelated session = %v, calls=%d, want one archive", err, archived)
+		}
+		// Archiving a continue/fork source never stops the derived caller.
+		for _, caller := range []string{"sess-continued", "sess-forked"} {
+			derived := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: caller, AgentName: "coder"}
+			if _, err := registry.Call(t.Context(), derived, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionArchive,
+				Input:  json.RawMessage(`{"session_id":"sess-parent","stop":true}`),
+			}); err != nil {
+				t.Fatalf("stop-first archive of the source from %s = %v, want allowed", caller, err)
+			}
+		}
+		if archived != 3 {
+			t.Fatalf("archive calls = %d, want 3", archived)
 		}
 	})
 

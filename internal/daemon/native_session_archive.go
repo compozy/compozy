@@ -7,6 +7,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -96,8 +97,10 @@ func (n *daemonNativeTools) setSessionArchived(
 // lineage cycles; real spawn trees are far shallower.
 const nativeArchiveLineageWalkLimit = 64
 
-// nativeCallerWithinSession reports whether the calling session is target or
-// one of its descendants, walking the caller's durable parent lineage.
+// nativeCallerWithinSession reports whether stopping target would stop the
+// calling session: the caller is target, or reaches it through parent links a
+// parent stop cascades over (subagent children and auto-stop spawned children).
+// Continue, fork, and adopted links name a parent without stopping with it.
 func (n *daemonNativeTools) nativeCallerWithinSession(
 	ctx context.Context,
 	callerID string,
@@ -119,10 +122,17 @@ func (n *daemonNativeTools) nativeCallerWithinSession(
 		if err != nil {
 			return false, err
 		}
-		if info == nil || info.Lineage == nil {
+		if info == nil || !nativeLineageStopsWithParent(info.Lineage) {
 			return false, nil
 		}
 		current = strings.TrimSpace(info.Lineage.ParentSessionID)
 	}
 	return false, nil
+}
+
+func nativeLineageStopsWithParent(lineage *store.SessionLineage) bool {
+	if lineage == nil || lineage.Kind.Derived() {
+		return false
+	}
+	return lineage.SpawnRole == store.SubagentSpawnRole || lineage.AutoStopOnParent
 }
