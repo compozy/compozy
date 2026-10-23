@@ -1538,7 +1538,11 @@ describe("session lifecycle batches", () => {
     });
     const { result } = lifecycle();
     act(() => result.current.actions.onStopMany?.([createdSession]));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Stop is still pending"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith("Couldn't stop 1 session", {
+        description: "Created session: Stop is still pending",
+      })
+    );
     expect(toast.success).not.toHaveBeenCalled();
     expect(result.current.batchResults[0]?.status).toBe("failed");
   });
@@ -1582,7 +1586,12 @@ describe("session lifecycle batches", () => {
   it("archives a mixed selection with per-session outcomes when one stop fails", async () => {
     const live = { ...createdSession, id: "sess-live", state: "active" as const };
     const stopped = { ...createdSession, id: "sess-stopped", state: "stopped" as const };
-    const failing = { ...createdSession, id: "sess-failing", state: "active" as const };
+    const failing = {
+      ...createdSession,
+      id: "sess-failing",
+      name: "Failing session",
+      state: "active" as const,
+    };
     vi.mocked(archiveSession).mockImplementation(async (_workspaceId, id) => {
       if (id === failing.id) throw new Error("stop before archiving failed");
       return { ...createdSession, id, state: "stopped", archived_at: "2026-08-04T12:00:00Z" };
@@ -1606,6 +1615,10 @@ describe("session lifecycle batches", () => {
       [failing.id, true],
       [stopped.id, false],
     ]);
-    expect(toast.error).toHaveBeenCalledWith("stop before archiving failed");
+    // Successes are counted and each failure names its session.
+    expect(toast.error).toHaveBeenCalledExactlyOnceWith("2 sessions archived, 1 failed", {
+      description: "Failing session: stop before archiving failed",
+    });
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });

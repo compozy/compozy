@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { runSessionBatch, type SessionBatchResult } from "../lib/session-batch";
 
+import { getSessionDisplayTitle } from "../lib/session-display-title";
 import { isSubagentSession } from "../lib/session-hierarchy";
 import type { SessionPayload } from "../types";
 import {
@@ -76,19 +77,37 @@ function reportActionError(action: SessionLifecycleAction, error: unknown): void
   toast.error(error instanceof Error && error.message ? error.message : fallback);
 }
 
-/** Non-delete batches report one aggregate result because they have no result dialog. */
+const sessionCount = (count: number) => `${count} ${count === 1 ? "session" : "sessions"}`;
+
+/**
+ * Non-delete batches have no result dialog, so one toast carries the outcome:
+ * the success count, and each failed session by name with its own error.
+ */
 function reportBatch(
   action: "stop" | "archive" | "unarchive",
-  results: readonly SessionBatchResult[]
+  results: readonly SessionBatchResult[],
+  sessions: readonly SessionPayload[]
 ): void {
+  const verb = action === "stop" ? "stopped" : `${action}d`;
+  const done = results.filter(result => result.status === "done").length;
   const failures = results.filter(result => result.status === "failed");
-  if (failures.length > 0) {
-    reportActionError(action, new Error(failures.map(result => result.error).join("; ")));
+  if (failures.length === 0) {
+    toast.success(`${sessionCount(done)} ${verb}`);
     return;
   }
-  const count = results.filter(result => result.status === "done").length;
-  const verb = action === "stop" ? "stopped" : `${action}d`;
-  toast.success(`${count} ${count === 1 ? "session" : "sessions"} ${verb}`);
+  const byId = new Map(sessions.map(session => [session.id, session]));
+  const description = failures
+    .map(result => {
+      const session = byId.get(result.id);
+      const title = session ? getSessionDisplayTitle(session) : result.id;
+      return `${title}: ${result.error ?? `Failed to ${action} session.`}`;
+    })
+    .join("; ");
+  const title =
+    done > 0
+      ? `${sessionCount(done)} ${verb}, ${failures.length} failed`
+      : `Couldn't ${action} ${sessionCount(failures.length)}`;
+  toast.error(title, { description });
 }
 
 /** Report all successful deletes once, when the result dialog closes. */
@@ -196,7 +215,7 @@ export function useSessionLifecycleActions(
             : session.state === "active" || session.state === "starting")
     );
     const results = await runBatch(action, eligible);
-    if (results) reportBatch(action, results);
+    if (results) reportBatch(action, results, eligible);
   };
 
   /** Retry failed IDs while preserving successful results across the dialog lifetime. */
