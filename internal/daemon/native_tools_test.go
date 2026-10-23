@@ -1323,6 +1323,13 @@ func TestDaemonNativeTools(t *testing.T) {
 					strings.Contains(detail.Operator.Cause, "secret-value") {
 					t.Fatalf("monitor correction = %#v, want safe description guidance", detail)
 				}
+				encoded, marshalErr := json.Marshal(detail)
+				if marshalErr != nil {
+					t.Fatal(marshalErr)
+				}
+				if strings.Contains(string(encoded)+detail.Error(), "secret-value") {
+					t.Fatal("native monitor error exposed submitted input")
+				}
 				if len(service.List("sess-1")) != 0 {
 					t.Fatal("invalid input created a monitor")
 				}
