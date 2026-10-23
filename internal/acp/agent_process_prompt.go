@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	acpsdk "github.com/coder/acp-go-sdk"
 )
 
 type activePromptState struct {
@@ -45,6 +47,7 @@ type toolCallProjection struct {
 	inputDigest      [sha256.Size]byte
 	hasInput         bool
 	prechecked       bool
+	hasResult        bool
 	// async records the provider's background-launch marker. It does not make an
 	// update visible on its own: it stamps the call's result (see sendEventLocked).
 	async bool
@@ -211,6 +214,13 @@ func (p *AgentProcess) emitPromptEvent(event AgentEvent) {
 	active.sendEventLocked(event)
 	if event.Type == EventTypeToolCall {
 		active.flushDeferredToolResultsForToolLocked(event.ToolCallID)
+		projection := active.seenToolCalls[strings.TrimSpace(event.ToolCallID)]
+		status := event.ToolStatus()
+		if !projection.hasResult &&
+			(status == string(acpsdk.ToolCallStatusCompleted) || status == string(acpsdk.ToolCallStatusFailed)) {
+			event.Type = EventTypeToolResult
+			active.sendEventLocked(event)
+		}
 	}
 }
 
@@ -363,6 +373,12 @@ func (a *activePromptState) sendEventLocked(event AgentEvent) {
 	if err := a.ingest.Admit(event); err != nil {
 		a.failIngest(err)
 		return
+	}
+	if event.Type == EventTypeToolResult {
+		id := strings.TrimSpace(event.ToolCallID)
+		projection := a.seenToolCalls[id]
+		projection.hasResult = true
+		a.seenToolCalls[id] = projection
 	}
 	select {
 	case a.activity <- struct{}{}:

@@ -74,11 +74,6 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 	}
 	event = p.markToolEventPrechecked(event)
 	p.emitPromptEvent(event)
-	if call := notification.Update.ToolCall; call != nil &&
-		(call.Status == acpsdk.ToolCallStatusCompleted || call.Status == acpsdk.ToolCallStatusFailed) {
-		event.Type = EventTypeToolResult
-		p.emitPromptEvent(event)
-	}
 	return nil
 }
 

@@ -246,7 +246,7 @@ func (h *Handlers) respondHostedMCPPeerError(c *gin.Context, err error) {
 	}
 	if h.Logger != nil {
 		h.Logger.Warn("udsapi: hosted MCP peer inspection failed", "operation", c.Request.URL.Path,
-			"reason", code, "message", message)
+			"reason", code, "message", message, "error", err)
 	}
 	c.JSON(status, contract.ErrorPayload{Error: message, Code: code})
 }

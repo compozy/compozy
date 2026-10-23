@@ -88,13 +88,43 @@ func TestWindowsPeerIdentity(t *testing.T) {
 		}
 	})
 
+	t.Run("Should validate successful and failed Windows peer PID responses", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name          string
+			pid, returned uint32
+			sysErr        error
+			wantErr       bool
+		}{
+			{name: "Should accept a complete PID response", pid: 42, returned: 4},
+			{name: "Should accept a valid PID with the Windows zero length defect", pid: 42},
+			{name: "Should reject a missing PID despite zero length success", wantErr: true},
+			{name: "Should reject a missing PID despite complete length", returned: 4, wantErr: true},
+			{name: "Should reject a truncated PID response", pid: 42, returned: 2, wantErr: true},
+			{name: "Should reject a failed ioctl despite a nonzero PID", pid: 42,
+				sysErr: windows.WSAEOPNOTSUPP, wantErr: true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				pid, err := validateWindowsPeerPID(tc.pid, tc.returned, tc.sysErr)
+				if (err != nil) != tc.wantErr || (!tc.wantErr && pid != tc.pid) {
+					t.Fatalf("validateWindowsPeerPID() = %d, %v; wantErr=%t", pid, err, tc.wantErr)
+				}
+				if tc.sysErr != nil && !errors.Is(err, ErrWindowsPeerCredentialsUnsupported) {
+					t.Fatalf("ioctl failure = %v, want actionable unsupported error", err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should fail closed when the peer process cannot be inspected", func(t *testing.T) {
 		t.Parallel()
-		if _, err := windowsProcessPeerInfo(0); err == nil {
-			t.Fatal("windowsProcessPeerInfo(0) succeeded")
+		if _, err := windowsProcessPeerInfo(0); !errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
+			t.Fatalf("windowsProcessPeerInfo(0) error = %v, want invalid process parameter", err)
 		}
-		if _, err := windowsSocketPeerPID(windows.InvalidHandle); err == nil {
-			t.Fatal("windowsSocketPeerPID(invalid handle) succeeded")
+		if _, err := windowsSocketPeerPID(windows.InvalidHandle); !errors.Is(err, windows.WSAENOTSOCK) ||
+			errors.Is(err, ErrWindowsPeerCredentialsUnsupported) {
+			t.Fatalf("windowsSocketPeerPID(invalid handle) error = %v, want ordinary invalid socket failure", err)
 		}
 	})
 }

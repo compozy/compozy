@@ -111,6 +111,9 @@ func dispatchToolHookEvent(
 	}
 
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))
+	if event.Type == acp.EventTypeToolResult {
+		updateType = "tool_call_update"
+	}
 	status := strings.ToLower(strings.TrimSpace(raw.Status))
 	switch {
 	case updateType == hookAgentEventsToolCallKey && !event.ToolPrechecked() && status != hookAgentEventsPendingKey:

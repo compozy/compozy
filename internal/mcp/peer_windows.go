@@ -9,6 +9,7 @@ import (
 	"net"
 	"unsafe"
 
+	"github.com/compozy/compozy/internal/procutil"
 	"golang.org/x/sys/windows"
 )
 
@@ -37,6 +38,10 @@ func windowsSocketPeerPID(socket windows.Handle) (uint32, error) {
 	var pid, returned uint32
 	err := windows.WSAIoctl(socket, sioAFUnixGetPeerPID, nil, 0,
 		(*byte)(unsafe.Pointer(&pid)), uint32(unsafe.Sizeof(pid)), &returned, nil, 0)
+	return validateWindowsPeerPID(pid, returned, err)
+}
+
+func validateWindowsPeerPID(pid, returned uint32, err error) (uint32, error) {
 	if err != nil {
 		if errors.Is(err, windows.WSAEOPNOTSUPP) || errors.Is(err, windows.WSAEINVAL) ||
 			errors.Is(err, windows.WSAENOPROTOOPT) {
@@ -44,35 +49,21 @@ func windowsSocketPeerPID(socket windows.Handle) (uint32, error) {
 		}
 		return 0, fmt.Errorf("mcp: read Windows AF_UNIX peer pid: %w", err)
 	}
-	if returned != uint32(unsafe.Sizeof(pid)) || pid == 0 || uint64(pid) > uint64(math.MaxInt) {
+	// Retain zero-length success for Windows builds affected by microsoft/WSL#4676.
+	if (returned != 0 && returned != uint32(unsafe.Sizeof(pid))) || pid == 0 || uint64(pid) > uint64(math.MaxInt) {
 		return 0, errors.New("mcp: invalid Windows AF_UNIX peer pid response")
 	}
 	return pid, nil
 }
 
-func windowsProcessPeerInfo(pid uint32) (peer PeerInfo, err error) {
-	process, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+func windowsProcessPeerInfo(pid uint32) (PeerInfo, error) {
+	userSID, executable, err := procutil.InspectWindowsProcess(pid)
 	if err != nil {
-		return PeerInfo{}, fmt.Errorf("mcp: open Windows peer process: %w", err)
-	}
-	defer func() { err = errors.Join(err, windows.CloseHandle(process)) }()
-	var token windows.Token
-	if err := windows.OpenProcessToken(process, windows.TOKEN_QUERY, &token); err != nil {
-		return PeerInfo{}, fmt.Errorf("mcp: open Windows peer token: %w", err)
-	}
-	defer func() { err = errors.Join(err, token.Close()) }()
-	user, err := token.GetTokenUser()
-	if err != nil {
-		return PeerInfo{}, fmt.Errorf("mcp: read Windows peer user: %w", err)
-	}
-	path := make([]uint16, 32768)
-	size := uint32(len(path))
-	if err := windows.QueryFullProcessImageName(process, 0, &path[0], &size); err != nil {
-		return PeerInfo{}, fmt.Errorf("mcp: resolve Windows peer executable: %w", err)
+		return PeerInfo{}, fmt.Errorf("mcp: inspect Windows peer process: %w", err)
 	}
 	return PeerInfo{
-		PID: int(pid), UID: -1, GID: -1, UserSID: user.User.Sid.String(),
-		ExecutablePath: windows.UTF16ToString(path[:size]), Supported: true,
+		PID: int(pid), UID: -1, GID: -1, UserSID: userSID,
+		ExecutablePath: executable, Supported: true,
 	}, nil
 }
 

@@ -1195,6 +1195,55 @@ func TestHandleReleaseTerminalReleasesExternalTerminal(t *testing.T) {
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
+	t.Run("Should preserve terminal output and avoid repeated startup results", func(t *testing.T) {
+		t.Parallel()
+		for _, resultFirst := range []bool{true, false} {
+			name := "Should synthesize only one result for repeated terminal calls"
+			if resultFirst {
+				name = "Should retain a result received before its terminal call"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+				active, err := proc.beginPrompt("turn-startup", 8)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer proc.endPrompt(active)
+				if resultFirst {
+					if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{
+						SessionID: "sess-direct",
+						Update: json.RawMessage(
+							`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":{"error":"original startup diagnostic"}}`,
+						),
+					})); err != nil {
+						t.Fatal(err)
+					}
+				}
+				call := mustMarshalJSON(wireSessionNotification{
+					SessionID: "sess-direct",
+					Update: json.RawMessage(
+						`{"sessionUpdate":"tool_call","toolCallId":"startup","title":"Compozy hosted tools","kind":"other","status":"failed"}`,
+					),
+				})
+				for range 2 {
+					if err := proc.handleSessionUpdate(call); err != nil {
+						t.Fatal(err)
+					}
+				}
+				proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-startup"})
+				events := collectEventsUntilCount(t, active.events, 3)
+				if events[0].Type != EventTypeToolCall || events[1].Type != EventTypeToolResult ||
+					events[2].Type != EventTypeDone || !events[1].ToolError() {
+					t.Fatalf("startup events = %#v, want one call and one terminal result before done", events)
+				}
+				if resultFirst && !strings.Contains(string(events[1].Raw), "original startup diagnostic") {
+					t.Fatalf("startup result lost earlier output: %s", events[1].Raw)
+				}
+			})
+		}
+	})
+
 	t.Run("Should settle startup calls received with an initial terminal status", func(t *testing.T) {
 		t.Parallel()
 		for _, status := range []string{"failed", "completed"} {
