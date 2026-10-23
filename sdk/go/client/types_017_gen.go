@@ -268,17 +268,18 @@ type SessionUsageChangedPayload struct {
 
 // SessionUsagePayload is a daemon API value.
 type SessionUsagePayload struct {
-	CacheReadTokens  *int64                `json:"cache_read_tokens,omitzero"`
-	CacheWriteTokens *int64                `json:"cache_write_tokens,omitzero"`
-	Context          SessionContextPayload `json:"context"`
-	InputTokens      *int64                `json:"input_tokens,omitzero"`
-	OutputTokens     *int64                `json:"output_tokens,omitzero"`
-	TotalTokens      *int64                `json:"total_tokens,omitzero"`
-	TotalCost        *float64              `json:"total_cost,omitzero"`
-	CostCurrency     string                `json:"cost_currency,omitempty"`
-	CostStatus       CostStatus            `json:"cost_status,omitempty"`
-	CostSource       CostSource            `json:"cost_source,omitempty"`
-	TurnCount        int64                 `json:"turn_count"`
+	WorkTime         *SessionWorkTimePayload `json:"work_time,omitzero"`
+	CacheReadTokens  *int64                  `json:"cache_read_tokens,omitzero"`
+	CacheWriteTokens *int64                  `json:"cache_write_tokens,omitzero"`
+	Context          SessionContextPayload   `json:"context"`
+	InputTokens      *int64                  `json:"input_tokens,omitzero"`
+	OutputTokens     *int64                  `json:"output_tokens,omitzero"`
+	TotalTokens      *int64                  `json:"total_tokens,omitzero"`
+	TotalCost        *float64                `json:"total_cost,omitzero"`
+	CostCurrency     string                  `json:"cost_currency,omitempty"`
+	CostStatus       CostStatus              `json:"cost_status,omitempty"`
+	CostSource       CostSource              `json:"cost_source,omitempty"`
+	TurnCount        int64                   `json:"turn_count"`
 }
 
 // SessionUsageResponse is a daemon API value.
@@ -317,6 +318,13 @@ type SessionWaitResponse struct {
 	Until     []string `json:"until,omitempty"`
 	Revision  int64    `json:"revision"`
 	ResumeID  string   `json:"resume_id,omitempty"`
+}
+
+// SessionWorkTimePayload is a daemon API value.
+type SessionWorkTimePayload struct {
+	ActiveDurationMS    int64  `json:"active_duration_ms"`
+	TurnCount           int64  `json:"turn_count"`
+	LastCompletedTurnID string `json:"last_completed_turn_id,omitempty"`
 }
 
 // SessionWorkspaceFacetsPayload is a daemon API value.
@@ -439,9 +447,4 @@ type SettingsAutomationRuntimePayload struct {
 	TriggerEnabled   int        `json:"trigger_enabled"`
 	NextFire         *time.Time `json:"next_fire,omitempty"`
 	LastSyncedAt     *time.Time `json:"last_synced_at,omitempty"`
-}
-
-// SettingsBusyInputPayload is a daemon API value.
-type SettingsBusyInputPayload struct {
-	DefaultMode string `json:"default_mode"`
 }

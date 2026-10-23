@@ -25530,6 +25530,19 @@
           "turn_count": {
             "format": "int64",
             "type": "integer"
+          },
+          "work_time": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SessionWorkTimePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           }
         },
         "required": [
@@ -25671,6 +25684,26 @@
           "revision",
           "session_id",
           "waited_ms"
+        ],
+        "type": "object"
+      },
+      "SessionWorkTimePayload": {
+        "properties": {
+          "active_duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_completed_turn_id": {
+            "type": "string"
+          },
+          "turn_count": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active_duration_ms",
+          "turn_count"
         ],
         "type": "object"
       },

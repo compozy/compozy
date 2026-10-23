@@ -299,6 +299,18 @@ determined.
 For agent-managed inspection over UDS, run `compozy session usage <session-id> -o json`. The command
 returns the same usage payload; omit `-o json` for the operator-readable panel.
 
+The optional `work_time` summary measures this session's own settled turns:
+`active_duration_ms` sums the intervals from each turn's first confirmed prompt delivery to its
+terminal event, and `turn_count` counts those measured turns. Idle gaps and child sessions are
+excluded. Repeated deliveries during recovery count as one turn. A turn without both boundaries
+contributes no measured duration; an unavailable ledger read omits the summary.
+`last_completed_turn_id` lets clients avoid adding a live turn that the summary already includes.
+
+In the Context inspector, **Activity** shows **Total work** across measured turns and adds the
+current turn's elapsed time while it runs. **Working for** still describes only the current turn.
+The total survives reopening the session and does not require extra polling; the session list's
+relative timestamp remains the last activity time.
+
 The response uses `cost_status` to say what `total_cost` means:
 
 | Status      | Meaning                                                                   | Amount                       |

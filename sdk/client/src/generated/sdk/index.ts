@@ -2821,6 +2821,7 @@ export type {
   SessionWaitRequest,
   SessionWaitResponse,
   SessionWorkspaceFacetsPayload,
+  SessionWorkTimePayload,
   SetExtensionEnablementData,
   SetExtensionEnablementError,
   SetExtensionEnablementErrors,

@@ -41,6 +41,7 @@ function toInspectorUsage(
         costStatus: usage.cost_status ?? undefined,
         costSource: usage.cost_source ?? undefined,
         turnCount: usage.turn_count,
+        workTime: usage.work_time,
       }
     : null;
 }

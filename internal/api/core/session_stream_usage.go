@@ -39,8 +39,13 @@ func (h *BaseHandlers) writeUsageChangedEvents(
 		}
 		cursor = max(cursor, event.Sequence)
 		switch event.Type {
-		case acp.EventTypeUsage, acp.EventTypeDone, acp.EventTypePromptDelivery,
-			acp.EventTypeCompaction, eventspkg.SessionCompactionFired:
+		case acp.EventTypeUsage,
+			acp.EventTypeDone,
+			acp.EventTypeError,
+			eventspkg.SessionTurnQuiesced,
+			acp.EventTypePromptDelivery,
+			acp.EventTypeCompaction,
+			eventspkg.SessionCompactionFired:
 		default:
 			continue
 		}

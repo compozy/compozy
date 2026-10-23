@@ -22,6 +22,7 @@ func (h *BaseHandlers) sessionContextInput(
 		return input, err
 	}
 	populateContextEvents(&input, snapshot.Usage, snapshot.Deliveries, snapshot.Compactions)
+	input.WorkTime = snapshot.WorkTime
 	input.ClearedBy = snapshot.ClearedBy
 	if snapshot.ClearedBy != nil {
 		input.CompactionBoundary = new(snapshot.ClearedBy.Sequence)

@@ -3523,6 +3523,33 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// #788: optional additive field; no required/type/removal change.
 	paths := baseline["paths"].(map[string]any)
 	prefix := "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	// #920: optional own-turn work aggregate; existing usage fields remain unchanged.
+	usageProperties := paths
+	for _, key := range []string{
+		prefix + "/usage", "get", "responses", "200", "content", "application/json",
+		"schema", "properties", "usage", "properties",
+	} {
+		next, ok := usageProperties[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved work-time addition: missing object %q", key)
+		}
+		usageProperties = next
+	}
+	if _, exists := usageProperties["work_time"]; exists {
+		t.Fatal("approved work-time addition: work_time already exists in the historical baseline")
+	}
+	usageProperties["work_time"] = map[string]any{"oneOf": []any{
+		map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"active_duration_ms":     map[string]any{"type": "integer", "format": "int64"},
+				"turn_count":             map[string]any{"type": "integer", "format": "int64"},
+				"last_completed_turn_id": map[string]any{"type": "string"},
+			},
+			"required": []any{"active_duration_ms", "turn_count"},
+		},
+		map[string]any{"enum": []any{nil}, "nullable": true},
+	}}
 	prompt := paths[prefix+"/prompt"].(map[string]any)["post"].(map[string]any)
 	steer := paths[prefix+"/steer"].(map[string]any)["post"].(map[string]any)
 	promptBody := prompt["requestBody"].(map[string]any)["content"].(map[string]any)["application/json"].(map[string]any)

@@ -2,6 +2,9 @@
 
 package client
 
+// SettingsMutationBehavior is a daemon API value.
+type SettingsMutationBehavior string
+
 // SettingsObservabilityConfigPayload is a daemon API value.
 type SettingsObservabilityConfigPayload struct {
 	Enabled        bool                                   `json:"enabled"`

@@ -1,4 +1,12 @@
-import { ListPlus, Target, TriangleAlert, Users, Wrench, type LucideIcon } from "lucide-react";
+import {
+  Clock,
+  ListPlus,
+  Target,
+  TriangleAlert,
+  Users,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { Eyebrow, StateGlyph, cn } from "@compozy/ui";
 import type { SessionActivityView } from "../lib/session-activity-view";
 import { SessionInspectorSection } from "./session-inspector-section";
@@ -26,6 +34,7 @@ export function SessionActivitySection({ activity = {} }: { activity?: SessionAc
   const working = activity.status?.startsWith("Working") ?? false;
   const candidates: ActivityRow[] = [
     { key: "status", text: activity.status, lead: true },
+    { key: "total-work", text: activity.totalWork, Icon: Clock },
     { key: "agents", text: activity.agents, Icon: Users },
     { key: "counts", text: counts, Icon: Wrench },
     { key: "queued", text: activity.queued, Icon: ListPlus },

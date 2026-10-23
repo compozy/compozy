@@ -16,6 +16,10 @@
             "sequence": 10,
             "reported_turn_id": "turn-A",
             "reported_at": "2026-09-11T10:00:00Z"
+        },
+        "work_time": {
+            "active_duration_ms": 0,
+            "turn_count": 0
         }
     }
 }

@@ -1,7 +1,8 @@
-import type { SessionGoalSnapshot } from "../types";
+import type { SessionGoalSnapshot, SessionUsagePayload } from "../types";
 import {
   agentCountLabel,
   formatFrozenDuration,
+  formatWorkingElapsed,
   type SessionLastTurn,
   type SessionWorkingStatus,
 } from "./session-working-status";
@@ -9,12 +10,29 @@ import {
 /** Rows of the Activity section; a field is absent when the client has no such signal. */
 export interface SessionActivityView {
   status?: string;
+  totalWork?: string;
   agents?: string;
   tools?: string;
   thoughts?: string;
   queued?: string;
   goal?: string;
   warning?: string;
+}
+
+export function describeTotalWork(
+  work: SessionUsagePayload["work_time"],
+  currentTurnId: string | undefined,
+  startedAtMs: number | null,
+  nowMs: number
+): string | undefined {
+  if (!work) return undefined;
+  const live =
+    !!currentTurnId && startedAtMs !== null && currentTurnId !== work.last_completed_turn_id;
+  const duration =
+    work.active_duration_ms + (live ? Math.max(0, nowMs - (startedAtMs ?? nowMs)) : 0);
+  const turns = work.turn_count + (live ? 1 : 0);
+  if (turns === 0) return undefined;
+  return `Total work ${formatWorkingElapsed(0, duration)} across ${turns.toLocaleString()} turn${turns === 1 ? "" : "s"}`;
 }
 
 /** "Working for 49m 20s · Running shell" · "Stopped by you after 1h 12m" · "Worked for 4m 12s". */

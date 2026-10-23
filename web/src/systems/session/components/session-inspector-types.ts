@@ -1,6 +1,8 @@
 import type { CostSource, CostStatus } from "@/lib/cost-provenance";
+import type { SessionUsagePayload } from "@/systems/session/types";
 
 export interface InspectorUsage {
+  workTime?: SessionUsagePayload["work_time"];
   tokensIn?: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;

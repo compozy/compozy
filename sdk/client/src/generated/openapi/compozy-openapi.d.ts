@@ -13974,6 +13974,7 @@ export interface components {
       total_tokens?: number | null;
       /** Format: int64 */
       turn_count: number;
+      work_time?: components["schemas"]["SessionWorkTimePayload"] | null;
     };
     SessionUsageResponse: {
       usage: components["schemas"]["SessionUsagePayload"];
@@ -14007,6 +14008,13 @@ export interface components {
       until?: string[];
       /** Format: int64 */
       waited_ms: number;
+    };
+    SessionWorkTimePayload: {
+      /** Format: int64 */
+      active_duration_ms: number;
+      last_completed_turn_id?: string;
+      /** Format: int64 */
+      turn_count: number;
     };
     SessionWorkspaceFacetsPayload: {
       facets: components["schemas"]["SessionCatalogFacetsPayload"];

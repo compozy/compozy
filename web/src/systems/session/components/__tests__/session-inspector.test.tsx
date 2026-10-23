@@ -447,7 +447,7 @@ describe("Session context", () => {
     render(
       <SessionInspector
         turns={sessionContextTurnsFixture}
-        activity={{ status: "Working for 49m 20s" }}
+        activity={{ status: "Working for 49m 20s", totalWork: "Total work 2h 14m across 12 turns" }}
       />
     );
     const turnsHead = screen.getByRole("button", { name: /^Turns/ });
@@ -482,6 +482,9 @@ describe("Session context", () => {
       "session-context-turn-row",
     ]);
     expect(screen.getByTestId("session-context-activity")).toHaveTextContent("Working for 49m 20s");
+    expect(screen.getByTestId("session-context-activity")).toHaveTextContent(
+      "Total work 2h 14m across 12 turns"
+    );
   });
 
   it.each([
