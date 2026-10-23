@@ -14,6 +14,7 @@ import {
   INITIAL_SCROLL_OWNERSHIP,
   measuredComposerOverlay,
   navigationKeyDirection,
+  type NavigationKeyTarget,
   NEW_TURN_ANCHOR_OFFSET_PX,
   nextScrollMode,
   prependScrollTop,
@@ -206,16 +207,24 @@ describe("timeline scroll mode machine", () => {
     expect(metrics?.overflowsUsableViewport).toBe(false);
   });
 
-  it("Should read only scrolling navigation keys outside editable fields as a gesture", () => {
-    const key = (value: string, shiftKey = false, editableTarget = false) =>
-      navigationKeyDirection({ key: value, shiftKey, editableTarget });
+  it("Should read only keys that scroll the transcript as a keyboard gesture", () => {
+    const key = (
+      value: string,
+      { shiftKey = false, defaultPrevented = false, target = "content" as NavigationKeyTarget } = {}
+    ) => navigationKeyDirection({ key: value, shiftKey, defaultPrevented, target });
     for (const up of ["ArrowUp", "PageUp", "Home"]) expect(key(up)).toBe("up");
     for (const down of ["ArrowDown", "PageDown", "End"]) expect(key(down)).toBe("down");
     expect(key(" ")).toBe("down");
-    expect(key(" ", true)).toBe("up");
-    // Typing in an inline editor moves its caret, not the transcript.
-    expect(key("ArrowUp", false, true)).toBeNull();
+    expect(key(" ", { shiftKey: true })).toBe("up");
     expect(key("a")).toBeNull();
+    // Typing in an inline editor moves its caret, not the transcript.
+    expect(key("ArrowUp", { target: "editable" })).toBeNull();
+    // A focused control consumes Space (activation) and arrows; paging still scrolls past it.
+    expect(key(" ", { shiftKey: true, target: "control" })).toBeNull();
+    expect(key("ArrowUp", { target: "control" })).toBeNull();
+    expect(key("PageUp", { target: "control" })).toBe("up");
+    // A widget that already handled the key did not scroll the transcript.
+    expect(key("PageUp", { defaultPrevented: true })).toBeNull();
   });
 
   it("Should resume following-end when the live edge is reached or the pill is clicked", () => {

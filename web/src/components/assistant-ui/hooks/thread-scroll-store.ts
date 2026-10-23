@@ -20,6 +20,8 @@ interface ThreadScrollState {
   /** Measured overlap of the composer over the scroller (0 in the stacked layout), never assumed. */
   composerOverlayHeight: number;
   historyAnchor: ThreadHistoryAnchor | null;
+  /** The last scrollTop a scroll event reported, so a reader heading up through the band is told apart from one coming back. */
+  lastScrollTop: number | null;
   lastUserId: string | null;
   ownership: ScrollOwnershipState;
   previousCount: number;
@@ -39,7 +41,7 @@ type ThreadScrollEvents = {
   historyAnchorApplied: Record<never, never>;
   historyPageRequested: ThreadHistoryAnchor;
   /** A wheel / touch / pointer / navigation-key gesture: the only input that detaches following. */
-  manualNavigationObserved: { awayFromEnd: boolean; direction: "up" | "down" };
+  manualNavigationObserved: { awayFromEnd: boolean; direction: "up" | "down"; scrollTop: number };
   messagesCommitted: { count: number; lastUserId: string | null; lastUserIndex: number };
   /** Find/trail jump: the reader takes the viewport before the landing scroll (free mode). */
   navigationJumpRequested: Record<never, never>;
@@ -61,6 +63,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     anchorIndex: null,
     composerOverlayHeight: 0,
     historyAnchor: null,
+    lastScrollTop: null,
     lastUserId: null,
     ownership: INITIAL_SCROLL_OWNERSHIP,
     previousCount: 0,
@@ -110,36 +113,44 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
         ...context,
         anchorIndex: ownership.mode === "anchoring-new-turn" ? context.anchorIndex : null,
         historyAnchor: null,
+        lastScrollTop: event.scrollTop,
         ownership,
         programmaticScrollTop: null,
         showScrollToBottom: event.awayFromEnd,
       };
     },
     scrollObserved: (context, event) => {
+      const movedUp =
+        context.lastScrollTop !== null && event.scrollTop < context.lastScrollTop - 0.5;
+      const observed = { ...context, lastScrollTop: event.scrollTop };
       if (
         context.programmaticScrollTop !== null &&
         Math.abs(event.scrollTop - context.programmaticScrollTop) <= 1
       ) {
-        return { ...context, programmaticScrollTop: null };
+        return { ...observed, programmaticScrollTop: null };
       }
-      if (event.atEnd) {
+      // A reader who took the viewport and is still heading up keeps it while
+      // crossing the bottom band; following re-arms only on the way back down.
+      const leavingEnd = movedUp && context.ownership.mode === "free-scrolling";
+      if (event.atEnd && !leavingEnd) {
         return {
-          ...context,
+          ...observed,
           anchorIndex: null,
           ownership: scrollOwnershipTransition(context.ownership, { type: "reached-end" }),
           programmaticScrollTop: null,
           showScrollToBottom: false,
         };
       }
-      // Away from the band with no gesture: layout moved the viewport (measured
-      // rows replacing their estimates, a clamp, the virtualizer's own
-      // compensation). Only a gesture hands the viewport to the reader, so the
-      // owner keeps it; while following, the controller re-pins the end.
+      // No gesture behind this scroll, or a reader still inside the band:
+      // layout moved the viewport (measured rows replacing their estimates, a
+      // clamp, the virtualizer's own compensation). Only a gesture hands the
+      // viewport to the reader, so the owner keeps it; while following, the
+      // controller re-pins the end.
       return {
-        ...context,
+        ...observed,
         programmaticScrollTop: null,
         showScrollToBottom:
-          context.ownership.mode === "free-scrolling" ? true : context.showScrollToBottom,
+          context.ownership.mode === "free-scrolling" ? !event.atEnd : context.showScrollToBottom,
       };
     },
     messagesCommitted: (context, event) => {
@@ -174,6 +185,7 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
     }),
     programmaticScrollApplied: (context, event) => ({
       ...context,
+      lastScrollTop: event.scrollTop,
       programmaticScrollTop: event.scrollTop,
     }),
     snapApplied: context => ({

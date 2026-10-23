@@ -13,7 +13,12 @@ import {
 } from "../timeline-scroll-anchoring";
 import { estimateMessageSize, VIRTUAL_MESSAGE_ESTIMATE } from "../timeline-row-estimates";
 import { useOptionalThreadScrollStore, type ThreadScrollStore } from "./thread-scroll-context";
-import { firstVisibleRow, landMessageRow, lastVisibleRow } from "./thread-scroll-landing";
+import {
+  firstVisibleRow,
+  landMessageRow,
+  lastVisibleRow,
+  navigationKeyTarget,
+} from "./thread-scroll-landing";
 import { threadScrollLogic, threadScrollMode } from "./thread-scroll-store";
 
 const LOAD_OLDER_CONTROL_ESTIMATE = 48;
@@ -319,6 +324,7 @@ export function useThreadScrollController(
       store.trigger.manualNavigationObserved({
         awayFromEnd: distanceFromBottom() > FOLLOW_REARM_BAND_PX,
         direction,
+        scrollTop: viewport.scrollTop,
       });
     };
     let lastTouchY: number | null = null;
@@ -338,13 +344,11 @@ export function useThreadScrollController(
     // A pointer on the scrollbar is the reader taking the viewport.
     const handlePointerDown = () => observeNavigation("up");
     const handleKeyDown = (event: KeyboardEvent) => {
-      const target = event.target;
       const direction = navigationKeyDirection({
         key: event.key,
         shiftKey: event.shiftKey,
-        editableTarget:
-          target instanceof HTMLElement &&
-          (target.isContentEditable || target.closest("input, textarea, select") !== null),
+        defaultPrevented: event.defaultPrevented,
+        target: navigationKeyTarget(event.target),
       });
       if (direction) observeNavigation(direction);
     };

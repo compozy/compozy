@@ -4199,6 +4199,222 @@ describe("SessionThread transcript states", () => {
     expect(pill).toHaveAttribute("data-visible", "false");
   });
 
+  function settlingTranscript(prefix: string, length = 40) {
+    return toReadonlyThreadMessages(
+      Array.from({ length }, (_, index) => ({
+        id: `${prefix}-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
+  }
+
+  function primeViewportAtEnd(viewport: HTMLElement) {
+    Object.defineProperty(viewport, "scrollHeight", { configurable: true, value: 2000 });
+    Object.defineProperty(viewport, "clientHeight", { configurable: true, value: 500 });
+    viewport.scrollTop = 1_500;
+  }
+
+  function scrollViewportTo(viewport: HTMLElement, scrollTop: number) {
+    viewport.scrollTop = scrollTop;
+    fireEvent.scroll(viewport);
+  }
+
+  // Invariant (#907): opening a long transcript whose mounted rows measure
+  // differently from their estimates lands on, and stays at, the true end. jsdom has no
+  // layout, so this simulates the browser contract the virtualizer relies on:
+  // rows report a measured height, the scroller's height follows the rendered
+  // sizer, writes clamp to the scrollable range, and each move dispatches an
+  // asynchronous scroll event (no gesture behind any of them).
+  it("Should land at the true end when measured rows differ from their estimates", async () => {
+    // Real transcripts mix rows far taller than estimated with rows that render
+    // nothing (operational markers measure 0px): both move the viewport.
+    const measuredRowHeight = (index: number) => (index % 3 === 2 ? 0 : 360);
+    const viewportHeight = 500;
+    const isViewport = (element: Element) =>
+      element instanceof HTMLElement && element.dataset.testid === "chat-view";
+    const scrollHeightOf = (viewport: Element) => {
+      const sizer = viewport.querySelector<HTMLElement>('[data-testid="thread-messages"]');
+      if (!sizer) return viewportHeight;
+      const rows = [...sizer.querySelectorAll<HTMLElement>("[data-index]")].reduce(
+        (total, row) => total + measuredRowHeight(Number(row.dataset.index)),
+        0
+      );
+      const padding =
+        Number.parseFloat(sizer.style.paddingTop || "0") +
+        Number.parseFloat(sizer.style.paddingBottom || "0");
+      return Math.max(viewportHeight, padding + rows);
+    };
+    const offsets = new WeakMap<Element, number>();
+    const restore: Array<() => void> = [];
+    const patch = <T extends object>(target: T, key: string, descriptor: PropertyDescriptor) => {
+      const original = Object.getOwnPropertyDescriptor(target, key);
+      Object.defineProperty(target, key, { configurable: true, ...descriptor });
+      restore.push(() => {
+        if (original) Object.defineProperty(target, key, original);
+        else delete (target as Record<string, unknown>)[key];
+      });
+      return original;
+    };
+    const originalOffsetHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "offsetHeight"
+    );
+    patch(HTMLElement.prototype, "offsetHeight", {
+      get(this: HTMLElement) {
+        if (this.hasAttribute("data-index")) return measuredRowHeight(Number(this.dataset.index));
+        return originalOffsetHeight?.get?.call(this) ?? 0;
+      },
+    });
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(Element.prototype, "scrollHeight");
+    patch(Element.prototype, "scrollHeight", {
+      get(this: Element) {
+        return isViewport(this)
+          ? scrollHeightOf(this)
+          : (originalScrollHeight?.get?.call(this) ?? 0);
+      },
+    });
+    const originalClientHeight = Object.getOwnPropertyDescriptor(Element.prototype, "clientHeight");
+    patch(Element.prototype, "clientHeight", {
+      get(this: Element) {
+        return isViewport(this) ? viewportHeight : (originalClientHeight?.get?.call(this) ?? 0);
+      },
+    });
+    const originalScrollTop = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+    const writeScrollTop = (element: Element, value: number) => {
+      const max = Math.max(0, scrollHeightOf(element) - viewportHeight);
+      const next = Math.min(max, Math.max(0, value));
+      if (next === (offsets.get(element) ?? 0)) return;
+      offsets.set(element, next);
+      setTimeout(() => element.dispatchEvent(new Event("scroll")), 0);
+    };
+    patch(Element.prototype, "scrollTop", {
+      get(this: Element) {
+        return isViewport(this)
+          ? (offsets.get(this) ?? 0)
+          : (originalScrollTop?.get?.call(this) ?? 0);
+      },
+      set(this: Element, value: number) {
+        if (isViewport(this)) writeScrollTop(this, value);
+        else originalScrollTop?.set?.call(this, value);
+      },
+    });
+    // Layout changes notify every observer of its observed boxes, as the
+    // browser does after a size change (the setup mock never fires).
+    const observers = new Set<{ fire: () => void }>();
+    let notifyQueued = false;
+    const notifyObservers = () => {
+      if (notifyQueued) return;
+      notifyQueued = true;
+      setTimeout(() => {
+        notifyQueued = false;
+        for (const observer of observers) observer.fire();
+      }, 0);
+    };
+    class LayoutResizeObserver {
+      private readonly targets = new Set<Element>();
+      private readonly handle = {
+        fire: () => {
+          if (this.targets.size === 0) return;
+          this.callback(
+            [...this.targets].map(target => ({ target }) as ResizeObserverEntry),
+            this as unknown as ResizeObserver
+          );
+        },
+      };
+      constructor(private readonly callback: ResizeObserverCallback) {
+        observers.add(this.handle);
+      }
+      observe(target: Element) {
+        this.targets.add(target);
+        notifyObservers();
+      }
+      unobserve(target: Element) {
+        this.targets.delete(target);
+      }
+      disconnect() {
+        this.targets.clear();
+        observers.delete(this.handle);
+      }
+    }
+    patch(window, "ResizeObserver", { value: LayoutResizeObserver, writable: true });
+    const layoutChanges = new MutationObserver(notifyObservers);
+    layoutChanges.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["style"],
+      childList: true,
+      subtree: true,
+    });
+    restore.push(() => layoutChanges.disconnect());
+    const originalScrollTo = Element.prototype.scrollTo;
+    patch(Element.prototype, "scrollTo", {
+      value(this: Element, optionsOrX?: ScrollToOptions | number, y?: number) {
+        const top = typeof optionsOrX === "number" ? y : optionsOrX?.top;
+        if (isViewport(this)) writeScrollTop(this, top ?? offsets.get(this) ?? 0);
+        else Reflect.apply(originalScrollTo, this, [optionsOrX, y]);
+      },
+      writable: true,
+    });
+
+    try {
+      renderThreadState({ status: "success", messages: settlingTranscript("measured", 60) });
+      expect(await screen.findByText("Message 59")).toBeInTheDocument();
+      const viewport = screen.getByTestId("chat-view");
+      const distanceFromEnd = () =>
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+
+      await waitFor(() => {
+        expect(viewport.scrollTop).toBeGreaterThan(0);
+        expect(distanceFromEnd()).toBe(0);
+      });
+      // Let the late measurement and scroll events settle, then check again.
+      await act(() => new Promise(resolve => setTimeout(resolve, 100)));
+      expect(distanceFromEnd()).toBe(0);
+      expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+    } finally {
+      for (const undo of restore.reverse()) undo();
+    }
+  });
+
+  // Invariant: a reader gesture that starts at the end keeps the viewport through
+  // small deltas inside the 40px band (slow trackpads, the first key repeat, a
+  // scrollbar drag); following re-arms only when the reader comes back down.
+  it("Should let a gesture leave the end in small steps and re-arm only on the way back", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("small-steps") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    fireEvent.wheel(viewport, { deltaY: -10 });
+    for (const scrollTop of [1_490, 1_480, 1_470]) {
+      scrollViewportTo(viewport, scrollTop);
+      expect(viewport.scrollTop).toBe(scrollTop);
+    }
+
+    // Heading back into the band re-arms following, which pins the true end.
+    fireEvent.wheel(viewport, { deltaY: 25 });
+    scrollViewportTo(viewport, 1_495);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
+  // Invariant: a key a focused control consumes (Shift+Space activating "Copy")
+  // is not a scroll gesture, so following holds.
+  it("Should keep following when a focused control consumes a navigation key", async () => {
+    renderThreadState({ status: "success", messages: settlingTranscript("control-key") });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
+
+    const viewport = screen.getByTestId("chat-view");
+    primeViewportAtEnd(viewport);
+    const control = within(viewport).getAllByRole("button")[0]!;
+    fireEvent.keyDown(control, { key: " ", shiftKey: true });
+
+    // Still following: a later non-gesture scroll off the end is pinned back.
+    scrollViewportTo(viewport, 300);
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(screen.getByTestId("scroll-to-bottom-pill")).toHaveAttribute("data-visible", "false");
+  });
+
   it("Should not apply a stale live-edge reconciliation after the reader scrolls away", async () => {
     const pendingFrames: FrameRequestCallback[] = [];
     const requestFrame = vi.spyOn(window, "requestAnimationFrame").mockImplementation(callback => {
