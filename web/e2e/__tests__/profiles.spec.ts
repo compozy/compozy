@@ -1053,7 +1053,8 @@ test.describe("Profiles", () => {
 
       // S2: the destination is stated before the commit. Under All profiles a new session
       // carries an inline Profile picker that starts on the remembered profile (AP ADR-003).
-      await sessions.getByTestId("os-sessions-modal-new-session").click();
+      await sessions.getByRole("button", { name: "New session or folder", exact: true }).click();
+      await appPage.getByRole("menuitem", { name: "New session", exact: true }).click();
       const profilePicker = appPage.getByTestId("session-destination-profile");
       await expect(profilePicker).toBeVisible();
       await expect(profilePicker).toHaveAccessibleName("Profile: marketing");
