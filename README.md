@@ -28,10 +28,10 @@ together. CompozyOS turns that entire agent stack into one product, a complete e
 create, automate, and supervise agent work with the agent CLIs you already use (Claude Code,
 Codex, and Cursor). Built first for developers and technical operators.
 
-> [!WARNING]
-> The v0.3 line is in beta. The previous v0.2.15 product is deprecated and maintained only for
-> critical fixes on [`legacy/v0.2`](https://github.com/compozy/compozy/tree/legacy/v0.2). Start with
-> the [migration guide](MIGRATION_GUIDE.md) before replacing an existing v0.2 installation.
+> [!NOTE]
+> v0.4.0 is the first stable CompozyOS release. The previous v0.2 product has reached end of life
+> and receives no further releases. Start with the [migration guide](MIGRATION_GUIDE.md) before
+> replacing an existing v0.2 installation.
 
 <div align="center">
   <img src="imgs/screenshot.png" alt="CompozyOS web shell" width="100%">
@@ -59,29 +59,31 @@ Codex, and Cursor). Built first for developers and technical operators.
 
 ## 📦 Installation
 
-The v0.3 beta ships through the channels below. Homebrew continues to serve the deprecated v0.2 line
-during the beta window and is intentionally omitted here. The `compozy` formula returns with v0.3.0
-stable.
-
 #### Verified installer
 
-The installer pins the latest published beta and verifies Sigstore provenance before installing the
-binary on macOS or Linux.
+The installer pins the latest published release and verifies Sigstore provenance before installing
+the binary on macOS or Linux.
 
 ```bash
 curl -fsSL https://compozy.com/install.sh | sh
 ```
 
+#### Homebrew
+
+```bash
+brew install compozy/compozy/compozy
+```
+
 #### NPM
 
 ```bash
-npm install -g @compozy/cli@beta
+npm install -g @compozy/cli
 ```
 
 #### Go
 
-Go's `@latest` still resolves the v0.2 stable line while v0.3 is in beta, so install with the
-explicit tag shown on the [latest release](https://github.com/compozy/compozy/releases/latest):
+Install with the explicit tag shown on the
+[latest release](https://github.com/compozy/compozy/releases/latest):
 
 ```bash
 go install github.com/compozy/compozy@<release-tag>

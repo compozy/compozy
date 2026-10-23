@@ -35,7 +35,7 @@ describe("SiteFooter", () => {
     expect(logo?.getAttribute("data-variant")).toBe("logo");
     expect(logo?.getAttribute("aria-hidden")).toBe("true");
     expect(screen.getByText(`© ${new Date().getFullYear()} ${siteConfig.name}.`)).toBeDefined();
-    expect(screen.getByRole("link", { name: "Beta · CompozyOS on GitHub" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Open source · CompozyOS on GitHub" })).toBeDefined();
   }, 15_000);
 
   it("renders every configured footer column as accessible navigation", () => {
@@ -67,6 +67,6 @@ describe("SiteFooter", () => {
       expect(link.getAttribute("rel")).toContain("noreferrer");
     }
 
-    expect(screen.getByRole("link", { name: "CompozyOS on GitHub" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Open source · CompozyOS on GitHub" })).toBeDefined();
   });
 });

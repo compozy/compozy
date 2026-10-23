@@ -23,9 +23,9 @@ Do not manage runtime state by editing SQLite databases, process internals, or g
 
 ## Updating
 
-`compozy update` follows the installed release line and never switches lines on its own; a beta
-build tracks newer beta releases. For install channels and moving between lines, follow the
-compozy.com docs instead of package managers, which may lag the active line.
+`compozy update` installs the latest stable release; an install still on a v0.3.0 beta moves to it
+in place. For install channels, follow the compozy.com docs instead of package managers, which may
+lag the latest release.
 
 The command checks both the runtime and desktop app, applies the runtime first, and stages a closed
 app for its next launch. Use `--check` for a read-only result and `--cancel` only for a dormant

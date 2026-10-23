@@ -94,7 +94,7 @@ describe("Landing OpenGraph image (root)", () => {
     expect((response.init as { fonts: unknown[] }).fonts.length).toBeGreaterThan(0);
   });
 
-  it("renders the locked hero pair and beta footer rail with the warm-dark palette", async () => {
+  it("renders the locked hero pair and footer rail with the warm-dark palette", async () => {
     const { default: Image } = await import("@/app/opengraph-image");
     const response = asMockImageResponse(await Image());
     const copy = textContent(response.element);
@@ -105,7 +105,7 @@ describe("Landing OpenGraph image (root)", () => {
     expect(copy).toContain(
       "One complete environment to create, automate, and supervise agent work, without scripts, plugin chains, or orchestration frameworks."
     );
-    expect(copy).toContain("COMPOZYOS / BETA");
+    expect(copy).toContain("COMPOZYOS");
     expect(copy).toContain("OPERATING SYSTEM FOR AI AGENTS");
     expect(copy).toContain("CREATE · AUTOMATE · SUPERVISE");
     expect(copy).toContain("compozy.com");

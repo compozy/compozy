@@ -17,19 +17,19 @@ function installTabs(goInstallCommand: string): InstallTab[] {
       id: "installer",
       label: "Installer",
       command: "curl -fsSL https://compozy.com/install.sh | sh",
-      note: "Verified beta · Sigstore provenance · opens bootstrap on an interactive terminal",
+      note: "Verified release · Sigstore provenance · opens bootstrap on an interactive terminal",
     },
     {
       id: "npm",
       label: "npm",
-      command: "npm install -g @compozy/cli@beta",
-      note: "Beta channel · Node package · managed updates",
+      command: "npm install -g @compozy/cli",
+      note: "Node package · managed updates",
     },
     {
       id: "go",
       label: "Go",
       command: goInstallCommand,
-      note: "Pinned beta · requires Go · builds from the public module",
+      note: "Pinned release · requires Go · builds from the public module",
     },
   ];
 }
@@ -119,8 +119,8 @@ export function InstallSection({ goInstallCommand }: { goInstallCommand: string 
       <SectionHeader
         align="center"
         eyebrow="Getting started"
-        title="Install the beta. Start one durable session."
-        description="Use the verified installer on macOS or Linux, the npm beta channel, or the pinned Go release. Homebrew returns with the stable release. Today's experience is technical: a terminal, a local daemon, and one config file. Built for developers and technical operators."
+        title="Install CompozyOS. Start one durable session."
+        description="Use the verified installer on macOS or Linux, npm, or the pinned Go release; Homebrew users run brew install compozy/compozy/compozy. Today's experience is technical: a terminal, a local daemon, and one config file. Built for developers and technical operators."
       />
 
       <div className="mx-auto mt-10 w-full max-w-190">
