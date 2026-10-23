@@ -116,7 +116,7 @@ func (h *Hooks) reportDispatchResult(
 			"deny_reason", report.DenyReason,
 			"pipeline_trace", traceStrings(report.Trace),
 		)
-	case dispatchErr != nil:
+	case dispatchErr != nil || report.FailedHook != "":
 		logger.Warn(
 			"hook.dispatch.failed",
 			"event", event.String(),

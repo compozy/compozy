@@ -2113,7 +2113,7 @@ func TestSubagentRootHostedMCPDaemonIntegration(t *testing.T) {
 		"Should inherit native delegation through hosted MCP and publish the catalog stream",
 		func(t *testing.T) {
 			for _, origin := range []string{"root", "fork", "continue"} {
-				t.Run(origin, func(t *testing.T) {
+				t.Run("Should delegate from "+origin+" origin", func(t *testing.T) {
 					fixture := mockFixturePath(t, "native_tool_delegate_fixture.json")
 					h := e2etest.StartRuntimeHarness(
 						t,

@@ -852,27 +852,32 @@ matcher = {tool_id = "compozy__task_list"}
 				"kind": "timer", "description": strings.Repeat("PRIVATE_SENTINEL", 20), "delay_seconds": 10,
 			}, reason: "schema_invalid"},
 		} {
-			result, err := client.CallTool(ctx, &sdkmcp.CallToolParams{Name: call.tool.String(), Arguments: call.input})
-			if err != nil || result == nil || !result.IsError {
-				t.Fatalf("CallTool(%s) = %#v, %v, want a structured refusal", call.tool, result, err)
-			}
-			encoded, err := json.Marshal(result)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(string(encoded), call.reason) {
-				t.Fatalf("CallTool(%s) = %s, want %s", call.tool, encoded, call.reason)
-			}
-			if call.tool == toolspkg.ToolIDMonitorCreate {
-				for _, field := range []string{"operator_cause", "description", "200", "operator_recovery"} {
-					if !strings.Contains(string(encoded), field) {
-						t.Fatalf("hosted monitor refusal = %s, missing safe correction %q", encoded, field)
+			t.Run("Should refuse "+call.tool.String(), func(t *testing.T) {
+				result, err := client.CallTool(
+					ctx,
+					&sdkmcp.CallToolParams{Name: call.tool.String(), Arguments: call.input},
+				)
+				if err != nil || result == nil || !result.IsError {
+					t.Fatalf("CallTool(%s) = %#v, %v, want a structured refusal", call.tool, result, err)
+				}
+				encoded, err := json.Marshal(result)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(string(encoded), call.reason) {
+					t.Fatalf("CallTool(%s) = %s, want %s", call.tool, encoded, call.reason)
+				}
+				if call.tool == toolspkg.ToolIDMonitorCreate {
+					for _, field := range []string{"operator_cause", "description", "200", "operator_recovery"} {
+						if !strings.Contains(string(encoded), field) {
+							t.Fatalf("hosted monitor refusal = %s, missing safe correction %q", encoded, field)
+						}
+					}
+					if strings.Contains(string(encoded), "PRIVATE_SENTINEL") {
+						t.Fatal("hosted monitor refusal leaked submitted content")
 					}
 				}
-				if strings.Contains(string(encoded), "PRIVATE_SENTINEL") {
-					t.Fatal("hosted monitor refusal leaked submitted content")
-				}
-			}
+			})
 		}
 		var hookRuns []compozycontract.HookRunPayload
 		if err := harness.CLI.RunJSON(ctx, &hookRuns, "hooks", "runs", "--session", session.ID,
