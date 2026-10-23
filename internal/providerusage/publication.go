@@ -72,6 +72,7 @@ func (s *Manager) publishLocked(
 			state.snapshot.Status = StatusStale
 		} else {
 			state.snapshot = cloneSnapshot(snapshot)
+			state.lastSuccess = time.Time{}
 			state.snapshot.ProviderID = id
 			state.snapshot.ProviderName = target.ProviderName
 			state.snapshot.Status = outcome.Status()
