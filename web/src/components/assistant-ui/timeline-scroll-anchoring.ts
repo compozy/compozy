@@ -85,9 +85,10 @@ export function getAnchoredTurnMetrics({
   };
 }
 
-// The single manual-navigation event collapses wheel/touch/pointer gestures — the
-// hook wires all three DOM listeners to it — while the list lifecycle emits the
-// other three. Keeping the transition table pure makes the mode machine unit
+// The single manual-navigation event collapses wheel/touch/pointer/key gestures —
+// the hook wires those DOM listeners to it — while the list lifecycle emits the
+// other three. A bare scroll event is never a gesture: measurement and clamping
+// move the viewport too, so it cannot tell the reader from layout. Keeping the transition table pure makes the mode machine unit
 // testable without a DOM or virtualizer.
 export type ScrollMachineEvent = "manual-navigation" | "new-turn" | "reached-end" | "scroll-to-end";
 
@@ -207,6 +208,25 @@ export function resolveTimelineIsAtEnd(
   bandPx: number = FOLLOW_REARM_BAND_PX
 ): boolean {
   return geometry.contentLength - geometry.scroll - geometry.scrollLength <= bandPx;
+}
+
+const NAVIGATION_KEYS_UP = new Set(["ArrowUp", "PageUp", "Home"]);
+const NAVIGATION_KEYS_DOWN = new Set(["ArrowDown", "PageDown", "End"]);
+
+/**
+ * The direction a keyboard scroll gesture moves the transcript, or `null` when
+ * the key does not scroll it (any other key, or typing inside an editable field).
+ */
+export function navigationKeyDirection(event: {
+  readonly key: string;
+  readonly shiftKey: boolean;
+  readonly editableTarget: boolean;
+}): "up" | "down" | null {
+  if (event.editableTarget) return null;
+  if (event.key === " ") return event.shiftKey ? "up" : "down";
+  if (NAVIGATION_KEYS_UP.has(event.key)) return "up";
+  if (NAVIGATION_KEYS_DOWN.has(event.key)) return "down";
+  return null;
 }
 
 export interface PrependAnchor {

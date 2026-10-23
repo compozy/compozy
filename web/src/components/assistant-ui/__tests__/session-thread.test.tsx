@@ -4137,34 +4137,66 @@ describe("SessionThread transcript states", () => {
     viewport.scrollTop = 300;
   }
 
-  it("Should reveal the scroll-to-bottom pill when the reader scrolls away and return to the live edge on click", async () => {
-    const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+  it.each([
+    ["a wheel", (viewport: HTMLElement) => fireEvent.wheel(viewport, { deltaY: -120 })],
+    ["a navigation key", (viewport: HTMLElement) => fireEvent.keyDown(viewport, { key: "PageUp" })],
+  ])(
+    "Should reveal the scroll-to-bottom pill when the reader scrolls away with %s and return to the live edge on click",
+    async (_gesture, scrollAway) => {
+      const messages = toReadonlyThreadMessages(sessionTranscriptFixture.slice(0, 2));
+
+      renderThreadState({ status: "success", messages });
+
+      expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
+      expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
+      expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
+      const viewport = screen.getByTestId("chat-view");
+      const pill = screen.getByTestId("scroll-to-bottom-pill");
+      // Following the live edge: the pill is hidden and non-interactive.
+      expect(pill).toHaveAttribute("data-visible", "false");
+      expect(pill).toBeDisabled();
+
+      // The reader's gesture hands the viewport over; the scroll it causes keeps it there.
+      primeScrolledAwayViewport(viewport);
+      scrollAway(viewport);
+      fireEvent.scroll(viewport);
+      await waitFor(() => {
+        expect(pill).toHaveAttribute("data-visible", "true");
+        expect(pill).toBeEnabled();
+      });
+      expect(viewport.scrollTop).toBe(300);
+
+      // Clicking the pill returns to the live edge and hides the affordance again.
+      fireEvent.click(pill);
+      await waitFor(() => {
+        expect(pill).toHaveAttribute("data-visible", "false");
+      });
+    }
+  );
+
+  // Invariant (#907): only a reader gesture detaches live-follow. Opening a long
+  // transcript lands on estimated row heights; as rows measure, the virtualizer's
+  // own compensation moves the viewport off the end with no gesture. Following
+  // must hold and re-pin the true end instead of reading that as the reader.
+  it("Should hold the live edge when the viewport leaves it without a reader gesture", async () => {
+    const messages = toReadonlyThreadMessages(
+      Array.from({ length: 40 }, (_, index) => ({
+        id: `settling-${index}`,
+        role: index % 2 === 0 ? "user" : "assistant",
+        parts: [{ type: "text", text: `Message ${index}`, state: "done" }],
+      })) as SessionMessage[]
+    );
 
     renderThreadState({ status: "success", messages });
+    expect(await screen.findByText("Message 0")).toBeInTheDocument();
 
-    expect(await screen.findByText("Launch readiness snapshot")).toBeInTheDocument();
-    expect(screen.getByTestId("thread-messages")).toBeInTheDocument();
-    expect(screen.queryByText(/Start a conversation/i)).not.toBeInTheDocument();
     const viewport = screen.getByTestId("chat-view");
     const pill = screen.getByTestId("scroll-to-bottom-pill");
-    // Following the live edge: the pill is hidden and non-interactive.
-    expect(pill).toHaveAttribute("data-visible", "false");
-    expect(pill).toBeDisabled();
-
-    // A viewport change away from the live edge opts out of live-follow even when
-    // the platform does not expose a preceding wheel/touch/pointer event.
     primeScrolledAwayViewport(viewport);
     fireEvent.scroll(viewport);
-    await waitFor(() => {
-      expect(pill).toHaveAttribute("data-visible", "true");
-      expect(pill).toBeEnabled();
-    });
 
-    // Clicking the pill returns to the live edge and hides the affordance again.
-    fireEvent.click(pill);
-    await waitFor(() => {
-      expect(pill).toHaveAttribute("data-visible", "false");
-    });
+    expect(viewport.scrollTop).toBe(1_500);
+    expect(pill).toHaveAttribute("data-visible", "false");
   });
 
   it("Should not apply a stale live-edge reconciliation after the reader scrolls away", async () => {
@@ -4187,6 +4219,7 @@ describe("SessionThread transcript states", () => {
 
       const viewport = screen.getByTestId("chat-view");
       primeScrolledAwayViewport(viewport);
+      fireEvent.wheel(viewport, { deltaY: -120 });
       fireEvent.scroll(viewport);
       const scrollTo = vi.fn((optionsOrX?: ScrollToOptions | number, y?: number) => {
         const top = typeof optionsOrX === "number" ? y : optionsOrX?.top;

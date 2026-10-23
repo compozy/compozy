@@ -13,6 +13,7 @@ import {
   getRowBottom,
   INITIAL_SCROLL_OWNERSHIP,
   measuredComposerOverlay,
+  navigationKeyDirection,
   NEW_TURN_ANCHOR_OFFSET_PX,
   nextScrollMode,
   prependScrollTop,
@@ -203,6 +204,18 @@ describe("timeline scroll mode machine", () => {
     expect(metrics?.anchorTop).toBe(120);
     expect(metrics?.lastBottom).toBe(680);
     expect(metrics?.overflowsUsableViewport).toBe(false);
+  });
+
+  it("Should read only scrolling navigation keys outside editable fields as a gesture", () => {
+    const key = (value: string, shiftKey = false, editableTarget = false) =>
+      navigationKeyDirection({ key: value, shiftKey, editableTarget });
+    for (const up of ["ArrowUp", "PageUp", "Home"]) expect(key(up)).toBe("up");
+    for (const down of ["ArrowDown", "PageDown", "End"]) expect(key(down)).toBe("down");
+    expect(key(" ")).toBe("down");
+    expect(key(" ", true)).toBe("up");
+    // Typing in an inline editor moves its caret, not the transcript.
+    expect(key("ArrowUp", false, true)).toBeNull();
+    expect(key("a")).toBeNull();
   });
 
   it("Should resume following-end when the live edge is reached or the pill is clicked", () => {

@@ -38,6 +38,7 @@ type ThreadScrollEvents = {
   frameElapsed: Record<never, never>;
   historyAnchorApplied: Record<never, never>;
   historyPageRequested: ThreadHistoryAnchor;
+  /** A wheel / touch / pointer / navigation-key gesture: the only input that detaches following. */
   manualNavigationObserved: { awayFromEnd: boolean; direction: "up" | "down" };
   messagesCommitted: { count: number; lastUserId: string | null; lastUserIndex: number };
   /** Find/trail jump: the reader takes the viewport before the landing scroll (free mode). */
@@ -130,17 +131,15 @@ export const threadScrollLogic = createStoreLogic<ThreadScrollState, ThreadScrol
           showScrollToBottom: false,
         };
       }
-      // Away from the band with no gesture of ours: the reader owns the viewport.
+      // Away from the band with no gesture: layout moved the viewport (measured
+      // rows replacing their estimates, a clamp, the virtualizer's own
+      // compensation). Only a gesture hands the viewport to the reader, so the
+      // owner keeps it; while following, the controller re-pins the end.
       return {
         ...context,
-        anchorIndex: null,
-        ownership: scrollOwnershipTransition(context.ownership, {
-          type: "user-scroll",
-          direction: "up",
-          atEnd: false,
-        }),
         programmaticScrollTop: null,
-        showScrollToBottom: true,
+        showScrollToBottom:
+          context.ownership.mode === "free-scrolling" ? true : context.showScrollToBottom,
       };
     },
     messagesCommitted: (context, event) => {

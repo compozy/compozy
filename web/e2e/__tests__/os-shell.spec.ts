@@ -795,6 +795,8 @@ test("E2E-006: visible session windows stream without focus and catch up after r
   const parkedScrollTop = await primaryTranscript.evaluate(element => {
     const viewport = element as HTMLElement;
     if (viewport.scrollHeight <= viewport.clientHeight) return -1;
+    // A reader gesture hands the transcript over; a bare scroll alone keeps following.
+    viewport.dispatchEvent(new WheelEvent("wheel", { deltaY: -120 }));
     viewport.scrollTop = Math.max(
       1,
       Math.floor((viewport.scrollHeight - viewport.clientHeight) / 3)

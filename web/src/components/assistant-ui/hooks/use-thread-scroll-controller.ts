@@ -7,6 +7,7 @@ import {
   FOLLOW_REARM_BAND_PX,
   getAnchoredTurnMetrics,
   measuredComposerOverlay,
+  navigationKeyDirection,
   NEW_TURN_ANCHOR_OFFSET_PX,
   shouldMaintainEnd,
 } from "../timeline-scroll-anchoring";
@@ -336,22 +337,40 @@ export function useThreadScrollController(
     };
     // A pointer on the scrollbar is the reader taking the viewport.
     const handlePointerDown = () => observeNavigation("up");
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      const direction = navigationKeyDirection({
+        key: event.key,
+        shiftKey: event.shiftKey,
+        editableTarget:
+          target instanceof HTMLElement &&
+          (target.isContentEditable || target.closest("input, textarea, select") !== null),
+      });
+      if (direction) observeNavigation(direction);
+    };
     const handleScroll = () => {
       store.trigger.scrollObserved({
         atEnd: distanceFromBottom() <= FOLLOW_REARM_BAND_PX,
         scrollTop: viewport.scrollTop,
       });
+      // No gesture moved the viewport off the end (estimates replaced by real
+      // heights while a long transcript opens): following holds the end.
+      if (shouldMaintainEnd(store.getSnapshot().context.ownership) && distanceFromBottom() > 1) {
+        pinToEnd(viewport, store);
+      }
     };
     viewport.addEventListener("wheel", handleWheel, { passive: true });
     viewport.addEventListener("touchstart", handleTouchStart, { passive: true });
     viewport.addEventListener("touchmove", handleTouchMove, { passive: true });
     viewport.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    viewport.addEventListener("keydown", handleKeyDown);
     viewport.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
       viewport.removeEventListener("wheel", handleWheel);
       viewport.removeEventListener("touchstart", handleTouchStart);
       viewport.removeEventListener("touchmove", handleTouchMove);
       viewport.removeEventListener("pointerdown", handlePointerDown);
+      viewport.removeEventListener("keydown", handleKeyDown);
       viewport.removeEventListener("scroll", handleScroll);
     };
   }, [store, viewportRef]);
