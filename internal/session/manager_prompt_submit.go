@@ -174,6 +174,9 @@ func (m *Manager) preparePromptRequestMessage(
 	if err := m.prepareAgentCommandDelivery(ctx, req, message); err != nil {
 		return "", err
 	}
+	if req.delivery == PromptDeliveryAgentCommand {
+		message = strings.TrimSpace(message)
+	}
 	req.skillInvocations = commandpkg.ReconcileInvocations(message, req.skillInvocations)
 	// A hook rewrite keeps only admitted mentions whose exact token is still present; it never adds one.
 	// Survivors keep their authored-text offsets, which the transcript displays.

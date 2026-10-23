@@ -1968,7 +1968,12 @@ func TestPromptAgentCommandPreservesContextDelivery(t *testing.T) {
 		defer stopProcess(t, driver, proc)
 		section := PromptSection{Key: "skills", Content: "pending skills", UnchangedContent: "skills unchanged"}
 		requests := []PromptRequest{
-			{TurnID: "command", Message: "/compact keep decisions", AgentCommand: true, Sections: []PromptSection{section}},
+			{
+				TurnID:       "command",
+				Message:      "/compact keep decisions",
+				AgentCommand: true,
+				Sections:     []PromptSection{section},
+			},
 			{TurnID: "ordinary", Message: "pending skills\n\ncontinue", Sections: []PromptSection{section}},
 			{TurnID: "later", Message: "pending skills\n\ncontinue", Sections: []PromptSection{section}},
 		}

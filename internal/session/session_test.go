@@ -170,7 +170,9 @@ func TestRuntimeBindingSnapshotRestore(t *testing.T) {
 		}
 		previousManifest := acp.OpaqueStartupManifest("previous startup", true)
 		session.setAgentDefinition(session.AgentDefinition(), previousManifest)
+		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, now)
 		snapshot := session.runtimeBindingSnapshot()
+		session.replaceAdvertisedCommands(nil, now)
 		session.setAgentDefinition(compozyconfig.AgentDef{
 			Name:   "coder",
 			Prompt: "candidate definition",
@@ -178,6 +180,9 @@ func TestRuntimeBindingSnapshotRestore(t *testing.T) {
 		}, acp.OpaqueStartupManifest("candidate startup", false))
 
 		session.restoreRuntimeBinding(&snapshot, "catalog persistence failed", now.Add(time.Second))
+		if commands := session.Info().AdvertisedCommands; len(commands) != 1 || commands[0].Name != "compact" {
+			t.Fatalf("restored command advertisements = %#v", commands)
+		}
 		_, manifest := session.startupDefinition()
 		if !reflect.DeepEqual(manifest, previousManifest) {
 			t.Fatalf("restored startup manifest = %#v, want %#v", manifest, previousManifest)

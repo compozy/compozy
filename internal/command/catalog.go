@@ -126,7 +126,7 @@ func builtinDescriptor(spec BuiltinSpec) (Descriptor, error) {
 }
 
 func agentDescriptor(spec AgentSpec) (Descriptor, error) {
-	name := Slug(spec.Name)
+	name := strings.TrimSpace(spec.Name)
 	if name == "" {
 		return Descriptor{}, errCanonicalNameRequired
 	}

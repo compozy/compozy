@@ -6519,7 +6519,11 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
 		session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
 		inserted, _, err := database.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
-			ID: "queued-command", SessionID: session.ID, Text: "/compact keep decisions", HumanIngress: true, QueueCap: 1,
+			ID:           "queued-command",
+			SessionID:    session.ID,
+			Text:         "/compact keep decisions",
+			HumanIngress: true,
+			QueueCap:     1,
 		})
 		if err != nil {
 			t.Fatal(err)

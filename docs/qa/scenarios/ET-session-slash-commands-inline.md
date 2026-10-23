@@ -42,3 +42,10 @@ Focused automated evidence: `TestStandaloneAgentCommandDelivery`, `TestAgentComm
 `TestQueuedAgentCommandDelivery`, and the real ACP helper subprocess in
 `TestPromptAgentCommandPreservesContextDelivery`. Browser/provider scenario walk is not claimed;
 local E2E and Playwright are excluded by this issue's machine-load constraint.
+
+Astra review regression coverage: commands use exact ACP-advertised case and qualification.
+Before the first advertisement, `/context` follows normal context-bearing delivery. After a provider
+switch or restart, old advertisements cannot activate commands until the replacement advertises them.
+Hook-added surrounding whitespace is normalized before standalone command delivery; arguments remain
+intact. `TestAgentCommandsFollowCurrentRuntime` exercises the first-message advertisement event,
+subsequent command, provider switch and stop/resume paths.

@@ -3769,6 +3769,10 @@ func TestStandaloneAgentCommandDelivery(t *testing.T) {
 		{"bare command", "/compact", true, true},
 		{"command arguments", "/compact keep decisions", true, true},
 		{"model command", "/model opus", true, true},
+		{"qualified command", "/plugin:review details", true, true},
+		{"case-sensitive command", "/Review", true, true},
+		{"normalized alias", "/plugin-review", true, false},
+		{"wrong case", "/review", true, false},
 		{"inline command", "explain /compact", true, false},
 		{"unknown command", "/unknown", true, false},
 		{"punctuation", "/compact,", true, false},
@@ -3777,13 +3781,24 @@ func TestStandaloneAgentCommandDelivery(t *testing.T) {
 		t.Run("Should preserve context for "+tc.name, func(t *testing.T) {
 			t.Parallel()
 			var augmented atomic.Int32
-			h := newHarness(t, WithPromptInputAugmenter(func(ctx context.Context, _ *Session, message string) (string, error) {
-				augmented.Add(1)
-				acp.RegisterPromptSection(ctx, acp.PromptSection{Key: "test-context", Content: "pending context"})
-				return "pending context\n\n" + message, nil
-			}))
+			h := newHarness(
+				t,
+				WithPromptInputAugmenter(func(ctx context.Context, _ *Session, message string) (string, error) {
+					augmented.Add(1)
+					acp.RegisterPromptSection(ctx, acp.PromptSection{Key: "test-context", Content: "pending context"})
+					return "pending context\n\n" + message, nil
+				}),
+			)
 			session := createSession(t, h)
-			session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}, {Name: "model"}}, h.manager.now())
+			session.replaceAdvertisedCommands(
+				[]store.SessionAdvertisedCommand{
+					{Name: "compact"},
+					{Name: "model"},
+					{Name: "plugin:review"},
+					{Name: "Review"},
+				},
+				h.manager.now(),
+			)
 			const replay = "pending resume replay"
 			h.manager.stageResumeReplay(session.ID, replay)
 			opts := SendPromptOpts{Message: tc.message}
@@ -3823,7 +3838,8 @@ func TestStandaloneAgentCommandDelivery(t *testing.T) {
 			h.driver.mu.Lock()
 			next := h.driver.promptCalls[1]
 			h.driver.mu.Unlock()
-			if next.AgentCommand || next.Maintenance || !strings.Contains(next.Message, "pending context") || len(next.Sections) != 1 {
+			if next.AgentCommand || next.Maintenance || !strings.Contains(next.Message, "pending context") ||
+				len(next.Sections) != 1 {
 				t.Fatalf("ordinary delivery = %#v", next)
 			}
 			if tc.command && !strings.Contains(next.Message, replay) {
@@ -3844,25 +3860,30 @@ func TestAgentCommandHonorsInputHooks(t *testing.T) {
 	}{
 		{"rewritten ordinary prompt", "explain /compact", false},
 		{"denied command", "", true},
+		{"leading whitespace", " \n/compact keep decisions\t ", false},
 	} {
 		t.Run("Should honor "+tc.name, func(t *testing.T) {
 			t.Parallel()
-			dispatcher := &spyHookDispatcher{dispatchInputPreSubmitFn: func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
-				if tc.denied {
-					return payload, errors.New("command denied")
-				}
-				payload.Message = tc.rewrite
-				return payload, nil
-			}}
+			dispatcher := &spyHookDispatcher{
+				dispatchInputPreSubmitFn: func(_ context.Context, payload hookspkg.InputPreSubmitPayload) (hookspkg.InputPreSubmitPayload, error) {
+					if tc.denied {
+						return payload, errors.New("command denied")
+					}
+					payload.Message = tc.rewrite
+					return payload, nil
+				},
+			}
 			h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 			session := createSession(t, h)
 			session.replaceAdvertisedCommands([]store.SessionAdvertisedCommand{{Name: "compact"}}, h.manager.now())
 			result, err := h.manager.SendPrompt(t.Context(), session.ID, SendPromptOpts{
-				Message: "/compact", AllowCommands: true, Caller: PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+				Message:       "/compact",
+				AllowCommands: true,
+				Caller:        PromptCaller{Kind: "human", ID: "operator", Source: "http"},
 			})
 			if tc.denied {
-				if err == nil {
-					t.Fatal("denied command was accepted")
+				if err == nil || !strings.Contains(err.Error(), "command denied") {
+					t.Fatalf("hook denial error = %v", err)
 				}
 				h.driver.mu.Lock()
 				defer h.driver.mu.Unlock()
@@ -3878,8 +3899,79 @@ func TestAgentCommandHonorsInputHooks(t *testing.T) {
 			h.driver.mu.Lock()
 			defer h.driver.mu.Unlock()
 			request := h.driver.promptCalls[0]
-			if request.AgentCommand || request.Message != tc.rewrite {
+			wantCommand := tc.name == "leading whitespace"
+			want := tc.rewrite
+			if wantCommand {
+				want = strings.TrimSpace(want)
+			}
+			if request.AgentCommand != wantCommand || request.Message != want {
 				t.Fatalf("rewritten request = %#v", request)
+			}
+		})
+	}
+}
+
+func TestAgentCommandsFollowCurrentRuntime(t *testing.T) {
+	t.Parallel()
+	for _, replacement := range []string{"provider switch", "restart"} {
+		t.Run("Should discard old advertisements after "+replacement, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(
+				t,
+				WithPromptInputAugmenter(func(_ context.Context, _ *Session, message string) (string, error) {
+					return "current context\n\n" + message, nil
+				}),
+			)
+			session := createSession(t, h)
+			var calls atomic.Int32
+			h.driver.promptHook = func(_ *fakeProcess, request acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 2)
+				if calls.Add(1) == 1 {
+					events <- (acp.AgentEvent{Type: acp.EventTypeAvailableCommands, TurnID: request.TurnID, Timestamp: h.manager.now()}).WithAvailableCommands([]store.SessionAdvertisedCommand{{Name: "context"}})
+				}
+				events <- acp.AgentEvent{Type: acp.EventTypeDone, TurnID: request.TurnID, Timestamp: h.manager.now()}
+				close(events)
+				return events, nil
+			}
+			opts := SendPromptOpts{
+				Message:       "/context",
+				AllowCommands: true,
+				Caller:        PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+			}
+			for index := range 3 {
+				if index == 2 {
+					if replacement == "provider switch" {
+						opts.Runtime = &RuntimeSelection{Provider: "codex"}
+					} else {
+						if err := h.manager.Stop(t.Context(), session.ID); err != nil {
+							t.Fatal(err)
+						}
+						resumed, err := h.manager.Resume(t.Context(), session.ID)
+						if err != nil {
+							t.Fatal(err)
+						}
+						session = resumed
+					}
+				}
+				result, err := h.manager.SendPrompt(t.Context(), session.ID, opts)
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, result.Events)
+				requests := managerPromptCalls(h)
+				got := requests[index]
+				if got.AgentCommand != (index == 1) {
+					t.Fatalf("turn %d delivery = %#v", index, got)
+				}
+				if index == 1 && got.Message != "/context" {
+					t.Fatalf("command = %q", got.Message)
+				}
+				if index != 1 && !strings.Contains(got.Message, "current context") {
+					t.Fatalf("ordinary prompt lost context: %q", got.Message)
+				}
+			}
+			if len(session.Info().AdvertisedCommands) != 0 {
+				t.Fatal("replacement retained old command catalog")
 			}
 		})
 	}
