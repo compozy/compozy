@@ -2211,6 +2211,30 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("user-message-rewind")).toBeDisabled();
   });
 
+  // Invariant: user prose links permit only safe external protocols and leave
+  // code literal. Owner: user-message rendering; canonical suite: SessionThread.
+  it("renders safe user links while preserving code and unsafe link labels", async () => {
+    const text =
+      "https://example.com/path?q=1#part [Email](mailto:hello@example.com) [unsafe](javascript:alert) `https://code.example`";
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages([
+        { id: "user-links", role: "user", parts: [{ type: "text", text }] } as SessionMessage,
+      ]),
+    });
+    const bubble = await screen.findByTestId("user-message-bubble");
+    const links = within(bubble).getAllByRole("link");
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute("href", "https://example.com/path?q=1#part");
+    expect(links[1]).toHaveAttribute("href", "mailto:hello@example.com");
+    for (const link of links) {
+      expect(link).toHaveAttribute("rel", "noopener noreferrer");
+      expect(link).toHaveAttribute("target", "_blank");
+    }
+    expect(within(bubble).getByText("https://code.example").tagName).toBe("CODE");
+    expect(bubble).toHaveTextContent("unsafe");
+  });
+
   it("Should render verified skill invocation tokens from persisted user-message metadata", async () => {
     const transcript = [
       {
@@ -4908,6 +4932,21 @@ describe("SessionThread composer running semantics", () => {
       sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
       sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     });
+  });
+
+  // Invariant: decorating URL text never changes the authored draft, including
+  // subsequent edits. Owner: composer; canonical suite: SessionThread composer.
+  it("preserves editable URL text through composer formatting and edits", async () => {
+    renderComposer({ isSessionRunning: false });
+    await screen.findByTestId("composer-input");
+    const text = "Read https://example.com/a_(b)?q=1#hash, then mailto:a@example.com";
+    await setComposerText(text);
+    const editable = await findComposerEditable();
+    await waitFor(() => expect(editable).toHaveTextContent(text));
+    expect(composerText()).toBe(text);
+    await setComposerText(text.replace("https://", "broken://"));
+    await waitFor(() => expect(editable).toHaveTextContent("broken://example.com"));
+    expect(composerText()).toBe(text.replace("https://", "broken://"));
   });
 
   it("Should restore the active session draft after the composer remounts", async () => {

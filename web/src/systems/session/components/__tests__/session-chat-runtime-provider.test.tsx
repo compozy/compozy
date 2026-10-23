@@ -2386,6 +2386,58 @@ describe("SessionChatRuntimeProvider", () => {
     expect(body.messageId).toBeUndefined();
   });
 
+  // Invariant: admitted input metadata renders during the POST without replacing
+  // its live assistant output. Owner and canonical suite: runtime provider integration.
+  it("renders admitted directives while the assistant response is still streaming", async () => {
+    transcriptMessages = [];
+    const answer = createDeferred<Response>();
+    promptResponsePromise = answer.promise;
+    const openPrompt = openSseResponse([
+      'data: {"type":"start","messageId":"turn-directives"}\n\n',
+      'data: {"type":"text-start","id":"answer"}\n\n',
+      'data: {"type":"text-delta","id":"answer","delta":"Still working"}\n\n',
+    ]);
+    const user = userEvent.setup();
+    const view = renderSessionThread();
+    try {
+      await screen.findByTestId("composer-input");
+      const text = "Olá 🧪 /review";
+      await setComposerText(text);
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(lastPromptMessageID).not.toBe(""));
+      transcriptMessages = [
+        {
+          id: lastPromptMessageID,
+          role: "user",
+          content: text,
+          parts: [{ type: "text", text }],
+          metadata: {
+            skill_invocations: [
+              { command_id: "skill:review", token: "/review", start: 7, end: 14 },
+            ],
+          },
+        },
+        {
+          id: "turn-directives",
+          role: "assistant",
+          parts: [{ type: "text", text: "Stale partial" }],
+        },
+      ] as typeof transcriptMessages;
+      answer.resolve(openPrompt.response);
+      expect(await screen.findByTestId("session-skill-directive")).toHaveTextContent("/review");
+      expect(await screen.findByText("Still working")).toBeInTheDocument();
+      expect(screen.queryByText("Stale partial")).not.toBeInTheDocument();
+      expect(screen.getByTestId("composer-stop-button")).toBeInTheDocument();
+    } finally {
+      openPrompt.close([
+        'data: {"type":"text-end","id":"answer"}\n\n',
+        'data: {"type":"finish","finishReason":"stop"}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+      view.unmount();
+    }
+  });
+
   it("Should dock a live permission while the prompt stream remains open", async () => {
     transcriptMessages = [];
     const openPrompt = openSseResponse([
