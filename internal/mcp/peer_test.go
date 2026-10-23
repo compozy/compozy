@@ -77,7 +77,11 @@ func TestPeerInfoFromUnixConnIdentifiesLocalPeer(t *testing.T) {
 	t.Run("Should identify the local peer over a contextual Unix connection", func(t *testing.T) {
 		t.Parallel()
 
-		socketDir, err := os.MkdirTemp("/tmp", "compozy-peer-")
+		socketRoot := "/tmp"
+		if runtime.GOOS == "windows" {
+			socketRoot = ""
+		}
+		socketDir, err := os.MkdirTemp(socketRoot, "compozy-peer-")
 		if err != nil {
 			t.Fatalf("MkdirTemp() error = %v", err)
 		}
@@ -134,7 +138,7 @@ func TestPeerInfoFromUnixConnIdentifiesLocalPeer(t *testing.T) {
 				t.Fatalf("accepted connection Close() error = %v", result.closeErr)
 			}
 			if errors.Is(result.err, ErrPeerCredentialsUnsupported) &&
-				(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
+				(runtime.GOOS == "darwin" || runtime.GOOS == "linux" || runtime.GOOS == "windows") {
 				t.Fatalf(
 					"PeerInfoFromConn(unix) error = %v on %s, want supported peer inspection",
 					result.err,
@@ -147,7 +151,7 @@ func TestPeerInfoFromUnixConnIdentifiesLocalPeer(t *testing.T) {
 			if result.err != nil {
 				t.Fatalf("PeerInfoFromConn(unix) error = %v", result.err)
 			}
-			if !result.peer.Supported || result.peer.PID <= 0 || result.peer.UID != os.Getuid() {
+			if !result.peer.Supported || result.peer.PID <= 0 || validatePeerUser(result.peer) != nil {
 				t.Fatalf("peer info = %#v, want supported current user peer", result.peer)
 			}
 			if result.peer.ExecutablePath == "" {

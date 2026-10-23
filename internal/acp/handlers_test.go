@@ -1195,6 +1195,131 @@ func TestHandleReleaseTerminalReleasesExternalTerminal(t *testing.T) {
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
+	t.Run("Should preserve late startup diagnostics without completing the tool twice", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+		active, err := proc.beginPrompt("turn-startup-late", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		for _, raw := range []string{
+			`{"sessionUpdate":"tool_call","toolCallId":"startup","title":"Compozy hosted tools","kind":"other","status":"failed"}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":{"error":"late startup diagnostic"}}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":{"error":"late startup diagnostic"}}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed"}`,
+			`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":null,"content":[]}`,
+		} {
+			if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{
+				SessionID: "sess-direct", Update: json.RawMessage(raw),
+			})); err != nil {
+				t.Fatal(err)
+			}
+		}
+		proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-startup-late"})
+		events := collectEventsUntilCount(t, active.events, 5)
+		if events[0].Type != EventTypeToolCall || events[1].Type != EventTypeToolResult ||
+			events[1].ToolResultUpdate() {
+			t.Fatalf("initial startup events = %#v, want call and first completion", events[:2])
+		}
+		for _, event := range events[2:4] {
+			if event.Type != EventTypeToolResult || !event.ToolResultUpdate() || !event.ToolError() ||
+				!strings.Contains(string(event.Raw), "late startup diagnostic") {
+				t.Fatalf("late diagnostic = %#v, want output update without a repeated completion", event)
+			}
+		}
+		if events[4].Type != EventTypeDone {
+			t.Fatalf("last event = %#v, want done without empty output update", events[4])
+		}
+	})
+
+	t.Run("Should preserve terminal output and avoid repeated startup results", func(t *testing.T) {
+		t.Parallel()
+		for _, resultFirst := range []bool{true, false} {
+			name := "Should synthesize only one result for repeated terminal calls"
+			if resultFirst {
+				name = "Should retain a result received before its terminal call"
+			}
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+				active, err := proc.beginPrompt("turn-startup", 8)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer proc.endPrompt(active)
+				if resultFirst {
+					if err := proc.handleSessionUpdate(mustMarshalJSON(wireSessionNotification{
+						SessionID: "sess-direct",
+						Update: json.RawMessage(
+							`{"sessionUpdate":"tool_call_update","toolCallId":"startup","status":"failed","rawOutput":{"error":"original startup diagnostic"}}`,
+						),
+					})); err != nil {
+						t.Fatal(err)
+					}
+				}
+				call := mustMarshalJSON(wireSessionNotification{
+					SessionID: "sess-direct",
+					Update: json.RawMessage(
+						`{"sessionUpdate":"tool_call","toolCallId":"startup","title":"Compozy hosted tools","kind":"other","status":"failed"}`,
+					),
+				})
+				for range 2 {
+					if err := proc.handleSessionUpdate(call); err != nil {
+						t.Fatal(err)
+					}
+				}
+				proc.emitPromptEvent(AgentEvent{Type: EventTypeDone, TurnID: "turn-startup"})
+				events := collectEventsUntilCount(t, active.events, 3)
+				if events[0].Type != EventTypeToolCall || events[1].Type != EventTypeToolResult ||
+					events[2].Type != EventTypeDone || !events[1].ToolError() {
+					t.Fatalf("startup events = %#v, want one call and one terminal result before done", events)
+				}
+				if resultFirst && !strings.Contains(string(events[1].Raw), "original startup diagnostic") {
+					t.Fatalf("startup result lost earlier output: %s", events[1].Raw)
+				}
+			})
+		}
+	})
+
+	t.Run("Should settle startup calls received with an initial terminal status", func(t *testing.T) {
+		t.Parallel()
+		for _, status := range []string{"failed", "completed"} {
+			t.Run("Should emit a result for initial "+status+" status", func(t *testing.T) {
+				t.Parallel()
+				proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+				active, err := proc.beginPrompt("turn-startup", 2)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer proc.endPrompt(active)
+				update := mustMarshalJSON(wireSessionNotification{
+					SessionID: "sess-direct",
+					Update: mustMarshalJSON(map[string]any{
+						"sessionUpdate": "tool_call", "toolCallId": "startup", "kind": "other",
+						"title": "Compozy hosted tools", "status": status,
+						"rawOutput": map[string]any{"error": "Windows AF_UNIX peer identity unavailable"},
+					}),
+				})
+				if err := proc.handleSessionUpdate(update); err != nil {
+					t.Fatal(err)
+				}
+				events := collectEventsUntilCount(t, active.events, 2)
+				if events[0].Type != EventTypeToolCall || events[0].ToolCallID != "startup" {
+					t.Fatalf("startup event = %#v, want tool call before its result", events[0])
+				}
+				got := events[1]
+				if got.Type != EventTypeToolResult || got.ToolCallID != "startup" ||
+					got.ToolStatus() != status || got.ToolError() != (status == "failed") {
+					t.Fatalf("startup event = %#v, want terminal result with status %s", got, status)
+				}
+				if !strings.Contains(string(got.Raw), "Windows AF_UNIX peer identity unavailable") {
+					t.Fatalf("startup event dropped actionable provider error: %s", got.Raw)
+				}
+			})
+		}
+	})
+
 	t.Run("Should discard invalid observations and emit sanitized Claude metadata", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
