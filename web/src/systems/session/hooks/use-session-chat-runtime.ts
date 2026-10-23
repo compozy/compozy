@@ -33,6 +33,7 @@ import { useSessionAttachmentAdapter } from "./use-session-attachment-adapter";
 import { useOptionalSessionPromptRuntimeContext } from "./use-session-prompt-runtime-context";
 import { loopsKeys } from "@/systems/loops";
 import { fetchSessionTranscript } from "../adapters/session-api";
+import { sessionTranscriptOptions } from "../lib/session-transcript-options";
 import {
   reconcileAdmittedPrompt,
   type SessionTranscriptData,
@@ -273,7 +274,14 @@ function buildSessionRuntimeConfig(
         // suspended, retaining its cursor and every streaming assistant message.
         if (messageId !== null) {
           void fetchSessionTranscript(workspaceId, sessionId, {}, controller.signal)
-            .then(transcript => {
+            .then(async transcript => {
+              // A cold composer may send before its first history read finishes.
+              // Join that canonical read before merging, so its older snapshot
+              // cannot discard the admitted input and its verified directives.
+              await queryClient.ensureInfiniteQueryData(
+                sessionTranscriptOptions(workspaceId, sessionId)
+              );
+              if (controller.signal.aborted) return;
               queryClient.setQueryData<SessionTranscriptData>(
                 sessionKeys.transcript(workspaceId, sessionId),
                 current => reconcileAdmittedPrompt(current, transcript, messageId)

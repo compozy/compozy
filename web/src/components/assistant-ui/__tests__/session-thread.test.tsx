@@ -20,9 +20,12 @@ import userEvent from "@testing-library/user-event";
 import {
   $getRoot,
   $getSelection,
+  $isRangeSelection,
   $isTextNode,
   $setSelection,
   getNearestEditorFromDOMNode,
+  CONTROLLED_TEXT_INSERTION_COMMAND,
+  UNDO_COMMAND,
   type ElementNode,
 } from "lexical";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -4849,15 +4852,21 @@ async function findComposerEditable(): Promise<HTMLElement> {
 async function placeComposerCursor(offset: number) {
   const editable = await findComposerEditable();
   const walker = document.createTreeWalker(editable, NodeFilter.SHOW_TEXT);
-  const textNode = walker.nextNode();
+  let textNode = walker.nextNode();
+  let localOffset = offset;
+  while (textNode && localOffset > (textNode.textContent?.length ?? 0)) {
+    localOffset -= textNode.textContent?.length ?? 0;
+    textNode = walker.nextNode();
+  }
   if (!textNode) {
     throw new Error("composer line has no rendered text node");
   }
+  const cursorNode = textNode;
   await act(async () => {
     editable.focus();
     const selection = document.getSelection();
     const range = document.createRange();
-    range.setStart(textNode, offset);
+    range.setStart(cursorNode, localOffset);
     range.collapse(true);
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -4944,6 +4953,25 @@ describe("SessionThread composer running semantics", () => {
     const editable = await findComposerEditable();
     await waitFor(() => expect(editable).toHaveTextContent(text));
     expect(composerText()).toBe(text);
+    const cursor = text.indexOf("_(b)");
+    await placeComposerCursor(cursor);
+    const editor = getNearestEditorFromDOMNode(editable);
+    const readCursor = () =>
+      editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        return $isRangeSelection(selection) ? readCursorSnapshot(selection)?.cursor : null;
+      });
+    await act(async () => {
+      editor.dispatchCommand(CONTROLLED_TEXT_INSERTION_COMMAND, " ");
+    });
+    const edited = `${text.slice(0, cursor)} ${text.slice(cursor)}`;
+    await waitFor(() => expect(composerText()).toBe(edited));
+    expect(readCursor()).toBe(cursor + 1);
+    await act(async () => {
+      editor.dispatchCommand(UNDO_COMMAND, undefined);
+    });
+    await waitFor(() => expect(composerText()).toBe(text));
+    expect(readCursor()).toBe(cursor);
     await setComposerText(text.replace("https://", "broken://"));
     await waitFor(() => expect(editable).toHaveTextContent("broken://example.com"));
     expect(composerText()).toBe(text.replace("https://", "broken://"));
