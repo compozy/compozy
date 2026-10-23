@@ -103,6 +103,42 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	// Invariant: bounded captured output survives event chunk limits without splitting Unicode or exposing secrets.
+	// Owner: worktree removal; canonical removal and recovery suite.
+	t.Run("Should publish all captured teardown output within event limits", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		secret := "chunk-first-line\nchunk-second-line"
+		t.Cleanup(redact.RegisterDynamicSecret(secret))
+		prefix := strings.Repeat("é", 2047) + "x"
+		output := prefix + secret + strings.Repeat("é", 2500)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf '%s' '" + output + "'; printf '%s' '" + output + "' >&2"
+		WithConfig(settings, t.TempDir())(f.service)
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		if _, err := f.service.Remove(t.Context(), f.workspace.ID, f.item.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		streams := map[string]string{}
+		for _, event := range f.events.events {
+			if event.Name != EventTeardownOutput {
+				continue
+			}
+			var payload ExitEventPayload
+			if err := json.Unmarshal(event.Payload, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Chunk) > exitHookOutputLimit {
+				t.Fatal("oversized event")
+			}
+			streams[payload.Stream] += payload.Chunk
+		}
+		want := redact.String(output)
+		if streams[string(GitOutputStdout)] != want || streams[string(GitOutputStderr)] != want {
+			t.Fatal("captured output was lost or secret was exposed")
+		}
+	})
+
 	for _, tc := range []struct {
 		name, command, cause string
 		timeout              time.Duration

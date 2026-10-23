@@ -3,6 +3,9 @@ package worktree
 import (
 	"context"
 	"strings"
+	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 const (
@@ -29,9 +32,7 @@ func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Wor
 		command,
 		settings.TeardownTimeout,
 		func(output GitOutput) {
-			s.emitExit(ctx, EventTeardownOutput, operation, ExitEventPayload{
-				Action: ExitAction(exitRemoveAction), Stream: string(output.Stream), Chunk: string(output.Chunk),
-			})
+			s.emitTeardownOutput(ctx, operation, output)
 		},
 	)
 	if state == SetupFailed {
@@ -61,4 +62,21 @@ func (s *Service) prepareFencedRemoval(
 		return s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
 	}
 	return false, risk, nil, nil
+}
+
+func (s *Service) emitTeardownOutput(ctx context.Context, operation ExitOperation, output GitOutput) {
+	// Redact before splitting so secrets spanning event boundaries remain protected.
+	remaining := redact.String(strings.ToValidUTF8(string(output.Chunk), "�"))
+	for remaining != "" {
+		end := min(len(remaining), exitHookOutputLimit)
+		if end < len(remaining) {
+			for !utf8.RuneStart(remaining[end]) {
+				end--
+			}
+		}
+		s.emitExit(ctx, EventTeardownOutput, operation, ExitEventPayload{
+			Action: ExitAction(exitRemoveAction), Stream: string(output.Stream), Chunk: remaining[:end],
+		})
+		remaining = remaining[end:]
+	}
 }
