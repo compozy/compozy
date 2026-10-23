@@ -27,27 +27,56 @@ func (m *Manager) Archive(ctx context.Context, workspaceID string, sessionID str
 	return m.setArchived(ctx, workspaceID, sessionID, true)
 }
 
-// ArchiveWithStop archives a session in one daemon-owned operation: a live
-// session is first stopped through the normal user stop path, including its
-// subagent stop cascade, and then archived. A stopped session archives exactly
-// as Archive does. A failed stop leaves the session unarchived and reports
-// ErrSessionArchiveStopFailed.
+// archiveRequiresStoppedError keeps the public refusal text while naming the
+// archive-family member whose live state blocked the archive.
+type archiveRequiresStoppedError struct {
+	sessionID string
+	member    string
+}
+
+func (e *archiveRequiresStoppedError) Error() string {
+	return ErrSessionArchiveRequiresStopped.Error() + ": " + e.sessionID
+}
+
+func (e *archiveRequiresStoppedError) Unwrap() error {
+	return ErrSessionArchiveRequiresStopped
+}
+
+func newArchiveRequiresStoppedError(sessionID string, cause error) error {
+	member := sessionID
+	if live, ok := errors.AsType[*store.SessionArchiveLiveMemberError](cause); ok && live.SessionID != "" {
+		member = live.SessionID
+	}
+	return &archiveRequiresStoppedError{sessionID: sessionID, member: member}
+}
+
+// ArchiveWithStop archives a session in one daemon-owned operation: every live
+// member of its archive family is stopped through the normal user stop path,
+// which cancels active turns and cascades to subagents, and the family is then
+// archived. Completed subagents whose sessions the reaper has not stopped yet
+// are stopped here too. A stopped family archives exactly as Archive does. A
+// failed stop leaves the session unarchived and reports ErrSessionArchiveStopFailed.
 func (m *Manager) ArchiveWithStop(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
-	info, err := m.Archive(ctx, workspaceID, sessionID)
-	if !errors.Is(err, ErrSessionArchiveRequiresStopped) {
-		return info, err
-	}
 	sessionID = strings.TrimSpace(sessionID)
-	// A session that finalized after the archive attempt is no longer live, so
-	// its missing runtime is not a stop failure; the retry below decides.
-	if stopErr := m.Stop(ctx, sessionID); stopErr != nil && !errors.Is(stopErr, ErrSessionNotFound) {
-		return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, stopErr)
+	stopped := make(map[string]bool)
+	for {
+		info, err := m.Archive(ctx, workspaceID, sessionID)
+		refusal, ok := errors.AsType[*archiveRequiresStoppedError](err)
+		if !ok {
+			return info, err
+		}
+		// Each member is stopped at most once, so a member that stays live after
+		// its stop fails the request instead of looping.
+		if stopped[refusal.member] {
+			return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, err)
+		}
+		stopped[refusal.member] = true
+		// A member that finalized after the archive attempt is no longer live, so
+		// its missing runtime is not a stop failure; the next attempt decides.
+		if stopErr := m.Stop(ctx, refusal.member); stopErr != nil && !errors.Is(stopErr, ErrSessionNotFound) {
+			return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, stopErr)
+		}
 	}
-	info, err = m.Archive(ctx, workspaceID, sessionID)
-	if errors.Is(err, ErrSessionArchiveRequiresStopped) {
-		return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, err)
-	}
-	return info, err
 }
 
 // Unarchive restores a session to the default catalog.
@@ -83,7 +112,7 @@ func (m *Manager) setArchived(
 	if err != nil {
 		switch {
 		case errors.Is(err, store.ErrSessionArchiveRequiresStopped):
-			return nil, fmt.Errorf("%w: %s", ErrSessionArchiveRequiresStopped, sessionID)
+			return nil, newArchiveRequiresStoppedError(sessionID, err)
 		case errors.Is(err, store.ErrSessionArchived):
 			return nil, fmt.Errorf("%w: %s", ErrSessionArchived, sessionID)
 		default:
@@ -117,7 +146,7 @@ func (m *Manager) setSessionArchivedWithResumeGuard(
 	m.resumeLifecycle.mu.Lock()
 	defer m.resumeLifecycle.mu.Unlock()
 	if m.resumeLifecycle.runs[sessionID] != nil {
-		return store.SessionInfo{}, fmt.Errorf("%w: %s", ErrSessionArchiveRequiresStopped, sessionID)
+		return store.SessionInfo{}, newArchiveRequiresStoppedError(sessionID, nil)
 	}
 	return archiveStore.SetSessionArchived(ctx, workspaceID, sessionID, true)
 }

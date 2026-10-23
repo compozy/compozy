@@ -610,6 +610,32 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop live family members the parent stop leaves running before archiving", func(t *testing.T) {
+		t.Parallel()
+
+		paged := &pagedRecordingSessionCatalog{recordingSessionCatalog: newRecordingSessionCatalog()}
+		catalog := &familyArchiveCatalog{pagedRecordingSessionCatalog: paged, members: map[string][]string{}}
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		parent := createSession(t, h)
+		// A completed subagent keeps its session live until the reaper stops it;
+		// the parent's stop cascade skips it.
+		child := createSession(t, h)
+		catalog.setMembers(parent.ID, child.ID)
+
+		archived, err := h.manager.ArchiveWithStop(ctx, h.workspaceID, parent.ID)
+		if err != nil {
+			t.Fatalf("ArchiveWithStop(parent with live member) error = %v", err)
+		}
+		if archived.ArchivedAt == nil || archived.State != StateStopped {
+			t.Fatalf("ArchiveWithStop(parent) = %#v, want stopped archived parent", archived)
+		}
+		status, err := h.manager.Status(ctx, child.ID)
+		if err != nil || status.State != StateStopped {
+			t.Fatalf("Status(family member) = %#v, %v, want stopped", status, err)
+		}
+	})
+
 	t.Run("Should leave the session unarchived when the stop before archiving fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -3688,4 +3714,36 @@ func TestSessionInfoFromCatalogKeepsEffectiveWorkspaceAccess(t *testing.T) {
 			)
 		}
 	})
+}
+
+// familyArchiveCatalog refuses an archive while a declared family member is
+// live, naming that member the way the durable family archive does.
+type familyArchiveCatalog struct {
+	*pagedRecordingSessionCatalog
+	members map[string][]string
+}
+
+func (c *familyArchiveCatalog) setMembers(parent string, members ...string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.members[parent] = members
+}
+
+func (c *familyArchiveCatalog) SetSessionArchived(
+	ctx context.Context,
+	workspaceID string,
+	sessionID string,
+	archived bool,
+) (store.SessionInfo, error) {
+	if archived {
+		c.mu.Lock()
+		for _, member := range c.members[sessionID] {
+			if c.sessions[member].State != string(StateStopped) {
+				c.mu.Unlock()
+				return store.SessionInfo{}, &store.SessionArchiveLiveMemberError{SessionID: member}
+			}
+		}
+		c.mu.Unlock()
+	}
+	return c.pagedRecordingSessionCatalog.SetSessionArchived(ctx, workspaceID, sessionID, archived)
 }
