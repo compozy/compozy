@@ -1104,6 +1104,14 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		if renamed.ID != created.ID {
 			t.Fatalf("renamed ID = %q, want %q", renamed.ID, created.ID)
 		}
+		identities, err := manager.ListIdentities(ctx)
+		if err != nil {
+			t.Fatalf("ListIdentities() error = %v", err)
+		}
+		identityIndex := slices.IndexFunc(identities, func(item Profile) bool { return item.ID == created.ID })
+		if identityIndex < 0 || identities[identityIndex] != renamed {
+			t.Fatalf("ListIdentities() = %#v, want renamed identity %#v", identities, renamed)
+		}
 		assertMCPAuthProfileLifecycleRows(ctx, t, database, "marketing", 0)
 		assertMCPAuthProfileLifecycleRows(ctx, t, database, "growth", 4)
 		if _, err := os.Stat(filepath.Join(home.ProfilesDir, "growth")); err != nil {

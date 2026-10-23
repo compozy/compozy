@@ -24,6 +24,8 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -286,6 +288,125 @@ func TestSubagentDaemonIntegration(t *testing.T) {
 			}
 		}
 
+	})
+}
+
+func TestSubagentProfileCatalogIntegration(t *testing.T) {
+	t.Run("Should discover and delegate a profile extension agent only in its owning profile", func(t *testing.T) {
+		t.Parallel()
+		d, manager, workspace := newSubagentDaemonIntegration(t)
+		profile, err := d.profiles.Create(t.Context(), profilepkg.CreateInput{Name: "design"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		configPath := filepath.Join(d.homePaths.ProfilesDir, "design", "config.toml")
+		if err := os.WriteFile(configPath, []byte(`[defaults]
+agent = "designer"
+`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		records := d.agentCatalog.Snapshot()
+		records = append(records, resources.Record[compozyconfig.AgentDef]{
+			ID:    "design:designer",
+			Owner: resources.ResourceOwner{Kind: extensionResourceOwnerKind, ID: "design-extension"},
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: profile.ID},
+			Spec: compozyconfig.AgentDef{
+				Name:     "designer",
+				Provider: acpmock.ProviderName,
+				Prompt:   "Design carefully.",
+			},
+		})
+		d.agentCatalog.Replace(d.agentCatalog.Revision()+1, records)
+		for _, profileID := range []string{profile.ID, store.DefaultProfileID} {
+			parent, err := manager.Create(t.Context(), session.CreateOpts{Workspace: workspace, ProfileID: profileID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if profileID == profile.ID && parent.Info().AgentName != "designer" {
+				t.Fatalf("profile default agent = %q", parent.Info().AgentName)
+			}
+			response, err := manager.SendPrompt(t.Context(), parent.ID, session.SendPromptOpts{Message: "hold parent"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			go func() {
+				for range response.Events {
+				}
+			}()
+			waitForRuntimeCondition(
+				t,
+				"profile parent active",
+				10*time.Second,
+				func() bool { return parent.IsPrompting() && parent.CurrentTurnID() != "" },
+			)
+			caller := session.SubagentCaller{
+				WorkspaceID: workspace,
+				SessionID:   parent.ID,
+				TurnID:      parent.CurrentTurnID(),
+				ToolCallID:  "profile-child",
+			}
+			capabilities, err := d.SubagentService().Capabilities(t.Context(), caller)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, agent := range capabilities.Agents {
+				if agent.Name == "designer" {
+					found = true
+				}
+			}
+			if found != (profileID == profile.ID) {
+				t.Fatalf("profile %s designer visibility = %v", profileID, found)
+			}
+			scope := toolspkg.Scope{
+				SessionID:   parent.ID,
+				AgentName:   parent.Info().AgentName,
+				WorkspaceID: workspace,
+				ProfileID:   profileID,
+			}
+			for _, call := range []struct {
+				id    toolspkg.ToolID
+				input string
+			}{
+				{toolspkg.ToolIDSessionStatus, fmt.Sprintf(`{"session_id":%q}`, parent.ID)},
+				{toolspkg.ToolIDSessionList, `{}`},
+			} {
+				result, err := d.toolRegistry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: call.id, Input: jsonv1.RawMessage(call.input)},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				name := "default"
+				if profileID == profile.ID {
+					name = "design"
+				}
+				if !strings.Contains(string(result.Structured), `"profile_name":"`+name+`"`) {
+					t.Fatalf("%s profile owner missing: %s", call.id, result.Structured)
+				}
+			}
+			row, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "child work", Target: session.SubagentTarget{Agent: "designer"}})
+			if profileID != profile.ID {
+				detail, ok := errors.AsType[*session.SubagentError](err)
+				if !ok || detail.Code != "agent_not_found" {
+					t.Fatalf("foreign target error = %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				waitForRuntimeCondition(t, "profile child completed", 15*time.Second, func() bool {
+					current, err := d.SubagentService().Get(t.Context(), workspace, row.ID)
+					return err == nil && current.Status == "completed"
+				})
+			}
+			if err := manager.Stop(t.Context(), parent.ID); err != nil {
+				t.Fatal(err)
+			}
+		}
 	})
 }
 

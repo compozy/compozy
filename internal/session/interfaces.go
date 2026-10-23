@@ -428,6 +428,12 @@ type AgentResolver interface {
 	ResolveAgent(name string, resolved *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error)
 }
 
+// AgentCatalogResolver enumerates the same scoped definitions used for target resolution.
+type AgentCatalogResolver interface {
+	AgentResolver
+	ListAgentDefinitions(resolved *workspacepkg.ResolvedWorkspace) []compozyconfig.AgentDef
+}
+
 // SkillRegistry resolves the active skill set for a workspace during session start.
 type SkillRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)

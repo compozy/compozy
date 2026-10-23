@@ -209,19 +209,28 @@ func (h *BaseHandlers) respondProfileReadScopeError(c *gin.Context, err error) {
 	h.respondError(c, StatusForAgentIdentityError(err), err)
 }
 
+// profileOwnerIdentities loads current owner labels through the configured profile service.
 func (h *BaseHandlers) profileOwnerIdentities(ctx context.Context) (map[string]profileOwnerIdentity, error) {
-	if h == nil || h.Profiles == nil {
+	if h == nil {
+		return profileOwnerIdentities(ctx, nil)
+	}
+	return profileOwnerIdentities(ctx, h.Profiles)
+}
+
+// profileOwnerIdentities indexes metadata by stable ID, retaining the default owner when no service is configured.
+func profileOwnerIdentities(ctx context.Context, profiles ProfileOwnerReader) (map[string]profileOwnerIdentity, error) {
+	if profiles == nil {
 		return map[string]profileOwnerIdentity{
 			store.DefaultProfileID: {ID: store.DefaultProfileID, Name: profileDefaultName},
 			"":                     {ID: store.DefaultProfileID, Name: profileDefaultName},
 		}, nil
 	}
-	profiles, err := h.profileService().List(ctx)
+	items, err := profiles.ListIdentities(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]profileOwnerIdentity, len(profiles))
-	for _, item := range profiles {
+	result := make(map[string]profileOwnerIdentity, len(items))
+	for _, item := range items {
 		result[item.ID] = profileOwnerIdentity{
 			ID: strings.TrimSpace(item.ID), Name: strings.TrimSpace(item.Name),
 			Color: strings.TrimSpace(item.Color), Icon: strings.TrimSpace(item.Icon),

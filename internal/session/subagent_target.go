@@ -91,6 +91,7 @@ func (r managerSubagentRuntime) Resolve(
 	return target, nil
 }
 
+// Capabilities describes provider and agent targets available in the parent session's profile.
 func (r managerSubagentRuntime) Capabilities(
 	ctx context.Context,
 	parent *Info,
@@ -137,8 +138,12 @@ func (r managerSubagentRuntime) Capabilities(
 		options = append(options, option)
 		byName[name] = option
 	}
-	agents := make([]SubagentAgentOption, 0, len(workspace.Agents))
-	for _, agent := range workspace.Agents {
+	definitions := workspace.Agents
+	if catalog, ok := r.m.agentResolver.(AgentCatalogResolver); ok {
+		definitions = catalog.ListAgentDefinitions(&workspace)
+	}
+	agents := make([]SubagentAgentOption, 0, len(definitions))
+	for _, agent := range definitions {
 		resolved, err := workspace.Config.ResolveAgent(agent)
 		option := SubagentAgentOption{Name: agent.Name, Constraints: []string{}}
 		if err != nil {

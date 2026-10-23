@@ -51,6 +51,7 @@ type extensionPublishSecretResolver interface {
 
 type nativeProfileReader interface {
 	List(context.Context) ([]profilepkg.WithCounts, error)
+	ListIdentities(context.Context) ([]profilepkg.Profile, error)
 	ProfileName(context.Context, string) (string, error)
 }
 

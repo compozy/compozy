@@ -63,8 +63,7 @@ func configureProfileMutationCommand(cmd *cobra.Command, deps commandDeps) {
 	configureSingleProfileCommand(cmd, deps)
 }
 
-// configureSingleProfileReadCommand resolves exactly one selected profile for
-// reads that do not define an aggregate form.
+// configureSingleProfileReadCommand keeps explicit selectors ahead of session profile defaults.
 func configureSingleProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
 	if cmd == nil || cmd.RunE == nil {
 		return
@@ -75,7 +74,10 @@ func configureSingleProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
 		if err != nil {
 			return err
 		}
-		if !requested {
+		credentials := agentCredentialsFromEnv(deps)
+		bound := credentials.SessionID != "" && credentials.AgentName != "" &&
+			agentCommandUsesProfileScopedSessionSurface(cmd)
+		if !requested && !bound {
 			recordProfileResolution(cmd, profileResolution{
 				Profile: contract.Profile{Name: configDefaultKey}, Source: profileResolutionDefault,
 			})
@@ -278,12 +280,13 @@ func prepareAgentProfileSelection(
 	return true, nil
 }
 
+// agentCommandUsesProfileScopedSessionSurface identifies commands whose default profile follows their agent session.
 func agentCommandUsesProfileScopedSessionSurface(cmd *cobra.Command) bool {
 	if cmd == nil {
 		return false
 	}
 	parts := strings.Fields(cmd.CommandPath())
-	return len(parts) >= 2 && parts[1] == "session"
+	return len(parts) >= 2 && (parts[1] == "session" || parts[1] == "agent")
 }
 
 func recordProfileReadSelection(cmd *cobra.Command, selection profileReadSelection) {

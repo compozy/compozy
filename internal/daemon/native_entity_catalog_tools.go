@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
@@ -18,6 +19,7 @@ type vaultListInput struct {
 	Prefix string `json:"prefix,omitempty"`
 }
 
+// agentList lists agents from the caller's bound profile and workspace layers.
 func (n *daemonNativeTools) agentList(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -28,23 +30,20 @@ func (n *daemonNativeTools) agentList(
 		return toolspkg.ToolResult{}, err
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.Workspace, scope)
-	var entries []core.AgentCatalogEntry
-	if workspaceID == "" {
-		listed, err := n.deps.AgentCatalog.ListAgents(ctx)
-		if err != nil {
-			return toolspkg.ToolResult{}, fmt.Errorf("daemon: list agent catalog: %w", err)
-		}
-		entries = listed
-	} else {
-		resolved, err := n.deps.Workspaces.Resolve(ctx, workspaceID)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		listed, err := n.workspaceAgents(ctx, &resolved)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		entries = listed
+	profileID, _, sessionWorkspaceID, err := n.nativeCurrentProfileIdentity(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if strings.TrimSpace(input.Workspace) == "" && strings.TrimSpace(scope.WorkspaceID) == "" {
+		workspaceID = sessionWorkspaceID
+	}
+	resolved, err := n.nativeSkillWorkspace(ctx, profileID, workspaceID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	entries, err := n.workspaceAgents(ctx, resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	payload := core.AgentPayloadsFromEntries(entries)
 	return structuredResult(
