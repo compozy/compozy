@@ -32,9 +32,9 @@ func execute(args []string) int {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf(
-			"usage: compozy-desktop-release <publish|repair|compatibility-channels|min-app-version|assert-inventory|assert-version>",
-		)
+		return fmt.Errorf("usage: compozy-desktop-release <%s>", strings.Join([]string{
+			"publish", "repair", "compatibility-channels", "min-app-version", "assert-inventory", "assert-version",
+		}, "|"))
 	}
 	switch args[0] {
 	case "publish":
@@ -154,7 +154,7 @@ func runMinAppVersion(args []string) error {
 	flags := newFlagSet("min-app-version")
 	version := flags.String("version", "", "release version")
 	var live repeatedFlag
-	flags.Var(&live, "live", "live app version of one compatibility channel; repeat per channel, empty when unpublished")
+	flags.Var(&live, "live", "live app version of one compatibility channel; repeat per channel")
 	if err := parseFlags(flags, args); err != nil {
 		return err
 	}
