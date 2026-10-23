@@ -172,3 +172,26 @@ zero duplicate-key and render-phase update warnings, no live delegation row once
 its terminal receipt/card arrives, and no count reset when stopping a later turn.
 Reload and compare the finished transcript. Current run and limits:
 [issues 851–854 report](../reports/2026-10-19-issues-851-854.md).
+
+## Steers delivered mid-call (issue #923)
+
+The daemon projects a turn steered mid-call as several assistant messages: the
+turn's first chunk, one marker message per delivered steer (landing between a
+pending call and its result), and the turn's `-2` continuation. They must read
+as one turn: the pieces keep the inline row rhythm, only the turn's last piece
+opens the turn gap, and a steer marker whose row draws nothing (its identity is
+bound to a loaded bubble, or an older marker of the same identity) mounts no
+empty shell. Each distinct subagent wake keeps its own `message_id`; events
+persisted before the fix carry `[REDACTED]` and render one steer row.
+
+Walk: in a live parent turn, delegate subagents, let two finish while a
+`compozy__subagent_status` call is pending, and watch the live turn, then
+reload. Expect no blank band between the user bubble, the tool rows, the
+"Steered" rows, and the turn's work summary; repeat with an operator steer
+mid-call (its marker row draws nothing because the bubble's meta line owns it).
+
+Verification 2026-10-23 (issue #923), Storybook + component suite only: the
+sanitized projection of the reported session renders in
+`SessionsStability/Working/SteeredWakesMidTool` and `…/SteeredWakesRedactedIdentity`
+with a uniform rhythm (before: an empty 22 px shell and a turn gap after every
+piece). Not walked: a live-runtime parent turn with real subagent wakes.

@@ -66,6 +66,10 @@ import {
   type SessionForkRequest,
 } from "@/systems/session/contexts/session-fork-context-value";
 import { continuedSessionFixture } from "@/systems/session/mocks/derive-fixtures";
+import {
+  STEER_WAKE_TURN,
+  steeredWakesTranscript,
+} from "@/systems/session/components/stories/sessions-stability-steer-fixtures";
 import { sessionOriginView } from "@/systems/session/lib/session-origin";
 import { SessionThread } from "../session-thread";
 import { readCursorSnapshot } from "../session-composer-cursor-snapshot";
@@ -1566,6 +1570,69 @@ describe("SessionThread transcript states", () => {
     expect(legacyRows[0]).toHaveAttribute("data-steer", "injected");
     // Meta lines exist only under the two real messages plus the receipt.
     expect(metas).toHaveLength(3);
+  });
+
+  // Invariant (issue #923): a turn the daemon splits around steer markers
+  // delivered mid-call reads as one turn — no empty shell for a marker whose row
+  // draws nothing, and the turn's pieces keep the inline rhythm with the turn
+  // gap only after its last piece. Owning layer: thread rendering over the real
+  // provenance provider, fed the sanitized projection of the reported turn.
+  it.each([
+    [
+      "distinct wake identities",
+      ["wake_01M5MV5SVJGJVBC5P1278DP0KA", "wake_01M5MV6A9XKQ2RTB7W3HZC4D8E"],
+      2,
+    ],
+    ["identities persisted as [REDACTED]", ["[REDACTED]", "[REDACTED]"], 1],
+  ] as const)(
+    "Should render a turn steered mid-call by subagent wakes without empty gaps (%s)",
+    async (_label, wakeIds, steerRows) => {
+      const normalized = await normalizeTranscriptMessages(
+        steeredWakesTranscript(wakeIds) as unknown as SessionMessage[]
+      );
+      renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+      await waitFor(() =>
+        expect(screen.getAllByTestId("steer-marker-notice")).toHaveLength(steerRows)
+      );
+      const pieces = screen.getAllByTestId("assistant-message");
+      // Every mounted piece draws something: the chunk, the visible steer rows, the continuation.
+      expect(pieces).toHaveLength(steerRows + 2);
+      for (const piece of pieces) expect(piece).not.toBeEmptyDOMElement();
+      for (const piece of pieces.slice(0, -1)) {
+        expect(piece).toHaveClass("pb-transcript-inline-gap");
+      }
+      for (const piece of pieces.slice(1)) expect(piece).not.toHaveClass("pt-1");
+      expect(pieces.at(-1)).toHaveClass("pb-transcript-turn-gap");
+      // The trailing whitespace-only thought is not a second thought.
+      expect(pieces.at(-1)).toHaveTextContent("5 tools · 1 thought · 1 running");
+    }
+  );
+
+  it("Should join a text-only continuation that names its turn only in message metadata", async () => {
+    // The daemon names the turn of a `-N` continuation in its metadata when no
+    // event part carries it (a reply that resumes right after the steer).
+    const transcript = [
+      ...steeredWakesTranscript([
+        "wake_01M5MV5SVJGJVBC5P1278DP0KA",
+        "wake_01M5MV6A9XKQ2RTB7W3HZC4D8E",
+      ]).slice(0, 4),
+      {
+        id: `${STEER_WAKE_TURN}-2`,
+        role: "assistant",
+        metadata: { turn_id: STEER_WAKE_TURN },
+        parts: [{ type: "text", text: "Resumed the pending work.", state: "done" }],
+      },
+    ] as unknown as SessionMessage[];
+    const normalized = await normalizeTranscriptMessages(transcript);
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(normalized) });
+
+    await screen.findByText("Resumed the pending work.");
+    const pieces = screen.getAllByTestId("assistant-message");
+    expect(pieces).toHaveLength(4);
+    expect(pieces.at(-2)).toHaveClass("pb-transcript-inline-gap");
+    expect(pieces.at(-1)).not.toHaveClass("pt-1");
+    expect(pieces.at(-1)).toHaveClass("pb-transcript-turn-gap");
   });
 
   it("Should hide the pending receipt once the real message is loaded and carry the newer marker's truth", async () => {
