@@ -11,11 +11,11 @@ const (
 	EventTeardownFailed = "worktree.teardown_failed"
 )
 
-func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Worktree) bool {
+func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Worktree, commonDir string) error {
 	settings, _ := s.worktreeSettings(workspace)
 	command := strings.TrimSpace(settings.TeardownCommand)
 	if command == "" {
-		return false
+		return nil
 	}
 	operation := ExitOperation{ProfileID: item.ProfileID, WorkspaceID: item.WorkspaceID, WorktreeID: item.ID}
 	var outputMu sync.Mutex
@@ -51,5 +51,7 @@ func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Wor
 			Action: ExitAction(exitRemoveAction), State: exitStepFailed, Message: detail,
 		})
 	}
-	return true
+	// Teardown can change checkout identity; never remove a replacement checkout.
+	_, err := s.validateRemovalIdentity(ctx, item, commonDir)
+	return err
 }
