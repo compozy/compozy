@@ -17,6 +17,30 @@ import (
 func TestBuildCatalog(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve exact agent tokens and daemon precedence", func(t *testing.T) {
+		t.Parallel()
+		catalog, err := commandpkg.BuildCatalog(commandpkg.DefaultBuiltins(), []commandpkg.AgentSpec{
+			{Name: "plugin:review"}, {Name: "plugin-review"}, {Name: "Review"}, {Name: "review"}, {Name: "goal"},
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var tokens []string
+		ids := make(map[string]bool)
+		for _, command := range catalog.Commands {
+			if ids[command.ID] {
+				t.Fatalf("duplicate id: %q", command.ID)
+			}
+			ids[command.ID] = true
+			if command.Lane == commandpkg.LaneAgent {
+				tokens = append(tokens, command.CanonicalToken)
+			}
+		}
+		if !slices.Equal(tokens, []string{"/Review", "/plugin-review", "/plugin:review", "/review"}) {
+			t.Fatalf("agent tokens = %#v", tokens)
+		}
+	})
+
 	t.Run("Should order available commands and reserve daemon names", func(t *testing.T) {
 		t.Parallel()
 		catalog, err := commandpkg.BuildCatalog(

@@ -23,6 +23,9 @@ func (s *Session) retainStoppingProcess(proc *AgentProcess, now time.Time) error
 }
 
 func (s *Session) updateFromProcessLocked(proc *AgentProcess, now time.Time, adoptCurrentModel bool) {
+	if s.process != proc {
+		s.AdvertisedCommands = nil
+	}
 	s.process = proc
 	if proc != nil {
 		caps := proc.CapsSnapshot()

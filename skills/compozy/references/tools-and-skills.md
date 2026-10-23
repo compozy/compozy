@@ -277,7 +277,15 @@ Inside a bound session, resolve canonical `compozy__command_list` and pass `sess
 contains daemon controls, ACP-advertised commands, and only the enabled, active skills effective for
 that session. `/run` is reserved and absent.
 
-Daemon and ACP controls are standalone prompts. Skill tokens can appear after any whitespace boundary,
+Daemon and ACP controls are standalone prompts. An operator prompt beginning with an available
+agent-lane token (`/<name> [args]`, preserving advertised case and qualification) is delivered to ACP without context augmentation, resume replay,
+or the startup prefix. Those sections remain pending for the next ordinary prompt. Advertisements belong to the current
+agent process and are cleared when it is replaced. Before that process advertises a command, its
+slash-shaped text follows ordinary prompt delivery. Input hooks still
+apply; a rewrite that removes or changes the leading command token follows normal prompt delivery.
+Command arguments stay literal, including slash-shaped skill tokens. Agent-authored prompts and
+commands mentioned in the middle of prose keep ordinary prompt delivery.
+Skill tokens can appear after any whitespace boundary,
 including in the middle of a prompt; repeated references to one exact skill activate it once. Bare
 tokens name the effective bundled, marketplace, user, profile, additional, workspace,
 workspace-profile, or agent-local winner. The active profile and workspace-profile layers follow the

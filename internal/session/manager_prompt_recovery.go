@@ -100,7 +100,7 @@ func (m *Manager) attemptPromptRecovery(
 			}
 			continue
 		}
-		if !recovery.request.Maintenance {
+		if !recovery.request.BypassesContext() {
 			m.consumeResumeReplay(session.ID, replayBlock)
 		}
 		loop.source = source
@@ -152,7 +152,7 @@ func (m *Manager) startRecoveredPrompt(
 	}
 	replayRequest := clonePromptRecoveryRequest(request)
 	replayRequest.Generation = session.Info().RuntimeGeneration
-	if !replayRequest.Maintenance {
+	if !replayRequest.BypassesContext() {
 		replayRequest.Message = promptWithResumeReplay(replayBlock, state.recovery.originalMessage)
 	}
 	source, err := m.startHostedPromptRun(ctx, session, process, state, replayRequest)

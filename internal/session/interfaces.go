@@ -41,8 +41,9 @@ type PromptOpts struct {
 type PromptDelivery string
 
 const (
-	PromptDeliveryNormal      PromptDelivery = ""
-	PromptDeliveryMaintenance PromptDelivery = "maintenance"
+	PromptDeliveryNormal       PromptDelivery = ""
+	PromptDeliveryMaintenance  PromptDelivery = "maintenance"
+	PromptDeliveryAgentCommand PromptDelivery = "agent_command"
 )
 
 // PromptDeliveryInfo identifies a prompt whose agent-event stream is ready to start.

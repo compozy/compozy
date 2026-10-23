@@ -16,7 +16,7 @@ import (
 func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *activePromptState, req PromptRequest) {
 	sectionsDelivered := false
 	defer func() {
-		if !sectionsDelivered && !req.Maintenance {
+		if !sectionsDelivered && !req.BypassesContext() {
 			proc.forgetPromptSections(req.Sections)
 		}
 		if active != nil && active.cancel != nil {
@@ -53,10 +53,10 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 		proc.emitPromptEvent(proc.promptErrorEvent(req, err, timeNowUTC()))
 		return
 	}
-	if _, included := promptRequest.Meta["system"]; included && !req.Maintenance {
+	if _, included := promptRequest.Meta["system"]; included && !req.BypassesContext() {
 		proc.markSystemPromptSent()
 	}
-	if !req.Maintenance && ctx.Err() == nil && response.StopReason != acpsdk.StopReasonCancelled {
+	if !req.BypassesContext() && ctx.Err() == nil && response.StopReason != acpsdk.StopReasonCancelled {
 		proc.markPromptSectionsDelivered(req)
 		sectionsDelivered = true
 	}
@@ -89,10 +89,10 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 	}
 	message := req.Message
 	var spans []DeliveredSpan
-	if !req.Maintenance {
+	if !req.BypassesContext() {
 		message, spans = proc.compactPromptSections(message, req.Sections)
 	}
-	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message, req.Maintenance)
+	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(message, req.BypassesContext())
 	mentionBlocks := mentionContentBlocks(req)
 	prompt := make([]acpsdk.ContentBlock, 0, 1+len(mentionBlocks)+len(attachmentBlocks))
 	if promptText != "" {

@@ -29,3 +29,23 @@ QA impact 2026-08-05 (composer redesign): reset — the slash menu was rebuilt a
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-10-22 (GitHub #693): standalone operator prompts whose first token is an
+available agent-lane command now bypass context augmentation, resume replay, and startup-prefix
+delivery. Verify `/compact`, `/compact keep decisions`, and `/model <id>` against the session's
+catalog. The first ACP text block must equal the command; the next ordinary prompt must receive
+pending context. `Explain /compact`, unknown commands, skills, daemon controls, and agent-authored
+messages retain their existing paths. Input hooks still run, and removing the leading command token
+restores normal delivery. Queued operator commands retain standalone delivery after dispatch.
+
+Focused automated evidence: `TestStandaloneAgentCommandDelivery`, `TestAgentCommandHonorsInputHooks`,
+`TestQueuedAgentCommandDelivery`, and the real ACP helper subprocess in
+`TestPromptAgentCommandPreservesContextDelivery`. Browser/provider scenario walk is not claimed;
+local E2E and Playwright are excluded by this issue's machine-load constraint.
+
+Astra review regression coverage: commands use exact ACP-advertised case and qualification.
+Before the first advertisement, `/context` follows normal context-bearing delivery. After a provider
+switch or restart, old advertisements cannot activate commands until the replacement advertises them.
+Hook-added surrounding whitespace is normalized before standalone command delivery; arguments remain
+intact. `TestAgentCommandsFollowCurrentRuntime` exercises the first-message advertisement event,
+subsequent command, provider switch and stop/resume paths.
