@@ -8,11 +8,16 @@ import (
 
 var ErrPeerCredentialsUnsupported = errors.New("mcp: peer credential validation is unsupported")
 
+var ErrWindowsPeerCredentialsUnsupported = errors.New(
+	"mcp: Windows AF_UNIX peer identity requires SIO_AF_UNIX_GETPEERPID; update Windows to a build supporting this ioctl",
+)
+
 // PeerInfo is the UDS peer identity captured from the accepted socket.
 type PeerInfo struct {
 	PID            int    `json:"pid"`
 	UID            int    `json:"uid"`
 	GID            int    `json:"gid"`
+	UserSID        string `json:"user_sid,omitempty"`
 	ExecutablePath string `json:"executable_path"`
 	Supported      bool   `json:"supported"`
 }

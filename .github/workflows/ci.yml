@@ -528,7 +528,9 @@ jobs:
             'internal/cli/gateway_credentials_test.go',
             'internal/cli/gateway_profile_transaction_test.go',
             'internal/cli/gateway_permissions_windows_integration_test.go',
-            'internal/fileutil/nofollow_windows_test.go'
+            'internal/fileutil/nofollow_windows_test.go',
+            'internal/mcp/peer_test.go',
+            'internal/mcp/peer_windows_test.go'
           )
           foreach ($testFile in $testFiles) {
             python .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py $testFile
@@ -539,6 +541,14 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
+
+      - name: Verify Windows hosted MCP peer identity
+        run: >-
+          go test ./internal/mcp
+          -run '^(TestPeerInfo|TestWindowsPeerIdentity)'
+          -count=1
+        env:
+          CGO_ENABLED: 0
 
       - name: Verify Windows terminal runtime
         run: >-

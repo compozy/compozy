@@ -1195,6 +1195,44 @@ func TestHandleReleaseTerminalReleasesExternalTerminal(t *testing.T) {
 }
 
 func TestHandleSessionUpdateVariants(t *testing.T) {
+	t.Run("Should settle startup calls received with an initial terminal status", func(t *testing.T) {
+		t.Parallel()
+		for _, status := range []string{"failed", "completed"} {
+			t.Run("Should emit a result for initial "+status+" status", func(t *testing.T) {
+				t.Parallel()
+				proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+				active, err := proc.beginPrompt("turn-startup", 2)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer proc.endPrompt(active)
+				update := mustMarshalJSON(wireSessionNotification{
+					SessionID: "sess-direct",
+					Update: mustMarshalJSON(map[string]any{
+						"sessionUpdate": "tool_call", "toolCallId": "startup", "kind": "other",
+						"title": "Compozy hosted tools", "status": status,
+						"rawOutput": map[string]any{"error": "Windows AF_UNIX peer identity unavailable"},
+					}),
+				})
+				if err := proc.handleSessionUpdate(update); err != nil {
+					t.Fatal(err)
+				}
+				events := collectEventsUntilCount(t, active.events, 2)
+				if events[0].Type != EventTypeToolCall || events[0].ToolCallID != "startup" {
+					t.Fatalf("startup event = %#v, want tool call before its result", events[0])
+				}
+				got := events[1]
+				if got.Type != EventTypeToolResult || got.ToolCallID != "startup" ||
+					got.ToolStatus() != status || got.ToolError() != (status == "failed") {
+					t.Fatalf("startup event = %#v, want terminal result with status %s", got, status)
+				}
+				if !strings.Contains(string(got.Raw), "Windows AF_UNIX peer identity unavailable") {
+					t.Fatalf("startup event dropped actionable provider error: %s", got.Raw)
+				}
+			})
+		}
+	})
+
 	t.Run("Should discard invalid observations and emit sanitized Claude metadata", func(t *testing.T) {
 		t.Parallel()
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)

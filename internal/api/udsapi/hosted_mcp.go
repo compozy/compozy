@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -38,16 +39,7 @@ func (h *Handlers) bindHostedMCP(c *gin.Context) {
 	}
 	peer, err := mcppkg.PeerInfoFromContext(c.Request.Context())
 	if err != nil {
-		if h.Logger != nil {
-			h.Logger.Warn(
-				"udsapi: hosted MCP peer inspection failed",
-				"operation",
-				"bind",
-				"reason",
-				"peer_credentials_unavailable",
-			)
-		}
-		core.RespondError(c, http.StatusForbidden, err, false)
+		h.respondHostedMCPPeerError(c, err)
 		return
 	}
 	response, err := h.HostedMCP.Bind(c.Request.Context(), req, peer)
@@ -65,7 +57,7 @@ func (h *Handlers) hostedMCPProjection(c *gin.Context) {
 	}
 	peer, err := mcppkg.PeerInfoFromContext(c.Request.Context())
 	if err != nil {
-		core.RespondError(c, http.StatusForbidden, err, false)
+		h.respondHostedMCPPeerError(c, err)
 		return
 	}
 	response, err := h.HostedMCP.Projection(c.Request.Context(), c.Query("bind_id"), peer)
@@ -85,7 +77,7 @@ func (h *Handlers) streamHostedMCPProjection(c *gin.Context) {
 	}
 	peer, err := mcppkg.PeerInfoFromContext(c.Request.Context())
 	if err != nil {
-		core.RespondError(c, http.StatusForbidden, err, false)
+		h.respondHostedMCPPeerError(c, err)
 		return
 	}
 	bindID := strings.TrimSpace(c.Query("bind_id"))
@@ -210,7 +202,7 @@ func (h *Handlers) callHostedMCP(c *gin.Context) {
 	}
 	peer, err := mcppkg.PeerInfoFromContext(c.Request.Context())
 	if err != nil {
-		core.RespondError(c, http.StatusForbidden, err, false)
+		h.respondHostedMCPPeerError(c, err)
 		return
 	}
 	response, err := h.HostedMCP.Call(c.Request.Context(), req, peer)
@@ -233,7 +225,7 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 	}
 	peer, err := mcppkg.PeerInfoFromContext(c.Request.Context())
 	if err != nil {
-		core.RespondError(c, http.StatusForbidden, err, false)
+		h.respondHostedMCPPeerError(c, err)
 		return
 	}
 	if err := h.HostedMCP.ReleaseBindForPeer(c.Request.Context(), req.BindID, peer); err != nil {
@@ -241,6 +233,22 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 		return
 	}
 	c.Status(http.StatusNoContent)
+}
+
+func (h *Handlers) respondHostedMCPPeerError(c *gin.Context, err error) {
+	status := http.StatusForbidden
+	code := "peer_credentials_unavailable"
+	message := "hosted MCP peer identity could not be verified"
+	if errors.Is(err, mcppkg.ErrWindowsPeerCredentialsUnsupported) {
+		status = http.StatusServiceUnavailable
+		code = "windows_peer_credentials_unsupported"
+		message = mcppkg.ErrWindowsPeerCredentialsUnsupported.Error()
+	}
+	if h.Logger != nil {
+		h.Logger.Warn("udsapi: hosted MCP peer inspection failed", "operation", c.Request.URL.Path,
+			"reason", code, "message", message)
+	}
+	c.JSON(status, contract.ErrorPayload{Error: message, Code: code})
 }
 
 func respondHostedMCPError(c *gin.Context, err error) {
