@@ -4956,6 +4956,7 @@ describe("SessionThread composer running semantics", () => {
     const cursor = text.indexOf("_(b)");
     await placeComposerCursor(cursor);
     const editor = getNearestEditorFromDOMNode(editable);
+    if (!editor) throw new Error("composer editor is not mounted");
     const readCursor = () =>
       editor.getEditorState().read(() => {
         const selection = $getSelection();
