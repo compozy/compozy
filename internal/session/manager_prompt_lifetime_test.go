@@ -413,6 +413,8 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		h := newHarness(t, WithHookSet(fullHookSet(dispatcher)))
 		h.manager.promptRecoveryDelays = []time.Duration{0}
 		session := createSession(t, h)
+		session.ReasoningEffort = "ultra"
+		session.Speed = "fast"
 		t.Cleanup(func() {
 			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
 				!errors.Is(err, ErrSessionNotFound) {
@@ -473,10 +475,18 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 
 		h.driver.mu.Lock()
 		startCalls := len(h.driver.startCalls)
+		recoveredRuntime := h.driver.startCalls[startCalls-1]
 		promptRequests := append([]acp.PromptRequest(nil), h.driver.promptCalls...)
 		h.driver.mu.Unlock()
 		if startCalls != 2 {
 			t.Fatalf("driver Start() calls = %d, want initial runtime plus one recovery", startCalls)
+		}
+		if recoveredRuntime.ReasoningEffort != "ultra" || recoveredRuntime.Speed != "fast" {
+			t.Fatalf(
+				"recovered runtime = %s/%s, want ultra/fast",
+				recoveredRuntime.ReasoningEffort,
+				recoveredRuntime.Speed,
+			)
 		}
 		if len(promptRequests) != 2 || promptRequests[0].TurnID != promptRequests[1].TurnID {
 			t.Fatalf("driver Prompt() requests = %#v, want one replay with the original turn id", promptRequests)

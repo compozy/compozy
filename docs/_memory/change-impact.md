@@ -4188,3 +4188,28 @@ Go integration fixture changes are formatter-only and preserve their existing as
 The HTTP and UDS integration runtimes now inject the same real profile manager as daemon bootstrap
 and use isolated operator homes. Their existing automation and webhook assertions remain unchanged; this
 repairs fixture wiring for the accepted User scope contract, with no public behavior change.
+
+## Provider-confirmed Fast and reasoning — issue #914, 2026-10-23
+
+Owner: branch `fix/issue-914-fast-reasoning-apply`; evidence and research matrix:
+`docs/qa/reports/2026-10-23-issue-914-fast-reasoning.md`.
+
+- **Native tools:** additive `ultra` acceptance for session prompt/runtime selection, queued-input
+  output, agent/fallback authoring, Goal runtime, Loop runtime rules, and provider default-effort
+  curation. Subagent targets already accept provider effort identifiers. Descriptor catalog regenerated.
+- **HTTP/UDS/CLI and extensions:** requested values remain persisted unchanged. `runtime.effective`
+  and prompt events project the latest provider-confirmed effort/speed. Later ACP option updates
+  revoke stale applied Fast; unsupported speed does not populate effective speed. Extension host
+  reads share this projection. CLI effort help and generated reference include ultra. No DTO or
+  OpenAPI/SDK type changes; existing speed outcome enums suffice.
+- **Hooks/config:** existing runtime events/fields only; no hook IDs, config keys, permissions,
+  authentication policy, or new fallback behavior. Equal-selection prompts recheck observed controls.
+- **Workspace data isolation/user state:** no schema migration, paths, scopes, or ownership changes.
+  Persisted `speed` continues to mean requested speed and matches `speed_resolution.requested`.
+  Public enum widening is additive; no compatibility shims or delete targets.
+- **Official skill:** agent effort vocabulary and runtime guidance explain exact model membership,
+  provider acknowledgement, later revocation, and requested versus effective values.
+- **Web/Docs/QA:** Web already includes ultra and consumes model-specific efforts; no picker/cache
+  changes. Provider docs explain truthful effective runtime. RT-061, RT-session-prompt-runtime-transitions,
+  MS-057, and LP-runtime-provenance-observation receive scoped QA notes. Browser and live Loop/Goal
+  checks are outside the authorized minimal lab; source/focused automated evidence is labeled.

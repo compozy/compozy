@@ -30,7 +30,7 @@ The parser is strict. Unknown frontmatter fields fail loading.
 | `provider`         | string                      | `[defaults].provider`                                | Built-in provider key or custom provider key.                        | Provider used to resolve command, model, auth mode, and runtime metadata. |
 | `command`          | string                      | Provider `command`                                   | Non-empty when overriding.                                           | Agent-specific ACP launch command.                                        |
 | `model`            | string                      | Provider `models.default`                            | Exact model ID accepted by the active adapter.                       | Agent-specific model preference applied before the first prompt.          |
-| `reasoning_effort` | string                      | Curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.          | Agent default used when session creation does not override it.            |
+| `reasoning_effort` | string                      | Curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. | Agent default used when session creation does not override it.            |
 | `tools`            | string array                | empty                                                | Exact canonical ToolIDs or namespace-prefix wildcards.               | Additional agent tool allowlist grammar.                                  |
 | `toolsets`         | string array                | empty                                                | Canonical ToolsetIDs.                                                | Additional named tool bundles allowed for the agent.                      |
 | `deny_tools`       | string array                | empty                                                | Exact canonical ToolIDs or namespace-prefix wildcards.               | Tool denies that always narrow the agent grants.                          |
@@ -209,7 +209,7 @@ default.
 | Type         | string                                                                                      |
 | Default      | empty, which keeps the provider/adapter default                                             |
 | Required     | no                                                                                          |
-| Valid values | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                                  |
+| Valid values | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`                         |
 | Description  | Agent default used only when session creation does not provide an explicit effort override. |
 
 At session start, CompozyOS applies model first, refreshes the advertised ACP options, then applies the

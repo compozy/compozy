@@ -1,0 +1,491 @@
+{
+  "codex-baseline": {
+    "effective": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "ultra",
+      "speed": "fast",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "applied"
+      }
+    },
+    "selected": null,
+    "transition": "initial_bind",
+    "config_options": [
+      {
+        "id": "reasoning_effort",
+        "category": "thought_level",
+        "current_value_id": "ultra"
+      },
+      {
+        "id": "fast-mode",
+        "category": "model_config",
+        "current_value_id": "on"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "56",
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "claude-baseline": {
+    "effective": {
+      "provider": "claude",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "max",
+      "speed": "fast",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "applied"
+      }
+    },
+    "selected": null,
+    "transition": "initial_bind",
+    "config_options": [
+      {
+        "id": "effort",
+        "category": "thought_level",
+        "current_value_id": "max"
+      },
+      {
+        "id": "fast",
+        "category": "model_config",
+        "current_value_id": "off"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "**Fast mode turned off:** requires extra usage to be enabled for this account.",
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "fast"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "agent_message",
+        "text": "72",
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "fast"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "fast"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "claude-fixed": {
+    "effective": {
+      "provider": "claude",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "max",
+      "speed": "normal",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "rejected",
+        "reason": "provider_rejected"
+      }
+    },
+    "selected": null,
+    "transition": "initial_bind",
+    "config_options": [
+      {
+        "id": "effort",
+        "category": "thought_level",
+        "current_value_id": "max"
+      },
+      {
+        "id": "fast",
+        "category": "model_config",
+        "current_value_id": "off"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "**Fast mode turned off:** requires extra usage to be enabled for this account.",
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "agent_message",
+        "text": "81",
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "codex-fixed-max-normal": {
+    "effective": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "speed": "normal",
+      "speed_resolution": {
+        "requested": "normal",
+        "status": "applied"
+      }
+    },
+    "selected": null,
+    "transition": "live_configuration",
+    "config_options": [
+      {
+        "id": "reasoning_effort",
+        "category": "thought_level",
+        "current_value_id": "max"
+      },
+      {
+        "id": "fast-mode",
+        "category": "model_config",
+        "current_value_id": "off"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "42",
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "codex-fixed-native-ultra-fast": {
+    "effective": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "ultra",
+      "speed": "fast",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "applied"
+      }
+    },
+    "selected": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "ultra",
+      "speed": "fast"
+    },
+    "transition": "live_configuration",
+    "config_options": [
+      {
+        "id": "reasoning_effort",
+        "category": "thought_level",
+        "current_value_id": "ultra"
+      },
+      {
+        "id": "fast-mode",
+        "category": "model_config",
+        "current_value_id": "on"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "48",
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "codex-fixed-rebind": {
+    "effective": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "ultra",
+      "speed": "fast",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "applied"
+      }
+    },
+    "selected": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "ultra",
+      "speed": "fast"
+    },
+    "transition": "initial_bind",
+    "config_options": [
+      {
+        "id": "reasoning_effort",
+        "category": "thought_level",
+        "current_value_id": "ultra"
+      },
+      {
+        "id": "fast-mode",
+        "category": "model_config",
+        "current_value_id": "on"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "64",
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "claude-ultra-rejected": {
+    "error": "Provider configuration is unavailable: acp: reasoning effort \"ultra\" is unavailable in config option \"effort\"; valid choices: default, high, low, max, medium, xhigh",
+    "diagnostic": {
+      "id": "provider.negotiation.reasoning_effort_unsupported",
+      "code": "reasoning_effort_unsupported",
+      "severity": "error",
+      "category": "provider",
+      "title": "Provider configuration is unavailable",
+      "message": "acp: reasoning effort \"ultra\" is unavailable in config option \"effort\"; valid choices: default, high, low, max, medium, xhigh",
+      "data_freshness": "live",
+      "evidence": {
+        "config_option_id": "effort",
+        "requested": "ultra",
+        "stage": "reasoning effort",
+        "valid_choices": [
+          "default",
+          "high",
+          "low",
+          "max",
+          "medium",
+          "xhigh"
+        ]
+      }
+    }
+  },
+  "claude-retained": {
+    "effective": {
+      "provider": "claude",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "max",
+      "speed": "normal",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "rejected",
+        "reason": "provider_rejected"
+      }
+    },
+    "selected": null,
+    "transition": "initial_bind",
+    "config_options": [
+      {
+        "id": "effort",
+        "category": "thought_level",
+        "current_value_id": "max"
+      },
+      {
+        "id": "fast",
+        "category": "model_config",
+        "current_value_id": "off"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "**Fast mode turned off:** requires extra usage to be enabled for this account.",
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "agent_message",
+        "text": "54",
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "claude",
+          "model": "claude-opus-5-5",
+          "reasoning_effort": "max",
+          "speed": "normal"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "codex-retained": {
+    "effective": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "ultra",
+      "speed": "fast",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "applied"
+      }
+    },
+    "selected": {
+      "provider": "codex",
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "ultra",
+      "speed": "fast"
+    },
+    "transition": "initial_bind",
+    "config_options": [
+      {
+        "id": "reasoning_effort",
+        "category": "thought_level",
+        "current_value_id": "ultra"
+      },
+      {
+        "id": "fast-mode",
+        "category": "model_config",
+        "current_value_id": "on"
+      }
+    ],
+    "turn_result": [
+      {
+        "type": "agent_message",
+        "text": "49",
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": null
+      },
+      {
+        "type": "done",
+        "text": null,
+        "runtime": {
+          "provider": "codex",
+          "model": "gpt-6.1-sol",
+          "reasoning_effort": "ultra",
+          "speed": "fast"
+        },
+        "stop_reason": "end_turn"
+      }
+    ]
+  },
+  "claude-retained-stopped": {
+    "state": "stopped",
+    "verified": true,
+    "last_known": {
+      "provider": "claude",
+      "model": "claude-opus-5-5",
+      "reasoning_effort": "max",
+      "speed_resolution": {
+        "requested": "fast",
+        "status": "rejected",
+        "reason": "provider_rejected"
+      }
+    }
+  }
+}

@@ -9,7 +9,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "d152e18e569ac5fd44d5cea5be49bed1156aea7638f047f5653312271f2a3649",
+    "input_schema_digest": "68a1e6e8ceef2addd09bc95fa507007a53042742b37945f0a06a5138e4fd3bde",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -837,7 +837,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "c947fa763dd9a292fab4b060672eca0dbd8dac838b370ea845b282013a621b94",
+    "input_schema_digest": "d1c78d12dbefc7c6e33a4441f5f20432262c9f38b221d37bf81fb2ac965a959c",
     "output_schema_digest": "f14edde0d2c6ffb308e045ec8a014185116d6c098fa9750288fb7c4a4409321d"
   },
   {
@@ -1211,7 +1211,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "31daa4c3344c28cea0576f7b5234c47d913649a16ab94c56be74aa8e18dcca2d",
+    "input_schema_digest": "ff60fed92641e3ff48c28642b3040c0e730146ac78329e62f33da58d982e6281",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1470,7 +1470,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "5ed44a8783de34da5d502645498784578315b282d583a74104d275798a013bd4",
+    "input_schema_digest": "c97103436d0d13b212a1590c5ac72ed5620bc097e899bf49a1c8170592b5ce74",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -1691,7 +1691,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b98e81bf1a2f1ed6f1d3124d0f4d26e981e32de53a4a0837cb6725c6f98148b8",
+    "input_schema_digest": "5157c8e7e68e7db7804c81203217d98e86ae8376ab4ca29c3323a7bf54abb91a",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "required_capabilities": [
       "providers.models.write"
@@ -2056,7 +2056,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "d915db5b67b786a39999e299a69e46edec9d8ebc3b1222e1ff2c33d56550b42d",
-    "output_schema_digest": "5a91554e151b9ec0106b35a9ae147c5ef77d94eccf1502771d4a8af9b8a05388"
+    "output_schema_digest": "da9d77e74e520e4c79861b56b405a03ef46511f71e332a13a783372719cbe419"
   },
   {
     "tool_id": "compozy__session_inputs_clear",
@@ -2069,7 +2069,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "298dca287c9f9d1b7a41dc638490029b2b260e50f051dac8ffb16668e47a7e31",
-    "output_schema_digest": "80eef57b71dd4ff9040e13d7636ba36029f72ea75e8a60c029b64f56bddd7f9b"
+    "output_schema_digest": "989d4606c62876ae3298fbe3e9f320fc915a8d5f4f4e272926815459675c4854"
   },
   {
     "tool_id": "compozy__session_inputs_list",
@@ -2082,7 +2082,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "8d3442e06589a14f92423308d8691a87b12d700a75f598b118600ec224f6cc3e",
-    "output_schema_digest": "3fc3018f8db5ef02b3c05613b1ab358b90b930bd8ce3a40c16fe60cced104fba"
+    "output_schema_digest": "6e52b19b418ddd78f81164d59b30fda8afea3076ebe79eb47d3684e5844cee43"
   },
   {
     "tool_id": "compozy__session_list",
@@ -2133,7 +2133,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "f30776f6a38e719f7a08d63997b460e1d1874a065f81f5c72d3c73f920dbcd65",
+    "input_schema_digest": "148cc0e9bc6617605f55ee93106e6645316e6111c109e1a99d3753a40660f69d",
     "output_schema_digest": "858fd69f67ed228a7a2568938ebfe98523a30f5a0fca49824a0251b3561990eb"
   },
   {
@@ -2224,7 +2224,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "78586ed9e664e7c89cae6c05ae651c3b41be6073959f5d62e7531ad6fbd0cffe",
+    "input_schema_digest": "945ab0e1fc18cd6969d8caef732b160e48e6832ae96e833e98c94a7ed47cbca2",
     "output_schema_digest": "42a821f91767729a30e667ff463708ec47f2cf74822522efdadbe65130e706ba"
   },
   {

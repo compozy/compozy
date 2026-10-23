@@ -28,8 +28,13 @@ func (s *Session) infoLocked() *Info {
 		acpCapsKnown = true
 	}
 	pendingPermission := s.process != nil && s.process.HasPendingPermission()
+	resolution := speedpkg.CloneResolution(s.SpeedResolution)
+	if acpCaps.SpeedResolution != nil {
+		resolution = speedpkg.CloneResolution(acpCaps.SpeedResolution)
+	}
 
 	return &Info{
+		runtimeStrategy:          s.runtimeStrategyLocked(),
 		Supervision:              CloneSupervisionState(s.supervisionState),
 		BusyInput:                s.busyInputStateLocked(acpCaps),
 		ID:                       s.ID,
@@ -42,7 +47,7 @@ func (s *Session) infoLocked() *Info {
 		ReasoningEffort:          s.ReasoningEffort,
 		Speed:                    s.Speed,
 		ACPOptions:               acp.CloneSessionConfigOptionSelections(s.ACPOptions),
-		SpeedResolution:          speedpkg.CloneResolution(s.SpeedResolution),
+		SpeedResolution:          resolution,
 		VerdictOnly:              s.creationProfile != nil && s.creationProfile.RuntimeMode == RuntimeModeVerdictOnly,
 		RuntimeStatus:            s.RuntimeStatus,
 		RuntimeTransition:        s.RuntimeTransition,
@@ -90,4 +95,39 @@ func (s *Session) infoLocked() *Info {
 		CreatedAt:                s.CreatedAt,
 		UpdatedAt:                s.UpdatedAt,
 	}
+}
+
+// EffectiveRuntime projects the latest provider observations while Info retains persisted intent.
+func (info *Info) EffectiveRuntime() RuntimeSelection {
+	if info == nil {
+		return RuntimeSelection{}
+	}
+	runtime := RuntimeSelection{
+		Provider: info.Provider, Model: info.Model, ReasoningEffort: info.ReasoningEffort,
+		Speed: info.Speed, ACPOptions: acp.CloneSessionConfigOptionSelections(info.ACPOptions),
+	}
+	strategy := info.runtimeStrategy
+	if strategy == "" {
+		strategy = RuntimeStrategyForProvider(info.Provider)
+	}
+	if strategy != acp.RuntimeApplicationSessionConfig {
+		return runtime
+	}
+	if option, ok := acp.ReasoningConfigOption(info.ACPCaps.ConfigOptions); ok {
+		runtime.ReasoningEffort = strings.TrimSpace(option.CurrentValueID)
+	}
+	if current := acp.CurrentSpeed(info.ACPCaps.ConfigOptions); current != "" {
+		runtime.Speed = current
+	} else if info.SpeedResolution != nil && info.SpeedResolution.Status != speedpkg.ResolutionApplied {
+		runtime.Speed = ""
+	}
+	return runtime
+}
+
+func (s *Session) runtimeStrategyLocked() acp.RuntimeApplicationStrategy {
+	provider := strings.TrimSpace(s.providerRoute.RuntimeProvider)
+	if provider == "" {
+		provider = s.Provider
+	}
+	return RuntimeStrategyForProvider(provider)
 }

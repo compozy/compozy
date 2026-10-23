@@ -1122,6 +1122,7 @@ func helperConfigOptions(modelCurrent string, reasoningCurrent string) []acpsdk.
 			"high",
 			"xhigh",
 			"max",
+			"ultra",
 		),
 		helperSpeedConfigOption("normal"),
 	)

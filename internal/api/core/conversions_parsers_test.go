@@ -189,12 +189,13 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			payload.Runtime.Effective.ReasoningEffort != "high" {
 			t.Fatalf("payload runtime = %#v", payload.Runtime)
 		}
-		if payload.Runtime.Effective.Speed != contract.SpeedFast ||
+		if payload.Runtime.Effective.Speed != "" ||
 			payload.Runtime.Effective.SpeedResolution == nil ||
+			payload.Runtime.Effective.SpeedResolution.Requested != contract.SpeedFast ||
 			payload.Runtime.Effective.SpeedResolution.Status != speedpkg.ResolutionUnsupported ||
 			payload.Runtime.Effective.SpeedResolution.Reason != speedpkg.ReasonCapabilityAbsent {
 			t.Fatalf(
-				"payload speed fields = %q, %#v, want fast unsupported capability_absent",
+				"payload speed fields = %q, %#v, want no effective speed and requested Fast unsupported capability_absent",
 				payload.Runtime.Effective.Speed,
 				payload.Runtime.Effective.SpeedResolution,
 			)

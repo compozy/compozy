@@ -1007,7 +1007,7 @@ func TestStartRejectsReasoningWithoutAnApplyStrategyBeforeLaunch(t *testing.T) {
 func TestStartPassesThroughEveryAdvertisedCanonicalReasoningEffort(t *testing.T) {
 	t.Parallel()
 
-	for _, effort := range []string{"minimal", "low", "xhigh", "max"} {
+	for _, effort := range []string{"minimal", "low", "xhigh", "max", "ultra"} {
 		t.Run("Should pass through "+effort, func(t *testing.T) {
 			t.Parallel()
 
@@ -1371,7 +1371,7 @@ func TestSessionConfigOptionUpdateMutatesCaps(t *testing.T) {
 	t.Parallel()
 
 	driver := New()
-	proc := startHelperProcess(t, driver, "config_option_update", "", StartOpts{})
+	proc := startHelperProcess(t, driver, "config_option_update", "", StartOpts{Speed: speedpkg.SpeedFast})
 	defer stopProcess(t, driver, proc)
 
 	events, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
@@ -1386,6 +1386,16 @@ func TestSessionConfigOptionUpdateMutatesCaps(t *testing.T) {
 	caps := proc.CapsSnapshot()
 	assertConfigOption(t, caps.ConfigOptions, "model", "other-model", "other-model")
 	assertConfigOption(t, caps.ConfigOptions, "reasoning_effort", "xhigh", "xhigh")
+	if resolution := caps.SpeedResolution; resolution == nil || resolution.Status != speedpkg.ResolutionRejected ||
+		resolution.Requested != speedpkg.SpeedFast || resolution.Reason != speedpkg.ReasonProviderRejected {
+		t.Fatalf("speed resolution after provider update = %#v, want Fast rejected", resolution)
+	}
+	if err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{Speed: speedpkg.SpeedFast}); err != nil {
+		t.Fatal(err)
+	}
+	if resolution := proc.CapsSnapshot().SpeedResolution; resolution.Status != speedpkg.ResolutionApplied {
+		t.Fatalf("speed resolution after reapplication = %#v, want applied", resolution)
+	}
 }
 
 func TestStartWithEmptyAdditionalDirsKeepsBaselinePayload(t *testing.T) {

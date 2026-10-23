@@ -117,8 +117,8 @@ func (b *loopActionSessionBinder) bindEphemeralActionSession(
 	}
 	info := created.Info()
 	appliedRuntime := appliedRuntimeFromCreateOptions(opts)
-	if info.Speed != "" {
-		appliedRuntime.Speed = info.Speed
+	if info.Speed != "" || info.SpeedResolution != nil {
+		appliedRuntime.Speed = info.EffectiveRuntime().Speed
 	}
 	return looppkg.ActionSessionBinding{
 		WorkspaceID:     req.WorkspaceID,

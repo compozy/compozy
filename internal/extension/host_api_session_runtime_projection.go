@@ -26,11 +26,12 @@ func hostAPISessionRuntimePayloadFromInfo(info *session.Info) apicontract.Sessio
 		ACPSessionID:      strings.TrimSpace(info.ACPSessionID),
 	}
 	if hostAPIRuntimeHasEffectiveSelection(info) {
+		runtime := info.EffectiveRuntime()
 		payload.Effective = &apicontract.RuntimeSelectionPayload{
-			Provider:        strings.TrimSpace(info.Provider),
-			Model:           strings.TrimSpace(info.Model),
-			ReasoningEffort: apicontract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
-			Speed:           info.Speed,
+			Provider:        strings.TrimSpace(runtime.Provider),
+			Model:           strings.TrimSpace(runtime.Model),
+			ReasoningEffort: apicontract.ReasoningEffort(strings.TrimSpace(runtime.ReasoningEffort)),
+			Speed:           runtime.Speed,
 			SpeedResolution: speedpkg.CloneResolution(info.SpeedResolution),
 		}
 	}

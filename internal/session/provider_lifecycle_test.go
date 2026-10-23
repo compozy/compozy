@@ -136,7 +136,7 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 		h.driver.mu.Unlock()
 		replacement, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
 			Message: "Continue using the replacement runtime",
-			Runtime: &RuntimeSelection{Provider: "codex"},
+			Runtime: &RuntimeSelection{Provider: "codex", ReasoningEffort: "ultra", Speed: "fast"},
 		})
 		if err != nil {
 			t.Fatalf("SendPrompt(replacement) error = %v", err)
@@ -145,6 +145,9 @@ func TestPromptRuntimeReplacementLifecycle(t *testing.T) {
 
 		if got, want := len(h.driver.startCalls), 2; got != want {
 			t.Fatalf("runtime start calls = %d, want %d", got, want)
+		}
+		if got := h.driver.startCalls[1]; got.ReasoningEffort != "ultra" || got.Speed != "fast" {
+			t.Fatalf("replacement runtime = %s/%s, want ultra/fast", got.ReasoningEffort, got.Speed)
 		}
 		if got := h.driver.startCalls[1].ResumeSessionID; got != "" {
 			t.Fatalf("replacement ResumeSessionID = %q, want empty across provider boundary", got)

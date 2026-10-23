@@ -23,6 +23,51 @@ import (
 
 var errRecordingCatalogMissingSession = errors.New("recording catalog missing session")
 
+func TestPromptRuntimeReappliesProviderDrift(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+	h.manager.driver = driver
+	active := createSession(t, h)
+	t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+	snapshot := active.runtimeBindingSnapshot()
+	selection := snapshot.selection
+	selection.Speed = speedpkg.SpeedFast
+	selection.ReasoningEffort = "max"
+	active.completeRuntimeTransition(snapshot.process, selection, RuntimeTransitionInitialBind, time.Now())
+	snapshot.process.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{
+		{ID: "effort", Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "high"},
+		{
+			ID:             "fast",
+			Category:       "model_config",
+			Kind:           acp.SessionConfigOptionKindSelect,
+			CurrentValueID: "off",
+			Values:         []acp.SessionConfigOptionValue{{Value: "on"}, {Value: "off"}},
+		},
+	}})
+	process, err := h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+	if err != nil {
+		t.Fatal(err)
+	}
+	configs := driver.configSnapshots()
+	if process != snapshot.process || len(configs) != 1 || configs[0].Speed != speedpkg.SpeedFast ||
+		configs[0].ReasoningEffort != "max" {
+		t.Fatalf("runtime configuration = %#v, want same-process reapplication of max and Fast", configs)
+	}
+	// Cursor aliases apply these controls in the launch model, not ACP selectors.
+	active.setProviderRouting(
+		compozyconfig.ResolvedAgent{Provider: selection.Provider, RuntimeProvider: cursorRuntimeProvider},
+	)
+	process, err = h.manager.ensurePromptRuntime(testutil.Context(t), active, &selection, snapshot.process)
+	if err != nil || process != snapshot.process || len(driver.configSnapshots()) != 1 {
+		t.Fatalf("launch-bound runtime = %p, %v, want unchanged process without ACP reconfiguration", process, err)
+	}
+	got := active.Info().EffectiveRuntime()
+	if got.Speed != selection.Speed || got.ReasoningEffort != selection.ReasoningEffort {
+		t.Fatalf("launch-bound effective runtime = %#v, want selected launch configuration", got)
+	}
+}
+
 func TestPromptRuntimeKeepsRestrictedSessionAfterRuntimeChange(t *testing.T) {
 	t.Parallel()
 	t.Run("Should keep the launch-time full-access preference filtered during a runtime change", func(t *testing.T) {

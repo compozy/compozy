@@ -397,6 +397,15 @@ between `compozy provider models …` and the daemon HTTP response for the same 
 | `reasoning_effort_unsupported` | The reasoning option exists, but does not advertise the requested level.            |
 | `speed_rejected`               | The requested speed is invalid or the model explicitly does not advertise Fast.     |
 
+The session's `runtime.effective` reflects the latest provider-confirmed configuration. An earlier
+Fast acknowledgement can be revoked during a turn, for example when the account cannot use Fast.
+When the provider reports Fast off, effective speed is `normal` and `speed_resolution` records
+requested `fast`, status `rejected`, and reason `provider_rejected`. Absent or ambiguous speed
+capabilities report `unsupported` without claiming the requested speed is effective. The request
+remains available for the next prompt. Reasoning values such as `max` and `ultra` are sent unchanged
+only when the live model advertises them. These observations confirm adapter configuration, not the
+remote service's internal scheduling or thinking budget.
+
 Session negotiation failures return HTTP/UDS 422 for the prompt that selected the runtime. A failed
 bind, replacement, or rollback does not create a persisted `user_message`; the logical session stays
 available for a later prompt. CLI and native-tool errors preserve the same diagnostic code.

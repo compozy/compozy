@@ -25,3 +25,9 @@ src: .compozy/tasks/compozy-migration/task_06.md
 QA impact 2026-08-19: Loop runtime selection now carries provider-neutral `normal|fast` speed and
 the existing applied/unsupported/rejected outcome across every durable read surface. Reset to verify
 cross-surface parity, restart continuity, and workspace isolation.
+
+QA impact #914 (2026-10-23): the binder must not substitute requested Fast for an absent effective
+speed when the session resolution is unsupported. This is covered in the existing daemon binder
+suite. Goal/Loop rules now accept ultra and retain exact provider validation. Live Loop/Goal and
+browser journeys were not repeated under this assignment's machine-load restriction; see
+[the scoped report](../reports/2026-10-23-issue-914-fast-reasoning.md).

@@ -20,6 +20,32 @@ type speedConfigMatch struct {
 	selection SessionConfigOptionSelection
 }
 
+// CurrentSpeed returns the speed confirmed by the latest unambiguous ACP option.
+func CurrentSpeed(options []SessionConfigOption) speedpkg.Speed {
+	for _, speed := range []speedpkg.Speed{speedpkg.SpeedNormal, speedpkg.SpeedFast} {
+		if match, _ := matchSpeedConfig(speed, options); match != nil && match.alreadyApplied() {
+			return speed
+		}
+	}
+	return ""
+}
+
+func resolveCurrentSpeed(requested speedpkg.Speed, options []SessionConfigOption) *speedpkg.Resolution {
+	match, reason := matchSpeedConfig(requested, options)
+	resolution := &speedpkg.Resolution{Requested: requested}
+	switch {
+	case match == nil:
+		resolution.Status = speedpkg.ResolutionUnsupported
+		resolution.Reason = reason
+	case match.alreadyApplied():
+		resolution.Status = speedpkg.ResolutionApplied
+	default:
+		resolution.Status = speedpkg.ResolutionRejected
+		resolution.Reason = speedpkg.ReasonProviderRejected
+	}
+	return resolution
+}
+
 func (d *Driver) applySessionSpeed(
 	ctx context.Context,
 	process *AgentProcess,

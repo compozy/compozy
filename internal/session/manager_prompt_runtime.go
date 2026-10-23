@@ -37,14 +37,17 @@ func (m *Manager) ensurePromptRuntime(
 	if reservedProcess != snapshot.process {
 		return nil, errors.New("session: runtime process changed while reserving prompt")
 	}
-	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, *selection) {
+	controlsDrifted := runtimeControlsDrifted(&snapshot)
+	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, *selection) &&
+		!controlsDrifted {
 		return snapshot.process, nil
 	}
 	plan, err := m.preparePromptRuntimePlan(ctx, session, *selection)
 	if err != nil {
 		return nil, err
 	}
-	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, plan.selection) {
+	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, plan.selection) &&
+		!controlsDrifted {
 		return snapshot.process, nil
 	}
 	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
@@ -77,6 +80,21 @@ func (m *Manager) ensurePromptRuntime(
 	}
 
 	return m.replacePromptRuntime(ctx, session, &snapshot, plan)
+}
+
+func runtimeControlsDrifted(snapshot *runtimeBindingSnapshot) bool {
+	if snapshot.process == nil || snapshot.runtimeStrategy != acp.RuntimeApplicationSessionConfig {
+		return false
+	}
+	caps, selection := snapshot.process.CapsSnapshot(), snapshot.selection
+	if selection.ReasoningEffort != "" {
+		if option, ok := acp.ReasoningConfigOption(caps.ConfigOptions); ok &&
+			strings.TrimSpace(option.CurrentValueID) != selection.ReasoningEffort {
+			return true
+		}
+	}
+	currentSpeed := acp.CurrentSpeed(caps.ConfigOptions)
+	return selection.Speed != "" && currentSpeed != "" && currentSpeed != selection.Speed
 }
 
 // bindUnboundPromptRuntime owns the binds that differ for a session without a process:

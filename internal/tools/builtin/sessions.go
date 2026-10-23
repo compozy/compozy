@@ -303,7 +303,7 @@ const sessionPromptInputSchema = `{
 			"properties":{
 				"provider":{"type":"string","minLength":1},
 				"model":{"type":"string"},
-				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max","ultra"]},
 				"speed":{"type":"string","enum":["normal","fast"]}
 			},
 			"additionalProperties":false
@@ -458,7 +458,7 @@ const sessionInputPayloadSchema = `{
 			"properties":{
 				"provider":{"type":"string","minLength":1},
 				"model":{"type":"string"},
-				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+				"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max","ultra"]},
 				"speed":{"type":"string","enum":["normal","fast"]}
 			},
 			"additionalProperties":false

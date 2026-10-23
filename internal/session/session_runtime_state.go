@@ -12,6 +12,7 @@ import (
 )
 
 type runtimeBindingSnapshot struct {
+	runtimeStrategy     acp.RuntimeApplicationStrategy
 	process             *AgentProcess
 	selection           RuntimeSelection
 	status              RuntimeStatus
@@ -41,7 +42,8 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return runtimeBindingSnapshot{
-		process: s.process,
+		runtimeStrategy: s.runtimeStrategyLocked(),
+		process:         s.process,
 		selection: RuntimeSelection{
 			Provider:        s.Provider,
 			Model:           s.Model,
@@ -256,6 +258,7 @@ func (s *Session) markRuntimeUnbound(now time.Time) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.updateFromProcessLocked(s.process, now, false)
 	s.process = nil
 	s.RuntimeStatus = RuntimeStatusUnbound
 	s.RuntimeFailure = ""

@@ -258,8 +258,8 @@ func (b *loopActionSessionBinder) projectActionBindingSpeed(
 			binding.SessionID,
 		)
 	}
-	if info.Speed != "" {
-		binding.AppliedRuntime.Speed = info.Speed
+	if info.Speed != "" || info.SpeedResolution != nil {
+		binding.AppliedRuntime.Speed = info.EffectiveRuntime().Speed
 	}
 	binding.SpeedResolution = speedpkg.CloneResolution(info.SpeedResolution)
 	return binding, nil

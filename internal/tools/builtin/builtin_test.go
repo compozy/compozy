@@ -25,6 +25,50 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 	nativeDescriptors := NativeDescriptors()
 	descriptors := descriptorMap(nativeDescriptors)
 
+	t.Run("Should accept ultra through every runtime input boundary", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{
+				toolspkg.ToolIDSessionPrompt,
+				`{"session_id":"s","message_id":"m","idempotency_key":"k","message":"work","runtime":{"provider":"codex","reasoning_effort":"ultra"}}`,
+			},
+			{
+				toolspkg.ToolIDSessionRuntimeSet,
+				`{"session_id":"s","runtime":{"provider":"codex","reasoning_effort":"ultra"}}`,
+			},
+			{
+				toolspkg.ToolIDGoalControl,
+				`{"session_id":"s","operation":"set","objective":"work","runtime":{"provider":"codex","reasoning_effort":"ultra"}}`,
+			},
+			{
+				toolspkg.ToolIDAgentCreate,
+				`{"scope":"workspace","name":"coder","prompt":"work","provider":"codex","reasoning_effort":"ultra","fallback_chain":[{"provider":"codex","model":"model","reasoning_effort":"ultra"}]}`,
+			},
+			{
+				toolspkg.ToolIDProviderModelsCurate,
+				`{"provider_id":"codex","model_id":"model","default_effort":"ultra"}`,
+			},
+			{
+				toolspkg.ToolIDLoopRun,
+				`{"name":"work","config_overrides":{"runtime_rules":[{"match":{"type":"implementation"},"runtime":{"provider":"codex","reasoning":"ultra"}}]}}`,
+			},
+		}
+		for _, tc := range cases {
+			descriptor := descriptors[tc.id]
+			schema := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
+			var input any
+			if err := json.Unmarshal([]byte(tc.input), &input); err != nil {
+				t.Fatal(err)
+			}
+			if err := schema.Validate(input); err != nil {
+				t.Fatalf("%s rejects ultra: %v", tc.id, err)
+			}
+		}
+	})
+
 	t.Run("Should expose exactly the MVP native tool scope", func(t *testing.T) {
 		t.Parallel()
 

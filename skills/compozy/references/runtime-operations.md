@@ -445,7 +445,11 @@ select `--provider` (a released idle session keeps its selection and needs none)
 and repeatable `--acp-toggle id=true|false` refine that prompt's snapshot. `--speed` defaults to
 `normal`; live catalog descriptors and valid option combinations remain authoritative. Fast is applied
 only when the live descriptor exposes one unambiguous speed option; absent or ambiguous support is
-`unsupported`, and provider refusal is `rejected`.
+`unsupported`, and provider refusal is `rejected`. Provider configuration updates can revoke an earlier
+confirmation: if Fast becomes off, `runtime.effective.speed` becomes `normal` and the requested Fast
+resolution becomes `rejected`. The requested selection is retained and rechecked before the next prompt.
+Reasoning is also read from the latest provider option; `max` and `ultra` are sent unchanged only when
+advertised by the selected model.
 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or

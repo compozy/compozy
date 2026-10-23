@@ -36,3 +36,10 @@ Stop a session while an independent reader retains an earlier snapshot. Close mu
 See [SQLite performance and contention evidence](../reports/2026-10-09-sqlite-performance.md)
 for exact verification and limits. These backend checks do not replace or promote the
 scenario's historical browser/provider verdict.
+
+QA impact #914 (2026-10-23): run Codex with max/normal, select ultra/Fast via the native runtime
+setter, prompt without overrides, then stop and prompt the same logical session. Compare selected
+intent, effective runtime, and ACP readback after each turn. Stopping after a provider disables Fast
+must preserve requested-speed metadata and succeed without claiming Fast is applied. Focused
+replacement/recovery suites also assert exact ultra/Fast forwarding. See
+[the scoped report](../reports/2026-10-23-issue-914-fast-reasoning.md); no new browser verdict is claimed.
