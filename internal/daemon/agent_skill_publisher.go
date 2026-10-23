@@ -152,6 +152,10 @@ func daemonAgentSkillDeclarationProvider(
 	logger *slog.Logger,
 ) agentSkillDeclarationProvider {
 	return func(ctx context.Context) (agentSkillDeclarations, error) {
+		// Explicit publication follows filesystem mutations and must bypass warm read snapshots.
+		if invalidator, ok := workspaceResolver.(interface{ InvalidateAll() }); ok {
+			invalidator.InvalidateAll()
+		}
 		desired := agentSkillDeclarations{}
 		globalScope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
 		globalAgents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths, "")
