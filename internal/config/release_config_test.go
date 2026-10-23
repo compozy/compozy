@@ -518,6 +518,8 @@ func TestReleaseWorkflowConsumesExplicitPlan(t *testing.T) {
 		`release) desktop_channel="${RELEASE_CHANNEL}" ;;`,
 		`stable) desktop_channel="stable" ;;`,
 		"go run ./cmd/compozy-desktop-release compatibility-channels --channel",
+		"ARTIFACT_NAME: desktop-release-${{ matrix.id }}-${{ needs.release-plan.outputs.desktop_channel }}",
+		"name: desktop-release-${{ matrix.id }}-${{ needs.release-plan.outputs.desktop_channel }}",
 		"GITHUB_PRERELEASE: ${{ needs.release-plan.outputs.github_prerelease }}",
 		"GITHUB_MAKE_LATEST: ${{ needs.release-plan.outputs.github_make_latest }}",
 		"NPM_TAG: ${{ needs.release-plan.outputs.npm_tag }}",
