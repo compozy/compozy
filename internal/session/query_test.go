@@ -3816,6 +3816,26 @@ func (c *familyArchiveCatalog) SetSessionArchived(
 
 func TestManagerListAllMetadataCache(t *testing.T) {
 	t.Parallel()
+	t.Run("Should skip metadata removed during reading without an unreadable warning", func(t *testing.T) {
+		t.Parallel()
+		manager := newWorkspaceSessionReadFixture(t, 1, 1)
+		var logs bytes.Buffer
+		manager.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
+			meta, err := store.ReadSessionMeta(path)
+			if err != nil {
+				return meta, err
+			}
+			return meta, os.Remove(path)
+		}
+		infos, err := manager.ListAll(t.Context())
+		if err != nil || len(infos) != 0 {
+			t.Fatalf("removed inventory = %#v, error = %v", infos, err)
+		}
+		if strings.Contains(logs.String(), "session: skip unreadable session metadata") {
+			t.Fatalf("removed metadata reported as unreadable: %s", logs.String())
+		}
+	})
 	t.Run("Should preserve fresh scoped metadata after replacement deletion and caller mutation", func(t *testing.T) {
 		t.Parallel()
 		manager := newWorkspaceSessionReadFixture(t, 4, 2)

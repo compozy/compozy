@@ -86,6 +86,9 @@ func (m *Manager) readInventoryMetadata(id string) (store.SessionMeta, error) {
 	// Cache only stable files; atomic replacements must never inherit the previous identity.
 	after, err := os.Stat(path)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return store.SessionMeta{}, fmt.Errorf("%w: %s", ErrSessionNotFound, target)
+		}
 		return store.SessionMeta{}, err
 	}
 	if os.SameFile(info, after) && info.Size() == after.Size() && info.ModTime().Equal(after.ModTime()) {
