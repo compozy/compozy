@@ -162,3 +162,8 @@ Claude aliases (`sonnet`, `haiku`), `default`, and raw IDs outside the built-in 
 selectable without a binding, including overlays. A long discovery error must remain in provider
 guidance while the row badge stays `Unconfirmed`. Verify aggregate refresh grants every sequential
 probe its complete deadline and live HTTP discovery never uses models.dev's shorter client timeout.
+
+Review follow-up 2026-10-23: with discovery failing and no live bindings, Claude and Cursor
+admission retain `model_unavailable` and the discovery diagnostic without launching a provider.
+The existing HTTP negotiation mapping remains 422. The focused session admission suite passed;
+final-head CI owns the HTTP/integration verification.

@@ -602,24 +602,32 @@ func TestManagerWorkAdmission(t *testing.T) {
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should report live catalog failure before launching a curated Claude model", func(t *testing.T) {
-		t.Parallel()
-		const diagnostic = "live catalog unavailable: context deadline exceeded"
-		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
-			ProviderID: "claude", ModelID: "claude-sonnet-5",
-			Available: new(false), AvailabilityState: modelcatalog.AvailabilityStateUnknown,
-			LastError: diagnostic,
-		}}}))
-		_, err := h.manager.Create(t.Context(), CreateOpts{
-			AgentName: "coder", Provider: "claude", Model: "claude-sonnet-5", Workspace: h.workspaceID,
+	for _, provider := range []string{"claude", "cursor"} {
+		t.Run("Should report typed live catalog failure before launching "+provider, func(t *testing.T) {
+			t.Parallel()
+			const diagnostic = "live catalog unavailable: context deadline exceeded"
+			const modelID = "claude-sonnet-5"
+			h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
+				ProviderID: provider, ModelID: modelID,
+				Available: new(false), AvailabilityState: modelcatalog.AvailabilityStateUnknown,
+				LastError: diagnostic,
+			}}}))
+			_, err := h.manager.Create(t.Context(), CreateOpts{
+				AgentName: "coder", Provider: provider, Model: modelID, Workspace: h.workspaceID,
+			})
+			negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+			if !ok || negotiationErr.Code != acp.NegotiationCodeModelUnavailable ||
+				negotiationErr.Requested != modelID {
+				t.Fatalf("Create() error = %v, want model-unavailable negotiation error for %s", err, modelID)
+			}
+			if !strings.Contains(err.Error(), diagnostic) {
+				t.Fatalf("Create() error = %v, want refresh diagnostic", err)
+			}
+			if len(h.driver.startCalls) != 0 {
+				t.Fatal("unconfirmed model launched")
+			}
 		})
-		if err == nil || !strings.Contains(err.Error(), diagnostic) {
-			t.Fatalf("Create() error = %v, want refresh diagnostic", err)
-		}
-		if len(h.driver.startCalls) != 0 {
-			t.Fatal("unconfirmed model launched")
-		}
-	})
+	}
 
 	for _, provider := range []string{"claude", "cursor"} {
 		t.Run("Should reuse fresh scoped "+provider+" catalog bindings", func(t *testing.T) {
