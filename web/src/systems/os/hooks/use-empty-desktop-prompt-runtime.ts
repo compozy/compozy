@@ -8,6 +8,7 @@ import {
 import { use, useEffect, useRef, useState } from "react";
 
 import {
+  discardComposerDraftAttachments,
   sessionStore,
   SessionAttachmentAdapter,
   SessionPromptRuntimeContext,
@@ -90,6 +91,8 @@ export function useEmptyDesktopPromptRuntime({
         prompt,
         () => {
           sessionStore.trigger.composerDraftDiscarded({ sessionId: draftId });
+          // The new session owns these files now; the next prompt starts empty.
+          discardComposerDraftAttachments(draftId);
           onRelease();
         },
         { files, runtime: selectedRuntime }

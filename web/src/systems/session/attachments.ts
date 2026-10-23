@@ -10,6 +10,11 @@
 export { sessionAttachmentBytesURL, sessionAttachmentIdFromURI } from "./lib/attachment-url";
 export { attachmentsFromPromptMessageParts } from "./lib/attachment-kinds";
 export {
+  composerDraftAttachmentFiles,
+  discardComposerDraftAttachments,
+  recordComposerDraftAttachments,
+} from "./lib/session-composer-attachment-drafts";
+export {
   consumeSubmittedComposerAttachment,
   retainSubmittedComposerAttachments,
 } from "./lib/session-composer-attachment-ownership";

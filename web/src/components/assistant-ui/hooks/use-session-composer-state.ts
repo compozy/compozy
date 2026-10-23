@@ -1,11 +1,13 @@
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
-import { useStore } from "@xstate/store-react";
+import { useSelector, useStore } from "@xstate/store-react";
 import { toast } from "sonner";
 
 import type { SessionComposerInputHandle } from "../session-composer-lexical-plugins";
 import { sessionComposerSyncLogic } from "./session-composer-sync-store";
 import {
+  composerDraftAttachmentFiles,
+  recordComposerDraftAttachments,
   retainSubmittedComposerAttachments,
   sessionStore,
   useSessionComposerDraft,
@@ -40,8 +42,13 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   const aui = useAui();
   const draftText = useSessionComposerDraft(sessionId);
   const composerText = useAuiState(state => state.composer.text);
+  const composerAttachments = useAuiState(state => state.composer.attachments);
   const isRunning = useAuiState(state => state.thread.isRunning);
   const syncStore = useStore(sessionComposerSyncLogic);
+  const restoringAttachments = useSelector(
+    syncStore,
+    snapshot => snapshot.context.restoringAttachments
+  );
   const composerInputHandleRef = useRef<SessionComposerInputHandle | null>(null);
 
   const setComposerInputElement = (handle: SessionComposerInputHandle | null) => {
@@ -140,6 +147,40 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
       persist: text => sessionStore.trigger.composerDraftChanged({ sessionId, text }),
     });
   }, [composerText, draftText, sessionId, syncStore]);
+
+  // The runtime is rebuilt per session, so unsent attachments re-enter the new
+  // composer through the native adapter, which reuses their uploads.
+  useLayoutEffect(() => {
+    // An unsent first prompt re-stages its own files; restoring them too would duplicate them.
+    const firstPromptFiles = new Set(
+      sessionStore.getSnapshot().context.firstPrompts[sessionId]?.files ?? []
+    );
+    syncStore.trigger.attachmentDraftMounted({
+      sessionId,
+      retainedFiles: composerDraftAttachmentFiles(sessionId).filter(
+        file => !firstPromptFiles.has(file)
+      ),
+      composerAttachmentCount: aui.composer.getState().attachments.length,
+      restore: files =>
+        Promise.allSettled(
+          files.map(file =>
+            aui.composer.getState().attachments.some(attachment => attachment.file === file)
+              ? undefined
+              : aui.composer.addAttachment(file)
+          )
+        ),
+      settled: () => syncStore.trigger.attachmentRestoreSettled(),
+    });
+  }, [aui, sessionId, syncStore]);
+
+  useEffect(() => {
+    // A restore in progress publishes a partial list; record once it settles.
+    if (restoringAttachments || syncStore.getSnapshot().context.restoringAttachments) return;
+    recordComposerDraftAttachments(
+      sessionId,
+      composerAttachments.flatMap(attachment => (attachment.file ? [attachment.file] : []))
+    );
+  }, [composerAttachments, restoringAttachments, sessionId, syncStore]);
 
   useAuiEvent("composer.send", () => {
     clearDraftForSession();
