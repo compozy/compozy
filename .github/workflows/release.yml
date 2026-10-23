@@ -1604,7 +1604,7 @@ jobs:
 
       - name: Provision from an empty isolated home
         env:
-          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh" \
@@ -1616,7 +1616,7 @@ jobs:
       - name: Verify Linux AppImage extraction fallback
         if: matrix.platform == 'linux'
         env:
-          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}
+          RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
         run: |
           bash "${RUNNER_TEMP}/smoke-desktop-release-artifact.sh" \

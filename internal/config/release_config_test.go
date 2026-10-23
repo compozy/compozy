@@ -1146,6 +1146,14 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 	t.Run("Should smoke every package before staging the draft", func(t *testing.T) {
 		t.Parallel()
 
+		smoke := workflowJobSection(t, workflow, "desktop-smoke", "desktop-finalize")
+		channel := "RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}"
+		if got := strings.Count(smoke, channel); got != 2 {
+			t.Fatalf("desktop smoke channel bindings = %d, want both provision and extraction to use the app feed", got)
+		}
+		assertNotContainsText(t, "desktop smoke publication channel", smoke,
+			"RELEASE_CHANNEL: ${{ needs.release-plan.outputs.release_channel }}")
+
 		for _, required := range []string{
 			"needs: [release-plan, desktop-build]",
 			"CompozyOS-${{ needs.release-plan.outputs.release_version }}-mac-arm64.dmg",

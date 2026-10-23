@@ -53,3 +53,10 @@ production. This scenario was reset for a targeted release-candidate walk.
 QA verdict 2026-08-07: local planner, preflight, tool ordering, version propagation, remote-tag
 guards, and both real Sigstore bundles passed. The final GitHub-hosted release-PR dry-run remains
 `blocked-verify` until it records both GoReleaser download verification messages on the candidate.
+
+QA impact 2026-10-23: for the beta.39 bridge, publication policy remains `beta`
+while the packaged app reads `stable`. Both packaged provisioning and Linux
+extraction fallback must validate provenance against the planned desktop feed.
+The assertions for app/runtime versions, ownership, and isolation remain intact.
+Re-walk is pending workflow recovery; evidence is tracked in
+`docs/qa/reports/2026-10-23-merge-train-v040.md`.
