@@ -12,6 +12,7 @@ import type { SessionAttentionEventPayload } from "@/systems/session";
 import {
   COMPLETION_COALESCE_MS,
   createAttentionDeliveryEngine,
+  finishedDeliveryBody,
   NEEDS_YOU_DEDUP_MS,
   RESOLVE_GRACE_MS,
   type AttentionDelivery,
@@ -255,6 +256,34 @@ describe("completion coalescing (UT-056)", () => {
     vi.advanceTimersByTime(COMPLETION_COALESCE_MS + 1);
 
     expect(world.batches).toHaveLength(0);
+  });
+});
+
+describe("waiting and the finished toast (UT-065, UT-066)", () => {
+  it("UT-065: an idle → waiting transition delivers nothing", () => {
+    // `waiting` carries attention class none, so the daemon never publishes a
+    // finished edge for it; even a stray one cannot announce a waiting session.
+    const world = harness([target({ id: "sess-a", badge: "waiting" })]);
+    world.engine.ingestEdge(
+      edge({ session_id: "sess-a", from: "idle", to: "waiting", class: "none" })
+    );
+    world.engine.ingestEdge(
+      edge({ session_id: "sess-a", from: "idle", to: "waiting", class: "finished" })
+    );
+    vi.advanceTimersByTime(COMPLETION_COALESCE_MS + RESOLVE_GRACE_MS);
+
+    expect(world.batches).toHaveLength(0);
+  });
+
+  it("UT-066: a finished session with an open PR reads ready for review", () => {
+    const world = harness([target({ id: "sess-a", badge: "done", openPullRequestNumber: 123 })]);
+    world.engine.ingestEdge(edge({ session_id: "sess-a", to: "done", class: "finished" }));
+    vi.advanceTimersByTime(COMPLETION_COALESCE_MS + 1);
+
+    const delivery = world.batches[0]?.[0];
+    const single = delivery?.kind === "finished" ? delivery.targets[0] : undefined;
+    expect(single && finishedDeliveryBody(single)).toBe("#123 ready for review");
+    expect(finishedDeliveryBody(target({ badge: "done" }))).toBe("Finished while you were away");
   });
 });
 

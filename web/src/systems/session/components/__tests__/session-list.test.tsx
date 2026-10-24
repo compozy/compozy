@@ -759,16 +759,21 @@ describe("SessionList subagents", () => {
     expect(clean).not.toHaveAttribute("data-state");
   });
 
-  it("UT-W14: an idle parent with live subagents reads delegated, a running one does not", () => {
+  it("UT-W14: a parent the daemon reports waiting on sessions reads delegated, a running one does not", () => {
     renderList({
       sessions: [
-        row("waiting-parent", { badge: "done", ...summary(2, 2) }),
+        row("waiting-parent", { badge: "waiting", waiting_on: "sessions", ...summary(2, 2) }),
         row("working-parent", { badge: "running", ...summary(2, 2) }),
       ],
     });
 
     const waiting = screen.getByTestId("session-sidebar-session-waiting-parent");
-    expect(within(waiting).getByRole("img")).toHaveAttribute("data-badge", "delegated");
+    const mark = within(waiting).getByRole("img", { name: "Session badge: waiting" });
+    expect(mark).toHaveAttribute("data-waiting-on", "sessions");
+    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "delegated");
+    expect(waiting.closest("li") ?? waiting.parentElement!).toHaveTextContent(
+      "Waiting on sessions"
+    );
     expect(screen.getAllByRole("button", { name: "2 of 2 subagents running" })[0]).toHaveAttribute(
       "data-state",
       "delegated"
@@ -777,17 +782,24 @@ describe("SessionList subagents", () => {
     expect(within(working).getByRole("img")).toHaveAttribute("data-badge", "running");
   });
 
-  it("reads monitoring, not done, while a finished session still has an active monitor", () => {
+  it("UT-075: reads the daemon's waiting reason, never a client guess from monitors or subagents", () => {
     renderList({
       sessions: [
-        row("watching", { badge: "done", monitor_summary: { active: 1 } }),
+        row("watching", {
+          badge: "waiting",
+          waiting_on: "monitor",
+          monitor_summary: { active: 1 },
+        }),
         row("watching-running", { badge: "running", monitor_summary: { active: 1 } }),
-        row("finished", { badge: "done" }),
+        row("finished", { badge: "done", monitor_summary: { active: 1 }, ...summary(1, 1) }),
       ],
     });
 
     const watching = screen.getByTestId("session-sidebar-session-watching");
-    expect(within(watching).getByRole("img")).toHaveAttribute("data-badge", "monitoring");
+    const mark = within(watching).getByRole("img");
+    expect(mark).toHaveAttribute("data-badge", "waiting");
+    expect(mark).toHaveAttribute("data-waiting-on", "monitor");
+    expect(mark.querySelector("[data-state]")).toHaveAttribute("data-state", "monitoring");
     const running = screen.getByTestId("session-sidebar-session-watching-running");
     expect(within(running).getByRole("img")).toHaveAttribute("data-badge", "running");
     const finished = screen.getByTestId("session-sidebar-session-finished");

@@ -6,6 +6,7 @@ import {
   SessionBadgeGlyph,
   sessionBadgeSignal,
   sessionBadgeWordClass,
+  sessionWaitingOn,
   type SessionPayload,
 } from "@/systems/session";
 
@@ -32,18 +33,19 @@ export interface OsPaletteSessionRowProps {
  * stays one step deeper in `data-session-state`.
  */
 export function OsPaletteSessionRow({ session, owner, workspaceLabel }: OsPaletteSessionRowProps) {
-  const signal = sessionBadgeSignal(session.badge);
+  const waitingOn = sessionWaitingOn(session);
+  const signal = sessionBadgeSignal(session.badge, waitingOn);
   const agentName = session.agent_name?.trim() ?? "";
   return (
     <>
-      <SessionBadgeGlyph badge={session.badge} />
+      <SessionBadgeGlyph badge={session.badge} waitingOn={waitingOn} />
       <span className="flex min-w-0 flex-col gap-1">
         <span className="truncate text-small-body leading-none font-medium text-fg-strong">
           {getSessionDisplayTitle(session)}
         </span>
         <span className="flex min-w-0 items-center gap-1.5 text-eyebrow leading-snug text-subtle">
           <span
-            className={cn("shrink-0", sessionBadgeWordClass(session.badge))}
+            className={cn("shrink-0", sessionBadgeWordClass(session.badge, waitingOn))}
             data-session-state={signal.label}
           >
             {signal.displayLabel}
