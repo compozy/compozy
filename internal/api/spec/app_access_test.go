@@ -158,6 +158,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"putLoopInputDefaults",
 			"readSessionAttachmentBytes",
 			"readTaskRunResult",
+			"refreshSessionPullRequest",
 			"refreshSessionSoul",
 			"rejectTask",
 			"removeTaskDependency",
