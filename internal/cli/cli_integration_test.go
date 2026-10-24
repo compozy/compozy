@@ -120,7 +120,8 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,profile_name,name,agent_name,parent_session_id,provider,state,badge,failure_kind,workspace,health_state,health,updated_at}:",
+		"sessions[1]{id,profile_name,name,agent_name,parent_session_id,provider,state,badge,failure_kind,"+
+			"workspace,health_state,health,updated_at,branch,pr,checks,review}:",
 	) || !strings.Contains(toonOut, "page{") || !strings.Contains(toonOut, "has_more") {
 		t.Fatalf("toon output = %q, want TOON table and page metadata", toonOut)
 	}
