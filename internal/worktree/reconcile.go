@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 func (s *Service) RecoverCreations(ctx context.Context) error {
@@ -31,8 +33,7 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 			recoverErr = errors.Join(recoverErr, s.recoverPending(ctx, workspace, item))
 		case StateRemoving:
 			if capabilityErr == nil {
-				_, removeErr := s.removeFenced(ctx, item, false)
-				recoverErr = errors.Join(recoverErr, removeErr)
+				recoverErr = errors.Join(recoverErr, s.recoverRemoval(ctx, item))
 			}
 		case StateMissing:
 			if capabilityErr == nil {
@@ -72,6 +73,21 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 	}
 
 	return recoverErr
+}
+
+// recoverRemoval finishes a removal interrupted by a daemon stop. A refusal,
+// such as a checkout the interrupted Git command left orphaned, returns the
+// record to ready for the user to decide; it must not fail daemon startup.
+func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
+	refusalResult, err := s.removeFenced(ctx, item, false)
+	if refusalResult == nil && !errors.Is(err, ErrCheckoutOrphaned) {
+		return err
+	}
+	s.logger.WarnContext(
+		ctx, "interrupted worktree removal needs confirmation",
+		"worktree_id", item.ID, "error", diagnostics.RedactAndBound(fmt.Sprint(err), 2048),
+	)
+	return nil
 }
 
 func (s *Service) recoverPending(ctx context.Context, workspace Workspace, item Worktree) error {

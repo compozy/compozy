@@ -52,6 +52,12 @@ type GitIndexRunner interface {
 	RunWithIndex(context.Context, string, string, ...string) ([]byte, []byte, error)
 }
 
+// GitTimeoutRunner runs one command under its own budget instead of the
+// runner default, for operations whose duration scales with the checkout.
+type GitTimeoutRunner interface {
+	RunWithTimeout(context.Context, string, time.Duration, ...string) ([]byte, []byte, error)
+}
+
 type RealGitRunner struct {
 	executable string
 	timeout    time.Duration
@@ -175,21 +181,31 @@ func (r *RealGitRunner) run(
 	onOutput GitOutputHandler,
 	args ...string,
 ) ([]byte, []byte, error) {
-	return r.runCommand(ctx, dir, "", "", onOutput, args...)
+	return r.runCommand(ctx, dir, "", "", onOutput, 0, args...)
 }
 
 func (r *RealGitRunner) RunWithIndex(ctx context.Context, dir, index string, args ...string) ([]byte, []byte, error) {
-	return r.runCommand(ctx, dir, index, "", nil, args...)
+	return r.runCommand(ctx, dir, index, "", nil, 0, args...)
 }
 
 func (r *RealGitRunner) RunWithInput(ctx context.Context, dir, input string, args ...string) ([]byte, []byte, error) {
-	return r.runCommand(ctx, dir, "", input, nil, args...)
+	return r.runCommand(ctx, dir, "", input, nil, 0, args...)
+}
+
+func (r *RealGitRunner) RunWithTimeout(
+	ctx context.Context,
+	dir string,
+	timeout time.Duration,
+	args ...string,
+) ([]byte, []byte, error) {
+	return r.runCommand(ctx, dir, "", "", nil, timeout, args...)
 }
 
 func (r *RealGitRunner) runCommand(
 	ctx context.Context,
 	dir, index, input string,
 	onOutput GitOutputHandler,
+	timeout time.Duration,
 	args ...string,
 ) ([]byte, []byte, error) {
 	if r == nil || strings.TrimSpace(r.executable) == "" {
@@ -235,11 +251,7 @@ func (r *RealGitRunner) runCommand(
 
 	waitCh := make(chan error, 1)
 	go func() { waitCh <- cmd.Wait() }()
-	timeout := r.timeout
-	if timeout <= 0 {
-		timeout = defaultGitTimeout
-	}
-	timer := time.NewTimer(timeout)
+	timer := time.NewTimer(r.commandTimeout(timeout))
 	defer timer.Stop()
 
 	select {
@@ -267,6 +279,17 @@ func (r *RealGitRunner) runCommand(
 			gitCommandError(args, stderr.String(), context.DeadlineExceeded), killErr, waitErr,
 		)
 	}
+}
+
+// commandTimeout prefers a per-call budget, then the runner's, then the default.
+func (r *RealGitRunner) commandTimeout(requested time.Duration) time.Duration {
+	if requested > 0 {
+		return requested
+	}
+	if r.timeout > 0 {
+		return r.timeout
+	}
+	return defaultGitTimeout
 }
 
 func gitEnvironment(parent []string) []string {
@@ -305,3 +328,5 @@ var _ StreamingGitRunner = (*RealGitRunner)(nil)
 var _ GitIndexRunner = (*RealGitRunner)(nil)
 
 var _ GitInputRunner = (*RealGitRunner)(nil)
+
+var _ GitTimeoutRunner = (*RealGitRunner)(nil)

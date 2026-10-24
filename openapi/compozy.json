@@ -44553,6 +44553,9 @@
           "downgrade": {
             "type": "boolean"
           },
+          "error": {
+            "type": "string"
+          },
           "risk": {
             "$ref": "#/components/schemas/WorktreeRemovalRiskPayload"
           }
@@ -44578,6 +44581,9 @@
           "insertions": {
             "type": "integer"
           },
+          "leftover_files": {
+            "type": "integer"
+          },
           "unpushed_commits": {
             "type": "integer"
           }
@@ -44587,6 +44593,7 @@
           "deletions",
           "exists_on_remote",
           "insertions",
+          "leftover_files",
           "unpushed_commits"
         ],
         "type": "object"

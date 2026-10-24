@@ -11922,6 +11922,7 @@ export type WorktreePolicy = {
 export type WorktreeRemovalRefusalPayload = {
   code: string;
   downgrade: boolean;
+  error?: string;
   risk: WorktreeRemovalRiskPayload;
 };
 
@@ -11930,6 +11931,7 @@ export type WorktreeRemovalRiskPayload = {
   deletions: number;
   exists_on_remote: boolean;
   insertions: number;
+  leftover_files: number;
   unpushed_commits: number;
 };
 

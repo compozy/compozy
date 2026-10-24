@@ -20,6 +20,9 @@ export const WORKTREE_ERROR_CODES = {
   adoptionUnreadable: "adoption_unreadable",
   notFound: "worktree_not_found",
   discoveredChanged: "worktree_discovered_changed",
+  checkoutOrphaned: "worktree_checkout_orphaned",
+  removalFailed: "worktree_removal_failed",
+  safetyCheckFailed: "worktree_safety_check_failed",
 } as const;
 
 /** Quantified loss for a removal refusal. Rendered verbatim, never rounded. */
@@ -30,6 +33,8 @@ export interface WorktreeRemovalRisk {
   unpushedCommits: number;
   /** The commits also live on a remote, so the local loss is recoverable. */
   existsOnRemote: boolean;
+  /** Files left in an orphaned checkout; Git cannot tell which hold changes. */
+  leftoverFiles: number;
 }
 
 export interface WorktreeRefusal {
@@ -73,7 +78,18 @@ function readRisk(body: Record<string, unknown>): WorktreeRemovalRisk | null {
     deletions: readNumber(risk, "deletions"),
     unpushedCommits: readNumber(risk, "unpushed_commits"),
     existsOnRemote: risk.exists_on_remote === true,
+    leftoverFiles: readNumber(risk, "leftover_files"),
   };
+}
+
+/** Refusals that name a quantified loss the user may accept with force. */
+export function isForceableRemovalRefusal(refusal: WorktreeRefusal | null | undefined): boolean {
+  return (
+    refusal?.risk != null &&
+    (refusal.code === WORKTREE_ERROR_CODES.dirtyRequiresForce ||
+      refusal.code === WORKTREE_ERROR_CODES.unpushedRequiresForce ||
+      refusal.code === WORKTREE_ERROR_CODES.checkoutOrphaned)
+  );
 }
 
 /**
@@ -134,6 +150,12 @@ function refusalMessage(code: string, fallback: string): string {
       return "Its metadata belongs to a different repository. Nothing was changed.";
     case WORKTREE_ERROR_CODES.adoptionUnreadable:
       return "Its linked-worktree metadata could not be verified. Nothing was changed.";
+    case WORKTREE_ERROR_CODES.checkoutOrphaned:
+      return "Its Git metadata (.git) is missing, so this folder is left over from an interrupted removal. Nothing was removed.";
+    case WORKTREE_ERROR_CODES.removalFailed:
+      return "Git could not remove this worktree. The daemon log has the details.";
+    case WORKTREE_ERROR_CODES.safetyCheckFailed:
+      return "CompozyOS could not check this worktree for unsaved work. Nothing was removed.";
     default:
       return fallback;
   }

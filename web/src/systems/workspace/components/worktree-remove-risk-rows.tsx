@@ -1,4 +1,4 @@
-import { ArrowUpFromLine, FileDiff } from "lucide-react";
+import { ArrowUpFromLine, FileDiff, FileX } from "lucide-react";
 
 import { Icon, cn } from "@compozy/ui";
 
@@ -63,6 +63,15 @@ export function WorktreeRemovalRiskRows({
           what={`${risk.changedFiles} changed ${risk.changedFiles === 1 ? "file" : "files"}`}
           quantity={`+${risk.insertions} −${risk.deletions}`}
           why={`Uncommitted changes in ${worktreeName}. Removing the checkout discards them.`}
+        />
+      ) : null}
+      {risk.leftoverFiles > 0 ? (
+        <WorktreeRiskRow
+          compact={compact}
+          icon={FileX}
+          what={`${risk.leftoverFiles} leftover ${risk.leftoverFiles === 1 ? "file" : "files"}`}
+          quantity="no .git"
+          why={`${worktreeName} lost its Git metadata, so Git cannot tell which files changed. Force remove deletes all of them.`}
         />
       ) : null}
       {risk.unpushedCommits > 0 ? (

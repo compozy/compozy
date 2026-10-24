@@ -183,7 +183,7 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 	t.Run("Should preserve the API refusal payload in CLI JSON", func(t *testing.T) {
 		t.Parallel()
 
-		const body = `{"code":"worktree_dirty_requires_force","risk":{"changed_files":2,"insertions":4,"deletions":1,"unpushed_commits":3,"exists_on_remote":false},"downgrade":false}`
+		const body = `{"code":"worktree_dirty_requires_force","error":"The worktree has uncommitted changes. Force removal discards them.","risk":{"changed_files":2,"insertions":4,"deletions":1,"unpushed_commits":3,"exists_on_remote":false,"leftover_files":0},"downgrade":false}`
 		apiErr := readAPIErrorBody(http.StatusConflict, "409 Conflict", []byte(body))
 		client := withWorkspaceResolution(&stubClient{inspectWorktreeFn: func(
 			_ context.Context,
@@ -220,7 +220,7 @@ func TestWorktreeRemovalRefusalOutput(t *testing.T) {
 	t.Run("Should remove a discovered path without resolving a ref and keep its refusal", func(t *testing.T) {
 		t.Parallel()
 
-		const body = `{"code":"worktree_unpushed_requires_force","risk":{"changed_files":0,"insertions":0,"deletions":0,"unpushed_commits":1,"exists_on_remote":false},"downgrade":false}`
+		const body = `{"code":"worktree_checkout_orphaned","error":"The checkout's Git metadata (.git) is missing; the directory is left over from an interrupted removal. Force removal deletes the leftover files and clears Git's entry.","risk":{"changed_files":0,"insertions":0,"deletions":0,"unpushed_commits":1,"exists_on_remote":false,"leftover_files":12},"downgrade":false}`
 		calls := 0
 		client := withWorkspaceResolution(&stubClient{removeDiscoveredFn: func(
 			_ context.Context,

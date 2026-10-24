@@ -147,7 +147,17 @@ combined with a ref or `--delete-branch`. A path that a live record owns, in thi
 workspace on the same repository, is refused with `worktree_registered`: remove that record by its ref. The `worktree.pre_remove` gate runs with
 `discovered: true`, an empty `worktree_id` and no `origin`.
 
-In Web bulk removal, **Retry failed** remains non-force. A dirty/unpushed refusal with a risk
+An orphaned checkout is a folder that still exists while its `.git` link is gone and Git still
+registers it (`prunable`), usually left by an interrupted removal. Git refuses to remove it even with
+force, so CompozyOS answers `409 worktree_checkout_orphaned` on both the record and the `--path` route,
+with an `error` sentence and a risk inventory: `risk.leftover_files` counts every leftover file (Git
+cannot tell which changed) and `risk.unpushed_commits` counts commits only a detached HEAD still
+holds. Nothing is removed. Retry with `--force` after review: CompozyOS deletes the leftover folder,
+then clears only that entry from Git's list; the branch is kept unless `--delete-branch` applies its
+usual rules. A daemon restart during a removal leaves such a record `ready` for this decision instead
+of failing startup.
+
+In Web bulk removal, **Retry failed** remains non-force. A dirty/unpushed/orphaned refusal with a risk
 inventory offers **Force remove…**, which opens a second confirmation listing only eligible
 worktrees and their changed files and unique commits. Confirming retries only those targets with
 force. With **Also delete local branches** selected, this also authorizes deletion of their unmerged
@@ -172,7 +182,8 @@ Branch on the deterministic API/CLI code before free-form text. The worktree voc
 `adoption_main_checkout`, `adoption_foreign_repository`, `adoption_unreadable`,
 `worktree_registered`, `worktree_discovered_changed`, `worktree_operation_in_progress`, `worktree_session_active`, `worktree_status_unreadable`,
 `worktree_dirty_requires_force`, `worktree_unpushed_requires_force`,
-`worktree_safety_check_failed`, `worktree_removal_failed`, `per_run_materialization_failed`,
+`worktree_safety_check_failed`, `worktree_removal_failed`, `worktree_checkout_orphaned`,
+`per_run_materialization_failed`,
 `worktree_config_invalid`, `worktree_denied_by_hook`, `worktree_not_pending`, `forge_unavailable`,
 `forge_error`, and `worktree_exit_action_invalid`.
 

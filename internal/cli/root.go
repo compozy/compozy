@@ -287,6 +287,7 @@ func marshalWorktreeRemovalExecutionError(
 				"deletions",
 				"unpushed_commits",
 				"exists_on_remote",
+				"leftover_files",
 				"downgrade",
 			},
 			[]string{
@@ -296,6 +297,7 @@ func marshalWorktreeRemovalExecutionError(
 				fmt.Sprintf("%d", payload.Risk.Deletions),
 				fmt.Sprintf("%d", payload.Risk.UnpushedCommits),
 				fmt.Sprintf("%t", payload.Risk.ExistsOnRemote),
+				fmt.Sprintf("%d", payload.Risk.LeftoverFiles),
 				fmt.Sprintf("%t", payload.Downgrade),
 			},
 		)), true

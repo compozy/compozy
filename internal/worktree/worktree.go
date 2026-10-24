@@ -208,13 +208,16 @@ var (
 	ErrUnpushedRequiresForce  = errors.New("worktree_unpushed_requires_force")
 	ErrSafetyCheckFailed      = errors.New("worktree_safety_check_failed")
 	ErrRemovalFailed          = errors.New("worktree_removal_failed")
-	ErrPerRunMaterialization  = errors.New("per_run_materialization_failed")
-	ErrConfigInvalid          = errors.New("worktree_config_invalid")
-	ErrDeniedByHook           = errors.New("worktree_denied_by_hook")
-	ErrNotPending             = errors.New("worktree_not_pending")
-	ErrForgeUnavailable       = errors.New("forge_unavailable")
-	ErrForge                  = errors.New("forge_error")
-	ErrExitActionInvalid      = errors.New("worktree_exit_action_invalid")
+	// ErrCheckoutOrphaned names a checkout directory whose .git link is gone
+	// while Git still registers it, usually after an interrupted removal.
+	ErrCheckoutOrphaned      = errors.New("worktree_checkout_orphaned")
+	ErrPerRunMaterialization = errors.New("per_run_materialization_failed")
+	ErrConfigInvalid         = errors.New("worktree_config_invalid")
+	ErrDeniedByHook          = errors.New("worktree_denied_by_hook")
+	ErrNotPending            = errors.New("worktree_not_pending")
+	ErrForgeUnavailable      = errors.New("forge_unavailable")
+	ErrForge                 = errors.New("forge_error")
+	ErrExitActionInvalid     = errors.New("worktree_exit_action_invalid")
 )
 
 type RefusalError struct {

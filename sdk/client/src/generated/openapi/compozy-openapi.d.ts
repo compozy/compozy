@@ -19708,6 +19708,7 @@ export interface components {
     WorktreeRemovalRefusalPayload: {
       code: string;
       downgrade: boolean;
+      error?: string;
       risk: components["schemas"]["WorktreeRemovalRiskPayload"];
     };
     WorktreeRemovalRiskPayload: {
@@ -19715,6 +19716,7 @@ export interface components {
       deletions: number;
       exists_on_remote: boolean;
       insertions: number;
+      leftover_files: number;
       unpushed_commits: number;
     };
     WorktreeRepoPayload: {
