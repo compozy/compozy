@@ -91,7 +91,7 @@ describe("useLoopDetail", () => {
       fetchNextPage: vi.fn(),
       hasNextPage: false,
       isFetchingNextPage: false,
-      isLoading: false,
+      isPending: false,
       jobs: [],
       total: 0,
     });
@@ -100,7 +100,7 @@ describe("useLoopDetail", () => {
       fetchNextPage: vi.fn(),
       hasNextPage: false,
       isFetchingNextPage: false,
-      isLoading: false,
+      isPending: false,
       total: 0,
       triggers: [],
     });
@@ -163,6 +163,39 @@ describe("useLoopDetail", () => {
         },
       ],
     ]);
+  });
+
+  // Invariant: a Loop's bindings are pending until both automation reads have answered. A read
+  // held back until its scope resolves is not fetching, but it has not answered either, so the
+  // rail holds the place of the answer instead of saying the Loop starts by hand.
+  it.each([
+    { name: "the schedules read", jobs: true, triggers: false },
+    { name: "the event automations read", jobs: false, triggers: true },
+  ])("Should keep the bindings pending while $name has no data, fetching or not", pending => {
+    const read = (isPending: boolean) => ({
+      error: null,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+      isPending,
+      jobs: [],
+      total: 0,
+      triggers: [],
+    });
+    mocks.useAutomationJobs.mockReturnValue(read(pending.jobs));
+    mocks.useAutomationTriggers.mockReturnValue(read(pending.triggers));
+
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"));
+
+    expect(result.current.bindings.isPending).toBe(true);
+    expect(result.current.bindings.rows).toEqual([]);
+  });
+
+  it("Should settle the bindings once both automation reads have answered", () => {
+    const { result } = renderHook(() => useLoopDetail("review-and-fix"));
+
+    expect(result.current.bindings.isPending).toBe(false);
   });
 
   it("Should open the Automations editor locked to this Loop [UT-114]", () => {
